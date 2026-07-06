@@ -50,7 +50,9 @@ export const usePermiso = () => {
       .filter(([, permitido]) => permitido)
       .map(([clave]) => {
         // "GET /api/marcas/:id" → RegExp que acepta UUIDs en lugar de :id
-        const patron = clave
+        // Normalizar clave quitando /api para consistencia
+      const claveNorm = clave.replace(/^\/api/, '');
+      const patron = claveNorm
           .replace(/:[^\s/]+/g, '[^/]+')   // :id → cualquier segmento
           .replace(/\//g, '\\/');            // escapamos las barras
         return new RegExp(`^${patron}$`, 'i');
@@ -75,7 +77,13 @@ export const usePermiso = () => {
       // Mientras carga, ocultamos por seguridad
       if (cargando) return false;
 
-      const test = `${metodo.toUpperCase()} ${ruta.replace(/\/+$/, '')}`;
+      // Normalizar ruta: quitar /api si viene con ese prefijo
+      // Los permisos en BD están sin /api pero los componentes pueden pasarla con o sin él
+      const rutaNormalizada = ruta
+        .replace(/^\/api/, '')   // quita el /api del inicio
+        .replace(/\/+$/, '');    // quita trailing slash
+
+      const test = `${metodo.toUpperCase()} ${rutaNormalizada}`;
 
       // Primero intentamos coincidencia exacta (más rápido)
       if (permisos[test] === true) return true;

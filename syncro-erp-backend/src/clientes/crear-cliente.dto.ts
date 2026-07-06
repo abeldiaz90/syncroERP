@@ -23,6 +23,10 @@ export class CrearClienteDto {
 
   @IsOptional()
   @IsString()
+  curp?: string;
+
+  @IsOptional()
+  @IsString()
   razonSocial?: string;
 
   @IsOptional()

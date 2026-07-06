@@ -37,4 +37,21 @@ export class Usuario {
 
   @Column({ type: 'uniqueidentifier', nullable: true })
   departamentoId?: string;
+
+  // ── Verificación de email ─────────────────────────────────────────
+  @Column({ type: 'bit', default: 0 })
+  emailVerificado!: boolean;
+
+  @Column({ type: 'nvarchar', length: 64, nullable: true })
+  tokenVerificacion!: string | null;
+
+  @Column({ type: 'datetime2', nullable: true })
+  tokenExpira!: Date | null;
+
+  // ── Recuperación de contraseña ────────────────────────────────────
+  @Column({ type: 'nvarchar', length: 64, nullable: true })
+  tokenRecuperacion!: string | null;
+
+  @Column({ type: 'datetime2', nullable: true })
+  tokenRecuperacionExpira!: Date | null;
 }

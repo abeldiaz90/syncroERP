@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, MoreThan } from 'typeorm';
+
 import { Producto } from '../entities/producto.entity';
 import { MovimientoInventario } from '../entities/movimiento-inventario.entity';
 import { LoteInventario } from '../entities/lote-inventario.entity';
@@ -13,6 +14,8 @@ import { ProductoEquivalencia } from '../entities/producto-equivalencia.entity';
 import { StockPorAlmacen } from '../entities/stock-por-almacen.entity';
 import { Almacen } from '../entities/almacen.entity';
 import { StockService } from './stock.service';
+
+import { MotorContableService } from '../../finanzas/services/motor-contable.service';
 
 @Injectable()
 export class InventarioService {
@@ -29,6 +32,7 @@ export class InventarioService {
     private readonly equivalenciaRepository: Repository<ProductoEquivalencia>,
     private readonly stockService: StockService,
     private readonly dataSource: DataSource,
+    private readonly motorContable: MotorContableService,
   ) {}
 
   async registrarCompra(
@@ -51,6 +55,7 @@ export class InventarioService {
 
       const producto = await em.findOne(Producto, {
         where: { id: productoId, empresaId },
+        relations: ['categoria'], 
       });
       if (!producto) throw new NotFoundException('Producto no encontrado');
 
@@ -126,6 +131,7 @@ export class InventarioService {
 
       const producto = await em.findOne(Producto, {
         where: { id: productoId, empresaId },
+        relations: ['categoria'],
       });
       if (!producto) throw new NotFoundException('Producto no encontrado');
 
@@ -241,6 +247,8 @@ export class InventarioService {
         throw new BadRequestException(`Stock insuficiente en origen (disponible: ${stockOrigen})`);
       }
 
+      // Al usar registrarSalida y registrarCompra con la palabra 'TRANSFER',
+      // el concepto de las pólizas se etiquetará correctamente.
       await this.registrarSalida(
         productoId,
         origenId,
@@ -286,27 +294,33 @@ export class InventarioService {
 
     const ejecutar = async (em: EntityManager) => {
       if (tipo === 'MERMA') {
+        const producto = await em.findOne(Producto, {
+          where: { id: productoId, empresaId },
+          relations: ['categoria'],
+        });
         await this.registrarSalida(
-          productoId,
-          almacenId,
-          cantidad,
-          `Merma: ${motivo}`,
-          empresaId,
-          undefined,
-          loteEspecificoId,
-          em,
+          productoId, almacenId, cantidad,
+          `Merma: ${motivo}`, empresaId,
+          undefined, loteEspecificoId, em,
         );
+        // Asiento: Dr. Mermas / Cr. Inventario (no bloquea si falla)
+        this.motorContable.generarAsientoDeSalida({
+          movimientoId: `merma-${Date.now()}`,
+          tipo: 'MERMA',
+          motivo,
+          fecha: new Date(),
+          empresaId,
+          detalles: [{
+            productoId,
+            cantidad,
+            costoUnitario: Number(producto?.precioCompra || 0),
+          }],
+        }).catch(e => console.error('[MotorContable] Error merma:', e?.message));
       } else {
         await this.registrarCompra(
-          productoId,
-          almacenId,
-          cantidad,
+          productoId, almacenId, cantidad,
           `Ajuste manual (ingreso): ${motivo}`,
-          empresaId,
-          'AJUSTE',
-          undefined,
-          undefined,
-          em,
+          empresaId, 'AJUSTE', undefined, undefined, em,
         );
       }
       return { mensaje: 'Ajuste realizado' };

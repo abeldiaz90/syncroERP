@@ -17,6 +17,10 @@ export class CrearVentaDto {
   metodoPago: string;
 
   @IsOptional()
+  @IsString()
+  cuentaBancariaId?: string | null;
+
+  @IsOptional()
   @Transform(({ value }) => value === '' ? null : value)
   almacenId?: string | null;
 

@@ -1,8 +1,9 @@
 import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ModulesContainer } from '@nestjs/core';
+import { Repository, DataSource } from 'typeorm';
+import { ModulesContainer, Reflector } from '@nestjs/core';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import { NAVEGABLE_KEY, NavegableMeta } from '../decorators/navegable.decorator';
 import { Controlador } from '../entities/controlador.entity';
 import { Endpoint } from '../entities/endpoint.entity';
 import { RolEndpointPermiso } from '../entities/rol-endpoint-permiso.entity';
@@ -23,31 +24,32 @@ interface ModuloMeta {
   rutaFrontendBase: string;
 }
 
+// Estos diccionarios actúan SOLO como valores por defecto iniciales
 const MODULOS_META: Record<string, ModuloMeta> = {
   'ventas':           { titulo: 'Ventas',           icono: 'ShoppingBag',      seccion: 'Operaciones',    orden: 1,  rutaFrontendBase: '/dashboard/ventas' },
-  'pos':              { titulo: 'Punto de Venta',    icono: 'ShoppingBag',      seccion: 'Operaciones',    orden: 2,  rutaFrontendBase: '/dashboard/ventas/pos' },
-  'requisiciones':    { titulo: 'Compras',           icono: 'ShoppingCart',     seccion: 'Operaciones',    orden: 3,  rutaFrontendBase: '/dashboard/compras' },
-  'cotizaciones':     { titulo: 'Compras',           icono: 'ShoppingCart',     seccion: 'Operaciones',    orden: 4,  rutaFrontendBase: '/dashboard/compras' },
-  'ordenes':          { titulo: 'Compras',           icono: 'ShoppingCart',     seccion: 'Operaciones',    orden: 5,  rutaFrontendBase: '/dashboard/compras' },
-  'aprobaciones':     { titulo: 'Compras',           icono: 'ShoppingCart',     seccion: 'Operaciones',    orden: 6,  rutaFrontendBase: '/dashboard/compras' },
-  'clientes':         { titulo: 'Clientes',          icono: 'Users',            seccion: 'Catálogos Core', orden: 10, rutaFrontendBase: '/dashboard/clientes' },
-  'proveedores':      { titulo: 'Proveedores',       icono: 'Truck',            seccion: 'Catálogos Core', orden: 11, rutaFrontendBase: '/dashboard/proveedores' },
-  'productos':        { titulo: 'Inventario',        icono: 'Package',          seccion: 'Catálogos Core', orden: 20, rutaFrontendBase: '/dashboard/productos' },
-  'catalogo':         { titulo: 'Inventario',        icono: 'Package',          seccion: 'Catálogos Core', orden: 20, rutaFrontendBase: '/dashboard/productos' },
-  'categorias':       { titulo: 'Inventario',        icono: 'Package',          seccion: 'Catálogos Core', orden: 21, rutaFrontendBase: '/dashboard/categorias' },
-  'marcas':           { titulo: 'Inventario',        icono: 'Package',          seccion: 'Catálogos Core', orden: 22, rutaFrontendBase: '/dashboard/marcas' },
-  'almacenes':        { titulo: 'Inventario',        icono: 'Package',          seccion: 'Catálogos Core', orden: 23, rutaFrontendBase: '/dashboard/almacenes' },
-  'inventario':       { titulo: 'Inventario',        icono: 'Package',          seccion: 'Catálogos Core', orden: 24, rutaFrontendBase: '/dashboard/inventario' },
-  'recepciones':      { titulo: 'Inventario',        icono: 'Package',          seccion: 'Catálogos Core', orden: 25, rutaFrontendBase: '/dashboard/inventario/recepciones' },
-  'impuestos':        { titulo: 'Finanzas & Loc.',   icono: 'CircleDollarSign', seccion: 'Sistema',        orden: 30, rutaFrontendBase: '/dashboard/impuestos' },
-  'bancos':           { titulo: 'Finanzas & Loc.',   icono: 'CircleDollarSign', seccion: 'Sistema',        orden: 31, rutaFrontendBase: '/dashboard/catalogos/bancos' },
-  'catalogos':        { titulo: 'Finanzas & Loc.',   icono: 'CircleDollarSign', seccion: 'Sistema',        orden: 32, rutaFrontendBase: '/dashboard/catalogos' },
-  'listas-precio':    { titulo: 'Finanzas & Loc.',   icono: 'CircleDollarSign', seccion: 'Sistema',        orden: 33, rutaFrontendBase: '/dashboard/listas-precio' },
-  'usuarios':         { titulo: 'Administración',    icono: 'Settings',         seccion: 'Sistema',        orden: 40, rutaFrontendBase: '/dashboard/usuarios' },
-  'departamentos':    { titulo: 'Administración',    icono: 'Settings',         seccion: 'Sistema',        orden: 41, rutaFrontendBase: '/dashboard/departamentos' },
-  'permisos':         { titulo: 'Administración',    icono: 'Settings',         seccion: 'Sistema',        orden: 42, rutaFrontendBase: '/dashboard/permisos' },
-  'admin':            { titulo: 'Administración',    icono: 'Settings',         seccion: 'Sistema',        orden: 43, rutaFrontendBase: '/dashboard/permisos' },
-  'configuraciones-aprobacion': { titulo: 'Administración', icono: 'Settings',  seccion: 'Sistema',        orden: 44, rutaFrontendBase: '/dashboard/configuraciones-aprobacion' },
+  'pos':              { titulo: 'Punto de Venta',   icono: 'ShoppingBag',      seccion: 'Operaciones',    orden: 2,  rutaFrontendBase: '/dashboard/ventas/pos' },
+  'requisiciones':    { titulo: 'Compras',          icono: 'ShoppingCart',     seccion: 'Operaciones',    orden: 3,  rutaFrontendBase: '/dashboard/compras' },
+  'cotizaciones':     { titulo: 'Compras',          icono: 'ShoppingCart',     seccion: 'Operaciones',    orden: 4,  rutaFrontendBase: '/dashboard/compras' },
+  'ordenes':          { titulo: 'Compras',          icono: 'ShoppingCart',     seccion: 'Operaciones',    orden: 5,  rutaFrontendBase: '/dashboard/compras' },
+  'aprobaciones':     { titulo: 'Compras',          icono: 'ShoppingCart',     seccion: 'Operaciones',    orden: 6,  rutaFrontendBase: '/dashboard/compras' },
+  'clientes':         { titulo: 'Clientes',         icono: 'Users',            seccion: 'Catálogos Core', orden: 10, rutaFrontendBase: '/dashboard/clientes' },
+  'proveedores':      { titulo: 'Proveedores',      icono: 'Truck',            seccion: 'Catálogos Core', orden: 11, rutaFrontendBase: '/dashboard/proveedores' },
+  'productos':        { titulo: 'Inventario',       icono: 'Package',          seccion: 'Catálogos Core', orden: 20, rutaFrontendBase: '/dashboard/productos' },
+  'catalogo':         { titulo: 'Inventario',       icono: 'Package',          seccion: 'Catálogos Core', orden: 20, rutaFrontendBase: '/dashboard/productos' },
+  'categorias':       { titulo: 'Inventario',       icono: 'Package',          seccion: 'Catálogos Core', orden: 21, rutaFrontendBase: '/dashboard/categorias' },
+  'marcas':           { titulo: 'Inventario',       icono: 'Package',          seccion: 'Catálogos Core', orden: 22, rutaFrontendBase: '/dashboard/marcas' },
+  'almacenes':        { titulo: 'Inventario',       icono: 'Package',          seccion: 'Catálogos Core', orden: 23, rutaFrontendBase: '/dashboard/almacenes' },
+  'inventario':       { titulo: 'Inventario',       icono: 'Package',          seccion: 'Catálogos Core', orden: 24, rutaFrontendBase: '/dashboard/inventario' },
+  'recepciones':      { titulo: 'Inventario',       icono: 'Package',          seccion: 'Catálogos Core', orden: 25, rutaFrontendBase: '/dashboard/inventario/recepciones' },
+  'impuestos':        { titulo: 'Finanzas & Loc.',  icono: 'CircleDollarSign', seccion: 'Sistema',        orden: 30, rutaFrontendBase: '/dashboard/impuestos' },
+  'bancos':           { titulo: 'Finanzas & Loc.',  icono: 'CircleDollarSign', seccion: 'Sistema',        orden: 31, rutaFrontendBase: '/dashboard/catalogos/bancos' },
+  'catalogos':        { titulo: 'Finanzas & Loc.',  icono: 'CircleDollarSign', seccion: 'Sistema',        orden: 32, rutaFrontendBase: '/dashboard/catalogos' },
+  'listas-precio':    { titulo: 'Finanzas & Loc.',  icono: 'CircleDollarSign', seccion: 'Sistema',        orden: 33, rutaFrontendBase: '/dashboard/listas-precio' },
+  'usuarios':         { titulo: 'Administración',   icono: 'Settings',         seccion: 'Sistema',        orden: 40, rutaFrontendBase: '/dashboard/usuarios' },
+  'departamentos':    { titulo: 'Administración',   icono: 'Settings',         seccion: 'Sistema',        orden: 41, rutaFrontendBase: '/dashboard/departamentos' },
+  'permisos':         { titulo: 'Administración',   icono: 'Settings',         seccion: 'Sistema',        orden: 42, rutaFrontendBase: '/dashboard/permisos' },
+  'admin':            { titulo: 'Administración',   icono: 'Settings',         seccion: 'Sistema',        orden: 43, rutaFrontendBase: '/dashboard/permisos' },
+  'configuraciones-aprobacion': { titulo: 'Administración', icono: 'Settings', seccion: 'Sistema',      orden: 44, rutaFrontendBase: '/dashboard/configuraciones-aprobacion' },
 };
 
 interface EndpointNavMeta {
@@ -57,31 +59,50 @@ interface EndpointNavMeta {
 }
 
 const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
-  'GET /ventas/historial':                              { rutaFrontend: '/dashboard/ventas/historial',           titulo: 'Historial de Ventas',    ordenMenu: 1  },
-  'POST /ventas/pos':                                   { rutaFrontend: '/dashboard/ventas/pos',                 titulo: 'Punto de Venta (POS)',    ordenMenu: 2  },
-  'GET /compras/requisiciones':                         { rutaFrontend: '/dashboard/compras/requisiciones',      titulo: 'Requisiciones',          ordenMenu: 3  },
-  'GET /compras/cotizaciones':                          { rutaFrontend: '/dashboard/compras/cotizaciones',       titulo: 'Cotizaciones',           ordenMenu: 4  },
-  'GET /compras/ordenes':                               { rutaFrontend: '/dashboard/compras/ordenes',            titulo: 'Ordenes de Compra',      ordenMenu: 5  },
-  'GET /compras/requisiciones/aprobaciones/pendientes': { rutaFrontend: '/dashboard/compras/aprobaciones',       titulo: 'Aprobaciones',           ordenMenu: 6  },
-  'GET /clientes':                                      { rutaFrontend: '/dashboard/clientes',                   titulo: 'Clientes',               ordenMenu: 10 },
-  'GET /proveedores':                                   { rutaFrontend: '/dashboard/proveedores',                titulo: 'Proveedores',            ordenMenu: 11 },
-  'GET /catalogo/productos':                            { rutaFrontend: '/dashboard/productos',                  titulo: 'Productos',              ordenMenu: 20 },
-  'GET /catalogo/categorias':                           { rutaFrontend: '/dashboard/categorias',                 titulo: 'Categorias',             ordenMenu: 21 },
-  'GET /catalogo/marcas':                               { rutaFrontend: '/dashboard/marcas',                     titulo: 'Marcas',                 ordenMenu: 22 },
-  'GET /catalogo/almacenes':                            { rutaFrontend: '/dashboard/almacenes',                  titulo: 'Almacenes',              ordenMenu: 23 },
-  'GET /compras/ordenes/:id':                           { rutaFrontend: '/dashboard/inventario/recepciones',     titulo: 'Recepciones',            ordenMenu: 24 },
-  'POST /catalogo/inventario/productos/transferir':     { rutaFrontend: '/dashboard/inventario/transferencias',  titulo: 'Transferencias',         ordenMenu: 25 },
-  'POST /catalogo/inventario/productos/ajuste':         { rutaFrontend: '/dashboard/inventario/ajustes',         titulo: 'Ajustes de Stock',       ordenMenu: 26 },
-  'GET /catalogo/impuestos':                            { rutaFrontend: '/dashboard/impuestos',                  titulo: 'Impuestos',              ordenMenu: 30 },
-  'GET /catalogos/bancos':                              { rutaFrontend: '/dashboard/catalogos/bancos',           titulo: 'Bancos',                 ordenMenu: 31 },
-  'GET /catalogos/formas-pago':                         { rutaFrontend: '/dashboard/catalogos/formas-pago',      titulo: 'Formas de Pago',         ordenMenu: 32 },
-  'GET /catalogos/paises':                              { rutaFrontend: '/dashboard/catalogos/paises',           titulo: 'Paises',                 ordenMenu: 33 },
-  'GET /catalogos/estados':                             { rutaFrontend: '/dashboard/catalogos/estados',          titulo: 'Estados',                ordenMenu: 34 },
-  'GET /usuarios':                                      { rutaFrontend: '/dashboard/usuarios',                   titulo: 'Usuarios',               ordenMenu: 40 },
-  'GET /departamentos':                                 { rutaFrontend: '/dashboard/departamentos',              titulo: 'Departamentos',          ordenMenu: 41 },
-  'GET /admin/permisos/arbol':                          { rutaFrontend: '/dashboard/permisos',                   titulo: 'Roles y Permisos',       ordenMenu: 42 },
-  'GET /configuraciones-aprobacion/:id':                { rutaFrontend: '/dashboard/configuraciones-aprobacion', titulo: 'Flujos de Aprobacion',   ordenMenu: 43 },
-  'GET /catalogo/listas-precio':                        { rutaFrontend: '/dashboard/listas-precio',              titulo: 'Listas de Precio',       ordenMenu: 44 },
+  // ── VENTAS ────────────────────────────────────────────────────────────────
+  'GET /ventas':                                        { rutaFrontend: '/dashboard/ventas/historial',              titulo: 'Historial de Ventas',         ordenMenu: 1  },
+  'GET /ventas/dashboard/metricas':                     { rutaFrontend: '/dashboard/ventas/pos',                    titulo: 'Punto de Venta',              ordenMenu: 2  },
+  // ── COMPRAS ───────────────────────────────────────────────────────────────
+  'GET /compras/requisiciones':                         { rutaFrontend: '/dashboard/compras/requisiciones',         titulo: 'Requisiciones',               ordenMenu: 3  },
+  'GET /compras/ordenes':                               { rutaFrontend: '/dashboard/compras/ordenes',               titulo: 'Ordenes de Compra',           ordenMenu: 4  },
+  'GET /compras/requisiciones/aprobaciones/pendientes': { rutaFrontend: '/dashboard/compras/aprobaciones',          titulo: 'Aprobaciones Pendientes',     ordenMenu: 5  },
+  'GET /compras/ordenes/recepciones':                   { rutaFrontend: '/dashboard/inventario/recepciones',        titulo: 'Recepciones',                 ordenMenu: 6  },
+  'PATCH /compras/ordenes/:id/pagar':                   { rutaFrontend: '/dashboard/compras/pago-proveedores',      titulo: 'Pago a Proveedores',          ordenMenu: 7  },
+  // ── CATÁLOGOS CORE ────────────────────────────────────────────────────────
+  'GET /clientes':                                      { rutaFrontend: '/dashboard/clientes',                      titulo: 'Clientes',                    ordenMenu: 10 },
+  'GET /proveedores':                                   { rutaFrontend: '/dashboard/proveedores',                   titulo: 'Proveedores',                 ordenMenu: 11 },
+  'GET /catalogo/productos':                            { rutaFrontend: '/dashboard/productos',                     titulo: 'Productos',                   ordenMenu: 20 },
+  'GET /catalogo/categorias':                           { rutaFrontend: '/dashboard/categorias',                    titulo: 'Categorías',                  ordenMenu: 21 },
+  'GET /catalogo/marcas':                               { rutaFrontend: '/dashboard/marcas',                        titulo: 'Marcas',                      ordenMenu: 22 },
+  'GET /catalogo/almacenes':                            { rutaFrontend: '/dashboard/almacenes',                     titulo: 'Almacenes',                   ordenMenu: 23 },
+  'POST /catalogo/inventario/productos/transferir':     { rutaFrontend: '/dashboard/inventario/transferencias',     titulo: 'Transferencias',              ordenMenu: 24 },
+  'POST /catalogo/inventario/productos/ajuste':         { rutaFrontend: '/dashboard/inventario/ajustes',            titulo: 'Ajustes de Stock',            ordenMenu: 25 },
+  'GET /catalogo/impuestos':                            { rutaFrontend: '/dashboard/impuestos',                     titulo: 'Impuestos',                   ordenMenu: 30 },
+  'GET /catalogo/listas-precio':                        { rutaFrontend: '/dashboard/listas-precio',                 titulo: 'Listas de Precio',            ordenMenu: 31 },
+  // ── CATÁLOGOS SISTEMA ─────────────────────────────────────────────────────
+  'GET /catalogos/bancos':                              { rutaFrontend: '/dashboard/catalogos/bancos',              titulo: 'Bancos',                      ordenMenu: 32 },
+  'GET /catalogos/formas-pago':                         { rutaFrontend: '/dashboard/catalogos/formas-pago',         titulo: 'Formas de Pago',              ordenMenu: 33 },
+  'GET /catalogos/paises':                              { rutaFrontend: '/dashboard/catalogos/paises',              titulo: 'Países',                      ordenMenu: 34 },
+  'GET /catalogos/estados':                             { rutaFrontend: '/dashboard/catalogos/estados',             titulo: 'Estados',                     ordenMenu: 35 },
+  // ── ADMINISTRACIÓN ────────────────────────────────────────────────────────
+  'GET /usuarios':                                      { rutaFrontend: '/dashboard/usuarios',                      titulo: 'Usuarios',                    ordenMenu: 40 },
+  'GET /departamentos':                                 { rutaFrontend: '/dashboard/departamentos',                 titulo: 'Departamentos',               ordenMenu: 41 },
+  'GET /admin/permisos/arbol':                          { rutaFrontend: '/dashboard/permisos',                      titulo: 'Roles y Permisos',            ordenMenu: 42 },
+  'GET /configuraciones-aprobacion/:id':                { rutaFrontend: '/dashboard/configuraciones-aprobacion',    titulo: 'Flujos de Aprobación',        ordenMenu: 43 },
+  // ── FINANZAS & CONTABILIDAD ───────────────────────────────────────────────
+  'GET /finanzas/cuentas-contables':                    { rutaFrontend: '/dashboard/finanzas/cuentas-contables',    titulo: 'Catálogo de Cuentas',         ordenMenu: 50 },
+  'GET /finanzas/polizas':                              { rutaFrontend: '/dashboard/finanzas/polizas',              titulo: 'Libro Diario',                ordenMenu: 51 },
+  'GET /finanzas/polizas/balanza':                      { rutaFrontend: '/dashboard/finanzas/balanza',              titulo: 'Balanza de Comprobación',     ordenMenu: 52 },
+  'GET /finanzas/polizas/resultado':                    { rutaFrontend: '/dashboard/finanzas/estado-resultados',    titulo: 'Estado de Resultados',        ordenMenu: 53 },
+  'GET /catalogo/categorias-contables':                 { rutaFrontend: '/dashboard/finanzas/categorias-contables', titulo: 'Categorías Contables',        ordenMenu: 54 },
+  'GET /finanzas/polizas/balance':                      { rutaFrontend: '/dashboard/finanzas/balance-general',      titulo: 'Balance General',             ordenMenu: 55 },
+  'GET /finanzas/polizas/saldos-iniciales':             { rutaFrontend: '/dashboard/finanzas/saldos-iniciales',    titulo: 'Saldos Iniciales',          ordenMenu: 58 },
+  'GET /finanzas/polizas/iva':                          { rutaFrontend: '/dashboard/finanzas/declaracion-iva',      titulo: 'Declaración de IVA',          ordenMenu: 56 },
+  // ── CRÉDITO Y COBRANZA ────────────────────────────────────────────────────
+  'GET /credito/cuentas-bancarias':                     { rutaFrontend: '/dashboard/creditos/cuentas-bancarias',    titulo: 'Cuentas Bancarias',           ordenMenu: 60 },
+  'GET /credito/creditos':                              { rutaFrontend: '/dashboard/creditos/creditos',             titulo: 'Créditos',                    ordenMenu: 61 },
+  'GET /credito/creditos/cartera-vencida':              { rutaFrontend: '/dashboard/creditos/cartera-vencida',      titulo: 'Cartera Vencida',             ordenMenu: 62 },
+  'GET /credito/cobranza/pagos/:creditoId':             { rutaFrontend: '/dashboard/creditos/cobranza',             titulo: 'Cobranza',                    ordenMenu: 63 },
 };
 
 @Injectable()
@@ -94,6 +115,8 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     @InjectRepository(Endpoint)    private endpointRepo:    Repository<Endpoint>,
     @InjectRepository(RolEndpointPermiso) private permisoRepo: Repository<RolEndpointPermiso>,
     private readonly modulesContainer: ModulesContainer,
+    private readonly reflector: Reflector,
+    private readonly dataSource: DataSource,
   ) {}
 
   async onApplicationBootstrap() {
@@ -106,9 +129,10 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
 
     const descubiertos = new Map<string, {
       nombreModulo: string;
-      endpoints: Array<{ metodo: string; ruta: string; nombre: string }>;
+      endpoints: Array<{ metodo: string; ruta: string; nombre: string; navDecorador?: NavegableMeta }>;
     }>();
 
+    // 1. DESCUBRIMIENTO DE RUTAS...
     for (const [, modulo] of this.modulesContainer.entries()) {
       for (const [, wrapper] of (modulo as any).controllers) {
         const instance = wrapper.instance;
@@ -148,9 +172,10 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       }
     }
 
+    // 2. AGRUPACIÓN POR MÓDULOS...
     const porModulo = new Map<string, {
       meta: ModuloMeta;
-      endpoints: Array<{ metodo: string; ruta: string; nombre: string }>;
+      endpoints: Array<{ metodo: string; ruta: string; nombre: string; navDecorador?: NavegableMeta }>;
     }>();
 
     for (const [, entrada] of descubiertos.entries()) {
@@ -175,10 +200,12 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       }
     }
 
+    // 3. GUARDADO Y AUTO-SANADO EN BASE DE DATOS
     for (const [nombreModulo, { meta, endpoints }] of porModulo.entries()) {
       if (endpoints.length === 0) continue;
 
       let ctrl = await this.controladorRepo.findOne({ where: { nombre: nombreModulo } });
+      
       if (!ctrl) {
         ctrl = await this.controladorRepo.save(
           this.controladorRepo.create({
@@ -192,16 +219,22 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
           })
         );
       } else {
+        // AUTO-SANADOR DE MÓDULOS: Si tienen el ícono/sección genérica por defecto, les inyectamos los correctos del diccionario.
+        // PERO si tú ya los cambiaste manualmente en la BD, no los tocará.
         let actualizado = false;
-        if (ctrl.icono !== meta.icono)    { ctrl.icono    = meta.icono;    actualizado = true; }
-        if (ctrl.seccion !== meta.seccion){ ctrl.seccion  = meta.seccion;  actualizado = true; }
-        if (ctrl.titulo !== meta.titulo)  { ctrl.titulo   = meta.titulo;   actualizado = true; }
+        if (ctrl.icono === 'Folder' && meta.icono !== 'Folder') { ctrl.icono = meta.icono; actualizado = true; }
+        if (ctrl.seccion === 'General' && meta.seccion !== 'General') { ctrl.seccion = meta.seccion; actualizado = true; }
         if (actualizado) await this.controladorRepo.save(ctrl);
       }
 
       for (const ep of endpoints) {
         const claveNav = `${ep.metodo} ${ep.ruta}`;
-        const navMeta = ENDPOINTS_NAVEGABLES[claveNav];
+        // @Navegable del handler tiene prioridad; diccionario como respaldo garantizado
+        const navMeta = ep.navDecorador ?? ENDPOINTS_NAVEGABLES[claveNav];
+
+        // 🧠 INFERENCIA INTELIGENTE: Si es método GET y no pide un ID específico, asumimos que es una Pantalla Principal
+        const esPosiblePantalla = ep.metodo === 'GET' && !ep.ruta.includes('/:id');
+        const rutaFrontInferida = esPosiblePantalla ? `/dashboard${ep.ruta}` : null;
 
         const existente = await this.endpointRepo.findOne({
           where: { metodo: ep.metodo, ruta: ep.ruta },
@@ -215,18 +248,33 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
               ruta: ep.ruta,
               nombre: navMeta?.titulo ?? ep.nombre,
               descripcion: `${ep.metodo} ${ep.ruta}`,
-              rutaFrontend: navMeta?.rutaFrontend ?? null,
-              esNavegable: !!navMeta,
+              rutaFrontend: navMeta?.rutaFrontend ?? rutaFrontInferida,
+              esNavegable: !!navMeta || esPosiblePantalla,
               ordenMenu: navMeta?.ordenMenu ?? 0,
               activo: true,
             })
           );
         } else {
           let actualizado = false;
-          if (navMeta && existente.rutaFrontend !== navMeta.rutaFrontend) { existente.rutaFrontend = navMeta.rutaFrontend; actualizado = true; }
-          if (navMeta && existente.esNavegable !== true)                  { existente.esNavegable  = true;                 actualizado = true; }
-          if (navMeta && existente.nombre !== navMeta.titulo)             { existente.nombre       = navMeta.titulo;       actualizado = true; }
-          if (existente.controladorId !== ctrl.id)                        { existente.controladorId = ctrl.id;             actualizado = true; }
+          
+          // 🛠️ AUTO-SANADOR DE ENDPOINTS: Si están NULL en la BD, los reparamos automáticamente para que aparezcan en el menú.
+          if (navMeta?.rutaFrontend && existente.rutaFrontend !== navMeta.rutaFrontend) {
+            existente.rutaFrontend = navMeta?.rutaFrontend ?? rutaFrontInferida;
+            existente.esNavegable = true;
+            actualizado = true;
+          }
+
+          // Reparación de títulos (Solo si el nombre actual es el nombre técnico de código)
+          if (navMeta && existente.nombre === ep.nombre && navMeta.titulo !== ep.nombre) {
+            existente.nombre = navMeta.titulo;
+            actualizado = true;
+          }
+          
+          if (existente.controladorId !== ctrl.id) { 
+            existente.controladorId = ctrl.id; 
+            actualizado = true; 
+          }
+          
           if (actualizado) await this.endpointRepo.save(existente);
         }
       }
@@ -406,5 +454,50 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
 
   private humanizar(str: string): string {
     return str.replace(/([A-Z])/g, ' $1').replace(/[-_]/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // RUTAS PERMITIDAS — devuelve las rutaFrontend a las que tiene acceso el rol
+  // ══════════════════════════════════════════════════════════════════════════
+  async obtenerRutasPermitidas(rol: string, empresaId: string): Promise<string[]> {
+    if (ROLES_CON_BYPASS.has(rol)) return ['*'];
+
+    // SQL directo con nombres reales de columnas (snake_case en BD)
+    const SQL_RUTAS =
+      'SELECT DISTINCT e.ruta_frontend ' +
+      'FROM   rol_endpoint_permisos rep ' +
+      'JOIN   endpoints e ON e.id = rep.endpoint_id ' +
+      'WHERE  rep.rol = @0 ' +
+      '  AND  rep.empresaId = @1 ' +
+      '  AND  rep.permitido = 1 ' +
+      '  AND  e.ruta_frontend IS NOT NULL ' +
+      '  AND  e.activo = 1';
+
+    const SQL_EPS =
+      'SELECT DISTINCT e.metodo, e.ruta ' +
+      'FROM   rol_endpoint_permisos rep ' +
+      'JOIN   endpoints e ON e.id = rep.endpoint_id ' +
+      'WHERE  rep.rol = @0 ' +
+      '  AND  rep.empresaId = @1 ' +
+      '  AND  rep.permitido = 1';
+
+    const [rows, endpointsConPermiso] = await Promise.all([
+      this.dataSource.query(SQL_RUTAS, [rol, empresaId]).catch(() => []),
+      this.dataSource.query(SQL_EPS,   [rol, empresaId]).catch(() => []),
+    ]);
+
+    const rutasSet = new Set<string>(
+      (rows as Array<{ ruta_frontend: string }>)
+        .map(r => r.ruta_frontend).filter(Boolean)
+    );
+
+    // Completar con diccionario estático para endpoints sin ruta_frontend en BD
+    for (const ep of endpointsConPermiso as Array<{ metodo: string; ruta: string }>) {
+      const clave = ep.metodo + ' ' + ep.ruta;
+      const nav   = ENDPOINTS_NAVEGABLES[clave as keyof typeof ENDPOINTS_NAVEGABLES];
+      if (nav?.rutaFrontend) rutasSet.add(nav.rutaFrontend);
+    }
+
+    return Array.from(rutasSet);
   }
 }

@@ -1,19 +1,21 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsNotEmpty, Matches } from 'class-validator';
 
 export class RegisterDto {
-  @IsString()
-  @IsNotEmpty()
-  nombreComercial!: string; // Nombre de la empresa
+  @IsString() @IsNotEmpty()
+  @MaxLength(100)
+  nombreComercial: string;
+
+  @IsString() @IsNotEmpty()
+  @MaxLength(150)
+  nombreCompleto: string;
+
+  @IsEmail({}, { message: 'El correo no es válido' })
+  email: string;
 
   @IsString()
-  @IsNotEmpty()
-  nombreCompleto!: string; // Nombre del dueño/administrador
-
-  @IsEmail()
-  @IsNotEmpty()
-  email!: string;
-
-  @IsString()
-  @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
-  password!: string;
+  @MinLength(8, { message: 'Mínimo 8 caracteres' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+    message: 'Debe contener mayúscula, minúscula y número',
+  })
+  password: string;
 }

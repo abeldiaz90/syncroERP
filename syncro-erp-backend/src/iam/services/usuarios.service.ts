@@ -1,97 +1,106 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
 import { Usuario } from '../entities/usuario.entity';
+import * as bcrypt from 'bcrypt';
 import { CrearUsuarioDto } from '../dto/crear-usuario.dto';
 import { ActualizarUsuarioDto } from '../dto/actualizar-usuario.dto';
-import { Like } from 'typeorm';
+import { NotificacionesService } from '../../notificaciones/notificaciones.service';
 
 @Injectable()
 export class UsuariosService {
-    constructor(
-        @InjectRepository(Usuario)
-        private readonly usuarioRepo: Repository<Usuario>,
-    ) { }
+  constructor(
+    @InjectRepository(Usuario)
+    private readonly usuarioRepo: Repository<Usuario>,
+    private readonly notificaciones: NotificacionesService,
+  ) {}
 
-    async crear(dto: CrearUsuarioDto, empresaId: string) {
-        const existe = await this.usuarioRepo.findOne({ where: { email: dto.email } });
-        if (existe) throw new ConflictException('El correo ya está registrado');
+  // ──────────────────────────────────────────────────────────────────────────
+  // CREAR USUARIO
+  // ──────────────────────────────────────────────────────────────────────────
+  async crear(dto: CrearUsuarioDto, empresaId: string) {
+    // Verificar email único
+    const existe = await this.usuarioRepo.findOne({
+      where: { email: dto.email, empresaId },
+    });
+    if (existe) throw new ConflictException('Ya existe un usuario con ese email en esta empresa.');
 
-        const salt = await bcrypt.genSalt(10);
-        const passwordHash = await bcrypt.hash(dto.password, salt);
+    // Generar contraseña temporal si no viene en el DTO
+    const passwordTemporal = dto.password ?? this.generarPasswordTemporal();
+    const hash             = await bcrypt.hash(passwordTemporal, 10);
 
-        const usuario = this.usuarioRepo.create({
-            empresaId,
-            nombreCompleto: dto.nombreCompleto,
-            email: dto.email,
-            passwordHash,
-            rol: dto.rol || 'empleado',
-            departamentoId: dto.departamentoId || null,
-        });
-        return this.usuarioRepo.save(usuario);
+    const usuario = this.usuarioRepo.create({
+      ...dto,
+      empresaId,
+      password: hash,
+      activo: true,
+    } as any);
+    const guardado = await this.usuarioRepo.save(usuario);
+
+    // Email de bienvenida — no bloquea
+    this.notificaciones.notificarUsuarioNuevo(guardado, passwordTemporal)
+      .catch(e => console.error('[Email] Bienvenida usuario:', e?.message));
+
+    // No devolver el hash de la contraseña
+    const { password: _, ...resultado } = guardado as any;
+    return resultado;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // CONSULTAS
+  // ──────────────────────────────────────────────────────────────────────────
+  async obtenerTodos(empresaId: string, filtro?: string, soloActivos = true) {
+    const qb = this.usuarioRepo.createQueryBuilder('u')
+      .leftJoinAndSelect('u.departamento', 'dep')
+      .where('u.empresaId = :empresaId', { empresaId });
+
+    if (soloActivos) qb.andWhere('u.activo = :activo', { activo: true });
+    if (filtro) {
+      qb.andWhere(
+        '(u.nombreCompleto LIKE :filtro OR u.email LIKE :filtro)',
+        { filtro: `%${filtro}%` },
+      );
+    }
+    return qb.orderBy('u.nombreCompleto', 'ASC').getMany();
+  }
+
+  async obtenerPorId(id: string, empresaId: string) {
+    const u = await this.usuarioRepo.findOne({
+      where:     { id, empresaId },
+      relations: ['departamento'],
+    });
+    if (!u) throw new NotFoundException('Usuario no encontrado.');
+    return u;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // ACTUALIZAR
+  // ──────────────────────────────────────────────────────────────────────────
+  async actualizar(id: string, dto: ActualizarUsuarioDto, empresaId: string) {
+    const usuario = await this.obtenerPorId(id, empresaId);
+
+    if (dto.password) {
+      (dto as any).password = await bcrypt.hash(dto.password, 10);
     }
 
-    async obtenerTodos(empresaId: string, filtro?: string, soloActivos = true) {
-        const where: any = { empresaId };
-        if (soloActivos) {
-            where.activo = true;
-        }
+    Object.assign(usuario, dto);
+    return this.usuarioRepo.save(usuario);
+  }
 
-        if (filtro) {
-            return this.usuarioRepo.find({
-                where: [
-                    { ...where, nombreCompleto: Like(`%${filtro}%`) },
-                    { ...where, email: Like(`%${filtro}%`) },
-                    { ...where, rol: Like(`%${filtro}%`) },
-                ],
-                relations: ['departamento'],
-                select: ['id', 'nombreCompleto', 'email', 'rol', 'departamentoId', 'activo'],
-                order: { nombreCompleto: 'ASC' },
-            });
-        }
+  async toggleActivo(id: string, empresaId: string) {
+    const usuario = await this.obtenerPorId(id, empresaId);
+    usuario.activo = !usuario.activo;
+    return this.usuarioRepo.save(usuario);
+  }
 
-        return this.usuarioRepo.find({
-            where,
-            relations: ['departamento'],
-            select: ['id', 'nombreCompleto', 'email', 'rol', 'departamentoId', 'activo'],
-            order: { nombreCompleto: 'ASC' },
-        });
-    }
-
-    async obtenerPorId(id: string, empresaId: string) {
-        const usuario = await this.usuarioRepo.findOne({
-            where: { id, empresaId },
-            relations: ['departamento'],
-        });
-        if (!usuario) throw new NotFoundException('Usuario no encontrado');
-        return usuario;
-    }
-
-    async actualizar(id: string, dto: ActualizarUsuarioDto, empresaId: string) {
-        const usuario = await this.usuarioRepo.findOne({ where: { id, empresaId } });
-        if (!usuario) throw new NotFoundException('Usuario no encontrado');
-
-        if (dto.nombreCompleto) usuario.nombreCompleto = dto.nombreCompleto;
-        if (dto.email) {
-            const duplicado = await this.usuarioRepo.findOne({ where: { email: dto.email } });
-            if (duplicado && duplicado.id !== id) throw new ConflictException('El correo ya está en uso');
-            usuario.email = dto.email;
-        }
-        if (dto.password) {
-            const salt = await bcrypt.genSalt(10);
-            usuario.passwordHash = await bcrypt.hash(dto.password, salt);
-        }
-        if (dto.rol) usuario.rol = dto.rol;
-        if (dto.departamentoId !== undefined) usuario.departamentoId = dto.departamentoId || null;
-
-        return this.usuarioRepo.save(usuario);
-    }
-
-    async toggleActivo(id: string, empresaId: string) {
-        const usuario = await this.usuarioRepo.findOne({ where: { id, empresaId } });
-        if (!usuario) throw new NotFoundException('Usuario no encontrado');
-        usuario.activo = !usuario.activo;
-        return this.usuarioRepo.save(usuario);
-    }
+  // ──────────────────────────────────────────────────────────────────────────
+  // HELPERS
+  // ──────────────────────────────────────────────────────────────────────────
+  private generarPasswordTemporal(): string {
+    // 8 caracteres: letras + números
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    return Array.from({ length: 8 }, () =>
+      chars[Math.floor(Math.random() * chars.length)]
+    ).join('');
+  }
 }

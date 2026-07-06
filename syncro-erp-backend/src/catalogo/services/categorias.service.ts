@@ -9,12 +9,12 @@ export class CategoriasService {
     constructor(
         @InjectRepository(Categoria)
         private readonly categoriaRepository: Repository<Categoria>,
-    ) {}
+    ) { }
 
     async crearCategoria(dto: CrearCategoriaDto, empresaId: string) {
         // Nos aseguramos de que el campo 'activo' tenga un valor predeterminado
-        const nueva = this.categoriaRepository.create({ 
-            ...dto, 
+        const nueva = this.categoriaRepository.create({
+            ...dto,
             empresaId,
             activo: true // Aseguramos que no llegue como null/undefined
         });
@@ -33,6 +33,14 @@ export class CategoriasService {
     async obtenerCategorias(empresaId: string) {
         return await this.categoriaRepository.find({
             where: { empresaId },
+            relations: [
+                'categoriaPadre',
+                'cuentaVentas',
+                'cuentaCostoVentas',
+                'cuentaInventario',
+                'cuentaDevoluciones',
+                'cuentaMermas'
+            ],
             order: { nombre: 'ASC' }
         });
     }
@@ -40,9 +48,9 @@ export class CategoriasService {
     async actualizarCategoria(id: string, dto: Partial<CrearCategoriaDto>, empresaId: string) {
         const categoria = await this.categoriaRepository.findOne({ where: { id, empresaId } });
         if (!categoria) throw new NotFoundException('La categoría no existe o no tienes permisos.');
-        
+
         Object.assign(categoria, dto);
-        
+
         try {
             return await this.categoriaRepository.save(categoria);
         } catch (error: any) {
@@ -56,7 +64,7 @@ export class CategoriasService {
     async cambiarEstadoCategoria(id: string, empresaId: string) {
         const categoria = await this.categoriaRepository.findOne({ where: { id, empresaId } });
         if (!categoria) throw new NotFoundException('Categoría no encontrada.');
-        
+
         categoria.activo = !categoria.activo;
         return await this.categoriaRepository.save(categoria);
     }

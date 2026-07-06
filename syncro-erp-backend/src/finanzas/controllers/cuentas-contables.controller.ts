@@ -1,0 +1,41 @@
+import { Controller, Post, Get, Patch, Param, Query, Body } from '@nestjs/common';
+import { CrearCuentaContableDto } from '../dto/crear-cuenta-contable.dto';
+import { ActiveUser } from '../../iam/decorators/active-user.decorator';
+import { SkipPermisos } from '../../iam/decorators/skip-permisos.decorator';
+import { CuentasContablesService } from '../services/cuentas-contables.service';
+
+@SkipPermisos()
+@Controller('finanzas/cuentas-contables')
+export class CuentasContablesController {
+  constructor(private readonly cuentasService: CuentasContablesService) {}
+
+  @Post()
+  crear(@Body() dto: CrearCuentaContableDto, @ActiveUser('empresaId') empresaId: string) {
+    return this.cuentasService.crearCuenta(dto, empresaId);
+  }
+
+  @Get()
+  obtenerTodas(
+    @ActiveUser('empresaId') empresaId: string,
+    @Query('soloAfectables') soloAfectables?: string,
+  ) {
+    return this.cuentasService.obtenerCuentas(empresaId, soloAfectables === 'true');
+  }
+
+  @Patch(':id')
+  editar(
+    @Param('id') id: string,
+    @Body() dto: Partial<CrearCuentaContableDto>,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
+    return this.cuentasService.editarCuenta(id, dto, empresaId);
+  }
+
+  @Patch(':id/estado')
+  cambiarEstado(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
+    return this.cuentasService.cambiarEstado(id, empresaId);
+  }
+}

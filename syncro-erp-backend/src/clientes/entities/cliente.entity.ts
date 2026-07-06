@@ -26,6 +26,9 @@ export class Cliente {
   @Column({ type: 'varchar', length: 20, nullable: true })
   rfc?: string;
 
+  @Column({ type: 'varchar', length: 18, nullable: true })
+  curp?: string;
+
   @Column({ type: 'varchar', length: 150, nullable: true })
   razonSocial?: string;
 

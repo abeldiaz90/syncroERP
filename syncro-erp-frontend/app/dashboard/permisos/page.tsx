@@ -1,419 +1,487 @@
 "use client";
+import { useState, useEffect, useCallback } from 'react';
+import { Shield, Save, Plus, X, Loader2, ChevronDown, ChevronRight, Check } from 'lucide-react';
+import { MODULOS } from '../module-config';
 
-import React, { useState, useEffect, useCallback, Fragment } from 'react';
-import { useRouter } from 'next/navigation';
-import Swal from 'sweetalert2';
-import { 
-  Shield, Loader2, Save, Search, X, AlertTriangle, 
-  ChevronDown, ChevronRight, Lock, Info
-} from 'lucide-react';
-import { usePermiso } from '@/hooks/use-permisos'; // ← NUEVO
+interface IEndpoint { id: string; metodo: string; ruta: string; nombre: string; rutaFrontend?: string; }
+interface INavegable { label: string; href: string; endpoints: IEndpoint[]; }
+interface IModuloUI   { id: string; nombre: string; color: string; bg: string; border: string; icon: string; navegables: INavegable[]; }
 
-// ==========================================
-// TIPOS DE DATOS
-// ==========================================
-interface Endpoint {
-  id: string;
-  metodo: string;
-  ruta: string;
-  nombre: string;
-  descripcion: string | null;
-}
+const METODO_COLOR: Record<string, { bg: string; text: string }> = {
+  GET:    { bg: '#dcfce7', text: '#15803d' },
+  POST:   { bg: '#ede9fe', text: '#6d28d9' },
+  PUT:    { bg: '#fef3c7', text: '#b45309' },
+  PATCH:  { bg: '#fef3c7', text: '#b45309' },
+  DELETE: { bg: '#fee2e2', text: '#b91c1c' },
+};
 
-interface Controlador {
-  id: string;
-  nombre: string;
-  titulo: string;
-  categoria: string;
-  orden: number;
-  endpoints: Endpoint[];
-}
+type Estado = 'full' | 'partial' | 'none';
 
-// ==========================================
-// COMPONENTE PRINCIPAL
-// ==========================================
-export default function PermisosAdminPage() {
-  const router = useRouter();
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
-
-  // ✅ SISTEMA DINÁMICO: el hook consulta los permisos reales del usuario logueado
-  const { tienePermiso, cargando: cargandoPermisos } = usePermiso();
-
-  // ✅ puedeEditar se resuelve dinámicamente desde BD, sin hardcodear roles
-  const puedeEditar = tienePermiso('PUT', '/api/admin/permisos/rol/:rol');
-
-  // Estados de sesión
-  const [token, setToken] = useState<string | null>(null);
-
-  // Datos principales
-  const [roles, setRoles] = useState<string[]>([]);
-  const [rolSeleccionado, setRolSeleccionado] = useState('');
-  const [arbol, setArbol] = useState<Controlador[]>([]);
-  const [permisos, setPermisos] = useState<Record<string, boolean>>({});
-
-  // UI state
-  const [busqueda, setBusqueda] = useState('');
-  const [cargando, setCargando] = useState(true);
-  const [guardando, setGuardando] = useState(false);
-  const [cambiosSinGuardar, setCambiosSinGuardar] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [controladoresExpandidos, setControladoresExpandidos] = useState<Set<string>>(new Set());
-
-  // ======================= AUTORIZACIÓN =======================
-  useEffect(() => {
-    const tkn = localStorage.getItem('syncro_token');
-    const userJson = localStorage.getItem('syncro_user');
-
-    if (!tkn || !userJson) { router.push('/auth/login'); return; }
-
-    setToken(tkn);
-
-    try {
-      const user = JSON.parse(userJson);
-      if (user.rol !== 'admin' && user.rol !== 'SUPER_ADMIN') {
-        router.push('/dashboard');
-      }
-    } catch { router.push('/auth/login'); }
-  }, [router]);
-
-  // ======================= CARGAR ROLES =======================
-  const cargarRoles = useCallback(async () => {
-    if (!token) return;
-    try {
-      const res = await fetch(`${apiUrl}/admin/permisos/roles`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('No se pudieron obtener los roles');
-      const data = await res.json();
-      setRoles(data);
-      if (data.length > 0 && !rolSeleccionado) setRolSeleccionado(data[0]);
-    } catch (err) {
-      console.error(err);
-      Swal.fire('Error', 'No se pudieron cargar los roles', 'error');
-    }
-  }, [token, rolSeleccionado, apiUrl]);
-
-  // ======================= CARGAR ÁRBOL Y PERMISOS =======================
-  const cargarArbolYPermisos = useCallback(async () => {
-    if (!token || !rolSeleccionado) return;
-    setCargando(true);
-    setError(null);
-    try {
-      const [arbolRes, permisosRes] = await Promise.all([
-        fetch(`${apiUrl}/admin/permisos/arbol`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${apiUrl}/admin/permisos/rol/${rolSeleccionado}`, { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
-      if (!arbolRes.ok) throw new Error('Error cargando estructura');
-      if (!permisosRes.ok) throw new Error('Error cargando permisos');
-      const arbolData = await arbolRes.json();
-      const permisosData = await permisosRes.json();
-      setArbol(arbolData);
-      setPermisos(permisosData);
-      setCambiosSinGuardar(false);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setCargando(false);
-    }
-  }, [token, rolSeleccionado, apiUrl]);
-
-  // ======================= EFECTOS =======================
-  useEffect(() => { if (token) cargarRoles(); }, [token, cargarRoles]);
-  useEffect(() => { if (rolSeleccionado && token) cargarArbolYPermisos(); }, [rolSeleccionado, token, cargarArbolYPermisos]);
-
-  // ======================= HANDLERS =======================
-  const toggleEndpoint = (endpointId: string, currentValue: boolean) => {
-    if (!puedeEditar) return;
-    setPermisos(prev => ({ ...prev, [endpointId]: !currentValue }));
-    setCambiosSinGuardar(true);
-  };
-
-  const toggleControlador = (controladorId: string, endpoints: Endpoint[]) => {
-    if (!puedeEditar) return;
-    const todosTienenTrue = endpoints.every(ep => permisos[ep.id] === true);
-    const nuevosPermisos = { ...permisos };
-    for (const ep of endpoints) nuevosPermisos[ep.id] = !todosTienenTrue;
-    setPermisos(nuevosPermisos);
-    setCambiosSinGuardar(true);
-  };
-
-  const guardarPermisos = async () => {
-    if (!token || !puedeEditar) return;
-    setGuardando(true);
-    try {
-      const res = await fetch(`${apiUrl}/admin/permisos/rol/${rolSeleccionado}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ permisos }),
-      });
-      if (!res.ok) throw new Error('Error al guardar los permisos');
-      setCambiosSinGuardar(false);
-      Swal.fire({
-        title: 'Permisos actualizados',
-        text: `Los permisos para el rol "${rolSeleccionado}" han sido guardados correctamente.`,
-        icon: 'success',
-        confirmButtonColor: '#4f46e5',
-      });
-    } catch (err: any) {
-      Swal.fire('Error', err.message, 'error');
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  const toggleExpandirControlador = (id: string) => {
-    setControladoresExpandidos(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) newSet.delete(id);
-      else newSet.add(id);
-      return newSet;
-    });
-  };
-
-  const filtrarArbol = (): Controlador[] => {
-    if (!busqueda.trim()) return arbol;
-    const lowerQuery = busqueda.toLowerCase();
-    return arbol
-      .map(ctrl => ({
-        ...ctrl,
-        endpoints: ctrl.endpoints.filter(ep =>
-          ep.nombre.toLowerCase().includes(lowerQuery) ||
-          ep.ruta.toLowerCase().includes(lowerQuery) ||
-          ctrl.nombre.toLowerCase().includes(lowerQuery)
-        ),
-      }))
-      .filter(ctrl => ctrl.endpoints.length > 0);
-  };
-
-  const arbolFiltrado = filtrarArbol();
-
-  // ======================= RENDER =======================
-  if (cargandoPermisos) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
-      </div>
-    );
-  }
-
+function Toggle({ on, onChange, size = 'md' }: { on: boolean; onChange: () => void; size?: 'sm' | 'md' }) {
+  const w = size === 'sm' ? 32 : 40;
+  const h = size === 'sm' ? 18 : 22;
+  const d = size === 'sm' ? 12 : 16;
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto text-slate-800 pb-32">
-      <div className="mb-8">
-        <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-          <Shield className="w-8 h-8 text-indigo-600" /> Permisos y Privilegios
-        </h1>
-        <p className="text-slate-500 mt-2">
-          Administra los niveles de acceso de tu personal a las diferentes secciones del sistema.
-        </p>
-      </div>
-
-      {/* SELECTOR DE ROL Y BUSCADOR */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-8 flex flex-col lg:flex-row gap-6">
-        <div className="w-full lg:w-80">
-          <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Selecciona un Rol</label>
-          <select
-            value={rolSeleccionado}
-            onChange={(e) => setRolSeleccionado(e.target.value)}
-            disabled={cargando || guardando || cambiosSinGuardar}
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500 outline-none"
-          >
-            {roles.map(rol => (
-              <option key={rol} value={rol}>{rol.toUpperCase()}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex-1">
-          <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Buscar Operación</label>
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar por módulo, ruta o nombre..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-            />
-            {busqueda && (
-              <button onClick={() => setBusqueda('')} className="absolute right-4 top-1/2 -translate-y-1/2">
-                <X className="w-4 h-4 text-slate-400" />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ✅ ALERTA DINÁMICA — aparece solo si el backend dice que no puedes editar */}
-      {!puedeEditar && (
-        <div className="mb-6 bg-amber-50 border border-amber-200 p-4 rounded-xl flex gap-4 animate-in fade-in">
-          <Info className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <h3 className="font-bold text-amber-900">Modo solo lectura</h3>
-            <p className="text-sm text-amber-800 mt-1">
-              No tienes permiso para modificar los privilegios de los roles. Contacta a tu administrador para obtener acceso de edición.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* TABLA DE PERMISOS */}
-      <div className={`bg-white rounded-2xl border border-slate-200 overflow-hidden relative ${!puedeEditar ? 'opacity-70' : ''}`}>
-        {cargando && (
-          <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-20">
-            <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
-          </div>
-        )}
-
-        {error && (
-          <div className="p-6 text-center text-red-600">
-            <p>{error}</p>
-            <button onClick={cargarArbolYPermisos} className="mt-3 text-indigo-600 font-bold hover:underline">Reintentar conexión</button>
-          </div>
-        )}
-
-        {!error && arbolFiltrado.length === 0 && !cargando && (
-          <div className="p-12 text-center text-slate-500">
-            <Shield className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-            <p>No hay módulos que coincidan con la búsqueda.</p>
-          </div>
-        )}
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[700px]">
-            <thead className="bg-slate-900 text-white text-xs uppercase font-bold">
-              <tr>
-                <th className="px-6 py-4 w-1/3">Módulo / Operación</th>
-                <th className="px-6 py-4">Estatus del Permiso</th>
-                <th className="px-6 py-4 w-32 text-center">Acción Masiva</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {arbolFiltrado.map(ctrl => {
-                const expandido = controladoresExpandidos.has(ctrl.id) || busqueda.trim() !== '';
-                const todosConPermiso = ctrl.endpoints.length > 0 && ctrl.endpoints.every(ep => permisos[ep.id] === true);
-
-                return (
-                  <Fragment key={ctrl.id}>
-                    {/* FILA DE CONTROLADOR */}
-                    <tr
-                      className="bg-slate-50/80 hover:bg-slate-50 transition-colors cursor-pointer"
-                      onClick={() => toggleExpandirControlador(ctrl.id)}
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          {expandido
-                            ? <ChevronDown className="w-4 h-4 text-indigo-600" />
-                            : <ChevronRight className="w-4 h-4 text-slate-400" />}
-                          <span className="font-bold capitalize text-indigo-900 text-sm">{ctrl.titulo}</span>
-                          <span className="text-[10px] uppercase tracking-wider text-slate-400 ml-2 bg-slate-200 px-2 py-0.5 rounded-full">
-                            {ctrl.categoria}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {todosConPermiso ? (
-                          <span className="text-emerald-600 flex items-center gap-1 text-sm font-bold">
-                            <Shield className="w-4 h-4" /> Autorizado
-                          </span>
-                        ) : (
-                          <span className="text-amber-600 flex items-center gap-1 text-sm font-bold">
-                            <Lock className="w-4 h-4" /> Restringido
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {/* ✅ Botón masivo habilitado/deshabilitado según BD */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleControlador(ctrl.id, ctrl.endpoints); }}
-                          disabled={cargando || guardando || !puedeEditar}
-                          className="text-[10px] uppercase tracking-wider font-bold px-3 py-1.5 rounded-full border border-slate-200 bg-white hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          {todosConPermiso ? 'Bloquear Todo' : 'Permitir Todo'}
-                        </button>
-                      </td>
-                    </tr>
-
-                    {/* FILAS DE ENDPOINTS */}
-                    {expandido && ctrl.endpoints.map(ep => (
-                      <tr key={ep.id} className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-3 pl-12">
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${metodoColor(ep.metodo)}`}>
-                                {ep.metodo}
-                              </span>
-                              <code className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{ep.ruta}</code>
-                            </div>
-                            <span className="text-sm font-medium text-slate-700">{ep.nombre}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-3" colSpan={2}>
-                          {/* ✅ Checkbox habilitado/deshabilitado según BD */}
-                          <label className={`inline-flex items-center gap-3 group ${puedeEditar ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
-                            <input
-                              type="checkbox"
-                              checked={permisos[ep.id] === true}
-                              onChange={() => toggleEndpoint(ep.id, permisos[ep.id])}
-                              disabled={cargando || guardando || !puedeEditar}
-                              className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-colors cursor-pointer disabled:cursor-not-allowed"
-                            />
-                            <span className={`text-sm font-bold ${permisos[ep.id] ? 'text-indigo-700' : 'text-slate-400 group-hover:text-slate-600'}`}>
-                              {permisos[ep.id] ? 'Permitido' : 'Denegado'}
-                            </span>
-                          </label>
-                        </td>
-                      </tr>
-                    ))}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* BARRA FLOTANTE DE GUARDADO — solo aparece si puede editar y hay cambios */}
-      {puedeEditar && (
-        <div className={`fixed bottom-0 left-0 lg:left-[280px] right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-4 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.1)] flex justify-between items-center transition-transform duration-300 z-50 ${cambiosSinGuardar ? 'translate-y-0' : 'translate-y-full'}`}>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-100 text-amber-600 rounded-full">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-bold text-slate-800 leading-tight">Cambios sin guardar</p>
-              <p className="text-xs text-slate-500">
-                Aplica los cambios para el rol <span className="font-bold text-indigo-600 uppercase">{rolSeleccionado}</span>
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={cargarArbolYPermisos}
-              className="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors"
-            >
-              Descartar
-            </button>
-            <button
-              onClick={guardarPermisos}
-              disabled={guardando}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-200 disabled:opacity-50"
-            >
-              {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Aplicar Permisos
-            </button>
-          </div>
-        </div>
-      )}
+    <div onClick={e => { e.stopPropagation(); onChange(); }}
+      style={{
+        width: w, height: h, borderRadius: h, cursor: 'pointer',
+        background: on ? '#4f46e5' : '#cbd5e1',
+        position: 'relative', transition: 'background .2s', flexShrink: 0,
+      }}>
+      <div style={{
+        position: 'absolute', top: (h - d) / 2,
+        left: on ? w - d - (h - d) / 2 : (h - d) / 2,
+        width: d, height: d, borderRadius: '50%',
+        background: '#fff', transition: 'left .2s',
+        boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+      }}/>
     </div>
   );
 }
 
-function metodoColor(metodo: string): string {
-  switch (metodo) {
-    case 'GET':    return 'bg-blue-100 text-blue-700 border border-blue-200';
-    case 'POST':   return 'bg-emerald-100 text-emerald-700 border border-emerald-200';
-    case 'PUT':
-    case 'PATCH':  return 'bg-amber-100 text-amber-700 border border-amber-200';
-    case 'DELETE': return 'bg-rose-100 text-rose-700 border border-rose-200';
-    default:       return 'bg-slate-100 text-slate-600 border border-slate-200';
-  }
+function TriState({ estado, onChange }: { estado: Estado; onChange: () => void }) {
+  return (
+    <div onClick={e => { e.stopPropagation(); onChange(); }}
+      style={{
+        width: 20, height: 20, borderRadius: 6, cursor: 'pointer', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: estado === 'full' ? '#4f46e5' : estado === 'partial' ? '#fff' : '#f1f5f9',
+        border: `2px solid ${estado === 'full' ? '#4f46e5' : estado === 'partial' ? '#4f46e5' : '#cbd5e1'}`,
+        transition: 'all .15s',
+      }}>
+      {estado === 'full'    && <Check style={{ width: 11, height: 11, color: '#fff', strokeWidth: 3 }}/>}
+      {estado === 'partial' && <div style={{ width: 8, height: 2, background: '#4f46e5', borderRadius: 2 }}/>}
+    </div>
+  );
+}
+
+export default function PermisosPage() {
+  const [rol, setRol]         = useState('');
+  const [roles, setRoles]     = useState<string[]>([]);
+  const [arbol, setArbol]     = useState<any[]>([]);
+  const [permisos, setPermisos] = useState<Record<string, boolean>>({});
+  const [modulosUI, setModulosUI] = useState<IModuloUI[]>([]);
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const [cargando, setCargando]   = useState(true);
+  const [cargandoRol, setCargandoRol] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [cambios, setCambios]     = useState(false);
+  const [nuevoRol, setNuevoRol]   = useState('');
+  const [creandoRol, setCreandoRol] = useState(false);
+  const [guardadoOk, setGuardadoOk] = useState(false);
+
+  const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+  const tok = () => localStorage.getItem('syncro_token') ?? '';
+  const h   = () => ({ Authorization: `Bearer ${tok()}`, 'Content-Type': 'application/json' });
+
+  // Cargar árbol y roles
+  useEffect(() => {
+    const init = async () => {
+      const [ra, rr] = await Promise.all([
+        fetch(`${api}/admin/permisos/arbol`, { headers: h() }),
+        fetch(`${api}/admin/permisos/roles`, { headers: h() }),
+      ]);
+      if (ra.ok) setArbol(await ra.json());
+      if (rr.ok) {
+        const data: string[] = await rr.json();
+        const sinAdmin = data.filter(r => r !== 'admin');
+        setRoles(sinAdmin);
+        if (sinAdmin.length > 0) setRol(sinAdmin[0]);
+      }
+      setCargando(false);
+    };
+    init();
+  }, []);
+
+  // Construir módulos UI desde árbol + module-config
+  useEffect(() => {
+    if (!arbol.length) return;
+    const eps: IEndpoint[] = arbol.flatMap((c: any) => c.endpoints ?? []);
+    const ui: IModuloUI[] = MODULOS.map(m => ({
+      id: m.id, nombre: m.nombre, color: m.color, bg: m.bg, border: m.border, icon: m.icon,
+      navegables: m.items.map(item => ({
+        label: item.label, href: item.href,
+        endpoints: eps.filter(ep =>
+          ep.rutaFrontend === item.href ||
+          ep.rutaFrontend?.startsWith(item.href + '/')
+        ),
+      })).filter(n => n.endpoints.length > 0),
+    })).filter(m => m.navegables.length > 0);
+    setModulosUI(ui);
+    // Expandir todos por defecto
+    setExpandidos(new Set(ui.map(m => m.id)));
+  }, [arbol]);
+
+  // Cargar permisos del rol
+  const cargarPermisos = useCallback(async (r: string) => {
+    setCargandoRol(true);
+    const res = await fetch(`${api}/admin/permisos/rol/${r}`, { headers: h() });
+    if (res.ok) setPermisos(await res.json());
+    setCargandoRol(false);
+    setCambios(false);
+  }, []);
+
+  useEffect(() => { if (rol) cargarPermisos(rol); }, [rol]);
+
+  // Helpers estado
+  const estadoNav = (nav: INavegable): Estado => {
+    const con = nav.endpoints.filter(ep => permisos[ep.id]).length;
+    if (con === 0) return 'none';
+    if (con === nav.endpoints.length) return 'full';
+    return 'partial';
+  };
+
+  const estadoModulo = (m: IModuloUI): Estado => {
+    const eps = m.navegables.flatMap(n => n.endpoints);
+    const con = eps.filter(ep => permisos[ep.id]).length;
+    if (con === 0) return 'none';
+    if (con === eps.length) return 'full';
+    return 'partial';
+  };
+
+  // Toggles
+  const toggleEndpoint = (id: string) => {
+    setPermisos(p => ({ ...p, [id]: !p[id] }));
+    setCambios(true);
+  };
+
+  const toggleNav = (nav: INavegable) => {
+    const todos = nav.endpoints.every(ep => permisos[ep.id]);
+    const copia = { ...permisos };
+    nav.endpoints.forEach(ep => { copia[ep.id] = !todos; });
+    setPermisos(copia); setCambios(true);
+  };
+
+  const toggleModulo = (m: IModuloUI) => {
+    const eps   = m.navegables.flatMap(n => n.endpoints);
+    const todos = eps.every(ep => permisos[ep.id]);
+    const copia = { ...permisos };
+    eps.forEach(ep => { copia[ep.id] = !todos; });
+    setPermisos(copia); setCambios(true);
+  };
+
+  const toggleExpandir = (key: string) =>
+    setExpandidos(prev => {
+      const s = new Set(prev);
+      s.has(key) ? s.delete(key) : s.add(key);
+      return s;
+    });
+
+  // Guardar
+  const guardar = async () => {
+    setGuardando(true);
+    const res = await fetch(`${api}/admin/permisos/rol/${rol}`, {
+      method: 'PUT', headers: h(), body: JSON.stringify({ permisos }),
+    });
+    setGuardando(false);
+    if (res.ok) {
+      setCambios(false);
+      setGuardadoOk(true);
+      setTimeout(() => setGuardadoOk(false), 2000);
+    }
+  };
+
+  // Crear rol
+  const crearRol = () => {
+    const r = nuevoRol.trim().toLowerCase().replace(/\s+/g, '_');
+    if (!r || roles.some(x => x.toLowerCase() === r)) return;
+    setRoles(prev => [...prev, r]);
+    setRol(r);
+    setPermisos({});
+    setCambios(false);
+    setNuevoRol('');
+    setCreandoRol(false);
+  };
+
+  // Conteo total para el rol
+  const totalEps    = modulosUI.flatMap(m => m.navegables.flatMap(n => n.endpoints)).length;
+  const activosEps  = modulosUI.flatMap(m => m.navegables.flatMap(n => n.endpoints)).filter(ep => permisos[ep.id]).length;
+
+  if (cargando) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', flexDirection: 'column', gap: 16 }}>
+      <Loader2 style={{ width: 32, height: 32, color: '#4f46e5', animation: 'spin 1s linear infinite' }}/>
+      <p style={{ color: '#64748b', fontSize: 13 }}>Cargando matriz de permisos...</p>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: '28px 24px', maxWidth: '1100px', margin: '0 auto' }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ background: '#eef2ff', padding: 8, borderRadius: 10 }}>
+              <Shield style={{ width: 20, height: 20, color: '#4f46e5' }}/>
+            </div>
+            Roles y Permisos
+          </h1>
+          <p style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>
+            Selecciona un perfil y activa o desactiva cada sección del sistema.
+          </p>
+        </div>
+
+        {/* Guardar */}
+        <button onClick={guardar} disabled={!cambios || guardando}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px',
+            background: guardadoOk ? '#059669' : cambios ? '#4f46e5' : '#e2e8f0',
+            color: cambios || guardadoOk ? '#fff' : '#94a3b8',
+            border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700,
+            cursor: cambios ? 'pointer' : 'not-allowed', transition: 'all .2s',
+          }}>
+          {guardando
+            ? <Loader2 style={{ width: 14, height: 14, animation: 'spin 1s linear infinite' }}/>
+            : guardadoOk
+              ? <Check style={{ width: 14, height: 14 }}/>
+              : <Save style={{ width: 14, height: 14 }}/>}
+          {guardadoOk ? 'Guardado' : cambios ? 'Guardar cambios' : 'Sin cambios'}
+        </button>
+      </div>
+
+      {/* Selector de roles — horizontal */}
+      <div style={{
+        background: '#fff', border: '0.5px solid #e2e8f0', borderRadius: 14,
+        padding: 16, marginBottom: 16,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', color: '#94a3b8' }}>
+            Perfil a configurar
+          </p>
+          {rol && (
+            <p style={{ fontSize: 12, color: '#64748b' }}>
+              <span style={{ color: '#4f46e5', fontWeight: 700 }}>{activosEps}</span>
+              <span style={{ color: '#94a3b8' }}> / {totalEps} acciones activas</span>
+              {cambios && <span style={{ color: '#f59e0b', marginLeft: 8, fontWeight: 700 }}>● cambios sin guardar</span>}
+            </p>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {roles.map(r => (
+            <button key={r} onClick={() => {
+              if (r !== rol) {
+                if (cambios && !confirm('¿Descartar cambios y cambiar de perfil?')) return;
+                setRol(r); setCambios(false);
+              }
+            }}
+              style={{
+                padding: '8px 18px', borderRadius: 30, border: '1.5px solid',
+                borderColor: r === rol ? '#4f46e5' : '#e2e8f0',
+                background: r === rol ? '#4f46e5' : '#fff',
+                color: r === rol ? '#fff' : '#475569',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                textTransform: 'capitalize', transition: 'all .15s',
+              }}>
+              {r}
+            </button>
+          ))}
+
+          {/* Crear rol */}
+          {creandoRol ? (
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <input autoFocus value={nuevoRol} onChange={e => setNuevoRol(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') crearRol(); if (e.key === 'Escape') setCreandoRol(false); }}
+                placeholder="nombre del rol"
+                style={{
+                  padding: '8px 12px', border: '1.5px solid #c7d2fe', borderRadius: 30,
+                  fontSize: 13, outline: 'none', width: 160,
+                }}/>
+              <button onClick={crearRol} style={{
+                padding: '8px 14px', background: '#4f46e5', color: '#fff',
+                border: 'none', borderRadius: 30, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              }}>Crear</button>
+              <button onClick={() => setCreandoRol(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+                <X style={{ width: 14, height: 14, color: '#94a3b8' }}/>
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setCreandoRol(true)} style={{
+              padding: '8px 14px', background: '#f8fafc', border: '1.5px dashed #cbd5e1',
+              borderRadius: 30, fontSize: 12, color: '#64748b', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}>
+              <Plus style={{ width: 12, height: 12 }}/> Nuevo perfil
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Contenido */}
+      {cargandoRol ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+          <Loader2 style={{ width: 24, height: 24, color: '#4f46e5', animation: 'spin 1s linear infinite' }}/>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {modulosUI.map(m => {
+            const estMod  = estadoModulo(m);
+            const expMod  = expandidos.has(m.id);
+            const navActivos = m.navegables.filter(n => estadoNav(n) !== 'none').length;
+
+            return (
+              <div key={m.id} style={{
+                background: '#fff', border: `1.5px solid ${estMod !== 'none' ? m.border : '#e2e8f0'}`,
+                borderRadius: 14, overflow: 'hidden', transition: 'border-color .2s',
+              }}>
+
+                {/* Header módulo — clic para expandir/colapsar */}
+                <div onClick={() => toggleExpandir(m.id)} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px',
+                  cursor: 'pointer', background: estMod !== 'none' ? m.bg + 'aa' : '#fff',
+                  borderBottom: expMod ? `0.5px solid ${m.border}` : 'none',
+                  userSelect: 'none',
+                }}>
+
+                  {/* Tri-state del módulo */}
+                  <TriState estado={estMod} onChange={() => toggleModulo(m)}/>
+
+                  {/* Ícono */}
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 9, background: m.bg,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <i className={`ti ${m.icon}`} style={{ fontSize: 18, color: m.color }}/>
+                  </div>
+
+                  {/* Nombre */}
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{m.nombre}</p>
+                    <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
+                      {navActivos > 0
+                        ? `${navActivos} de ${m.navegables.length} secciones activas`
+                        : `${m.navegables.length} secciones disponibles — sin acceso`}
+                    </p>
+                  </div>
+
+                  {/* Estado */}
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                    color:   estMod === 'full' ? m.color : estMod === 'partial' ? '#b45309' : '#94a3b8',
+                    background: estMod === 'full' ? m.bg : estMod === 'partial' ? '#fef3c7' : '#f8fafc',
+                    border: `0.5px solid ${estMod === 'full' ? m.border : estMod === 'partial' ? '#fde68a' : '#e2e8f0'}`,
+                  }}>
+                    {estMod === 'full' ? '✓ Acceso completo' : estMod === 'partial' ? '◎ Acceso parcial' : '○ Sin acceso'}
+                  </span>
+
+                  {expMod
+                    ? <ChevronDown style={{ width: 16, height: 16, color: '#94a3b8', flexShrink: 0 }}/>
+                    : <ChevronRight style={{ width: 16, height: 16, color: '#94a3b8', flexShrink: 0 }}/>}
+                </div>
+
+                {/* Navegables */}
+                {expMod && (
+                  <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {m.navegables.map(nav => {
+                      const estNav  = estadoNav(nav);
+                      const navKey  = `${m.id}::${nav.href}`;
+                      const navExp  = expandidos.has(navKey);
+                      const tieneAcciones = nav.endpoints.length > 1;
+
+                      return (
+                        <div key={nav.href} style={{
+                          border: `1px solid ${estNav !== 'none' ? '#c7d2fe' : '#f1f5f9'}`,
+                          borderRadius: 10, overflow: 'hidden',
+                          background: estNav !== 'none' ? '#fafafe' : '#fafafa',
+                          transition: 'border-color .15s',
+                        }}>
+                          {/* Fila del navegable */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
+
+                            {/* Toggle ON/OFF */}
+                            <Toggle on={estNav === 'full'} onChange={() => toggleNav(nav)}/>
+
+                            {/* Info */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{
+                                fontSize: 13, fontWeight: 600,
+                                color: estNav !== 'none' ? '#1e1b4b' : '#64748b',
+                              }}>{nav.label}</p>
+                              <p style={{ fontSize: 10, fontFamily: 'monospace', color: '#94a3b8', marginTop: 1 }}>
+                                {nav.href}
+                              </p>
+                            </div>
+
+                            {/* Métodos disponibles */}
+                            <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                              {nav.endpoints.map(ep => {
+                                const mc = METODO_COLOR[ep.metodo] ?? { bg: '#f1f5f9', text: '#64748b' };
+                                return (
+                                  <span key={ep.id} style={{
+                                    fontSize: 9, fontWeight: 800, padding: '2px 5px', borderRadius: 4,
+                                    background: permisos[ep.id] ? mc.bg : '#f1f5f9',
+                                    color:      permisos[ep.id] ? mc.text : '#cbd5e1',
+                                    transition: 'all .15s',
+                                  }}>
+                                    {ep.metodo}
+                                  </span>
+                                );
+                              })}
+                            </div>
+
+                            {/* Estado parcial */}
+                            {estNav === 'partial' && (
+                              <span style={{ fontSize: 10, color: '#b45309', fontWeight: 700, flexShrink: 0 }}>
+                                parcial
+                              </span>
+                            )}
+
+                            {/* Expandir acciones (solo si hay más de 1 endpoint) */}
+                            {tieneAcciones && (
+                              <button onClick={e => { e.stopPropagation(); toggleExpandir(navKey); }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, flexShrink: 0 }}>
+                                {navExp
+                                  ? <ChevronDown style={{ width: 13, height: 13, color: '#94a3b8' }}/>
+                                  : <ChevronRight style={{ width: 13, height: 13, color: '#94a3b8' }}/>}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Acciones individuales */}
+                          {navExp && tieneAcciones && (
+                            <div style={{ borderTop: '0.5px solid #e0e7ff', background: '#f5f3ff' }}>
+                              <p style={{
+                                fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                                letterSpacing: '.5px', color: '#7c3aed', padding: '6px 14px 4px',
+                              }}>
+                                Acciones específicas
+                              </p>
+                              {nav.endpoints.map(ep => {
+                                const mc = METODO_COLOR[ep.metodo] ?? { bg: '#f1f5f9', text: '#64748b' };
+                                return (
+                                  <label key={ep.id} style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    padding: '7px 14px', cursor: 'pointer',
+                                    borderBottom: '0.5px solid #ede9fe',
+                                  }}>
+                                    <Toggle on={!!permisos[ep.id]} onChange={() => toggleEndpoint(ep.id)} size="sm"/>
+                                    <span style={{
+                                      fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
+                                      background: mc.bg, color: mc.text, minWidth: 42, textAlign: 'center', flexShrink: 0,
+                                    }}>
+                                      {ep.metodo}
+                                    </span>
+                                    <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#64748b', flex: 1 }}>
+                                      {ep.ruta}
+                                    </span>
+                                    <span style={{ fontSize: 12, color: '#475569' }}>{ep.nombre}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
 }
