@@ -23,7 +23,7 @@ export default function AlmacenesPage() {
   const [formData, setFormData] = useState({ nombre: "", ubicacion: "" });
   const [guardando, setGuardando] = useState(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'info' } | null>(null);
   const mostrarToast = (mensaje: string, tipo: 'exito' | 'error' | 'info' = 'info') => {

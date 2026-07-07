@@ -7,7 +7,7 @@ import { CuentasContablesService } from '../services/cuentas-contables.service';
 @SkipPermisos()
 @Controller('finanzas/cuentas-contables')
 export class CuentasContablesController {
-  constructor(private readonly cuentasService: CuentasContablesService) {}
+  constructor(private readonly cuentasService: CuentasContablesService) { }
 
   @Post()
   crear(@Body() dto: CrearCuentaContableDto, @ActiveUser('empresaId') empresaId: string) {
@@ -37,5 +37,10 @@ export class CuentasContablesController {
     @ActiveUser('empresaId') empresaId: string,
   ) {
     return this.cuentasService.cambiarEstado(id, empresaId);
+  }
+
+  @Post('precargar-estandar')
+  precargarEstandar(@ActiveUser('empresaId') empresaId: string) {
+    return this.cuentasService.precargarPlanEstandar(empresaId);
   }
 }

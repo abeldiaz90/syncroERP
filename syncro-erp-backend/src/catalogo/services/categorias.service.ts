@@ -3,12 +3,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Categoria } from '../entities/categoria.entity';
 import { CrearCategoriaDto } from '../dto/crear-categoria.dto';
+// ⚠️ Ajusta la ruta si tu entidad de cuentas está en otra ubicación
+import { CuentaContable } from '../../finanzas/entities/cuenta-contable.entity';
 
 @Injectable()
 export class CategoriasService {
     constructor(
         @InjectRepository(Categoria)
         private readonly categoriaRepository: Repository<Categoria>,
+        @InjectRepository(CuentaContable)
+        private readonly cuentaRepository: Repository<CuentaContable>,
     ) { }
 
     async crearCategoria(dto: CrearCategoriaDto, empresaId: string) {
@@ -67,5 +71,104 @@ export class CategoriasService {
 
         categoria.activo = !categoria.activo;
         return await this.categoriaRepository.save(categoria);
+    }
+
+    /**
+     * Auto-configura las cuentas contables de las categorías según el número
+     * de cuenta (401→Ventas, 501→Costo, 130→Inventario, 601→Mermas, 401-02→Devoluciones).
+     *
+     * @param empresaId   empresa del usuario
+     * @param soloVacias  si true (default), solo toca categorías sin configurar;
+     *                    si false, sobrescribe TODAS.
+     *
+     * Devuelve un resumen de cuántas configuró y qué cuentas usó.
+     */
+    async autoConfigurarCuentas(empresaId: string, soloVacias = true) {
+        // 1) Traer las cuentas afectables de la empresa
+        const cuentas = await this.cuentaRepository.find({
+            where: { empresaId, activo: true, esAfectable: true },
+        });
+
+        if (cuentas.length === 0) {
+            throw new NotFoundException(
+                'No hay cuentas contables. Créalas primero en Finanzas → Catálogo de Cuentas.',
+            );
+        }
+
+        // 2) Resolver qué cuenta va en cada rol, por número
+        const sinGuion = (n: string) => n.replace(/-/g, '');
+        const porExacto = (num: string) => cuentas.find((c) => c.numeroCuenta === num);
+        const porPrefijo = (pref: string) =>
+            cuentas.find((c) => sinGuion(c.numeroCuenta).startsWith(pref));
+
+        const ventas = porExacto('401-01') || porPrefijo('401') || porPrefijo('4');
+        const costo = porExacto('501-01') || porPrefijo('501') || porPrefijo('5');
+        const inventario = porExacto('130-01') || porPrefijo('130') || porPrefijo('13');
+        const devoluciones = porExacto('401-02') || ventas;
+        const mermas = porExacto('601-01') || porPrefijo('601') || porPrefijo('6');
+
+        const mapeo = {
+            cuentaVentasId: ventas?.id ?? null,
+            cuentaCostoVentasId: costo?.id ?? null,
+            cuentaInventarioId: inventario?.id ?? null,
+            cuentaDevolucionesId: devoluciones?.id ?? null,
+            cuentaMermasId: mermas?.id ?? null,
+        };
+
+        const cuentasResueltas = Object.values(mapeo).filter(Boolean).length;
+        if (cuentasResueltas === 0) {
+            throw new NotFoundException(
+                'No se encontraron cuentas con la numeración esperada (4xx, 5xx, 13x, 6xx).',
+            );
+        }
+
+        // 3) Traer las categorías de la empresa
+        const categorias = await this.categoriaRepository.find({
+            where: { empresaId },
+        });
+
+        // 4) Aplicar el mapeo
+        let configuradas = 0;
+        let omitidas = 0;
+
+        for (const cat of categorias) {
+            const yaCompleta =
+                cat.cuentaVentasId &&
+                cat.cuentaCostoVentasId &&
+                cat.cuentaInventarioId &&
+                cat.cuentaDevolucionesId &&
+                cat.cuentaMermasId;
+
+            if (soloVacias && yaCompleta) {
+                omitidas++;
+                continue;
+            }
+
+            cat.cuentaVentasId = mapeo.cuentaVentasId as any;
+            cat.cuentaCostoVentasId = mapeo.cuentaCostoVentasId as any;
+            cat.cuentaInventarioId = mapeo.cuentaInventarioId as any;
+            cat.cuentaDevolucionesId = mapeo.cuentaDevolucionesId as any;
+            cat.cuentaMermasId = mapeo.cuentaMermasId as any;
+            configuradas++;
+        }
+
+        if (configuradas > 0) {
+            await this.categoriaRepository.save(categorias);
+        }
+
+        return {
+            ok: true,
+            totalCategorias: categorias.length,
+            configuradas,
+            omitidas,
+            cuentasResueltas,
+            mapeo: {
+                ventas: ventas?.numeroCuenta ?? null,
+                costo: costo?.numeroCuenta ?? null,
+                inventario: inventario?.numeroCuenta ?? null,
+                devoluciones: devoluciones?.numeroCuenta ?? null,
+                mermas: mermas?.numeroCuenta ?? null,
+            },
+        };
     }
 }

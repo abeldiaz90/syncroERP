@@ -19,6 +19,7 @@ import { Banco }               from './entities/banco.entity';
 import { FormaPago }           from './entities/forma-pago.entity';
 import { ProductoEquivalencia } from './entities/producto-equivalencia.entity';
 import { LoteInventario }      from './entities/lote-inventario.entity';
+import { UnidadMedida }        from './entities/unidad-medida.entity'; // ← NUEVO
 
 // ── Controladores ─────────────────────────────────────────────────
 import { CategoriasController }   from './controllers/categorias.controller';
@@ -32,6 +33,7 @@ import { PaisesController }       from './controllers/paises.controller';
 import { EstadosController }      from './controllers/estados.controller';
 import { BancosController }       from './controllers/bancos.controller';
 import { FormasPagoController }   from './controllers/formas-pago.controller';
+import { UnidadesMedidaController } from './controllers/unidades-medida.controller'; // ← NUEVO
 
 // ── Servicios ─────────────────────────────────────────────────────
 import { CategoriasService }   from './services/categorias.service';
@@ -46,6 +48,8 @@ import { PaisesService }       from './services/paises.service';
 import { EstadosService }      from './services/estados.service';
 import { BancosService }       from './services/bancos.service';
 import { FormasPagoService }   from './services/formas-pago.service';
+import { UnidadesMedidaService } from './services/unidades-medida.service'; // ← NUEVO
+import { CuentaContable } from './../finanzas/entities/cuenta-contable.entity';
 
 // ── FinanzasModule — necesario porque InventarioService usa PolizasService ──
 import { FinanzasModule } from '../finanzas/modules/finanzas.module';
@@ -56,7 +60,8 @@ import { FinanzasModule } from '../finanzas/modules/finanzas.module';
       Categoria, Producto, MovimientoInventario, Almacen, StockPorAlmacen,
       Marca, Impuesto, ImagenProducto, ListaPrecio, ProductoPrecio,
       Pais, Estado, Banco, FormaPago,
-      ProductoEquivalencia, LoteInventario, ProductoAtributo,
+      ProductoEquivalencia, LoteInventario, ProductoAtributo, CuentaContable,
+      UnidadMedida, // ← NUEVO
     ]),
     FinanzasModule,   // ← provee PolizasService y MotorContableService a InventarioService
   ],
@@ -65,12 +70,14 @@ import { FinanzasModule } from '../finanzas/modules/finanzas.module';
     AlmacenesController, MarcaController, ImpuestoController,
     ListasPrecioController, PaisesController, EstadosController,
     BancosController, FormasPagoController,
+    UnidadesMedidaController, // ← NUEVO
   ],
   providers: [
     CategoriasService, ProductosService, InventarioService,
     AlmacenesService, StockService, MarcaService, ImpuestoService,
     ListasPrecioService, PaisesService, EstadosService,
     BancosService, FormasPagoService,
+    UnidadesMedidaService, // ← NUEVO
   ],
   exports: [
     InventarioService,

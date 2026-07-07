@@ -213,36 +213,68 @@ export class AuthService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // VERIFICAR EMAIL (idempotente: reintentos con el mismo token no fallan;
-  // evita el falso "token inválido" del doble useEffect de React Strict Mode)
+  // VERIFICAR EMAIL — idempotente + devuelve token de sesión
+  // Así el usuario llega al wizard ya autenticado, sin pasar por login.
   // ═══════════════════════════════════════════════════════════════════════
   async verificarEmail(token: string) {
     if (!token) throw new BadRequestException('Token no proporcionado');
 
     const usuario = await this.usuarioRepository.findOne({
       where: { tokenVerificacion: token },
+      relations: ['empresa'],
     });
 
     if (!usuario) {
       throw new NotFoundException('Token inválido o ya utilizado');
     }
 
-    if (usuario.emailVerificado) {
-      return { verificado: true, empresaId: usuario.empresaId };
+    // Si NO estaba verificado, lo verificamos ahora
+    if (!usuario.emailVerificado) {
+      if (usuario.tokenExpira && new Date() > new Date(usuario.tokenExpira)) {
+        throw new BadRequestException(
+          'El enlace de verificación ha expirado. Solicita uno nuevo.',
+        );
+      }
+      usuario.emailVerificado = true;
+      await this.usuarioRepository.save(usuario);
+      await this.empresaRepository.update(usuario.empresaId, { activo: true });
     }
+    // Si ya estaba verificado, igual devolvemos sesión (idempotente):
+    // el doble useEffect de React Strict Mode no rompe nada.
 
-    if (usuario.tokenExpira && new Date() > new Date(usuario.tokenExpira)) {
-      throw new BadRequestException(
-        'El enlace de verificación ha expirado. Solicita uno nuevo.',
-      );
-    }
+    const empresaId = usuario.empresa?.id ?? usuario.empresaId;
 
-    usuario.emailVerificado = true;
-    await this.usuarioRepository.save(usuario);
+    const permisos =
+      usuario.rol === 'admin'
+        ? {}
+        : await this.permisosService.obtenerPermisosPorRolParaFrontend(
+          usuario.rol,
+          empresaId,
+        );
 
-    await this.empresaRepository.update(usuario.empresaId, { activo: true });
+    const payload = {
+      sub: usuario.id,
+      email: usuario.email,
+      rol: usuario.rol,
+      empresaId,
+    };
 
-    return { verificado: true, empresaId: usuario.empresaId };
+    const access_token = this.jwtService.sign(payload);
+
+    return {
+      verificado: true,
+      empresaId,
+      // ✅ NUEVO: sesión lista para el wizard
+      access_token,
+      usuario: {
+        id: usuario.id,
+        nombre: usuario.nombreCompleto,
+        rol: usuario.rol,
+        empresaId,
+        onboardingCompletado: usuario.empresa?.onboardingCompletado ?? false,
+      },
+      permisos,
+    };
   }
 
   // ═══════════════════════════════════════════════════════════════════════

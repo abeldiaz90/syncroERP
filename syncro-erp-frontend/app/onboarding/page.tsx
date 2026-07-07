@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Building2, MapPin, Package, CreditCard,
-  Check, ChevronRight, Loader2, Sparkles, X
+  Check, ChevronRight, Loader2, Sparkles, X, Landmark
 } from 'lucide-react';
 
 // ── Pasos del wizard ──────────────────────────────────────────────────────────
@@ -331,26 +331,36 @@ export default function OnboardingWizard() {
               <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Sparkles className="w-12 h-12 text-emerald-600"/>
               </div>
-              <h2 className="text-3xl font-black text-slate-900 mb-3">¡Todo listo! 🎉</h2>
+              <h2 className="text-3xl font-black text-slate-900 mb-3">¡Datos guardados! 🎉</h2>
               <p className="text-slate-500 mb-8 max-w-md mx-auto">
-                Tu empresa está configurada. Ahora puedes empezar a registrar productos, clientes y hacer tus primeras ventas.
+                Tu empresa quedó registrada. Solo falta un paso más: configurar tu contabilidad
+                para que cada venta y compra se registre automáticamente.
               </p>
+
+              {/* Tarjetas decorativas — muestran lo que viene, sin ser enlaces
+                  para no saltarse la configuración contable */}
               <div className="grid grid-cols-3 gap-4 mb-8 max-w-lg mx-auto">
                 {[
-                  { emoji: '📦', label: 'Agrega productos', href: '/dashboard/productos' },
-                  { emoji: '👥', label: 'Registra clientes', href: '/dashboard/clientes' },
-                  { emoji: '🛒', label: 'Haz tu primera venta', href: '/dashboard/ventas/pos' },
+                  { emoji: '📦', label: 'Agrega productos'      },
+                  { emoji: '👥', label: 'Registra clientes'     },
+                  { emoji: '🛒', label: 'Haz tu primera venta'  },
                 ].map(a => (
-                  <a key={a.href} href={a.href}
-                    className="flex flex-col items-center gap-2 p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all text-sm font-medium text-slate-700">
-                    <span className="text-2xl">{a.emoji}</span>
+                  <div key={a.label}
+                    className="flex flex-col items-center gap-2 p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-500">
+                    <span className="text-2xl opacity-70">{a.emoji}</span>
                     {a.label}
-                  </a>
+                  </div>
                 ))}
               </div>
-              <button onClick={() => router.push('/dashboard')}
+
+              <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 text-sm text-indigo-700 max-w-md mx-auto mb-6 flex items-start gap-2 text-left">
+                <Landmark className="w-4 h-4 mt-0.5 shrink-0"/>
+                <span>El siguiente paso configura las cuentas contables. Si no manejas contabilidad, podrás usar una configuración automática con un solo clic.</span>
+              </div>
+
+              <button onClick={() => router.push('/configuracion-inicial')}
                 className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3 rounded-xl text-sm shadow-sm transition-all">
-                <ChevronRight className="w-4 h-4"/> Ir al panel de control
+                Continuar con la configuración <ChevronRight className="w-4 h-4"/>
               </button>
             </div>
           )}
