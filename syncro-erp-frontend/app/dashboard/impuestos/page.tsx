@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Search, Plus, Edit2, Power, X, Percent, AlertCircle, CheckCircle2 } from "lucide-react";
-import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement"; // ← NUEVO
+import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement";
 
 export interface IImpuesto { id: string; nombre: string; porcentaje: number; activo: boolean; }
 
@@ -13,10 +13,11 @@ export default function ImpuestosPage() {
   const [busquedaDebounced, setBusquedaDebounced] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ nombre: "", porcentaje: 0 });
+  // porcentaje se maneja como string para permitir "0", "" y decimales sin conflictos
+  const [formData, setFormData] = useState<{ nombre: string; porcentaje: string }>({ nombre: "", porcentaje: "" });
   const [guardando, setGuardando] = useState(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'info' } | null>(null);
   const mostrarToast = (mensaje: string, tipo: 'exito' | 'error' | 'info' = 'info') => {
@@ -42,20 +43,30 @@ export default function ImpuestosPage() {
 
   useEffect(() => { fetchImpuestos(); }, []);
 
-  const abrirModalCrear = () => { setEditandoId(null); setFormData({ nombre: "", porcentaje: 0 }); setIsModalOpen(true); };
-  const abrirModalEditar = (imp: IImpuesto) => { setEditandoId(imp.id); setFormData({ nombre: imp.nombre, porcentaje: imp.porcentaje }); setIsModalOpen(true); };
+  const abrirModalCrear = () => { setEditandoId(null); setFormData({ nombre: "", porcentaje: "" }); setIsModalOpen(true); };
+  const abrirModalEditar = (imp: IImpuesto) => {
+    setEditandoId(imp.id);
+    setFormData({ nombre: imp.nombre, porcentaje: String(imp.porcentaje) });
+    setIsModalOpen(true);
+  };
 
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nombre.trim()) { mostrarToast("El nombre del impuesto es obligatorio.", "info"); return; }
+    // Validación del porcentaje: permite 0, pero no vacío ni negativo
+    if (formData.porcentaje === "" || isNaN(Number(formData.porcentaje)) || Number(formData.porcentaje) < 0) {
+      mostrarToast("Ingresa un porcentaje válido (puede ser 0).", "info");
+      return;
+    }
     setGuardando(true);
     const token = localStorage.getItem("syncro_token");
     const url = editandoId ? `${apiUrl}/catalogo/impuestos/${editandoId}` : `${apiUrl}/catalogo/impuestos`;
+    const payload = { nombre: formData.nombre.trim(), porcentaje: Number(formData.porcentaje) };
     try {
       const res = await fetch(url, {
         method: editandoId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       if (res.ok) { setIsModalOpen(false); fetchImpuestos(); mostrarToast(editandoId ? "Impuesto actualizado exitosamente" : "Impuesto creado exitosamente", "exito"); }
       else { const d = await res.json().catch(() => null); mostrarToast(`Error: ${d?.message || 'No se pudo guardar el impuesto'}`, "error"); }
@@ -92,7 +103,6 @@ export default function ImpuestosPage() {
           </h1>
           <p className="text-slate-500 mt-1">Configura las tasas impositivas aplicables a tus productos.</p>
         </div>
-        {/* ✅ Solo aparece si tiene POST /api/catalogo/impuestos */}
         <PuedeCrear ruta="/api/catalogo/impuestos">
           <button onClick={abrirModalCrear} className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-indigo-700 hover:shadow-md transition-all active:scale-95">
             <Plus className="w-5 h-5" /> Nuevo Impuesto
@@ -147,13 +157,11 @@ export default function ImpuestosPage() {
                     </td>
                     <td className="p-4">
                       <div className="flex justify-center items-center gap-2">
-                        {/* ✅ Solo aparece si tiene PATCH /api/catalogo/impuestos/:id */}
                         <PuedeEditar ruta="/api/catalogo/impuestos/:id">
                           <button onClick={() => abrirModalEditar(imp)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Editar">
                             <Edit2 className="w-4 h-4" />
                           </button>
                         </PuedeEditar>
-                        {/* ✅ Solo aparece si tiene PATCH /api/catalogo/impuestos/:id/estado */}
                         <PuedeEditar ruta="/api/catalogo/impuestos/:id/estado">
                           <button onClick={() => handleCambiarEstado(imp.id, imp.activo)} className={`p-2 rounded-lg transition-colors ${imp.activo ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`} title={imp.activo ? "Desactivar" : "Activar"}>
                             <Power className="w-4 h-4" />
@@ -187,9 +195,24 @@ export default function ImpuestosPage() {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Porcentaje *</label>
                   <div className="relative">
-                    <input type="number" required step="0.01" min="0" placeholder="16.00" value={formData.porcentaje === 0 ? '' : formData.porcentaje} onChange={(e) => setFormData({ ...formData, porcentaje: Number(e.target.value) })} className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+                    {/*
+                      FIX: el campo ahora acepta 0.
+                      - value usa formData.porcentaje directo (string), sin ocultar el 0.
+                      - se quitó `required` para que el navegador no trate "0" como vacío;
+                        la validación de 0 válido se hace en handleGuardar.
+                    */}
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="16.00  (usa 0 para IVA 0% o Exento)"
+                      value={formData.porcentaje}
+                      onChange={(e) => setFormData({ ...formData, porcentaje: e.target.value })}
+                      className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    />
                     <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-500 font-medium">%</div>
                   </div>
+                  <p className="text-xs text-slate-400 mt-1">Para impuestos como "IVA 0%" o "Exento", escribe 0.</p>
                 </div>
               </form>
             </div>

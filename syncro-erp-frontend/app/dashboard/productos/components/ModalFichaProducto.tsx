@@ -4,15 +4,25 @@ import {
   Package, CheckCircle2, Info, Image as ImageIcon, Star, Trash2,
   Plus, Tags, DollarSign, Box, PackagePlus, AlertCircle,
   Layers, FileText, X, Thermometer, Globe, Barcode,
-  FlaskConical, Settings2, Loader2, ChevronRight, ArrowRight
+  FlaskConical, Settings2, Loader2, ChevronRight, ArrowRight, Check
 } from 'lucide-react';
 import { IFormData, ICatalogoBasico, IImpuesto, IListaPrecio } from '../types/producto.types';
+import SelectConCrear from './SelectConCrear';
 
 // ─── Tipos internos ───────────────────────────────────────────────
 interface IAtributo {
   clave: string; etiqueta: string; valor: string;
   tipoValor?: 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'SELECT';
   unidad?: string; sector?: string; orden?: number;
+  opciones?: string | null; // para SELECT: 'A|B|C'
+}
+interface IGrupoAtributos {
+  id: string; nombre: string; descripcion?: string | null;
+  definiciones: Array<{
+    id: string; clave: string; etiqueta: string;
+    tipoValor: 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'SELECT';
+    unidad?: string | null; opciones?: string | null; orden: number;
+  }>;
 }
 interface IPresetAtributo {
   clave: string; etiqueta: string; tipoValor: string;
@@ -33,6 +43,10 @@ interface Props {
   impuestos: IImpuesto[];
   almacenes: ICatalogoBasico[];
   listasPrecio: IListaPrecio[];
+  unidades: any[];
+  setCategorias: React.Dispatch<React.SetStateAction<ICatalogoBasico[]>>;
+  setMarcas: React.Dispatch<React.SetStateAction<ICatalogoBasico[]>>;
+  setUnidades: React.Dispatch<React.SetStateAction<any[]>>;
   guardando: boolean;
   onSubmit: (e: React.FormEvent, atributos?: any[]) => void;
   inputFileRef: React.RefObject<HTMLInputElement | null>;
@@ -76,13 +90,8 @@ const MONEDAS = [
   { value: 'USD', label: 'USD — Dólar Americano' },
   { value: 'EUR', label: 'EUR — Euro' },
 ];
-const SECTORES = [
-  { value: '', label: '— Sin sector específico —' },
-  { value: 'FARMACEUTICO', label: 'Farmacéutico' },
-  { value: 'CARNICO', label: 'Cárnico / Alimentos' },
-  { value: 'PETROLERO', label: 'Petrolero / Petroquímica' },
-  { value: 'HOTELERO', label: 'Hotelero' },
-];
+// Los grupos de atributos ahora son DINÁMICOS: los crea el usuario
+// en /dashboard/productos/atributos y se cargan de la API.
 
 // ─── Árbol de equivalencias ───────────────────────────────────────
 function EquivalenciasArbol({ equivalencias, unidadBase, onChange }: {
@@ -229,18 +238,62 @@ function EquivalenciasArbol({ equivalencias, unidadBase, onChange }: {
 export default function ModalFichaProducto({
   isOpen, onClose, productoEditandoId, formData, setFormData,
   categorias, marcas, impuestos, almacenes, listasPrecio,
+  unidades, setCategorias, setMarcas, setUnidades,
   guardando, onSubmit, inputFileRef, handleSeleccionarImagenes, BASE_URL,
 }: Props) {
+
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+  const token = typeof window !== 'undefined' ? (localStorage.getItem('syncro_token') ?? '') : '';
+
+  const [modalUnidad, setModalUnidad] = useState(false);
+  const [nuevaUnidad, setNuevaUnidad] = useState({ nombre: '', abreviatura: '', claveSAT: '' });
+  const [guardandoUnidad, setGuardandoUnidad] = useState(false);
+
+  const crearUnidadRapida = async () => {
+    if (!nuevaUnidad.nombre.trim()) return;
+    setGuardandoUnidad(true);
+    try {
+      const res = await fetch(`${apiUrl}/catalogo/unidades-medida`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(nuevaUnidad),
+      });
+      const d = await res.json().catch(() => null);
+      if (res.ok && d) {
+        setUnidades(prev => [...prev, d]);
+        setFormData(prev => ({
+          ...prev,
+          unidadMedida: d.nombre,
+          claveUnidadSAT: d.claveSAT || prev.claveUnidadSAT,
+        }));
+        setModalUnidad(false);
+        setNuevaUnidad({ nombre: '', abreviatura: '', claveSAT: '' });
+      }
+    } catch (e) { console.error(e); }
+    setGuardandoUnidad(false);
+  };
 
   const [activeTab, setActiveTab] = useState<'general'|'precios'|'logistica'|'sectorial'|'empaques'|'multimedia'>('general');
   const [sectorSeleccionado, setSectorSeleccionado] = useState('');
   const [atributos, setAtributos] = useState<IAtributo[]>([]);
   const [cargandoPreset, setCargandoPreset] = useState(false);
+  const [gruposAtributos, setGruposAtributos] = useState<IGrupoAtributos[]>([]);
+
+  // Cargar los grupos de atributos definidos por el usuario
+  useEffect(() => {
+    if (!isOpen) return;
+    const token = localStorage.getItem('syncro_token');
+    fetch(`${apiUrl}/catalogo/atributos-personalizados/grupos?incluirDefiniciones=1`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setGruposAtributos(Array.isArray(data) ? data : []))
+      .catch(() => setGruposAtributos([]));
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const atributosOriginalesRef = useRef<IAtributo[]>([]);
   const sectorOriginalRef = useRef<string>('');
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
   // Sincronizar atributos cuando se abre el modal
   useEffect(() => {
@@ -259,30 +312,25 @@ export default function ModalFichaProducto({
     }
   }, [isOpen, productoEditandoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const cargarPresetSector = async (sector: string) => {
-    setSectorSeleccionado(sector);
-    if (!sector) { setAtributos([]); return; }
-    setCargandoPreset(true);
-    const token = localStorage.getItem('syncro_token');
-    try {
-      const res = await fetch(`${apiUrl}/catalogo/productos/atributos/${sector}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) { console.error('Error cargando preset:', res.status); return; }
-      const preset: IPresetAtributo[] = await res.json();
-      // Si regresa al sector original, restaurar valores de BD
-      const esElOriginal = sector === sectorOriginalRef.current;
-      const fuente = esElOriginal ? atributosOriginalesRef.current : atributos;
-      const valorGuardado: Record<string, string> = {};
-      fuente.forEach((a: IAtributo) => { valorGuardado[a.clave] = a.valor; });
-      setAtributos(preset.map(p => ({
-        clave: p.clave, etiqueta: p.etiqueta,
-        valor: valorGuardado[p.clave] ?? '',
-        tipoValor: p.tipoValor as IAtributo['tipoValor'],
-        unidad: p.unidad, sector: p.sector, orden: p.orden,
-      })));
-    } catch (e) { console.error('Error de red:', e); }
-    finally { setCargandoPreset(false); }
+  const cargarPresetSector = async (nombreGrupo: string) => {
+    setSectorSeleccionado(nombreGrupo);
+    if (!nombreGrupo) { setAtributos([]); return; }
+    const grupo = gruposAtributos.find((g) => g.nombre === nombreGrupo);
+    if (!grupo) { setAtributos([]); return; }
+    // Si regresa al grupo original, restaurar valores de BD
+    const esElOriginal = nombreGrupo === sectorOriginalRef.current;
+    const fuente = esElOriginal ? atributosOriginalesRef.current : atributos;
+    const valorGuardado: Record<string, string> = {};
+    fuente.forEach((a: IAtributo) => { valorGuardado[a.clave] = a.valor; });
+    setAtributos(grupo.definiciones.map((d) => ({
+      clave: d.clave, etiqueta: d.etiqueta,
+      valor: valorGuardado[d.clave] ?? '',
+      tipoValor: d.tipoValor,
+      unidad: d.unidad ?? undefined,
+      sector: grupo.nombre,
+      orden: d.orden,
+      opciones: d.opciones ?? undefined,
+    })));
   };
 
   const handleSubmitConAtributos = (e: React.FormEvent) => {
@@ -406,18 +454,60 @@ export default function ModalFichaProducto({
                     <div><label className={lbl}>Tipo de Producto</label>
                       <select name="tipo" value={(fd.tipo as string) || 'FISICO'} onChange={handleChange} className={inp}>
                         {TIPOS_PRODUCTO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
-                    <div><label className={lbl}>Categoría</label>
-                      <select name="categoriaId" value={formData.categoriaId || ''} onChange={handleChange} className={inp}>
-                        <option value="">— Sin categoría —</option>
-                        {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></div>
-                    <div><label className={lbl}>Marca</label>
-                      <select name="marcaId" value={formData.marcaId || ''} onChange={handleChange} className={inp}>
-                        <option value="">— Sin marca —</option>
-                        {marcas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}</select></div>
+                    <div>
+                      <SelectConCrear
+                        label="Categoría"
+                        name="categoriaId"
+                        value={formData.categoriaId || ''}
+                        opciones={categorias}
+                        textoVacio="— Sin categoría —"
+                        onChange={handleChange}
+                        endpointCrear={`${apiUrl}/catalogo/categorias`}
+                        token={token}
+                        onCreado={(nueva) => setCategorias(prev => [...prev, nueva])}
+                        className={inp}
+                        tituloModal="Nueva categoría"
+                        campos={[{ key: 'nombre', label: 'Nombre', placeholder: 'Ej. Bebidas, Abarrotes…' }]}
+                      />
+                    </div>
+                    <div>
+                      <SelectConCrear
+                        label="Marca"
+                        name="marcaId"
+                        value={formData.marcaId || ''}
+                        opciones={marcas}
+                        textoVacio="— Sin marca —"
+                        onChange={handleChange}
+                        endpointCrear={`${apiUrl}/catalogo/marcas`}
+                        token={token}
+                        onCreado={(nueva) => setMarcas(prev => [...prev, nueva])}
+                        className={inp}
+                        tituloModal="Nueva marca"
+                        campos={[{ key: 'nombre', label: 'Nombre', placeholder: 'Ej. Coca-Cola, Bimbo…' }]}
+                      />
+                    </div>
                     <div><label className={lbl}>Unidad de Medida Base</label>
-                      <select name="unidadMedida" value={formData.unidadMedida} onChange={handleChange}
-                        disabled={!!productoEditandoId} className={`${inp} ${productoEditandoId ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''}`}>
-                        {UNIDADES_MEDIDA.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}</select>
+                      <div className="flex gap-2">
+                        <select name="unidadMedida" value={formData.unidadMedida || ''}
+                          disabled={!!productoEditandoId}
+                          onChange={(e) => {
+                            handleChange(e);
+                            const u = unidades.find((x: any) => x.nombre === e.target.value);
+                            if (u?.claveSAT) setFormData(prev => ({ ...prev, claveUnidadSAT: u.claveSAT }));
+                          }}
+                          className={`${inp} ${productoEditandoId ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''}`}>
+                          <option value="">— Seleccionar unidad —</option>
+                          {unidades.map((u: any) => (
+                            <option key={u.id} value={u.nombre}>{u.nombre}{u.abreviatura ? ` (${u.abreviatura})` : ''}</option>
+                          ))}
+                        </select>
+                        {!productoEditandoId && (
+                          <button type="button" title="Crear unidad" onClick={() => setModalUnidad(true)}
+                            className="shrink-0 w-10 flex items-center justify-center bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-100">
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                       {productoEditandoId && <p className="text-[10px] text-amber-600 mt-1">La unidad base no puede cambiarse.</p>}</div>
                   </div>
                 </div>
@@ -584,15 +674,18 @@ export default function ModalFichaProducto({
                   <h3 className={stit}><FlaskConical className="w-4 h-4 text-purple-500" /> Sector de la Industria</h3>
                   <div className="flex items-center gap-3">
                     <select value={sectorSeleccionado} onChange={(e) => cargarPresetSector(e.target.value)} className={`${inp} max-w-xs`}>
-                      {SECTORES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      <option value="">— Sin plantilla de atributos —</option>
+                      {gruposAtributos.map(g => <option key={g.id} value={g.nombre}>{g.nombre}</option>)}
                     </select>
                     {cargandoPreset && <Loader2 className="w-5 h-5 animate-spin text-blue-500" />}
+                    <a href="/dashboard/productos/atributos" target="_blank" rel="noreferrer"
+                      className="text-xs text-blue-600 hover:underline whitespace-nowrap">⚙ Administrar plantillas</a>
                   </div>
                 </div>
                 {atributos.length > 0 && (
                   <div className={sec}>
                     <h3 className={stit}><Settings2 className="w-4 h-4 text-purple-500" />
-                      Atributos — {SECTORES.find(s => s.value === sectorSeleccionado)?.label}
+                      Atributos — {sectorSeleccionado}
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                       {atributos.map(attr => (
@@ -610,6 +703,12 @@ export default function ModalFichaProducto({
                           ) : attr.tipoValor === 'NUMBER' ? (
                             <input type="number" step="0.01" value={attr.valor}
                               onChange={(e) => handleAtributo(attr.clave, e.target.value)} className={inp} />
+                          ) : attr.tipoValor === 'SELECT' && attr.opciones ? (
+                            <select value={attr.valor}
+                              onChange={(e) => handleAtributo(attr.clave, e.target.value)} className={inp}>
+                              <option value="">— Selecciona —</option>
+                              {attr.opciones.split('|').map(op => <option key={op} value={op}>{op}</option>)}
+                            </select>
                           ) : attr.tipoValor === 'DATE' ? (
                             <input type="date" value={attr.valor}
                               onChange={(e) => handleAtributo(attr.clave, e.target.value)} className={inp} />
@@ -626,7 +725,7 @@ export default function ModalFichaProducto({
                 {!sectorSeleccionado && (
                   <div className="text-center py-16 text-slate-400">
                     <FlaskConical className="w-14 h-14 mx-auto mb-3 text-slate-200" />
-                    <p className="font-bold text-slate-500">Selecciona un sector para ver sus atributos</p>
+                    <p className="font-bold text-slate-500">Selecciona una plantilla de atributos — créalas en ⚙ Administrar plantillas</p>
                   </div>
                 )}
               </div>
@@ -705,6 +804,60 @@ export default function ModalFichaProducto({
           </div>
         </div>
       </div>
+
+      {modalUnidad && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4"
+          onClick={() => !guardandoUnidad && setModalUnidad(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <Plus className="w-4 h-4 text-indigo-500" /> Nueva unidad de medida
+              </h3>
+              <button onClick={() => setModalUnidad(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Nombre *</label>
+                <input autoFocus value={nuevaUnidad.nombre}
+                  onChange={e => setNuevaUnidad(u => ({ ...u, nombre: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter') crearUnidadRapida(); }}
+                  placeholder="Ej. Pieza, Kilogramo…"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Abreviatura</label>
+                  <input value={nuevaUnidad.abreviatura}
+                    onChange={e => setNuevaUnidad(u => ({ ...u, abreviatura: e.target.value }))}
+                    placeholder="pza, kg…" maxLength={10}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Clave SAT</label>
+                  <input value={nuevaUnidad.claveSAT}
+                    onChange={e => setNuevaUnidad(u => ({ ...u, claveSAT: e.target.value.toUpperCase() }))}
+                    placeholder="H87…" maxLength={10}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono" />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+              <button onClick={() => setModalUnidad(false)} disabled={guardandoUnidad}
+                className="px-4 py-2 text-sm text-slate-700 font-medium hover:bg-slate-200 rounded-lg disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={crearUnidadRapida} disabled={guardandoUnidad}
+                className="px-4 py-2 text-sm bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-60 flex items-center gap-2">
+                {guardandoUnidad ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {guardandoUnidad ? 'Creando…' : 'Crear y usar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Param } from '@nestjs/common';
 import { PolizasService } from '../services/polizas.service';
 import { CrearPolizaDto } from '../dto/crear-poliza.dto';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
@@ -86,6 +86,25 @@ export class PolizasController {
       ...body,
       empresaId,
       fecha: new Date(body.fecha),
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CANCELAR PÓLIZA — genera su reversa. La original nunca se borra.
+  // POST /api/finanzas/polizas/:id/cancelar
+  // body: { motivo: string; fechaReverso?: 'AAAA-MM-DD' }
+  // ══════════════════════════════════════════════════════════════════════════
+  @Post(':id/cancelar')
+  cancelar(
+    @Param('id') id: string,
+    @Body() body: { motivo: string; fechaReverso?: string },
+    @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('email') email: string,
+  ) {
+    return this.polizasService.cancelarPoliza(empresaId, id, {
+      motivo:       body?.motivo,
+      fechaReverso: body?.fechaReverso,
+      usuario:      email,
     });
   }
 }

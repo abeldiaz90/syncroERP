@@ -19,7 +19,10 @@ import { Banco }               from './entities/banco.entity';
 import { FormaPago }           from './entities/forma-pago.entity';
 import { ProductoEquivalencia } from './entities/producto-equivalencia.entity';
 import { LoteInventario }      from './entities/lote-inventario.entity';
-import { UnidadMedida }        from './entities/unidad-medida.entity'; // ← NUEVO
+import { UnidadMedida }        from './entities/unidad-medida.entity';
+import { CuentaContable }      from './../finanzas/entities/cuenta-contable.entity';
+import { AtributoGrupo }       from './entities/atributo-grupo.entity';       // ← atributos dinámicos
+import { AtributoDefinicion }  from './entities/atributo-definicion.entity';  // ← atributos dinámicos
 
 // ── Controladores ─────────────────────────────────────────────────
 import { CategoriasController }   from './controllers/categorias.controller';
@@ -33,7 +36,10 @@ import { PaisesController }       from './controllers/paises.controller';
 import { EstadosController }      from './controllers/estados.controller';
 import { BancosController }       from './controllers/bancos.controller';
 import { FormasPagoController }   from './controllers/formas-pago.controller';
-import { UnidadesMedidaController } from './controllers/unidades-medida.controller'; // ← NUEVO
+import { UnidadesMedidaController } from './controllers/unidades-medida.controller';
+import { ImportacionController }  from './controllers/importacion.controller';          // importador de catálogo
+import { ImportacionStockController } from './controllers/importacion-stock.controller'; // ← NUEVO: stock inicial
+import { AtributosPersonalizadosController } from './controllers/atributos-personalizados.controller'; // ← atributos dinámicos
 
 // ── Servicios ─────────────────────────────────────────────────────
 import { CategoriasService }   from './services/categorias.service';
@@ -48,10 +54,15 @@ import { PaisesService }       from './services/paises.service';
 import { EstadosService }      from './services/estados.service';
 import { BancosService }       from './services/bancos.service';
 import { FormasPagoService }   from './services/formas-pago.service';
-import { UnidadesMedidaService } from './services/unidades-medida.service'; // ← NUEVO
-import { CuentaContable } from './../finanzas/entities/cuenta-contable.entity';
+import { UnidadesMedidaService } from './services/unidades-medida.service';
+import { ImportacionProductosService } from './services/importacion-productos.service';   // importador de catálogo
+import { PlantillaInventarioService }  from './services/plantilla-inventario.service';    // importador de catálogo
+import { ImportacionStockInicialService } from './services/importacion-stock-inicial.service'; // ← NUEVO
+import { PlantillaStockInicialService }   from './services/plantilla-stock-inicial.service';   // ← NUEVO
+import { AtributosPersonalizadosService } from './services/atributos-personalizados.service'; // ← atributos dinámicos
 
-// ── FinanzasModule — necesario porque InventarioService usa PolizasService ──
+// ── FinanzasModule — necesario porque InventarioService usa PolizasService
+//    y la carga de stock inicial usa MotorContableService ──
 import { FinanzasModule } from '../finanzas/modules/finanzas.module';
 
 @Module({
@@ -61,25 +72,35 @@ import { FinanzasModule } from '../finanzas/modules/finanzas.module';
       Marca, Impuesto, ImagenProducto, ListaPrecio, ProductoPrecio,
       Pais, Estado, Banco, FormaPago,
       ProductoEquivalencia, LoteInventario, ProductoAtributo, CuentaContable,
-      UnidadMedida, // ← NUEVO
+      UnidadMedida,
+      AtributoGrupo, AtributoDefinicion,   // ← atributos dinámicos
     ]),
-    FinanzasModule,   // ← provee PolizasService y MotorContableService a InventarioService
+    FinanzasModule,   // ← provee PolizasService y MotorContableService
   ],
   controllers: [
     CategoriasController, ProductosController, InventarioController,
     AlmacenesController, MarcaController, ImpuestoController,
     ListasPrecioController, PaisesController, EstadosController,
     BancosController, FormasPagoController,
-    UnidadesMedidaController, // ← NUEVO
+    UnidadesMedidaController,
+    ImportacionController,        // importador de catálogo (productos)
+    ImportacionStockController,   // ← NUEVO: carga de stock inicial
+    AtributosPersonalizadosController, // ← atributos dinámicos
   ],
   providers: [
     CategoriasService, ProductosService, InventarioService,
     AlmacenesService, StockService, MarcaService, ImpuestoService,
     ListasPrecioService, PaisesService, EstadosService,
     BancosService, FormasPagoService,
-    UnidadesMedidaService, // ← NUEVO
+    UnidadesMedidaService,
+    ImportacionProductosService,      // importador de catálogo
+    PlantillaInventarioService,       // importador de catálogo
+    ImportacionStockInicialService,   // ← NUEVO
+    PlantillaStockInicialService,     // ← NUEVO
+    AtributosPersonalizadosService,   // ← atributos dinámicos
   ],
   exports: [
+    CategoriasService,
     InventarioService,
     StockService,
     FinanzasModule,   // re-exportar: todo módulo que importe CatalogoModule recibe PolizasService y MotorContableService

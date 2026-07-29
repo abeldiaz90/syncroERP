@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   BookOpen, FileText, Search, X, Plus,
-  ChevronLeft, ChevronRight, Filter, RefreshCw
+  ChevronLeft, ChevronRight, Filter, RefreshCw,
+  Ban, Undo2, AlertTriangle, Loader2
 } from 'lucide-react';
 
 interface IPartida {
@@ -15,7 +16,19 @@ interface IPoliza {
   id: string; folio: string; tipo: 'DIARIO' | 'INGRESO' | 'EGRESO';
   concepto: string; fecha: string; fechaCreacion: string;
   partidas: IPartida[];
+  // ── Cancelación / reverso ──
+  estatus?: 'VIGENTE' | 'CANCELADA' | 'REVERSA';
+  polizaOrigenId?: string | null;
+  polizaReversaId?: string | null;
+  motivoCancelacion?: string | null;
+  canceladaPor?: string | null;
+  fechaCancelacion?: string | null;
 }
+
+const ESTATUS_CFG: Record<string, { cls: string; label: string }> = {
+  CANCELADA: { cls: 'bg-rose-100 text-rose-700 border-rose-200',       label: 'Cancelada' },
+  REVERSA:   { cls: 'bg-amber-100 text-amber-700 border-amber-200',    label: 'Reversa'   },
+};
 
 const TIPO_CFG = {
   DIARIO:  { cls: 'bg-blue-100 text-blue-700',    label: 'Diario'  },
@@ -43,6 +56,11 @@ export default function LibroDiarioPage() {
   const [hasta, setHasta]           = useState(HASTA);
   const [pagina, setPagina]         = useState(1);
   const [detalle, setDetalle]       = useState<IPoliza | null>(null);
+  // ── cancelación ──
+  const [motivo, setMotivo]         = useState('');
+  const [cancelando, setCancelando] = useState(false);
+  const [errCancel, setErrCancel]   = useState<string | null>(null);
+  const [okCancel, setOkCancel]     = useState<string | null>(null);
 
   const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
   const tok = () => localStorage.getItem('syncro_token') ?? '';
@@ -58,6 +76,36 @@ export default function LibroDiarioPage() {
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  // Cancelar una póliza = emitir su REVERSA. La original nunca se borra.
+  const cancelarPoliza = async () => {
+    if (!detalle) return;
+    setCancelando(true); setErrCancel(null); setOkCancel(null);
+    try {
+      const r = await fetch(`${api}/finanzas/polizas/${detalle.id}/cancelar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
+        body: JSON.stringify({ motivo }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const msg = Array.isArray(data?.message) ? data.message.join('. ') : data?.message;
+        throw new Error(msg || 'No se pudo cancelar la póliza');
+      }
+      setOkCancel(data.mensaje ?? 'Póliza cancelada.');
+      setMotivo('');
+      await cargar();
+      setDetalle(null);
+    } catch (e: any) {
+      setErrCancel(e.message);
+    } finally {
+      setCancelando(false);
+    }
+  };
+
+  const abrirDetalle = (p: IPoliza) => {
+    setDetalle(p); setMotivo(''); setErrCancel(null); setOkCancel(null);
+  };
 
   // Filtros en frontend
   const filtradas = polizas.filter(p => {
@@ -197,9 +245,18 @@ export default function LibroDiarioPage() {
                     const total = p.partidas.reduce((s, pp) => s + Number(pp.cargo), 0);
                     const cfg   = TIPO_CFG[p.tipo] ?? TIPO_CFG.DIARIO;
                     return (
-                      <tr key={p.id} onClick={() => setDetalle(p)}
-                        className="hover:bg-indigo-50/40 cursor-pointer transition-colors">
-                        <td className="px-5 py-3 font-mono font-bold text-indigo-600 text-xs">{p.folio}</td>
+                      <tr key={p.id} onClick={() => abrirDetalle(p)}
+                        className={`hover:bg-indigo-50/40 cursor-pointer transition-colors ${
+                          p.estatus === 'CANCELADA' ? 'bg-rose-50/40' : ''}`}>
+                        <td className="px-5 py-3 font-mono font-bold text-xs">
+                          <span className={p.estatus === 'CANCELADA'
+                            ? 'text-slate-400 line-through' : 'text-indigo-600'}>{p.folio}</span>
+                          {p.estatus && ESTATUS_CFG[p.estatus] && (
+                            <span className={`ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded border ${ESTATUS_CFG[p.estatus].cls}`}>
+                              {ESTATUS_CFG[p.estatus].label}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-5 py-3 text-slate-500 text-xs">{fmtFecha(p.fecha?.split('T')[0])}</td>
                         <td className="px-5 py-3">
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.cls}`}>{cfg.label}</span>
@@ -253,6 +310,29 @@ export default function LibroDiarioPage() {
                 </button>
               </div>
             </div>
+            {/* Aviso de estatus */}
+            {detalle.estatus === 'CANCELADA' && (
+              <div className="bg-rose-50 border-b border-rose-200 px-6 py-3 text-sm text-rose-800 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0"/>
+                <div>
+                  <p className="font-bold">Póliza cancelada</p>
+                  <p className="text-xs mt-0.5">
+                    Motivo: {detalle.motivoCancelacion || '—'}
+                    {detalle.canceladaPor ? ` · por ${detalle.canceladaPor}` : ''}
+                  </p>
+                  <p className="text-xs mt-0.5 text-rose-600">
+                    Sigue en el libro: su reversa la deja en ceros. No se elimina nunca.
+                  </p>
+                </div>
+              </div>
+            )}
+            {detalle.estatus === 'REVERSA' && (
+              <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 text-sm text-amber-800 flex items-start gap-2">
+                <Undo2 className="w-4 h-4 mt-0.5 shrink-0"/>
+                <p>Esta es una <b>póliza de reversa</b>: cancela a otra póliza con los importes invertidos.</p>
+              </div>
+            )}
+
             <div className="overflow-y-auto flex-1">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
@@ -297,7 +377,39 @@ export default function LibroDiarioPage() {
                 </tfoot>
               </table>
             </div>
+
+            {/* Pie: cancelar póliza (solo si está vigente) */}
+            {(!detalle.estatus || detalle.estatus === 'VIGENTE') && (
+              <div className="border-t border-slate-200 bg-slate-50 px-6 py-4">
+                {errCancel && (
+                  <p className="mb-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2">{errCancel}</p>
+                )}
+                <p className="text-xs text-slate-500 mb-2">
+                  Cancelar genera una <b>póliza de reversa</b> con los importes invertidos.
+                  La original se conserva en el libro (no se borra ni se edita).
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input value={motivo} onChange={(e) => setMotivo(e.target.value)}
+                    placeholder="Motivo de la cancelación (obligatorio)"
+                    className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  <button onClick={cancelarPoliza} disabled={cancelando || motivo.trim().length < 5}
+                    className="inline-flex items-center justify-center gap-2 bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                    {cancelando ? <Loader2 className="w-4 h-4 animate-spin"/> : <Ban className="w-4 h-4"/>}
+                    Cancelar póliza
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
+        </div>
+      )}
+
+      {/* Confirmación de cancelación */}
+      {okCancel && (
+        <div className="fixed bottom-6 right-6 z-[60] bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3">
+          <Undo2 className="w-4 h-4 text-emerald-400"/>
+          <span>{okCancel}</span>
+          <button onClick={() => setOkCancel(null)} className="text-slate-400 hover:text-white"><X className="w-4 h-4"/></button>
         </div>
       )}
     </div>

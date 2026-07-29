@@ -11,6 +11,16 @@ export class ImpuestoController {
     return this.impuestoService.findAll(empresaId);
   }
 
+  /**
+   * Precarga los impuestos estándar de México (IVA 16%, IVA 0%, Exento).
+   * Idempotente: no duplica los que ya existan.
+   * POST /api/catalogo/impuestos/precargar-estandar
+   */
+  @Post('precargar-estandar')
+  precargarEstandar(@ActiveUser('empresaId') empresaId: string) {
+    return this.impuestoService.precargarEstandar(empresaId);
+  }
+
   @Post()
   create(
     @Body('nombre') nombre: string,

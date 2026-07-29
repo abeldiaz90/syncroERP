@@ -1,0 +1,43 @@
+# ============================================================================
+# SyncroERP · Variables de entorno
+# Copia este archivo como .env y completa los valores.
+# El arranque VALIDA estas variables: si algo falta, la API no inicia.
+# ============================================================================
+
+NODE_ENV=development
+PORT=4000
+
+# ── Base de datos (SQL Server) ─────────────────────────────────────────────
+DB_HOST=localhost
+DB_PORT=1433
+DB_USER=
+DB_PASSWORD=
+DB_NAME=syncro_erp
+DB_ENCRYPT=false
+DB_POOL_MAX=20
+
+# Sincronización automática del esquema.
+# NUNCA 'true' en produccion: TypeORM puede borrar columnas con datos.
+DB_SYNC=true
+
+# ── Autenticación ──────────────────────────────────────────────────────────
+# Mínimo 32 caracteres. Genera uno con:
+#   node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+JWT_SECRET=
+JWT_EXPIRATION=8h
+
+# ── Correo (opcional: sin esto no se envían invitaciones) ──────────────────
+MAIL_HOST=
+MAIL_PORT=587
+MAIL_USER=
+MAIL_PASS=
+MAIL_FROM=
+
+# ── Frontend y CORS ────────────────────────────────────────────────────────
+FRONTEND_URL=http://localhost:3000
+# Lista separada por comas. Sustituye al antiguo origin:'*'.
+CORS_ORIGINS=http://localhost:3000
+
+# ── Documentación ──────────────────────────────────────────────────────────
+# Swagger se monta solo fuera de producción, salvo que pongas 'true' aquí.
+SWAGGER_HABILITADO=false

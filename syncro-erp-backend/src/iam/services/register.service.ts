@@ -1,9 +1,10 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import * as bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { MailService } from '../../common/services/mail.service';
 import { RegisterDto } from '../dto/register.dto';
+import { exigirPoliticaPassword } from '../security/password-policy';
 
 @Injectable()
 export class RegisterService {
@@ -15,6 +16,8 @@ export class RegisterService {
   ) {}
 
   async registrar(dto: RegisterDto) {
+    exigirPoliticaPassword(dto.password);
+
     const existe = await this.dataSource.query(
       'SELECT id FROM Usuarios WHERE email = @0',
       [dto.email.toLowerCase().trim()]
@@ -26,16 +29,17 @@ export class RegisterService {
       [dto.nombreComercial.trim()]
     );
 
-    const hash   = await bcrypt.hash(dto.password, 12);
-    const token  = crypto.randomBytes(32).toString('hex');
-    const expira = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const hash      = await bcrypt.hash(dto.password, 12);
+    const token     = crypto.randomBytes(32).toString('hex');           // ← correo
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex'); // ← BD
+    const expira    = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     await this.dataSource.query(
       'INSERT INTO Usuarios ' +
       '(empresaId, nombreCompleto, email, passwordHash, rol, emailVerificado, tokenVerificacion, tokenExpira) ' +
       'VALUES (@0,@1,@2,@3,@4,@5,@6,@7)',
       [empresa.id, dto.nombreCompleto.trim(), dto.email.toLowerCase().trim(),
-       hash, 'admin', 0, token, expira]
+       hash, 'admin', 0, tokenHash, expira]
     );
 
     const url  = `${process.env.FRONTEND_URL}/verificar-email?token=${token}`;
@@ -67,7 +71,7 @@ export class RegisterService {
   async verificarEmail(token: string) {
     const [usuario] = await this.dataSource.query(
       'SELECT id, empresaId, tokenExpira FROM Usuarios WHERE tokenVerificacion = @0 AND emailVerificado = 0',
-      [token]
+      [crypto.createHash('sha256').update(token || '').digest('hex')]
     );
     if (!usuario) throw new NotFoundException('Token inválido o ya utilizado');
     if (new Date() > new Date(usuario.tokenExpira)) {

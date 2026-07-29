@@ -48,6 +48,15 @@ export class Usuario {
   @Column({ type: 'datetime2', nullable: true })
   tokenExpira!: Date | null;
 
+  // ── Protección contra fuerza bruta ────────────────────────────────
+  /** Intentos de login fallidos consecutivos. Se resetea al entrar bien. */
+  @Column({ type: 'int', default: 0 })
+  intentosFallidos!: number;
+
+  /** Si tiene valor futuro, la cuenta está bloqueada temporalmente. */
+  @Column({ type: 'datetime2', nullable: true })
+  bloqueadoHasta!: Date | null;
+
   // ── Recuperación de contraseña ────────────────────────────────────
   @Column({ type: 'nvarchar', length: 64, nullable: true })
   tokenRecuperacion!: string | null;

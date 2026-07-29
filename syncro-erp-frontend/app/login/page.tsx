@@ -39,9 +39,16 @@ export default function LoginPage() {
         // Navegación nativa de Next.js (más rápida)
         router.push('/dashboard');
       } else {
+        // Mostrar SIEMPRE el mensaje real del backend: ahí viajan avisos
+        // importantes como el bloqueo por intentos fallidos ("Cuenta
+        // bloqueada 15 minutos"), "verifica tu correo", etc.
+        // class-validator puede devolver message como arreglo → lo unimos.
+        const msgBackend = Array.isArray(data?.message)
+          ? data.message.join('. ')
+          : data?.message;
         setError({
           type: 'auth',
-          message: res.status === 401 ? 'Correo o contraseña incorrectos.' : (data.message || 'Error al iniciar sesión')
+          message: msgBackend || 'Correo o contraseña incorrectos.'
         });
       }
     } catch (err) {

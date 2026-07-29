@@ -10,6 +10,18 @@ export enum TipoPoliza {
   EGRESO  = 'EGRESO',
 }
 
+/**
+ * Estatus de una póliza.
+ *  · VIGENTE   — póliza normal, afecta saldos.
+ *  · CANCELADA — se le generó una póliza de reversa. NUNCA se borra.
+ *  · REVERSA   — es la póliza espejo que cancela a otra.
+ *
+ * Regla contable: una póliza jamás se elimina ni se edita. Corregir
+ * significa emitir su reversa (cargos y abonos invertidos), igual que
+ * el FB08 de SAP. Ambas quedan en el libro y su suma es cero.
+ */
+export type EstatusPoliza = 'VIGENTE' | 'CANCELADA' | 'REVERSA';
+
 @Entity('polizas')
 export class Poliza {
   @PrimaryGeneratedColumn('uuid')
@@ -43,6 +55,31 @@ export class Poliza {
 
   @Column({ type: 'uniqueidentifier', nullable: true })
   facturaId!: string;
+
+  // ── Cancelación / reverso ────────────────────────────────────
+  /** VIGENTE por omisión. Las pólizas anteriores a esta función quedan VIGENTE. */
+  @Column({ type: 'varchar', length: 20, default: 'VIGENTE' })
+  estatus!: EstatusPoliza;
+
+  /** En la póliza de REVERSA: apunta a la póliza original que cancela. */
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  polizaOrigenId!: string | null;
+
+  /** En la póliza CANCELADA: apunta a la reversa que la anuló. */
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  polizaReversaId!: string | null;
+
+  /** Por qué se canceló. Obligatorio al cancelar (rastro de auditoría). */
+  @Column({ type: 'varchar', length: 300, nullable: true })
+  motivoCancelacion!: string | null;
+
+  /** Correo del usuario que ejecutó la cancelación. */
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  canceladaPor!: string | null;
+
+  @Column({ type: 'datetime2', nullable: true })
+  fechaCancelacion!: Date | null;
+  // ─────────────────────────────────────────────────────────────
 
   @CreateDateColumn()
   fechaCreacion!: Date;

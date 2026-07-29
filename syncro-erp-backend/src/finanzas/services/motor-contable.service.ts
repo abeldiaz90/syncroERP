@@ -469,4 +469,129 @@ export class MotorContableService {
     }
   }
 
+  async generarAsientoDeHospedaje(datos: {
+    empresaId: string;
+    folio: string;            // p. ej. el código de reserva RES-000123
+    fecha: Date;
+    total: number;            // total con IVA
+    iva: number;              // IVA contenido
+    metodoPago?: string;
+    cuentaBancariaId?: string;
+    esCredito?: boolean;      // true = factura a crédito (CxC)
+  }): Promise<void> {
+    try {
+      const base = this.redondear(datos.total - datos.iva);
+      const iva  = this.redondear(datos.iva);
+      const total = this.redondear(datos.total);
+
+      // Cuenta de ingresos por hospedaje (4xx). Toma la primera cuenta de
+      // ingreso disponible; idealmente crea una "Ingresos por Hospedaje" 401-xx.
+      const cuentaIngreso = await this.buscarCuentaGlobal(datos.empresaId, 'INGRESO', '4');
+      if (!cuentaIngreso) {
+        this.logger.warn(`Hospedaje ${datos.folio}: sin cuenta de ingresos (4xx). Asiento omitido.`);
+        return;
+      }
+
+      // Cuenta de cargo: CxC si es crédito, o Caja/Banco según método de pago
+      const cuentaDebito = datos.esCredito
+        ? await this.buscarCuentaGlobal(datos.empresaId, 'ACTIVO', '14')  // Clientes CxC
+        : await this.buscarCuentaSegunMetodoPago(datos.empresaId, datos.metodoPago ?? 'EFECTIVO', datos.cuentaBancariaId);
+
+      if (!cuentaDebito) {
+        this.logger.warn(`Hospedaje ${datos.folio}: sin cuenta de cargo. Asiento omitido.`);
+        return;
+      }
+
+      const cuentaIva = iva > 0
+        ? await this.buscarCuentaGlobal(datos.empresaId, 'PASIVO', '20')  // IVA Trasladado 208-xx
+        : null;
+
+      const partidas: any[] = [];
+      const ref = `HOSP ${datos.folio}`;
+
+      // Dr. Caja/Banco/CxC por el total
+      partidas.push({ cuentaContableId: cuentaDebito.id, cargo: total, abono: 0, referencia: ref });
+      // Cr. Ingresos por la base
+      partidas.push({ cuentaContableId: cuentaIngreso.id, cargo: 0, abono: base, referencia: ref });
+      // Cr. IVA
+      if (cuentaIva && iva > 0) {
+        partidas.push({ cuentaContableId: cuentaIva.id, cargo: 0, abono: iva, referencia: ref });
+      }
+
+      await this.crearPoliza({
+        empresaId: datos.empresaId,
+        tipo: TipoPoliza.INGRESO,
+        concepto: `Ingreso por hospedaje — ${datos.folio}`,
+        fecha: datos.fecha,
+        partidas,
+      });
+
+      this.logger.log(`Póliza de hospedaje generada: ${datos.folio} | Base: ${base} | IVA: ${iva}`);
+    } catch (err: any) {
+      this.logger.error(`[Hospedaje ${datos.folio}] ${err?.message}`);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 7. ASIENTO DE INVENTARIO INICIAL (carga de saldos, estilo SAP 561)
+  //    Dr. Inventario (agrupado por cuenta de la categoría de cada producto)
+  //    Cr. 399-01 Carga de saldos iniciales (cuenta puente)
+  //    Genera UNA sola póliza por toda la carga.
+  // ══════════════════════════════════════════════════════════════════════════
+  async generarAsientoDeInventarioInicial(datos: {
+    empresaId: string;
+    fecha: Date;
+    detalles: { productoId: string; cantidad: number; costoUnitario: number }[];
+  }): Promise<void> {
+    try {
+      const prodMap = await this.cargarProductosConCategoria(
+        datos.detalles.map(d => d.productoId),
+      );
+      const cuentaPuente = await this.buscarCuentaGlobal(datos.empresaId, 'CAPITAL', '399');
+      if (!cuentaPuente) {
+        this.logger.warn(
+          'Inventario inicial: no existe la cuenta 399-xx "Carga de saldos iniciales". ' +
+          'Ejecuta la precarga estándar de cuentas. Asiento omitido.',
+        );
+        return;
+      }
+
+      // Dr. Inventario, AGRUPADO por cuenta de inventario de la categoría
+      const porCuenta = new Map<string, number>();
+      for (const det of datos.detalles) {
+        const cat = (prodMap.get(det.productoId)?.categoria) as any;
+        if (!cat?.cuentaInventarioId) continue;
+        const valor = this.redondear(det.costoUnitario * det.cantidad);
+        if (valor <= 0) continue;
+        porCuenta.set(
+          cat.cuentaInventarioId,
+          this.redondear((porCuenta.get(cat.cuentaInventarioId) ?? 0) + valor),
+        );
+      }
+      if (porCuenta.size === 0) {
+        this.logger.warn('Inventario inicial: ninguna categoría con cuenta de inventario. Asiento omitido.');
+        return;
+      }
+
+      const partidas: PartidaInput[] = [];
+      let total = 0;
+      for (const [cuentaId, valor] of porCuenta) {
+        partidas.push({ cuentaContableId: cuentaId, cargo: valor, abono: 0, referencia: 'INV-INICIAL' });
+        total = this.redondear(total + valor);
+      }
+      // Cr. cuenta puente por el total
+      partidas.push({ cuentaContableId: cuentaPuente.id, cargo: 0, abono: total, referencia: 'INV-INICIAL' });
+
+      await this.crearPoliza({
+        empresaId: datos.empresaId,
+        tipo:      TipoPoliza.DIARIO,
+        concepto:  `Carga de inventario inicial — ${datos.detalles.length} productos`,
+        fecha:     datos.fecha,
+        partidas,
+      });
+      this.logger.log(`Póliza de inventario inicial: $${total} en ${porCuenta.size} cuentas de inventario`);
+    } catch (err: any) {
+      this.logger.error(`[Inventario inicial] ${err?.message}`);
+    }
+  }
 }

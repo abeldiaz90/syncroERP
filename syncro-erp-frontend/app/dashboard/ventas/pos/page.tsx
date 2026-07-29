@@ -78,6 +78,10 @@ export default function POSPage() {
   const [procesando,        setProcesando]        = useState(false);
   const [ventaExitosa,      setVentaExitosa]      = useState<{id:string;folio:number}|null>(null);
   const [showClienteSearch, setShowClienteSearch] = useState(false);
+  const [showNuevoCliente,  setShowNuevoCliente]  = useState(false);
+  const [nuevoCliente,      setNuevoCliente]      = useState({ nombre: '', telefono: '', rfc: '', email: '' });
+  const [guardandoCliente,  setGuardandoCliente]  = useState(false);
+  const [errorCliente,      setErrorCliente]      = useState('');
   const [notas,             setNotas]             = useState('');
   const [errorMsg,          setErrorMsg]          = useState('');
 
@@ -144,6 +148,40 @@ export default function POSPage() {
     }, 300);
     return () => clearTimeout(t);
   }, [busquedaCliente]);
+
+  // ── Crear cliente al vuelo desde el POS ─────────────────────────
+  const crearClienteRapido = async () => {
+    setErrorCliente('');
+    if (!nuevoCliente.nombre.trim()) { setErrorCliente('El nombre es obligatorio'); return; }
+    setGuardandoCliente(true);
+    try {
+      const res = await fetch(`${apiUrl}/clientes`, {
+        method: 'POST',
+        headers: { ...hdrs(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre:   nuevoCliente.nombre.trim(),
+          telefono: nuevoCliente.telefono.trim() || null,
+          rfc:      nuevoCliente.rfc.trim().toUpperCase() || null,
+          email:    nuevoCliente.email.trim() || null,
+        }),
+      });
+      const d = await res.json().catch(() => null);
+      if (res.ok && d) {
+        // Lo dejamos seleccionado en la venta, sin salir del POS
+        setCliente(d);
+        setShowNuevoCliente(false);
+        setShowClienteSearch(false);
+        setBusquedaCliente('');
+        setNuevoCliente({ nombre: '', telefono: '', rfc: '', email: '' });
+      } else {
+        const m = Array.isArray(d?.message) ? d.message.join(', ') : d?.message;
+        setErrorCliente(m || 'No se pudo crear el cliente');
+      }
+    } catch {
+      setErrorCliente('Error de conexión con el servidor');
+    }
+    setGuardandoCliente(false);
+  };
 
   // ── Simular amortización ────────────────────────────────────────
   const simularAmortizacion = useCallback(async () => {
@@ -448,6 +486,17 @@ export default function POSPage() {
                       ))}
                       {busquedaCliente&&clientes.length===0&&<p className="px-3 py-3 text-xs text-slate-400 text-center">Sin resultados</p>}
                     </div>
+                    {/* Crear cliente al vuelo */}
+                    <button
+                      onClick={() => {
+                        setNuevoCliente({ nombre: busquedaCliente, telefono: '', rfc: '', email: '' });
+                        setErrorCliente('');
+                        setShowNuevoCliente(true);
+                        setShowClienteSearch(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-blue-600 hover:bg-blue-50 border-t border-slate-100">
+                      <Plus className="w-4 h-4" /> Nuevo cliente
+                    </button>
                   </div>
                 )}
               </div>
@@ -664,6 +713,70 @@ export default function POSPage() {
               <button onClick={()=>setModalCredito(false)}
                 className="flex-1 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 flex items-center justify-center gap-2">
                 <CheckCircle2 className="w-4 h-4"/> Confirmar plan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MINI-MODAL: NUEVO CLIENTE AL VUELO ══════════════════════ */}
+      {showNuevoCliente && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[90] p-4"
+          onClick={() => !guardandoCliente && setShowNuevoCliente(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <User className="w-5 h-5 text-blue-500" /> Nuevo cliente
+              </h3>
+              <button onClick={() => setShowNuevoCliente(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              {errorCliente && (
+                <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 text-xs text-rose-700">{errorCliente}</div>
+              )}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Nombre *</label>
+                <input autoFocus value={nuevoCliente.nombre}
+                  onChange={e => setNuevoCliente(c => ({ ...c, nombre: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter') crearClienteRapido(); }}
+                  placeholder="Nombre del cliente"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Teléfono</label>
+                  <input value={nuevoCliente.telefono}
+                    onChange={e => setNuevoCliente(c => ({ ...c, telefono: e.target.value }))}
+                    placeholder="Opcional" maxLength={20}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">RFC</label>
+                  <input value={nuevoCliente.rfc}
+                    onChange={e => setNuevoCliente(c => ({ ...c, rfc: e.target.value.toUpperCase() }))}
+                    placeholder="Opcional" maxLength={13}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Correo</label>
+                <input value={nuevoCliente.email} type="email"
+                  onChange={e => setNuevoCliente(c => ({ ...c, email: e.target.value }))}
+                  placeholder="Opcional"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+              <button onClick={() => setShowNuevoCliente(false)} disabled={guardandoCliente}
+                className="px-4 py-2 text-sm text-slate-700 font-medium hover:bg-slate-200 rounded-lg disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={crearClienteRapido} disabled={guardandoCliente}
+                className="px-4 py-2 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">
+                {guardandoCliente ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                {guardandoCliente ? 'Creando…' : 'Crear y usar'}
               </button>
             </div>
           </div>

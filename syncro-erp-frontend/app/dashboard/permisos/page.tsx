@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
-import { Shield, Save, Plus, X, Loader2, ChevronDown, ChevronRight, Check } from 'lucide-react';
+import { Shield, Save, Plus, X, Loader2, ChevronDown, ChevronRight, Check, Sparkles } from 'lucide-react';
 import { MODULOS } from '../module-config';
 
 interface IEndpoint { id: string; metodo: string; ruta: string; nombre: string; rutaFrontend?: string; }
@@ -69,6 +69,14 @@ export default function PermisosPage() {
   const [nuevoRol, setNuevoRol]   = useState('');
   const [creandoRol, setCreandoRol] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
+  const [aplicandoPlantilla, setAplicandoPlantilla] = useState(false);
+  const [confirmPlantilla, setConfirmPlantilla] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const mostrarToast = (msg: string, ok = true) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
   const tok = () => localStorage.getItem('syncro_token') ?? '';
@@ -193,6 +201,36 @@ export default function PermisosPage() {
     setCreandoRol(false);
   };
 
+  // Abre el modal de confirmación
+  const pedirConfirmacionPlantilla = () => {
+    if (!rol || rol === 'admin') return;
+    setConfirmPlantilla(true);
+  };
+
+  // Ejecuta al confirmar en el modal
+  const aplicarPlantilla = async () => {
+    setConfirmPlantilla(false);
+    if (!rol || rol === 'admin') return;
+
+    setAplicandoPlantilla(true);
+    try {
+      const res = await fetch(`${api}/admin/permisos/rol/${encodeURIComponent(rol)}/aplicar-plantilla`, {
+        method: 'POST', headers: h(), body: JSON.stringify({ modo: 'agregar' }),
+      });
+      const d = await res.json().catch(() => null);
+      if (res.ok && d?.ok) {
+        await cargarPermisos(rol);
+        setCambios(false);
+        mostrarToast(d.mensaje || 'Permisos sugeridos aplicados.', true);
+      } else {
+        mostrarToast(d?.mensaje || 'No hay permisos sugeridos para este perfil.', false);
+      }
+    } catch {
+      mostrarToast('Error de conexión con el servidor.', false);
+    }
+    setAplicandoPlantilla(false);
+  };
+
   // Conteo total para el rol
   const totalEps    = modulosUI.flatMap(m => m.navegables.flatMap(n => n.endpoints)).length;
   const activosEps  = modulosUI.flatMap(m => m.navegables.flatMap(n => n.endpoints)).filter(ep => permisos[ep.id]).length;
@@ -206,6 +244,60 @@ export default function PermisosPage() {
 
   return (
     <div style={{ padding: '28px 24px', maxWidth: '1100px', margin: '0 auto' }}>
+
+      {/* Toast de notificación */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 24, right: 24, zIndex: 100,
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '14px 22px', borderRadius: 12,
+          background: toast.ok ? '#059669' : '#e11d48', color: '#fff',
+          fontSize: 14, fontWeight: 600, boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
+        }}>
+          {toast.ok
+            ? <Check style={{ width: 18, height: 18 }}/>
+            : <X style={{ width: 18, height: 18 }}/>}
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Modal de confirmación para aplicar plantilla */}
+      {confirmPlantilla && (
+        <div onClick={() => !aplicandoPlantilla && setConfirmPlantilla(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 90,
+            background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+          }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 18, maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: 24 }}>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Sparkles style={{ width: 22, height: 22, color: '#4f46e5' }}/>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', margin: 0 }}>Cargar permisos sugeridos</h3>
+                  <p style={{ fontSize: 13, color: '#64748b', marginTop: 6, lineHeight: 1.5 }}>
+                    Se activarán los permisos típicos del perfil <b style={{ textTransform: 'capitalize' }}>{rol}</b>.
+                    {cambios && ' Perderás los cambios sin guardar.'} Podrás ajustarlos después.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 24px', borderTop: '1px solid #f1f5f9', background: '#f8fafc', borderRadius: '0 0 18px 18px' }}>
+              <button onClick={() => setConfirmPlantilla(false)}
+                style={{ padding: '9px 18px', border: 'none', background: 'transparent', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', borderRadius: 8 }}>
+                Cancelar
+              </button>
+              <button onClick={aplicarPlantilla}
+                style={{ padding: '9px 20px', border: 'none', background: 'linear-gradient(90deg,#4f46e5,#7c3aed)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Sparkles style={{ width: 15, height: 15 }}/> Sí, cargar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
@@ -305,6 +397,27 @@ export default function PermisosPage() {
             </button>
           )}
         </div>
+
+        {/* Botón: cargar permisos sugeridos para el rol actual */}
+        {rol && rol !== 'admin' && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>
+              ¿No sabes qué activar? Carga los permisos típicos de este perfil y ajústalos después.
+            </p>
+            <button onClick={pedirConfirmacionPlantilla} disabled={aplicandoPlantilla}
+              style={{
+                padding: '9px 18px', borderRadius: 10, border: 'none',
+                background: 'linear-gradient(90deg,#4f46e5,#7c3aed)', color: '#fff',
+                fontSize: 13, fontWeight: 700, cursor: aplicandoPlantilla ? 'default' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8, opacity: aplicandoPlantilla ? 0.6 : 1,
+                boxShadow: '0 2px 8px rgba(79,70,229,0.25)', whiteSpace: 'nowrap',
+              }}>
+              {aplicandoPlantilla
+                ? <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }}/> Aplicando…</>
+                : <><Sparkles style={{ width: 15, height: 15 }}/> Cargar permisos sugeridos</>}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Contenido */}

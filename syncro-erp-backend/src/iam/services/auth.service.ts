@@ -21,10 +21,19 @@ import { PermisosDinamicosService } from './permisos-dinamicos.service';
 import { MailService } from '../../common/services/mail.service';
 // ⚠️ AJUSTA esta ruta a donde vive tu entidad Almacen
 import { Almacen } from '../../catalogo/entities/almacen.entity';
+import { exigirPoliticaPassword } from '../security/password-policy';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+
+  // ── Protección contra fuerza bruta ──
+  private static readonly MAX_INTENTOS = 5;
+  private static readonly MINUTOS_BLOQUEO = 15;
+  /** Hash bcrypt de un valor imposible: iguala el tiempo de respuesta
+   *  cuando el correo no existe (evita enumeración por timing). */
+  private static readonly DUMMY_HASH =
+    '$2b$10$C6UzMDM.H6dfI/f/IKcEeO7ZWa4o0eiN0GJsBOJZm0AqPzYyD1Wt6';
 
   constructor(
     @InjectRepository(Empresa)
@@ -51,9 +60,17 @@ export class AuthService {
     return url.replace(/\/$/, '');
   }
 
+  /** SHA-256 del token: en BD solo se guarda el hash. Si alguien lee la
+   *  tabla, no puede usar los tokens (el claro solo viaja en el correo). */
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
   private generarToken(horasVigencia = 24) {
+    const token = crypto.randomBytes(32).toString('hex');
     return {
-      token: crypto.randomBytes(32).toString('hex'),
+      token,                          // ← va en el correo
+      tokenHash: this.hashToken(token), // ← va en la BD
       expira: new Date(Date.now() + horasVigencia * 60 * 60 * 1000),
     };
   }
@@ -145,6 +162,8 @@ export class AuthService {
     const { nombreComercial, nombreCompleto, email, password } = registerDto;
     const emailNorm = email.toLowerCase().trim();
 
+    exigirPoliticaPassword(password);
+
     const usuarioExistente = await this.usuarioRepository.findOne({
       where: { email: emailNorm },
     });
@@ -152,7 +171,7 @@ export class AuthService {
       throw new ConflictException('El correo electrónico ya está registrado');
     }
 
-    const { token, expira } = this.generarToken(24);
+    const { token, tokenHash, expira } = this.generarToken(24);
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -176,7 +195,7 @@ export class AuthService {
         passwordHash,
         rol: 'admin',
         emailVerificado: false,
-        tokenVerificacion: token,
+        tokenVerificacion: tokenHash,   // solo el hash toca la BD
         tokenExpira: expira,
       });
       await queryRunner.manager.save(nuevoUsuario);
@@ -220,7 +239,7 @@ export class AuthService {
     if (!token) throw new BadRequestException('Token no proporcionado');
 
     const usuario = await this.usuarioRepository.findOne({
-      where: { tokenVerificacion: token },
+      where: { tokenVerificacion: this.hashToken(token) },
       relations: ['empresa'],
     });
 
@@ -290,8 +309,8 @@ export class AuthService {
       throw new NotFoundException('No hay cuenta pendiente con ese correo');
     }
 
-    const { token, expira } = this.generarToken(24);
-    usuario.tokenVerificacion = token;
+    const { token, tokenHash, expira } = this.generarToken(24);
+    usuario.tokenVerificacion = tokenHash;
     usuario.tokenExpira = expira;
     await this.usuarioRepository.save(usuario);
 
@@ -324,8 +343,8 @@ export class AuthService {
     });
     if (!usuario) return respuestaGenerica;
 
-    const { token, expira } = this.generarToken(1); // vigencia corta: 1 hora
-    usuario.tokenRecuperacion = token;
+    const { token, tokenHash, expira } = this.generarToken(1); // vigencia corta: 1 hora
+    usuario.tokenRecuperacion = tokenHash;
     usuario.tokenRecuperacionExpira = expira;
     await this.usuarioRepository.save(usuario);
 
@@ -351,14 +370,10 @@ export class AuthService {
   // ═══════════════════════════════════════════════════════════════════════
   async restablecerPassword(token: string, nuevaPassword: string) {
     if (!token) throw new BadRequestException('Token no proporcionado');
-    if (!nuevaPassword || nuevaPassword.length < 8) {
-      throw new BadRequestException(
-        'La contraseña debe tener al menos 8 caracteres',
-      );
-    }
+    exigirPoliticaPassword(nuevaPassword);
 
     const usuario = await this.usuarioRepository.findOne({
-      where: { tokenRecuperacion: token },
+      where: { tokenRecuperacion: this.hashToken(token) },
     });
     if (!usuario) {
       throw new NotFoundException('Enlace inválido o ya utilizado');
@@ -382,6 +397,10 @@ export class AuthService {
 
     // Recuperar contraseña vía correo verifica implícitamente el correo
     usuario.emailVerificado = true;
+
+    // Nueva contraseña = borrón y cuenta nueva para el bloqueo
+    usuario.intentosFallidos = 0;
+    usuario.bloqueadoHasta = null;
 
     await this.usuarioRepository.save(usuario);
 
@@ -472,14 +491,54 @@ export class AuthService {
       relations: ['empresa'],
     });
 
-    if (!usuario) throw new UnauthorizedException('Credenciales inválidas');
+    if (!usuario) {
+      // Comparación de cortesía: iguala el tiempo de respuesta con el de
+      // un usuario real para no revelar qué correos existen (timing attack).
+      await bcrypt.compare(password, AuthService.DUMMY_HASH);
+      throw new UnauthorizedException('Credenciales inválidas');
+    }
+
+    // ── ¿Cuenta bloqueada por intentos fallidos? ──
+    if (usuario.bloqueadoHasta && new Date() < new Date(usuario.bloqueadoHasta)) {
+      const minutos = Math.ceil(
+        (new Date(usuario.bloqueadoHasta).getTime() - Date.now()) / 60000,
+      );
+      throw new UnauthorizedException(
+        `Cuenta bloqueada temporalmente por intentos fallidos. Intenta de nuevo en ${minutos} minuto(s).`,
+      );
+    }
 
     const isPasswordValid = await bcrypt.compare(
       password,
       usuario.passwordHash,
     );
-    if (!isPasswordValid)
+    if (!isPasswordValid) {
+      usuario.intentosFallidos = (usuario.intentosFallidos ?? 0) + 1;
+
+      if (usuario.intentosFallidos >= AuthService.MAX_INTENTOS) {
+        usuario.bloqueadoHasta = new Date(
+          Date.now() + AuthService.MINUTOS_BLOQUEO * 60000,
+        );
+        usuario.intentosFallidos = 0;
+        await this.usuarioRepository.save(usuario);
+        this.logger.warn(
+          `Cuenta bloqueada ${AuthService.MINUTOS_BLOQUEO} min por fuerza bruta: ${usuario.email}`,
+        );
+        throw new UnauthorizedException(
+          `Demasiados intentos fallidos. Cuenta bloqueada ${AuthService.MINUTOS_BLOQUEO} minutos.`,
+        );
+      }
+
+      await this.usuarioRepository.save(usuario);
       throw new UnauthorizedException('Credenciales inválidas');
+    }
+
+    // ── Login correcto: limpiar el contador si había fallos previos ──
+    if (usuario.intentosFallidos > 0 || usuario.bloqueadoHasta) {
+      usuario.intentosFallidos = 0;
+      usuario.bloqueadoHasta = null;
+      await this.usuarioRepository.save(usuario);
+    }
 
     if (!usuario.emailVerificado) {
       throw new UnauthorizedException(

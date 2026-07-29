@@ -12,6 +12,7 @@ import {
 import ModalInventarioRapido from './components/ModalInventarioRapido';
 import ModalFichaProducto from './components/ModalFichaProducto';
 import { PuedeCrear, PuedeEditar, ProtectedElement } from "@/app/components/ProtectedElement";
+import AsistenteConfiguracion from "@/app/components/AsistenteConfiguracion";
 
 // ─── Formulario vacío con TODOS los campos tipados ───────────────
 const FORM_VACIO: IFormData = {
@@ -47,6 +48,7 @@ export default function ProductosPage() {
   const [marcas, setMarcas] = useState<ICatalogoBasico[]>([]);
   const [impuestos, setImpuestos] = useState<IImpuesto[]>([]);
   const [listasPrecio, setListasPrecio] = useState<IListaPrecio[]>([]);
+  const [unidades, setUnidades] = useState<any[]>([]);
 
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -85,15 +87,17 @@ export default function ProductosPage() {
       const token = localStorage.getItem('syncro_token');
       const h = { Authorization: `Bearer ${token}` };
       try {
-        const [cat, alm, mar, imp, listas] = await Promise.all([
+        const [cat, alm, mar, imp, listas, unids] = await Promise.all([
           fetch(`${apiUrl}/catalogo/categorias`, { headers: h }).then(r => r.ok ? r.json() : []),
           fetch(`${apiUrl}/catalogo/almacenes`, { headers: h }).then(r => r.ok ? r.json() : []),
           fetch(`${apiUrl}/catalogo/marcas`, { headers: h }).then(r => r.ok ? r.json() : []),
           fetch(`${apiUrl}/catalogo/impuestos`, { headers: h }).then(r => r.ok ? r.json() : []),
           fetch(`${apiUrl}/catalogo/listas-precio`, { headers: h }).then(r => r.ok ? r.json() : []),
+          fetch(`${apiUrl}/catalogo/unidades-medida?soloActivas=true`, { headers: h }).then(r => r.ok ? r.json() : []),
         ]);
         setCategorias(cat); setAlmacenes(alm); setMarcas(mar);
         setImpuestos(imp); setListasPrecio(listas);
+        setUnidades(unids);
       } catch (e) { console.error('Error cargando catálogos:', e); }
     };
     fetchCatalogos();
@@ -473,6 +477,7 @@ export default function ProductosPage() {
         </header>
 
         <div className="flex-1 overflow-y-auto p-6">
+          <AsistenteConfiguracion onCrearProducto={abrirModalCrear} />
           {!busquedaActiva ? (
             <div className="h-full flex flex-col items-center justify-center text-center">
               <div className="w-24 h-24 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-6">
@@ -625,6 +630,10 @@ export default function ProductosPage() {
         impuestos={impuestos}
         almacenes={almacenes}
         listasPrecio={listasPrecio}
+        unidades={unidades}
+        setCategorias={setCategorias}
+        setMarcas={setMarcas}
+        setUnidades={setUnidades}
         guardando={guardando}
         onSubmit={handleGuardarProducto}
         inputFileRef={inputFileRef}

@@ -1,4 +1,7 @@
-import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable, BadRequestException, NotFoundException,
+  InternalServerErrorException, Logger,
+} from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { Poliza } from '../entities/poliza.entity';
 import { PartidaPoliza } from '../entities/partida-poliza.entity';
@@ -7,6 +10,8 @@ import { CuentaContable } from '../entities/cuenta-contable.entity';
 
 @Injectable()
 export class PolizasService {
+  private readonly logger = new Logger(PolizasService.name);
+
   constructor(
     private readonly dataSource: DataSource,
   ) {}
@@ -27,18 +32,29 @@ export class PolizasService {
   }
 
   // ── Verificar período cerrado ─────────────────────────────────────────────
-  private async verificarPeriodoCerrado(empresaId: string, fecha: Date): Promise<void> {
+  /** Consulta pura: ¿el período de esa fecha está cerrado? */
+  private async periodoEstaCerrado(empresaId: string, fecha: Date): Promise<boolean> {
     const mes  = fecha.getMonth() + 1;
     const anio = fecha.getFullYear();
     const cerrado = await this.dataSource.query(
       `SELECT id FROM cierres_contables WHERE empresaId = @0 AND mes = @1 AND anio = @2`,
       [empresaId, mes, anio]
     ).catch(() => []);
-    if (cerrado?.length > 0) {
+    return (cerrado?.length ?? 0) > 0;
+  }
+
+  private async verificarPeriodoCerrado(empresaId: string, fecha: Date): Promise<void> {
+    if (await this.periodoEstaCerrado(empresaId, fecha)) {
       throw new BadRequestException(
-        `El período ${mes}/${anio} está cerrado. No se pueden crear pólizas.`
+        `El período ${fecha.getMonth() + 1}/${fecha.getFullYear()} está cerrado. No se pueden crear pólizas.`
       );
     }
+  }
+
+  /** La columna 'fecha' es tipo date: puede llegar como Date o como texto. */
+  private aFecha(v: any): Date {
+    if (v instanceof Date) return v;
+    return new Date(String(v).substring(0, 10) + 'T00:00:00');
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -167,6 +183,142 @@ export class PolizasService {
     } catch (err: any) {
       await qr.rollbackTransaction();
       throw new InternalServerErrorException('Error al crear póliza manual: ' + err.message);
+    } finally {
+      await qr.release();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CANCELAR PÓLIZA (REVERSO)
+  //
+  // Una póliza NUNCA se borra ni se edita: se emite su REVERSA, una póliza
+  // espejo con los cargos y abonos invertidos. Ambas quedan en el libro y
+  // se anulan entre sí (igual que el FB08 de SAP).
+  //
+  // Reglas:
+  //  · Motivo obligatorio (rastro de auditoría).
+  //  · No se cancela dos veces, ni se cancela una reversa.
+  //  · No se revierte una póliza descuadrada (se avisa para revisarla).
+  //  · Si el período original está cerrado, la reversa se emite con fecha
+  //    de hoy (no se toca el pasado ya cerrado). Si hoy también está
+  //    cerrado, se rechaza y el contador debe reabrir el período.
+  //  · Todo ocurre en UNA transacción: o queda la reversa y la original
+  //    marcada, o no queda nada.
+  // ══════════════════════════════════════════════════════════════════════════
+  async cancelarPoliza(
+    empresaId: string,
+    polizaId: string,
+    datos: { motivo: string; fechaReverso?: string; usuario?: string },
+  ) {
+    const motivo = (datos.motivo ?? '').trim();
+    if (motivo.length < 5) {
+      throw new BadRequestException(
+        'Indica el motivo de la cancelación (mínimo 5 caracteres). Queda registrado para auditoría.',
+      );
+    }
+
+    const original = await this.dataSource.getRepository(Poliza).findOne({
+      where: { id: polizaId, empresaId },
+      relations: ['partidas'],
+    });
+    if (!original) throw new NotFoundException('Póliza no encontrada');
+
+    const estatus = original.estatus ?? 'VIGENTE';
+    if (estatus === 'CANCELADA') {
+      throw new BadRequestException(
+        `La póliza ${original.folio} ya fue cancelada anteriormente.`,
+      );
+    }
+    if (estatus === 'REVERSA') {
+      throw new BadRequestException(
+        `La póliza ${original.folio} es una reversa y no puede cancelarse. ` +
+        'Si necesitas revertir el efecto, emite una póliza manual.',
+      );
+    }
+    if (!original.partidas?.length) {
+      throw new BadRequestException(`La póliza ${original.folio} no tiene partidas.`);
+    }
+
+    // Defensa: nunca propagar un descuadre a la reversa
+    const cargos = Math.round(original.partidas.reduce((s, p) => s + Number(p.cargo), 0) * 100) / 100;
+    const abonos = Math.round(original.partidas.reduce((s, p) => s + Number(p.abono), 0) * 100) / 100;
+    if (cargos !== abonos) {
+      throw new BadRequestException(
+        `La póliza ${original.folio} está descuadrada (Cargos $${cargos} / Abonos $${abonos}). ` +
+        'Revísala antes de cancelarla.',
+      );
+    }
+
+    // ── Fecha de la reversa ──
+    const fechaOriginal = this.aFecha(original.fecha);
+    let fechaReverso: Date;
+    if (datos.fechaReverso) {
+      fechaReverso = this.aFecha(datos.fechaReverso);
+      if (isNaN(fechaReverso.getTime())) {
+        throw new BadRequestException('La fecha de reverso no es válida (usa AAAA-MM-DD).');
+      }
+    } else {
+      // Período original abierto → misma fecha. Cerrado → hoy.
+      fechaReverso = (await this.periodoEstaCerrado(empresaId, fechaOriginal))
+        ? new Date()
+        : fechaOriginal;
+    }
+    await this.verificarPeriodoCerrado(empresaId, fechaReverso);
+
+    // ── Transacción: reversa + marca en la original ──
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+    try {
+      const folio = await this.generarFolio(empresaId, original.tipo);
+
+      const reversa = qr.manager.create(Poliza, {
+        empresaId,
+        tipo:      original.tipo,
+        folio,
+        fecha:     fechaReverso,
+        mes:       fechaReverso.getMonth() + 1,
+        anio:      fechaReverso.getFullYear(),
+        concepto:  `Cancelación de ${original.folio} — ${motivo}`.substring(0, 255),
+        estatus:   'REVERSA' as const,
+        polizaOrigenId: original.id,
+      });
+      const guardada = await qr.manager.save(reversa);
+
+      // Espejo: cargo ↔ abono
+      const partidas = original.partidas.map(p =>
+        qr.manager.create(PartidaPoliza, {
+          polizaId:         guardada.id,
+          cuentaContableId: p.cuentaContableId,
+          cargo:            Number(p.abono),
+          abono:            Number(p.cargo),
+          referencia:       `REV ${original.folio}`.substring(0, 255),
+        })
+      );
+      await qr.manager.save(PartidaPoliza, partidas);
+
+      // La original queda marcada, nunca borrada
+      await qr.manager.update(Poliza, original.id, {
+        estatus:           'CANCELADA' as const,
+        polizaReversaId:   guardada.id,
+        motivoCancelacion: motivo.substring(0, 300),
+        canceladaPor:      datos.usuario ?? null,
+        fechaCancelacion:  new Date(),
+      });
+
+      await qr.commitTransaction();
+      this.logger.warn(
+        `Póliza ${original.folio} cancelada por ${datos.usuario ?? 'sistema'} — reversa ${folio} — motivo: ${motivo}`,
+      );
+
+      return {
+        mensaje: `Póliza ${original.folio} cancelada. Se generó la reversa ${folio}.`,
+        original: { id: original.id, folio: original.folio, estatus: 'CANCELADA' },
+        reversa:  { id: guardada.id, folio, fecha: fechaReverso, importe: cargos },
+      };
+    } catch (err: any) {
+      await qr.rollbackTransaction();
+      throw new InternalServerErrorException('Error al cancelar la póliza: ' + err.message);
     } finally {
       await qr.release();
     }
