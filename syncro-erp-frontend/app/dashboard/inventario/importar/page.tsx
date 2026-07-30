@@ -175,7 +175,7 @@ export default function ImportarInventarioPage() {
       </div>
 
       {/* Paso 2: subir */}
-      <PuedeCrear>
+      <PuedeCrear ruta="/api/catalogo/importacion/productos">
         <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
           <div className="flex items-center gap-3 mb-4">
             <div className="bg-blue-600 text-white w-8 h-8 rounded-lg flex items-center justify-center font-bold">

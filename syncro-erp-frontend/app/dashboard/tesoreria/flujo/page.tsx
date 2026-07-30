@@ -164,7 +164,7 @@ export default function FlujoEfectivoPage() {
                   width={70}
                 />
                 <Tooltip
-                  formatter={(v: number, n: string) => [dinero(v), n]}
+                  formatter={(v, n) => [dinero(Number(v ?? 0)), String(n)]}
                   contentStyle={{
                     fontSize: 12, borderRadius: 8,
                     border: '1px solid #e6e9ee', boxShadow: '0 8px 28px rgb(15 23 42 / 0.12)',

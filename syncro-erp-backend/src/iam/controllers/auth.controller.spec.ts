@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from '../services/auth.service';
+import { PermisosDinamicosService } from '../services/permisos-dinamicos.service';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -34,6 +35,13 @@ describe('AuthController', () => {
         {
           provide: AuthService,
           useValue: mockAuthService, // Inyectamos el mock en lugar del servicio real
+        },
+        {
+          provide: PermisosDinamicosService,
+          useValue: {
+            obtenerPermisosPorRolParaFrontend: jest.fn(),
+            obtenerMenuParaRol: jest.fn(),
+          },
         },
       ],
     }).compile();

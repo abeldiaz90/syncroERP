@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { QueryFailedError, EntityNotFoundError } from 'typeorm';
 import type { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 
 interface RespuestaError {
   statusCode: number;
@@ -43,7 +44,7 @@ export class FiltroGlobalExcepciones implements ExceptionFilter {
     const res = ctx.getResponse<Response>();
     const req = ctx.getRequest<Request>();
 
-    const traza = Math.random().toString(36).slice(2, 10).toUpperCase();
+    const traza = randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase();
     let estado = HttpStatus.INTERNAL_SERVER_ERROR;
     let mensaje: string | string[] = 'Ocurrió un error inesperado. Intenta de nuevo.';
     let etiqueta = 'Internal Server Error';

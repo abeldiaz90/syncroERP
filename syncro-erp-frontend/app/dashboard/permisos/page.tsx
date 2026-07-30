@@ -1,11 +1,14 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
-import { Shield, Save, Plus, X, Loader2, ChevronDown, ChevronRight, Check, Sparkles } from 'lucide-react';
+import {
+  Shield, Save, Plus, X, Loader2, ChevronDown, ChevronRight, Check, Sparkles,
+  type LucideIcon,
+} from 'lucide-react';
 import { MODULOS } from '../module-config';
 
 interface IEndpoint { id: string; metodo: string; ruta: string; nombre: string; rutaFrontend?: string; }
 interface INavegable { label: string; href: string; endpoints: IEndpoint[]; }
-interface IModuloUI   { id: string; nombre: string; color: string; bg: string; border: string; icon: string; navegables: INavegable[]; }
+interface IModuloUI   { id: string; nombre: string; color: string; bg: string; border: string; icon: LucideIcon; navegables: INavegable[]; }
 
 const METODO_COLOR: Record<string, { bg: string; text: string }> = {
   GET:    { bg: '#dcfce7', text: '#15803d' },
@@ -106,7 +109,7 @@ export default function PermisosPage() {
     if (!arbol.length) return;
     const eps: IEndpoint[] = arbol.flatMap((c: any) => c.endpoints ?? []);
     const ui: IModuloUI[] = MODULOS.map(m => ({
-      id: m.id, nombre: m.nombre, color: m.color, bg: m.bg, border: m.border, icon: m.icon,
+      id: m.id, nombre: m.nombre, color: m.color, bg: m.bg, border: m.border, icon: m.Icono,
       navegables: m.items.map(item => ({
         label: item.label, href: item.href,
         endpoints: eps.filter(ep =>
@@ -429,6 +432,7 @@ export default function PermisosPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {modulosUI.map(m => {
             const estMod  = estadoModulo(m);
+            const IconoModulo = m.icon;
             const expMod  = expandidos.has(m.id);
             const navActivos = m.navegables.filter(n => estadoNav(n) !== 'none').length;
 
@@ -454,7 +458,7 @@ export default function PermisosPage() {
                     width: 36, height: 36, borderRadius: 9, background: m.bg,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   }}>
-                    <i className={`ti ${m.icon}`} style={{ fontSize: 18, color: m.color }}/>
+                    <IconoModulo style={{ width: 18, height: 18, color: m.color }}/>
                   </div>
 
                   {/* Nombre */}

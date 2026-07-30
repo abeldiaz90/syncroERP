@@ -1,15 +1,19 @@
 import {
   Controller, Get, Post, Patch, Param, Body,
-  Query, Req, DefaultValuePipe, ParseIntPipe,
+  Query, DefaultValuePipe, ParseIntPipe,
 } from '@nestjs/common';
 import { VentasService } from '../services/ventas.service';
 import { CrearVentaDto } from '../dto/crear-venta.dto';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { EstadoVenta } from '../entities/venta.entity';
+import { AnulacionVentasService } from '../services/anulacion-ventas.service';
 
 @Controller('ventas')
 export class VentasController {
-  constructor(private readonly ventasService: VentasService) {}
+  constructor(
+    private readonly ventasService: VentasService,
+    private readonly anulacionService: AnulacionVentasService,
+  ) {}
 
   // ── RUTAS FIJAS antes de :id ───────────────────────────────────
 
@@ -32,7 +36,7 @@ export class VentasController {
   crear(
     @Body() dto: CrearVentaDto,
     @ActiveUser('empresaId') empresaId: string,
-    @ActiveUser('sub') usuarioId: string,
+    @ActiveUser('id') usuarioId: string,
   ) {
     return this.ventasService.crear(dto, empresaId, usuarioId);
   }
@@ -64,7 +68,9 @@ export class VentasController {
   anular(
     @Param('id') id: string,
     @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('id') usuarioId: string,
+    @Body('motivo') motivo: string,
   ) {
-    return this.ventasService.anular(id, empresaId);
+    return this.anulacionService.anular(id, empresaId, motivo, usuarioId);
   }
 }

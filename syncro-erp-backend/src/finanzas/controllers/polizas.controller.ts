@@ -2,10 +2,8 @@ import { Controller, Post, Body, Get, Query, Param } from '@nestjs/common';
 import { PolizasService } from '../services/polizas.service';
 import { CrearPolizaDto } from '../dto/crear-poliza.dto';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
-import { SkipPermisos } from '../../iam/decorators/skip-permisos.decorator';
 import { Navegable } from '../../iam/decorators/navegable.decorator';
 
-@SkipPermisos()
 @Controller('finanzas/polizas')
 export class PolizasController {
     constructor(private readonly polizasService: PolizasService) { }

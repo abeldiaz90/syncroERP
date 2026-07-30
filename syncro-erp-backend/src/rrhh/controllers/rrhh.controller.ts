@@ -125,7 +125,7 @@ export class RrhhController {
   @Patch('incidencias/:id/aprobar')
   aprobar(
     @Param('id') id: string,
-    @ActiveUser('sub') usuarioId: string,
+    @ActiveUser('id') usuarioId: string,
     @ActiveUser('empresaId') empresaId: string,
   ) {
     return this.svc.aprobarIncidencia(id, usuarioId, empresaId);

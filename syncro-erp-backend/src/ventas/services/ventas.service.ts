@@ -7,6 +7,7 @@ import { Venta, EstadoVenta } from '../entities/venta.entity';
 import { DetalleVenta } from '../entities/detalle-venta.entity';
 import { CrearVentaDto } from '../dto/crear-venta.dto';
 import { InventarioService } from '../../catalogo/services/inventario.service';
+import { PreciosService } from '../../catalogo/services/precios.service';
 import { Almacen } from '../../catalogo/entities/almacen.entity';
 import { StockPorAlmacen } from '../../catalogo/entities/stock-por-almacen.entity';
 import { MotorContableService } from '../../finanzas/services/motor-contable.service';
@@ -16,6 +17,51 @@ import { NotificacionesService } from '../../notificaciones/notificaciones.servi
 const METODOS_CREDITO = new Set([
   'CREDITO_30D', 'CREDITO_60D', 'CREDITO_90D', 'MENSUALIDADES',
 ]);
+
+/**
+ * ============================================================================
+ * CAMBIOS EN ESTA VERSIÓN
+ * ----------------------------------------------------------------------------
+ * 1. PRECIOS RESUELTOS EN EL SERVIDOR
+ *
+ *    La versión anterior ya recalculaba la aritmética, lo cual cerró el ataque
+ *    de enviar `total: 1`. Pero seguía tomando `precioUnitario` e
+ *    `impuestoPorcentaje` del navegador sin verificarlos:
+ *
+ *        if (!Number.isFinite(d.precioUnitario) || d.precioUnitario < 0) { ... }
+ *        const bruto = redondear(d.cantidad * d.precioUnitario);
+ *                                            ↑ sin comparar contra el catálogo
+ *
+ *    El ataque solo cambiaba de forma: en lugar de mandar `total: 1`, se
+ *    mandaba `precioUnitario: 1` para un producto de $10,000. Y con
+ *    `impuestoPorcentaje: 0` se podía vender algo gravado sin IVA.
+ *
+ *    Ahora `PreciosService` resuelve precio, impuesto y descuento contra la
+ *    base. El navegador solo dice QUÉ producto y CUÁNTA cantidad.
+ *
+ * 2. CÓDIGO MUERTO ELIMINADO
+ *
+ *    · `validarStock()` — ya no se llamaba. Además tenía un defecto: cuando no
+ *      encontraba stock del almacén pedido, sumaba TODOS los almacenes de la
+ *      empresa y aprobaba la venta con existencia de otra sucursal.
+ *      `registrarSalida()` ya valida dentro de la transacción y con bloqueo
+ *      pesimista, que es donde debe validarse.
+ *
+ *    · `siguienteFolio()` — reemplazado por la asignación con bloqueo dentro
+ *      de la transacción, unas líneas más abajo.
+ *
+ *    · `anular()` — el controlador ya llama a `AnulacionVentasService`, que sí
+ *      revierte contabilidad, crédito y devuelve al lote y costo originales.
+ *      Dejar la versión vieja aquí era peligroso: alguien podía llamarla y
+ *      obtener una anulación a medias.
+ *
+ * 3. DISCREPANCIAS DE PRECIO VISIBLES
+ *
+ *    Si la pantalla mostraba un precio distinto al del catálogo, se cobra el
+ *    del catálogo y se devuelve la diferencia en `discrepanciasPrecio` para
+ *    que el punto de venta avise al cajero.
+ * ============================================================================
+ */
 
 @Injectable()
 export class VentasService {
@@ -29,6 +75,7 @@ export class VentasService {
     @InjectRepository(StockPorAlmacen)
     private readonly stockRepo: Repository<StockPorAlmacen>,
     private readonly inventarioService: InventarioService,
+    private readonly precios: PreciosService,
     private readonly dataSource: DataSource,
     private readonly motorContable: MotorContableService,
     private readonly notificaciones: NotificacionesService,
@@ -46,60 +93,57 @@ export class VentasService {
     return almacen.id;
   }
 
-  // ── Siguiente folio por empresa ────────────────────────────────
-  private async siguienteFolio(empresaId: string): Promise<number> {
-    const ultima = await this.ventaRepo.findOne({
-      where: { empresaId },
-      order: { folio: 'DESC' },
-      select: ['folio'],
-    });
-    return (ultima?.folio ?? 0) + 1;
-  }
-
-  // ── Validar stock antes de vender ──────────────────────────────
-  private async validarStock(
-    detalles: CrearVentaDto['detalles'],
-    almacenId: string,
-    empresaId: string,
-  ) {
-    for (const det of detalles) {
-      const stockAlmacen = await this.stockRepo.findOne({
-        where: { productoId: det.productoId, almacenId, empresaId },
-      });
-      let disponible = Number(stockAlmacen?.cantidad ?? 0);
-
-      if (!stockAlmacen) {
-        const stocks = await this.stockRepo.find({
-          where: { productoId: det.productoId, empresaId },
-        });
-        disponible = stocks.reduce((sum, s) => sum + Number(s.cantidad ?? 0), 0);
-      }
-
-      if (disponible < det.cantidad) {
-        throw new BadRequestException(
-          `Stock insuficiente. Disponible: ${disponible}, solicitado: ${det.cantidad}.`
-        );
-      }
-    }
-  }
-
   // ─────────────────────────────────────────────────────────────────
   // CREAR VENTA
   // ─────────────────────────────────────────────────────────────────
-  async crear(dto: CrearVentaDto, empresaId: string, usuarioId?: string) {
+  async crear(
+    dto: CrearVentaDto,
+    empresaId: string,
+    usuarioId?: string,
+    rolUsuario?: string,
+  ) {
     if (!dto.detalles?.length) {
       throw new BadRequestException('La venta debe tener al menos un producto.');
     }
 
     const almacenId = dto.almacenId || await this.obtenerAlmacenDefault(empresaId);
-    await this.validarStock(dto.detalles, almacenId, empresaId);
-    const folio = await this.siguienteFolio(empresaId);
+
+    // ── Precios, impuestos y descuentos los decide el SERVIDOR ──
+    // El navegador solo dijo qué producto y cuánta cantidad. `precioMostrado`
+    // se manda únicamente para detectar que la pantalla estaba desactualizada;
+    // nunca se usa para calcular.
+    const resuelta = await this.precios.resolverVenta(
+      dto.detalles.map((d) => ({
+        productoId:          d.productoId,
+        cantidad:            d.cantidad,
+        descuentoSolicitado: d.descuento,
+        equivalenciaId:      (d as { equivalenciaId?: string }).equivalenciaId,
+        loteEspecificoId:    (d as { loteEspecificoId?: string }).loteEspecificoId,
+        precioMostrado:      d.precioUnitario,
+      })),
+      empresaId,
+      {
+        listaPrecioId: (dto as { listaPrecioId?: string }).listaPrecioId,
+        rolUsuario,
+      },
+    );
+
+    const detallesCalculados = resuelta.detalles;
+    const { subtotal, descuento, impuestoTotal, total } = resuelta;
 
     const qr = this.dataSource.createQueryRunner();
     await qr.connect();
     await qr.startTransaction();
 
     try {
+      // El bloqueo serializa la asignación del siguiente folio por empresa.
+      const ultima = await qr.manager.createQueryBuilder(Venta, 'v')
+        .setLock('pessimistic_write')
+        .where('v.empresaId = :empresaId', { empresaId })
+        .orderBy('v.folio', 'DESC')
+        .getOne();
+      const folio = (ultima?.folio ?? 0) + 1;
+
       // 1. Crear venta
       const venta = qr.manager.create(Venta, {
         empresaId,
@@ -107,10 +151,10 @@ export class VentasService {
         clienteId:     dto.clienteId     || null,
         usuarioId:     usuarioId          || null,
         almacenId,
-        subtotal:      dto.subtotal,
-        descuento:     dto.descuento      || 0,
-        impuestoTotal: dto.impuestoTotal,
-        total:         dto.total,
+        subtotal,
+        descuento,
+        impuestoTotal,
+        total,
         metodoPago:    dto.metodoPago     as Venta['metodoPago'],
         montoRecibido: dto.montoRecibido  ?? null,
         estado:        'COMPLETADA'       as EstadoVenta,
@@ -118,8 +162,8 @@ export class VentasService {
       });
       const ventaGuardada = await qr.manager.save(venta);
 
-      // 2. Crear detalles
-      const detalles = dto.detalles.map(d =>
+      // 2. Crear detalles — con los importes que resolvió el servidor
+      const detalles = detallesCalculados.map(d =>
         qr.manager.create(DetalleVenta, {
           ventaId:            ventaGuardada.id,
           productoId:         d.productoId,
@@ -134,12 +178,16 @@ export class VentasService {
       await qr.manager.save(detalles);
 
       // 3. Descontar inventario
-      for (const d of dto.detalles) {
+      //    La validación de existencia vive aquí, dentro de la transacción y
+      //    con bloqueo pesimista: es lo que impide que dos cajeros vendan la
+      //    misma última pieza.
+      for (const d of detallesCalculados) {
         await this.inventarioService.registrarSalida(
           d.productoId, almacenId, d.cantidad,
           `Ticket #${folio} - Venta ${ventaGuardada.id.slice(0, 8)}`,
           empresaId,
-          undefined, undefined, qr.manager,
+          d.equivalenciaId, d.loteEspecificoId, qr.manager,
+          { id: ventaGuardada.id, tipo: 'VENTA' },
         );
       }
 
@@ -153,13 +201,13 @@ export class VentasService {
         empresaId,
         metodoPago:       dto.metodoPago,
         cuentaBancariaId: dto.cuentaBancariaId ?? undefined,
-        detalles:         dto.detalles.map(d => ({
+        detalles:         detallesCalculados.map(d => ({
           productoId:    d.productoId,
           cantidad:      d.cantidad,
           subtotal:      d.subtotal,
           impuestoMonto: d.impuestoMonto ?? 0,
         })),
-        totalGeneral: dto.total,
+        totalGeneral: total,
       }).catch(err =>
         console.error(`[MotorContable] Error venta #${folio}:`, err?.message)
       );
@@ -171,7 +219,13 @@ export class VentasService {
           .catch(err => console.error(`[Email] Venta #${folio}:`, err?.message));
       }
 
-      return this.obtenerPorId(ventaGuardada.id, empresaId);
+      const ventaCompleta = await this.obtenerPorId(ventaGuardada.id, empresaId);
+
+      // Si la pantalla mostraba otros precios, el punto de venta debe avisarlo:
+      // se cobró el del catálogo, no el que veía el cajero.
+      return resuelta.discrepancias.length > 0
+        ? { ...ventaCompleta, discrepanciasPrecio: resuelta.discrepancias }
+        : ventaCompleta;
     } catch (err) {
       await qr.rollbackTransaction();
       throw err;
@@ -206,6 +260,11 @@ export class VentasService {
     fechaDesde?: string,
     fechaHasta?: string,
   ) {
+    // Acotar antes de construir la consulta: un `limite` enorme traería la
+    // tabla completa a memoria.
+    pagina = Math.max(1, pagina);
+    limite = Math.min(100, Math.max(1, limite));
+
     const qb = this.ventaRepo.createQueryBuilder('v')
       .leftJoinAndSelect('v.cliente',   'c')
       .leftJoinAndSelect('v.detalles',  'd')
@@ -214,6 +273,9 @@ export class VentasService {
       .orderBy('v.fechaVenta', 'DESC')
       .skip((pagina - 1) * limite)
       .take(limite);
+
+    if (estado) qb.andWhere('v.estado = :estado', { estado });
+    if (clienteId) qb.andWhere('v.clienteId = :clienteId', { clienteId });
 
     if (fechaHasta) {
       const hasta = new Date(fechaHasta);
@@ -241,41 +303,14 @@ export class VentasService {
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // ANULAR
+  // ANULAR — ver AnulacionVentasService
   // ─────────────────────────────────────────────────────────────────
-  async anular(id: string, empresaId: string) {
-    const venta = await this.ventaRepo.findOne({
-      where: { id, empresaId },
-      relations: ['detalles'],
-    });
-    if (!venta)                     throw new NotFoundException('Venta no encontrada.');
-    if (venta.estado === 'ANULADA') throw new BadRequestException('La venta ya fue anulada.');
-
-    const almacenId = venta.almacenId || await this.obtenerAlmacenDefault(empresaId);
-
-    const qr = this.dataSource.createQueryRunner();
-    await qr.connect();
-    await qr.startTransaction();
-    try {
-      for (const det of venta.detalles) {
-        await this.inventarioService.registrarCompra(
-          det.productoId, almacenId, det.cantidad,
-          `Anulación Ticket #${venta.folio}`,
-          empresaId,
-          undefined, undefined, undefined, qr.manager,
-        );
-      }
-      venta.estado = 'ANULADA';
-      await qr.manager.save(venta);
-      await qr.commitTransaction();
-      return venta;
-    } catch (err) {
-      await qr.rollbackTransaction();
-      throw err;
-    } finally {
-      await qr.release();
-    }
-  }
+  // El método `anular()` que vivía aquí se eliminó a propósito. Solo devolvía
+  // el stock y marcaba la venta, sin revertir la póliza contable, el crédito
+  // del cliente ni el CFDI. El controlador ya usa `AnulacionVentasService`,
+  // que hace la reversión completa y devuelve al lote y costo originales.
+  //
+  // Si necesitas anular desde código, inyecta ese servicio.
 
   // ─────────────────────────────────────────────────────────────────
   // MÉTRICAS DASHBOARD

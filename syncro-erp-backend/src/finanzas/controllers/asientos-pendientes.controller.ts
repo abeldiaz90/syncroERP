@@ -40,7 +40,7 @@ export class AsientosPendientesController {
   descartar(
     @Param('id') id: string,
     @Body() body: { nota: string },
-    @ActiveUser('sub') usuarioId: string,
+    @ActiveUser('id') usuarioId: string,
     @ActiveUser('empresaId') empresaId: string,
   ) {
     return this.svc.descartar(id, body.nota, usuarioId, empresaId);

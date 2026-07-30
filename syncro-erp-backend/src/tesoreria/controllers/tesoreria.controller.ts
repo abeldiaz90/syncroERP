@@ -46,7 +46,7 @@ export class TesoreriaController {
   registrar(
     @Body() dto: CrearMovimientoDto,
     @ActiveUser('empresaId') empresaId: string,
-    @ActiveUser('sub') usuarioId: string,
+    @ActiveUser('id') usuarioId: string,
   ) {
     return this.svc.registrar(dto, empresaId, usuarioId);
   }
@@ -60,7 +60,7 @@ export class TesoreriaController {
     @Param('id') id: string,
     @Body() body: { motivo: string },
     @ActiveUser('empresaId') empresaId: string,
-    @ActiveUser('sub') usuarioId: string,
+    @ActiveUser('id') usuarioId: string,
   ) {
     return this.svc.cancelar(id, body.motivo, empresaId, usuarioId);
   }
@@ -70,7 +70,7 @@ export class TesoreriaController {
   traspasar(
     @Body() dto: { origenId: string; destinoId: string; importe: number; fecha: string; concepto: string },
     @ActiveUser('empresaId') empresaId: string,
-    @ActiveUser('sub') usuarioId: string,
+    @ActiveUser('id') usuarioId: string,
   ) {
     return this.svc.traspasar(dto, empresaId, usuarioId);
   }

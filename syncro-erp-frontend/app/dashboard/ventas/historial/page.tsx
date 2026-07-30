@@ -49,6 +49,10 @@ export default function HistorialVentasPage() {
       title: '¿Anular esta Venta?',
       text: 'La venta se cancelará y los productos se reintegrarán al inventario. Esta acción no se puede deshacer.',
       icon: 'warning', showCancelButton: true,
+      input: 'textarea',
+      inputLabel: 'Motivo de la anulación',
+      inputPlaceholder: 'Describe por qué se anula la venta...',
+      inputValidator: (value) => value?.trim() ? undefined : 'El motivo es obligatorio',
       confirmButtonColor: '#e11d48', cancelButtonColor: '#64748b',
       confirmButtonText: 'Sí, anular venta', cancelButtonText: 'Mantener venta', reverseButtons: true,
       customClass: { popup: 'rounded-[24px] shadow-2xl', confirmButton: 'px-6 py-2.5 rounded-xl font-bold shadow-lg shadow-rose-200', cancelButton: 'px-6 py-2.5 rounded-xl font-bold' }
@@ -58,7 +62,14 @@ export default function HistorialVentasPage() {
     setAnulando(id);
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/ventas/${id}/anular`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${apiUrl}/ventas/${id}/anular`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ motivo: String(result.value).trim() }),
+      });
       if (res.ok) {
         Swal.fire({ title: 'Venta Anulada', text: 'El inventario ha sido devuelto correctamente.', icon: 'success', confirmButtonColor: '#4f46e5', customClass: { popup: 'rounded-[24px]', confirmButton: 'px-6 py-2.5 rounded-xl font-bold' } });
         fetchVentas();

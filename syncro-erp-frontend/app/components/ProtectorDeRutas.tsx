@@ -63,11 +63,7 @@ export default function ProtectorDeRutas({ children }: { children: React.ReactNo
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!res.ok) {
-          // Si el backend falla, dejamos pasar (fail-open en navegación)
-          setVerificando(false);
-          return;
-        }
+        if (!res.ok) throw new Error(`No se pudieron validar permisos (${res.status})`);
 
         const menu = await res.json();
 
@@ -102,8 +98,8 @@ export default function ProtectorDeRutas({ children }: { children: React.ReactNo
           router.push('/dashboard');
         }
       } catch {
-        // Error de red — dejamos pasar silenciosamente
-        // El backend igual devolverá 403 si intentan hacer algo no permitido
+        // Ante un fallo de red no se muestra contenido potencialmente sensible.
+        setAccesoDenegado(true);
       } finally {
         setVerificando(false);
       }

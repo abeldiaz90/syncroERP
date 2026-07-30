@@ -4,6 +4,9 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Empresa } from '../entities/empresa.entity';
 import { Usuario } from '../entities/usuario.entity';
 import { DataSource } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
+import { PermisosDinamicosService } from './permisos-dinamicos.service';
+import { MailService } from '../../common/services/mail.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -51,6 +54,20 @@ describe('AuthService', () => {
         {
           provide: DataSource,
           useValue: mockDataSource,
+        },
+        {
+          provide: PermisosDinamicosService,
+          useValue: {
+            obtenerPermisosPorRolParaFrontend: jest.fn(),
+          },
+        },
+        {
+          provide: JwtService,
+          useValue: { sign: jest.fn() },
+        },
+        {
+          provide: MailService,
+          useValue: { enviarCorreo: jest.fn() },
         },
       ],
     }).compile();

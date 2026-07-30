@@ -114,7 +114,7 @@ export class CrmController {
     @Param('id') id: string,
     @Body() body: { etapaId: string; motivoPerdida?: string; competidor?: string },
     @ActiveUser('empresaId') empresaId: string,
-    @ActiveUser('sub') usuarioId: string,
+    @ActiveUser('id') usuarioId: string,
   ) {
     return this.svc.moverEtapa(id, body, empresaId, usuarioId);
   }

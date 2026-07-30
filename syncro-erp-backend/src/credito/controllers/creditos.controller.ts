@@ -1,10 +1,8 @@
 import { Controller, Post, Get, Patch, Param, Body, Query } from '@nestjs/common';
 import { CreditosService, SimularCreditoDto } from '../services/creditos.service';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
-import { SkipPermisos } from '../../iam/decorators/skip-permisos.decorator';
 import { TipoCredito, EstadoCredito } from '../entities/credito-cliente.entity';
 
-@SkipPermisos()
 @Controller('credito/creditos')
 export class CreditosController {
   constructor(private readonly svc: CreditosService) {}

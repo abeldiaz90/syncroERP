@@ -9,13 +9,26 @@ import { CuentasContablesService } from '../services/cuentas-contables.service';
 import { PolizasService } from '../services/polizas.service';
 import { MotorContableService } from '../services/motor-contable.service';
 import { Producto } from '../../catalogo/entities/producto.entity';
+import { AsientoPendiente } from '../entities/asiento-pendiente.entity';
+import { AsientosPendientesController } from '../controllers/asientos-pendientes.controller';
+import { AsientosPendientesService } from '../services/asientos-pendientes.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CuentaContable, Poliza, PartidaPoliza, Producto]),
+    TypeOrmModule.forFeature([
+      CuentaContable, Poliza, PartidaPoliza, Producto, AsientoPendiente,
+    ]),
   ],
-  controllers: [CuentasContablesController, PolizasController],
-  providers: [CuentasContablesService, PolizasService, MotorContableService],
-  exports: [MotorContableService, CuentasContablesService, PolizasService],
+  controllers: [
+    CuentasContablesController, PolizasController, AsientosPendientesController,
+  ],
+  providers: [
+    CuentasContablesService, PolizasService, MotorContableService,
+    AsientosPendientesService,
+  ],
+  exports: [
+    MotorContableService, CuentasContablesService, PolizasService,
+    AsientosPendientesService,
+  ],
 })
 export class FinanzasModule {}

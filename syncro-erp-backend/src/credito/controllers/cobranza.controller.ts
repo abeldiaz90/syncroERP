@@ -1,9 +1,7 @@
 import { Controller, Post, Get, Param, Body } from '@nestjs/common';
 import { CobranzaService } from '../services/cobranza.service';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
-import { SkipPermisos } from '../../iam/decorators/skip-permisos.decorator';
 
-@SkipPermisos()
 @Controller('credito/cobranza')
 export class CobranzaController {
   constructor(private readonly svc: CobranzaService) {}
@@ -13,7 +11,7 @@ export class CobranzaController {
   registrarPago(
     @Body() body: any,
     @ActiveUser('empresaId') empresaId: string,
-    @ActiveUser('sub') usuarioId: string,
+    @ActiveUser('id') usuarioId: string,
   ) {
     return this.svc.registrarPago({ ...body, empresaId, usuarioId });
   }

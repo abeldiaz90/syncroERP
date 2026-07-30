@@ -1,10 +1,8 @@
 import { Controller, Post, Get, Patch, Param, Query, Body } from '@nestjs/common';
 import { CrearCuentaContableDto } from '../dto/crear-cuenta-contable.dto';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
-import { SkipPermisos } from '../../iam/decorators/skip-permisos.decorator';
 import { CuentasContablesService } from '../services/cuentas-contables.service';
 
-@SkipPermisos()
 @Controller('finanzas/cuentas-contables')
 export class CuentasContablesController {
   constructor(private readonly cuentasService: CuentasContablesService) { }

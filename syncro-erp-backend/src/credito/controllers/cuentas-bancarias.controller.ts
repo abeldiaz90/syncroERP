@@ -1,9 +1,7 @@
 import { Controller, Post, Get, Patch, Param, Body } from '@nestjs/common';
 import { CuentasBancariasService } from '../services/cuentas-bancarias.service';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
-import { SkipPermisos } from '../../iam/decorators/skip-permisos.decorator';
 
-@SkipPermisos()
 @Controller('credito/cuentas-bancarias')
 export class CuentasBancariasController {
   constructor(private readonly svc: CuentasBancariasService) {}

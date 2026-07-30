@@ -1,9 +1,7 @@
 import { Controller, Post, Get, Body, Query } from '@nestjs/common';
 import { CurpRpaService } from '../services/curp-rpa.service';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
-import { SkipPermisos } from '../../iam/decorators/skip-permisos.decorator';
 
-@SkipPermisos()
 @Controller('rpa/curp')
 export class CurpRpaController {
   constructor(private readonly svc: CurpRpaService) {}
@@ -21,7 +19,7 @@ export class CurpRpaController {
       entidadNacimiento?: string;
     },
     @ActiveUser('empresaId') empresaId: string,
-    @ActiveUser('sub')       usuarioId: string,
+    @ActiveUser('id')        usuarioId: string,
   ) {
     return this.svc.consultar(
       body.tipo,

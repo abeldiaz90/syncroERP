@@ -9,6 +9,12 @@ import { PartidaPoliza } from '../entities/partida-poliza.entity';
 export interface DetalleVentaContable {
   productoId: string; cantidad: number;
   subtotal: number; impuestoMonto: number;
+  /**
+   * Costo REAL de lo que salió, calculado por el inventario a partir de los
+   * lotes que efectivamente se consumieron. Opcional por compatibilidad, pero
+   * todo llamador nuevo debe enviarlo.
+   */
+  costoTotal?: number;
 }
 export interface DatosVentaContable {
   ventaId: string; folio: number; fecha: Date;
@@ -68,7 +74,13 @@ export class MotorContableService {
         const prod = prodMap.get(det.productoId);
         const cat  = (prod?.categoria) as any;
         if (!cat?.cuentaCostoVentasId || !cat?.cuentaInventarioId) continue;
-        const costo = this.redondear(Number(prod!.precioCompra || 0) * det.cantidad);
+        // `precioCompra` es el precio de REPOSICIÓN del catálogo: cuánto
+        // costaría comprar hoy. No es lo que costó la mercancía que salió.
+        // Usarlo separaba la cuenta de Inventario del valor físico un poco en
+        // cada venta, y al cierre nadie podía explicar la diferencia.
+        const costo = det.costoTotal !== undefined
+          ? this.redondear(Number(det.costoTotal))
+          : this.redondear(Number(prod!.precioCompra || 0) * det.cantidad);
         if (costo <= 0) continue;
         const ref = `V#${datos.folio}`;
         partidasCosto.push({ cuentaContableId: cat.cuentaCostoVentasId, cargo: costo, abono: 0,     referencia: ref });
@@ -123,6 +135,115 @@ export class MotorContableService {
       }
     } catch (err: any) {
       this.logger.error(`[Venta #${datos.folio}] ${err?.message}`);
+      // Se propaga a propósito: AsientosPendientesService lo captura,
+      // lo registra y lo reintenta. Tragárselo aquí dejaba las
+      // operaciones sin póliza en silencio.
+      throw err;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REVERSIÓN DE VENTA — anulaciones y devoluciones
+  //
+  // NO modifica ni borra la póliza original: crea una que la contrarresta.
+  // Editar un asiento aplicado rompe la cadena de auditoría y en México es una
+  // infracción. Los lados van invertidos respecto a la venta:
+  //
+  //   Costo:    Dr. Inventario         / Cr. Costo de ventas
+  //   Ingreso:  Dr. Ventas + Dr. IVA   / Cr. Caja, Banco o CxC
+  //
+  // Cancelar el IVA trasladado es lo que evita enterarle al SAT impuesto de una
+  // venta que no ocurrió.
+  // ═══════════════════════════════════════════════════════════════════════════
+  async generarAsientoDeCancelacionVenta(datos: {
+    folio: string;
+    fecha: Date;
+    empresaId: string;
+    metodoPago?: string;
+    cuentaBancariaId?: string;
+    motivo: string;
+    detalles: DetalleVentaContable[];
+  }): Promise<void> {
+    try {
+      const ref = `ANUL-V#${datos.folio}`;
+      const prodMap = await this.cargarProductosConCategoria(
+        datos.detalles.map(d => d.productoId),
+      );
+
+      // ── Reversión del costo: el inventario regresa ──
+      const partidasCosto: PartidaInput[] = [];
+      for (const det of datos.detalles) {
+        const cat = (prodMap.get(det.productoId)?.categoria) as any;
+        if (!cat?.cuentaCostoVentasId || !cat?.cuentaInventarioId) continue;
+
+        const costo = this.redondear(Number(det.costoTotal ?? 0));
+        if (costo <= 0) continue;
+
+        partidasCosto.push({ cuentaContableId: cat.cuentaInventarioId,  cargo: costo, abono: 0,     referencia: ref });
+        partidasCosto.push({ cuentaContableId: cat.cuentaCostoVentasId, cargo: 0,     abono: costo, referencia: ref });
+      }
+
+      if (partidasCosto.length > 0) {
+        await this.crearPoliza({
+          empresaId: datos.empresaId,
+          tipo: TipoPoliza.DIARIO,
+          concepto: `Reversión de costo — ${datos.folio}. ${datos.motivo}`,
+          fecha: datos.fecha,
+          partidas: partidasCosto,
+        });
+      }
+
+      // ── Reversión del ingreso ──
+      const cuentaCredito = await this.buscarCuentaSegunMetodoPago(
+        datos.empresaId, datos.metodoPago, datos.cuentaBancariaId,
+      );
+
+      if (!cuentaCredito) {
+        throw new Error(
+          `Reversión ${datos.folio}: no hay cuenta configurada para el método ` +
+          `"${datos.metodoPago ?? 'EFECTIVO'}".`,
+        );
+      }
+
+      const cuentaIva = await this.buscarCuentaGlobal(datos.empresaId, 'PASIVO', '20');
+      const partidasIngreso: PartidaInput[] = [];
+      let totalVentas = 0, totalIva = 0;
+
+      for (const det of datos.detalles) {
+        const cat = (prodMap.get(det.productoId)?.categoria) as any;
+        if (!cat?.cuentaVentasId) continue;
+
+        const sub = this.redondear(det.subtotal);
+        const iva = this.redondear(det.impuestoMonto ?? 0);
+
+        partidasIngreso.push({ cuentaContableId: cat.cuentaVentasId, cargo: sub, abono: 0, referencia: ref });
+        totalVentas += sub;
+
+        if (iva > 0 && cuentaIva) {
+          partidasIngreso.push({ cuentaContableId: cuentaIva.id, cargo: iva, abono: 0, referencia: ref });
+          totalIva += iva;
+        }
+      }
+
+      if (partidasIngreso.length > 0) {
+        partidasIngreso.push({
+          cuentaContableId: cuentaCredito.id,
+          cargo: 0,
+          abono: this.redondear(totalVentas + totalIva),
+          referencia: ref,
+        });
+
+        await this.crearPoliza({
+          empresaId: datos.empresaId,
+          tipo: TipoPoliza.EGRESO,
+          concepto: `Reversión de ingreso — ${datos.folio}. ${datos.motivo}`,
+          fecha: datos.fecha,
+          partidas: partidasIngreso,
+        });
+      }
+    } catch (err: any) {
+      this.logger.error(`[Reversión ${datos.folio}] ${err?.message}`);
+      throw err;
     }
   }
 
@@ -194,6 +315,10 @@ export class MotorContableService {
       this.logger.log(`Póliza de compra generada: ${datos.folio} | Inventario: ${totalInventario} | IVA: ${totalIvaAcreditable}`);
     } catch (err: any) {
       this.logger.error(`[Compra ${datos.folio}] ${err?.message}`);
+      // Se propaga a propósito: AsientosPendientesService lo captura,
+      // lo registra y lo reintenta. Tragárselo aquí dejaba las
+      // operaciones sin póliza en silencio.
+      throw err;
     }
   }
 
@@ -227,6 +352,10 @@ export class MotorContableService {
       this.logger.log(`Póliza de ${datos.tipo} generada`);
     } catch (err: any) {
       this.logger.error(`[Salida ${datos.tipo}] ${err?.message}`);
+      // Se propaga a propósito: AsientosPendientesService lo captura,
+      // lo registra y lo reintenta. Tragárselo aquí dejaba las
+      // operaciones sin póliza en silencio.
+      throw err;
     }
   }
 
@@ -286,6 +415,10 @@ export class MotorContableService {
       this.logger.log(`Póliza de cobranza generada: crédito ${datos.creditoId.slice(0, 8)}`);
     } catch (err: any) {
       this.logger.error(`[Cobranza ${datos.creditoId}] ${err?.message}`);
+      // Se propaga a propósito: AsientosPendientesService lo captura,
+      // lo registra y lo reintenta. Tragárselo aquí dejaba las
+      // operaciones sin póliza en silencio.
+      throw err;
     }
   }
 
@@ -466,6 +599,10 @@ export class MotorContableService {
       this.logger.log(`Póliza de pago proveedor generada: OC ${datos.folio}`);
     } catch (err: any) {
       this.logger.error(`[PagoProveedor OC-${datos.folio}] ${err?.message}`);
+      // Se propaga a propósito: AsientosPendientesService lo captura,
+      // lo registra y lo reintenta. Tragárselo aquí dejaba las
+      // operaciones sin póliza en silencio.
+      throw err;
     }
   }
 
@@ -529,6 +666,10 @@ export class MotorContableService {
       this.logger.log(`Póliza de hospedaje generada: ${datos.folio} | Base: ${base} | IVA: ${iva}`);
     } catch (err: any) {
       this.logger.error(`[Hospedaje ${datos.folio}] ${err?.message}`);
+      // Se propaga a propósito: AsientosPendientesService lo captura,
+      // lo registra y lo reintenta. Tragárselo aquí dejaba las
+      // operaciones sin póliza en silencio.
+      throw err;
     }
   }
 
@@ -592,6 +733,10 @@ export class MotorContableService {
       this.logger.log(`Póliza de inventario inicial: $${total} en ${porCuenta.size} cuentas de inventario`);
     } catch (err: any) {
       this.logger.error(`[Inventario inicial] ${err?.message}`);
+      // Se propaga a propósito: AsientosPendientesService lo captura,
+      // lo registra y lo reintenta. Tragárselo aquí dejaba las
+      // operaciones sin póliza en silencio.
+      throw err;
     }
   }
 }

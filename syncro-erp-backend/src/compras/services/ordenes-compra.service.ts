@@ -102,7 +102,45 @@ export class OrdenesCompraService {
     return this.ocRepo.save(oc);
   }
 
-  async recibir(id: string, empresaId: string, almacenId: string, detallesFront: any[], usuarioActual?: any) {
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════
+   * RECEPCIÓN DE MERCANCÍA
+   * ───────────────────────────────────────────────────────────────────────────
+   * CORRECCIONES SOBRE LA VERSIÓN ANTERIOR
+   *
+   * 1. TODO DENTRO DE UNA TRANSACCIÓN. Antes las entradas de inventario, la
+   *    actualización de los detalles, la de la orden y la de la requisición
+   *    ocurrían por separado. Si fallaba después de recibir dos de cinco
+   *    productos, el inventario quedaba parcialmente actualizado y la orden
+   *    seguía en ENVIADA — sin forma de saber qué había entrado ya.
+   *
+   * 2. SE PASA EL COSTO AL INVENTARIO. La orden siempre conoció el
+   *    `precioUnitario` — lo usa para la póliza unas líneas abajo — pero no se
+   *    lo pasaba a `registrarCompra`. Resultado: los lotes nacían con costo
+   *    cero, y todas las salidas posteriores registraban costo cero. Era la
+   *    mitad faltante del costeo de inventario.
+   *
+   * 3. NO SE PUEDE RECIBIR MÁS DE LO ORDENADO. Antes tomaba lo que enviara el
+   *    frontend sin comparar. Se podían ordenar 10 piezas y recibir 1,000, lo
+   *    que metía al inventario mercancía que nadie compró y generaba una
+   *    póliza por un importe sin factura que la respaldara.
+   *
+   * 4. SE PASA `qr.manager`. Sin él, `registrarCompra` abría su propia
+   *    transacción y quedaba fuera de esta: si el resto fallaba, la entrada de
+   *    inventario ya estaba confirmada y no se revertía.
+   *
+   * PENDIENTE CONOCIDO: la recepción parcial sigue sobrescribiendo
+   * `cantidadRecibidaOk` en lugar de acumular. Para entregas en varias
+   * remesas hace falta un campo `cantidadRecibidaAcumulada` en la entidad.
+   * ═══════════════════════════════════════════════════════════════════════════
+   */
+  async recibir(
+    id: string,
+    empresaId: string,
+    almacenId: string,
+    detallesFront: any[],
+    usuarioActual?: any,
+  ) {
     const oc = await this.ocRepo.findOne({
       where: { id, empresaId },
       relations: [
@@ -110,7 +148,7 @@ export class OrdenesCompraService {
         'detalles.producto',
         'detalles.producto.equivalencias',
         'proveedor',
-        'cotizacion'
+        'cotizacion',
       ],
     });
 
@@ -119,12 +157,56 @@ export class OrdenesCompraService {
       throw new BadRequestException('La OC debe estar en estado ENVIADA para recibir mercancía');
     }
 
-    let huboIncidencias = false;
-
+    // ── Validación previa: nada de recibir más de lo ordenado ──
+    // Se hace antes de abrir la transacción para fallar rápido y con un
+    // mensaje que identifique el producto.
     for (const det of oc.detalles) {
       const captura = detallesFront.find(d => d.id === det.id);
+      if (!captura) continue;
 
-      if (captura) {
+      const recibidaOk  = Number(captura.cantidadRecibidaOk  || 0);
+      const rechazada   = Number(captura.cantidadRechazada   || 0);
+
+      if (recibidaOk < 0 || rechazada < 0) {
+        throw new BadRequestException(
+          `${det.producto?.nombre ?? 'Producto'}: las cantidades no pueden ser negativas.`,
+        );
+      }
+
+      let factor = 1;
+      if (captura.equivalenciaId && det.producto?.equivalencias) {
+        const eq = det.producto.equivalencias.find((e: any) => e.id === captura.equivalenciaId);
+        if (eq) factor = Number(eq.factorConversion) || 1;
+      }
+
+      const unidadesBase = (recibidaOk + rechazada) * factor;
+      const ordenado = Number(det.cantidad);
+
+      if (unidadesBase > ordenado) {
+        throw new BadRequestException(
+          `${det.producto?.nombre ?? 'Producto'}: se ordenaron ${ordenado} unidades y ` +
+          `estás capturando ${unidadesBase} (recibidas más rechazadas). ` +
+          `Si el proveedor envió de más, documéntalo con una orden adicional.`,
+        );
+      }
+    }
+
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+
+    let huboIncidencias = false;
+    let ocGuardada: OrdenCompra;
+
+    try {
+      for (const det of oc.detalles) {
+        const captura = detallesFront.find(d => d.id === det.id);
+
+        if (!captura) {
+          huboIncidencias = true;
+          continue;
+        }
+
         det.cantidadRecibidaOk = captura.cantidadRecibidaOk || 0;
         det.cantidadRechazada  = captura.cantidadRechazada  || 0;
         det.motivoRechazo      = captura.motivoRechazo      || null;
@@ -132,7 +214,7 @@ export class OrdenesCompraService {
         let factorMultiplicador = 1;
         if (captura.equivalenciaId && det.producto?.equivalencias) {
           const eq = det.producto.equivalencias.find((e: any) => e.id === captura.equivalenciaId);
-          if (eq) factorMultiplicador = Number(eq.factorConversion);
+          if (eq) factorMultiplicador = Number(eq.factorConversion) || 1;
         }
 
         const totalUnidadesBase = det.cantidadRecibidaOk * factorMultiplicador;
@@ -145,24 +227,40 @@ export class OrdenesCompraService {
             det.productoId,
             almacenId,
             det.cantidadRecibidaOk,
-            `Recepción OC #${oc.id.slice(0, 8)}`,
+            `Recepción OC #${oc.id.slice(0, 8).toUpperCase()}`,
             empresaId,
             captura.lote,
             captura.fechaCaducidad,
-            captura.equivalenciaId
+            captura.equivalenciaId,
+            qr.manager,                            // ← dentro de la transacción
+            Number(det.precioUnitario || 0),       // ← el costo, que faltaba
+            { id: oc.id, tipo: 'ORDEN_COMPRA' },   // ← trazabilidad del kardex
           );
         }
-      } else {
-        huboIncidencias = true;
       }
+
+      await qr.manager.save(oc.detalles);
+
+      oc.estado = huboIncidencias ? 'CON_INCIDENCIAS' : 'RECIBIDA';
+      ocGuardada = await qr.manager.save(oc);
+
+      if (oc.cotizacion && oc.cotizacion.requisicionId) {
+        await qr.manager.update(Requisicion, oc.cotizacion.requisicionId, {
+          estado: (oc.estado === 'RECIBIDA' ? 'RECIBIDA' : 'CON_INCIDENCIAS') as any,
+        });
+      }
+
+      await qr.commitTransaction();
+    } catch (err) {
+      await qr.rollbackTransaction();
+      throw err;
+    } finally {
+      await qr.release();
     }
 
-    await this.detalleOCRepo.save(oc.detalles);
-
-    oc.estado = huboIncidencias ? 'CON_INCIDENCIAS' : 'RECIBIDA';
-    const ocGuardada = await this.ocRepo.save(oc);
-
-    // Motor contable
+    // ── Fuera de la transacción a propósito ──
+    // Si la contabilidad o el correo fallan, la mercancía ya entró y eso es
+    // correcto. El motor contable propaga el error y queda registrado.
     const detallesContables = ocGuardada.detalles
       .filter(d => (d.cantidadRecibidaOk ?? 0) > 0)
       .map(d => ({
@@ -170,6 +268,7 @@ export class OrdenesCompraService {
         cantidad:      d.cantidadRecibidaOk,
         costoUnitario: Number(d.precioUnitario || 0),
       }));
+
     if (detallesContables.length > 0) {
       this.motorContable.generarAsientoDeCompra({
         compraId:     ocGuardada.id,
@@ -181,15 +280,7 @@ export class OrdenesCompraService {
       }).catch(err => console.error('[MotorContable] Error en compra:', err?.message));
     }
 
-    if (oc.cotizacion && oc.cotizacion.requisicionId) {
-      const estadoReq: { estado: any } = {
-        estado: oc.estado === 'RECIBIDA' ? 'RECIBIDA' : 'CON_INCIDENCIAS',
-      };
-      await this.requisicionRepo.update(oc.cotizacion.requisicionId, estadoReq);
-    }
-
-    // Email notificación recepción (tu HTML original mantenido)
-    this.enviarNotificacionRecepcion(oc, usuarioActual, huboIncidencias)
+    this.enviarNotificacionRecepcion(ocGuardada, usuarioActual, huboIncidencias)
       .catch(err => console.error('Error al notificar recepción:', err));
 
     return ocGuardada;

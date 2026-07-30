@@ -13,7 +13,7 @@ export function PermisosProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem('syncro_token');
     if (!token) return;
-    fetch(`${apiUrl}/permisos/mis-permisos`, {
+    fetch(`${apiUrl}/auth/mis-permisos`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())

@@ -24,7 +24,7 @@ interface Props {
   textoVacio?: string;
   /** name del select, para el onChange del formulario padre */
   name: string;
-  onChange: (e: { target: { name: string; value: string } }) => void;
+  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   /** Endpoint POST para crear (ej. `${api}/catalogo/marcas`) */
   endpointCrear: string;
   /** Token bearer */
@@ -91,7 +91,9 @@ export default function SelectConCrear({
 
       // Notifica al padre y selecciona el nuevo automáticamente
       onCreado(d);
-      onChange({ target: { name, value: d.id } });
+      onChange({
+        target: { name, value: d.id },
+      } as React.ChangeEvent<HTMLSelectElement>);
       setModal(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error de conexión');

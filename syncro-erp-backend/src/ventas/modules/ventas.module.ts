@@ -15,6 +15,7 @@ import { DashboardEjecutivoService }    from '../services/dashboard-ejecutivo.se
 import { CatalogoModule }       from '../../catalogo/catalogo.module';
 import { FinanzasModule }       from '../../finanzas/modules/finanzas.module';
 import { NotificacionesModule } from '../../notificaciones/notificaciones.module';
+import { AnulacionVentasService } from '../services/anulacion-ventas.service';
 
 @Module({
   imports: [
@@ -26,6 +27,8 @@ import { NotificacionesModule } from '../../notificaciones/notificaciones.module
     NotificacionesModule,
   ],
   controllers: [VentasController, DashboardEjecutivoController],
-  providers:   [VentasService, DashboardEjecutivoService],
+  providers: [
+    VentasService, DashboardEjecutivoService, AnulacionVentasService,
+  ],
 })
 export class VentasModule {}

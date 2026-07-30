@@ -60,6 +60,7 @@ import { PlantillaInventarioService }  from './services/plantilla-inventario.ser
 import { ImportacionStockInicialService } from './services/importacion-stock-inicial.service'; // ← NUEVO
 import { PlantillaStockInicialService }   from './services/plantilla-stock-inicial.service';   // ← NUEVO
 import { AtributosPersonalizadosService } from './services/atributos-personalizados.service'; // ← atributos dinámicos
+import { PreciosService }      from './services/precios.service';   // ← precios autoritativos
 
 // ── FinanzasModule — necesario porque InventarioService usa PolizasService
 //    y la carga de stock inicial usa MotorContableService ──
@@ -98,11 +99,13 @@ import { FinanzasModule } from '../finanzas/modules/finanzas.module';
     ImportacionStockInicialService,   // ← NUEVO
     PlantillaStockInicialService,     // ← NUEVO
     AtributosPersonalizadosService,   // ← atributos dinámicos
+    PreciosService,                   // ← precios autoritativos
   ],
   exports: [
     CategoriasService,
     InventarioService,
     StockService,
+    PreciosService,   // ← lo necesita VentasModule para resolver precios en el servidor
     FinanzasModule,   // re-exportar: todo módulo que importe CatalogoModule recibe PolizasService y MotorContableService
   ],
 })
