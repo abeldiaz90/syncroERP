@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Usuario } from '../entities/usuario.entity';
@@ -23,18 +29,26 @@ export class UsuariosService {
   private get frontendUrl(): string {
     const url = process.env.FRONTEND_URL;
     if (!url) {
-      this.logger.warn('FRONTEND_URL no definida — usando http://localhost:3000');
+      this.logger.warn(
+        'FRONTEND_URL no definida — usando http://localhost:3000',
+      );
       return 'http://localhost:3000';
     }
     return url.replace(/\/$/, '');
   }
 
   private describirError(error: unknown): { msg: string; stack?: string } {
-    if (error instanceof Error) return { msg: error.message, stack: error.stack };
+    if (error instanceof Error)
+      return { msg: error.message, stack: error.stack };
     return { msg: String(error) };
   }
 
-  private async enviarCorreoInvitacion(email: string, nombre: string, token: string, rol: string) {
+  private async enviarCorreoInvitacion(
+    email: string,
+    nombre: string,
+    token: string,
+    rol: string,
+  ) {
     const url = `${this.frontendUrl}/aceptar-invitacion?token=${token}`;
     await this.mailService.enviarCorreo({
       destinatario: email,
@@ -72,7 +86,10 @@ export class UsuariosService {
     const existe = await this.usuarioRepo.findOne({
       where: { email: emailNorm, empresaId },
     });
-    if (existe) throw new ConflictException('Ya existe un usuario con ese email en esta empresa.');
+    if (existe)
+      throw new ConflictException(
+        'Ya existe un usuario con ese email en esta empresa.',
+      );
 
     // Token de invitación (reutiliza los campos de verificación de la entidad)
     const token = crypto.randomBytes(32).toString('hex');
@@ -89,8 +106,8 @@ export class UsuariosService {
       email: emailNorm,
       rol: dto.rol,
       departamentoId: (dto as any).departamentoId ?? null,
-      passwordHash,               // ← nombre correcto de la columna (era el bug)
-      activo: false,              // se activa al aceptar la invitación
+      passwordHash, // ← nombre correcto de la columna (era el bug)
+      activo: false, // se activa al aceptar la invitación
       emailVerificado: false,
       tokenVerificacion: token,
       tokenExpira: expira,
@@ -101,16 +118,29 @@ export class UsuariosService {
     // Enviar invitación fuera del flujo crítico: si el correo falla, el
     // usuario queda creado y se puede reenviar la invitación.
     try {
-      await this.enviarCorreoInvitacion(emailNorm, dto.nombreCompleto, token, dto.rol);
+      await this.enviarCorreoInvitacion(
+        emailNorm,
+        dto.nombreCompleto,
+        token,
+        dto.rol,
+      );
     } catch (error) {
       const { msg, stack } = this.describirError(error);
-      this.logger.error(`FALLO ENVÍO DE INVITACIÓN a ${emailNorm}: ${msg}`, stack);
+      this.logger.error(
+        `FALLO ENVÍO DE INVITACIÓN a ${emailNorm}: ${msg}`,
+        stack,
+      );
     }
 
-    const { passwordHash: _, tokenVerificacion: __, ...resultado } = guardado as any;
+    const {
+      passwordHash: _,
+      tokenVerificacion: __,
+      ...resultado
+    } = guardado as any;
     return {
       ...resultado,
-      mensaje: 'Usuario creado. Se envió una invitación por correo para que active su cuenta.',
+      mensaje:
+        'Usuario creado. Se envió una invitación por correo para que active su cuenta.',
     };
   }
 
@@ -120,16 +150,21 @@ export class UsuariosService {
   async aceptarInvitacion(token: string, nuevaPassword: string) {
     if (!token) throw new BadRequestException('Token no proporcionado');
     if (!nuevaPassword || nuevaPassword.length < 8) {
-      throw new BadRequestException('La contraseña debe tener al menos 8 caracteres');
+      throw new BadRequestException(
+        'La contraseña debe tener al menos 8 caracteres',
+      );
     }
 
     const usuario = await this.usuarioRepo.findOne({
       where: { tokenVerificacion: token },
     });
-    if (!usuario) throw new NotFoundException('Invitación inválida o ya utilizada');
+    if (!usuario)
+      throw new NotFoundException('Invitación inválida o ya utilizada');
 
     if (usuario.tokenExpira && new Date() > new Date(usuario.tokenExpira)) {
-      throw new BadRequestException('La invitación ha expirado. Pide que te reenvíen una nueva.');
+      throw new BadRequestException(
+        'La invitación ha expirado. Pide que te reenvíen una nueva.',
+      );
     }
 
     exigirPoliticaPassword(nuevaPassword);
@@ -151,7 +186,8 @@ export class UsuariosService {
     const usuario = await this.usuarioRepo.findOne({
       where: { tokenVerificacion: token },
     });
-    if (!usuario) throw new NotFoundException('Invitación inválida o ya utilizada');
+    if (!usuario)
+      throw new NotFoundException('Invitación inválida o ya utilizada');
     if (usuario.tokenExpira && new Date() > new Date(usuario.tokenExpira)) {
       throw new BadRequestException('La invitación ha expirado.');
     }
@@ -176,7 +212,12 @@ export class UsuariosService {
     usuario.tokenExpira = new Date(Date.now() + 48 * 60 * 60 * 1000);
     await this.usuarioRepo.save(usuario);
 
-    await this.enviarCorreoInvitacion(usuario.email, usuario.nombreCompleto, token, usuario.rol);
+    await this.enviarCorreoInvitacion(
+      usuario.email,
+      usuario.nombreCompleto,
+      token,
+      usuario.rol,
+    );
     return { mensaje: 'Invitación reenviada.' };
   }
 
@@ -184,16 +225,16 @@ export class UsuariosService {
   // CONSULTAS
   // ──────────────────────────────────────────────────────────────────────────
   async obtenerTodos(empresaId: string, filtro?: string, soloActivos = true) {
-    const qb = this.usuarioRepo.createQueryBuilder('u')
+    const qb = this.usuarioRepo
+      .createQueryBuilder('u')
       .leftJoinAndSelect('u.departamento', 'dep')
       .where('u.empresaId = :empresaId', { empresaId });
 
     if (soloActivos) qb.andWhere('u.activo = :activo', { activo: true });
     if (filtro) {
-      qb.andWhere(
-        '(u.nombreCompleto LIKE :filtro OR u.email LIKE :filtro)',
-        { filtro: `%${filtro}%` },
-      );
+      qb.andWhere('(u.nombreCompleto LIKE :filtro OR u.email LIKE :filtro)', {
+        filtro: `%${filtro}%`,
+      });
     }
     return qb.orderBy('u.nombreCompleto', 'ASC').getMany();
   }

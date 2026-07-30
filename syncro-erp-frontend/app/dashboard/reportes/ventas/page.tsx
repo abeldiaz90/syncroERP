@@ -7,6 +7,7 @@ interface IVenta {
   id: string; folio: number; fechaVenta: string; metodoPago: string;
   estado: string;
   total: number; subtotal: number; impuestoTotal: number;
+  totalDevuelto?: number; subtotalDevuelto?: number; impuestoDevuelto?: number;
   cliente?: { nombre: string; rfc?: string };
   detalles?: { cantidad: number; subtotal: number; producto?: { nombre: string; sku: string } }[];
 }
@@ -56,17 +57,19 @@ export default function ReporteVentasPage() {
   useEffect(() => { cargar(); }, [cargar]);
 
   const ventasFiltradas = ventas.filter(v => v.estado !== 'ANULADA');
+  const neto = (v: IVenta) => Number(v.total) - Number(v.totalDevuelto ?? 0);
+  const ivaNeto = (v: IVenta) => Number(v.impuestoTotal) - Number(v.impuestoDevuelto ?? 0);
 
   // KPIs
-  const totalVentas    = ventasFiltradas.reduce((s, v) => s + Number(v.total), 0);
-  const totalIVA       = ventasFiltradas.reduce((s, v) => s + Number(v.impuestoTotal), 0);
+  const totalVentas    = ventasFiltradas.reduce((s, v) => s + neto(v), 0);
+  const totalIVA       = ventasFiltradas.reduce((s, v) => s + ivaNeto(v), 0);
   const ticketPromedio = ventasFiltradas.length > 0 ? totalVentas / ventasFiltradas.length : 0;
 
   // Agrupaciones
   const porMetodo = ventasFiltradas.reduce((acc, v) => {
     const k = v.metodoPago;
     if (!acc[k]) acc[k] = { label: METODO_LABEL[k] ?? k, total: 0, count: 0 };
-    acc[k].total += Number(v.total);
+    acc[k].total += neto(v);
     acc[k].count++;
     return acc;
   }, {} as Record<string, { label: string; total: number; count: number }>);
@@ -74,7 +77,7 @@ export default function ReporteVentasPage() {
   const porDia = ventasFiltradas.reduce((acc, v) => {
     const k = v.fechaVenta?.split('T')[0] ?? '';
     if (!acc[k]) acc[k] = { total: 0, count: 0 };
-    acc[k].total += Number(v.total);
+    acc[k].total += neto(v);
     acc[k].count++;
     return acc;
   }, {} as Record<string, { total: number; count: number }>);
@@ -82,7 +85,7 @@ export default function ReporteVentasPage() {
   const porCliente = ventasFiltradas.reduce((acc, v) => {
     const k  = v.cliente?.nombre ?? 'Mostrador';
     if (!acc[k]) acc[k] = { total: 0, count: 0 };
-    acc[k].total += Number(v.total);
+    acc[k].total += neto(v);
     acc[k].count++;
     return acc;
   }, {} as Record<string, { total: number; count: number }>);
@@ -255,7 +258,10 @@ export default function ReporteVentasPage() {
                   <td className="px-4 py-2.5"><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{METODO_LABEL[v.metodoPago] ?? v.metodoPago}</span></td>
                   <td className="px-4 py-2.5 text-right font-mono">{fmt$(Number(v.subtotal))}</td>
                   <td className="px-4 py-2.5 text-right font-mono text-slate-400">{fmt$(Number(v.impuestoTotal))}</td>
-                  <td className="px-4 py-2.5 text-right font-mono font-bold">{fmt$(Number(v.total))}</td>
+                  <td className="px-4 py-2.5 text-right font-mono font-bold">
+                    {fmt$(neto(v))}
+                    {Number(v.totalDevuelto ?? 0) > 0 && <span className="block text-[10px] text-amber-600">Devuelto {fmt$(Number(v.totalDevuelto))}</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>

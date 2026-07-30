@@ -55,7 +55,9 @@ export class Cotizacion {
   @CreateDateColumn()
   fechaCotizacion: Date;
 
-  @OneToMany(() => DetalleCotizacion, (det) => det.cotizacion, { cascade: true })
+  @OneToMany(() => DetalleCotizacion, (det) => det.cotizacion, {
+    cascade: true,
+  })
   detalles: DetalleCotizacion[];
 
   @OneToMany(() => OrdenCompra, (oc) => oc.cotizacion)

@@ -1,15 +1,21 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column,
-  CreateDateColumn, UpdateDateColumn,
-  ManyToOne, JoinColumn, OneToMany,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { Cliente } from './../clientes/entities/cliente.entity';
 import { PartidaFactura } from './partida-factura.entity';
+import { Venta } from '../ventas/entities/venta.entity';
 
 export enum EstadoFactura {
-  BORRADOR   = 'BORRADOR',   // Pendiente de timbrar
-  TIMBRADA   = 'TIMBRADA',   // Timbrada exitosamente por el PAC
-  CANCELADA  = 'CANCELADA',  // Cancelada ante el SAT
+  BORRADOR = 'BORRADOR', // Pendiente de timbrar
+  TIMBRADA = 'TIMBRADA', // Timbrada exitosamente por el PAC
+  CANCELADA = 'CANCELADA', // Cancelada ante el SAT
 }
 
 export enum MetodoPago {
@@ -18,12 +24,12 @@ export enum MetodoPago {
 }
 
 export enum FormaPago {
-  EFECTIVO           = '01',
-  CHEQUE             = '02',
-  TRANSFERENCIA      = '03',
-  TARJETA_CREDITO    = '04',
-  TARJETA_DEBITO     = '28',
-  POR_DEFINIR        = '99',
+  EFECTIVO = '01',
+  CHEQUE = '02',
+  TRANSFERENCIA = '03',
+  TARJETA_CREDITO = '04',
+  TARJETA_DEBITO = '28',
+  POR_DEFINIR = '99',
 }
 
 @Entity('facturas')
@@ -33,6 +39,13 @@ export class Factura {
 
   @Column({ type: 'uniqueidentifier' })
   empresaId!: string;
+
+  @ManyToOne(() => Venta, { nullable: true, onDelete: 'NO ACTION' })
+  @JoinColumn({ name: 'ventaId' })
+  venta!: Venta | null;
+
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  ventaId!: string | null;
 
   // ── IDENTIFICACIÓN ──────────────────────────────────────────────
   @Column({ type: 'varchar', length: 10, default: 'A' })
@@ -96,7 +109,8 @@ export class Factura {
 
   // ── TIMBRE SAT ──────────────────────────────────────────────────
   @Column({
-    type: 'varchar', length: 20,
+    type: 'varchar',
+    length: 20,
     default: EstadoFactura.BORRADOR,
   })
   estado!: EstadoFactura;
@@ -126,7 +140,7 @@ export class Factura {
   notas!: string;
 
   // ── PARTIDAS ────────────────────────────────────────────────────
-  @OneToMany(() => PartidaFactura, p => p.factura, { cascade: true })
+  @OneToMany(() => PartidaFactura, (p) => p.factura, { cascade: true })
   partidas!: PartidaFactura[];
 
   @CreateDateColumn()

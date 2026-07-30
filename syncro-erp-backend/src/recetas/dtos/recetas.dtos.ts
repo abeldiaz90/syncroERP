@@ -1,6 +1,12 @@
 // recetas/dto/recetas.dtos.ts
 import {
-  IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, ValidateNested, Min,
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+  IsArray,
+  ValidateNested,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -27,7 +33,7 @@ export class GuardarRecetaDto {
 // Para producir/vender un producto con receta (explota y descuenta)
 export class ProducirDto {
   @IsString() @IsNotEmpty() productoId!: string;
-  @IsNumber() @Min(0.01) cantidad!: number;   // cuántas unidades del producto
+  @IsNumber() @Min(0.01) cantidad!: number; // cuántas unidades del producto
   @IsString() @IsNotEmpty() almacenId!: string; // de dónde salen los insumos
   @IsString() @IsOptional() motivo?: string;
 }

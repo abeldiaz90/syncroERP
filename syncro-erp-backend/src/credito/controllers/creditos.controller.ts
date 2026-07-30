@@ -1,5 +1,16 @@
-import { Controller, Post, Get, Patch, Param, Body, Query } from '@nestjs/common';
-import { CreditosService, SimularCreditoDto } from '../services/creditos.service';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Param,
+  Body,
+  Query,
+} from '@nestjs/common';
+import {
+  CreditosService,
+  SimularCreditoDto,
+} from '../services/creditos.service';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { TipoCredito, EstadoCredito } from '../entities/credito-cliente.entity';
 
@@ -15,10 +26,7 @@ export class CreditosController {
 
   /** Crear crédito desde una venta o de forma independiente */
   @Post()
-  crear(
-    @Body() body: any,
-    @ActiveUser('empresaId') empresaId: string,
-  ) {
+  crear(@Body() body: any, @ActiveUser('empresaId') empresaId: string) {
     return this.svc.crearCredito({ ...body, empresaId });
   }
 
@@ -26,8 +34,9 @@ export class CreditosController {
   obtenerTodos(
     @ActiveUser('empresaId') empresaId: string,
     @Query('estado') estado?: EstadoCredito,
+    @Query('ventaId') ventaId?: string,
   ) {
-    return this.svc.obtenerTodos(empresaId, estado);
+    return this.svc.obtenerTodos(empresaId, estado, ventaId);
   }
 
   @Get('cartera-vencida')
@@ -41,6 +50,14 @@ export class CreditosController {
     @ActiveUser('empresaId') empresaId: string,
   ) {
     return this.svc.obtenerPorCliente(clienteId, empresaId);
+  }
+
+  @Get('cliente/:clienteId/politica')
+  politicaCliente(
+    @Param('clienteId') clienteId: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
+    return this.svc.obtenerPoliticaCliente(clienteId, empresaId);
   }
 
   @Get(':id')

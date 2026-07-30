@@ -13,9 +13,12 @@ export class ProveedoresService {
   ) {}
 
   crear(dto: CrearProveedorDto, empresaId: string) {
-  const proveedor = this.proveedorRepo.create({ ...dto, empresaId } as Partial<Proveedor>);
-  return this.proveedorRepo.save(proveedor);
-}
+    const proveedor = this.proveedorRepo.create({
+      ...dto,
+      empresaId,
+    } as Partial<Proveedor>);
+    return this.proveedorRepo.save(proveedor);
+  }
 
   async obtenerTodos(empresaId: string, filtro?: string, soloActivos = true) {
     const where: any = { empresaId };
@@ -33,8 +36,14 @@ export class ProveedoresService {
     return query.orderBy('p.nombre', 'ASC').getMany();
   }
 
-  async actualizar(id: string, dto: Partial<CrearProveedorDto>, empresaId: string) {
-    const proveedor = await this.proveedorRepo.findOne({ where: { id, empresaId } });
+  async actualizar(
+    id: string,
+    dto: Partial<CrearProveedorDto>,
+    empresaId: string,
+  ) {
+    const proveedor = await this.proveedorRepo.findOne({
+      where: { id, empresaId },
+    });
     if (!proveedor) throw new NotFoundException('Proveedor no encontrado.');
 
     Object.assign(proveedor, dto);
@@ -42,7 +51,9 @@ export class ProveedoresService {
   }
 
   async toggleActivo(id: string, empresaId: string) {
-    const proveedor = await this.proveedorRepo.findOne({ where: { id, empresaId } });
+    const proveedor = await this.proveedorRepo.findOne({
+      where: { id, empresaId },
+    });
     if (!proveedor) throw new NotFoundException('Proveedor no encontrado.');
 
     proveedor.activo = !proveedor.activo;

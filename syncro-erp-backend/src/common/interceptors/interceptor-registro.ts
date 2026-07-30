@@ -10,7 +10,11 @@
  */
 
 import {
-  CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor,
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  Logger,
+  NestInterceptor,
 } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
 import type { Request, Response } from 'express';
@@ -24,13 +28,17 @@ const SILENCIADAS = [/^\/api\/salud/, /^\/uploads\//, /^\/swagger/];
 export class InterceptorRegistro implements NestInterceptor {
   private readonly logger = new Logger('HTTP');
 
-  intercept(contexto: ExecutionContext, siguiente: CallHandler): Observable<unknown> {
+  intercept(
+    contexto: ExecutionContext,
+    siguiente: CallHandler,
+  ): Observable<unknown> {
     if (contexto.getType() !== 'http') return siguiente.handle();
 
     const req = contexto.switchToHttp().getRequest<Request>();
     const res = contexto.switchToHttp().getResponse<Response>();
 
-    if (SILENCIADAS.some((r) => r.test(req.originalUrl))) return siguiente.handle();
+    if (SILENCIADAS.some((r) => r.test(req.originalUrl)))
+      return siguiente.handle();
 
     const inicio = Date.now();
 
@@ -38,7 +46,8 @@ export class InterceptorRegistro implements NestInterceptor {
       tap({
         next: () => this.registrar(req, res.statusCode, Date.now() - inicio),
         // Los errores los reporta el filtro global; aquí sólo la duración.
-        error: () => this.registrar(req, res.statusCode || 500, Date.now() - inicio),
+        error: () =>
+          this.registrar(req, res.statusCode || 500, Date.now() - inicio),
       }),
     );
   }

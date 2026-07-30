@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+} from '@nestjs/common';
 import { UsuariosService } from '../services/usuarios.service';
 import { CrearUsuarioDto } from '../dto/crear-usuario.dto';
 import { ActualizarUsuarioDto } from '../dto/actualizar-usuario.dto';
@@ -11,7 +19,10 @@ export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
 
   @Post()
-  crear(@Body() dto: CrearUsuarioDto, @ActiveUser('empresaId') empresaId: string) {
+  crear(
+    @Body() dto: CrearUsuarioDto,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.usuariosService.crear(dto, empresaId);
   }
 
@@ -46,7 +57,10 @@ export class UsuariosController {
    * Reenvía el correo de invitación (requiere sesión del admin).
    */
   @Post(':id/reenviar-invitacion')
-  reenviarInvitacion(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+  reenviarInvitacion(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.usuariosService.reenviarInvitacion(id, empresaId);
   }
 
@@ -63,7 +77,10 @@ export class UsuariosController {
   }
 
   @Get(':id')
-  obtenerPorId(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+  obtenerPorId(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.usuariosService.obtenerPorId(id, empresaId);
   }
 
@@ -77,7 +94,10 @@ export class UsuariosController {
   }
 
   @Patch(':id/estado')
-  toggleActivo(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+  toggleActivo(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.usuariosService.toggleActivo(id, empresaId);
   }
 }

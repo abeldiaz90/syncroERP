@@ -4,12 +4,26 @@
  * ============================================================================
  */
 
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { TesoreriaService, type CrearMovimientoDto } from '../services/tesoreria.service';
+import {
+  TesoreriaService,
+  type CrearMovimientoDto,
+} from '../services/tesoreria.service';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
-import { EstadoConciliacion, TipoMovimiento } from '../entities/tesoreria.entity';
+import {
+  EstadoConciliacion,
+  TipoMovimiento,
+} from '../entities/tesoreria.entity';
 
 @ApiTags('Tesorería')
 @ApiBearerAuth('jwt')
@@ -20,7 +34,9 @@ export class TesoreriaController {
   /* ── Saldos ────────────────────────────────────────────────────────────── */
 
   @Get('saldos')
-  @ApiOperation({ summary: 'Saldo actual de cada cuenta y movimientos por conciliar' })
+  @ApiOperation({
+    summary: 'Saldo actual de cada cuenta y movimientos por conciliar',
+  })
   saldos(@ActiveUser('empresaId') empresaId: string) {
     return this.svc.saldosPorCuenta(empresaId);
   }
@@ -38,7 +54,12 @@ export class TesoreriaController {
     @Query('busqueda') busqueda?: string,
   ) {
     return this.svc.listarMovimientos(empresaId, {
-      cuentaBancariaId, desde, hasta, tipo, conciliacion, busqueda,
+      cuentaBancariaId,
+      desde,
+      hasta,
+      tipo,
+      conciliacion,
+      busqueda,
     });
   }
 
@@ -54,7 +75,8 @@ export class TesoreriaController {
   @Patch('movimientos/:id/cancelar')
   @ApiOperation({
     summary: 'Cancela el movimiento',
-    description: 'Genera una contrapartida en lugar de borrar, para conservar la auditoría.',
+    description:
+      'Genera una contrapartida en lugar de borrar, para conservar la auditoría.',
   })
   cancelar(
     @Param('id') id: string,
@@ -68,7 +90,14 @@ export class TesoreriaController {
   @Post('traspasos')
   @ApiOperation({ summary: 'Traspaso entre cuentas propias' })
   traspasar(
-    @Body() dto: { origenId: string; destinoId: string; importe: number; fecha: string; concepto: string },
+    @Body()
+    dto: {
+      origenId: string;
+      destinoId: string;
+      importe: number;
+      fecha: string;
+      concepto: string;
+    },
     @ActiveUser('empresaId') empresaId: string,
     @ActiveUser('id') usuarioId: string,
   ) {
@@ -78,12 +107,24 @@ export class TesoreriaController {
   /* ── Conciliación ──────────────────────────────────────────────────────── */
 
   @Post('conciliacion/estados-cuenta')
-  @ApiOperation({ summary: 'Carga el estado de cuenta del banco y valida que cuadre' })
+  @ApiOperation({
+    summary: 'Carga el estado de cuenta del banco y valida que cuadre',
+  })
   cargarEstado(
-    @Body() dto: {
-      cuentaBancariaId: string; ejercicio: number; mes: number;
-      saldoInicialBanco: number; saldoFinalBanco: number;
-      lineas: Array<{ fecha: string; descripcion: string; referencia?: string; cargo?: number; abono?: number }>;
+    @Body()
+    dto: {
+      cuentaBancariaId: string;
+      ejercicio: number;
+      mes: number;
+      saldoInicialBanco: number;
+      saldoFinalBanco: number;
+      lineas: Array<{
+        fecha: string;
+        descripcion: string;
+        referencia?: string;
+        cargo?: number;
+        abono?: number;
+      }>;
     },
     @ActiveUser('empresaId') empresaId: string,
   ) {
@@ -93,14 +134,19 @@ export class TesoreriaController {
   @Post('conciliacion/:estadoCuentaId/automatica')
   @ApiOperation({
     summary: 'Empareja por importe y ventana de fechas',
-    description: 'Las líneas con más de un candidato quedan pendientes y se reportan.',
+    description:
+      'Las líneas con más de un candidato quedan pendientes y se reportan.',
   })
   automatica(
     @Param('estadoCuentaId') estadoCuentaId: string,
     @Body() body: { ventanaDias?: number },
     @ActiveUser('empresaId') empresaId: string,
   ) {
-    return this.svc.conciliarAutomatico(estadoCuentaId, empresaId, body?.ventanaDias ?? 5);
+    return this.svc.conciliarAutomatico(
+      estadoCuentaId,
+      empresaId,
+      body?.ventanaDias ?? 5,
+    );
   }
 
   @Post('conciliacion/manual')
@@ -112,7 +158,10 @@ export class TesoreriaController {
   }
 
   @Get('conciliacion/:estadoCuentaId/reporte')
-  @ApiOperation({ summary: 'Conciliación bancaria: explica la diferencia entre banco y libros' })
+  @ApiOperation({
+    summary:
+      'Conciliación bancaria: explica la diferencia entre banco y libros',
+  })
   reporte(
     @Param('estadoCuentaId') estadoCuentaId: string,
     @ActiveUser('empresaId') empresaId: string,

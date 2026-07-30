@@ -1,6 +1,11 @@
 // recetas/entities/receta.entity.ts
 import {
-  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { RecetaInsumo } from './receta-insumo.entity';
 

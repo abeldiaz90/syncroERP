@@ -22,15 +22,29 @@
  */
 
 import {
-  BadRequestException, ConflictException, Injectable, Logger, NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, DataSource, In, Repository } from 'typeorm';
 
 import {
-  Asistencia, ConceptoNomina, Empleado, EstadoEmpleado, EstadoPeriodo,
-  Incidencia, NaturalezaConcepto, PartidaRecibo, PeriodoNomina, Puesto,
-  ReciboNomina, RegimenPago, TipoIncidencia,
+  Asistencia,
+  ConceptoNomina,
+  Empleado,
+  EstadoEmpleado,
+  EstadoPeriodo,
+  Incidencia,
+  NaturalezaConcepto,
+  PartidaRecibo,
+  PeriodoNomina,
+  Puesto,
+  ReciboNomina,
+  RegimenPago,
+  TipoIncidencia,
 } from '../entities/rrhh.entity';
 import { obtenerTarifas } from '../data/tarifas-fiscales';
 
@@ -59,13 +73,19 @@ export class RrhhService {
   private readonly logger = new Logger(RrhhService.name);
 
   constructor(
-    @InjectRepository(Empleado) private readonly empleados: Repository<Empleado>,
+    @InjectRepository(Empleado)
+    private readonly empleados: Repository<Empleado>,
     @InjectRepository(Puesto) private readonly puestos: Repository<Puesto>,
-    @InjectRepository(Asistencia) private readonly asistencias: Repository<Asistencia>,
-    @InjectRepository(Incidencia) private readonly incidencias: Repository<Incidencia>,
-    @InjectRepository(ConceptoNomina) private readonly conceptos: Repository<ConceptoNomina>,
-    @InjectRepository(PeriodoNomina) private readonly periodos: Repository<PeriodoNomina>,
-    @InjectRepository(ReciboNomina) private readonly recibos: Repository<ReciboNomina>,
+    @InjectRepository(Asistencia)
+    private readonly asistencias: Repository<Asistencia>,
+    @InjectRepository(Incidencia)
+    private readonly incidencias: Repository<Incidencia>,
+    @InjectRepository(ConceptoNomina)
+    private readonly conceptos: Repository<ConceptoNomina>,
+    @InjectRepository(PeriodoNomina)
+    private readonly periodos: Repository<PeriodoNomina>,
+    @InjectRepository(ReciboNomina)
+    private readonly recibos: Repository<ReciboNomina>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -73,15 +93,21 @@ export class RrhhService {
 
   async listarEmpleados(
     empresaId: string,
-    filtros: { estado?: EstadoEmpleado; departamentoId?: string; busqueda?: string } = {},
+    filtros: {
+      estado?: EstadoEmpleado;
+      departamentoId?: string;
+      busqueda?: string;
+    } = {},
   ) {
     const q = this.empleados
       .createQueryBuilder('e')
       .leftJoinAndSelect('e.puesto', 'p')
       .where('e.empresaId = :empresaId', { empresaId });
 
-    if (filtros.estado) q.andWhere('e.estado = :estado', { estado: filtros.estado });
-    if (filtros.departamentoId) q.andWhere('e.departamentoId = :d', { d: filtros.departamentoId });
+    if (filtros.estado)
+      q.andWhere('e.estado = :estado', { estado: filtros.estado });
+    if (filtros.departamentoId)
+      q.andWhere('e.departamentoId = :d', { d: filtros.departamentoId });
     if (filtros.busqueda) {
       q.andWhere(
         '(e.nombres LIKE :b OR e.apellidoPaterno LIKE :b OR e.numeroEmpleado LIKE :b OR e.rfc LIKE :b)',
@@ -94,11 +120,16 @@ export class RrhhService {
   }
 
   private nombreCompleto(e: Empleado): string {
-    return [e.nombres, e.apellidoPaterno, e.apellidoMaterno].filter(Boolean).join(' ');
+    return [e.nombres, e.apellidoPaterno, e.apellidoMaterno]
+      .filter(Boolean)
+      .join(' ');
   }
 
   async obtenerEmpleado(id: string, empresaId: string) {
-    const e = await this.empleados.findOne({ where: { id, empresaId }, relations: ['puesto'] });
+    const e = await this.empleados.findOne({
+      where: { id, empresaId },
+      relations: ['puesto'],
+    });
     if (!e) throw new NotFoundException('El empleado no existe.');
 
     const antiguedadDias = Math.floor(
@@ -109,7 +140,9 @@ export class RrhhService {
       ...e,
       nombreCompleto: this.nombreCompleto(e),
       antiguedadAnios: Math.floor(antiguedadDias / 365),
-      diasVacaciones: this.diasVacacionesPorLey(Math.floor(antiguedadDias / 365)),
+      diasVacaciones: this.diasVacacionesPorLey(
+        Math.floor(antiguedadDias / 365),
+      ),
     };
   }
 
@@ -125,11 +158,15 @@ export class RrhhService {
 
   async crearEmpleado(dto: Partial<Empleado>, empresaId: string) {
     if (!dto.salarioDiario || Number(dto.salarioDiario) <= 0) {
-      throw new BadRequestException('El salario diario debe ser mayor que cero.');
+      throw new BadRequestException(
+        'El salario diario debe ser mayor que cero.',
+      );
     }
 
     if (dto.curp) {
-      const duplicado = await this.empleados.findOne({ where: { empresaId, curp: dto.curp } });
+      const duplicado = await this.empleados.findOne({
+        where: { empresaId, curp: dto.curp },
+      });
       if (duplicado) {
         throw new ConflictException(
           `La CURP ya está registrada para el empleado ${duplicado.numeroEmpleado}.`,
@@ -147,7 +184,8 @@ export class RrhhService {
     const empleado = this.empleados.create({
       ...dto,
       empresaId,
-      numeroEmpleado: dto.numeroEmpleado ?? (await this.siguienteNumeroEmpleado(empresaId)),
+      numeroEmpleado:
+        dto.numeroEmpleado ?? (await this.siguienteNumeroEmpleado(empresaId)),
       salarioDiarioIntegrado: sbc,
       estado: EstadoEmpleado.ACTIVO,
     });
@@ -160,13 +198,17 @@ export class RrhhService {
       .createQueryBuilder('e')
       .select('MAX(CAST(e.numeroEmpleado AS INT))', 'maximo')
       .where('e.empresaId = :empresaId', { empresaId })
-      .andWhere("ISNUMERIC(e.numeroEmpleado) = 1")
+      .andWhere('ISNUMERIC(e.numeroEmpleado) = 1')
       .getRawOne<{ maximo: number | null }>();
 
     return String((fila?.maximo ?? 0) + 1).padStart(4, '0');
   }
 
-  async actualizarEmpleado(id: string, dto: Partial<Empleado>, empresaId: string) {
+  async actualizarEmpleado(
+    id: string,
+    dto: Partial<Empleado>,
+    empresaId: string,
+  ) {
     const e = await this.empleados.findOne({ where: { id, empresaId } });
     if (!e) throw new NotFoundException('El empleado no existe.');
 
@@ -178,7 +220,11 @@ export class RrhhService {
     return this.empleados.save(e);
   }
 
-  async darDeBajaEmpleado(id: string, datos: { fecha: string; motivo: string }, empresaId: string) {
+  async darDeBajaEmpleado(
+    id: string,
+    datos: { fecha: string; motivo: string },
+    empresaId: string,
+  ) {
     const e = await this.empleados.findOne({ where: { id, empresaId } });
     if (!e) throw new NotFoundException('El empleado no existe.');
     if (e.estado === EstadoEmpleado.BAJA) {
@@ -206,17 +252,24 @@ export class RrhhService {
     const inicioAnio = new Date(baja.getFullYear(), 0, 1);
     const desde = ingreso > inicioAnio ? ingreso : inicioAnio;
     const diasTrabajadosAnio = Math.max(
-      0, Math.floor((baja.getTime() - desde.getTime()) / 86_400_000),
+      0,
+      Math.floor((baja.getTime() - desde.getTime()) / 86_400_000),
     );
 
     const aniosCumplidos = Math.floor(
       (baja.getTime() - ingreso.getTime()) / (365 * 86_400_000),
     );
 
-    const aguinaldoCent = Math.round((salarioCent * e.diasAguinaldo * diasTrabajadosAnio) / 365);
+    const aguinaldoCent = Math.round(
+      (salarioCent * e.diasAguinaldo * diasTrabajadosAnio) / 365,
+    );
     const diasVac = this.diasVacacionesPorLey(aniosCumplidos || 1);
-    const vacacionesCent = Math.round((salarioCent * diasVac * diasTrabajadosAnio) / 365);
-    const primaCent = Math.round((vacacionesCent * Number(e.primaVacacional)) / 100);
+    const vacacionesCent = Math.round(
+      (salarioCent * diasVac * diasTrabajadosAnio) / 365,
+    );
+    const primaCent = Math.round(
+      (vacacionesCent * Number(e.primaVacacional)) / 100,
+    );
 
     return {
       diasTrabajadosEnElAnio: diasTrabajadosAnio,
@@ -235,15 +288,26 @@ export class RrhhService {
   }
 
   async crearPuesto(dto: Partial<Puesto>, empresaId: string) {
-    const existe = await this.puestos.findOne({ where: { empresaId, clave: dto.clave! } });
-    if (existe) throw new ConflictException(`Ya existe un puesto con la clave ${dto.clave}.`);
+    const existe = await this.puestos.findOne({
+      where: { empresaId, clave: dto.clave },
+    });
+    if (existe)
+      throw new ConflictException(
+        `Ya existe un puesto con la clave ${dto.clave}.`,
+      );
     return this.puestos.save(this.puestos.create({ ...dto, empresaId }));
   }
 
   /* ══ ASISTENCIA ══════════════════════════════════════════════════════════ */
 
   async registrarAsistencia(
-    dto: { empleadoId: string; fecha: string; entrada?: string; salida?: string; observaciones?: string },
+    dto: {
+      empleadoId: string;
+      fecha: string;
+      entrada?: string;
+      salida?: string;
+      observaciones?: string;
+    },
     empresaId: string,
   ) {
     const empleado = await this.empleados.findOne({
@@ -257,7 +321,11 @@ export class RrhhService {
     });
 
     if (!registro) {
-      registro = this.asistencias.create({ empresaId, empleadoId: dto.empleadoId, fecha });
+      registro = this.asistencias.create({
+        empresaId,
+        empleadoId: dto.empleadoId,
+        fecha,
+      });
     }
 
     if (dto.entrada) registro.entrada = new Date(dto.entrada);
@@ -266,9 +334,12 @@ export class RrhhService {
 
     if (registro.entrada && registro.salida) {
       if (registro.salida <= registro.entrada) {
-        throw new BadRequestException('La hora de salida debe ser posterior a la de entrada.');
+        throw new BadRequestException(
+          'La hora de salida debe ser posterior a la de entrada.',
+        );
       }
-      const horas = (registro.salida.getTime() - registro.entrada.getTime()) / 3_600_000;
+      const horas =
+        (registro.salida.getTime() - registro.entrada.getTime()) / 3_600_000;
       registro.horasTrabajadas = Math.round(horas * 100) / 100;
       // Jornada legal máxima diurna: 8 horas.
       registro.horasExtra = Math.max(0, Math.round((horas - 8) * 100) / 100);
@@ -277,7 +348,12 @@ export class RrhhService {
     return this.asistencias.save(registro);
   }
 
-  listarAsistencias(empresaId: string, desde: string, hasta: string, empleadoId?: string) {
+  listarAsistencias(
+    empresaId: string,
+    desde: string,
+    hasta: string,
+    empleadoId?: string,
+  ) {
     return this.asistencias.find({
       where: {
         empresaId,
@@ -291,20 +367,26 @@ export class RrhhService {
   /* ══ INCIDENCIAS ═════════════════════════════════════════════════════════ */
 
   async crearIncidencia(dto: Partial<Incidencia>, empresaId: string) {
-    const inicio = new Date(dto.fechaInicio!);
-    const fin = new Date(dto.fechaFin!);
+    const inicio = new Date(dto.fechaInicio);
+    const fin = new Date(dto.fechaFin);
     if (fin < inicio) {
-      throw new BadRequestException('La fecha final no puede ser anterior a la inicial.');
+      throw new BadRequestException(
+        'La fecha final no puede ser anterior a la inicial.',
+      );
     }
 
-    const dias = Math.floor((fin.getTime() - inicio.getTime()) / 86_400_000) + 1;
+    const dias =
+      Math.floor((fin.getTime() - inicio.getTime()) / 86_400_000) + 1;
 
     // Traslape con otra incidencia del mismo empleado: casi siempre es un
     // error de captura y descuadra la nómina.
     const traslape = await this.incidencias
       .createQueryBuilder('i')
       .where('i.empleadoId = :emp', { emp: dto.empleadoId })
-      .andWhere('i.fechaInicio <= :fin AND i.fechaFin >= :inicio', { inicio, fin })
+      .andWhere('i.fechaInicio <= :fin AND i.fechaFin >= :inicio', {
+        inicio,
+        fin,
+      })
       .getCount();
 
     if (traslape > 0) {
@@ -316,22 +398,30 @@ export class RrhhService {
     // Falta y permiso sin goce no se pagan; el resto sí.
     const noPagadas = [TipoIncidencia.FALTA, TipoIncidencia.PERMISO_SIN_GOCE];
 
-    return this.incidencias.save(this.incidencias.create({
-      ...dto,
-      empresaId,
-      dias: dto.dias ?? dias,
-      pagada: dto.pagada ?? !noPagadas.includes(dto.tipo as TipoIncidencia),
-    }));
+    return this.incidencias.save(
+      this.incidencias.create({
+        ...dto,
+        empresaId,
+        dias: dto.dias ?? dias,
+        pagada: dto.pagada ?? !noPagadas.includes(dto.tipo),
+      }),
+    );
   }
 
-  listarIncidencias(empresaId: string, desde?: string, hasta?: string, empleadoId?: string) {
+  listarIncidencias(
+    empresaId: string,
+    desde?: string,
+    hasta?: string,
+    empleadoId?: string,
+  ) {
     const q = this.incidencias
       .createQueryBuilder('i')
       .where('i.empresaId = :empresaId', { empresaId });
 
     if (desde && hasta) {
       q.andWhere('i.fechaInicio <= :hasta AND i.fechaFin >= :desde', {
-        desde: new Date(desde), hasta: new Date(hasta),
+        desde: new Date(desde),
+        hasta: new Date(hasta),
       });
     }
     if (empleadoId) q.andWhere('i.empleadoId = :emp', { emp: empleadoId });
@@ -351,28 +441,99 @@ export class RrhhService {
   /* ══ CONCEPTOS ═══════════════════════════════════════════════════════════ */
 
   listarConceptos(empresaId: string) {
-    return this.conceptos.find({ where: { empresaId }, order: { naturaleza: 'ASC', clave: 'ASC' } });
+    return this.conceptos.find({
+      where: { empresaId },
+      order: { naturaleza: 'ASC', clave: 'ASC' },
+    });
   }
 
   /** Conceptos mínimos para operar. Se llama desde la configuración inicial. */
   async sembrarConceptos(empresaId: string) {
     const base: Array<Partial<ConceptoNomina>> = [
-      { clave: 'P001', nombre: 'Sueldo',              naturaleza: NaturalezaConcepto.PERCEPCION, claveSat: '001', esFijo: true },
-      { clave: 'P002', nombre: 'Horas extra',         naturaleza: NaturalezaConcepto.PERCEPCION, claveSat: '019' },
-      { clave: 'P003', nombre: 'Prima dominical',     naturaleza: NaturalezaConcepto.PERCEPCION, claveSat: '020' },
-      { clave: 'P004', nombre: 'Aguinaldo',           naturaleza: NaturalezaConcepto.PERCEPCION, claveSat: '002' },
-      { clave: 'P005', nombre: 'Prima vacacional',    naturaleza: NaturalezaConcepto.PERCEPCION, claveSat: '021' },
-      { clave: 'P006', nombre: 'Bono de puntualidad', naturaleza: NaturalezaConcepto.PERCEPCION, claveSat: '010' },
-      { clave: 'D001', nombre: 'ISR retenido',        naturaleza: NaturalezaConcepto.DEDUCCION,  claveSat: '002', gravaIsr: false, integraSbc: false },
-      { clave: 'D002', nombre: 'IMSS obrero',         naturaleza: NaturalezaConcepto.DEDUCCION,  claveSat: '001', gravaIsr: false, integraSbc: false },
-      { clave: 'D003', nombre: 'Faltas',              naturaleza: NaturalezaConcepto.DEDUCCION,  claveSat: '006', gravaIsr: false, integraSbc: false },
-      { clave: 'D004', nombre: 'Préstamo',            naturaleza: NaturalezaConcepto.DEDUCCION,  claveSat: '004', gravaIsr: false, integraSbc: false },
-      { clave: 'O001', nombre: 'Subsidio para el empleo', naturaleza: NaturalezaConcepto.OTRO_PAGO, claveSat: '002', gravaIsr: false, integraSbc: false },
+      {
+        clave: 'P001',
+        nombre: 'Sueldo',
+        naturaleza: NaturalezaConcepto.PERCEPCION,
+        claveSat: '001',
+        esFijo: true,
+      },
+      {
+        clave: 'P002',
+        nombre: 'Horas extra',
+        naturaleza: NaturalezaConcepto.PERCEPCION,
+        claveSat: '019',
+      },
+      {
+        clave: 'P003',
+        nombre: 'Prima dominical',
+        naturaleza: NaturalezaConcepto.PERCEPCION,
+        claveSat: '020',
+      },
+      {
+        clave: 'P004',
+        nombre: 'Aguinaldo',
+        naturaleza: NaturalezaConcepto.PERCEPCION,
+        claveSat: '002',
+      },
+      {
+        clave: 'P005',
+        nombre: 'Prima vacacional',
+        naturaleza: NaturalezaConcepto.PERCEPCION,
+        claveSat: '021',
+      },
+      {
+        clave: 'P006',
+        nombre: 'Bono de puntualidad',
+        naturaleza: NaturalezaConcepto.PERCEPCION,
+        claveSat: '010',
+      },
+      {
+        clave: 'D001',
+        nombre: 'ISR retenido',
+        naturaleza: NaturalezaConcepto.DEDUCCION,
+        claveSat: '002',
+        gravaIsr: false,
+        integraSbc: false,
+      },
+      {
+        clave: 'D002',
+        nombre: 'IMSS obrero',
+        naturaleza: NaturalezaConcepto.DEDUCCION,
+        claveSat: '001',
+        gravaIsr: false,
+        integraSbc: false,
+      },
+      {
+        clave: 'D003',
+        nombre: 'Faltas',
+        naturaleza: NaturalezaConcepto.DEDUCCION,
+        claveSat: '006',
+        gravaIsr: false,
+        integraSbc: false,
+      },
+      {
+        clave: 'D004',
+        nombre: 'Préstamo',
+        naturaleza: NaturalezaConcepto.DEDUCCION,
+        claveSat: '004',
+        gravaIsr: false,
+        integraSbc: false,
+      },
+      {
+        clave: 'O001',
+        nombre: 'Subsidio para el empleo',
+        naturaleza: NaturalezaConcepto.OTRO_PAGO,
+        claveSat: '002',
+        gravaIsr: false,
+        integraSbc: false,
+      },
     ];
 
     let creados = 0;
     for (const c of base) {
-      const existe = await this.conceptos.findOne({ where: { empresaId, clave: c.clave! } });
+      const existe = await this.conceptos.findOne({
+        where: { empresaId, clave: c.clave },
+      });
       if (!existe) {
         await this.conceptos.save(this.conceptos.create({ ...c, empresaId }));
         creados++;
@@ -384,7 +545,14 @@ export class RrhhService {
   /* ══ PERIODOS Y CÁLCULO DE NÓMINA ════════════════════════════════════════ */
 
   async crearPeriodo(
-    dto: { ejercicio: number; numero: number; regimen: RegimenPago; fechaInicio: string; fechaFin: string; fechaPago: string },
+    dto: {
+      ejercicio: number;
+      numero: number;
+      regimen: RegimenPago;
+      fechaInicio: string;
+      fechaFin: string;
+      fechaPago: string;
+    },
     empresaId: string,
   ) {
     const existe = await this.periodos.findOne({
@@ -399,18 +567,22 @@ export class RrhhService {
     const inicio = new Date(dto.fechaInicio);
     const fin = new Date(dto.fechaFin);
     if (fin < inicio) {
-      throw new BadRequestException('La fecha final del periodo no puede ser anterior a la inicial.');
+      throw new BadRequestException(
+        'La fecha final del periodo no puede ser anterior a la inicial.',
+      );
     }
 
-    return this.periodos.save(this.periodos.create({
-      ...dto,
-      empresaId,
-      fechaInicio: inicio,
-      fechaFin: fin,
-      fechaPago: new Date(dto.fechaPago),
-      diasPeriodo: DIAS_POR_REGIMEN[dto.regimen],
-      estado: EstadoPeriodo.ABIERTO,
-    }));
+    return this.periodos.save(
+      this.periodos.create({
+        ...dto,
+        empresaId,
+        fechaInicio: inicio,
+        fechaFin: fin,
+        fechaPago: new Date(dto.fechaPago),
+        diasPeriodo: DIAS_POR_REGIMEN[dto.regimen],
+        estado: EstadoPeriodo.ABIERTO,
+      }),
+    );
   }
 
   listarPeriodos(empresaId: string, ejercicio?: number) {
@@ -425,9 +597,15 @@ export class RrhhService {
    * Recalcular es seguro: borra los recibos anteriores del periodo y los rehace
    * dentro de la misma transacción.
    */
-  async calcularNomina(periodoId: string, empresaId: string): Promise<ResultadoCalculo> {
-    const periodo = await this.periodos.findOne({ where: { id: periodoId, empresaId } });
-    if (!periodo) throw new NotFoundException('El periodo de nómina no existe.');
+  async calcularNomina(
+    periodoId: string,
+    empresaId: string,
+  ): Promise<ResultadoCalculo> {
+    const periodo = await this.periodos.findOne({
+      where: { id: periodoId, empresaId },
+    });
+    if (!periodo)
+      throw new NotFoundException('El periodo de nómina no existe.');
 
     if (periodo.estado === EstadoPeriodo.CERRADO) {
       throw new ConflictException(
@@ -442,7 +620,9 @@ export class RrhhService {
     const tarifas = obtenerTarifas(periodo.ejercicio);
 
     const advertencias: string[] = [];
-    let totalPercCent = 0, totalDeducCent = 0, calculados = 0;
+    let totalPercCent = 0,
+      totalDeducCent = 0,
+      calculados = 0;
 
     await this.dataSource.transaction(async (manager) => {
       const repoRecibos = manager.getRepository(ReciboNomina);
@@ -457,9 +637,14 @@ export class RrhhService {
       }
 
       const plantilla = await manager.getRepository(Empleado).find({
-        where: { empresaId, estado: In([
-          EstadoEmpleado.ACTIVO, EstadoEmpleado.VACACIONES, EstadoEmpleado.INCAPACIDAD,
-        ]) },
+        where: {
+          empresaId,
+          estado: In([
+            EstadoEmpleado.ACTIVO,
+            EstadoEmpleado.VACACIONES,
+            EstadoEmpleado.INCAPACIDAD,
+          ]),
+        },
       });
 
       if (!plantilla.length) {
@@ -468,18 +653,20 @@ export class RrhhService {
       }
 
       // Incidencias del periodo, en una sola consulta.
-      const incidencias = await manager.getRepository(Incidencia)
+      const incidencias = await manager
+        .getRepository(Incidencia)
         .createQueryBuilder('i')
         .where('i.empresaId = :empresaId', { empresaId })
         .andWhere('i.fechaInicio <= :fin AND i.fechaFin >= :inicio', {
-          inicio: periodo.fechaInicio, fin: periodo.fechaFin,
+          inicio: periodo.fechaInicio,
+          fin: periodo.fechaFin,
         })
         .getMany();
 
       const porEmpleado = new Map<string, Incidencia[]>();
       for (const i of incidencias) {
         if (!porEmpleado.has(i.empleadoId)) porEmpleado.set(i.empleadoId, []);
-        porEmpleado.get(i.empleadoId)!.push(i);
+        porEmpleado.get(i.empleadoId).push(i);
       }
 
       for (const emp of plantilla) {
@@ -505,9 +692,13 @@ export class RrhhService {
         /* — Percepciones — */
         const sueldoCent = salarioCent * diasPagados;
         partidas.push({
-          clave: 'P001', concepto: 'Sueldo', naturaleza: NaturalezaConcepto.PERCEPCION,
-          cantidad: diasPagados, importeGravado: aPesos(sueldoCent),
-          importeExento: 0, importe: aPesos(sueldoCent),
+          clave: 'P001',
+          concepto: 'Sueldo',
+          naturaleza: NaturalezaConcepto.PERCEPCION,
+          cantidad: diasPagados,
+          importeGravado: aPesos(sueldoCent),
+          importeExento: 0,
+          importe: aPesos(sueldoCent),
         });
 
         // Horas extra: dobles hasta 9 semanales, triples el excedente.
@@ -529,7 +720,9 @@ export class RrhhService {
           );
 
           partidas.push({
-            clave: 'P002', concepto: 'Horas extra', naturaleza: NaturalezaConcepto.PERCEPCION,
+            clave: 'P002',
+            concepto: 'Horas extra',
+            naturaleza: NaturalezaConcepto.PERCEPCION,
             cantidad: horasExtra,
             importeGravado: aPesos(extraCent - exentoCent),
             importeExento: aPesos(exentoCent),
@@ -538,24 +731,43 @@ export class RrhhService {
         }
 
         const percepcionesCent = sueldoCent + extraCent;
-        const gravableCent = partidas.reduce((s, p) => s + aCent(p.importeGravado ?? 0), 0);
+        const gravableCent = partidas.reduce(
+          (s, p) => s + aCent(p.importeGravado ?? 0),
+          0,
+        );
 
         /* — Deducciones — */
-        const isrCent = this.calcularIsr(gravableCent, periodo.diasPeriodo, tarifas);
+        const isrCent = this.calcularIsr(
+          gravableCent,
+          periodo.diasPeriodo,
+          tarifas,
+        );
         const imssCent = this.calcularImss(
-          aCent(emp.salarioDiarioIntegrado), diasPagados, tarifas,
+          aCent(emp.salarioDiarioIntegrado),
+          diasPagados,
+          tarifas,
         );
 
         if (isrCent > 0) {
           partidas.push({
-            clave: 'D001', concepto: 'ISR retenido', naturaleza: NaturalezaConcepto.DEDUCCION,
-            cantidad: 1, importeGravado: 0, importeExento: 0, importe: aPesos(isrCent),
+            clave: 'D001',
+            concepto: 'ISR retenido',
+            naturaleza: NaturalezaConcepto.DEDUCCION,
+            cantidad: 1,
+            importeGravado: 0,
+            importeExento: 0,
+            importe: aPesos(isrCent),
           });
         }
         if (imssCent > 0) {
           partidas.push({
-            clave: 'D002', concepto: 'IMSS obrero', naturaleza: NaturalezaConcepto.DEDUCCION,
-            cantidad: 1, importeGravado: 0, importeExento: 0, importe: aPesos(imssCent),
+            clave: 'D002',
+            concepto: 'IMSS obrero',
+            naturaleza: NaturalezaConcepto.DEDUCCION,
+            cantidad: 1,
+            importeGravado: 0,
+            importeExento: 0,
+            importe: aPesos(imssCent),
           });
         }
 
@@ -568,23 +780,27 @@ export class RrhhService {
           );
         }
 
-        const recibo = await repoRecibos.save(repoRecibos.create({
-          empresaId,
-          periodoId: periodo.id,
-          empleadoId: emp.id,
-          nombreEmpleado: this.nombreCompleto(emp),
-          diasPagados,
-          salarioDiario: Number(emp.salarioDiario),
-          totalPercepciones: aPesos(percepcionesCent),
-          totalDeducciones: aPesos(deduccionesCent),
-          neto: aPesos(netoCent),
-          baseGravable: aPesos(gravableCent),
-          isrRetenido: aPesos(isrCent),
-          imssRetenido: aPesos(imssCent),
-        }));
+        const recibo = await repoRecibos.save(
+          repoRecibos.create({
+            empresaId,
+            periodoId: periodo.id,
+            empleadoId: emp.id,
+            nombreEmpleado: this.nombreCompleto(emp),
+            diasPagados,
+            salarioDiario: Number(emp.salarioDiario),
+            totalPercepciones: aPesos(percepcionesCent),
+            totalDeducciones: aPesos(deduccionesCent),
+            neto: aPesos(netoCent),
+            baseGravable: aPesos(gravableCent),
+            isrRetenido: aPesos(isrCent),
+            imssRetenido: aPesos(imssCent),
+          }),
+        );
 
         await repoPartidas.save(
-          partidas.map((p) => repoPartidas.create({ ...p, reciboId: recibo.id })),
+          partidas.map((p) =>
+            repoPartidas.create({ ...p, reciboId: recibo.id }),
+          ),
         );
 
         totalPercCent += percepcionesCent;
@@ -602,7 +818,7 @@ export class RrhhService {
 
     this.logger.log(
       `Nómina ${periodo.numero}/${periodo.ejercicio} · empresa ${empresaId} · ` +
-      `${calculados} empleados · neto ${aPesos(totalPercCent - totalDeducCent)}`,
+        `${calculados} empleados · neto ${aPesos(totalPercCent - totalDeducCent)}`,
     );
 
     return {
@@ -628,7 +844,8 @@ export class RrhhService {
     const desde = ingreso > inicioPeriodo ? ingreso : inicioPeriodo;
     const hasta = baja && baja < finPeriodo ? baja : finPeriodo;
 
-    const dias = Math.floor((hasta.getTime() - desde.getTime()) / 86_400_000) + 1;
+    const dias =
+      Math.floor((hasta.getTime() - desde.getTime()) / 86_400_000) + 1;
     return Math.min(dias, periodo.diasPeriodo);
   }
 
@@ -657,7 +874,8 @@ export class RrhhService {
 
     const excedenteCent = baseMensualCent - aCent(renglon.limiteInferior);
     const impuestoMensualCent =
-      aCent(renglon.cuotaFija) + Math.round((excedenteCent * renglon.porcentaje) / 100);
+      aCent(renglon.cuotaFija) +
+      Math.round((excedenteCent * renglon.porcentaje) / 100);
 
     const subsidio = tarifas.subsidioEmpleo
       .slice()
@@ -704,7 +922,11 @@ export class RrhhService {
 
   listarRecibos(empresaId: string, periodoId?: string, empleadoId?: string) {
     return this.recibos.find({
-      where: { empresaId, ...(periodoId ? { periodoId } : {}), ...(empleadoId ? { empleadoId } : {}) },
+      where: {
+        empresaId,
+        ...(periodoId ? { periodoId } : {}),
+        ...(empleadoId ? { empleadoId } : {}),
+      },
       relations: ['partidas'],
       order: { nombreEmpleado: 'ASC' },
     });
@@ -720,10 +942,14 @@ export class RrhhService {
   }
 
   async cerrarPeriodo(periodoId: string, empresaId: string) {
-    const p = await this.periodos.findOne({ where: { id: periodoId, empresaId } });
+    const p = await this.periodos.findOne({
+      where: { id: periodoId, empresaId },
+    });
     if (!p) throw new NotFoundException('El periodo no existe.');
     if (p.estado !== EstadoPeriodo.CALCULADO) {
-      throw new ConflictException('Sólo se puede cerrar un periodo ya calculado.');
+      throw new ConflictException(
+        'Sólo se puede cerrar un periodo ya calculado.',
+      );
     }
     p.estado = EstadoPeriodo.CERRADO;
     return this.periodos.save(p);
@@ -736,7 +962,8 @@ export class RrhhService {
     const activos = plantilla.filter((e) => e.estado !== EstadoEmpleado.BAJA);
 
     const nominaMensualCent = activos.reduce(
-      (s, e) => s + aCent(e.salarioDiario) * 30, 0,
+      (s, e) => s + aCent(e.salarioDiario) * 30,
+      0,
     );
 
     const hoy = new Date();
@@ -747,7 +974,12 @@ export class RrhhService {
       bajasHistoricas: plantilla.length - activos.length,
       nominaMensualEstimada: aPesos(nominaMensualCent),
       salarioPromedioDiario: activos.length
-        ? aPesos(Math.round(activos.reduce((s, e) => s + aCent(e.salarioDiario), 0) / activos.length))
+        ? aPesos(
+            Math.round(
+              activos.reduce((s, e) => s + aCent(e.salarioDiario), 0) /
+                activos.length,
+            ),
+          )
         : 0,
       porEstado: Object.values(EstadoEmpleado).map((estado) => ({
         estado,

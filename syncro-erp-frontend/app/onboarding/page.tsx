@@ -17,12 +17,13 @@ const PASOS = [
 ];
 
 const REGIMENES = [
-  'Personas Físicas con Actividad Empresarial',
-  'Régimen Simplificado de Confianza (RESICO)',
-  'General de Ley Personas Morales',
-  'Personas Morales con Fines no Lucrativos',
-  'Régimen de Incorporación Fiscal (RIF)',
-  'Otro',
+  { clave: '601', nombre: 'General de Ley Personas Morales' },
+  { clave: '603', nombre: 'Personas Morales con Fines no Lucrativos' },
+  { clave: '606', nombre: 'Arrendamiento' },
+  { clave: '612', nombre: 'Personas Físicas con Actividades Empresariales y Profesionales' },
+  { clave: '621', nombre: 'Incorporación Fiscal' },
+  { clave: '625', nombre: 'Plataformas Tecnológicas' },
+  { clave: '626', nombre: 'Régimen Simplificado de Confianza' },
 ];
 
 const GIROS = [
@@ -182,7 +183,11 @@ export default function OnboardingWizard() {
                   <select value={fiscal.regimenFiscal} onChange={e => setFiscal(f=>({...f,regimenFiscal:e.target.value}))}
                     className={inputCls}>
                     <option value="">Seleccionar…</option>
-                    {REGIMENES.map(r => <option key={r} value={r}>{r}</option>)}
+                    {REGIMENES.map(r => (
+                      <option key={r.clave} value={r.clave}>
+                        {r.clave} — {r.nombre}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -355,7 +360,7 @@ export default function OnboardingWizard() {
 
               <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 text-sm text-indigo-700 max-w-md mx-auto mb-6 flex items-start gap-2 text-left">
                 <Landmark className="w-4 h-4 mt-0.5 shrink-0"/>
-                <span>El siguiente paso configura las cuentas contables. Si no manejas contabilidad, podrás usar una configuración automática con un solo clic.</span>
+                <span>El siguiente asistente te pedirá cotejar tu Constancia de Situación Fiscal y preparará cuentas e impuestos con referencias del SAT.</span>
               </div>
 
               <button onClick={() => router.push('/configuracion-inicial')}

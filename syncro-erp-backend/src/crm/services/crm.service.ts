@@ -17,14 +17,23 @@
  */
 
 import {
-  BadRequestException, ConflictException, Injectable, Logger, NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, DataSource, In, Repository } from 'typeorm';
 
 import {
-  Actividad, EtapaEmbudo, HistorialEtapa, Oportunidad, Prospecto,
-  TipoActividad, TipoEtapa,
+  Actividad,
+  EtapaEmbudo,
+  HistorialEtapa,
+  Oportunidad,
+  Prospecto,
+  TipoActividad,
+  TipoEtapa,
 } from '../entities/crm.entity';
 
 const aCent = (v: number | string) => Math.round(Number(v ?? 0) * 100);
@@ -36,32 +45,48 @@ export class CrmService {
   private readonly logger = new Logger(CrmService.name);
 
   constructor(
-    @InjectRepository(Oportunidad) private readonly oportunidades: Repository<Oportunidad>,
-    @InjectRepository(Prospecto) private readonly prospectos: Repository<Prospecto>,
-    @InjectRepository(EtapaEmbudo) private readonly etapas: Repository<EtapaEmbudo>,
-    @InjectRepository(Actividad) private readonly actividades: Repository<Actividad>,
-    @InjectRepository(HistorialEtapa) private readonly historial: Repository<HistorialEtapa>,
+    @InjectRepository(Oportunidad)
+    private readonly oportunidades: Repository<Oportunidad>,
+    @InjectRepository(Prospecto)
+    private readonly prospectos: Repository<Prospecto>,
+    @InjectRepository(EtapaEmbudo)
+    private readonly etapas: Repository<EtapaEmbudo>,
+    @InjectRepository(Actividad)
+    private readonly actividades: Repository<Actividad>,
+    @InjectRepository(HistorialEtapa)
+    private readonly historial: Repository<HistorialEtapa>,
     private readonly dataSource: DataSource,
   ) {}
 
   /* ══ ETAPAS ══════════════════════════════════════════════════════════════ */
 
   listarEtapas(empresaId: string) {
-    return this.etapas.find({ where: { empresaId, activa: true }, order: { orden: 'ASC' } });
+    return this.etapas.find({
+      where: { empresaId, activa: true },
+      order: { orden: 'ASC' },
+    });
   }
 
   async crearEtapa(dto: Partial<EtapaEmbudo>, empresaId: string) {
-    if (dto.probabilidad !== undefined && (dto.probabilidad < 0 || dto.probabilidad > 100)) {
-      throw new BadRequestException('La probabilidad debe estar entre 0 y 100.');
+    if (
+      dto.probabilidad !== undefined &&
+      (dto.probabilidad < 0 || dto.probabilidad > 100)
+    ) {
+      throw new BadRequestException(
+        'La probabilidad debe estar entre 0 y 100.',
+      );
     }
     const ultima = await this.etapas.findOne({
-      where: { empresaId }, order: { orden: 'DESC' },
+      where: { empresaId },
+      order: { orden: 'DESC' },
     });
-    return this.etapas.save(this.etapas.create({
-      ...dto,
-      empresaId,
-      orden: dto.orden ?? (ultima?.orden ?? 0) + 1,
-    }));
+    return this.etapas.save(
+      this.etapas.create({
+        ...dto,
+        empresaId,
+        orden: dto.orden ?? (ultima?.orden ?? 0) + 1,
+      }),
+    );
   }
 
   /** Embudo estándar. Cada empresa lo ajusta después desde la pantalla. */
@@ -72,17 +97,67 @@ export class CrmService {
     }
 
     const base: Array<Partial<EtapaEmbudo>> = [
-      { nombre: 'Prospecto',     orden: 1, probabilidad: 10, color: '#94a3b8', diasAlerta: 7 },
-      { nombre: 'Contactado',    orden: 2, probabilidad: 25, color: '#0284c7', diasAlerta: 10 },
-      { nombre: 'Calificado',    orden: 3, probabilidad: 45, color: '#4f46e5', diasAlerta: 14 },
-      { nombre: 'Propuesta',     orden: 4, probabilidad: 65, color: '#7c3aed', diasAlerta: 10 },
-      { nombre: 'Negociación',   orden: 5, probabilidad: 85, color: '#d97706', diasAlerta: 7 },
-      { nombre: 'Ganada',        orden: 6, probabilidad: 100, color: '#059669', tipo: TipoEtapa.GANADA, diasAlerta: 999 },
-      { nombre: 'Perdida',       orden: 7, probabilidad: 0,  color: '#e11d48', tipo: TipoEtapa.PERDIDA, diasAlerta: 999 },
+      {
+        nombre: 'Prospecto',
+        orden: 1,
+        probabilidad: 10,
+        color: '#94a3b8',
+        diasAlerta: 7,
+      },
+      {
+        nombre: 'Contactado',
+        orden: 2,
+        probabilidad: 25,
+        color: '#0284c7',
+        diasAlerta: 10,
+      },
+      {
+        nombre: 'Calificado',
+        orden: 3,
+        probabilidad: 45,
+        color: '#4f46e5',
+        diasAlerta: 14,
+      },
+      {
+        nombre: 'Propuesta',
+        orden: 4,
+        probabilidad: 65,
+        color: '#7c3aed',
+        diasAlerta: 10,
+      },
+      {
+        nombre: 'Negociación',
+        orden: 5,
+        probabilidad: 85,
+        color: '#d97706',
+        diasAlerta: 7,
+      },
+      {
+        nombre: 'Ganada',
+        orden: 6,
+        probabilidad: 100,
+        color: '#059669',
+        tipo: TipoEtapa.GANADA,
+        diasAlerta: 999,
+      },
+      {
+        nombre: 'Perdida',
+        orden: 7,
+        probabilidad: 0,
+        color: '#e11d48',
+        tipo: TipoEtapa.PERDIDA,
+        diasAlerta: 999,
+      },
     ];
 
     const creadas = await this.etapas.save(
-      base.map((e) => this.etapas.create({ ...e, empresaId, tipo: e.tipo ?? TipoEtapa.ABIERTA })),
+      base.map((e) =>
+        this.etapas.create({
+          ...e,
+          empresaId,
+          tipo: e.tipo ?? TipoEtapa.ABIERTA,
+        }),
+      ),
     );
     return { creadas: creadas.length, etapas: creadas };
   }
@@ -96,9 +171,12 @@ export class CrmService {
       .andWhere('p.activo = 1');
 
     if (busqueda) {
-      q.andWhere('(p.nombre LIKE :b OR p.empresa LIKE :b OR p.email LIKE :b OR p.telefono LIKE :b)', {
-        b: `%${busqueda}%`,
-      });
+      q.andWhere(
+        '(p.nombre LIKE :b OR p.empresa LIKE :b OR p.email LIKE :b OR p.telefono LIKE :b)',
+        {
+          b: `%${busqueda}%`,
+        },
+      );
     }
     return q.orderBy('p.fechaCreacion', 'DESC').getMany();
   }
@@ -108,7 +186,9 @@ export class CrmService {
       throw new BadRequestException('El nombre del prospecto es obligatorio.');
     }
     if (!dto.email && !dto.telefono) {
-      throw new BadRequestException('Registra al menos un correo o un teléfono de contacto.');
+      throw new BadRequestException(
+        'Registra al menos un correo o un teléfono de contacto.',
+      );
     }
 
     // Un prospecto duplicado ensucia el embudo y duplica el esfuerzo comercial.
@@ -141,7 +221,9 @@ export class CrmService {
     // Sin etapa indicada, entra por la primera del embudo.
     let etapa: EtapaEmbudo | null = null;
     if (dto.etapaId) {
-      etapa = await this.etapas.findOne({ where: { id: dto.etapaId, empresaId } });
+      etapa = await this.etapas.findOne({
+        where: { id: dto.etapaId, empresaId },
+      });
       if (!etapa) throw new NotFoundException('La etapa indicada no existe.');
     } else {
       etapa = await this.etapas.findOne({
@@ -155,22 +237,26 @@ export class CrmService {
       }
     }
 
-    const oportunidad = await this.oportunidades.save(this.oportunidades.create({
-      ...dto,
-      empresaId,
-      folio: await this.siguienteFolio(empresaId),
-      etapaId: etapa.id,
-      probabilidad: dto.probabilidad ?? etapa.probabilidad,
-      fechaUltimoMovimiento: new Date(),
-    }));
+    const oportunidad = await this.oportunidades.save(
+      this.oportunidades.create({
+        ...dto,
+        empresaId,
+        folio: await this.siguienteFolio(empresaId),
+        etapaId: etapa.id,
+        probabilidad: dto.probabilidad ?? etapa.probabilidad,
+        fechaUltimoMovimiento: new Date(),
+      }),
+    );
 
-    await this.historial.save(this.historial.create({
-      empresaId,
-      oportunidadId: oportunidad.id,
-      etapaNuevaId: etapa.id,
-      nombreEtapaNueva: etapa.nombre,
-      diasEnEtapaAnterior: 0,
-    }));
+    await this.historial.save(
+      this.historial.create({
+        empresaId,
+        oportunidadId: oportunidad.id,
+        etapaNuevaId: etapa.id,
+        nombreEtapaNueva: etapa.nombre,
+        diasEnEtapaAnterior: 0,
+      }),
+    );
 
     return oportunidad;
   }
@@ -188,7 +274,12 @@ export class CrmService {
 
   async listarOportunidades(
     empresaId: string,
-    filtros: { etapaId?: string; responsableId?: string; busqueda?: string; soloAbiertas?: boolean } = {},
+    filtros: {
+      etapaId?: string;
+      responsableId?: string;
+      busqueda?: string;
+      soloAbiertas?: boolean;
+    } = {},
   ) {
     const q = this.oportunidades
       .createQueryBuilder('o')
@@ -197,8 +288,10 @@ export class CrmService {
       .where('o.empresaId = :empresaId', { empresaId });
 
     if (filtros.etapaId) q.andWhere('o.etapaId = :et', { et: filtros.etapaId });
-    if (filtros.responsableId) q.andWhere('o.responsableId = :r', { r: filtros.responsableId });
-    if (filtros.soloAbiertas) q.andWhere('e.tipo = :abierta', { abierta: TipoEtapa.ABIERTA });
+    if (filtros.responsableId)
+      q.andWhere('o.responsableId = :r', { r: filtros.responsableId });
+    if (filtros.soloAbiertas)
+      q.andWhere('e.tipo = :abierta', { abierta: TipoEtapa.ABIERTA });
     if (filtros.busqueda) {
       q.andWhere('(o.titulo LIKE :b OR o.folio LIKE :b OR p.nombre LIKE :b)', {
         b: `%${filtros.busqueda}%`,
@@ -212,14 +305,18 @@ export class CrmService {
   /** Añade los campos derivados que la pantalla necesita. */
   private enriquecer(o: Oportunidad) {
     const desde = o.fechaUltimoMovimiento ?? o.fechaCreacion;
-    const diasEnEtapa = Math.floor((Date.now() - new Date(desde).getTime()) / DIA_MS);
+    const diasEnEtapa = Math.floor(
+      (Date.now() - new Date(desde).getTime()) / DIA_MS,
+    );
     const alerta = o.etapa ? diasEnEtapa > o.etapa.diasAlerta : false;
 
     return {
       ...o,
       diasEnEtapa,
       estancada: alerta && o.etapa?.tipo === TipoEtapa.ABIERTA,
-      valorPonderado: aPesos(Math.round((aCent(o.importe) * o.probabilidad) / 100)),
+      valorPonderado: aPesos(
+        Math.round((aCent(o.importe) * o.probabilidad) / 100),
+      ),
     };
   }
 
@@ -254,11 +351,15 @@ export class CrmService {
       const repoHist = manager.getRepository(HistorialEtapa);
 
       const oportunidad = await repoOpp.findOne({
-        where: { id, empresaId }, relations: ['etapa'],
+        where: { id, empresaId },
+        relations: ['etapa'],
       });
-      if (!oportunidad) throw new NotFoundException('La oportunidad no existe.');
+      if (!oportunidad)
+        throw new NotFoundException('La oportunidad no existe.');
 
-      const destino = await repoEtapas.findOne({ where: { id: datos.etapaId, empresaId } });
+      const destino = await repoEtapas.findOne({
+        where: { id: datos.etapaId, empresaId },
+      });
       if (!destino) throw new NotFoundException('La etapa destino no existe.');
 
       if (oportunidad.etapaId === destino.id) {
@@ -275,19 +376,24 @@ export class CrmService {
         );
       }
 
-      const desde = oportunidad.fechaUltimoMovimiento ?? oportunidad.fechaCreacion;
-      const diasEnEtapa = Math.floor((Date.now() - new Date(desde).getTime()) / DIA_MS);
+      const desde =
+        oportunidad.fechaUltimoMovimiento ?? oportunidad.fechaCreacion;
+      const diasEnEtapa = Math.floor(
+        (Date.now() - new Date(desde).getTime()) / DIA_MS,
+      );
 
-      await repoHist.save(repoHist.create({
-        empresaId,
-        oportunidadId: oportunidad.id,
-        etapaAnteriorId: oportunidad.etapaId,
-        nombreEtapaAnterior: oportunidad.etapa?.nombre,
-        etapaNuevaId: destino.id,
-        nombreEtapaNueva: destino.nombre,
-        diasEnEtapaAnterior: diasEnEtapa,
-        usuarioId,
-      }));
+      await repoHist.save(
+        repoHist.create({
+          empresaId,
+          oportunidadId: oportunidad.id,
+          etapaAnteriorId: oportunidad.etapaId,
+          nombreEtapaAnterior: oportunidad.etapa?.nombre,
+          etapaNuevaId: destino.id,
+          nombreEtapaNueva: destino.nombre,
+          diasEnEtapaAnterior: diasEnEtapa,
+          usuarioId,
+        }),
+      );
 
       oportunidad.etapaId = destino.id;
       oportunidad.probabilidad = destino.probabilidad;
@@ -306,16 +412,22 @@ export class CrmService {
       // Ganar convierte al prospecto en cliente; es el punto de traspaso al ERP.
       if (destino.tipo === TipoEtapa.GANADA && oportunidad.prospectoId) {
         const repoPros = manager.getRepository(Prospecto);
-        const prospecto = await repoPros.findOne({ where: { id: oportunidad.prospectoId } });
+        const prospecto = await repoPros.findOne({
+          where: { id: oportunidad.prospectoId },
+        });
         if (prospecto && !prospecto.clienteId) {
           this.logger.log(
             `Oportunidad ${oportunidad.folio} ganada. El prospecto ${prospecto.nombre} ` +
-            `está listo para darse de alta como cliente.`,
+              `está listo para darse de alta como cliente.`,
           );
         }
       }
 
-      return { oportunidad, etapaAnterior: oportunidad.etapa?.nombre, etapaNueva: destino.nombre };
+      return {
+        oportunidad,
+        etapaAnterior: oportunidad.etapa?.nombre,
+        etapaNueva: destino.nombre,
+      };
     });
   }
 
@@ -327,23 +439,34 @@ export class CrmService {
         'La actividad debe estar ligada a una oportunidad o a un prospecto.',
       );
     }
-    return this.actividades.save(this.actividades.create({ ...dto, empresaId }));
+    return this.actividades.save(
+      this.actividades.create({ ...dto, empresaId }),
+    );
   }
 
   async listarActividades(
     empresaId: string,
-    filtros: { desde?: string; hasta?: string; responsableId?: string; pendientes?: boolean; oportunidadId?: string } = {},
+    filtros: {
+      desde?: string;
+      hasta?: string;
+      responsableId?: string;
+      pendientes?: boolean;
+      oportunidadId?: string;
+    } = {},
   ) {
     const q = this.actividades
       .createQueryBuilder('a')
       .where('a.empresaId = :empresaId', { empresaId });
 
-    if (filtros.oportunidadId) q.andWhere('a.oportunidadId = :o', { o: filtros.oportunidadId });
-    if (filtros.responsableId) q.andWhere('a.responsableId = :r', { r: filtros.responsableId });
+    if (filtros.oportunidadId)
+      q.andWhere('a.oportunidadId = :o', { o: filtros.oportunidadId });
+    if (filtros.responsableId)
+      q.andWhere('a.responsableId = :r', { r: filtros.responsableId });
     if (filtros.pendientes) q.andWhere('a.completada = 0');
     if (filtros.desde && filtros.hasta) {
       q.andWhere('a.fechaProgramada BETWEEN :d AND :h', {
-        d: new Date(filtros.desde), h: new Date(filtros.hasta),
+        d: new Date(filtros.desde),
+        h: new Date(filtros.hasta),
       });
     }
 
@@ -359,7 +482,8 @@ export class CrmService {
   async completarActividad(id: string, resultado: string, empresaId: string) {
     const a = await this.actividades.findOne({ where: { id, empresaId } });
     if (!a) throw new NotFoundException('La actividad no existe.');
-    if (a.completada) throw new ConflictException('La actividad ya está completada.');
+    if (a.completada)
+      throw new ConflictException('La actividad ya está completada.');
 
     a.completada = true;
     a.fechaRealizada = new Date();
@@ -393,7 +517,9 @@ export class CrmService {
           oportunidades: suyas,
           cantidad: suyas.length,
           importe: aPesos(suyas.reduce((s, o) => s + aCent(o.importe), 0)),
-          valorPonderado: aPesos(suyas.reduce((s, o) => s + aCent(o.valorPonderado), 0)),
+          valorPonderado: aPesos(
+            suyas.reduce((s, o) => s + aCent(o.valorPonderado), 0),
+          ),
           estancadas: suyas.filter((o) => o.estancada).length,
         };
       });
@@ -403,7 +529,9 @@ export class CrmService {
       totales: {
         oportunidades: abiertas.length,
         importe: aPesos(abiertas.reduce((s, o) => s + aCent(o.importe), 0)),
-        pronostico: aPesos(abiertas.reduce((s, o) => s + aCent(o.valorPonderado), 0)),
+        pronostico: aPesos(
+          abiertas.reduce((s, o) => s + aCent(o.valorPonderado), 0),
+        ),
         estancadas: abiertas.filter((o) => o.estancada).length,
       },
     };
@@ -420,17 +548,26 @@ export class CrmService {
     });
 
     const ganadas = cerradas.filter((o) => o.etapa?.tipo === TipoEtapa.GANADA);
-    const perdidas = cerradas.filter((o) => o.etapa?.tipo === TipoEtapa.PERDIDA);
+    const perdidas = cerradas.filter(
+      (o) => o.etapa?.tipo === TipoEtapa.PERDIDA,
+    );
 
     const importeGanadoCent = ganadas.reduce((s, o) => s + aCent(o.importe), 0);
-    const importePerdidoCent = perdidas.reduce((s, o) => s + aCent(o.importe), 0);
+    const importePerdidoCent = perdidas.reduce(
+      (s, o) => s + aCent(o.importe),
+      0,
+    );
 
     // Tiempo de ciclo: de la creación al cierre, sólo de las ganadas.
     const ciclos = ganadas
       .filter((o) => o.fechaCierreReal)
-      .map((o) => Math.floor(
-        (new Date(o.fechaCierreReal!).getTime() - new Date(o.fechaCreacion).getTime()) / DIA_MS,
-      ));
+      .map((o) =>
+        Math.floor(
+          (new Date(o.fechaCierreReal).getTime() -
+            new Date(o.fechaCreacion).getTime()) /
+            DIA_MS,
+        ),
+      );
 
     const cicloPromedio = ciclos.length
       ? Math.round(ciclos.reduce((a, b) => a + b, 0) / ciclos.length)
@@ -451,7 +588,10 @@ export class CrmService {
     const porEtapa = new Map<string, { total: number; conteo: number }>();
     for (const h2 of historiales) {
       if (!h2.nombreEtapaAnterior) continue;
-      const acc = porEtapa.get(h2.nombreEtapaAnterior) ?? { total: 0, conteo: 0 };
+      const acc = porEtapa.get(h2.nombreEtapaAnterior) ?? {
+        total: 0,
+        conteo: 0,
+      };
       acc.total += h2.diasEnEtapaAnterior;
       acc.conteo += 1;
       porEtapa.set(h2.nombreEtapaAnterior, acc);
@@ -466,7 +606,9 @@ export class CrmService {
         : 0,
       importeGanado: aPesos(importeGanadoCent),
       importePerdido: aPesos(importePerdidoCent),
-      ticketPromedio: ganadas.length ? aPesos(Math.round(importeGanadoCent / ganadas.length)) : 0,
+      ticketPromedio: ganadas.length
+        ? aPesos(Math.round(importeGanadoCent / ganadas.length))
+        : 0,
       cicloPromedioDias: cicloPromedio,
       motivosPerdida: Array.from(motivos.entries())
         .map(([motivo, cantidad]) => ({ motivo, cantidad }))
@@ -486,7 +628,8 @@ export class CrmService {
     const [deHoy, vencidas] = await Promise.all([
       this.actividades.find({
         where: {
-          empresaId, completada: false,
+          empresaId,
+          completada: false,
           fechaProgramada: Between(inicio, fin),
           ...(responsableId ? { responsableId } : {}),
         },
@@ -494,7 +637,8 @@ export class CrmService {
       }),
       this.actividades.find({
         where: {
-          empresaId, completada: false,
+          empresaId,
+          completada: false,
           fechaProgramada: Between(new Date(0), inicio),
           ...(responsableId ? { responsableId } : {}),
         },
@@ -509,10 +653,12 @@ export class CrmService {
       resumen: {
         pendientesHoy: deHoy.length,
         atrasadas: vencidas.length,
-        porTipo: Object.values(TipoActividad).map((tipo) => ({
-          tipo,
-          cantidad: deHoy.filter((a) => a.tipo === tipo).length,
-        })).filter((x) => x.cantidad > 0),
+        porTipo: Object.values(TipoActividad)
+          .map((tipo) => ({
+            tipo,
+            cantidad: deHoy.filter((a) => a.tipo === tipo).length,
+          }))
+          .filter((x) => x.cantidad > 0),
       },
     };
   }

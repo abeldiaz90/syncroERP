@@ -1,5 +1,12 @@
 import {
-  Body, Controller, Delete, Get, Param, Patch, Post, Query,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
 } from '@nestjs/common';
 
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
@@ -29,7 +36,10 @@ export class AtributosPersonalizadosController {
     @ActiveUser('empresaId') empresaId: string,
     @Query('incluirDefiniciones') incluir?: string,
   ) {
-    return this.servicio.listarGrupos(empresaId, incluir === '1' || incluir === 'true');
+    return this.servicio.listarGrupos(
+      empresaId,
+      incluir === '1' || incluir === 'true',
+    );
   }
 
   @Post('grupos')
@@ -62,9 +72,14 @@ export class AtributosPersonalizadosController {
   crearDefinicion(
     @ActiveUser('empresaId') empresaId: string,
     @Param('id') grupoId: string,
-    @Body() dto: {
-      etiqueta: string; tipoValor?: 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'SELECT';
-      unidad?: string; opciones?: string; requerido?: boolean; orden?: number;
+    @Body()
+    dto: {
+      etiqueta: string;
+      tipoValor?: 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'SELECT';
+      unidad?: string;
+      opciones?: string;
+      requerido?: boolean;
+      orden?: number;
     },
   ) {
     return this.servicio.crearDefinicion(empresaId, grupoId, dto);
@@ -74,9 +89,14 @@ export class AtributosPersonalizadosController {
   actualizarDefinicion(
     @ActiveUser('empresaId') empresaId: string,
     @Param('id') id: string,
-    @Body() dto: {
-      etiqueta?: string; tipoValor?: 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'SELECT';
-      unidad?: string; opciones?: string; requerido?: boolean; orden?: number;
+    @Body()
+    dto: {
+      etiqueta?: string;
+      tipoValor?: 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'SELECT';
+      unidad?: string;
+      opciones?: string;
+      requerido?: boolean;
+      orden?: number;
     },
   ) {
     return this.servicio.actualizarDefinicion(empresaId, id, dto);

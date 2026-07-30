@@ -1,4 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Producto } from './producto.entity';
 import { ListaPrecio } from './lista-precio.entity';
 
@@ -7,14 +13,18 @@ export class ProductoPrecio {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @ManyToOne(() => Producto, (prod) => prod.preciosProducto, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Producto, (prod) => prod.preciosProducto, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'productoId' })
   producto!: Producto;
 
   @Column({ type: 'uniqueidentifier' })
   productoId!: string;
 
-  @ManyToOne(() => ListaPrecio, (lista) => lista.preciosProducto, { onDelete: 'CASCADE' })
+  @ManyToOne(() => ListaPrecio, (lista) => lista.preciosProducto, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'listaPrecioId' })
   listaPrecio!: ListaPrecio;
 

@@ -1,0 +1,40 @@
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+
+export enum TipoMovimientoSaldoFavor {
+  ABONO = 'ABONO',
+  CARGO = 'CARGO',
+}
+
+@Entity('saldos_favor_clientes_movimientos')
+@Index(['empresaId', 'clienteId', 'fecha'])
+@Index(['empresaId', 'devolucionId'], {
+  unique: true,
+  where: 'devolucionId IS NOT NULL',
+})
+@Index('UX_saldo_favor_venta_cargo', ['empresaId', 'ventaId'], {
+  unique: true,
+  where: "ventaId IS NOT NULL AND tipo = 'CARGO'",
+})
+export class SaldoFavorClienteMovimiento {
+  @PrimaryGeneratedColumn('uuid') id!: string;
+  @Column({ type: 'uniqueidentifier' }) empresaId!: string;
+  @Column({ type: 'uniqueidentifier' }) clienteId!: string;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  devolucionId!: string | null;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  ventaId!: string | null;
+  @Column({ type: 'varchar', length: 10 }) tipo!: TipoMovimientoSaldoFavor;
+  @Column({ type: 'decimal', precision: 18, scale: 4 }) importe!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 4 })
+  saldoPosterior!: number;
+  @Column({ type: 'varchar', length: 250 }) concepto!: string;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  usuarioId!: string | null;
+  @CreateDateColumn() fecha!: Date;
+}

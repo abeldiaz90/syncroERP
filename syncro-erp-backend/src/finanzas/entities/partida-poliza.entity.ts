@@ -1,4 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Poliza } from './poliza.entity';
 import { CuentaContable } from './cuenta-contable.entity'; // Ajusta la ruta a donde guardaste la cuenta
 

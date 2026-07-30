@@ -4,8 +4,8 @@ export const NAVEGABLE_KEY = 'syncro:navegable';
 
 export interface NavegableMeta {
   rutaFrontend: string;
-  titulo:       string;
-  ordenMenu?:   number;
+  titulo: string;
+  ordenMenu?: number;
 }
 
 /**
@@ -21,4 +21,9 @@ export const Navegable = (
   rutaFrontend: string,
   titulo: string,
   ordenMenu = 99,
-) => SetMetadata(NAVEGABLE_KEY, { rutaFrontend, titulo, ordenMenu } as NavegableMeta);
+) =>
+  SetMetadata(NAVEGABLE_KEY, {
+    rutaFrontend,
+    titulo,
+    ordenMenu,
+  });

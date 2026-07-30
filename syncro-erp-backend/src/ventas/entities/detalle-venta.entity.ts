@@ -31,6 +31,9 @@ export class DetalleVenta {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   cantidad: number;
 
+  @Column({ type: 'decimal', precision: 18, scale: 4, default: 0 })
+  cantidadDevuelta: number;
+
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   precioUnitario: number;
 

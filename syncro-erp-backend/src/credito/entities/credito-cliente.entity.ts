@@ -1,4 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from 'typeorm';
 import { AmortizacionCuota } from './amortizacion-cuota.entity';
 import { PagoCobranza } from './pago-cobranza.entity';
 
@@ -27,16 +34,22 @@ export class CreditoCliente {
 
   // Montos
   @Column({ type: 'decimal', precision: 18, scale: 4 }) montoVenta!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 4, default: 0 }) enganche!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 4 }) capitalFinanciado!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 4, default: 0 }) totalIntereses!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 4, default: 0 })
+  enganche!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 4 })
+  capitalFinanciado!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 4, default: 0 })
+  totalIntereses!: number;
   @Column({ type: 'decimal', precision: 18, scale: 4 }) montoTotal!: number;
   @Column({ type: 'decimal', precision: 18, scale: 4 }) saldoPendiente!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 4, default: 0 })
+  montoAjustesDevolucion!: number;
 
   // Condiciones
   @Column({ type: 'varchar', length: 30 }) tipoCredito!: TipoCredito;
   @Column({ type: 'int', default: 1 }) numeroCuotas!: number;
-  @Column({ type: 'decimal', precision: 8, scale: 4, default: 0 }) tasaInteresMensual!: number;
+  @Column({ type: 'decimal', precision: 8, scale: 4, default: 0 })
+  tasaInteresMensual!: number;
   @Column({ default: false }) sinInteres!: boolean;
   @Column({ type: 'varchar', length: 10, default: 'MXN' }) moneda!: string;
 
@@ -45,16 +58,20 @@ export class CreditoCliente {
   @Column({ type: 'date' }) fechaVencimiento!: Date;
 
   // Enganche
-  @Column({ type: 'varchar', length: 30, nullable: true }) metodoPagoEnganche!: string;
-  @Column({ type: 'uniqueidentifier', nullable: true }) cuentaBancariaEngancheId!: string;
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  metodoPagoEnganche!: string;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  cuentaBancariaEngancheId!: string;
 
   // Estado
-  @Column({ type: 'varchar', length: 20, default: EstadoCredito.ACTIVO }) estado!: EstadoCredito;
+  @Column({ type: 'varchar', length: 20, default: EstadoCredito.ACTIVO })
+  estado!: EstadoCredito;
   @Column({ type: 'varchar', length: 500, nullable: true }) notas!: string;
 
   @CreateDateColumn() fechaCreacion!: Date;
   @UpdateDateColumn() fechaActualizacion!: Date;
 
-  @OneToMany(() => AmortizacionCuota, (c) => c.credito, { cascade: true }) cuotas!: AmortizacionCuota[];
+  @OneToMany(() => AmortizacionCuota, (c) => c.credito, { cascade: true })
+  cuotas!: AmortizacionCuota[];
   @OneToMany(() => PagoCobranza, (p) => p.credito) pagos!: PagoCobranza[];
 }

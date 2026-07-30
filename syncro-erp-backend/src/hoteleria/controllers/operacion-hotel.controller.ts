@@ -2,7 +2,11 @@
 import { Controller, Get, Post, Param, Body, Query } from '@nestjs/common';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { OperacionHotelService } from '../services/operacion-hotel.service';
-import { CrearReservacionDto, CheckInDto, AgregarConsumoDto } from '../dto/hoteleria.dtos';
+import {
+  CrearReservacionDto,
+  CheckInDto,
+  AgregarConsumoDto,
+} from '../dto/hoteleria.dtos';
 
 @Controller('hoteleria/operacion')
 export class OperacionHotelController {
@@ -14,7 +18,10 @@ export class OperacionHotelController {
   }
 
   @Get('reservaciones')
-  listar(@Query('hotelId') hotelId: string, @ActiveUser('empresaId') e: string) {
+  listar(
+    @Query('hotelId') hotelId: string,
+    @ActiveUser('empresaId') e: string,
+  ) {
     return this.svc.obtenerReservaciones(e, hotelId);
   }
 
@@ -24,7 +31,11 @@ export class OperacionHotelController {
   }
 
   @Post('reservaciones/:id/check-in')
-  checkIn(@Param('id') id: string, @Body() dto: CheckInDto, @ActiveUser('empresaId') e: string) {
+  checkIn(
+    @Param('id') id: string,
+    @Body() dto: CheckInDto,
+    @ActiveUser('empresaId') e: string,
+  ) {
     return this.svc.checkIn(id, dto, e);
   }
 
@@ -34,7 +45,11 @@ export class OperacionHotelController {
   }
 
   @Post('reservaciones/:id/consumo')
-  consumo(@Param('id') id: string, @Body() dto: AgregarConsumoDto, @ActiveUser('empresaId') e: string) {
+  consumo(
+    @Param('id') id: string,
+    @Body() dto: AgregarConsumoDto,
+    @ActiveUser('empresaId') e: string,
+  ) {
     return this.svc.agregarConsumo(id, dto, e);
   }
 

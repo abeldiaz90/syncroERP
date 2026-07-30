@@ -1,6 +1,11 @@
-import { 
-  Entity, PrimaryGeneratedColumn, Column, 
-  CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn 
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Controlador } from './controlador.entity';
 
@@ -58,7 +63,7 @@ export class Endpoint {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @ManyToOne(() => Controlador, c => c.endpoints)
+  @ManyToOne(() => Controlador, (c) => c.endpoints)
   @JoinColumn({ name: 'controlador_id' })
   controlador: Controlador;
 }

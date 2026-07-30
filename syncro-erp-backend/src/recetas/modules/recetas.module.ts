@@ -38,19 +38,22 @@ import { FinanzasModule } from '../../finanzas/modules/finanzas.module'; // o '.
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      Receta, RecetaInsumo,
-      Producto, Categoria, CuentaContable,  // ← para el diagnóstico del wizard
+      Receta,
+      RecetaInsumo,
+      Producto,
+      Categoria,
+      CuentaContable, // ← para el diagnóstico del wizard
     ]),
-    CatalogoModule,   // InventarioService + CategoriasService
-    FinanzasModule,   // CuentasContablesService
+    CatalogoModule, // InventarioService + CategoriasService
+    FinanzasModule, // CuentasContablesService
   ],
   controllers: [
     RecetasController,
-    RecetasWizardController,   // ← NUEVO
+    RecetasWizardController, // ← NUEVO
   ],
   providers: [
     RecetasService,
-    RecetasWizardService,      // ← NUEVO
+    RecetasWizardService, // ← NUEVO
   ],
   exports: [RecetasService],
 })

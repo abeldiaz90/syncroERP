@@ -1,8 +1,18 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Unique, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Unique,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
+} from 'typeorm';
 import { CuentaContable } from '../../finanzas/entities/cuenta-contable.entity';
 
 @Entity('categorias')
-@Unique(['empresaId', 'nombre']) 
+@Unique(['empresaId', 'nombre'])
 export class Categoria {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -17,7 +27,9 @@ export class Categoria {
   descripcion!: string;
 
   // ── JERARQUÍA ──
-  @ManyToOne(() => Categoria, (categoria) => categoria.subcategorias, { nullable: true })
+  @ManyToOne(() => Categoria, (categoria) => categoria.subcategorias, {
+    nullable: true,
+  })
   @JoinColumn({ name: 'categoriaPadreId' })
   categoriaPadre!: Categoria;
 

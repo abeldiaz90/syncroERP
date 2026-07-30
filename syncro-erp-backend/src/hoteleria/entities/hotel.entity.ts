@@ -1,6 +1,11 @@
 // hoteleria/entities/hotel.entity.ts
 import {
-  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { Habitacion } from './habitacion.entity';
 import { TipoHabitacion } from './tipo-habitacion.entity';

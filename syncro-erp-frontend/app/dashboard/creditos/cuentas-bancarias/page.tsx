@@ -7,9 +7,11 @@ import {
 import { PuedeCrear, PuedeEditar } from '@/app/components/ProtectedElement';
 
 interface ICuentaContable { id: string; numeroCuenta: string; nombre: string; }
+interface IBanco { id: string; clave: string | null; nombre: string; activo: boolean; }
 interface ICuentaBancaria {
   id: string; nombre: string; tipo: string;
   numeroCuenta: string | null; cuentaContableId: string | null;
+  bancoId: string | null; clabe: string | null; banco?: IBanco;
   cuentaContable?: ICuentaContable; esPorDefecto: boolean; activo: boolean;
 }
 
@@ -25,11 +27,29 @@ const TIPO_STYLE: Record<string, string> = {
   BANCO: 'bg-purple-50 text-purple-700 border-purple-200',
 };
 
-const FORM_VACIO = { nombre:'', tipo:'CAJA', numeroCuenta:'', cuentaContableId:'', esPorDefecto: false };
+const FORM_VACIO = {
+  nombre:'', tipo:'CAJA', numeroCuenta:'', bancoId:'', clabe:'',
+  cuentaContableId:'', esPorDefecto: false,
+};
+
+const esClabeValida = (valor: string) => {
+  if (!/^\d{18}$/.test(valor)) return false;
+  const pesos = [3, 7, 1];
+  const suma = valor.slice(0, 17).split('').reduce(
+    (total, digito, indice) =>
+      total + ((Number(digito) * pesos[indice % pesos.length]) % 10),
+    0,
+  );
+  return (10 - (suma % 10)) % 10 === Number(valor[17]);
+};
+
+const clabeEnmascarada = (clabe: string) =>
+  `${clabe.slice(0, 3)} ••••••••••• ${clabe.slice(-4)}`;
 
 export default function CuentasBancariasPage() {
   const [cuentas, setCuentas]       = useState<ICuentaBancaria[]>([]);
   const [ctasContables, setCtasContables] = useState<ICuentaContable[]>([]);
+  const [bancos, setBancos]         = useState<IBanco[]>([]);
   const [cargando, setCargando]     = useState(true);
   const [modal, setModal]           = useState(false);
   const [editando, setEditando]     = useState<ICuentaBancaria | null>(null);
@@ -44,12 +64,14 @@ export default function CuentasBancariasPage() {
   const cargar = async () => {
     setCargando(true);
     const h = { Authorization: `Bearer ${tok()}` };
-    const [rCB, rCC] = await Promise.all([
+    const [rCB, rCC, rBancos] = await Promise.all([
       fetch(`${api}/credito/cuentas-bancarias`, { headers: h }),
       fetch(`${api}/finanzas/cuentas-contables?soloAfectables=true`, { headers: h }),
+      fetch(`${api}/catalogos/bancos`, { headers: h }),
     ]);
     if (rCB.ok) setCuentas(await rCB.json());
     if (rCC.ok) setCtasContables(await rCC.json());
+    if (rBancos.ok) setBancos(await rBancos.json());
     setCargando(false);
   };
   useEffect(() => { cargar(); }, []);
@@ -60,12 +82,28 @@ export default function CuentasBancariasPage() {
   const abrirEditar = (c: ICuentaBancaria) => {
     setEditando(c);
     setForm({ nombre: c.nombre, tipo: c.tipo, numeroCuenta: c.numeroCuenta??'',
+      bancoId: c.bancoId??'', clabe: c.clabe??'',
       cuentaContableId: c.cuentaContableId??'', esPorDefecto: c.esPorDefecto });
     setModal(true);
   };
 
   const guardar = async () => {
     if (!form.nombre.trim()) { toast$('El nombre es obligatorio', false); return; }
+    if (form.tipo === 'BANCO' && !form.bancoId) {
+      toast$('Selecciona la institución bancaria', false); return;
+    }
+    if (form.tipo === 'BANCO' && !esClabeValida(form.clabe)) {
+      toast$('La CLABE debe tener 18 dígitos y un dígito verificador válido', false); return;
+    }
+    const institucion = bancos.find(b => b.id === form.bancoId);
+    if (
+      form.tipo === 'BANCO' &&
+      institucion?.clave &&
+      form.clabe.slice(0, 3) !== institucion.clave
+    ) {
+      toast$(`La CLABE debe iniciar con la clave ${institucion.clave} de ${institucion.nombre}`, false);
+      return;
+    }
     setGuardando(true);
     const url = editando
       ? `${api}/credito/cuentas-bancarias/${editando.id}`
@@ -77,6 +115,8 @@ export default function CuentasBancariasPage() {
         nombre: form.nombre.trim(),
         tipo: form.tipo,
         numeroCuenta: form.numeroCuenta || null,
+        bancoId: form.tipo === 'CAJA' ? null : form.bancoId || null,
+        clabe: form.tipo === 'BANCO' ? form.clabe : null,
         cuentaContableId: form.cuentaContableId || null,
         esPorDefecto: form.esPorDefecto,
       }),
@@ -177,6 +217,16 @@ export default function CuentasBancariasPage() {
                         <div className="flex items-center gap-3 mt-1">
                           {c.numeroCuenta && (
                             <span className="text-xs font-mono text-slate-500">{c.numeroCuenta}</span>
+                          )}
+                          {c.banco && (
+                            <span className="text-xs text-slate-500">
+                              {c.banco.clave} · {c.banco.nombre}
+                            </span>
+                          )}
+                          {c.clabe && (
+                            <span className="text-xs font-mono text-slate-500">
+                              CLABE {clabeEnmascarada(c.clabe)}
+                            </span>
                           )}
                           {c.cuentaContable && (
                             <span className="text-xs text-slate-400">
@@ -287,13 +337,66 @@ export default function CuentasBancariasPage() {
 
               {/* Número de cuenta (solo si BANCO o TPV) */}
               {form.tipo !== 'CAJA' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
+                      Institución bancaria {form.tipo === 'BANCO' ? '*' : '(opcional)'}
+                    </label>
+                    <select
+                      value={form.bancoId}
+                      onChange={e=>setForm(f=>({...f,bancoId:e.target.value}))}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">— Seleccionar banco —</option>
+                      {bancos.map(b=>(
+                        <option key={b.id} value={b.id}>
+                          {b.clave ? `${b.clave} – ` : ''}{b.nombre}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Si no aparece, agrégalo primero en Catálogos → Bancos.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
+                      {form.tipo==='TPV' ? 'Número de afiliación (opcional)' : 'Número de cuenta (opcional)'}
+                    </label>
+                    <input value={form.numeroCuenta} onChange={e=>setForm(f=>({...f,numeroCuenta:e.target.value}))}
+                      maxLength={50}
+                      placeholder={form.tipo==='TPV'?'123456':'Número interno de la cuenta'}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+                  </div>
+                </>
+              )}
+
+              {form.tipo === 'BANCO' && (
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
-                    {form.tipo==='TPV' ? 'Número de afiliación (opcional)' : 'Número de cuenta (opcional)'}
+                    CLABE interbancaria *
                   </label>
-                  <input value={form.numeroCuenta} onChange={e=>setForm(f=>({...f,numeroCuenta:e.target.value}))}
-                    placeholder={form.tipo==='TPV'?'123456':'CLABE o número de cuenta'}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+                  <input
+                    value={form.clabe}
+                    onChange={e=>setForm(f=>({
+                      ...f,
+                      clabe:e.target.value.replace(/\D/g, '').slice(0, 18),
+                    }))}
+                    inputMode="numeric"
+                    maxLength={18}
+                    placeholder="18 dígitos"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <p className={`text-xs mt-1 ${
+                    !form.clabe ? 'text-slate-400' :
+                    esClabeValida(form.clabe) ? 'text-emerald-600' : 'text-amber-600'
+                  }`}>
+                    {!form.clabe
+                      ? 'Se validarán longitud, banco y dígito verificador.'
+                      : esClabeValida(form.clabe)
+                        ? 'CLABE válida.'
+                        : 'La CLABE todavía no es válida.'}
+                  </p>
                 </div>
               )}
 

@@ -1,15 +1,27 @@
-import { Controller, Post, Get, Patch, Param, Query, Body } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Param,
+  Query,
+  Body,
+} from '@nestjs/common';
 import { CrearCuentaContableDto } from '../dto/crear-cuenta-contable.dto';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { CuentasContablesService } from '../services/cuentas-contables.service';
 
 @Controller('finanzas/cuentas-contables')
 export class CuentasContablesController {
-  constructor(private readonly cuentasService: CuentasContablesService) { }
+  constructor(private readonly cuentasService: CuentasContablesService) {}
 
   @Post()
-  crear(@Body() dto: CrearCuentaContableDto, @ActiveUser('empresaId') empresaId: string) {
-    return this.cuentasService.crearCuenta(dto, empresaId);
+  crear(
+    @Body() dto: CrearCuentaContableDto,
+    @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('sub') usuarioId: string,
+  ) {
+    return this.cuentasService.crearCuenta(dto, empresaId, usuarioId);
   }
 
   @Get()
@@ -17,7 +29,10 @@ export class CuentasContablesController {
     @ActiveUser('empresaId') empresaId: string,
     @Query('soloAfectables') soloAfectables?: string,
   ) {
-    return this.cuentasService.obtenerCuentas(empresaId, soloAfectables === 'true');
+    return this.cuentasService.obtenerCuentas(
+      empresaId,
+      soloAfectables === 'true',
+    );
   }
 
   @Patch(':id')
@@ -25,8 +40,9 @@ export class CuentasContablesController {
     @Param('id') id: string,
     @Body() dto: Partial<CrearCuentaContableDto>,
     @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('sub') usuarioId: string,
   ) {
-    return this.cuentasService.editarCuenta(id, dto, empresaId);
+    return this.cuentasService.editarCuenta(id, dto, empresaId, usuarioId);
   }
 
   @Patch(':id/estado')

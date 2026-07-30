@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 
-import { RegistroAuditoria, AccionAuditoria } from '../entities/registro-auditoria.entity';
+import {
+  RegistroAuditoria,
+  AccionAuditoria,
+} from '../entities/registro-auditoria.entity';
 
 export interface DatosRegistro {
   empresaId?: string | null;
@@ -29,9 +32,17 @@ export class AuditoriaService {
 
   /** Campos que NUNCA deben quedar guardados en claro en la bitácora. */
   private static readonly CAMPOS_SENSIBLES = [
-    'password', 'passwordHash', 'contraseña', 'nuevaPassword',
-    'token', 'tokenVerificacion', 'tokenRecuperacion', 'access_token',
-    'secret', 'apiKey', 'authorization',
+    'password',
+    'passwordHash',
+    'contraseña',
+    'nuevaPassword',
+    'token',
+    'tokenVerificacion',
+    'tokenRecuperacion',
+    'access_token',
+    'secret',
+    'apiKey',
+    'authorization',
   ];
 
   constructor(
@@ -47,18 +58,18 @@ export class AuditoriaService {
   async registrar(datos: DatosRegistro): Promise<void> {
     try {
       const registro = this.repo.create({
-        empresaId:     datos.empresaId ?? null,
-        usuarioId:     datos.usuarioId ?? null,
-        usuarioEmail:  datos.usuarioEmail ?? null,
-        usuarioRol:    datos.usuarioRol ?? null,
-        accion:        datos.accion,
-        entidad:       datos.entidad,
-        registroId:    datos.registroId != null ? String(datos.registroId) : null,
-        endpoint:      datos.endpoint ?? null,
+        empresaId: datos.empresaId ?? null,
+        usuarioId: datos.usuarioId ?? null,
+        usuarioEmail: datos.usuarioEmail ?? null,
+        usuarioRol: datos.usuarioRol ?? null,
+        accion: datos.accion,
+        entidad: datos.entidad,
+        registroId: datos.registroId != null ? String(datos.registroId) : null,
+        endpoint: datos.endpoint ?? null,
         valorAnterior: this.serializar(datos.valorAnterior),
-        valorNuevo:    this.serializar(datos.valorNuevo),
-        ip:            datos.ip ?? null,
-        resultado:     datos.resultado ?? 'OK',
+        valorNuevo: this.serializar(datos.valorNuevo),
+        ip: datos.ip ?? null,
+        resultado: datos.resultado ?? 'OK',
       });
       await this.repo.save(registro);
     } catch (err: any) {
@@ -67,34 +78,39 @@ export class AuditoriaService {
   }
 
   // ── CONSULTAR ─────────────────────────────────────────────────────────────
-  async consultar(empresaId: string, filtros: {
-    usuarioEmail?: string;
-    entidad?: string;
-    accion?: string;
-    registroId?: string;
-    desde?: string;
-    hasta?: string;
-    pagina?: number;
-    porPagina?: number;
-  }) {
+  async consultar(
+    empresaId: string,
+    filtros: {
+      usuarioEmail?: string;
+      entidad?: string;
+      accion?: string;
+      registroId?: string;
+      desde?: string;
+      hasta?: string;
+      pagina?: number;
+      porPagina?: number;
+    },
+  ) {
     const where: any = { empresaId };
     if (filtros.usuarioEmail) where.usuarioEmail = filtros.usuarioEmail;
-    if (filtros.entidad)      where.entidad = filtros.entidad;
-    if (filtros.accion)       where.accion = filtros.accion;
-    if (filtros.registroId)   where.registroId = String(filtros.registroId);
+    if (filtros.entidad) where.entidad = filtros.entidad;
+    if (filtros.accion) where.accion = filtros.accion;
+    if (filtros.registroId) where.registroId = String(filtros.registroId);
 
     if (filtros.desde && filtros.hasta) {
-      const h = new Date(filtros.hasta); h.setHours(23, 59, 59, 999);
+      const h = new Date(filtros.hasta);
+      h.setHours(23, 59, 59, 999);
       where.fechaHora = Between(new Date(filtros.desde), h);
     } else if (filtros.desde) {
       where.fechaHora = MoreThanOrEqual(new Date(filtros.desde));
     } else if (filtros.hasta) {
-      const h = new Date(filtros.hasta); h.setHours(23, 59, 59, 999);
+      const h = new Date(filtros.hasta);
+      h.setHours(23, 59, 59, 999);
       where.fechaHora = LessThanOrEqual(h);
     }
 
     const porPagina = Math.min(Math.max(filtros.porPagina ?? 50, 1), 200);
-    const pagina    = Math.max(filtros.pagina ?? 1, 1);
+    const pagina = Math.max(filtros.pagina ?? 1, 1);
 
     const [datos, total] = await this.repo.findAndCount({
       where,
@@ -131,7 +147,9 @@ export class AuditoriaService {
     const usuarios = await this.repo
       .createQueryBuilder('r')
       .select('DISTINCT r.usuarioEmail', 'usuarioEmail')
-      .where('r.empresaId = :empresaId AND r.usuarioEmail IS NOT NULL', { empresaId })
+      .where('r.empresaId = :empresaId AND r.usuarioEmail IS NOT NULL', {
+        empresaId,
+      })
       .orderBy('r.usuarioEmail', 'ASC')
       .getRawMany();
     return {
@@ -148,7 +166,8 @@ export class AuditoriaService {
     try {
       const limpio = this.enmascarar(valor);
       let json = JSON.stringify(limpio);
-      if (json && json.length > 8000) json = json.slice(0, 8000) + '…"[truncado]"';
+      if (json && json.length > 8000)
+        json = json.slice(0, 8000) + '…"[truncado]"';
       return json;
     } catch {
       return null;
@@ -160,8 +179,9 @@ export class AuditoriaService {
     if (valor && typeof valor === 'object') {
       const salida: any = {};
       for (const [k, v] of Object.entries(valor)) {
-        const esSensible = AuditoriaService.CAMPOS_SENSIBLES
-          .some((c) => k.toLowerCase().includes(c.toLowerCase()));
+        const esSensible = AuditoriaService.CAMPOS_SENSIBLES.some((c) =>
+          k.toLowerCase().includes(c.toLowerCase()),
+        );
         salida[k] = esSensible ? '***' : this.enmascarar(v);
       }
       return salida;

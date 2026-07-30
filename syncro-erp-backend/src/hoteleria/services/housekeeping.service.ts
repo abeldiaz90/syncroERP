@@ -1,16 +1,25 @@
 // hoteleria/services/housekeeping.service.ts
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { TareaHousekeeping, EstadoTarea } from '../entities/tarea-housekeeping.entity';
+import {
+  TareaHousekeeping,
+  EstadoTarea,
+} from '../entities/tarea-housekeeping.entity';
 import { Habitacion, EstadoHabitacion } from '../entities/habitacion.entity';
 import { AsignarCamaristaDto } from '../dto/hoteleria.dtos';
 
 @Injectable()
 export class HousekeepingService {
   constructor(
-    @InjectRepository(TareaHousekeeping) private readonly tareaRepo: Repository<TareaHousekeeping>,
-    @InjectRepository(Habitacion) private readonly habRepo: Repository<Habitacion>,
+    @InjectRepository(TareaHousekeeping)
+    private readonly tareaRepo: Repository<TareaHousekeeping>,
+    @InjectRepository(Habitacion)
+    private readonly habRepo: Repository<Habitacion>,
   ) {}
 
   // ── RACK: estado de todas las habitaciones de un hotel ───────────────────
@@ -24,10 +33,18 @@ export class HousekeepingService {
     // Resumen por estado (para los contadores del tablero)
     const resumen = {
       total: habitaciones.length,
-      disponibles: habitaciones.filter(h => h.estado === EstadoHabitacion.DISPONIBLE).length,
-      ocupadas: habitaciones.filter(h => h.estado === EstadoHabitacion.OCUPADA).length,
-      limpieza: habitaciones.filter(h => h.estado === EstadoHabitacion.LIMPIEZA).length,
-      mantenimiento: habitaciones.filter(h => h.estado === EstadoHabitacion.MANTENIMIENTO).length,
+      disponibles: habitaciones.filter(
+        (h) => h.estado === EstadoHabitacion.DISPONIBLE,
+      ).length,
+      ocupadas: habitaciones.filter(
+        (h) => h.estado === EstadoHabitacion.OCUPADA,
+      ).length,
+      limpieza: habitaciones.filter(
+        (h) => h.estado === EstadoHabitacion.LIMPIEZA,
+      ).length,
+      mantenimiento: habitaciones.filter(
+        (h) => h.estado === EstadoHabitacion.MANTENIMIENTO,
+      ).length,
     };
 
     return { resumen, habitaciones };
@@ -40,8 +57,14 @@ export class HousekeepingService {
     return this.tareaRepo.find({ where, order: { fechaCreacion: 'DESC' } });
   }
 
-  async asignarCamarista(tareaId: string, dto: AsignarCamaristaDto, empresaId: string) {
-    const tarea = await this.tareaRepo.findOne({ where: { id: tareaId, empresaId } });
+  async asignarCamarista(
+    tareaId: string,
+    dto: AsignarCamaristaDto,
+    empresaId: string,
+  ) {
+    const tarea = await this.tareaRepo.findOne({
+      where: { id: tareaId, empresaId },
+    });
     if (!tarea) throw new NotFoundException('Tarea no encontrada');
     tarea.asignadoAId = dto.asignadoAId ?? null;
     tarea.asignadoANombre = dto.asignadoANombre ?? null;
@@ -49,7 +72,9 @@ export class HousekeepingService {
   }
 
   async iniciarTarea(tareaId: string, empresaId: string) {
-    const tarea = await this.tareaRepo.findOne({ where: { id: tareaId, empresaId } });
+    const tarea = await this.tareaRepo.findOne({
+      where: { id: tareaId, empresaId },
+    });
     if (!tarea) throw new NotFoundException('Tarea no encontrada');
     tarea.estado = EstadoTarea.EN_PROCESO;
     tarea.fechaInicio = new Date();
@@ -58,14 +83,18 @@ export class HousekeepingService {
 
   // Terminar limpieza → habitación vuelve a DISPONIBLE
   async terminarTarea(tareaId: string, empresaId: string) {
-    const tarea = await this.tareaRepo.findOne({ where: { id: tareaId, empresaId } });
+    const tarea = await this.tareaRepo.findOne({
+      where: { id: tareaId, empresaId },
+    });
     if (!tarea) throw new NotFoundException('Tarea no encontrada');
     tarea.estado = EstadoTarea.TERMINADA;
     tarea.fechaTermino = new Date();
     await this.tareaRepo.save(tarea);
 
     // Regresar habitación a disponible
-    const hab = await this.habRepo.findOne({ where: { id: tarea.habitacionId } });
+    const hab = await this.habRepo.findOne({
+      where: { id: tarea.habitacionId },
+    });
     if (hab && hab.estado === EstadoHabitacion.LIMPIEZA) {
       hab.estado = EstadoHabitacion.DISPONIBLE;
       await this.habRepo.save(hab);
@@ -84,15 +113,15 @@ export class HousekeepingService {
   private static readonly TRANSICIONES: Record<string, string[]> = {
     // DISPONIBLE: se puede bloquear o mandar a mantenimiento. La ocupación
     // NO es manual: ocurre solo al hacer CHECK-IN desde reservaciones.
-    DISPONIBLE:    ['MANTENIMIENTO', 'BLOQUEADA'],
+    DISPONIBLE: ['MANTENIMIENTO', 'BLOQUEADA'],
     // OCUPADA: NO tiene transiciones manuales. La única forma de sacarla de
     // este estado es el CHECK-OUT formal (que cierra folio y contabiliza).
     // Por eso su lista está vacía: el rack no ofrece ningún botón.
-    OCUPADA:       [],
-    LIMPIEZA:      ['INSPECCION', 'DISPONIBLE'], // se puede saltar inspección si el hotel no la usa
-    INSPECCION:    ['DISPONIBLE', 'LIMPIEZA'],   // aprueba → disponible; rechaza → re-limpiar
+    OCUPADA: [],
+    LIMPIEZA: ['INSPECCION', 'DISPONIBLE'], // se puede saltar inspección si el hotel no la usa
+    INSPECCION: ['DISPONIBLE', 'LIMPIEZA'], // aprueba → disponible; rechaza → re-limpiar
     MANTENIMIENTO: ['DISPONIBLE', 'BLOQUEADA'],
-    BLOQUEADA:     ['DISPONIBLE', 'MANTENIMIENTO'],
+    BLOQUEADA: ['DISPONIBLE', 'MANTENIMIENTO'],
   };
 
   // Estados que exige el sistema internamente (no el usuario a mano).
@@ -106,11 +135,17 @@ export class HousekeepingService {
   }
 
   // Cambiar estado de habitación respetando el flujo válido
-  async cambiarEstadoHabitacion(habitacionId: string, estado: EstadoHabitacion, empresaId: string) {
-    const hab = await this.habRepo.findOne({ where: { id: habitacionId, empresaId } });
+  async cambiarEstadoHabitacion(
+    habitacionId: string,
+    estado: EstadoHabitacion,
+    empresaId: string,
+  ) {
+    const hab = await this.habRepo.findOne({
+      where: { id: habitacionId, empresaId },
+    });
     if (!hab) throw new NotFoundException('Habitación no encontrada');
 
-    const actual = hab.estado as string;
+    const actual = hab.estado;
     const destino = estado as string;
 
     // Si es el mismo estado, no hacer nada

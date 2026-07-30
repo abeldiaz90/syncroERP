@@ -9,13 +9,19 @@ export class AuditoriaNocturnaController {
 
   // Estado actual: fecha operativa, última auditoría, huéspedes hospedados
   @Get('estado')
-  estado(@Query('hotelId') hotelId: string, @ActiveUser('empresaId') e: string): Promise<any> {
+  estado(
+    @Query('hotelId') hotelId: string,
+    @ActiveUser('empresaId') e: string,
+  ): Promise<any> {
     return this.svc.estado(hotelId, e);
   }
 
   // Ejecutar la auditoría manualmente (botón "Correr auditoría")
   @Post('ejecutar')
-  ejecutar(@Body('hotelId') hotelId: string, @ActiveUser('empresaId') e: string): Promise<any> {
+  ejecutar(
+    @Body('hotelId') hotelId: string,
+    @ActiveUser('empresaId') e: string,
+  ): Promise<any> {
     return this.svc.ejecutarManual(hotelId, e);
   }
 }

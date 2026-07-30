@@ -11,7 +11,14 @@ import { Cotizacion } from './cotizacion.entity';
 import { Proveedor } from '../../proveedores/entities/proveedor.entity';
 import { DetalleOrdenCompra } from './detalle-orden-compra.entity';
 
-export type EstadoOC = 'PENDIENTE' | 'ENVIADA' | 'RECIBIDA' | 'CON_INCIDENCIAS' | 'CANCELADA';
+export type EstadoOC =
+  | 'PENDIENTE'
+  | 'ENVIADA'
+  | 'RECIBIDA'
+  | 'CON_INCIDENCIAS'
+  | 'PARCIALMENTE_PAGADA'
+  | 'PAGADA'
+  | 'CANCELADA';
 
 @Entity('ordenes_compra')
 export class OrdenCompra {
@@ -38,12 +45,20 @@ export class OrdenCompra {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   total: number;
 
+  @Column({ type: 'decimal', precision: 18, scale: 4, default: 0 })
+  totalPagado: number;
+
+  @Column({ type: 'decimal', precision: 18, scale: 4, default: 0 })
+  saldoPendiente: number;
+
   @Column({ type: 'varchar', length: 20, default: 'PENDIENTE' })
   estado: EstadoOC;
 
   @CreateDateColumn()
   fechaCreacion: Date;
 
-  @OneToMany(() => DetalleOrdenCompra, (det) => det.ordenCompra, { cascade: true })
+  @OneToMany(() => DetalleOrdenCompra, (det) => det.ordenCompra, {
+    cascade: true,
+  })
   detalles: DetalleOrdenCompra[];
 }

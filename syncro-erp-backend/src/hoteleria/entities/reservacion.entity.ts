@@ -1,18 +1,23 @@
 // hoteleria/entities/reservacion.entity.ts
 import {
-  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
-  ManyToOne, JoinColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Hotel } from './hotel.entity';
 import { TipoHabitacion } from './tipo-habitacion.entity';
 import { Habitacion } from './habitacion.entity';
 
 export enum EstadoReservacion {
-  CONFIRMADA = 'CONFIRMADA',   // reservada, aún no llega
-  CHECK_IN   = 'CHECK_IN',     // huésped dentro
-  CHECK_OUT  = 'CHECK_OUT',    // ya salió, folio cerrado
-  CANCELADA  = 'CANCELADA',
-  NO_SHOW    = 'NO_SHOW',      // no se presentó
+  CONFIRMADA = 'CONFIRMADA', // reservada, aún no llega
+  CHECK_IN = 'CHECK_IN', // huésped dentro
+  CHECK_OUT = 'CHECK_OUT', // ya salió, folio cerrado
+  CANCELADA = 'CANCELADA',
+  NO_SHOW = 'NO_SHOW', // no se presentó
 }
 
 @Entity('reservaciones')

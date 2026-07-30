@@ -21,7 +21,9 @@ export class AsientosPendientesController {
   }
 
   @Get('resumen')
-  @ApiOperation({ summary: 'Conteo por estado; `requierenAtencion` es lo que hay que revisar' })
+  @ApiOperation({
+    summary: 'Conteo por estado; `requierenAtencion` es lo que hay que revisar',
+  })
   resumen(@ActiveUser('empresaId') empresaId: string) {
     return this.svc.resumen(empresaId);
   }
@@ -29,9 +31,13 @@ export class AsientosPendientesController {
   @Post(':id/reintentar')
   @ApiOperation({
     summary: 'Reintenta generar el asiento',
-    description: 'Úsalo después de corregir la configuración que causó la falla.',
+    description:
+      'Úsalo después de corregir la configuración que causó la falla.',
   })
-  reintentar(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+  reintentar(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.reintentarAhora(id, empresaId);
   }
 

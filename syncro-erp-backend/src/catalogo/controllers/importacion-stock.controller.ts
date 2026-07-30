@@ -1,6 +1,12 @@
 import {
-  Controller, Get, Post, Query, Res,
-  UploadedFile, UseInterceptors, BadRequestException,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
@@ -25,7 +31,11 @@ export class ImportacionStockController {
     private readonly importacion: ImportacionStockInicialService,
   ) {}
 
-  @Navegable('/dashboard/inventario/stock-inicial', 'Carga de Stock Inicial', 28)
+  @Navegable(
+    '/dashboard/inventario/stock-inicial',
+    'Carga de Stock Inicial',
+    28,
+  )
   @Get('plantilla')
   async descargarPlantilla(
     @ActiveUser('empresaId') empresaId: string,

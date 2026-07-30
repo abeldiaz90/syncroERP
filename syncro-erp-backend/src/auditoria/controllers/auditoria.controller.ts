@@ -30,7 +30,12 @@ export class AuditoriaController {
     @Query('porPagina') porPagina?: string,
   ) {
     return this.auditoria.consultar(empresaId, {
-      usuarioEmail, entidad, accion, registroId, desde, hasta,
+      usuarioEmail,
+      entidad,
+      accion,
+      registroId,
+      desde,
+      hasta,
       pagina: pagina ? parseInt(pagina, 10) : 1,
       porPagina: porPagina ? parseInt(porPagina, 10) : 50,
     });

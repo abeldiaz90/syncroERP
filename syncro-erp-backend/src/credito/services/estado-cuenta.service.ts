@@ -6,15 +6,15 @@ export class EstadoCuentaService {
   constructor(private readonly dataSource: DataSource) {}
 
   async obtenerEstadoCuenta(
-    clienteId:  string,
-    empresaId:  string,
+    clienteId: string,
+    empresaId: string,
     fechaDesde?: string,
     fechaHasta?: string,
   ) {
     // 1. Datos del cliente
     const [cliente] = await this.dataSource.query(
       `SELECT id, nombre, rfc, email, telefono FROM clientes WHERE id = @0 AND empresaId = @1`,
-      [clienteId, empresaId]
+      [clienteId, empresaId],
     );
     if (!cliente) throw new Error('Cliente no encontrado');
 
@@ -22,7 +22,8 @@ export class EstadoCuentaService {
     const hasta = fechaHasta ? new Date(fechaHasta + 'T23:59:59') : null;
 
     // 2. Ventas a crédito en el período
-    const ventasCredito = await this.dataSource.query(`
+    const ventasCredito = await this.dataSource.query(
+      `
       SELECT v.id, v.folio, v.fechaVenta, v.total, v.metodoPago
       FROM ventas v
       WHERE v.clienteId = @0 AND v.empresaId = @1
@@ -31,10 +32,18 @@ export class EstadoCuentaService {
         ${desde ? 'AND v.fechaVenta >= @2' : ''}
         ${hasta ? `AND v.fechaVenta <= @${desde ? 3 : 2}` : ''}
       ORDER BY v.fechaVenta ASC
-    `, [clienteId, empresaId, ...(desde ? [desde] : []), ...(hasta ? [hasta] : [])]);
+    `,
+      [
+        clienteId,
+        empresaId,
+        ...(desde ? [desde] : []),
+        ...(hasta ? [hasta] : []),
+      ],
+    );
 
     // 3. Pagos de cobranza en el período
-    const pagos = await this.dataSource.query(`
+    const pagos = await this.dataSource.query(
+      `
       SELECT pc.id, pc.fechaPago, pc.montoPagado, pc.metodoPago,
              cc.folio AS creditoFolio
       FROM pagos_cobranza pc
@@ -43,10 +52,18 @@ export class EstadoCuentaService {
         ${desde ? 'AND pc.fechaPago >= @2' : ''}
         ${hasta ? `AND pc.fechaPago <= @${desde ? 3 : 2}` : ''}
       ORDER BY pc.fechaPago ASC
-    `, [clienteId, empresaId, ...(desde ? [desde] : []), ...(hasta ? [hasta] : [])]);
+    `,
+      [
+        clienteId,
+        empresaId,
+        ...(desde ? [desde] : []),
+        ...(hasta ? [hasta] : []),
+      ],
+    );
 
     // 4. Saldo anterior (ventas crédito antes del período, menos pagos antes del período)
-    const [saldoAnt] = await this.dataSource.query(`
+    const [saldoAnt] = await this.dataSource.query(
+      `
       SELECT
         ISNULL((
           SELECT SUM(v2.total) FROM ventas v2
@@ -61,7 +78,9 @@ export class EstadoCuentaService {
           WHERE cc2.clienteId = @0 AND cc2.empresaId = @1
             ${desde ? 'AND pc2.fechaPago < @2' : ''}
         ), 0) AS saldoAnterior
-    `, [clienteId, empresaId, ...(desde ? [desde] : [])]);
+    `,
+      [clienteId, empresaId, ...(desde ? [desde] : [])],
+    );
 
     const saldoAnterior = Math.max(0, Number(saldoAnt?.saldoAnterior ?? 0));
 
@@ -71,22 +90,22 @@ export class EstadoCuentaService {
 
     const todos = [
       ...ventasCredito.map((v: any) => ({
-        fecha:       new Date(v.fechaVenta).toISOString().split('T')[0],
-        tipo:        'VENTA' as const,
-        folio:       `#${String(v.folio).padStart(5, '0')}`,
+        fecha: new Date(v.fechaVenta).toISOString().split('T')[0],
+        tipo: 'VENTA' as const,
+        folio: `#${String(v.folio).padStart(5, '0')}`,
         descripcion: `Venta a crédito — ${v.metodoPago}`,
-        cargo:       Number(v.total),
-        abono:       0,
-        _ts:         new Date(v.fechaVenta).getTime(),
+        cargo: Number(v.total),
+        abono: 0,
+        _ts: new Date(v.fechaVenta).getTime(),
       })),
       ...pagos.map((p: any) => ({
-        fecha:       new Date(p.fechaPago).toISOString().split('T')[0],
-        tipo:        'ABONO' as const,
-        folio:       p.creditoFolio,
+        fecha: new Date(p.fechaPago).toISOString().split('T')[0],
+        tipo: 'ABONO' as const,
+        folio: p.creditoFolio,
         descripcion: `Abono — ${p.metodoPago ?? 'EFECTIVO'}`,
-        cargo:       0,
-        abono:       Number(p.montoPagado),
-        _ts:         new Date(p.fechaPago).getTime(),
+        cargo: 0,
+        abono: Number(p.montoPagado),
+        _ts: new Date(p.fechaPago).getTime(),
       })),
     ].sort((a, b) => a._ts - b._ts);
 
@@ -100,11 +119,11 @@ export class EstadoCuentaService {
 
     return {
       cliente,
-      periodo:      { desde: fechaDesde ?? null, hasta: fechaHasta ?? null },
+      periodo: { desde: fechaDesde ?? null, hasta: fechaHasta ?? null },
       saldoAnterior,
-      totalCargos:  Math.round(totalCargos * 100) / 100,
-      totalAbonos:  Math.round(totalAbonos * 100) / 100,
-      saldoActual:  Math.round(saldoActual * 100) / 100,
+      totalCargos: Math.round(totalCargos * 100) / 100,
+      totalAbonos: Math.round(totalAbonos * 100) / 100,
+      saldoActual: Math.round(saldoActual * 100) / 100,
       movimientos,
     };
   }

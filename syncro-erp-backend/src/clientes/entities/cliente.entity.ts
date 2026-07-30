@@ -47,11 +47,17 @@ export class Cliente {
   @Column({ type: 'varchar', length: 100, nullable: true })
   estado?: string;
 
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  estadoId?: string | null;
+
   @Column({ type: 'varchar', length: 10, nullable: true })
   codigoPostal?: string;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   pais?: string;
+
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  paisId?: string | null;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   contactoNombre?: string;

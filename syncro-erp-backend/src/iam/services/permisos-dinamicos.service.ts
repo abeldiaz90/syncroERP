@@ -3,15 +3,24 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { ModulesContainer, Reflector } from '@nestjs/core';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
-import { NAVEGABLE_KEY, NavegableMeta } from '../decorators/navegable.decorator';
+import {
+  NAVEGABLE_KEY,
+  NavegableMeta,
+} from '../decorators/navegable.decorator';
 import { Controlador } from '../entities/controlador.entity';
 import { Endpoint } from '../entities/endpoint.entity';
 import { RolEndpointPermiso } from '../entities/rol-endpoint-permiso.entity';
 import { PLANTILLAS_PERMISOS } from '../data/plantillas-permisos';
 
 const METHOD_MAP: Record<number, string> = {
-  0: 'GET', 1: 'POST', 2: 'PUT', 3: 'PATCH',
-  4: 'DELETE', 5: 'ALL', 6: 'OPTIONS', 7: 'HEAD',
+  0: 'GET',
+  1: 'POST',
+  2: 'PUT',
+  3: 'PATCH',
+  4: 'DELETE',
+  5: 'ALL',
+  6: 'OPTIONS',
+  7: 'HEAD',
 };
 
 const ROLES_CON_BYPASS = new Set(['admin', 'SUPER_ADMIN']);
@@ -27,30 +36,174 @@ interface ModuloMeta {
 
 // Estos diccionarios actúan SOLO como valores por defecto iniciales
 const MODULOS_META: Record<string, ModuloMeta> = {
-  'ventas': { titulo: 'Ventas', icono: 'ShoppingBag', seccion: 'Operaciones', orden: 1, rutaFrontendBase: '/dashboard/ventas' },
-  'pos': { titulo: 'Punto de Venta', icono: 'ShoppingBag', seccion: 'Operaciones', orden: 2, rutaFrontendBase: '/dashboard/ventas/pos' },
-  'requisiciones': { titulo: 'Compras', icono: 'ShoppingCart', seccion: 'Operaciones', orden: 3, rutaFrontendBase: '/dashboard/compras' },
-  'cotizaciones': { titulo: 'Compras', icono: 'ShoppingCart', seccion: 'Operaciones', orden: 4, rutaFrontendBase: '/dashboard/compras' },
-  'ordenes': { titulo: 'Compras', icono: 'ShoppingCart', seccion: 'Operaciones', orden: 5, rutaFrontendBase: '/dashboard/compras' },
-  'aprobaciones': { titulo: 'Compras', icono: 'ShoppingCart', seccion: 'Operaciones', orden: 6, rutaFrontendBase: '/dashboard/compras' },
-  'clientes': { titulo: 'Clientes', icono: 'Users', seccion: 'Catálogos Core', orden: 10, rutaFrontendBase: '/dashboard/clientes' },
-  'proveedores': { titulo: 'Proveedores', icono: 'Truck', seccion: 'Catálogos Core', orden: 11, rutaFrontendBase: '/dashboard/proveedores' },
-  'productos': { titulo: 'Inventario', icono: 'Package', seccion: 'Catálogos Core', orden: 20, rutaFrontendBase: '/dashboard/productos' },
-  'catalogo': { titulo: 'Inventario', icono: 'Package', seccion: 'Catálogos Core', orden: 20, rutaFrontendBase: '/dashboard/productos' },
-  'categorias': { titulo: 'Inventario', icono: 'Package', seccion: 'Catálogos Core', orden: 21, rutaFrontendBase: '/dashboard/categorias' },
-  'marcas': { titulo: 'Inventario', icono: 'Package', seccion: 'Catálogos Core', orden: 22, rutaFrontendBase: '/dashboard/marcas' },
-  'almacenes': { titulo: 'Inventario', icono: 'Package', seccion: 'Catálogos Core', orden: 23, rutaFrontendBase: '/dashboard/almacenes' },
-  'inventario': { titulo: 'Inventario', icono: 'Package', seccion: 'Catálogos Core', orden: 24, rutaFrontendBase: '/dashboard/inventario' },
-  'recepciones': { titulo: 'Inventario', icono: 'Package', seccion: 'Catálogos Core', orden: 25, rutaFrontendBase: '/dashboard/inventario/recepciones' },
-  'impuestos': { titulo: 'Finanzas & Loc.', icono: 'CircleDollarSign', seccion: 'Sistema', orden: 30, rutaFrontendBase: '/dashboard/impuestos' },
-  'bancos': { titulo: 'Finanzas & Loc.', icono: 'CircleDollarSign', seccion: 'Sistema', orden: 31, rutaFrontendBase: '/dashboard/catalogos/bancos' },
-  'catalogos': { titulo: 'Finanzas & Loc.', icono: 'CircleDollarSign', seccion: 'Sistema', orden: 32, rutaFrontendBase: '/dashboard/catalogos' },
-  'listas-precio': { titulo: 'Finanzas & Loc.', icono: 'CircleDollarSign', seccion: 'Sistema', orden: 33, rutaFrontendBase: '/dashboard/listas-precio' },
-  'usuarios': { titulo: 'Administración', icono: 'Settings', seccion: 'Sistema', orden: 40, rutaFrontendBase: '/dashboard/usuarios' },
-  'departamentos': { titulo: 'Administración', icono: 'Settings', seccion: 'Sistema', orden: 41, rutaFrontendBase: '/dashboard/departamentos' },
-  'permisos': { titulo: 'Administración', icono: 'Settings', seccion: 'Sistema', orden: 42, rutaFrontendBase: '/dashboard/permisos' },
-  'admin': { titulo: 'Administración', icono: 'Settings', seccion: 'Sistema', orden: 43, rutaFrontendBase: '/dashboard/permisos' },
-  'configuraciones-aprobacion': { titulo: 'Administración', icono: 'Settings', seccion: 'Sistema', orden: 44, rutaFrontendBase: '/dashboard/configuraciones-aprobacion' },
+  ventas: {
+    titulo: 'Ventas',
+    icono: 'ShoppingBag',
+    seccion: 'Operaciones',
+    orden: 1,
+    rutaFrontendBase: '/dashboard/ventas',
+  },
+  pos: {
+    titulo: 'Punto de Venta',
+    icono: 'ShoppingBag',
+    seccion: 'Operaciones',
+    orden: 2,
+    rutaFrontendBase: '/dashboard/ventas/pos',
+  },
+  requisiciones: {
+    titulo: 'Compras',
+    icono: 'ShoppingCart',
+    seccion: 'Operaciones',
+    orden: 3,
+    rutaFrontendBase: '/dashboard/compras',
+  },
+  cotizaciones: {
+    titulo: 'Compras',
+    icono: 'ShoppingCart',
+    seccion: 'Operaciones',
+    orden: 4,
+    rutaFrontendBase: '/dashboard/compras',
+  },
+  ordenes: {
+    titulo: 'Compras',
+    icono: 'ShoppingCart',
+    seccion: 'Operaciones',
+    orden: 5,
+    rutaFrontendBase: '/dashboard/compras',
+  },
+  aprobaciones: {
+    titulo: 'Compras',
+    icono: 'ShoppingCart',
+    seccion: 'Operaciones',
+    orden: 6,
+    rutaFrontendBase: '/dashboard/compras',
+  },
+  clientes: {
+    titulo: 'Clientes',
+    icono: 'Users',
+    seccion: 'Catálogos Core',
+    orden: 10,
+    rutaFrontendBase: '/dashboard/clientes',
+  },
+  proveedores: {
+    titulo: 'Proveedores',
+    icono: 'Truck',
+    seccion: 'Catálogos Core',
+    orden: 11,
+    rutaFrontendBase: '/dashboard/proveedores',
+  },
+  productos: {
+    titulo: 'Inventario',
+    icono: 'Package',
+    seccion: 'Catálogos Core',
+    orden: 20,
+    rutaFrontendBase: '/dashboard/productos',
+  },
+  catalogo: {
+    titulo: 'Inventario',
+    icono: 'Package',
+    seccion: 'Catálogos Core',
+    orden: 20,
+    rutaFrontendBase: '/dashboard/productos',
+  },
+  categorias: {
+    titulo: 'Inventario',
+    icono: 'Package',
+    seccion: 'Catálogos Core',
+    orden: 21,
+    rutaFrontendBase: '/dashboard/categorias',
+  },
+  marcas: {
+    titulo: 'Inventario',
+    icono: 'Package',
+    seccion: 'Catálogos Core',
+    orden: 22,
+    rutaFrontendBase: '/dashboard/marcas',
+  },
+  almacenes: {
+    titulo: 'Inventario',
+    icono: 'Package',
+    seccion: 'Catálogos Core',
+    orden: 23,
+    rutaFrontendBase: '/dashboard/almacenes',
+  },
+  inventario: {
+    titulo: 'Inventario',
+    icono: 'Package',
+    seccion: 'Catálogos Core',
+    orden: 24,
+    rutaFrontendBase: '/dashboard/inventario',
+  },
+  recepciones: {
+    titulo: 'Inventario',
+    icono: 'Package',
+    seccion: 'Catálogos Core',
+    orden: 25,
+    rutaFrontendBase: '/dashboard/inventario/recepciones',
+  },
+  impuestos: {
+    titulo: 'Finanzas & Loc.',
+    icono: 'CircleDollarSign',
+    seccion: 'Sistema',
+    orden: 30,
+    rutaFrontendBase: '/dashboard/impuestos',
+  },
+  bancos: {
+    titulo: 'Finanzas & Loc.',
+    icono: 'CircleDollarSign',
+    seccion: 'Sistema',
+    orden: 31,
+    rutaFrontendBase: '/dashboard/catalogos/bancos',
+  },
+  catalogos: {
+    titulo: 'Finanzas & Loc.',
+    icono: 'CircleDollarSign',
+    seccion: 'Sistema',
+    orden: 32,
+    rutaFrontendBase: '/dashboard/catalogos',
+  },
+  'listas-precio': {
+    titulo: 'Finanzas & Loc.',
+    icono: 'CircleDollarSign',
+    seccion: 'Sistema',
+    orden: 33,
+    rutaFrontendBase: '/dashboard/listas-precio',
+  },
+  usuarios: {
+    titulo: 'Administración',
+    icono: 'Settings',
+    seccion: 'Sistema',
+    orden: 40,
+    rutaFrontendBase: '/dashboard/usuarios',
+  },
+  departamentos: {
+    titulo: 'Administración',
+    icono: 'Settings',
+    seccion: 'Sistema',
+    orden: 41,
+    rutaFrontendBase: '/dashboard/departamentos',
+  },
+  permisos: {
+    titulo: 'Administración',
+    icono: 'Settings',
+    seccion: 'Sistema',
+    orden: 42,
+    rutaFrontendBase: '/dashboard/permisos',
+  },
+  admin: {
+    titulo: 'Administración',
+    icono: 'Settings',
+    seccion: 'Sistema',
+    orden: 43,
+    rutaFrontendBase: '/dashboard/permisos',
+  },
+  'configuraciones-aprobacion': {
+    titulo: 'Administración',
+    icono: 'Settings',
+    seccion: 'Sistema',
+    orden: 44,
+    rutaFrontendBase: '/dashboard/configuraciones-aprobacion',
+  },
 };
 
 interface EndpointNavMeta {
@@ -61,54 +214,218 @@ interface EndpointNavMeta {
 
 const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
   // ── VENTAS ────────────────────────────────────────────────────────────────
-  'GET /ventas': { rutaFrontend: '/dashboard/ventas/historial', titulo: 'Historial de Ventas', ordenMenu: 1 },
-  'GET /ventas/dashboard/metricas': { rutaFrontend: '/dashboard/ventas/pos', titulo: 'Punto de Venta', ordenMenu: 2 },
+  'GET /ventas': {
+    rutaFrontend: '/dashboard/ventas/historial',
+    titulo: 'Historial de Ventas',
+    ordenMenu: 1,
+  },
+  'GET /ventas/dashboard/metricas': {
+    rutaFrontend: '/dashboard/ventas/pos',
+    titulo: 'Punto de Venta',
+    ordenMenu: 2,
+  },
   // ── COMPRAS ───────────────────────────────────────────────────────────────
-  'GET /compras/requisiciones': { rutaFrontend: '/dashboard/compras/requisiciones', titulo: 'Requisiciones', ordenMenu: 3 },
-  'GET /compras/ordenes': { rutaFrontend: '/dashboard/compras/ordenes', titulo: 'Ordenes de Compra', ordenMenu: 4 },
-  'GET /compras/requisiciones/aprobaciones/pendientes': { rutaFrontend: '/dashboard/compras/aprobaciones', titulo: 'Aprobaciones Pendientes', ordenMenu: 5 },
-  'GET /compras/ordenes/recepciones': { rutaFrontend: '/dashboard/inventario/recepciones', titulo: 'Recepciones', ordenMenu: 6 },
-  'PATCH /compras/ordenes/:id/pagar': { rutaFrontend: '/dashboard/compras/pago-proveedores', titulo: 'Pago a Proveedores', ordenMenu: 7 },
+  'GET /compras/requisiciones': {
+    rutaFrontend: '/dashboard/compras/requisiciones',
+    titulo: 'Requisiciones',
+    ordenMenu: 3,
+  },
+  'GET /compras/ordenes': {
+    rutaFrontend: '/dashboard/compras/ordenes',
+    titulo: 'Ordenes de Compra',
+    ordenMenu: 4,
+  },
+  'GET /compras/requisiciones/aprobaciones/pendientes': {
+    rutaFrontend: '/dashboard/compras/aprobaciones',
+    titulo: 'Aprobaciones Pendientes',
+    ordenMenu: 5,
+  },
+  'GET /compras/ordenes/recepciones': {
+    rutaFrontend: '/dashboard/inventario/recepciones',
+    titulo: 'Recepciones',
+    ordenMenu: 6,
+  },
+  'PATCH /compras/ordenes/:id/pagar': {
+    rutaFrontend: '/dashboard/compras/pago-proveedores',
+    titulo: 'Pago a Proveedores',
+    ordenMenu: 7,
+  },
   // ── CATÁLOGOS CORE ────────────────────────────────────────────────────────
-  'GET /clientes': { rutaFrontend: '/dashboard/clientes', titulo: 'Clientes', ordenMenu: 10 },
-  'GET /proveedores': { rutaFrontend: '/dashboard/proveedores', titulo: 'Proveedores', ordenMenu: 11 },
-  'GET /catalogo/productos': { rutaFrontend: '/dashboard/productos', titulo: 'Productos', ordenMenu: 20 },
-  'GET /catalogo/categorias': { rutaFrontend: '/dashboard/categorias', titulo: 'Categorías', ordenMenu: 21 },
-  'GET /catalogo/marcas': { rutaFrontend: '/dashboard/marcas', titulo: 'Marcas', ordenMenu: 22 },
-  'GET /catalogo/almacenes': { rutaFrontend: '/dashboard/almacenes', titulo: 'Almacenes', ordenMenu: 23 },
-  'POST /catalogo/inventario/productos/transferir': { rutaFrontend: '/dashboard/inventario/transferencias', titulo: 'Transferencias', ordenMenu: 24 },
-  'POST /catalogo/inventario/productos/ajuste': { rutaFrontend: '/dashboard/inventario/ajustes', titulo: 'Ajustes de Stock', ordenMenu: 25 },
-  'GET /catalogo/impuestos': { rutaFrontend: '/dashboard/impuestos', titulo: 'Impuestos', ordenMenu: 30 },
-  'GET /catalogo/listas-precio': { rutaFrontend: '/dashboard/listas-precio', titulo: 'Listas de Precio', ordenMenu: 31 },
-  'GET /catalogo/unidades-medida': { rutaFrontend: '/dashboard/unidades-medida', titulo: 'Unidades de Medida', ordenMenu: 26 },
+  'GET /clientes': {
+    rutaFrontend: '/dashboard/clientes',
+    titulo: 'Clientes',
+    ordenMenu: 10,
+  },
+  'GET /proveedores': {
+    rutaFrontend: '/dashboard/proveedores',
+    titulo: 'Proveedores',
+    ordenMenu: 11,
+  },
+  'GET /catalogo/productos': {
+    rutaFrontend: '/dashboard/productos',
+    titulo: 'Productos',
+    ordenMenu: 20,
+  },
+  'GET /catalogo/categorias': {
+    rutaFrontend: '/dashboard/categorias',
+    titulo: 'Categorías',
+    ordenMenu: 21,
+  },
+  'GET /catalogo/marcas': {
+    rutaFrontend: '/dashboard/marcas',
+    titulo: 'Marcas',
+    ordenMenu: 22,
+  },
+  'GET /catalogo/almacenes': {
+    rutaFrontend: '/dashboard/almacenes',
+    titulo: 'Almacenes',
+    ordenMenu: 23,
+  },
+  'POST /catalogo/inventario/productos/transferir': {
+    rutaFrontend: '/dashboard/inventario/transferencias',
+    titulo: 'Transferencias',
+    ordenMenu: 24,
+  },
+  'POST /catalogo/inventario/productos/ajuste': {
+    rutaFrontend: '/dashboard/inventario/ajustes',
+    titulo: 'Ajustes de Stock',
+    ordenMenu: 25,
+  },
+  'GET /catalogo/impuestos': {
+    rutaFrontend: '/dashboard/impuestos',
+    titulo: 'Impuestos',
+    ordenMenu: 30,
+  },
+  'GET /catalogo/listas-precio': {
+    rutaFrontend: '/dashboard/listas-precio',
+    titulo: 'Listas de Precio',
+    ordenMenu: 31,
+  },
+  'GET /catalogo/unidades-medida': {
+    rutaFrontend: '/dashboard/unidades-medida',
+    titulo: 'Unidades de Medida',
+    ordenMenu: 26,
+  },
   // ── CATÁLOGOS SISTEMA ─────────────────────────────────────────────────────
-  'GET /catalogos/bancos': { rutaFrontend: '/dashboard/catalogos/bancos', titulo: 'Bancos', ordenMenu: 32 },
-  'GET /catalogos/formas-pago': { rutaFrontend: '/dashboard/catalogos/formas-pago', titulo: 'Formas de Pago', ordenMenu: 33 },
-  'GET /catalogos/paises': { rutaFrontend: '/dashboard/catalogos/paises', titulo: 'Países', ordenMenu: 34 },
-  'GET /catalogos/estados': { rutaFrontend: '/dashboard/catalogos/estados', titulo: 'Estados', ordenMenu: 35 },
+  'GET /catalogos/bancos': {
+    rutaFrontend: '/dashboard/catalogos/bancos',
+    titulo: 'Bancos',
+    ordenMenu: 32,
+  },
+  'GET /catalogos/formas-pago': {
+    rutaFrontend: '/dashboard/catalogos/formas-pago',
+    titulo: 'Formas de Pago',
+    ordenMenu: 33,
+  },
+  'GET /catalogos/paises': {
+    rutaFrontend: '/dashboard/catalogos/paises',
+    titulo: 'Países',
+    ordenMenu: 34,
+  },
+  'GET /catalogos/estados': {
+    rutaFrontend: '/dashboard/catalogos/estados',
+    titulo: 'Estados',
+    ordenMenu: 35,
+  },
   // ── ADMINISTRACIÓN ────────────────────────────────────────────────────────
-  'GET /usuarios': { rutaFrontend: '/dashboard/usuarios', titulo: 'Usuarios', ordenMenu: 40 },
-  'GET /departamentos': { rutaFrontend: '/dashboard/departamentos', titulo: 'Departamentos', ordenMenu: 41 },
-  'GET /admin/permisos/arbol': { rutaFrontend: '/dashboard/permisos', titulo: 'Roles y Permisos', ordenMenu: 42 },
-  'GET /configuraciones-aprobacion/:id': { rutaFrontend: '/dashboard/configuraciones-aprobacion', titulo: 'Flujos de Aprobación', ordenMenu: 43 },
+  'GET /usuarios': {
+    rutaFrontend: '/dashboard/usuarios',
+    titulo: 'Usuarios',
+    ordenMenu: 40,
+  },
+  'GET /departamentos': {
+    rutaFrontend: '/dashboard/departamentos',
+    titulo: 'Departamentos',
+    ordenMenu: 41,
+  },
+  'GET /admin/permisos/arbol': {
+    rutaFrontend: '/dashboard/permisos',
+    titulo: 'Roles y Permisos',
+    ordenMenu: 42,
+  },
+  'GET /configuraciones-aprobacion/:id': {
+    rutaFrontend: '/dashboard/configuraciones-aprobacion',
+    titulo: 'Flujos de Aprobación',
+    ordenMenu: 43,
+  },
   // ── FINANZAS & CONTABILIDAD ───────────────────────────────────────────────
-  'GET /finanzas/cuentas-contables': { rutaFrontend: '/dashboard/finanzas/cuentas-contables', titulo: 'Catálogo de Cuentas', ordenMenu: 50 },
-  'GET /finanzas/polizas': { rutaFrontend: '/dashboard/finanzas/polizas', titulo: 'Libro Diario', ordenMenu: 51 },
-  'GET /finanzas/polizas/balanza': { rutaFrontend: '/dashboard/finanzas/balanza', titulo: 'Balanza de Comprobación', ordenMenu: 52 },
-  'GET /finanzas/polizas/resultado': { rutaFrontend: '/dashboard/finanzas/estado-resultados', titulo: 'Estado de Resultados', ordenMenu: 53 },
-  'GET /catalogo/categorias-contables': { rutaFrontend: '/dashboard/finanzas/categorias-contables', titulo: 'Categorías Contables', ordenMenu: 54 },
-  'GET /finanzas/polizas/balance': { rutaFrontend: '/dashboard/finanzas/balance-general', titulo: 'Balance General', ordenMenu: 55 },
-  'GET /finanzas/polizas/saldos-iniciales': { rutaFrontend: '/dashboard/finanzas/saldos-iniciales', titulo: 'Saldos Iniciales', ordenMenu: 58 },
-  'GET /finanzas/polizas/iva': { rutaFrontend: '/dashboard/finanzas/declaracion-iva', titulo: 'Declaración de IVA', ordenMenu: 56 },
+  'GET /finanzas/cuentas-contables': {
+    rutaFrontend: '/dashboard/finanzas/cuentas-contables',
+    titulo: 'Catálogo de Cuentas',
+    ordenMenu: 50,
+  },
+  'GET /finanzas/polizas': {
+    rutaFrontend: '/dashboard/finanzas/polizas',
+    titulo: 'Libro Diario',
+    ordenMenu: 51,
+  },
+  'GET /finanzas/polizas/balanza': {
+    rutaFrontend: '/dashboard/finanzas/balanza',
+    titulo: 'Balanza de Comprobación',
+    ordenMenu: 52,
+  },
+  'GET /finanzas/polizas/resultado': {
+    rutaFrontend: '/dashboard/finanzas/estado-resultados',
+    titulo: 'Estado de Resultados',
+    ordenMenu: 53,
+  },
+  'GET /catalogo/categorias-contables': {
+    rutaFrontend: '/dashboard/finanzas/categorias-contables',
+    titulo: 'Categorías Contables',
+    ordenMenu: 54,
+  },
+  'GET /finanzas/polizas/balance': {
+    rutaFrontend: '/dashboard/finanzas/balance-general',
+    titulo: 'Balance General',
+    ordenMenu: 55,
+  },
+  'GET /finanzas/polizas/saldos-iniciales': {
+    rutaFrontend: '/dashboard/finanzas/saldos-iniciales',
+    titulo: 'Saldos Iniciales',
+    ordenMenu: 58,
+  },
+  'GET /finanzas/polizas/iva': {
+    rutaFrontend: '/dashboard/finanzas/declaracion-iva',
+    titulo: 'Declaración de IVA',
+    ordenMenu: 56,
+  },
   // ── CRÉDITO Y COBRANZA ────────────────────────────────────────────────────
-  'GET /credito/cuentas-bancarias': { rutaFrontend: '/dashboard/creditos/cuentas-bancarias', titulo: 'Cuentas Bancarias', ordenMenu: 60 },
-  'GET /credito/creditos': { rutaFrontend: '/dashboard/creditos/creditos', titulo: 'Créditos', ordenMenu: 61 },
-  'GET /credito/creditos/cartera-vencida': { rutaFrontend: '/dashboard/creditos/cartera-vencida', titulo: 'Cartera Vencida', ordenMenu: 62 },
-  'GET /credito/cobranza/pagos/:creditoId': { rutaFrontend: '/dashboard/creditos/cobranza', titulo: 'Cobranza', ordenMenu: 63 },
+  'GET /credito/cuentas-bancarias': {
+    rutaFrontend: '/dashboard/creditos/cuentas-bancarias',
+    titulo: 'Cuentas Bancarias',
+    ordenMenu: 60,
+  },
+  'GET /credito/creditos': {
+    rutaFrontend: '/dashboard/creditos/creditos',
+    titulo: 'Créditos',
+    ordenMenu: 61,
+  },
+  'GET /credito/creditos/cartera-vencida': {
+    rutaFrontend: '/dashboard/creditos/cartera-vencida',
+    titulo: 'Cartera Vencida',
+    ordenMenu: 62,
+  },
+  'GET /credito/cobranza/pagos/:creditoId': {
+    rutaFrontend: '/dashboard/creditos/cobranza',
+    titulo: 'Cobranza',
+    ordenMenu: 63,
+  },
   // ── HOTELERIA────────────────────────────────────────────────────
-  'GET /hoteleria/housekeeping/rack':          { rutaFrontend: '/dashboard/hoteleria/rack',          titulo: 'Rack de Habitaciones', ordenMenu: 60 },
-  'GET /hoteleria/operacion/reservaciones':    { rutaFrontend: '/dashboard/hoteleria/reservaciones', titulo: 'Reservaciones',        ordenMenu: 61 },
-  'GET /hoteleria/housekeeping/tareas':        { rutaFrontend: '/dashboard/hoteleria/housekeeping',  titulo: 'Housekeeping',         ordenMenu: 62 },
+  'GET /hoteleria/housekeeping/rack': {
+    rutaFrontend: '/dashboard/hoteleria/rack',
+    titulo: 'Rack de Habitaciones',
+    ordenMenu: 60,
+  },
+  'GET /hoteleria/operacion/reservaciones': {
+    rutaFrontend: '/dashboard/hoteleria/reservaciones',
+    titulo: 'Reservaciones',
+    ordenMenu: 61,
+  },
+  'GET /hoteleria/housekeeping/tareas': {
+    rutaFrontend: '/dashboard/hoteleria/housekeeping',
+    titulo: 'Housekeeping',
+    ordenMenu: 62,
+  },
 };
 
 @Injectable()
@@ -117,13 +434,15 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
   private cache = new Map<string, boolean>();
 
   constructor(
-    @InjectRepository(Controlador) private controladorRepo: Repository<Controlador>,
+    @InjectRepository(Controlador)
+    private controladorRepo: Repository<Controlador>,
     @InjectRepository(Endpoint) private endpointRepo: Repository<Endpoint>,
-    @InjectRepository(RolEndpointPermiso) private permisoRepo: Repository<RolEndpointPermiso>,
+    @InjectRepository(RolEndpointPermiso)
+    private permisoRepo: Repository<RolEndpointPermiso>,
     private readonly modulesContainer: ModulesContainer,
     private readonly reflector: Reflector,
     private readonly dataSource: DataSource,
-  ) { }
+  ) {}
 
   async onApplicationBootstrap() {
     await this.sincronizarControladoresYEndpoints();
@@ -133,10 +452,18 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     this.logger.log('Sincronizando controladores y endpoints...');
     await this.limpiarMetodosNumericos();
 
-    const descubiertos = new Map<string, {
-      nombreModulo: string;
-      endpoints: Array<{ metodo: string; ruta: string; nombre: string; navDecorador?: NavegableMeta }>;
-    }>();
+    const descubiertos = new Map<
+      string,
+      {
+        nombreModulo: string;
+        endpoints: Array<{
+          metodo: string;
+          ruta: string;
+          nombre: string;
+          navDecorador?: NavegableMeta;
+        }>;
+      }
+    >();
 
     // 1. DESCUBRIMIENTO DE RUTAS...
     for (const [, modulo] of this.modulesContainer.entries()) {
@@ -145,44 +472,70 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
         if (!instance) continue;
 
         const metatype = wrapper.metatype;
-        const controladorPath: string = Reflect.getMetadata(PATH_METADATA, metatype) || '';
-        const rutaBase = ('/' + controladorPath).replace(/\/+/g, '/').replace(/\/$/, '') || '/';
+        const controladorPath: string =
+          Reflect.getMetadata(PATH_METADATA, metatype) || '';
+        const rutaBase =
+          ('/' + controladorPath).replace(/\/+/g, '/').replace(/\/$/, '') ||
+          '/';
 
         const partes = rutaBase.replace(/^\//, '').split('/');
-        const nombreModulo = partes.find(p => !PREFIJOS_SISTEMA.has(p) && !p.startsWith(':')) || 'general';
+        const nombreModulo =
+          partes.find((p) => !PREFIJOS_SISTEMA.has(p) && !p.startsWith(':')) ||
+          'general';
 
         if (!descubiertos.has(rutaBase)) {
           descubiertos.set(rutaBase, { nombreModulo, endpoints: [] });
         }
 
-        const entrada = descubiertos.get(rutaBase)!;
+        const entrada = descubiertos.get(rutaBase);
         const prototype = Object.getPrototypeOf(instance);
 
         for (const key of Object.getOwnPropertyNames(prototype)) {
           if (key === 'constructor') continue;
-          const metodoNum: number = Reflect.getMetadata(METHOD_METADATA, prototype[key]);
-          const rutaHandler: string = Reflect.getMetadata(PATH_METADATA, prototype[key]) || '';
+          const metodoNum: number = Reflect.getMetadata(
+            METHOD_METADATA,
+            prototype[key],
+          );
+          const rutaHandler: string =
+            Reflect.getMetadata(PATH_METADATA, prototype[key]) || '';
           if (metodoNum === undefined || metodoNum === null) continue;
 
           const metodoStr = METHOD_MAP[metodoNum];
           if (!metodoStr || metodoStr === 'ALL') continue;
 
-          const rutaCompleta = (rutaBase + '/' + rutaHandler).replace(/\/+/g, '/').replace(/\/$/, '') || '/';
+          const rutaCompleta =
+            (rutaBase + '/' + rutaHandler)
+              .replace(/\/+/g, '/')
+              .replace(/\/$/, '') || '/';
           const rutaNormalizada = rutaCompleta.replace(/\/:\w+/g, '/:id');
 
-          const yaExiste = entrada.endpoints.some(e => e.metodo === metodoStr && e.ruta === rutaNormalizada);
+          const yaExiste = entrada.endpoints.some(
+            (e) => e.metodo === metodoStr && e.ruta === rutaNormalizada,
+          );
           if (!yaExiste) {
-            entrada.endpoints.push({ metodo: metodoStr, ruta: rutaNormalizada, nombre: this.humanizar(key) });
+            entrada.endpoints.push({
+              metodo: metodoStr,
+              ruta: rutaNormalizada,
+              nombre: this.humanizar(key),
+            });
           }
         }
       }
     }
 
     // 2. AGRUPACIÓN POR MÓDULOS...
-    const porModulo = new Map<string, {
-      meta: ModuloMeta;
-      endpoints: Array<{ metodo: string; ruta: string; nombre: string; navDecorador?: NavegableMeta }>;
-    }>();
+    const porModulo = new Map<
+      string,
+      {
+        meta: ModuloMeta;
+        endpoints: Array<{
+          metodo: string;
+          ruta: string;
+          nombre: string;
+          navDecorador?: NavegableMeta;
+        }>;
+      }
+    >();
 
     for (const [, entrada] of descubiertos.entries()) {
       const { nombreModulo, endpoints } = entrada;
@@ -199,9 +552,11 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
         porModulo.set(nombreModulo, { meta, endpoints: [] });
       }
 
-      const mod = porModulo.get(nombreModulo)!;
+      const mod = porModulo.get(nombreModulo);
       for (const ep of endpoints) {
-        const yaExiste = mod.endpoints.some(e => e.metodo === ep.metodo && e.ruta === ep.ruta);
+        const yaExiste = mod.endpoints.some(
+          (e) => e.metodo === ep.metodo && e.ruta === ep.ruta,
+        );
         if (!yaExiste) mod.endpoints.push(ep);
       }
     }
@@ -210,7 +565,9 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     for (const [nombreModulo, { meta, endpoints }] of porModulo.entries()) {
       if (endpoints.length === 0) continue;
 
-      let ctrl = await this.controladorRepo.findOne({ where: { nombre: nombreModulo } });
+      let ctrl = await this.controladorRepo.findOne({
+        where: { nombre: nombreModulo },
+      });
 
       if (!ctrl) {
         ctrl = await this.controladorRepo.save(
@@ -222,14 +579,20 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
             seccion: meta.seccion,
             orden: meta.orden,
             activo: true,
-          })
+          }),
         );
       } else {
         // AUTO-SANADOR DE MÓDULOS: Si tienen el ícono/sección genérica por defecto, les inyectamos los correctos del diccionario.
         // PERO si tú ya los cambiaste manualmente en la BD, no los tocará.
         let actualizado = false;
-        if (ctrl.icono === 'Folder' && meta.icono !== 'Folder') { ctrl.icono = meta.icono; actualizado = true; }
-        if (ctrl.seccion === 'General' && meta.seccion !== 'General') { ctrl.seccion = meta.seccion; actualizado = true; }
+        if (ctrl.icono === 'Folder' && meta.icono !== 'Folder') {
+          ctrl.icono = meta.icono;
+          actualizado = true;
+        }
+        if (ctrl.seccion === 'General' && meta.seccion !== 'General') {
+          ctrl.seccion = meta.seccion;
+          actualizado = true;
+        }
         if (actualizado) await this.controladorRepo.save(ctrl);
       }
 
@@ -239,8 +602,11 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
         const navMeta = ep.navDecorador ?? ENDPOINTS_NAVEGABLES[claveNav];
 
         // 🧠 INFERENCIA INTELIGENTE: Si es método GET y no pide un ID específico, asumimos que es una Pantalla Principal
-        const esPosiblePantalla = ep.metodo === 'GET' && !ep.ruta.includes('/:id');
-        const rutaFrontInferida = esPosiblePantalla ? `/dashboard${ep.ruta}` : null;
+        const esPosiblePantalla =
+          ep.metodo === 'GET' && !ep.ruta.includes('/:id');
+        const rutaFrontInferida = esPosiblePantalla
+          ? `/dashboard${ep.ruta}`
+          : null;
 
         const existente = await this.endpointRepo.findOne({
           where: { metodo: ep.metodo, ruta: ep.ruta },
@@ -258,20 +624,27 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
               esNavegable: !!navMeta || esPosiblePantalla,
               ordenMenu: navMeta?.ordenMenu ?? 0,
               activo: true,
-            })
+            }),
           );
         } else {
           let actualizado = false;
 
           // 🛠️ AUTO-SANADOR DE ENDPOINTS: Si están NULL en la BD, los reparamos automáticamente para que aparezcan en el menú.
-          if (navMeta?.rutaFrontend && existente.rutaFrontend !== navMeta.rutaFrontend) {
+          if (
+            navMeta?.rutaFrontend &&
+            existente.rutaFrontend !== navMeta.rutaFrontend
+          ) {
             existente.rutaFrontend = navMeta?.rutaFrontend ?? rutaFrontInferida;
             existente.esNavegable = true;
             actualizado = true;
           }
 
           // Reparación de títulos (Solo si el nombre actual es el nombre técnico de código)
-          if (navMeta && existente.nombre === ep.nombre && navMeta.titulo !== ep.nombre) {
+          if (
+            navMeta &&
+            existente.nombre === ep.nombre &&
+            navMeta.titulo !== ep.nombre
+          ) {
             existente.nombre = navMeta.titulo;
             actualizado = true;
           }
@@ -290,11 +663,20 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
   }
 
   async obtenerArbolPermisos() {
-    const controladores = await this.controladorRepo.find({ where: { activo: true }, order: { orden: 'ASC' } });
-    const endpoints = await this.endpointRepo.find({ where: { activo: true }, relations: ['controlador'] });
+    const controladores = await this.controladorRepo.find({
+      where: { activo: true },
+      order: { orden: 'ASC' },
+    });
+    const endpoints = await this.endpointRepo.find({
+      where: { activo: true },
+      relations: ['controlador'],
+    });
     return controladores
-      .map(ctrl => ({ ...ctrl, endpoints: endpoints.filter(ep => ep.controladorId === ctrl.id) }))
-      .filter(ctrl => ctrl.endpoints.length > 0);
+      .map((ctrl) => ({
+        ...ctrl,
+        endpoints: endpoints.filter((ep) => ep.controladorId === ctrl.id),
+      }))
+      .filter((ctrl) => ctrl.endpoints.length > 0);
   }
 
   async obtenerMenuParaRol(rol: string, empresaId: string) {
@@ -308,16 +690,35 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
 
     if (esAdmin) return this.agruparEndpointsPorSeccion(endpointsNavegables);
 
-    const permisosBD = await this.permisoRepo.find({ where: { rol, empresaId, permitido: true } });
-    const idsPermitidos = new Set(permisosBD.map(p => p.endpointId));
-    return this.agruparEndpointsPorSeccion(endpointsNavegables.filter(ep => idsPermitidos.has(ep.id)));
+    const permisosBD = await this.permisoRepo.find({
+      where: { rol, empresaId, permitido: true },
+    });
+    const idsPermitidos = new Set(permisosBD.map((p) => p.endpointId));
+    return this.agruparEndpointsPorSeccion(
+      endpointsNavegables.filter((ep) => idsPermitidos.has(ep.id)),
+    );
   }
 
   private agruparEndpointsPorSeccion(endpoints: Endpoint[]) {
-    const secciones = new Map<string, {
-      seccion: string;
-      modulos: Map<string, { titulo: string; icono: string; orden: number; items: Array<{ titulo: string; rutaFrontend: string; ordenMenu: number }> }>;
-    }>();
+    const secciones = new Map<
+      string,
+      {
+        seccion: string;
+        modulos: Map<
+          string,
+          {
+            titulo: string;
+            icono: string;
+            orden: number;
+            items: Array<{
+              titulo: string;
+              rutaFrontend: string;
+              ordenMenu: number;
+            }>;
+          }
+        >;
+      }
+    >();
 
     for (const ep of endpoints) {
       if (!ep.rutaFrontend || !ep.controlador) continue;
@@ -326,29 +727,48 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       const moduloIcono = ep.controlador.icono || 'Folder';
       const moduloOrden = ep.controlador.orden ?? 99;
 
-      if (!secciones.has(seccion)) secciones.set(seccion, { seccion, modulos: new Map() });
-      const sec = secciones.get(seccion)!;
+      if (!secciones.has(seccion))
+        secciones.set(seccion, { seccion, modulos: new Map() });
+      const sec = secciones.get(seccion);
 
-      if (!sec.modulos.has(moduloTitulo)) sec.modulos.set(moduloTitulo, { titulo: moduloTitulo, icono: moduloIcono, orden: moduloOrden, items: [] });
-      const mod = sec.modulos.get(moduloTitulo)!;
+      if (!sec.modulos.has(moduloTitulo))
+        sec.modulos.set(moduloTitulo, {
+          titulo: moduloTitulo,
+          icono: moduloIcono,
+          orden: moduloOrden,
+          items: [],
+        });
+      const mod = sec.modulos.get(moduloTitulo);
 
-      if (!mod.items.some(i => i.rutaFrontend === ep.rutaFrontend)) {
-        mod.items.push({ titulo: ep.nombre, rutaFrontend: ep.rutaFrontend, ordenMenu: ep.ordenMenu });
+      if (!mod.items.some((i) => i.rutaFrontend === ep.rutaFrontend)) {
+        mod.items.push({
+          titulo: ep.nombre,
+          rutaFrontend: ep.rutaFrontend,
+          ordenMenu: ep.ordenMenu,
+        });
       }
     }
 
-    return Array.from(secciones.values()).map(sec => ({
+    return Array.from(secciones.values()).map((sec) => ({
       seccion: sec.seccion,
       modulos: Array.from(sec.modulos.values())
         .sort((a, b) => a.orden - b.orden)
-        .map(mod => ({ ...mod, items: mod.items.sort((a, b) => a.ordenMenu - b.ordenMenu) })),
+        .map((mod) => ({
+          ...mod,
+          items: mod.items.sort((a, b) => a.ordenMenu - b.ordenMenu),
+        })),
     }));
   }
 
   // ─────────────────────────────────────────────────────────────────
   // VALIDACION PRINCIPAL — con fix del prefijo /api
   // ─────────────────────────────────────────────────────────────────
-  async verificarPermiso(empresaId: string, rol: string, metodo: string, ruta: string): Promise<boolean> {
+  async verificarPermiso(
+    empresaId: string,
+    rol: string,
+    metodo: string,
+    ruta: string,
+  ): Promise<boolean> {
     if (ROLES_CON_BYPASS.has(rol)) return true;
 
     const metodoLimpio = metodo.toUpperCase();
@@ -363,10 +783,15 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       .replace(/\/:\w+/g, '/:id');
 
     const cacheKey = `${empresaId}:${rol}:${metodoLimpio}:${rutaLimpia}`;
-    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey)!;
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
 
-    const endpoint = await this.endpointRepo.findOne({ where: { metodo: metodoLimpio, ruta: rutaLimpia } });
-    if (!endpoint) { this.cache.set(cacheKey, false); return false; }
+    const endpoint = await this.endpointRepo.findOne({
+      where: { metodo: metodoLimpio, ruta: rutaLimpia },
+    });
+    if (!endpoint) {
+      this.cache.set(cacheKey, false);
+      return false;
+    }
 
     const permiso = await this.permisoRepo.findOne({
       where: { empresaId, rol, endpointId: endpoint.id, permitido: true },
@@ -377,27 +802,46 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     return tieneAcceso;
   }
 
-  async obtenerPermisosPorRolParaFrontend(rol: string, empresaId: string): Promise<Record<string, boolean>> {
+  async obtenerPermisosPorRolParaFrontend(
+    rol: string,
+    empresaId: string,
+  ): Promise<Record<string, boolean>> {
     if (ROLES_CON_BYPASS.has(rol)) return {};
-    const todosEndpoints = await this.endpointRepo.find({ where: { activo: true } });
-    const permisosBD = await this.permisoRepo.find({ where: { rol, empresaId } });
-    const permisosPorEndpointId = new Map(permisosBD.map(p => [p.endpointId, p.permitido]));
+    const todosEndpoints = await this.endpointRepo.find({
+      where: { activo: true },
+    });
+    const permisosBD = await this.permisoRepo.find({
+      where: { rol, empresaId },
+    });
+    const permisosPorEndpointId = new Map(
+      permisosBD.map((p) => [p.endpointId, p.permitido]),
+    );
     const resultado: Record<string, boolean> = {};
     for (const ep of todosEndpoints) {
-      resultado[`${ep.metodo} ${ep.ruta}`] = permisosPorEndpointId.get(ep.id) ?? false;
+      resultado[`${ep.metodo} ${ep.ruta}`] =
+        permisosPorEndpointId.get(ep.id) ?? false;
     }
     return resultado;
   }
 
-  async obtenerPermisosPorRol(rol: string, empresaId: string): Promise<Record<string, boolean>> {
-    const todosEndpoints = await this.endpointRepo.find({ where: { activo: true } });
+  async obtenerPermisosPorRol(
+    rol: string,
+    empresaId: string,
+  ): Promise<Record<string, boolean>> {
+    const todosEndpoints = await this.endpointRepo.find({
+      where: { activo: true },
+    });
     if (ROLES_CON_BYPASS.has(rol)) {
       const resultado: Record<string, boolean> = {};
       for (const ep of todosEndpoints) resultado[ep.id] = true;
       return resultado;
     }
-    const permisosBD = await this.permisoRepo.find({ where: { rol, empresaId } });
-    const permisosPorEndpointId = new Map(permisosBD.map(p => [p.endpointId, p.permitido]));
+    const permisosBD = await this.permisoRepo.find({
+      where: { rol, empresaId },
+    });
+    const permisosPorEndpointId = new Map(
+      permisosBD.map((p) => [p.endpointId, p.permitido]),
+    );
     const resultado: Record<string, boolean> = {};
     for (const ep of todosEndpoints) {
       resultado[ep.id] = permisosPorEndpointId.get(ep.id) ?? false;
@@ -405,16 +849,27 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     return resultado;
   }
 
-  async actualizarPermisos(rol: string, permisos: Record<string, boolean>, empresaId: string) {
+  async actualizarPermisos(
+    rol: string,
+    permisos: Record<string, boolean>,
+    empresaId: string,
+  ) {
     if (ROLES_CON_BYPASS.has(rol)) return;
-    const existentes = await this.permisoRepo.find({ where: { rol, empresaId } });
-    const existentesMap = new Map(existentes.map(e => [e.endpointId, e]));
+    const existentes = await this.permisoRepo.find({
+      where: { rol, empresaId },
+    });
+    const existentesMap = new Map(existentes.map((e) => [e.endpointId, e]));
     for (const [endpointId, permitido] of Object.entries(permisos)) {
       const entity = existentesMap.get(endpointId);
       if (entity) {
-        if (entity.permitido !== permitido) { entity.permitido = permitido; await this.permisoRepo.save(entity); }
+        if (entity.permitido !== permitido) {
+          entity.permitido = permitido;
+          await this.permisoRepo.save(entity);
+        }
       } else {
-        await this.permisoRepo.save(this.permisoRepo.create({ empresaId, rol, endpointId, permitido }));
+        await this.permisoRepo.save(
+          this.permisoRepo.create({ empresaId, rol, endpointId, permitido }),
+        );
       }
     }
     for (const key of this.cache.keys()) {
@@ -424,48 +879,84 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
 
   async obtenerRolesDisponibles(empresaId: string): Promise<string[]> {
     const resultados = await this.permisoRepo
-      .createQueryBuilder('p').select('DISTINCT p.rol', 'rol')
-      .where('p.empresaId = :empresaId', { empresaId }).getRawMany();
-    const rolesBd = resultados.map(r => r.rol as string);
-    return Array.from(new Set(['admin', 'empleado', 'comprador', 'almacenista', 'finanzas', ...rolesBd]));
+      .createQueryBuilder('p')
+      .select('DISTINCT p.rol', 'rol')
+      .where('p.empresaId = :empresaId', { empresaId })
+      .getRawMany();
+    const rolesBd = resultados.map((r) => r.rol as string);
+    return Array.from(
+      new Set([
+        'admin',
+        'empleado',
+        'comprador',
+        'almacenista',
+        'finanzas',
+        ...rolesBd,
+      ]),
+    );
   }
 
   private async limpiarMetodosNumericos() {
     const todos = await this.endpointRepo.find();
-    const sucios = todos.filter(ep => !isNaN(Number(ep.metodo)));
+    const sucios = todos.filter((ep) => !isNaN(Number(ep.metodo)));
     if (sucios.length === 0) return;
-    this.logger.warn(`Corrigiendo ${sucios.length} endpoints con metodo numerico...`);
+    this.logger.warn(
+      `Corrigiendo ${sucios.length} endpoints con metodo numerico...`,
+    );
     for (const ep of sucios) {
       const metodoStr = METHOD_MAP[Number(ep.metodo)];
       if (!metodoStr) continue;
-      const correcto = await this.endpointRepo.findOne({ where: { metodo: metodoStr, ruta: ep.ruta } });
+      const correcto = await this.endpointRepo.findOne({
+        where: { metodo: metodoStr, ruta: ep.ruta },
+      });
       if (correcto) {
-        const permisosSucios = await this.permisoRepo.find({ where: { endpointId: ep.id } });
+        const permisosSucios = await this.permisoRepo.find({
+          where: { endpointId: ep.id },
+        });
         for (const permiso of permisosSucios) {
           const existeEnCorrecto = await this.permisoRepo.findOne({
-            where: { empresaId: permiso.empresaId, rol: permiso.rol, endpointId: correcto.id },
+            where: {
+              empresaId: permiso.empresaId,
+              rol: permiso.rol,
+              endpointId: correcto.id,
+            },
           });
-          if (!existeEnCorrecto) { permiso.endpointId = correcto.id; await this.permisoRepo.save(permiso); }
-          else {
-            if (existeEnCorrecto.permitido !== permiso.permitido) { existeEnCorrecto.permitido = permiso.permitido; await this.permisoRepo.save(existeEnCorrecto); }
+          if (!existeEnCorrecto) {
+            permiso.endpointId = correcto.id;
+            await this.permisoRepo.save(permiso);
+          } else {
+            if (existeEnCorrecto.permitido !== permiso.permitido) {
+              existeEnCorrecto.permitido = permiso.permitido;
+              await this.permisoRepo.save(existeEnCorrecto);
+            }
             await this.permisoRepo.delete(permiso.id);
           }
         }
-        ep.metodo = metodoStr; ep.activo = false; await this.endpointRepo.save(ep);
+        ep.metodo = metodoStr;
+        ep.activo = false;
+        await this.endpointRepo.save(ep);
       } else {
-        ep.metodo = metodoStr; await this.endpointRepo.save(ep);
+        ep.metodo = metodoStr;
+        await this.endpointRepo.save(ep);
       }
     }
   }
 
   private humanizar(str: string): string {
-    return str.replace(/([A-Z])/g, ' $1').replace(/[-_]/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
+    return str
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/[-_]/g, ' ')
+      .trim()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // RUTAS PERMITIDAS — devuelve las rutaFrontend a las que tiene acceso el rol
   // ══════════════════════════════════════════════════════════════════════════
-  async obtenerRutasPermitidas(rol: string, empresaId: string): Promise<string[]> {
+  async obtenerRutasPermitidas(
+    rol: string,
+    empresaId: string,
+  ): Promise<string[]> {
     if (ROLES_CON_BYPASS.has(rol)) return ['*'];
 
     // SQL directo con nombres reales de columnas (snake_case en BD)
@@ -494,19 +985,22 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
 
     const rutasSet = new Set<string>(
       (rows as Array<{ ruta_frontend: string }>)
-        .map(r => r.ruta_frontend).filter(Boolean)
+        .map((r) => r.ruta_frontend)
+        .filter(Boolean),
     );
 
     // Completar con diccionario estático para endpoints sin ruta_frontend en BD
-    for (const ep of endpointsConPermiso as Array<{ metodo: string; ruta: string }>) {
+    for (const ep of endpointsConPermiso as Array<{
+      metodo: string;
+      ruta: string;
+    }>) {
       const clave = ep.metodo + ' ' + ep.ruta;
-      const nav = ENDPOINTS_NAVEGABLES[clave as keyof typeof ENDPOINTS_NAVEGABLES];
+      const nav = ENDPOINTS_NAVEGABLES[clave];
       if (nav?.rutaFrontend) rutasSet.add(nav.rutaFrontend);
     }
 
     return Array.from(rutasSet);
   }
-
 
   obtenerPlantillasDisponibles() {
     return PLANTILLAS_PERMISOS.map((p) => ({
@@ -522,7 +1016,11 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     modo: 'agregar' | 'reemplazar' = 'agregar',
   ) {
     if (ROLES_CON_BYPASS.has(rol)) {
-      return { ok: true, mensaje: 'El rol admin ya tiene acceso total.', activados: 0 };
+      return {
+        ok: true,
+        mensaje: 'El rol admin ya tiene acceso total.',
+        activados: 0,
+      };
     }
 
     const plantilla = PLANTILLAS_PERMISOS.find((p) => p.rol === rol);
@@ -535,7 +1033,9 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       };
     }
 
-    const todosEndpoints = await this.endpointRepo.find({ where: { activo: true } });
+    const todosEndpoints = await this.endpointRepo.find({
+      where: { activo: true },
+    });
 
     // Un endpoint aplica si su ruta empieza por alguno de los prefijos del rol
     const aplica = (ruta: string) =>
@@ -564,5 +1064,4 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       rol,
     };
   }
-  
 }

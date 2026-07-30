@@ -44,7 +44,7 @@ export class AuthService {
     private readonly dataSource: DataSource,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
-  ) { }
+  ) {}
 
   // ═══════════════════════════════════════════════════════════════════════
   // Helpers
@@ -69,7 +69,7 @@ export class AuthService {
   private generarToken(horasVigencia = 24) {
     const token = crypto.randomBytes(32).toString('hex');
     return {
-      token,                          // ← va en el correo
+      token, // ← va en el correo
       tokenHash: this.hashToken(token), // ← va en la BD
       expira: new Date(Date.now() + horasVigencia * 60 * 60 * 1000),
     };
@@ -195,7 +195,7 @@ export class AuthService {
         passwordHash,
         rol: 'admin',
         emailVerificado: false,
-        tokenVerificacion: tokenHash,   // solo el hash toca la BD
+        tokenVerificacion: tokenHash, // solo el hash toca la BD
         tokenExpira: expira,
       });
       await queryRunner.manager.save(nuevoUsuario);
@@ -267,9 +267,9 @@ export class AuthService {
       usuario.rol === 'admin'
         ? {}
         : await this.permisosService.obtenerPermisosPorRolParaFrontend(
-          usuario.rol,
-          empresaId,
-        );
+            usuario.rol,
+            empresaId,
+          );
 
     const payload = {
       sub: usuario.id,
@@ -499,7 +499,10 @@ export class AuthService {
     }
 
     // ── ¿Cuenta bloqueada por intentos fallidos? ──
-    if (usuario.bloqueadoHasta && new Date() < new Date(usuario.bloqueadoHasta)) {
+    if (
+      usuario.bloqueadoHasta &&
+      new Date() < new Date(usuario.bloqueadoHasta)
+    ) {
       const minutos = Math.ceil(
         (new Date(usuario.bloqueadoHasta).getTime() - Date.now()) / 60000,
       );
@@ -556,9 +559,9 @@ export class AuthService {
       usuario.rol === 'admin'
         ? {}
         : await this.permisosService.obtenerPermisosPorRolParaFrontend(
-          usuario.rol,
-          empresaId,
-        );
+            usuario.rol,
+            empresaId,
+          );
 
     const payload = {
       sub: usuario.id,

@@ -103,7 +103,11 @@ export class InventarioController {
     @Query('almacenId') almacenId: string,
     @ActiveUser('empresaId') empresaId: string,
   ) {
-    const cantidad = await this.inventarioService.obtenerStockEnAlmacen(productoId, almacenId, empresaId);
+    const cantidad = await this.inventarioService.obtenerStockEnAlmacen(
+      productoId,
+      almacenId,
+      empresaId,
+    );
     return { cantidad };
   }
 
@@ -113,6 +117,10 @@ export class InventarioController {
     @ActiveUser('empresaId') empresaId: string,
     @Query('almacenId') almacenId?: string,
   ) {
-    return this.inventarioService.obtenerLotesPorProducto(id, empresaId, almacenId);
+    return this.inventarioService.obtenerLotesPorProducto(
+      id,
+      empresaId,
+      almacenId,
+    );
   }
 }

@@ -1,7 +1,14 @@
 // hoteleria/dto/hoteleria.dtos.ts
 import {
-  IsString, IsNotEmpty, IsOptional, IsNumber, IsInt, Min, IsDateString,
-  ValidateNested, IsArray,
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+  IsInt,
+  Min,
+  IsDateString,
+  ValidateNested,
+  IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 

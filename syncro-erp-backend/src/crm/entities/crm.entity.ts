@@ -14,8 +14,15 @@
  */
 
 import {
-  Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne,
-  OneToMany, PrimaryGeneratedColumn, UpdateDateColumn,
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 export enum TipoEtapa {
@@ -115,7 +122,8 @@ export class Oportunidad {
 
   @Column({ type: 'varchar', length: 30 }) folio!: string;
   @Column({ type: 'varchar', length: 200 }) titulo!: string;
-  @Column({ type: 'varchar', length: 1000, nullable: true }) descripcion?: string;
+  @Column({ type: 'varchar', length: 1000, nullable: true })
+  descripcion?: string;
 
   @ManyToOne(() => Prospecto, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'prospectoId' })
@@ -124,14 +132,16 @@ export class Oportunidad {
 
   /** Alternativa al prospecto: oportunidad sobre un cliente que ya existe. */
   @Column({ type: 'uniqueidentifier', nullable: true }) clienteId?: string;
-  @Column({ type: 'varchar', length: 160, nullable: true }) nombreContacto?: string;
+  @Column({ type: 'varchar', length: 160, nullable: true })
+  nombreContacto?: string;
 
   @ManyToOne(() => EtapaEmbudo, { nullable: false, onDelete: 'NO ACTION' })
   @JoinColumn({ name: 'etapaId' })
   etapa!: EtapaEmbudo;
   @Column({ type: 'uniqueidentifier' }) etapaId!: string;
 
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) importe!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  importe!: number;
   @Column({ type: 'varchar', length: 3, default: 'MXN' }) moneda!: string;
 
   /** Se copia de la etapa al entrar, pero el vendedor puede ajustarla. */
@@ -141,12 +151,14 @@ export class Oportunidad {
   @Column({ type: 'date', nullable: true }) fechaCierreReal?: Date;
 
   @Column({ type: 'uniqueidentifier', nullable: true }) responsableId?: string;
-  @Column({ type: 'varchar', length: 160, nullable: true }) nombreResponsable?: string;
+  @Column({ type: 'varchar', length: 160, nullable: true })
+  nombreResponsable?: string;
 
   /** Fecha del último cambio de etapa: mide el estancamiento. */
   @Column({ type: 'datetime2', nullable: true }) fechaUltimoMovimiento?: Date;
 
-  @Column({ type: 'varchar', length: 400, nullable: true }) motivoPerdida?: string;
+  @Column({ type: 'varchar', length: 400, nullable: true })
+  motivoPerdida?: string;
   @Column({ type: 'varchar', length: 160, nullable: true }) competidor?: string;
 
   /** Documento generado si la oportunidad se ganó (cotización o venta). */
@@ -168,7 +180,10 @@ export class Actividad {
   @PrimaryGeneratedColumn('uuid') id!: string;
   @Column({ type: 'uniqueidentifier' }) empresaId!: string;
 
-  @ManyToOne(() => Oportunidad, (o) => o.actividades, { nullable: true, onDelete: 'CASCADE' })
+  @ManyToOne(() => Oportunidad, (o) => o.actividades, {
+    nullable: true,
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'oportunidadId' })
   oportunidad?: Oportunidad;
   @Column({ type: 'uniqueidentifier', nullable: true }) oportunidadId?: string;
@@ -205,8 +220,10 @@ export class HistorialEtapa {
   @Column({ type: 'uniqueidentifier' }) empresaId!: string;
   @Column({ type: 'uniqueidentifier' }) oportunidadId!: string;
 
-  @Column({ type: 'uniqueidentifier', nullable: true }) etapaAnteriorId?: string;
-  @Column({ type: 'varchar', length: 80, nullable: true }) nombreEtapaAnterior?: string;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  etapaAnteriorId?: string;
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  nombreEtapaAnterior?: string;
   @Column({ type: 'uniqueidentifier' }) etapaNuevaId!: string;
   @Column({ type: 'varchar', length: 80 }) nombreEtapaNueva!: string;
 

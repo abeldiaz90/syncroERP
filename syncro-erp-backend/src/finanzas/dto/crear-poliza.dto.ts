@@ -1,4 +1,13 @@
-import { IsString, IsEnum, IsDateString, IsArray, ValidateNested, IsNumber, Min, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsEnum,
+  IsDateString,
+  IsArray,
+  ValidateNested,
+  IsNumber,
+  Min,
+  IsOptional,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { TipoPoliza } from '../entities/poliza.entity';
 

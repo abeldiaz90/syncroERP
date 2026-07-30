@@ -26,24 +26,34 @@ import { FinanzasModule } from '../../finanzas/modules/finanzas.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      Hotel, TipoHabitacion, Habitacion, DotacionTipoHabitacion,
-      Reservacion, Folio, CargoFolio, TareaHousekeeping,
+      Hotel,
+      TipoHabitacion,
+      Habitacion,
+      DotacionTipoHabitacion,
+      Reservacion,
+      Folio,
+      CargoFolio,
+      TareaHousekeeping,
     ]),
-    CatalogoModule,   // InventarioService (descuento de insumos)
-    FinanzasModule,   // MotorContableService (póliza de hospedaje)
+    CatalogoModule, // InventarioService (descuento de insumos)
+    FinanzasModule, // MotorContableService (póliza de hospedaje)
   ],
   controllers: [
     ConfiguracionHotelController,
     OperacionHotelController,
     HousekeepingController,
-    AuditoriaNocturnaController,   // ← NUEVO
+    AuditoriaNocturnaController, // ← NUEVO
   ],
   providers: [
     ConfiguracionHotelService,
     OperacionHotelService,
     HousekeepingService,
-    AuditoriaNocturnaService,      // ← NUEVO
+    AuditoriaNocturnaService, // ← NUEVO
   ],
-  exports: [ConfiguracionHotelService, OperacionHotelService, HousekeepingService],
+  exports: [
+    ConfiguracionHotelService,
+    OperacionHotelService,
+    HousekeepingService,
+  ],
 })
 export class HoteleriaModule {}

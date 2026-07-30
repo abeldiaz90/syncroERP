@@ -1,4 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Empresa } from './empresa.entity';
 import { Departamento } from '../../departamentos/entities/departamento.entity';
 import { Exclude } from 'class-transformer'; // ✅ IMPORTANTE
@@ -27,7 +33,9 @@ export class Usuario {
   @Column({ type: 'bit', default: 1 })
   activo!: boolean;
 
-  @ManyToOne(() => Empresa, (empresa) => empresa.usuarios, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Empresa, (empresa) => empresa.usuarios, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'empresaId' })
   empresa!: Empresa;
 

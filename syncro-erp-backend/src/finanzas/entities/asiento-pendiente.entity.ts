@@ -1,5 +1,10 @@
 import {
-  Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn,
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 /**
@@ -41,11 +46,15 @@ export enum TipoAsiento {
   /** Reversión de una venta anulada. NO es una venta con signo contrario:
    *  genera su propia póliza espejo. */
   CANCELACION_VENTA = 'CANCELACION_VENTA',
+  /** Devolución parcial o total: revierte ingreso, IVA y costo sin borrar
+   *  las pólizas de la venta original. */
+  DEVOLUCION_VENTA = 'DEVOLUCION_VENTA',
   COMPRA = 'COMPRA',
   PAGO_PROVEEDOR = 'PAGO_PROVEEDOR',
   COBRANZA = 'COBRANZA',
   SALIDA_INVENTARIO = 'SALIDA_INVENTARIO',
   INVENTARIO_INICIAL = 'INVENTARIO_INICIAL',
+  HOSPEDAJE = 'HOSPEDAJE',
   NOMINA = 'NOMINA',
   DEPRECIACION = 'DEPRECIACION',
   TESORERIA = 'TESORERIA',
@@ -64,6 +73,11 @@ export enum EstadoAsiento {
 @Entity('asientos_pendientes')
 @Index(['empresaId', 'estado'])
 @Index(['empresaId', 'fechaCreacion'])
+@Index(
+  'UX_asientos_pendientes_empresa_tipo_documento',
+  ['empresaId', 'tipo', 'documentoId'],
+  { unique: true, where: 'documentoId IS NOT NULL' },
+)
 export class AsientoPendiente {
   @PrimaryGeneratedColumn('uuid') id!: string;
   @Column({ type: 'uniqueidentifier' }) empresaId!: string;
@@ -72,7 +86,8 @@ export class AsientoPendiente {
 
   /** Documento de origen: la venta, la orden de compra, el recibo. */
   @Column({ type: 'uniqueidentifier', nullable: true }) documentoId?: string;
-  @Column({ type: 'varchar', length: 40, nullable: true }) folioDocumento?: string;
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  folioDocumento?: string;
 
   /**
    * Los datos exactos con los que hay que generar el asiento, en JSON.
@@ -86,15 +101,21 @@ export class AsientoPendiente {
   estado!: EstadoAsiento;
 
   @Column({ type: 'int', default: 0 }) intentos!: number;
-  @Column({ type: 'varchar', length: 1000, nullable: true }) ultimoError?: string;
-  @Column({ type: 'datetime2', nullable: true }) fechaUltimoIntento?: Date;
-  @Column({ type: 'datetime2', nullable: true }) proximoIntento?: Date;
+  @Column({ type: 'varchar', length: 1000, nullable: true })
+  ultimoError!: string | null;
+  @Column({ type: 'datetime2', nullable: true })
+  fechaUltimoIntento!: Date | null;
+  @Column({ type: 'datetime2', nullable: true })
+  proximoIntento!: Date | null;
 
   /** Póliza creada al resolverse: cierra el círculo de auditoría. */
-  @Column({ type: 'uniqueidentifier', nullable: true }) polizaId?: string;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  polizaId!: string | null;
 
-  @Column({ type: 'uniqueidentifier', nullable: true }) resueltoPorId?: string;
-  @Column({ type: 'varchar', length: 500, nullable: true }) notaResolucion?: string;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  resueltoPorId!: string | null;
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  notaResolucion!: string | null;
 
   @CreateDateColumn() fechaCreacion!: Date;
   @UpdateDateColumn() fechaActualizacion!: Date;

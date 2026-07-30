@@ -1,6 +1,13 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn,
-  UpdateDateColumn, Unique, ManyToOne, JoinColumn, OneToMany
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Unique,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { Categoria } from './categoria.entity';
 import { StockPorAlmacen } from './stock-por-almacen.entity';
@@ -18,28 +25,28 @@ import { ProductoAtributo } from './producto-atributo.entity';
 
 /** Tipo de producto — define comportamiento en el sistema */
 export enum TipoProducto {
-  FISICO     = 'FISICO',      // Producto tangible con stock
-  SERVICIO   = 'SERVICIO',    // Servicio sin stock (honorarios, mano de obra)
-  CONSUMIBLE = 'CONSUMIBLE',  // Artículo de uso interno (papelería, limpieza)
-  KIT        = 'KIT',         // Paquete compuesto de varios productos
+  FISICO = 'FISICO', // Producto tangible con stock
+  SERVICIO = 'SERVICIO', // Servicio sin stock (honorarios, mano de obra)
+  CONSUMIBLE = 'CONSUMIBLE', // Artículo de uso interno (papelería, limpieza)
+  KIT = 'KIT', // Paquete compuesto de varios productos
   MATERIA_PRIMA = 'MATERIA_PRIMA', // Para manufactura
 }
 
 /** Condición de almacenamiento — crítico para alimentos y farmacia */
 export enum CondicionAlmacen {
-  AMBIENTE     = 'AMBIENTE',     // 15-25°C, condiciones normales
-  REFRIGERADO  = 'REFRIGERADO',  // 2-8°C (lácteos, carnes frías, medicamentos)
-  CONGELADO    = 'CONGELADO',    // -18°C o menos (carnes, helados)
-  CONTROLADO   = 'CONTROLADO',   // Temperatura y humedad específica
-  INFLAMABLE   = 'INFLAMABLE',   // Bodega especial (petroquímica, solventes)
+  AMBIENTE = 'AMBIENTE', // 15-25°C, condiciones normales
+  REFRIGERADO = 'REFRIGERADO', // 2-8°C (lácteos, carnes frías, medicamentos)
+  CONGELADO = 'CONGELADO', // -18°C o menos (carnes, helados)
+  CONTROLADO = 'CONTROLADO', // Temperatura y humedad específica
+  INFLAMABLE = 'INFLAMABLE', // Bodega especial (petroquímica, solventes)
 }
 
 /** Estrategia de costeo del inventario */
 export enum TipoCosto {
-  PROMEDIO   = 'PROMEDIO',    // Costo promedio ponderado (más común en México)
-  ESTANDAR   = 'ESTANDAR',   // Costo estándar fijo (manufactura)
-  FIFO       = 'FIFO',       // Primero en entrar, primero en salir
-  LIFO       = 'LIFO',       // Último en entrar, primero en salir
+  PROMEDIO = 'PROMEDIO', // Costo promedio ponderado (más común en México)
+  ESTANDAR = 'ESTANDAR', // Costo estándar fijo (manufactura)
+  FIFO = 'FIFO', // Primero en entrar, primero en salir
+  LIFO = 'LIFO', // Último en entrar, primero en salir
   ESPECIFICO = 'ESPECIFICO', // Identificación específica (artículos de alto valor)
 }
 
@@ -57,7 +64,6 @@ export enum MonedaCosto {
 @Entity('productos')
 @Unique(['empresaId', 'sku'])
 export class Producto {
-
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
@@ -264,10 +270,14 @@ export class Producto {
   @OneToMany(() => StockPorAlmacen, (stock) => stock.producto)
   stocksPorAlmacen!: StockPorAlmacen[];
 
-  @OneToMany(() => ImagenProducto, (imagen) => imagen.producto, { cascade: true })
+  @OneToMany(() => ImagenProducto, (imagen) => imagen.producto, {
+    cascade: true,
+  })
   imagenes!: ImagenProducto[];
 
-  @OneToMany(() => ProductoPrecio, (precio) => precio.producto, { cascade: true })
+  @OneToMany(() => ProductoPrecio, (precio) => precio.producto, {
+    cascade: true,
+  })
   preciosProducto!: ProductoPrecio[];
 
   @OneToMany(() => ProductoEquivalencia, (eq) => eq.producto, { cascade: true })

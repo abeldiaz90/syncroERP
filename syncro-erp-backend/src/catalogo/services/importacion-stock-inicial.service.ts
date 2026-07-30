@@ -69,7 +69,9 @@ export class ImportacionStockInicialService {
     const porSku = new Map(productos.map((p) => [p.sku.toLowerCase(), p]));
 
     const almacenes = await this.almacenRepo.find({ where: { empresaId } });
-    const porAlmacen = new Map(almacenes.map((a) => [a.nombre.toLowerCase(), a]));
+    const porAlmacen = new Map(
+      almacenes.map((a) => [a.nombre.toLowerCase(), a]),
+    );
 
     // ── validación fila por fila ──
     interface FilaValida {
@@ -105,19 +107,28 @@ export class ImportacionStockInicialService {
       const producto = porSku.get(sku.toLowerCase());
       if (!producto) {
         errores.push({
-          fila: nFila, sku, campo: 'sku',
+          fila: nFila,
+          sku,
+          campo: 'sku',
           mensaje: `SKU '${sku}' no existe. Carga primero el catálogo de productos.`,
         });
         return;
       }
       if (!nombreAlmacen) {
-        errores.push({ fila: nFila, sku, campo: 'almacen', mensaje: 'Almacén vacío' });
+        errores.push({
+          fila: nFila,
+          sku,
+          campo: 'almacen',
+          mensaje: 'Almacén vacío',
+        });
         return;
       }
       const almacen = porAlmacen.get(nombreAlmacen.toLowerCase());
       if (!almacen) {
         errores.push({
-          fila: nFila, sku, campo: 'almacen',
+          fila: nFila,
+          sku,
+          campo: 'almacen',
           mensaje: `Almacén '${nombreAlmacen}' no existe (revisa la hoja "Almacenes" de la plantilla)`,
         });
         return;
@@ -126,7 +137,9 @@ export class ImportacionStockInicialService {
       const cantidad = Number(f.cantidad);
       if (!Number.isFinite(cantidad) || cantidad <= 0) {
         errores.push({
-          fila: nFila, sku, campo: 'cantidad',
+          fila: nFila,
+          sku,
+          campo: 'cantidad',
           mensaje: `Cantidad inválida: '${f.cantidad}' (debe ser mayor a 0)`,
         });
         return;
@@ -138,15 +151,20 @@ export class ImportacionStockInicialService {
         costoUnitario = Number(producto.precioCompra ?? 0);
         if (costoUnitario > 0) {
           advertencias.push({
-            fila: nFila, sku, campo: 'costoUnitario',
+            fila: nFila,
+            sku,
+            campo: 'costoUnitario',
             mensaje: `Sin costo en el archivo; se usó el precio de compra del producto ($${costoUnitario})`,
           });
         }
       }
       if (!Number.isFinite(costoUnitario) || costoUnitario <= 0) {
         errores.push({
-          fila: nFila, sku, campo: 'costoUnitario',
-          mensaje: 'Sin costo válido: ni en el archivo ni en el precio de compra del producto. Inventario a costo $0 descuadra la contabilidad.',
+          fila: nFila,
+          sku,
+          campo: 'costoUnitario',
+          mensaje:
+            'Sin costo válido: ni en el archivo ni en el precio de compra del producto. Inventario a costo $0 descuadra la contabilidad.',
         });
         return;
       }
@@ -155,7 +173,9 @@ export class ImportacionStockInicialService {
       const cat = producto.categoria as any;
       if (!cat?.cuentaInventarioId) {
         errores.push({
-          fila: nFila, sku, campo: 'categoria',
+          fila: nFila,
+          sku,
+          campo: 'categoria',
           mensaje: `La categoría '${cat?.nombre ?? '(sin categoría)'}' no tiene cuenta de inventario asignada; asígnala en Categorías antes de cargar stock`,
         });
         return;
@@ -165,7 +185,9 @@ export class ImportacionStockInicialService {
       const clave = `${sku.toLowerCase()}|${almacen.id}`;
       if (vistos.has(clave)) {
         errores.push({
-          fila: nFila, sku, campo: 'sku',
+          fila: nFila,
+          sku,
+          campo: 'sku',
           mensaje: `Duplicado en el archivo: ya hay una fila para '${sku}' en '${almacen.nombre}'`,
         });
         return;
@@ -173,16 +195,26 @@ export class ImportacionStockInicialService {
       vistos.add(clave);
 
       // Caducidad: normalizar venga como venga desde Excel
-      const { fecha: caducidad, error: errCad } = this.normalizarCaducidad(f.caducidad);
+      const { fecha: caducidad, error: errCad } = this.normalizarCaducidad(
+        f.caducidad,
+      );
       if (errCad) {
         errores.push({ fila: nFila, sku, campo: 'caducidad', mensaje: errCad });
         return;
       }
 
       validas.push({
-        fila: nFila, producto, almacen, cantidad, costoUnitario,
-        lote: f.lote !== null && f.lote !== undefined && String(f.lote).trim() !== ''
-          ? String(f.lote).trim() : undefined,
+        fila: nFila,
+        producto,
+        almacen,
+        cantidad,
+        costoUnitario,
+        lote:
+          f.lote !== null &&
+          f.lote !== undefined &&
+          String(f.lote).trim() !== ''
+            ? String(f.lote).trim()
+            : undefined,
         caducidad,
       });
     });
@@ -254,7 +286,6 @@ export class ImportacionStockInicialService {
     return resultado;
   }
 
-
   // ───────────────────────────────────────────────────────────────
   /**
    * Normaliza la caducidad venga como venga desde Excel:
@@ -283,11 +314,15 @@ export class ImportacionStockInicialService {
     }
 
     if (!d || isNaN(d.getTime())) {
-      return { error: `Caducidad inválida: '${v}'. Usa formato AAAA-MM-DD (ej. 2027-08-15)` };
+      return {
+        error: `Caducidad inválida: '${v}'. Usa formato AAAA-MM-DD (ej. 2027-08-15)`,
+      };
     }
     const anio = d.getUTCFullYear();
     if (anio < 2000 || anio > 2100) {
-      return { error: `Caducidad fuera de rango (año ${anio}). Usa formato AAAA-MM-DD (ej. 2027-08-15)` };
+      return {
+        error: `Caducidad fuera de rango (año ${anio}). Usa formato AAAA-MM-DD (ej. 2027-08-15)`,
+      };
     }
     return { fecha: d.toISOString().slice(0, 10) };
   }

@@ -12,16 +12,16 @@ export interface UnidadEstandar {
 }
 
 export const UNIDADES_ESTANDAR: UnidadEstandar[] = [
-  { nombre: 'Pieza',       abreviatura: 'pza', claveSAT: 'H87' },
-  { nombre: 'Kilogramo',   abreviatura: 'kg',  claveSAT: 'KGM' },
-  { nombre: 'Gramo',       abreviatura: 'g',   claveSAT: 'GRM' },
-  { nombre: 'Litro',       abreviatura: 'L',   claveSAT: 'LTR' },
-  { nombre: 'Mililitro',   abreviatura: 'ml',  claveSAT: 'MLT' },
-  { nombre: 'Metro',       abreviatura: 'm',   claveSAT: 'MTR' },
-  { nombre: 'Centímetro',  abreviatura: 'cm',  claveSAT: 'CMT' },
-  { nombre: 'Caja',        abreviatura: 'caja',claveSAT: 'XBX' },
-  { nombre: 'Paquete',     abreviatura: 'paq', claveSAT: 'XPK' },
-  { nombre: 'Docena',      abreviatura: 'doc', claveSAT: 'DZN' },
-  { nombre: 'Par',         abreviatura: 'par', claveSAT: 'PR'  },
-  { nombre: 'Servicio',    abreviatura: 'serv',claveSAT: 'E48' },
+  { nombre: 'Pieza', abreviatura: 'pza', claveSAT: 'H87' },
+  { nombre: 'Kilogramo', abreviatura: 'kg', claveSAT: 'KGM' },
+  { nombre: 'Gramo', abreviatura: 'g', claveSAT: 'GRM' },
+  { nombre: 'Litro', abreviatura: 'L', claveSAT: 'LTR' },
+  { nombre: 'Mililitro', abreviatura: 'ml', claveSAT: 'MLT' },
+  { nombre: 'Metro', abreviatura: 'm', claveSAT: 'MTR' },
+  { nombre: 'Centímetro', abreviatura: 'cm', claveSAT: 'CMT' },
+  { nombre: 'Caja', abreviatura: 'caja', claveSAT: 'XBX' },
+  { nombre: 'Paquete', abreviatura: 'paq', claveSAT: 'XPK' },
+  { nombre: 'Docena', abreviatura: 'doc', claveSAT: 'DZN' },
+  { nombre: 'Par', abreviatura: 'par', claveSAT: 'PR' },
+  { nombre: 'Servicio', abreviatura: 'serv', claveSAT: 'E48' },
 ];

@@ -27,9 +27,9 @@ function polizaVigente(extra: Partial<any> = {}) {
     concepto: 'Ingresos — Ticket #101',
     estatus: 'VIGENTE',
     partidas: [
-      { id: 'p1', cuentaContableId: 'cta-caja',     cargo: 232, abono: 0 },
-      { id: 'p2', cuentaContableId: 'cta-ventas',   cargo: 0,   abono: 200 },
-      { id: 'p3', cuentaContableId: 'cta-iva-tras', cargo: 0,   abono: 32 },
+      { id: 'p1', cuentaContableId: 'cta-caja', cargo: 232, abono: 0 },
+      { id: 'p2', cuentaContableId: 'cta-ventas', cargo: 0, abono: 200 },
+      { id: 'p3', cuentaContableId: 'cta-iva-tras', cargo: 0, abono: 32 },
     ],
     ...extra,
   };
@@ -53,7 +53,8 @@ function crearArnes(opts?: {
     create: (_entidad: any, obj: any) => obj,
     save: jest.fn(async (a: any, b?: any) => {
       if (Array.isArray(b)) {
-        if (opts?.fallarGuardadoPartidas) throw new Error('fallo simulado al guardar partidas');
+        if (opts?.fallarGuardadoPartidas)
+          throw new Error('fallo simulado al guardar partidas');
         estado.partidas = b;
         return b;
       }
@@ -68,22 +69,33 @@ function crearArnes(opts?: {
 
   const dataSource: any = {
     query: jest.fn(async (sql: string, params: any[] = []) => {
+      if (sql.includes('sp_getapplock')) return [{ resultado: 0 }];
       if (sql.includes('cierres_contables')) {
         const clave = `${params[1]}/${params[2]}`;
-        return (opts?.periodosCerrados ?? []).includes(clave) ? [{ id: 'cierre-1' }] : [];
+        return (opts?.periodosCerrados ?? []).includes(clave)
+          ? [{ id: 'cierre-1' }]
+          : [];
       }
       if (sql.includes('SELECT TOP 1 folio')) return []; // primer folio del año
       return [];
     }),
     getRepository: jest.fn(() => ({
-      findOne: async () => (opts?.poliza === undefined ? polizaVigente() : opts.poliza),
+      findOne: async () =>
+        opts?.poliza === undefined ? polizaVigente() : opts.poliza,
     })),
     createQueryRunner: () => ({
       connect: jest.fn(),
       startTransaction: jest.fn(),
-      commitTransaction: jest.fn(async () => { estado.commits++; }),
-      rollbackTransaction: jest.fn(async () => { estado.rollbacks++; }),
+      commitTransaction: jest.fn(async () => {
+        estado.commits++;
+      }),
+      rollbackTransaction: jest.fn(async () => {
+        estado.rollbacks++;
+      }),
       release: jest.fn(),
+      query: jest.fn((sql: string, params: any[] = []) =>
+        dataSource.query(sql, params),
+      ),
       manager,
     }),
   };
@@ -113,14 +125,28 @@ describe('cancelarPoliza — la reversa', () => {
     await servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: MOTIVO });
 
     expect(estado.partidas).toHaveLength(3);
-    expect(cuadra(estado.partidas!)).toBe(true);
+    expect(cuadra(estado.partidas)).toBe(true);
 
     // La partida que cargaba 232 a caja, ahora la abona
-    expect(estado.partidas).toEqual(expect.arrayContaining([
-      expect.objectContaining({ cuentaContableId: 'cta-caja',     cargo: 0,   abono: 232 }),
-      expect.objectContaining({ cuentaContableId: 'cta-ventas',   cargo: 200, abono: 0 }),
-      expect.objectContaining({ cuentaContableId: 'cta-iva-tras', cargo: 32,  abono: 0 }),
-    ]));
+    expect(estado.partidas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          cuentaContableId: 'cta-caja',
+          cargo: 0,
+          abono: 232,
+        }),
+        expect.objectContaining({
+          cuentaContableId: 'cta-ventas',
+          cargo: 200,
+          abono: 0,
+        }),
+        expect.objectContaining({
+          cuentaContableId: 'cta-iva-tras',
+          cargo: 32,
+          abono: 0,
+        }),
+      ]),
+    );
   });
 
   it('hereda el tipo de la original y se identifica como REVERSA ligada a su origen', async () => {
@@ -137,24 +163,29 @@ describe('cancelarPoliza — la reversa', () => {
   it('cada partida de la reversa referencia el folio original', async () => {
     const { servicio, estado } = crearArnes();
     await servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: MOTIVO });
-    estado.partidas!.forEach((p) => expect(p.referencia).toBe('REV IN-2026-00001'));
+    estado.partidas.forEach((p) =>
+      expect(p.referencia).toBe('REV IN-2026-00001'),
+    );
   });
 
   it('marca la original como CANCELADA con referencia cruzada, motivo y usuario', async () => {
     const { servicio, estado } = crearArnes();
     await servicio.cancelarPoliza('emp-1', 'pol-1', {
-      motivo: MOTIVO, usuario: 'contador@empresa.com',
+      motivo: MOTIVO,
+      usuario: 'contador@empresa.com',
     });
 
     expect(estado.updates).toHaveLength(1);
     const { id, cambios } = estado.updates[0];
     expect(id).toBe('pol-1');
-    expect(cambios).toEqual(expect.objectContaining({
-      estatus: 'CANCELADA',
-      polizaReversaId: 'pol-reversa',
-      motivoCancelacion: MOTIVO,
-      canceladaPor: 'contador@empresa.com',
-    }));
+    expect(cambios).toEqual(
+      expect.objectContaining({
+        estatus: 'CANCELADA',
+        polizaReversaId: 'pol-reversa',
+        motivoCancelacion: MOTIVO,
+        canceladaPor: 'contador@empresa.com',
+      }),
+    );
     expect(cambios.fechaCancelacion).toBeInstanceOf(Date);
   });
 
@@ -171,8 +202,9 @@ describe('cancelarPoliza — la reversa', () => {
 describe('cancelarPoliza — candados', () => {
   it('exige motivo (rastro de auditoría)', async () => {
     const { servicio, estado } = crearArnes();
-    await expect(servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: '  ' }))
-      .rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: '  ' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(estado.reversa).toBeNull();
   });
 
@@ -180,8 +212,9 @@ describe('cancelarPoliza — candados', () => {
     const { servicio, estado } = crearArnes({
       poliza: polizaVigente({ estatus: 'CANCELADA' }),
     });
-    await expect(servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: 'Otro intento' }))
-      .rejects.toThrow(/ya fue cancelada/i);
+    await expect(
+      servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: 'Otro intento' }),
+    ).rejects.toThrow(/ya fue cancelada/i);
     expect(estado.reversa).toBeNull();
   });
 
@@ -189,35 +222,47 @@ describe('cancelarPoliza — candados', () => {
     const { servicio, estado } = crearArnes({
       poliza: polizaVigente({ estatus: 'REVERSA' }),
     });
-    await expect(servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: 'Cancelar la reversa' }))
-      .rejects.toThrow(/es una reversa/i);
+    await expect(
+      servicio.cancelarPoliza('emp-1', 'pol-1', {
+        motivo: 'Cancelar la reversa',
+      }),
+    ).rejects.toThrow(/es una reversa/i);
     expect(estado.reversa).toBeNull();
   });
 
   it('póliza inexistente → NotFound', async () => {
     const { servicio } = crearArnes({ poliza: null });
-    await expect(servicio.cancelarPoliza('emp-1', 'no-existe', { motivo: 'Cualquier motivo' }))
-      .rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      servicio.cancelarPoliza('emp-1', 'no-existe', {
+        motivo: 'Cualquier motivo',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('NO revierte una póliza descuadrada: avisa para revisarla', async () => {
     const { servicio, estado } = crearArnes({
       poliza: polizaVigente({
         partidas: [
-          { id: 'p1', cuentaContableId: 'cta-caja',   cargo: 100, abono: 0 },
-          { id: 'p2', cuentaContableId: 'cta-ventas', cargo: 0,   abono: 90 }, // ← descuadre
+          { id: 'p1', cuentaContableId: 'cta-caja', cargo: 100, abono: 0 },
+          { id: 'p2', cuentaContableId: 'cta-ventas', cargo: 0, abono: 90 }, // ← descuadre
         ],
       }),
     });
-    await expect(servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: 'Intento de reverso' }))
-      .rejects.toThrow(/descuadrada/i);
+    await expect(
+      servicio.cancelarPoliza('emp-1', 'pol-1', {
+        motivo: 'Intento de reverso',
+      }),
+    ).rejects.toThrow(/descuadrada/i);
     expect(estado.reversa).toBeNull();
   });
 
   it('póliza sin partidas → rechazada', async () => {
-    const { servicio } = crearArnes({ poliza: polizaVigente({ partidas: [] }) });
-    await expect(servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: 'Sin partidas' }))
-      .rejects.toBeInstanceOf(BadRequestException);
+    const { servicio } = crearArnes({
+      poliza: polizaVigente({ partidas: [] }),
+    });
+    await expect(
+      servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: 'Sin partidas' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 
@@ -237,7 +282,11 @@ describe('cancelarPoliza — períodos contables', () => {
     const hoy = new Date();
     // Póliza vieja (marzo) con su período cerrado; el período de hoy está abierto.
     const { servicio, estado } = crearArnes({
-      poliza: polizaVigente({ fecha: new Date('2026-03-15T00:00:00'), mes: 3, anio: 2026 }),
+      poliza: polizaVigente({
+        fecha: new Date('2026-03-15T00:00:00'),
+        mes: 3,
+        anio: 2026,
+      }),
       periodosCerrados: ['3/2026'],
     });
     await servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: MOTIVO });
@@ -251,26 +300,35 @@ describe('cancelarPoliza — períodos contables', () => {
     const hoy = new Date();
     const periodoHoy = `${hoy.getMonth() + 1}/${hoy.getFullYear()}`;
     const { servicio, estado } = crearArnes({
-      poliza: polizaVigente({ fecha: new Date('2026-03-15T00:00:00'), mes: 3, anio: 2026 }),
+      poliza: polizaVigente({
+        fecha: new Date('2026-03-15T00:00:00'),
+        mes: 3,
+        anio: 2026,
+      }),
       periodosCerrados: ['3/2026', periodoHoy],
     });
-    await expect(servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: MOTIVO }))
-      .rejects.toThrow(/cerrado/i);
+    await expect(
+      servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: MOTIVO }),
+    ).rejects.toThrow(/cerrado/i);
     expect(estado.reversa).toBeNull();
   });
 
   it('fecha de reverso indicada dentro de un período cerrado → rechazada', async () => {
     const { servicio, estado } = crearArnes({ periodosCerrados: ['3/2026'] });
-    await expect(servicio.cancelarPoliza('emp-1', 'pol-1', {
-      motivo: MOTIVO, fechaReverso: '2026-03-10',
-    })).rejects.toThrow(/cerrado/i);
+    await expect(
+      servicio.cancelarPoliza('emp-1', 'pol-1', {
+        motivo: MOTIVO,
+        fechaReverso: '2026-03-10',
+      }),
+    ).rejects.toThrow(/cerrado/i);
     expect(estado.reversa).toBeNull();
   });
 
   it('fecha de reverso indicada en período abierto → se respeta', async () => {
     const { servicio, estado } = crearArnes();
     await servicio.cancelarPoliza('emp-1', 'pol-1', {
-      motivo: MOTIVO, fechaReverso: '2026-09-30',
+      motivo: MOTIVO,
+      fechaReverso: '2026-09-30',
     });
     expect(estado.reversa.mes).toBe(9);
     expect(estado.reversa.anio).toBe(2026);
@@ -283,8 +341,9 @@ describe('cancelarPoliza — transacción', () => {
   it('si falla el guardado de partidas: rollback y la original NO queda marcada', async () => {
     const { servicio, estado } = crearArnes({ fallarGuardadoPartidas: true });
 
-    await expect(servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: 'Fallo simulado' }))
-      .rejects.toThrow();
+    await expect(
+      servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: 'Fallo simulado' }),
+    ).rejects.toThrow();
 
     expect(estado.rollbacks).toBe(1);
     expect(estado.commits).toBe(0);

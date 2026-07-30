@@ -3,6 +3,7 @@ import { RequisicionesService } from '../services/requisiciones.service';
 import { CrearRequisicionDto } from '../dto/crear-requisicion.dto';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { Navegable } from '../../iam/decorators/navegable.decorator';
+import { CambiarEstadoRequisicionDto } from '../dto/cambiar-estado-requisicion.dto';
 
 @Controller('compras/requisiciones')
 export class RequisicionesController {
@@ -12,7 +13,9 @@ export class RequisicionesController {
   @Get()
   async obtenerTodas(@ActiveUser() usuario: any) {
     return this.requisicionesService.obtenerTodas(
-      usuario.empresaId, usuario.id, usuario.rol,
+      usuario.empresaId,
+      usuario.id,
+      usuario.rol,
     );
   }
 
@@ -42,10 +45,14 @@ export class RequisicionesController {
   @Patch(':id/estado')
   async cambiarEstado(
     @Param('id') id: string,
-    @Body('estado') estado: string,
+    @Body() dto: CambiarEstadoRequisicionDto,
     @ActiveUser('empresaId') empresaId: string,
   ) {
-    return this.requisicionesService.cambiarEstado(id, empresaId, estado);
+    return this.requisicionesService.cambiarEstado(
+      id,
+      empresaId,
+      dto.estado,
+    );
   }
 
   // ── NUEVO: cancelar requisición ──────────────────────────────────────────
@@ -64,6 +71,11 @@ export class RequisicionesController {
     @Body('comentario') comentario: string,
     @ActiveUser('empresaId') empresaId: string,
   ) {
-    return this.requisicionesService.resolverAprobacion(id, estado, comentario, empresaId);
+    return this.requisicionesService.resolverAprobacion(
+      id,
+      estado,
+      comentario,
+      empresaId,
+    );
   }
 }

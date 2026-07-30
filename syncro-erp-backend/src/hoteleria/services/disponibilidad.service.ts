@@ -1,5 +1,8 @@
 import {
-  BadRequestException, ConflictException, Injectable, Logger,
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
@@ -71,9 +74,12 @@ export class DisponibilidadService {
   private readonly logger = new Logger(DisponibilidadService.name);
 
   constructor(
-    @InjectRepository(Reservacion) private readonly resRepo: Repository<Reservacion>,
-    @InjectRepository(Habitacion) private readonly habRepo: Repository<Habitacion>,
-    @InjectRepository(TipoHabitacion) private readonly tipoRepo: Repository<TipoHabitacion>,
+    @InjectRepository(Reservacion)
+    private readonly resRepo: Repository<Reservacion>,
+    @InjectRepository(Habitacion)
+    private readonly habRepo: Repository<Habitacion>,
+    @InjectRepository(TipoHabitacion)
+    private readonly tipoRepo: Repository<TipoHabitacion>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -96,7 +102,9 @@ export class DisponibilidadService {
       throw new BadRequestException('Las fechas no son válidas.');
     }
     if (salida <= entrada) {
-      throw new BadRequestException('La fecha de salida debe ser posterior a la de entrada.');
+      throw new BadRequestException(
+        'La fecha de salida debe ser posterior a la de entrada.',
+      );
     }
 
     const tipos = await this.tipoRepo.find({
@@ -107,9 +115,15 @@ export class DisponibilidadService {
     const resultado: DisponibilidadTipo[] = [];
 
     for (const tipo of tipos) {
-      const { total, fueraDeServicio } = await this.contarHabitaciones(tipo.id, empresaId);
+      const { total, fueraDeServicio } = await this.contarHabitaciones(
+        tipo.id,
+        empresaId,
+      );
       const comprometidas = await this.contarComprometidas(
-        tipo.id, entrada, salida, empresaId,
+        tipo.id,
+        entrada,
+        salida,
+        empresaId,
       );
 
       const capacidadUtil = total - fueraDeServicio;
@@ -127,12 +141,17 @@ export class DisponibilidadService {
       });
     }
 
-    const noches = Math.round((salida.getTime() - entrada.getTime()) / 86_400_000);
+    const noches = Math.round(
+      (salida.getTime() - entrada.getTime()) / 86_400_000,
+    );
 
     return { fechaEntrada, fechaSalida, noches, tipos: resultado };
   }
 
-  private async contarHabitaciones(tipoHabitacionId: string, empresaId: string) {
+  private async contarHabitaciones(
+    tipoHabitacionId: string,
+    empresaId: string,
+  ) {
     const habitaciones = await this.habRepo.find({
       where: { tipoHabitacionId, empresaId },
     });
@@ -141,8 +160,9 @@ export class DisponibilidadService {
       total: habitaciones.length,
       // Mantenimiento y bloqueadas no se pueden vender.
       fueraDeServicio: habitaciones.filter(
-        (h) => h.estado === EstadoHabitacion.MANTENIMIENTO ||
-               h.estado === EstadoHabitacion.BLOQUEADA,
+        (h) =>
+          h.estado === EstadoHabitacion.MANTENIMIENTO ||
+          h.estado === EstadoHabitacion.BLOQUEADA,
       ).length,
     };
   }
@@ -163,10 +183,13 @@ export class DisponibilidadService {
   ): Promise<number> {
     const repo = manager ? manager.getRepository(Reservacion) : this.resRepo;
 
-    const q = repo.createQueryBuilder('r')
+    const q = repo
+      .createQueryBuilder('r')
       .where('r.empresaId = :empresaId', { empresaId })
       .andWhere('r.tipoHabitacionId = :tipoHabitacionId', { tipoHabitacionId })
-      .andWhere('r.estado IN (:...estados)', { estados: ESTADOS_QUE_COMPROMETEN })
+      .andWhere('r.estado IN (:...estados)', {
+        estados: ESTADOS_QUE_COMPROMETEN,
+      })
       .andWhere('r.fechaEntrada < :salida', { salida })
       .andWhere('r.fechaSalida > :entrada', { entrada });
 
@@ -199,7 +222,8 @@ export class DisponibilidadService {
     manager: EntityManager,
   ): Promise<{ disponibles: number; sobreventa: boolean }> {
     // Bloquea las habitaciones del tipo mientras se decide.
-    const habitaciones = await manager.createQueryBuilder(Habitacion, 'h')
+    const habitaciones = await manager
+      .createQueryBuilder(Habitacion, 'h')
       .setLock('pessimistic_read')
       .where('h.tipoHabitacionId = :tipo', { tipo: datos.tipoHabitacionId })
       .andWhere('h.empresaId = :empresaId', { empresaId })
@@ -212,8 +236,9 @@ export class DisponibilidadService {
     }
 
     const fueraDeServicio = habitaciones.filter(
-      (h) => h.estado === EstadoHabitacion.MANTENIMIENTO ||
-             h.estado === EstadoHabitacion.BLOQUEADA,
+      (h) =>
+        h.estado === EstadoHabitacion.MANTENIMIENTO ||
+        h.estado === EstadoHabitacion.BLOQUEADA,
     ).length;
 
     const capacidadUtil = habitaciones.length - fueraDeServicio;
@@ -242,8 +267,11 @@ export class DisponibilidadService {
 
       throw new ConflictException(
         `No hay disponibilidad de ${tipo?.nombre ?? 'ese tipo de habitación'} ` +
-        `para esas fechas. Capacidad ${capacidadUtil}, ya comprometidas ${comprometidas}` +
-        (fueraDeServicio > 0 ? `, ${fueraDeServicio} fuera de servicio` : '') + '.',
+          `para esas fechas. Capacidad ${capacidadUtil}, ya comprometidas ${comprometidas}` +
+          (fueraDeServicio > 0
+            ? `, ${fueraDeServicio} fuera de servicio`
+            : '') +
+          '.',
       );
     }
 
@@ -255,14 +283,14 @@ export class DisponibilidadService {
     if (excedente >= topeSobreventa) {
       throw new ConflictException(
         `Se alcanzó el límite de sobreventa (${porcentaje}% sobre ${capacidadUtil} ` +
-        `habitaciones = ${topeSobreventa} plazas). Ya hay ${excedente} reservaciones ` +
-        `por encima de la capacidad.`,
+          `habitaciones = ${topeSobreventa} plazas). Ya hay ${excedente} reservaciones ` +
+          `por encima de la capacidad.`,
       );
     }
 
     this.logger.warn(
       `Sobreventa autorizada: tipo ${datos.tipoHabitacionId}, ` +
-      `${excedente + 1} sobre la capacidad de ${capacidadUtil}.`,
+        `${excedente + 1} sobre la capacidad de ${capacidadUtil}.`,
     );
 
     return { disponibles: 0, sobreventa: true };
@@ -287,7 +315,8 @@ export class DisponibilidadService {
       throw new BadRequestException('El rango de fechas es inválido.');
     }
 
-    const dias = Math.round((fin.getTime() - inicio.getTime()) / 86_400_000) + 1;
+    const dias =
+      Math.round((fin.getTime() - inicio.getTime()) / 86_400_000) + 1;
     if (dias > 120) {
       throw new BadRequestException('El rango no puede exceder 120 días.');
     }
@@ -297,16 +326,22 @@ export class DisponibilidadService {
     });
     const capacidad = habitaciones.length;
 
-    const reservas = await this.resRepo.createQueryBuilder('r')
+    const reservas = await this.resRepo
+      .createQueryBuilder('r')
       .where('r.empresaId = :empresaId', { empresaId })
-      .andWhere('r.estado IN (:...estados)', { estados: ESTADOS_QUE_COMPROMETEN })
+      .andWhere('r.estado IN (:...estados)', {
+        estados: ESTADOS_QUE_COMPROMETEN,
+      })
       .andWhere('r.fechaEntrada <= :fin', { fin })
       .andWhere('r.fechaSalida > :inicio', { inicio })
       .getMany();
 
     const serie: Array<{
-      fecha: string; ocupadas: number; disponibles: number;
-      porcentaje: number; ingresoEstimado: number;
+      fecha: string;
+      ocupadas: number;
+      disponibles: number;
+      porcentaje: number;
+      ingresoEstimado: number;
     }> = [];
 
     for (let i = 0; i < dias; i++) {
@@ -319,19 +354,25 @@ export class DisponibilidadService {
       });
 
       const ocupadas = delDia.length;
-      const ingreso = delDia.reduce((s, r) => s + Number(r.tarifaNoche ?? 0), 0);
+      const ingreso = delDia.reduce(
+        (s, r) => s + Number(r.tarifaNoche ?? 0),
+        0,
+      );
 
       serie.push({
         fecha: dia.toISOString().slice(0, 10),
         ocupadas,
         disponibles: Math.max(0, capacidad - ocupadas),
-        porcentaje: capacidad > 0 ? Math.round((ocupadas / capacidad) * 1000) / 10 : 0,
+        porcentaje:
+          capacidad > 0 ? Math.round((ocupadas / capacidad) * 1000) / 10 : 0,
         ingresoEstimado: Math.round(ingreso * 100) / 100,
       });
     }
 
     const ocupacionPromedio = serie.length
-      ? Math.round((serie.reduce((s, d) => s + d.porcentaje, 0) / serie.length) * 10) / 10
+      ? Math.round(
+          (serie.reduce((s, d) => s + d.porcentaje, 0) / serie.length) * 10,
+        ) / 10
       : 0;
 
     // Tarifa media diaria: el indicador estándar de la industria.
@@ -343,13 +384,15 @@ export class DisponibilidadService {
       ocupacionPromedio,
       nochesVendidas,
       ingresoTotal: Math.round(ingresoTotal * 100) / 100,
-      tarifaMediaDiaria: nochesVendidas > 0
-        ? Math.round((ingresoTotal / nochesVendidas) * 100) / 100
-        : 0,
+      tarifaMediaDiaria:
+        nochesVendidas > 0
+          ? Math.round((ingresoTotal / nochesVendidas) * 100) / 100
+          : 0,
       /** RevPAR: ingreso por habitación disponible, ocupada o no. */
-      revpar: capacidad > 0 && serie.length > 0
-        ? Math.round((ingresoTotal / (capacidad * serie.length)) * 100) / 100
-        : 0,
+      revpar:
+        capacidad > 0 && serie.length > 0
+          ? Math.round((ingresoTotal / (capacidad * serie.length)) * 100) / 100
+          : 0,
       serie,
     };
   }

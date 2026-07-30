@@ -1,186 +1,646 @@
-// app/configuracion-inicial/page.tsx
 "use client";
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  Landmark, Sparkles, SlidersHorizontal, Check, Loader2,
-  ArrowRight, ShieldCheck, X, BookOpen,
-} from 'lucide-react';
+  ArrowLeft,
+  ArrowRight,
+  BadgeCheck,
+  BookOpen,
+  Building2,
+  Check,
+  CircleAlert,
+  FileCheck2,
+  Loader2,
+  MapPin,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 
-// Las 7 cuentas que se precargan — solo para mostrarlas al usuario
-const CUENTAS_PREVIEW = [
-  { num: '110-01', nombre: 'Caja General',            tipo: 'ACTIVO'  },
-  { num: '130-01', nombre: 'Inventario de Mercancías', tipo: 'ACTIVO'  },
-  { num: '210-01', nombre: 'Proveedores',             tipo: 'PASIVO'  },
-  { num: '208-01', nombre: 'IVA Trasladado',          tipo: 'PASIVO'  },
-  { num: '401-01', nombre: 'Ventas Nacionales',       tipo: 'INGRESO' },
-  { num: '501-01', nombre: 'Costo de Ventas',         tipo: 'COSTO'   },
-  { num: '601-01', nombre: 'Mermas y Pérdidas',       tipo: 'GASTO'   },
-];
-
-const TIPO_COLOR: Record<string, string> = {
-  ACTIVO:  'bg-blue-50 text-blue-700',
-  PASIVO:  'bg-amber-50 text-amber-700',
-  INGRESO: 'bg-emerald-50 text-emerald-700',
-  COSTO:   'bg-purple-50 text-purple-700',
-  GASTO:   'bg-rose-50 text-rose-700',
+type TipoPersona = "FISICA" | "MORAL";
+type Perfil = "GENERAL" | "MIXTO" | "EXENTO" | "FRONTERA";
+type Regimen = {
+  clave: string;
+  nombre: string;
+  personas: TipoPersona[];
 };
+type PerfilInfo = {
+  clave: Perfil;
+  nombre: string;
+  descripcion: string;
+  advertencia?: string;
+};
+type Catalogos = {
+  versionCFDI: string;
+  ejercicioReferencia: number;
+  regimenes: Regimen[];
+  perfilesImpuestos: PerfilInfo[];
+  aviso: string;
+  fuentes: { nombre: string; url: string }[];
+};
+
+const PASOS = ["Identidad fiscal", "Impuestos", "Revisión", "Resultado"];
+
+const CUENTAS = [
+  ["110-01", "Caja", "101.01"],
+  ["111-01", "Bancos", "102.01"],
+  ["116-01", "IVA acreditable", "118.01"],
+  ["130-01", "Inventario", "115.01"],
+  ["140-01", "Clientes", "105.01"],
+  ["208-01", "IVA trasladado", "208.01"],
+  ["210-01", "Proveedores", "201.01"],
+  ["399-01", "Saldos iniciales", "304.01"],
+  ["401-01", "Ventas", "401.01"],
+  ["402-01", "Intereses", "702.01"],
+  ["501-01", "Costo de ventas", "501.01"],
+  ["601-01", "Mermas", "601.84"],
+];
 
 export default function ConfiguracionInicialPage() {
   const router = useRouter();
-  const api = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').trim();
-  const tok = () => localStorage.getItem('syncro_token') ?? '';
+  const api =
+    process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
+    "http://localhost:4000/api";
+  const token = () => localStorage.getItem("syncro_token") ?? "";
 
-  const [cargando, setCargando] = useState(false);
-  const [listo, setListo]       = useState(false);
-  const [error, setError]       = useState('');
-  const [resumen, setResumen]   = useState<{ creadas: number; yaExistian: number } | null>(null);
+  const [paso, setPaso] = useState(0);
+  const [catalogos, setCatalogos] = useState<Catalogos | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+  const [resultado, setResultado] = useState<any>(null);
+  const [form, setForm] = useState({
+    tipoPersona: "MORAL" as TipoPersona,
+    rfc: "",
+    razonSocial: "",
+    regimenFiscal: "",
+    codigoPostal: "",
+    giro: "",
+    perfilImpuestos: "GENERAL" as Perfil,
+    confirmaEstimuloFronterizo: false,
+    confirmaRevisionConContador: false,
+  });
 
-  const configurarAutomatico = async () => {
-    setError('');
-    setCargando(true);
-    try {
-      const r = await fetch(`${api}/finanzas/cuentas-contables/precargar-estandar`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${tok()}`,
-        },
-      });
-      const d = await r.json().catch(() => null);
-      if (!r.ok) {
-        if (r.status === 401) throw new Error('Tu sesión expiró. Inicia sesión de nuevo.');
-        throw new Error(d?.message || `Error al configurar (HTTP ${r.status})`);
+  useEffect(() => {
+    const cargar = async () => {
+      try {
+        const respuesta = await fetch(
+          `${api}/cfdi/configuracion-mexico/catalogos`,
+          { headers: { Authorization: `Bearer ${token()}` } },
+        );
+        const datos = await respuesta.json().catch(() => null);
+        if (!respuesta.ok) {
+          throw new Error(
+            datos?.message || "No se pudieron consultar los catálogos fiscales.",
+          );
+        }
+        setCatalogos(datos);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error de conexión.");
+      } finally {
+        setCargando(false);
       }
-      setResumen({ creadas: d.creadas ?? 0, yaExistian: d.yaExistian ?? 0 });
-      setListo(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error de conexión con el servidor');
-    }
-    setCargando(false);
-  };
+    };
+    cargar();
+  }, [api]);
 
-  const irManual = () => router.push('/dashboard/finanzas/cuentas-contables'); // ⚠️ ajusta a tu ruta real
-  const continuar = () => router.push('/dashboard'); // ⚠️ ajusta a tu ruta real de panel
-
-  // ── Pantalla de éxito ──────────────────────────────────────────────────
-  if (listo) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-10 text-center">
-        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-5">
-          <ShieldCheck className="w-10 h-10 text-emerald-600"/>
-        </div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">Contabilidad lista</h2>
-        <p className="text-slate-500 text-sm mb-6">
-          {resumen && resumen.creadas > 0
-            ? `Se crearon ${resumen.creadas} cuentas contables base.`
-            : 'Tus cuentas contables ya estaban configuradas.'}
-          {resumen && resumen.yaExistian > 0 && ` (${resumen.yaExistian} ya existían y se conservaron.)`}
-          {' '}Ya puedes crear categorías y productos con respaldo contable.
-        </p>
-        <button onClick={continuar}
-          className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl text-sm transition-all">
-          Ir al panel de control <ArrowRight className="w-4 h-4"/>
-        </button>
-      </div>
-    </div>
+  const regimenes = useMemo(
+    () =>
+      catalogos?.regimenes.filter((r) =>
+        r.personas.includes(form.tipoPersona),
+      ) ?? [],
+    [catalogos, form.tipoPersona],
   );
 
-  // ── Pantalla de elección ───────────────────────────────────────────────
-  return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-2">
-        <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
-          <span className="text-white font-black text-xs">S</span>
+  const cambiarTipoPersona = (tipoPersona: TipoPersona) => {
+    const regimenValido = catalogos?.regimenes.find(
+      (r) =>
+        r.clave === form.regimenFiscal && r.personas.includes(tipoPersona),
+    );
+    setForm((actual) => ({
+      ...actual,
+      tipoPersona,
+      regimenFiscal: regimenValido ? actual.regimenFiscal : "",
+    }));
+  };
+
+  const validarPaso = () => {
+    setError("");
+    if (paso === 0) {
+      const longitud = form.tipoPersona === "FISICA" ? 13 : 12;
+      if (form.rfc.trim().length !== longitud)
+        return `El RFC debe tener ${longitud} caracteres para este tipo de persona.`;
+      if (!form.razonSocial.trim())
+        return "Escribe el nombre o razón social exactamente como aparece en tu constancia.";
+      if (!form.regimenFiscal) return "Selecciona tu régimen fiscal SAT.";
+      if (!/^\d{5}$/.test(form.codigoPostal))
+        return "El código postal fiscal debe tener 5 dígitos.";
+    }
+    if (
+      paso === 1 &&
+      form.perfilImpuestos === "FRONTERA" &&
+      !form.confirmaEstimuloFronterizo
+    )
+      return "Confirma que cumples los requisitos del estímulo para habilitar IVA 8%.";
+    if (paso === 2 && !form.confirmaRevisionConContador)
+      return "Debes confirmar que cotejaste estos datos antes de aplicarlos.";
+    return "";
+  };
+
+  const siguiente = () => {
+    const mensaje = validarPaso();
+    if (mensaje) return setError(mensaje);
+    setPaso((actual) => Math.min(actual + 1, 3));
+  };
+
+  const aplicar = async () => {
+    const mensaje = validarPaso();
+    if (mensaje) return setError(mensaje);
+    setGuardando(true);
+    setError("");
+    try {
+      const respuesta = await fetch(
+        `${api}/cfdi/configuracion-mexico/aplicar`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token()}`,
+          },
+          body: JSON.stringify({
+            ...form,
+            rfc: form.rfc.toUpperCase().trim(),
+            razonSocial: form.razonSocial.trim(),
+          }),
+        },
+      );
+      const datos = await respuesta.json().catch(() => null);
+      if (!respuesta.ok) {
+        const detalle = Array.isArray(datos?.message)
+          ? datos.message.join(" · ")
+          : datos?.message;
+        throw new Error(detalle || "No se pudo aplicar la configuración.");
+      }
+      setResultado(datos);
+      setPaso(3);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error de conexión.");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  if (cargando)
+    return (
+      <div className="min-h-screen grid place-items-center bg-slate-50 text-slate-500">
+        <div className="text-center">
+          <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin" />
+          Consultando catálogos fiscales…
         </div>
-        <span className="font-bold text-slate-900">SyncroERP</span>
-        <span className="ml-auto text-sm text-slate-400">Configuración contable</span>
-      </header>
+      </div>
+    );
 
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="max-w-3xl w-full">
-
-          <div className="text-center mb-8">
-            <div className="w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Landmark className="w-7 h-7 text-indigo-600"/>
-            </div>
-            <h1 className="text-2xl font-black text-slate-900 mb-2">Configura tu contabilidad</h1>
-            <p className="text-slate-500 max-w-xl mx-auto">
-              Antes de registrar productos, tu ERP necesita cuentas contables. Cada venta,
-              compra o ajuste de inventario generará su registro contable automáticamente.
-              Elige cómo prefieres empezar:
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <header className="border-b border-slate-200 bg-white px-6 py-4">
+        <div className="mx-auto flex max-w-5xl items-center gap-3">
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-600 font-black text-white">
+            S
+          </div>
+          <div>
+            <p className="font-bold text-slate-900">Asistente fiscal México</p>
+            <p className="text-xs text-slate-500">
+              CFDI {catalogos?.versionCFDI ?? "4.0"} · referencia{" "}
+              {catalogos?.ejercicioReferencia ?? 2026}
             </p>
           </div>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="ml-auto text-sm text-slate-500 hover:text-slate-800"
+          >
+            Salir
+          </button>
+        </div>
+      </header>
 
-          {error && (
-            <div className="mb-5 flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
-              <X className="w-4 h-4 shrink-0"/> {error}
+      <main className="mx-auto max-w-5xl px-4 py-8">
+        <div className="mb-7 grid grid-cols-4 gap-2">
+          {PASOS.map((nombre, indice) => (
+            <div key={nombre}>
+              <div
+                className={`h-1.5 rounded-full ${
+                  indice <= paso ? "bg-indigo-600" : "bg-slate-200"
+                }`}
+              />
+              <p
+                className={`mt-2 text-xs font-semibold ${
+                  indice === paso ? "text-indigo-700" : "text-slate-400"
+                }`}
+              >
+                {indice + 1}. {nombre}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {error && (
+          <div className="mb-5 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+            <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+          {paso === 0 && (
+            <div>
+              <div className="mb-6 flex items-start gap-3">
+                <FileCheck2 className="h-7 w-7 text-indigo-600" />
+                <div>
+                  <h1 className="text-2xl font-black text-slate-900">
+                    Copia tu Constancia de Situación Fiscal
+                  </h1>
+                  <p className="mt-1 text-sm text-slate-500">
+                    No adivines estos datos: deben coincidir carácter por
+                    carácter con el documento del SAT.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <label className="text-sm font-semibold text-slate-700">
+                  Tipo de persona
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {(["FISICA", "MORAL"] as TipoPersona[]).map((tipo) => (
+                      <button
+                        key={tipo}
+                        type="button"
+                        onClick={() => cambiarTipoPersona(tipo)}
+                        className={`rounded-xl border p-3 ${
+                          form.tipoPersona === tipo
+                            ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                            : "border-slate-200"
+                        }`}
+                      >
+                        Persona {tipo === "FISICA" ? "física" : "moral"}
+                      </button>
+                    ))}
+                  </div>
+                </label>
+                <Campo
+                  etiqueta="RFC"
+                  valor={form.rfc}
+                  maxLength={form.tipoPersona === "FISICA" ? 13 : 12}
+                  onChange={(rfc) =>
+                    setForm({ ...form, rfc: rfc.toUpperCase() })
+                  }
+                  ayuda="Sin espacios ni guiones."
+                />
+                <Campo
+                  etiqueta={
+                    form.tipoPersona === "FISICA"
+                      ? "Nombre completo"
+                      : "Denominación o razón social"
+                  }
+                  valor={form.razonSocial}
+                  onChange={(razonSocial) =>
+                    setForm({ ...form, razonSocial })
+                  }
+                  ayuda="Sin régimen societario si tu constancia no lo incluye."
+                />
+                <label className="text-sm font-semibold text-slate-700">
+                  Régimen fiscal SAT
+                  <select
+                    value={form.regimenFiscal}
+                    onChange={(e) =>
+                      setForm({ ...form, regimenFiscal: e.target.value })
+                    }
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-normal"
+                  >
+                    <option value="">Selecciona la clave de tu constancia</option>
+                    {regimenes.map((regimen) => (
+                      <option key={regimen.clave} value={regimen.clave}>
+                        {regimen.clave} — {regimen.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Campo
+                  etiqueta="Código postal fiscal"
+                  valor={form.codigoPostal}
+                  maxLength={5}
+                  onChange={(codigoPostal) =>
+                    setForm({
+                      ...form,
+                      codigoPostal: codigoPostal.replace(/\D/g, ""),
+                    })
+                  }
+                  ayuda="Es el domicilio fiscal, no necesariamente tu sucursal."
+                />
+                <Campo
+                  etiqueta="Actividad o giro (opcional)"
+                  valor={form.giro}
+                  onChange={(giro) => setForm({ ...form, giro })}
+                  ayuda="Sirve para personalizar ayudas posteriores."
+                />
+              </div>
             </div>
           )}
 
-          <div className="grid md:grid-cols-2 gap-5">
-
-            {/* Opción automática (recomendada) */}
-            <div className="relative rounded-2xl border-2 border-indigo-500 bg-white p-6 shadow-lg shadow-indigo-100 flex flex-col">
-              <div className="absolute -top-3 left-6 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full">
-                ⭐ Recomendado
+          {paso === 1 && (
+            <div>
+              <div className="mb-6 flex items-start gap-3">
+                <Sparkles className="h-7 w-7 text-indigo-600" />
+                <div>
+                  <h1 className="text-2xl font-black text-slate-900">
+                    ¿Cómo se gravan tus operaciones?
+                  </h1>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Esto prepara opciones; cada producto debe conservar su
+                    tratamiento fiscal correcto.
+                  </p>
+                </div>
               </div>
-              <div className="w-11 h-11 bg-indigo-100 rounded-xl flex items-center justify-center mb-3">
-                <Sparkles className="w-6 h-6 text-indigo-600"/>
-              </div>
-              <h3 className="font-bold text-slate-900 text-lg mb-1">Configuración automática</h3>
-              <p className="text-sm text-slate-500 mb-4 flex-1">
-                Creamos por ti un catálogo de cuentas estándar listo para operar.
-                Ideal si no manejas contabilidad — puedes ajustarlo después.
-              </p>
-
-              <div className="bg-slate-50 rounded-xl p-3 mb-4 space-y-1.5 max-h-52 overflow-auto">
-                {CUENTAS_PREVIEW.map(c => (
-                  <div key={c.num} className="flex items-center gap-2 text-xs">
-                    <span className="font-mono text-slate-400 w-14 shrink-0">{c.num}</span>
-                    <span className="text-slate-700 flex-1">{c.nombre}</span>
-                    <span className={`px-1.5 py-0.5 rounded font-semibold ${TIPO_COLOR[c.tipo]}`}>{c.tipo}</span>
-                  </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {catalogos?.perfilesImpuestos.map((perfil) => (
+                  <button
+                    key={perfil.clave}
+                    type="button"
+                    onClick={() =>
+                      setForm({ ...form, perfilImpuestos: perfil.clave })
+                    }
+                    className={`rounded-xl border p-4 text-left ${
+                      form.perfilImpuestos === perfil.clave
+                        ? "border-indigo-500 bg-indigo-50"
+                        : "border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <p className="font-bold text-slate-900">{perfil.nombre}</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {perfil.descripcion}
+                    </p>
+                    {perfil.advertencia && (
+                      <p className="mt-2 text-xs font-semibold text-amber-700">
+                        {perfil.advertencia}
+                      </p>
+                    )}
+                  </button>
                 ))}
               </div>
-
-              <button onClick={configurarAutomatico} disabled={cargando}
-                className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl text-sm transition-all disabled:opacity-60">
-                {cargando
-                  ? <><Loader2 className="w-4 h-4 animate-spin"/> Configurando…</>
-                  : <><Check className="w-4 h-4"/> Crear cuentas automáticamente</>}
-              </button>
+              {form.perfilImpuestos === "FRONTERA" && (
+                <label className="mt-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={form.confirmaEstimuloFronterizo}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        confirmaEstimuloFronterizo: e.target.checked,
+                      })
+                    }
+                  />
+                  Confirmo que el contribuyente y las operaciones cumplen los
+                  requisitos vigentes del estímulo fronterizo. El ERP no
+                  determina por sí solo la elegibilidad.
+                </label>
+              )}
+              <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                El catálogo distinguirá <b>IVA 0%</b>, <b>exento</b> y{" "}
+                <b>no objeto</b>. Aunque los tres pueden sumar $0 de IVA, no
+                significan lo mismo en un CFDI.
+              </div>
             </div>
+          )}
 
-            {/* Opción manual */}
-            <div className="rounded-2xl border-2 border-slate-200 bg-white p-6 flex flex-col">
-              <div className="w-11 h-11 bg-slate-100 rounded-xl flex items-center justify-center mb-3">
-                <SlidersHorizontal className="w-6 h-6 text-slate-600"/>
+          {paso === 2 && (
+            <div>
+              <div className="mb-6 flex items-start gap-3">
+                <ShieldCheck className="h-7 w-7 text-indigo-600" />
+                <div>
+                  <h1 className="text-2xl font-black text-slate-900">
+                    Revisa antes de aplicar
+                  </h1>
+                  <p className="mt-1 text-sm text-slate-500">
+                    El proceso es idempotente: conserva cuentas existentes y
+                    completa las que falten.
+                  </p>
+                </div>
               </div>
-              <h3 className="font-bold text-slate-900 text-lg mb-1">Configurar manualmente</h3>
-              <p className="text-sm text-slate-500 mb-4 flex-1">
-                Prefieres crear tu propio catálogo de cuentas con tu numeración y
-                estructura. Recomendado si tienes contador o un plan contable propio.
+              <div className="grid gap-5 md:grid-cols-2">
+                <Resumen titulo="Identidad fiscal" icono={<Building2 />}>
+                  <p>{form.razonSocial}</p>
+                  <p>{form.rfc}</p>
+                  <p>
+                    Régimen {form.regimenFiscal} · CP {form.codigoPostal}
+                  </p>
+                </Resumen>
+                <Resumen titulo="Tratamiento inicial" icono={<MapPin />}>
+                  <p>
+                    {
+                      catalogos?.perfilesImpuestos.find(
+                        (p) => p.clave === form.perfilImpuestos,
+                      )?.nombre
+                    }
+                  </p>
+                  <p>IVA 16%, 0%, exento y no objeto</p>
+                  {form.perfilImpuestos === "FRONTERA" && <p>Incluye IVA 8%</p>}
+                </Resumen>
+              </div>
+              <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
+                <div className="bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800">
+                  Plan base con código agrupador SAT
+                </div>
+                <div className="grid max-h-56 gap-x-5 overflow-auto p-4 md:grid-cols-2">
+                  {CUENTAS.map(([numero, nombre, sat]) => (
+                    <div
+                      key={numero}
+                      className="flex border-b border-slate-100 py-2 text-xs"
+                    >
+                      <span className="w-16 font-mono text-slate-500">
+                        {numero}
+                      </span>
+                      <span className="flex-1 text-slate-700">{nombre}</span>
+                      <span className="font-mono text-indigo-600">
+                        SAT {sat}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <label className="mt-5 flex items-start gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-950">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={form.confirmaRevisionConContador}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      confirmaRevisionConContador: e.target.checked,
+                    })
+                  }
+                />
+                Confirmo que cotejé RFC, razón social, régimen y código postal
+                con la Constancia de Situación Fiscal, y que el perfil de
+                impuestos fue revisado con quien lleva la contabilidad.
+              </label>
+            </div>
+          )}
+
+          {paso === 3 && resultado && (
+            <div className="py-4 text-center">
+              <div className="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-full bg-emerald-100">
+                <BadgeCheck className="h-11 w-11 text-emerald-600" />
+              </div>
+              <h1 className="text-2xl font-black text-slate-900">
+                Configuración fiscal base lista
+              </h1>
+              <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">
+                Se prepararon {resultado.cuentas?.creadas ?? 0} cuentas nuevas y{" "}
+                {resultado.impuestos?.creados ?? 0} impuestos nuevos. Lo que ya
+                existía se conservó y se normalizó.
               </p>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700 mb-4 flex items-start gap-2">
-                <BookOpen className="w-4 h-4 mt-0.5 shrink-0"/>
-                <span>Te llevaremos al Catálogo de Cuentas para que las crees a tu medida. Podrás volver cuando quieras.</span>
+              <div className="mx-auto mt-6 max-w-xl rounded-xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-900">
+                <b>Siguiente requisito para facturar:</b>{" "}
+                {resultado.diagnostico?.facturacion?.mensaje}
               </div>
+              <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                <button
+                  onClick={() => router.push("/configuracion-financiera")}
+                  className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-700"
+                >
+                  Continuar con Finanzas
+                </button>
+                <button
+                  onClick={() =>
+                    router.push("/dashboard/finanzas/cuentas-contables")
+                  }
+                  className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700"
+                >
+                  Revisar cuentas
+                </button>
+              </div>
+            </div>
+          )}
 
-              <button onClick={irManual} disabled={cargando}
-                className="w-full flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl text-sm transition-all disabled:opacity-60">
-                Ir al catálogo de cuentas <ArrowRight className="w-4 h-4"/>
+          {paso === 3 && !resultado && (
+            <div className="py-8 text-center">
+              <CircleAlert className="mx-auto h-10 w-10 text-amber-500" />
+              <p className="mt-3 text-slate-700">
+                Aún no se ha aplicado la configuración.
+              </p>
+            </div>
+          )}
+
+          {paso < 3 && (
+            <div className="mt-8 flex items-center justify-between border-t border-slate-100 pt-5">
+              <button
+                onClick={() =>
+                  paso === 0
+                    ? router.push("/dashboard")
+                    : setPaso((actual) => actual - 1)
+                }
+                className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                <ArrowLeft className="h-4 w-4" /> Atrás
               </button>
+              {paso < 2 ? (
+                <button
+                  onClick={siguiente}
+                  className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
+                >
+                  Continuar <ArrowRight className="h-4 w-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={aplicar}
+                  disabled={guardando}
+                  className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {guardando ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                  Aplicar configuración
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+
+        <aside className="mt-5 rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-500">
+          <div className="flex gap-2">
+            <BookOpen className="h-4 w-4 shrink-0" />
+            <div>
+              <p>{catalogos?.aviso}</p>
+              <div className="mt-2 flex flex-wrap gap-4">
+                {catalogos?.fuentes.map((fuente) => (
+                  <a
+                    key={fuente.url}
+                    href={fuente.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-indigo-600 hover:underline"
+                  >
+                    {fuente.nombre}
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
+        </aside>
+      </main>
+    </div>
+  );
+}
 
-          <button onClick={continuar}
-            className="w-full text-center text-xs text-slate-400 hover:text-slate-600 mt-6">
-            Omitir por ahora (podré configurarlo después en Finanzas)
-          </button>
-        </div>
+function Campo({
+  etiqueta,
+  valor,
+  onChange,
+  ayuda,
+  maxLength,
+}: {
+  etiqueta: string;
+  valor: string;
+  onChange: (valor: string) => void;
+  ayuda: string;
+  maxLength?: number;
+}) {
+  return (
+    <label className="text-sm font-semibold text-slate-700">
+      {etiqueta}
+      <input
+        value={valor}
+        maxLength={maxLength}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 font-normal outline-none focus:border-indigo-500"
+      />
+      <span className="mt-1 block text-xs font-normal text-slate-400">
+        {ayuda}
+      </span>
+    </label>
+  );
+}
+
+function Resumen({
+  titulo,
+  icono,
+  children,
+}: {
+  titulo: string;
+  icono: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 p-4">
+      <div className="mb-3 flex items-center gap-2 font-bold text-slate-900">
+        <span className="text-indigo-600 [&>svg]:h-5 [&>svg]:w-5">
+          {icono}
+        </span>
+        {titulo}
       </div>
+      <div className="space-y-1 text-sm text-slate-600">{children}</div>
     </div>
   );
 }

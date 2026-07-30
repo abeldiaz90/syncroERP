@@ -1,9 +1,15 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column,
-  CreateDateColumn, ManyToOne, JoinColumn
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  Index,
 } from 'typeorm';
 
 @Entity('cierres_contables')
+@Index('UX_cierres_contables_empresa_periodo', ['empresaId', 'anio', 'mes'], {
+  unique: true,
+})
 export class CierreContable {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -12,16 +18,19 @@ export class CierreContable {
   empresaId!: string;
 
   @Column({ type: 'int' })
-  mes!: number;   // 1-12
+  mes!: number; // 1-12
 
   @Column({ type: 'int' })
   anio!: number;
 
   @Column({ type: 'uniqueidentifier' })
-  usuarioId!: string;   // quién ejecutó el cierre
+  usuarioId!: string; // quién ejecutó el cierre
 
   @Column({ type: 'varchar', length: 500, nullable: true })
-  notas!: string;
+  notas!: string | null;
+
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  revisionId!: string | null;
 
   @CreateDateColumn()
   fechaCierre!: Date;

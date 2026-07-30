@@ -19,7 +19,7 @@ const CAMPOS_CUENTAS = [
   { key: 'cuentaVentasId',      label: 'Ingresos por Ventas',   desc: 'Se abona cada vez que se vende un producto de esta categoría.', color: 'emerald', ejemplo: 'Ej. 401-01 – Ventas Nacionales' },
   { key: 'cuentaCostoVentasId', label: 'Costo de Ventas',       desc: 'Se carga con el costo del producto al momento de la venta.',    color: 'rose',    ejemplo: 'Ej. 501-01 – Costo de Ventas' },
   { key: 'cuentaInventarioId',  label: 'Inventario',            desc: 'Refleja el valor del stock. Se abona al vender, se carga al comprar.', color: 'blue', ejemplo: 'Ej. 130-01 – Inventario de Mercancías' },
-  { key: 'cuentaDevolucionesId',label: 'Devoluciones s/ Ventas',desc: 'Se carga cuando un cliente devuelve mercancía.',                color: 'amber',   ejemplo: 'Ej. 401-02 – Devoluciones' },
+  { key: 'cuentaDevolucionesId',label: 'Devoluciones s/ Ventas',desc: 'Se carga cuando un cliente devuelve mercancía.',                color: 'amber',   ejemplo: 'Ej. SAT 402.01 – Devoluciones' },
   { key: 'cuentaMermasId',      label: 'Mermas y Pérdidas',     desc: 'Se carga cuando hay pérdida de inventario (daño, vencimiento).', color: 'purple', ejemplo: 'Ej. 601-01 – Mermas y Pérdidas' },
 ] as const;
 
@@ -41,7 +41,7 @@ function autoMapearCuentas(cuentas: ICuenta[]): Record<string, string> {
   const ventas       = porExacto('401-01') || porPrefijo('401') || porPrefijo('4');
   const costo        = porExacto('501-01') || porPrefijo('501') || porPrefijo('5');
   const inventario   = porExacto('130-01') || porPrefijo('130') || porPrefijo('13');
-  const devoluciones = porExacto('401-02') || ventas;
+  const devoluciones = porExacto('402.01') || porExacto('401-02') || ventas;
   const mermas       = porExacto('601-01') || porPrefijo('601') || porPrefijo('6');
 
   return {

@@ -1,6 +1,6 @@
-import { IsUUID } from 'class-validator';
+import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
 
 export class CrearOrdenCompraDto {
-  @IsUUID()
+  @IsSqlServerGuid()
   cotizacionId: string;
 }

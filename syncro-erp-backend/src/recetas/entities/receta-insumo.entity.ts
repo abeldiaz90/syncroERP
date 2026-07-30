@@ -1,6 +1,10 @@
 // recetas/entities/receta-insumo.entity.ts
 import {
-  Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Receta } from './receta.entity';
 
@@ -14,7 +18,10 @@ export class RecetaInsumo {
   @Column({ type: 'uniqueidentifier' })
   empresaId!: string;
 
-  @ManyToOne(() => Receta, (r) => r.insumos, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => Receta, (r) => r.insumos, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'recetaId' })
   receta!: Receta;
 

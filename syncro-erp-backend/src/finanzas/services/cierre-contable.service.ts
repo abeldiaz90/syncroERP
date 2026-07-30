@@ -1,178 +1,841 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { CierreContable } from '../entities/cierre-contable.entity';
+import { EventoCierreContable } from '../entities/evento-cierre-contable.entity';
 import { Poliza } from '../entities/poliza.entity';
+import { RevisionCierreMensual } from '../entities/revision-cierre-mensual.entity';
+import {
+  CerrarPeriodoGuiadoDto,
+  IniciarRevisionCierreDto,
+  PrepararCierreDto,
+} from '../dto/cierre-mensual.dto';
+import { ActivacionFinancieraService } from './activacion-financiera.service';
+
+type Consultar = (sql: string, parametros?: unknown[]) => Promise<any[]>;
+
+export interface DiagnosticoCierre {
+  periodo: {
+    mes: number;
+    anio: number;
+    nombre: string;
+    fechaDesde: string;
+    fechaHasta: string;
+  };
+  generadoEn: string;
+  contabilidad: {
+    totalPolizas: number;
+    totalPartidas: number;
+    totalDebe: number;
+    totalHaber: number;
+    diferencia: number;
+    polizasDescuadradas: number;
+    polizasSinPartidas: number;
+  };
+  asientosPendientes: {
+    total: number;
+    detalle: Array<{
+      id: string;
+      tipo: string;
+      folio: string | null;
+      estado: string;
+      error: string | null;
+    }>;
+  };
+  iva: {
+    trasladado: number;
+    acreditable: number;
+    trasladadoNoCobrado: number;
+    acreditablePendiente: number;
+    ivaAPagar: number;
+    saldoAFavor: number;
+    movimientos: number;
+  };
+  bancos: {
+    cuentasActivas: number;
+    estadosCerrados: number;
+    coberturaCompleta: boolean;
+  };
+  conciliacionInicial: {
+    existe: boolean;
+    fechaCorte: string | null;
+    fechaConfirmacion: Date | null;
+  };
+  controles: Array<{
+    clave: string;
+    titulo: string;
+    descripcion: string;
+    estado: 'CORRECTO' | 'BLOQUEO' | 'ADVERTENCIA';
+    bloquea: boolean;
+  }>;
+  bloqueos: number;
+}
+
+const MESES = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
 
 @Injectable()
 export class CierreContableService {
   constructor(
     @InjectRepository(CierreContable)
     private readonly cierreRepo: Repository<CierreContable>,
-    @InjectRepository(Poliza)
-    private readonly polizaRepo: Repository<Poliza>,
+    @InjectRepository(RevisionCierreMensual)
+    private readonly revisionRepo: Repository<RevisionCierreMensual>,
+    @InjectRepository(EventoCierreContable)
+    private readonly eventoRepo: Repository<EventoCierreContable>,
     private readonly dataSource: DataSource,
+    private readonly activacionService: ActivacionFinancieraService,
   ) {}
 
-  // ──────────────────────────────────────────────────────────────
-  // VERIFICAR SI UN PERÍODO ESTÁ CERRADO
-  // Usado por el motor contable antes de crear cualquier póliza
-  // ──────────────────────────────────────────────────────────────
-  async isPeriodoCerrado(empresaId: string, mes: number, anio: number): Promise<boolean> {
-    const cierre = await this.cierreRepo.findOne({
-      where: { empresaId, mes, anio },
-    });
-    return !!cierre;
+  private redondear(valor: unknown) {
+    return Math.round(Number(valor ?? 0) * 100) / 100;
   }
 
-  // ──────────────────────────────────────────────────────────────
-  // CERRAR PERÍODO
-  // ──────────────────────────────────────────────────────────────
-  async cerrarPeriodo(dto: {
-    empresaId: string;
-    mes:       number;
-    anio:      number;
-    usuarioId: string;
-    notas?:    string;
-  }) {
-    // Validar que el período no esté ya cerrado
-    const existente = await this.cierreRepo.findOne({
-      where: { empresaId: dto.empresaId, mes: dto.mes, anio: dto.anio },
-    });
-    if (existente) {
+  private json<T>(texto: string | null | undefined, respaldo: T): T {
+    try {
+      if (!texto) return respaldo;
+      const valor: unknown = JSON.parse(texto);
+      return valor as T;
+    } catch {
+      return respaldo;
+    }
+  }
+
+  private fechasPeriodo(anio: number, mes: number) {
+    const fechaDesde = `${anio}-${String(mes).padStart(2, '0')}-01`;
+    const fechaHasta = `${anio}-${String(mes).padStart(2, '0')}-${String(
+      new Date(anio, mes, 0).getDate(),
+    ).padStart(2, '0')}`;
+    return { fechaDesde, fechaHasta };
+  }
+
+  private validarPeriodoCerrable(anio: number, mes: number) {
+    if (!Number.isInteger(mes) || mes < 1 || mes > 12) {
+      throw new BadRequestException('El mes debe estar entre 1 y 12.');
+    }
+    if (!Number.isInteger(anio) || anio < 2000 || anio > 2200) {
+      throw new BadRequestException('El año del período no es válido.');
+    }
+    const hoy = new Date();
+    const periodo = anio * 12 + mes;
+    const actual = hoy.getFullYear() * 12 + (hoy.getMonth() + 1);
+    if (periodo >= actual) {
       throw new BadRequestException(
-        `El período ${dto.mes}/${dto.anio} ya está cerrado desde ${existente.fechaCierre.toLocaleDateString('es-MX')}.`
+        'Sólo puede cerrarse un mes completamente terminado. El mes actual y los futuros permanecen abiertos.',
       );
     }
+  }
 
-    // Contar pólizas del período
-    const totalPolizas = await this.polizaRepo.count({
-      where: { empresaId: dto.empresaId, mes: dto.mes, anio: dto.anio },
-    });
-
-    // Marcar todas las pólizas del período como cerradas
-    await this.polizaRepo
-      .createQueryBuilder()
-      .update(Poliza)
-      .set({ periodoCerrado: true })
-      .where('empresaId = :e AND mes = :m AND anio = :a', {
-        e: dto.empresaId, m: dto.mes, a: dto.anio,
-      })
-      .execute();
-
-    // Registrar el cierre
-    const cierre = this.cierreRepo.create({
-      empresaId: dto.empresaId,
-      mes:       dto.mes,
-      anio:      dto.anio,
-      usuarioId: dto.usuarioId,
-      notas:     dto.notas ?? null,
-    });
-    const guardado = await this.cierreRepo.save(cierre);
-
+  private presentarRevision(revision: RevisionCierreMensual) {
     return {
-      cierre:       guardado,
-      totalPolizas,
-      mensaje:      `Período ${dto.mes}/${dto.anio} cerrado exitosamente. ${totalPolizas} pólizas bloqueadas.`,
+      id: revision.id,
+      mes: revision.mes,
+      anio: revision.anio,
+      estado: revision.estado,
+      snapshot: this.json<DiagnosticoCierre | null>(
+        revision.snapshotJson,
+        null,
+      ),
+      confirmaciones: this.json(revision.confirmacionesJson, {}),
+      notas: revision.notas,
+      version: revision.version,
+      fechaCreacion: revision.fechaCreacion,
+      fechaRevision: revision.fechaRevision,
+      cierreId: revision.cierreId,
     };
   }
 
-  // ──────────────────────────────────────────────────────────────
-  // REABRIR PERÍODO (solo admin, casos excepcionales)
-  // ──────────────────────────────────────────────────────────────
+  private async generarDiagnostico(
+    empresaId: string,
+    mes: number,
+    anio: number,
+    consultar: Consultar = (sql, parametros = []) =>
+      this.dataSource.query(sql, parametros),
+  ): Promise<DiagnosticoCierre> {
+    const { fechaDesde, fechaHasta } = this.fechasPeriodo(anio, mes);
+    const [
+      contabilidadFilas,
+      pendientes,
+      ivaFilas,
+      cuentasBancariasFilas,
+      estadosBancariosFilas,
+      conciliacion,
+    ] = await Promise.all([
+      consultar(
+        `
+            WITH totales AS (
+              SELECT
+                p.id,
+                COUNT(pp.id) partidas,
+                COALESCE(SUM(CAST(pp.cargo AS decimal(18,4))), 0) debe,
+                COALESCE(SUM(CAST(pp.abono AS decimal(18,4))), 0) haber
+              FROM polizas p
+              LEFT JOIN partidas_poliza pp ON pp.polizaId = p.id
+              WHERE p.empresaId = @0 AND p.anio = @1 AND p.mes = @2
+              GROUP BY p.id
+            )
+            SELECT
+              COUNT(*) totalPolizas,
+              COALESCE(SUM(partidas), 0) totalPartidas,
+              COALESCE(SUM(debe), 0) totalDebe,
+              COALESCE(SUM(haber), 0) totalHaber,
+              COALESCE(SUM(CASE WHEN partidas = 0 THEN 1 ELSE 0 END), 0)
+                polizasSinPartidas,
+              COALESCE(SUM(CASE WHEN ABS(debe - haber) >= 0.01 THEN 1 ELSE 0 END), 0)
+                polizasDescuadradas
+            FROM totales
+          `,
+        [empresaId, anio, mes],
+      ),
+      consultar(
+        `
+            SELECT TOP 100
+              id, tipo, folioDocumento, estado, ultimoError
+            FROM asientos_pendientes
+            WHERE empresaId = @0
+              AND estado IN ('PENDIENTE', 'REINTENTANDO', 'FALLIDO')
+              AND COALESCE(
+                TRY_CONVERT(date,
+                  CASE WHEN ISJSON(payload) = 1
+                    THEN JSON_VALUE(payload, '$.fecha') END),
+                CAST(fechaCreacion AS date)
+              ) BETWEEN @1 AND @2
+            ORDER BY fechaCreacion ASC
+          `,
+        [empresaId, fechaDesde, fechaHasta],
+      ),
+      consultar(
+        `
+            SELECT
+              COALESCE(SUM(CASE
+                WHEN c.rolSistema = 'IVA_TRASLADADO_COBRADO'
+                THEN CAST(pp.abono AS decimal(18,4)) - CAST(pp.cargo AS decimal(18,4))
+                ELSE 0 END), 0) trasladado,
+              COALESCE(SUM(CASE
+                WHEN c.rolSistema = 'IVA_ACREDITABLE_PAGADO'
+                THEN CAST(pp.cargo AS decimal(18,4)) - CAST(pp.abono AS decimal(18,4))
+                ELSE 0 END), 0) acreditable,
+              COALESCE(SUM(CASE
+                WHEN c.rolSistema = 'IVA_TRASLADADO_NO_COBRADO'
+                THEN CAST(pp.abono AS decimal(18,4)) - CAST(pp.cargo AS decimal(18,4))
+                ELSE 0 END), 0) trasladadoNoCobrado,
+              COALESCE(SUM(CASE
+                WHEN c.rolSistema = 'IVA_ACREDITABLE_PENDIENTE'
+                THEN CAST(pp.cargo AS decimal(18,4)) - CAST(pp.abono AS decimal(18,4))
+                ELSE 0 END), 0) acreditablePendiente,
+              COALESCE(SUM(CASE WHEN c.rolSistema IN
+                ('IVA_TRASLADADO_COBRADO', 'IVA_ACREDITABLE_PAGADO',
+                 'IVA_TRASLADADO_NO_COBRADO', 'IVA_ACREDITABLE_PENDIENTE')
+                THEN 1 ELSE 0 END), 0)
+                movimientos
+            FROM partidas_poliza pp
+            INNER JOIN polizas p ON p.id = pp.polizaId
+            INNER JOIN cuentas_contables c ON c.id = pp.cuentaContableId
+            WHERE p.empresaId = @0 AND p.anio = @1 AND p.mes = @2
+          `,
+        [empresaId, anio, mes],
+      ),
+      consultar(
+        `
+            SELECT COUNT(*) cuentasActivas
+            FROM cuentas_bancarias
+            WHERE empresaId = @0 AND activo = 1 AND tipo <> 'CAJA'
+          `,
+        [empresaId],
+      ).catch(() => [{ cuentasActivas: 0 }]),
+      consultar(
+        `
+            SELECT COUNT(*) estadosCerrados
+            FROM tesoreria_estados_cuenta
+            WHERE empresaId = @0 AND ejercicio = @1 AND mes = @2
+              AND estado = 'CERRADA'
+          `,
+        [empresaId, anio, mes],
+      ).catch(() => [{ estadosCerrados: 0 }]),
+      consultar(
+        `
+            SELECT TOP 1 fechaCorte, fechaConfirmacion
+            FROM conciliaciones_financieras
+            WHERE empresaId = @0 AND estado = 'CONCILIADA'
+            ORDER BY fechaConfirmacion DESC
+          `,
+        [empresaId],
+      ).catch(() => []),
+    ]);
+
+    const fila = contabilidadFilas?.[0] ?? {};
+    const totalDebe = this.redondear(fila.totalDebe);
+    const totalHaber = this.redondear(fila.totalHaber);
+    const diferencia = this.redondear(totalDebe - totalHaber);
+    const totalPolizas = Number(fila.totalPolizas ?? 0);
+    const polizasSinPartidas = Number(fila.polizasSinPartidas ?? 0);
+    const polizasDescuadradas = Number(fila.polizasDescuadradas ?? 0);
+    const ivaTrasladado = this.redondear(ivaFilas?.[0]?.trasladado);
+    const ivaAcreditable = this.redondear(ivaFilas?.[0]?.acreditable);
+    const ivaTrasladadoNoCobrado = this.redondear(
+      ivaFilas?.[0]?.trasladadoNoCobrado,
+    );
+    const ivaAcreditablePendiente = this.redondear(
+      ivaFilas?.[0]?.acreditablePendiente,
+    );
+    const ivaDiferencia = this.redondear(ivaTrasladado - ivaAcreditable);
+    const cuentasActivas = Number(
+      cuentasBancariasFilas?.[0]?.cuentasActivas ?? 0,
+    );
+    const estadosCerrados = Number(
+      estadosBancariosFilas?.[0]?.estadosCerrados ?? 0,
+    );
+    const coberturaCompleta =
+      cuentasActivas === 0 || estadosCerrados >= cuentasActivas;
+
+    const controles: DiagnosticoCierre['controles'] = [
+      {
+        clave: 'POLIZAS',
+        titulo: 'El mes tiene registros contables',
+        descripcion:
+          totalPolizas > 0
+            ? `Se encontraron ${totalPolizas} póliza(s).`
+            : 'No hay pólizas. Un mes vacío no debe cerrarse por accidente.',
+        estado: totalPolizas > 0 ? 'CORRECTO' : 'BLOQUEO',
+        bloquea: totalPolizas === 0,
+      },
+      {
+        clave: 'BALANZA',
+        titulo: 'Debe y Haber coinciden',
+        descripcion:
+          Math.abs(diferencia) < 0.01
+            ? 'La balanza está cuadrada.'
+            : `Existe una diferencia de ${diferencia.toFixed(2)}.`,
+        estado: Math.abs(diferencia) < 0.01 ? 'CORRECTO' : 'BLOQUEO',
+        bloquea: Math.abs(diferencia) >= 0.01,
+      },
+      {
+        clave: 'INTEGRIDAD',
+        titulo: 'Todas las pólizas tienen partidas y están cuadradas',
+        descripcion:
+          polizasSinPartidas === 0 && polizasDescuadradas === 0
+            ? 'No se detectaron pólizas incompletas.'
+            : `${polizasSinPartidas} sin partidas y ${polizasDescuadradas} descuadrada(s).`,
+        estado:
+          polizasSinPartidas === 0 && polizasDescuadradas === 0
+            ? 'CORRECTO'
+            : 'BLOQUEO',
+        bloquea: polizasSinPartidas > 0 || polizasDescuadradas > 0,
+      },
+      {
+        clave: 'ASIENTOS',
+        titulo: 'No hay operaciones esperando póliza',
+        descripcion:
+          pendientes.length === 0
+            ? 'Todas las operaciones del período llegaron a contabilidad.'
+            : `${pendientes.length} operación(es) requieren atención en Asientos pendientes.`,
+        estado: pendientes.length === 0 ? 'CORRECTO' : 'BLOQUEO',
+        bloquea: pendientes.length > 0,
+      },
+      {
+        clave: 'BANCOS',
+        titulo: 'Conciliación bancaria del mes',
+        descripcion: coberturaCompleta
+          ? cuentasActivas === 0
+            ? 'No hay cuentas bancarias activas.'
+            : 'Los estados de cuenta activos aparecen conciliados y cerrados.'
+          : `${estadosCerrados} de ${cuentasActivas} cuenta(s) tienen conciliación cerrada.`,
+        estado: coberturaCompleta ? 'CORRECTO' : 'ADVERTENCIA',
+        bloquea: false,
+      },
+      {
+        clave: 'CONCILIACION_INICIAL',
+        titulo: 'Existe una conciliación financiera de referencia',
+        descripcion: conciliacion.length
+          ? 'Hay una revisión inicial confirmada para consultar como antecedente.'
+          : 'Todavía no existe una conciliación inicial confirmada.',
+        estado: conciliacion.length ? 'CORRECTO' : 'ADVERTENCIA',
+        bloquea: false,
+      },
+    ];
+
+    return {
+      periodo: {
+        mes,
+        anio,
+        nombre: `${MESES[mes - 1]} ${anio}`,
+        fechaDesde,
+        fechaHasta,
+      },
+      generadoEn: new Date().toISOString(),
+      contabilidad: {
+        totalPolizas,
+        totalPartidas: Number(fila.totalPartidas ?? 0),
+        totalDebe,
+        totalHaber,
+        diferencia,
+        polizasDescuadradas,
+        polizasSinPartidas,
+      },
+      asientosPendientes: {
+        total: pendientes.length,
+        detalle: pendientes.map((pendiente) => ({
+          id: String(pendiente.id),
+          tipo: String(pendiente.tipo),
+          folio: pendiente.folioDocumento
+            ? String(pendiente.folioDocumento)
+            : null,
+          estado: String(pendiente.estado),
+          error: pendiente.ultimoError ? String(pendiente.ultimoError) : null,
+        })),
+      },
+      iva: {
+        trasladado: ivaTrasladado,
+        acreditable: ivaAcreditable,
+        trasladadoNoCobrado: ivaTrasladadoNoCobrado,
+        acreditablePendiente: ivaAcreditablePendiente,
+        ivaAPagar: ivaDiferencia > 0 ? ivaDiferencia : 0,
+        saldoAFavor: ivaDiferencia < 0 ? Math.abs(ivaDiferencia) : 0,
+        movimientos: Number(ivaFilas?.[0]?.movimientos ?? 0),
+      },
+      bancos: { cuentasActivas, estadosCerrados, coberturaCompleta },
+      conciliacionInicial: {
+        existe: conciliacion.length > 0,
+        fechaCorte: conciliacion?.[0]?.fechaCorte
+          ? String(conciliacion[0].fechaCorte).substring(0, 10)
+          : null,
+        fechaConfirmacion: conciliacion?.[0]?.fechaConfirmacion ?? null,
+      },
+      controles,
+      bloqueos: controles.filter((control) => control.bloquea).length,
+    };
+  }
+
+  private async adquirirCandado(
+    consultar: Consultar,
+    empresaId: string,
+    anio: number,
+    mes: number,
+    modo: 'Shared' | 'Exclusive',
+  ) {
+    const resultado = await consultar(
+      `
+        DECLARE @resultado int;
+        EXEC @resultado = sys.sp_getapplock
+          @Resource = @0,
+          @LockMode = @1,
+          @LockOwner = 'Transaction',
+          @LockTimeout = 10000;
+        SELECT @resultado resultado;
+      `,
+      [`CIERRE_CONTABLE:${empresaId}:${anio}:${mes}`, modo],
+    );
+    if (Number(resultado?.[0]?.resultado ?? -999) < 0) {
+      throw new ConflictException(
+        'El período está siendo procesado por otra operación. Intenta nuevamente.',
+      );
+    }
+  }
+
+  async isPeriodoCerrado(
+    empresaId: string,
+    mes: number,
+    anio: number,
+  ): Promise<boolean> {
+    return !!(await this.cierreRepo.findOne({
+      where: { empresaId, mes, anio },
+    }));
+  }
+
+  async obtenerRevisionActual(empresaId: string, anio: number, mes: number) {
+    const revision = await this.revisionRepo.findOne({
+      where: { empresaId, anio, mes },
+      order: { fechaCreacion: 'DESC' },
+    });
+    return revision ? this.presentarRevision(revision) : null;
+  }
+
+  async iniciarRevision(
+    empresaId: string,
+    usuarioId: string,
+    dto: IniciarRevisionCierreDto,
+  ) {
+    await this.activacionService.exigirActiva(empresaId);
+    this.validarPeriodoCerrable(dto.anio, dto.mes);
+    if (await this.isPeriodoCerrado(empresaId, dto.mes, dto.anio)) {
+      throw new BadRequestException('El período ya está cerrado.');
+    }
+    const snapshot = await this.generarDiagnostico(
+      empresaId,
+      dto.mes,
+      dto.anio,
+    );
+    await this.revisionRepo.update(
+      {
+        empresaId,
+        anio: dto.anio,
+        mes: dto.mes,
+        estado: 'BORRADOR',
+      },
+      { estado: 'INVALIDADO' },
+    );
+    await this.revisionRepo.update(
+      {
+        empresaId,
+        anio: dto.anio,
+        mes: dto.mes,
+        estado: 'LISTO',
+      },
+      { estado: 'INVALIDADO' },
+    );
+    const revision = await this.revisionRepo.save(
+      this.revisionRepo.create({
+        empresaId,
+        mes: dto.mes,
+        anio: dto.anio,
+        estado: 'BORRADOR',
+        snapshotJson: JSON.stringify(snapshot),
+        confirmacionesJson: '{}',
+        notas: null,
+        creadoPor: usuarioId,
+        revisadoPor: null,
+        fechaRevision: null,
+        cierreId: null,
+        version: 1,
+      }),
+    );
+    return this.presentarRevision(revision);
+  }
+
+  async prepararRevision(
+    empresaId: string,
+    usuarioId: string,
+    id: string,
+    dto: PrepararCierreDto,
+  ) {
+    await this.activacionService.exigirActiva(empresaId);
+    const revision = await this.revisionRepo.findOne({
+      where: { id, empresaId },
+    });
+    if (!revision) throw new NotFoundException('Revisión no encontrada.');
+    if (revision.estado === 'CERRADO' || revision.estado === 'INVALIDADO') {
+      throw new ConflictException(
+        'Esta revisión ya no puede modificarse. Toma una nueva fotografía.',
+      );
+    }
+    if (
+      !dto.confirmaciones.bancosRevisados ||
+      !dto.confirmaciones.ivaRevisado ||
+      !dto.confirmaciones.documentosCompletos ||
+      !dto.confirmaciones.respaldoConfirmado
+    ) {
+      throw new BadRequestException(
+        'Confirma las cuatro revisiones humanas antes de continuar.',
+      );
+    }
+    const snapshot = await this.generarDiagnostico(
+      empresaId,
+      revision.mes,
+      revision.anio,
+    );
+    revision.snapshotJson = JSON.stringify(snapshot);
+    revision.version += 1;
+    if (snapshot.bloqueos > 0) {
+      revision.estado = 'BORRADOR';
+      await this.revisionRepo.save(revision);
+      throw new BadRequestException(
+        'El diagnóstico cambió o conserva bloqueos. Corrige los problemas y vuelve a calcular.',
+      );
+    }
+    revision.estado = 'LISTO';
+    revision.confirmacionesJson = JSON.stringify(dto.confirmaciones);
+    revision.notas = dto.notas?.trim() || null;
+    revision.revisadoPor = usuarioId;
+    revision.fechaRevision = new Date();
+    await this.revisionRepo.save(revision);
+    return this.presentarRevision(revision);
+  }
+
+  async cerrarPeriodo(
+    dto: CerrarPeriodoGuiadoDto & {
+      empresaId: string;
+      usuarioId: string;
+    },
+  ) {
+    await this.activacionService.exigirActiva(dto.empresaId);
+    const revision = await this.revisionRepo.findOne({
+      where: { id: dto.revisionId, empresaId: dto.empresaId },
+    });
+    if (!revision) throw new NotFoundException('Revisión no encontrada.');
+    if (revision.estado !== 'LISTO') {
+      throw new BadRequestException(
+        'La revisión debe estar completa y sin bloqueos antes de cerrar.',
+      );
+    }
+    this.validarPeriodoCerrable(revision.anio, revision.mes);
+
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction('SERIALIZABLE');
+    try {
+      const consultar: Consultar = (sql, parametros = []) =>
+        qr.query(sql, parametros);
+      await this.adquirirCandado(
+        consultar,
+        dto.empresaId,
+        revision.anio,
+        revision.mes,
+        'Exclusive',
+      );
+      const existente = await qr.manager.findOne(CierreContable, {
+        where: {
+          empresaId: dto.empresaId,
+          mes: revision.mes,
+          anio: revision.anio,
+        },
+      });
+      if (existente) {
+        throw new ConflictException('El período ya fue cerrado.');
+      }
+      const diagnostico = await this.generarDiagnostico(
+        dto.empresaId,
+        revision.mes,
+        revision.anio,
+        consultar,
+      );
+      if (diagnostico.bloqueos > 0) {
+        throw new BadRequestException(
+          'La información cambió después de la revisión y ahora existen bloqueos. Toma una nueva fotografía.',
+        );
+      }
+      const confirmaciones = this.json<Record<string, boolean>>(
+        revision.confirmacionesJson,
+        {},
+      );
+      if (
+        !confirmaciones.bancosRevisados ||
+        !confirmaciones.ivaRevisado ||
+        !confirmaciones.documentosCompletos ||
+        !confirmaciones.respaldoConfirmado
+      ) {
+        throw new BadRequestException(
+          'Las confirmaciones humanas de la revisión están incompletas.',
+        );
+      }
+
+      const cierre = await qr.manager.save(
+        qr.manager.create(CierreContable, {
+          empresaId: dto.empresaId,
+          mes: revision.mes,
+          anio: revision.anio,
+          usuarioId: dto.usuarioId,
+          notas: dto.notas?.trim() || revision.notas,
+          revisionId: revision.id,
+        }),
+      );
+      await qr.manager
+        .createQueryBuilder()
+        .update(Poliza)
+        .set({ periodoCerrado: true })
+        .where('empresaId = :empresaId AND mes = :mes AND anio = :anio', {
+          empresaId: dto.empresaId,
+          mes: revision.mes,
+          anio: revision.anio,
+        })
+        .execute();
+      await qr.manager.save(
+        qr.manager.create(EventoCierreContable, {
+          empresaId: dto.empresaId,
+          mes: revision.mes,
+          anio: revision.anio,
+          tipo: 'CIERRE',
+          usuarioId: dto.usuarioId,
+          cierreId: cierre.id,
+          revisionId: revision.id,
+          motivo: dto.notas?.trim() || revision.notas,
+          evidenciaJson: JSON.stringify({
+            diagnostico,
+            confirmaciones,
+          }),
+        }),
+      );
+      revision.estado = 'CERRADO';
+      revision.cierreId = cierre.id;
+      revision.snapshotJson = JSON.stringify(diagnostico);
+      revision.version += 1;
+      await qr.manager.save(revision);
+      await qr.commitTransaction();
+
+      return {
+        cierre,
+        totalPolizas: diagnostico.contabilidad.totalPolizas,
+        mensaje: `Período ${revision.mes}/${revision.anio} cerrado con revisión completa. ${diagnostico.contabilidad.totalPolizas} póliza(s) quedaron protegidas.`,
+      };
+    } catch (error) {
+      await qr.rollbackTransaction();
+      throw error;
+    } finally {
+      await qr.release();
+    }
+  }
+
   async reabrirPeriodo(dto: {
     empresaId: string;
-    mes:       number;
-    anio:      number;
+    mes: number;
+    anio: number;
     usuarioId: string;
     justificacion: string;
   }) {
-    if (!dto.justificacion?.trim()) {
-      throw new BadRequestException('Se requiere justificación para reabrir un período cerrado.');
+    await this.activacionService.exigirActiva(dto.empresaId);
+    const justificacion = dto.justificacion?.trim();
+    if (!justificacion || justificacion.length < 10) {
+      throw new BadRequestException(
+        'Explica la reapertura con al menos 10 caracteres.',
+      );
     }
-
-    const cierre = await this.cierreRepo.findOne({
-      where: { empresaId: dto.empresaId, mes: dto.mes, anio: dto.anio },
-    });
-    if (!cierre) {
-      throw new NotFoundException(`El período ${dto.mes}/${dto.anio} no está cerrado.`);
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction('SERIALIZABLE');
+    try {
+      const consultar: Consultar = (sql, parametros = []) =>
+        qr.query(sql, parametros);
+      await this.adquirirCandado(
+        consultar,
+        dto.empresaId,
+        dto.anio,
+        dto.mes,
+        'Exclusive',
+      );
+      const cierre = await qr.manager.findOne(CierreContable, {
+        where: {
+          empresaId: dto.empresaId,
+          mes: dto.mes,
+          anio: dto.anio,
+        },
+      });
+      if (!cierre) {
+        throw new NotFoundException(
+          `El período ${dto.mes}/${dto.anio} no está cerrado.`,
+        );
+      }
+      const evidencia = {
+        cierre: {
+          id: cierre.id,
+          fechaCierre: cierre.fechaCierre,
+          usuarioId: cierre.usuarioId,
+          notas: cierre.notas,
+          revisionId: cierre.revisionId,
+        },
+        justificacion,
+      };
+      await qr.manager.save(
+        qr.manager.create(EventoCierreContable, {
+          empresaId: dto.empresaId,
+          mes: dto.mes,
+          anio: dto.anio,
+          tipo: 'REAPERTURA',
+          usuarioId: dto.usuarioId,
+          cierreId: cierre.id,
+          revisionId: cierre.revisionId,
+          motivo: justificacion,
+          evidenciaJson: JSON.stringify(evidencia),
+        }),
+      );
+      await qr.manager
+        .createQueryBuilder()
+        .update(Poliza)
+        .set({ periodoCerrado: false })
+        .where('empresaId = :empresaId AND mes = :mes AND anio = :anio', {
+          empresaId: dto.empresaId,
+          mes: dto.mes,
+          anio: dto.anio,
+        })
+        .execute();
+      await qr.manager.delete(CierreContable, cierre.id);
+      await qr.commitTransaction();
+      return {
+        mensaje: `Período ${dto.mes}/${dto.anio} reabierto. La reapertura y su justificación quedaron en la bitácora.`,
+      };
+    } catch (error) {
+      await qr.rollbackTransaction();
+      throw error;
+    } finally {
+      await qr.release();
     }
-
-    // Desbloquear pólizas
-    await this.polizaRepo
-      .createQueryBuilder()
-      .update(Poliza)
-      .set({ periodoCerrado: false })
-      .where('empresaId = :e AND mes = :m AND anio = :a', {
-        e: dto.empresaId, m: dto.mes, a: dto.anio,
-      })
-      .execute();
-
-    // Eliminar el registro de cierre
-    await this.cierreRepo.delete(cierre.id);
-
-    return {
-      mensaje: `Período ${dto.mes}/${dto.anio} reabierto. Justificación: ${dto.justificacion}`,
-    };
   }
 
-  // ──────────────────────────────────────────────────────────────
-  // OBTENER ESTADO DE TODOS LOS PERÍODOS
-  // ──────────────────────────────────────────────────────────────
   async obtenerEstadoPeriodos(empresaId: string) {
     const anioActual = new Date().getFullYear();
-    const anios      = [anioActual - 1, anioActual];
-    const cierres    = await this.cierreRepo.find({ where: { empresaId } });
-    const cierreMap  = new Map(cierres.map(c => [`${c.mes}-${c.anio}`, c]));
-
-    const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-                   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-
-    const resultado = [];
-    for (const anio of anios) {
-      for (let mes = 1; mes <= 12; mes++) {
-        const cierre   = cierreMap.get(`${mes}-${anio}`);
-        const polizas  = await this.polizaRepo.count({
-          where: { empresaId, mes, anio },
-        });
-        resultado.push({
-          mes, anio,
-          nombreMes:    meses[mes - 1],
-          cerrado:      !!cierre,
-          fechaCierre:  cierre?.fechaCierre ?? null,
-          totalPolizas: polizas,
-        });
-      }
-    }
-    return resultado;
+    const anios = [anioActual - 1, anioActual];
+    const [cierres, conteos] = await Promise.all([
+      this.cierreRepo.find({ where: { empresaId } }),
+      this.dataSource.query(
+        `
+          SELECT anio, mes, COUNT(*) totalPolizas
+          FROM polizas
+          WHERE empresaId = @0 AND anio IN (@1, @2)
+          GROUP BY anio, mes
+        `,
+        [empresaId, anios[0], anios[1]],
+      ),
+    ]);
+    const cierreMap = new Map(cierres.map((c) => [`${c.mes}-${c.anio}`, c]));
+    const conteoMap = new Map(
+      conteos.map((fila: any) => [
+        `${Number(fila.mes)}-${Number(fila.anio)}`,
+        Number(fila.totalPolizas),
+      ]),
+    );
+    const hoy = new Date();
+    const actual = hoy.getFullYear() * 12 + hoy.getMonth() + 1;
+    return anios.flatMap((anio) =>
+      MESES.map((nombreMes, indice) => {
+        const mes = indice + 1;
+        const cierre = cierreMap.get(`${mes}-${anio}`);
+        return {
+          mes,
+          anio,
+          nombreMes,
+          cerrado: !!cierre,
+          fechaCierre: cierre?.fechaCierre ?? null,
+          totalPolizas: conteoMap.get(`${mes}-${anio}`) ?? 0,
+          cerrable: anio * 12 + mes < actual,
+        };
+      }),
+    );
   }
 
-  // ──────────────────────────────────────────────────────────────
-  // RESUMEN DEL PERÍODO (para mostrar antes de cerrar)
-  // ──────────────────────────────────────────────────────────────
+  async obtenerHistorial(empresaId: string, anio: number, mes: number) {
+    return this.eventoRepo.find({
+      where: { empresaId, anio, mes },
+      order: { fechaEvento: 'DESC' },
+    });
+  }
+
   async resumenPeriodo(empresaId: string, mes: number, anio: number) {
-    const polizas = await this.polizaRepo
-      .createQueryBuilder('p')
-      .leftJoinAndSelect('p.partidas', 'pp')
-      .where('p.empresaId = :e AND p.mes = :m AND p.anio = :a', {
-        e: empresaId, m: mes, a: anio,
-      })
-      .getMany();
-
-    const totalDebe  = polizas.flatMap(p => p.partidas).reduce((s, pp) => s + Number(pp.cargo),  0);
-    const totalHaber = polizas.flatMap(p => p.partidas).reduce((s, pp) => s + Number(pp.abono),  0);
-    const cuadrada   = Math.abs(totalDebe - totalHaber) < 0.01;
-
+    const diagnostico = await this.generarDiagnostico(empresaId, mes, anio);
     return {
-      mes, anio,
-      totalPolizas:  polizas.length,
-      totalPartidas: polizas.flatMap(p => p.partidas).length,
-      totalDebe:     Math.round(totalDebe  * 100) / 100,
-      totalHaber:    Math.round(totalHaber * 100) / 100,
-      cuadrada,
-      advertencia:   !cuadrada
-        ? `⚠️ La balanza NO está cuadrada. Diferencia: $${Math.abs(totalDebe - totalHaber).toFixed(2)}`
-        : null,
+      mes,
+      anio,
+      ...diagnostico.contabilidad,
+      cuadrada: Math.abs(diagnostico.contabilidad.diferencia) < 0.01,
+      advertencia:
+        diagnostico.bloqueos > 0
+          ? `${diagnostico.bloqueos} control(es) bloquean el cierre.`
+          : null,
+      diagnostico,
     };
   }
 }

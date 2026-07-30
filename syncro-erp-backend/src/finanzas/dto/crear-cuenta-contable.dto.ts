@@ -1,5 +1,15 @@
-import { IsNotEmpty, IsOptional, IsString, IsBoolean, IsEnum } from 'class-validator';
-import { NaturalezaCuenta, TipoCuenta } from '../entities/cuenta-contable.entity';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsBoolean,
+  IsEnum,
+} from 'class-validator';
+import {
+  NaturalezaCuenta,
+  RolCuentaSistema,
+  TipoCuenta,
+} from '../entities/cuenta-contable.entity';
 
 export class CrearCuentaContableDto {
   @IsString()
@@ -26,4 +36,8 @@ export class CrearCuentaContableDto {
 
   @IsBoolean()
   esAfectable!: boolean;
+
+  @IsEnum(RolCuentaSistema)
+  @IsOptional()
+  rolSistema?: RolCuentaSistema | null;
 }

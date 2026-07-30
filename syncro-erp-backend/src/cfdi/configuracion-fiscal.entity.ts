@@ -1,6 +1,9 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column,
-  CreateDateColumn, UpdateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 /**
@@ -31,11 +34,11 @@ export class ConfiguracionFiscal {
   codigoPostalExpedicion!: string;
 
   // ── CREDENCIALES PAC (Facturama) ────────────────────────────────
-  @Column({ type: 'varchar', length: 100 })
-  facturamaUser!: string;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  facturamaUser!: string | null;
 
-  @Column({ type: 'varchar', length: 200 })
-  facturamaPassword!: string;
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  facturamaPassword!: string | null;
 
   /** true = sandbox, false = producción */
   @Column({ default: true })

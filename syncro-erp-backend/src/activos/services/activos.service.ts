@@ -22,14 +22,22 @@
  */
 
 import {
-  BadRequestException, ConflictException, Injectable, Logger, NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
 import {
-  ActivoFijo, CategoriaActivo, DepreciacionMensual,
-  EstadoActivo, MetodoDepreciacion, MotivoBaja,
+  ActivoFijo,
+  CategoriaActivo,
+  DepreciacionMensual,
+  EstadoActivo,
+  MetodoDepreciacion,
+  MotivoBaja,
 } from '../entities/activo-fijo.entity';
 
 /* ── Utilidades de dinero ─────────────────────────────────────────────────── */
@@ -65,7 +73,12 @@ export interface ResultadoCorrida {
   activosOmitidos: number;
   importeTotal: number;
   totalmenteDepreciados: number;
-  detalle: Array<{ codigo: string; nombre: string; importe: number; motivo?: string }>;
+  detalle: Array<{
+    codigo: string;
+    nombre: string;
+    importe: number;
+    motivo?: string;
+  }>;
 }
 
 @Injectable()
@@ -73,9 +86,12 @@ export class ActivosService {
   private readonly logger = new Logger(ActivosService.name);
 
   constructor(
-    @InjectRepository(ActivoFijo) private readonly activos: Repository<ActivoFijo>,
-    @InjectRepository(CategoriaActivo) private readonly categorias: Repository<CategoriaActivo>,
-    @InjectRepository(DepreciacionMensual) private readonly depreciaciones: Repository<DepreciacionMensual>,
+    @InjectRepository(ActivoFijo)
+    private readonly activos: Repository<ActivoFijo>,
+    @InjectRepository(CategoriaActivo)
+    private readonly categorias: Repository<CategoriaActivo>,
+    @InjectRepository(DepreciacionMensual)
+    private readonly depreciaciones: Repository<DepreciacionMensual>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -108,7 +124,8 @@ export class ActivosService {
     }
 
     const esUltimoMes =
-      activo.mesesDepreciados + 1 >= activo.vidaUtilMeses || importe >= pendiente;
+      activo.mesesDepreciados + 1 >= activo.vidaUtilMeses ||
+      importe >= pendiente;
 
     // El último mes absorbe el residuo del redondeo: el activo cierra exacto.
     return esUltimoMes ? pendiente : Math.min(importe, pendiente);
@@ -116,8 +133,17 @@ export class ActivosService {
 
   /** Proyección completa: alimenta la cédula de depreciación. */
   proyectar(activo: ActivoFijo) {
-    const filas: Array<{ mes: number; ejercicio: number; importe: number; acumulada: number; enLibros: number }> = [];
-    const simulado = Object.assign(Object.create(Object.getPrototypeOf(activo)), activo) as ActivoFijo;
+    const filas: Array<{
+      mes: number;
+      ejercicio: number;
+      importe: number;
+      acumulada: number;
+      enLibros: number;
+    }> = [];
+    const simulado = Object.assign(
+      Object.create(Object.getPrototypeOf(activo)),
+      activo,
+    ) as ActivoFijo;
 
     simulado.depreciacionAcumulada = 0;
     simulado.mesesDepreciados = 0;
@@ -151,10 +177,13 @@ export class ActivosService {
     const categoria = await this.categorias.findOne({
       where: { id: dto.categoriaId, empresaId },
     });
-    if (!categoria) throw new NotFoundException('La categoría de activo no existe.');
+    if (!categoria)
+      throw new NotFoundException('La categoría de activo no existe.');
 
     if (dto.costoAdquisicion <= 0) {
-      throw new BadRequestException('El costo de adquisición debe ser mayor que cero.');
+      throw new BadRequestException(
+        'El costo de adquisición debe ser mayor que cero.',
+      );
     }
 
     const residual = dto.valorResidual ?? 0;
@@ -168,13 +197,17 @@ export class ActivosService {
     const tasa = dto.tasaAnual ?? Number(categoria.tasaAnual);
 
     if (metodo !== MetodoDepreciacion.NO_DEPRECIABLE && tasa <= 0) {
-      throw new BadRequestException('La tasa anual de depreciación debe ser mayor que cero.');
+      throw new BadRequestException(
+        'La tasa anual de depreciación debe ser mayor que cero.',
+      );
     }
 
     // Vida útil derivada de la tasa fiscal si no se especifica.
-    const vidaUtil = dto.vidaUtilMeses ?? (metodo === MetodoDepreciacion.NO_DEPRECIABLE
-      ? 0
-      : Math.max(1, Math.round((100 / tasa) * 12)));
+    const vidaUtil =
+      dto.vidaUtilMeses ??
+      (metodo === MetodoDepreciacion.NO_DEPRECIABLE
+        ? 0
+        : Math.max(1, Math.round((100 / tasa) * 12)));
 
     // Convención: se deprecia a partir del mes siguiente al alta.
     const adquisicion = new Date(dto.fechaAdquisicion);
@@ -201,30 +234,42 @@ export class ActivosService {
   }
 
   private async siguienteCodigo(empresaId: string): Promise<string> {
-    const { maximo } = await this.activos
+    const { maximo } = (await this.activos
       .createQueryBuilder('a')
       .select('MAX(CAST(SUBSTRING(a.codigo, 4, 10) AS INT))', 'maximo')
       .where('a.empresaId = :empresaId', { empresaId })
       .andWhere("a.codigo LIKE 'AF-%'")
-      .getRawOne<{ maximo: number | null }>() ?? { maximo: null };
+      .getRawOne<{ maximo: number | null }>()) ?? { maximo: null };
 
     return `AF-${String((maximo ?? 0) + 1).padStart(6, '0')}`;
   }
 
   /* ── Consulta ──────────────────────────────────────────────────────────── */
 
-  async listar(empresaId: string, filtros: { estado?: EstadoActivo; categoriaId?: string; busqueda?: string } = {}) {
+  async listar(
+    empresaId: string,
+    filtros: {
+      estado?: EstadoActivo;
+      categoriaId?: string;
+      busqueda?: string;
+    } = {},
+  ) {
     const q = this.activos
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.categoria', 'c')
       .where('a.empresaId = :empresaId', { empresaId });
 
-    if (filtros.estado) q.andWhere('a.estado = :estado', { estado: filtros.estado });
-    if (filtros.categoriaId) q.andWhere('a.categoriaId = :cat', { cat: filtros.categoriaId });
+    if (filtros.estado)
+      q.andWhere('a.estado = :estado', { estado: filtros.estado });
+    if (filtros.categoriaId)
+      q.andWhere('a.categoriaId = :cat', { cat: filtros.categoriaId });
     if (filtros.busqueda) {
-      q.andWhere('(a.nombre LIKE :b OR a.codigo LIKE :b OR a.numeroSerie LIKE :b)', {
-        b: `%${filtros.busqueda}%`,
-      });
+      q.andWhere(
+        '(a.nombre LIKE :b OR a.codigo LIKE :b OR a.numeroSerie LIKE :b)',
+        {
+          b: `%${filtros.busqueda}%`,
+        },
+      );
     }
 
     const lista = await q.orderBy('a.codigo', 'DESC').getMany();
@@ -232,7 +277,9 @@ export class ActivosService {
     // El getter no sobrevive a la serialización JSON; se añade explícito.
     return lista.map((a) => ({
       ...a,
-      valorEnLibros: aPesos(aCentavos(a.costoAdquisicion) - aCentavos(a.depreciacionAcumulada)),
+      valorEnLibros: aPesos(
+        aCentavos(a.costoAdquisicion) - aCentavos(a.depreciacionAcumulada),
+      ),
     }));
   }
 
@@ -245,7 +292,10 @@ export class ActivosService {
 
     return {
       ...activo,
-      valorEnLibros: aPesos(aCentavos(activo.costoAdquisicion) - aCentavos(activo.depreciacionAcumulada)),
+      valorEnLibros: aPesos(
+        aCentavos(activo.costoAdquisicion) -
+          aCentavos(activo.depreciacionAcumulada),
+      ),
       proyeccion: this.proyectar(activo),
     };
   }
@@ -262,18 +312,24 @@ export class ActivosService {
     mes: number,
     empresaId: string,
   ): Promise<ResultadoCorrida> {
-    if (mes < 1 || mes > 12) throw new BadRequestException('El mes debe estar entre 1 y 12.');
+    if (mes < 1 || mes > 12)
+      throw new BadRequestException('El mes debe estar entre 1 y 12.');
 
     const hoy = new Date();
     const finDePeriodo = new Date(ejercicio, mes, 0);
     if (finDePeriodo > hoy) {
-      throw new BadRequestException('No se puede depreciar un periodo que aún no termina.');
+      throw new BadRequestException(
+        'No se puede depreciar un periodo que aún no termina.',
+      );
     }
 
     const resultado: ResultadoCorrida = {
-      ejercicio, mes,
-      activosProcesados: 0, activosOmitidos: 0,
-      importeTotal: 0, totalmenteDepreciados: 0,
+      ejercicio,
+      mes,
+      activosProcesados: 0,
+      activosOmitidos: 0,
+      importeTotal: 0,
+      totalmenteDepreciados: 0,
       detalle: [],
     };
 
@@ -288,10 +344,12 @@ export class ActivosService {
 
       // Periodos ya registrados: una sola consulta en lugar de N.
       const yaRegistrados = new Set(
-        (await repoDep.find({
-          where: { empresaId, ejercicio, mes },
-          select: ['activoId'],
-        })).map((d) => d.activoId),
+        (
+          await repoDep.find({
+            where: { empresaId, ejercicio, mes },
+            select: ['activoId'],
+          })
+        ).map((d) => d.activoId),
       );
 
       let totalCent = 0;
@@ -300,7 +358,9 @@ export class ActivosService {
         if (yaRegistrados.has(activo.id)) {
           resultado.activosOmitidos++;
           resultado.detalle.push({
-            codigo: activo.codigo, nombre: activo.nombre, importe: 0,
+            codigo: activo.codigo,
+            nombre: activo.nombre,
+            importe: 0,
             motivo: 'Ya depreciado en este periodo',
           });
           continue;
@@ -310,7 +370,9 @@ export class ActivosService {
         if (new Date(activo.inicioDepreciacion) > finDePeriodo) {
           resultado.activosOmitidos++;
           resultado.detalle.push({
-            codigo: activo.codigo, nombre: activo.nombre, importe: 0,
+            codigo: activo.codigo,
+            nombre: activo.nombre,
+            importe: 0,
             motivo: 'Su depreciación inicia después de este periodo',
           });
           continue;
@@ -323,23 +385,29 @@ export class ActivosService {
           await repoActivos.save(activo);
           resultado.totalmenteDepreciados++;
           resultado.detalle.push({
-            codigo: activo.codigo, nombre: activo.nombre, importe: 0,
+            codigo: activo.codigo,
+            nombre: activo.nombre,
+            importe: 0,
             motivo: 'Totalmente depreciado',
           });
           continue;
         }
 
-        const acumuladaCent = aCentavos(activo.depreciacionAcumulada) + importeCent;
+        const acumuladaCent =
+          aCentavos(activo.depreciacionAcumulada) + importeCent;
         const enLibrosCent = aCentavos(activo.costoAdquisicion) - acumuladaCent;
 
-        await repoDep.save(repoDep.create({
-          empresaId,
-          activoId: activo.id,
-          ejercicio, mes,
-          importe: aPesos(importeCent),
-          acumuladaAlCierre: aPesos(acumuladaCent),
-          valorEnLibros: aPesos(enLibrosCent),
-        }));
+        await repoDep.save(
+          repoDep.create({
+            empresaId,
+            activoId: activo.id,
+            ejercicio,
+            mes,
+            importe: aPesos(importeCent),
+            acumuladaAlCierre: aPesos(acumuladaCent),
+            valorEnLibros: aPesos(enLibrosCent),
+          }),
+        );
 
         activo.depreciacionAcumulada = aPesos(acumuladaCent);
         activo.mesesDepreciados += 1;
@@ -352,7 +420,9 @@ export class ActivosService {
         totalCent += importeCent;
         resultado.activosProcesados++;
         resultado.detalle.push({
-          codigo: activo.codigo, nombre: activo.nombre, importe: aPesos(importeCent),
+          codigo: activo.codigo,
+          nombre: activo.nombre,
+          importe: aPesos(importeCent),
         });
       }
 
@@ -361,7 +431,7 @@ export class ActivosService {
 
     this.logger.log(
       `Depreciación ${mes}/${ejercicio} · empresa ${empresaId} · ` +
-      `${resultado.activosProcesados} activos · ${resultado.importeTotal}`,
+        `${resultado.activosProcesados} activos · ${resultado.importeTotal}`,
     );
 
     return resultado;
@@ -378,8 +448,10 @@ export class ActivosService {
       const posteriores = await repoDep
         .createQueryBuilder('d')
         .where('d.empresaId = :empresaId', { empresaId })
-        .andWhere('(d.ejercicio > :ejercicio OR (d.ejercicio = :ejercicio AND d.mes > :mes))',
-          { ejercicio, mes })
+        .andWhere(
+          '(d.ejercicio > :ejercicio OR (d.ejercicio = :ejercicio AND d.mes > :mes))',
+          { ejercicio, mes },
+        )
         .getCount();
 
       if (posteriores > 0) {
@@ -388,9 +460,13 @@ export class ActivosService {
         );
       }
 
-      const registros = await repoDep.find({ where: { empresaId, ejercicio, mes } });
+      const registros = await repoDep.find({
+        where: { empresaId, ejercicio, mes },
+      });
       if (!registros.length) {
-        throw new NotFoundException('No hay depreciación registrada para ese periodo.');
+        throw new NotFoundException(
+          'No hay depreciación registrada para ese periodo.',
+        );
       }
 
       for (const r of registros) {
@@ -416,25 +492,39 @@ export class ActivosService {
 
   async darDeBaja(
     id: string,
-    datos: { motivo: MotivoBaja; fecha: string; valorVenta?: number; notas?: string },
+    datos: {
+      motivo: MotivoBaja;
+      fecha: string;
+      valorVenta?: number;
+      notas?: string;
+    },
     empresaId: string,
   ) {
     const activo = await this.activos.findOne({ where: { id, empresaId } });
     if (!activo) throw new NotFoundException('El activo no existe.');
 
-    if (activo.estado === EstadoActivo.BAJA || activo.estado === EstadoActivo.VENDIDO) {
+    if (
+      activo.estado === EstadoActivo.BAJA ||
+      activo.estado === EstadoActivo.VENDIDO
+    ) {
       throw new ConflictException('Este activo ya fue dado de baja.');
     }
 
     if (datos.motivo === MotivoBaja.VENTA && (datos.valorVenta ?? 0) <= 0) {
-      throw new BadRequestException('Indica el valor de venta para dar de baja por venta.');
+      throw new BadRequestException(
+        'Indica el valor de venta para dar de baja por venta.',
+      );
     }
 
     const enLibros = aPesos(
-      aCentavos(activo.costoAdquisicion) - aCentavos(activo.depreciacionAcumulada),
+      aCentavos(activo.costoAdquisicion) -
+        aCentavos(activo.depreciacionAcumulada),
     );
 
-    activo.estado = datos.motivo === MotivoBaja.VENTA ? EstadoActivo.VENDIDO : EstadoActivo.BAJA;
+    activo.estado =
+      datos.motivo === MotivoBaja.VENTA
+        ? EstadoActivo.VENDIDO
+        : EstadoActivo.BAJA;
     activo.fechaBaja = new Date(datos.fecha);
     activo.motivoBaja = datos.motivo;
     activo.valorVenta = datos.valorVenta;
@@ -443,15 +533,17 @@ export class ActivosService {
     await this.activos.save(activo);
 
     // El resultado de la baja: lo que contabilidad necesita para la póliza.
-    const resultado = datos.motivo === MotivoBaja.VENTA
-      ? aPesos(aCentavos(datos.valorVenta ?? 0) - aCentavos(enLibros))
-      : -enLibros;
+    const resultado =
+      datos.motivo === MotivoBaja.VENTA
+        ? aPesos(aCentavos(datos.valorVenta ?? 0) - aCentavos(enLibros))
+        : -enLibros;
 
     return {
       activo,
       valorEnLibros: enLibros,
       resultado,
-      tipoResultado: resultado > 0 ? 'UTILIDAD' : resultado < 0 ? 'PERDIDA' : 'SIN_EFECTO',
+      tipoResultado:
+        resultado > 0 ? 'UTILIDAD' : resultado < 0 ? 'PERDIDA' : 'SIN_EFECTO',
     };
   }
 
@@ -465,11 +557,16 @@ export class ActivosService {
       order: { codigo: 'ASC' },
     });
 
-    const deps = await this.depreciaciones.find({ where: { empresaId, ejercicio } });
+    const deps = await this.depreciaciones.find({
+      where: { empresaId, ejercicio },
+    });
 
     const porActivo = new Map<string, number>();
     for (const d of deps) {
-      porActivo.set(d.activoId, (porActivo.get(d.activoId) ?? 0) + aCentavos(d.importe));
+      porActivo.set(
+        d.activoId,
+        (porActivo.get(d.activoId) ?? 0) + aCentavos(d.importe),
+      );
     }
 
     const filas = activos.map((a) => {
@@ -508,12 +605,20 @@ export class ActivosService {
   /* ── Categorías ────────────────────────────────────────────────────────── */
 
   listarCategorias(empresaId: string) {
-    return this.categorias.find({ where: { empresaId }, order: { clave: 'ASC' } });
+    return this.categorias.find({
+      where: { empresaId },
+      order: { clave: 'ASC' },
+    });
   }
 
   async crearCategoria(dto: Partial<CategoriaActivo>, empresaId: string) {
-    const existe = await this.categorias.findOne({ where: { empresaId, clave: dto.clave! } });
-    if (existe) throw new ConflictException(`Ya existe una categoría con la clave ${dto.clave}.`);
+    const existe = await this.categorias.findOne({
+      where: { empresaId, clave: dto.clave },
+    });
+    if (existe)
+      throw new ConflictException(
+        `Ya existe una categoría con la clave ${dto.clave}.`,
+      );
     return this.categorias.save(this.categorias.create({ ...dto, empresaId }));
   }
 
@@ -524,23 +629,34 @@ export class ActivosService {
   async sembrarCategorias(empresaId: string) {
     const base: Array<Partial<CategoriaActivo>> = [
       { clave: 'EDIF', nombre: 'Edificios y construcciones', tasaAnual: 5 },
-      { clave: 'MOB',  nombre: 'Mobiliario y equipo de oficina', tasaAnual: 10 },
-      { clave: 'MAQ',  nombre: 'Maquinaria y equipo', tasaAnual: 10 },
+      { clave: 'MOB', nombre: 'Mobiliario y equipo de oficina', tasaAnual: 10 },
+      { clave: 'MAQ', nombre: 'Maquinaria y equipo', tasaAnual: 10 },
       { clave: 'TRAN', nombre: 'Equipo de transporte', tasaAnual: 25 },
       { clave: 'COMP', nombre: 'Equipo de cómputo', tasaAnual: 30 },
       { clave: 'HERR', nombre: 'Herramientas y moldes', tasaAnual: 35 },
-      { clave: 'TERR', nombre: 'Terrenos', tasaAnual: 0, metodo: MetodoDepreciacion.NO_DEPRECIABLE },
+      {
+        clave: 'TERR',
+        nombre: 'Terrenos',
+        tasaAnual: 0,
+        metodo: MetodoDepreciacion.NO_DEPRECIABLE,
+      },
     ];
 
     const creadas: CategoriaActivo[] = [];
     for (const c of base) {
-      const existe = await this.categorias.findOne({ where: { empresaId, clave: c.clave! } });
+      const existe = await this.categorias.findOne({
+        where: { empresaId, clave: c.clave },
+      });
       if (!existe) {
-        creadas.push(await this.categorias.save(this.categorias.create({
-          ...c,
-          empresaId,
-          metodo: c.metodo ?? MetodoDepreciacion.LINEA_RECTA,
-        })));
+        creadas.push(
+          await this.categorias.save(
+            this.categorias.create({
+              ...c,
+              empresaId,
+              metodo: c.metodo ?? MetodoDepreciacion.LINEA_RECTA,
+            }),
+          ),
+        );
       }
     }
     return { creadas: creadas.length, categorias: creadas };
@@ -549,29 +665,53 @@ export class ActivosService {
   /* ── Resumen ───────────────────────────────────────────────────────────── */
 
   async resumen(empresaId: string) {
-    const activos = await this.activos.find({ where: { empresaId }, relations: ['categoria'] });
+    const activos = await this.activos.find({
+      where: { empresaId },
+      relations: ['categoria'],
+    });
     const vivos = activos.filter(
-      (a) => a.estado !== EstadoActivo.BAJA && a.estado !== EstadoActivo.VENDIDO,
+      (a) =>
+        a.estado !== EstadoActivo.BAJA && a.estado !== EstadoActivo.VENDIDO,
     );
 
-    const porCategoria = new Map<string, { costo: number; libros: number; cantidad: number }>();
+    const porCategoria = new Map<
+      string,
+      { costo: number; libros: number; cantidad: number }
+    >();
     for (const a of vivos) {
       const clave = a.categoria?.nombre ?? 'Sin categoría';
-      const acc = porCategoria.get(clave) ?? { costo: 0, libros: 0, cantidad: 0 };
+      const acc = porCategoria.get(clave) ?? {
+        costo: 0,
+        libros: 0,
+        cantidad: 0,
+      };
       acc.costo += aCentavos(a.costoAdquisicion);
-      acc.libros += aCentavos(a.costoAdquisicion) - aCentavos(a.depreciacionAcumulada);
+      acc.libros +=
+        aCentavos(a.costoAdquisicion) - aCentavos(a.depreciacionAcumulada);
       acc.cantidad += 1;
       porCategoria.set(clave, acc);
     }
 
     return {
       totalActivos: vivos.length,
-      costoTotal: aPesos(vivos.reduce((s, a) => s + aCentavos(a.costoAdquisicion), 0)),
-      depreciacionAcumulada: aPesos(vivos.reduce((s, a) => s + aCentavos(a.depreciacionAcumulada), 0)),
-      valorEnLibros: aPesos(
-        vivos.reduce((s, a) => s + aCentavos(a.costoAdquisicion) - aCentavos(a.depreciacionAcumulada), 0),
+      costoTotal: aPesos(
+        vivos.reduce((s, a) => s + aCentavos(a.costoAdquisicion), 0),
       ),
-      totalmenteDepreciados: vivos.filter((a) => a.estado === EstadoActivo.TOTALMENTE_DEPRECIADO).length,
+      depreciacionAcumulada: aPesos(
+        vivos.reduce((s, a) => s + aCentavos(a.depreciacionAcumulada), 0),
+      ),
+      valorEnLibros: aPesos(
+        vivos.reduce(
+          (s, a) =>
+            s +
+            aCentavos(a.costoAdquisicion) -
+            aCentavos(a.depreciacionAcumulada),
+          0,
+        ),
+      ),
+      totalmenteDepreciados: vivos.filter(
+        (a) => a.estado === EstadoActivo.TOTALMENTE_DEPRECIADO,
+      ).length,
       dadosDeBaja: activos.length - vivos.length,
       porCategoria: Array.from(porCategoria.entries()).map(([nombre, v]) => ({
         categoria: nombre,

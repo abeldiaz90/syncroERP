@@ -6,7 +6,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Requisicion } from '../entities/requisicion.entity';
+import {
+  EstadoRequisicion,
+  Requisicion,
+} from '../entities/requisicion.entity';
 import { DetalleRequisicion } from '../entities/detalle-requisicion.entity';
 import { Aprobacion } from '../entities/aprobacion.entity';
 import { ConfiguracionAprobacion } from '../entities/configuracion-aprobacion.entity';
@@ -38,11 +41,19 @@ export class RequisicionesService {
   // ====================== CREAR REQUISICIÓN ======================
   async crear(dto: CrearRequisicionDto, empresaId: string) {
     if (!dto.detalles || dto.detalles.length === 0) {
-      throw new BadRequestException('La requisición debe tener al menos un detalle');
+      throw new BadRequestException(
+        'La requisición debe tener al menos un detalle',
+      );
     }
     for (const det of dto.detalles) {
-      if (!det.productoId || !det.cantidadSolicitada || det.cantidadSolicitada <= 0) {
-        throw new BadRequestException('Cada detalle debe tener productoId y cantidadSolicitada mayor a 0');
+      if (
+        !det.productoId ||
+        !det.cantidadSolicitada ||
+        det.cantidadSolicitada <= 0
+      ) {
+        throw new BadRequestException(
+          'Cada detalle debe tener productoId y cantidadSolicitada mayor a 0',
+        );
       }
     }
 
@@ -97,7 +108,10 @@ export class RequisicionesService {
               destinatario: primerAprobador.email,
               asunto: 'Nueva requisición pendiente de aprobación',
               cuerpo: `Hola ${primerAprobador.nombreCompleto}, tienes una nueva requisición (ID: ${guardada.id}) pendiente de aprobación.`,
-              cuerpoHtml: htmlNuevaRequisicion(reqCompleta, primerAprobador.nombreCompleto),
+              cuerpoHtml: htmlNuevaRequisicion(
+                reqCompleta,
+                primerAprobador.nombreCompleto,
+              ),
             });
           }
         }
@@ -162,10 +176,25 @@ export class RequisicionesService {
   }
 
   // ====================== CAMBIAR ESTADO ======================
-  async cambiarEstado(id: string, empresaId: string, estado: string) {
+  async cambiarEstado(
+    id: string,
+    empresaId: string,
+    estado: EstadoRequisicion,
+  ) {
     const req = await this.reqRepo.findOne({ where: { id, empresaId } });
     if (!req) throw new NotFoundException('Requisición no encontrada');
-    req.estado = estado as any;
+    const transiciones: Partial<
+      Record<EstadoRequisicion, EstadoRequisicion[]>
+    > = {
+      PENDIENTE: ['COTIZANDO', 'CANCELADA'],
+      COTIZANDO: ['CANCELADA'],
+    };
+    if (!(transiciones[req.estado] ?? []).includes(estado)) {
+      throw new BadRequestException(
+        `No se permite cambiar una requisición de ${req.estado} a ${estado}.`,
+      );
+    }
+    req.estado = estado;
     return this.reqRepo.save(req);
   }
 
@@ -173,7 +202,11 @@ export class RequisicionesService {
   async obtenerAprobacionesPendientes(usuarioId: string) {
     return this.aprobacionRepo.find({
       where: { usuarioId, estado: 'PENDIENTE' },
-      relations: ['requisicion', 'requisicion.detalles', 'requisicion.detalles.producto'],
+      relations: [
+        'requisicion',
+        'requisicion.detalles',
+        'requisicion.detalles.producto',
+      ],
       order: { fechaAprobacion: 'ASC' },
     });
   }
@@ -200,18 +233,23 @@ export class RequisicionesService {
     const requisicionId = aprobacion.requisicion.id;
 
     if (estado === 'RECHAZADO') {
-      await this.reqRepo.update(requisicionId, { estado: 'RECHAZADA' as any });
+      await this.reqRepo.update(requisicionId, { estado: 'RECHAZADA' });
 
       const solicitante = await this.usuarioRepo.findOne({
         where: { id: aprobacion.requisicion.usuarioSolicitanteId },
       });
       if (solicitante) {
-        const req = await this.reqRepo.findOne({ where: { id: requisicionId } });
+        const req = await this.reqRepo.findOne({
+          where: { id: requisicionId },
+        });
         await this.mailService.enviarCorreo({
           destinatario: solicitante.email,
           asunto: 'Tu requisición ha sido rechazada',
           cuerpo: `Hola ${solicitante.nombreCompleto}, tu requisición (${requisicionId}) ha sido rechazada. Comentario: ${comentario}`,
-          cuerpoHtml: htmlRechazoRequisicion(req || { id: requisicionId }, comentario),
+          cuerpoHtml: htmlRechazoRequisicion(
+            req || { id: requisicionId },
+            comentario,
+          ),
         });
       }
       return aprobacion;
@@ -239,14 +277,18 @@ export class RequisicionesService {
       where: { requisicionId, estado: 'PENDIENTE' },
     });
 
-    console.log(`Requisición ${requisicionId} - Pendientes restantes: ${pendientes}`);
+    console.log(
+      `Requisición ${requisicionId} - Pendientes restantes: ${pendientes}`,
+    );
 
     if (pendientes === 0) {
-      await this.reqRepo.update(requisicionId, { estado: 'COTIZANDO' as any });
+      await this.reqRepo.update(requisicionId, { estado: 'COTIZANDO' });
       console.log(`Requisición ${requisicionId} ahora está en COTIZANDO`);
 
       if (solicitante) {
-        const req = await this.reqRepo.findOne({ where: { id: requisicionId } });
+        const req = await this.reqRepo.findOne({
+          where: { id: requisicionId },
+        });
         await this.mailService.enviarCorreo({
           destinatario: solicitante.email,
           asunto: 'Tu requisición ha sido aprobada y enviada a cotización',
@@ -281,7 +323,10 @@ export class RequisicionesService {
           destinatario: siguiente.usuario.email,
           asunto: 'Requisición pendiente de aprobación',
           cuerpo: `Tienes una requisición (${requisicionId}) pendiente de aprobar.`,
-          cuerpoHtml: htmlNuevaRequisicion(reqCompleta, siguiente.usuario.nombreCompleto),
+          cuerpoHtml: htmlNuevaRequisicion(
+            reqCompleta,
+            siguiente.usuario.nombreCompleto,
+          ),
         });
       }
     }

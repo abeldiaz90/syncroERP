@@ -1,13 +1,18 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column,
-  CreateDateColumn, UpdateDateColumn, OneToMany
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { PartidaPoliza } from './partida-poliza.entity';
 
 export enum TipoPoliza {
-  DIARIO  = 'DIARIO',
+  DIARIO = 'DIARIO',
   INGRESO = 'INGRESO',
-  EGRESO  = 'EGRESO',
+  EGRESO = 'EGRESO',
 }
 
 /**
@@ -23,6 +28,11 @@ export enum TipoPoliza {
 export type EstatusPoliza = 'VIGENTE' | 'CANCELADA' | 'REVERSA';
 
 @Entity('polizas')
+@Index('UX_polizas_empresa_origen', ['empresaId', 'origenClave'], {
+  unique: true,
+  where: 'origenClave IS NOT NULL',
+})
+@Index('UX_polizas_empresa_folio', ['empresaId', 'folio'], { unique: true })
 export class Poliza {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -41,10 +51,10 @@ export class Poliza {
 
   // ── Período contable ──────────────────────────────────────────
   @Column({ type: 'int', default: 1 })
-  mes!: number;   // 1-12
+  mes!: number; // 1-12
 
   @Column({ type: 'int', default: 2025 })
-  anio!: number;  // 2025, 2026...
+  anio!: number; // 2025, 2026...
 
   @Column({ type: 'bit', default: false })
   periodoCerrado!: boolean;
@@ -55,6 +65,16 @@ export class Poliza {
 
   @Column({ type: 'uniqueidentifier', nullable: true })
   facturaId!: string;
+
+  /** Llave estable del hecho que originó la póliza; evita duplicados al reintentar. */
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  origenClave!: string | null;
+
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  origenTipo!: string | null;
+
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  origenId!: string | null;
 
   // ── Cancelación / reverso ────────────────────────────────────
   /** VIGENTE por omisión. Las pólizas anteriores a esta función quedan VIGENTE. */
@@ -87,6 +107,8 @@ export class Poliza {
   @UpdateDateColumn()
   fechaActualizacion!: Date;
 
-  @OneToMany(() => PartidaPoliza, (partida) => partida.poliza, { cascade: true })
+  @OneToMany(() => PartidaPoliza, (partida) => partida.poliza, {
+    cascade: true,
+  })
   partidas!: PartidaPoliza[];
 }

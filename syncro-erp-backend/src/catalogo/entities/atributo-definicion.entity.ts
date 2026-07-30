@@ -1,6 +1,10 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column,
-  ManyToOne, JoinColumn, Index,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  Index,
 } from 'typeorm';
 import { AtributoGrupo } from './atributo-grupo.entity';
 
@@ -23,7 +27,9 @@ export class AtributoDefinicion {
   @Column({ type: 'uniqueidentifier' })
   empresaId!: string;
 
-  @ManyToOne(() => AtributoGrupo, (g) => g.definiciones, { onDelete: 'CASCADE' })
+  @ManyToOne(() => AtributoGrupo, (g) => g.definiciones, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'grupoId' })
   grupo!: AtributoGrupo;
 

@@ -1,6 +1,10 @@
 // hoteleria/entities/dotacion-tipo-habitacion.entity.ts
 import {
-  Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { TipoHabitacion } from './tipo-habitacion.entity';
 
@@ -12,7 +16,7 @@ import { TipoHabitacion } from './tipo-habitacion.entity';
 //    controla su ciclo de uso por separado (ropería/lavandería).
 export enum TipoArticulo {
   CONSUMIBLE = 'CONSUMIBLE',
-  BLANCO     = 'BLANCO',
+  BLANCO = 'BLANCO',
 }
 
 @Entity('dotaciones_tipo_habitacion')
@@ -23,7 +27,10 @@ export class DotacionTipoHabitacion {
   @Column({ type: 'uniqueidentifier' })
   empresaId!: string;
 
-  @ManyToOne(() => TipoHabitacion, (t) => t.dotaciones, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => TipoHabitacion, (t) => t.dotaciones, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'tipoHabitacionId' })
   tipoHabitacion!: TipoHabitacion;
 

@@ -1,4 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+} from 'typeorm';
 import { Requisicion } from './requisicion.entity';
 import { Usuario } from '../../iam/entities/usuario.entity';
 
@@ -24,7 +31,7 @@ export class Aprobacion {
   usuarioId: string;
 
   @Column({ type: 'int' })
-  orden: number;   // 1, 2, 3...
+  orden: number; // 1, 2, 3...
 
   @Column({ type: 'varchar', length: 20, default: 'PENDIENTE' })
   estado: EstadoAprobacion;

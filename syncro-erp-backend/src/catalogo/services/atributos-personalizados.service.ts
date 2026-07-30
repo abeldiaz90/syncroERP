@@ -1,5 +1,7 @@
 import {
-  BadRequestException, Injectable, NotFoundException,
+  BadRequestException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -25,47 +27,67 @@ export class AtributosPersonalizadosService {
   // ═══════════════ GRUPOS ═══════════════
 
   async listarGrupos(empresaId: string, incluirDefiniciones = false) {
-    return this.grupoRepo.find({
-      where: { empresaId, activo: true },
-      relations: incluirDefiniciones ? ['definiciones'] : [],
-      order: { orden: 'ASC', nombre: 'ASC' },
-    }).then((grupos) => {
-      if (incluirDefiniciones) {
-        grupos.forEach((g) => {
-          g.definiciones = (g.definiciones ?? [])
-            .filter((d) => d.activo)
-            .sort((a, b) => a.orden - b.orden);
-        });
-      }
-      return grupos;
-    });
+    return this.grupoRepo
+      .find({
+        where: { empresaId, activo: true },
+        relations: incluirDefiniciones ? ['definiciones'] : [],
+        order: { orden: 'ASC', nombre: 'ASC' },
+      })
+      .then((grupos) => {
+        if (incluirDefiniciones) {
+          grupos.forEach((g) => {
+            g.definiciones = (g.definiciones ?? [])
+              .filter((d) => d.activo)
+              .sort((a, b) => a.orden - b.orden);
+          });
+        }
+        return grupos;
+      });
   }
 
-  async crearGrupo(empresaId: string, dto: { nombre: string; descripcion?: string; orden?: number }) {
+  async crearGrupo(
+    empresaId: string,
+    dto: { nombre: string; descripcion?: string; orden?: number },
+  ) {
     const nombre = (dto.nombre ?? '').trim();
-    if (!nombre) throw new BadRequestException('El nombre del grupo es obligatorio');
-    const existe = await this.grupoRepo.findOne({ where: { empresaId, nombre } });
-    if (existe) throw new BadRequestException(`Ya existe un grupo llamado '${nombre}'`);
-    return this.grupoRepo.save(this.grupoRepo.create({
-      empresaId, nombre,
-      descripcion: dto.descripcion?.trim() || null,
-      orden: dto.orden ?? 0,
-    }));
+    if (!nombre)
+      throw new BadRequestException('El nombre del grupo es obligatorio');
+    const existe = await this.grupoRepo.findOne({
+      where: { empresaId, nombre },
+    });
+    if (existe)
+      throw new BadRequestException(`Ya existe un grupo llamado '${nombre}'`);
+    return this.grupoRepo.save(
+      this.grupoRepo.create({
+        empresaId,
+        nombre,
+        descripcion: dto.descripcion?.trim() || null,
+        orden: dto.orden ?? 0,
+      }),
+    );
   }
 
-  async actualizarGrupo(empresaId: string, id: string, dto: { nombre?: string; descripcion?: string; orden?: number }) {
+  async actualizarGrupo(
+    empresaId: string,
+    id: string,
+    dto: { nombre?: string; descripcion?: string; orden?: number },
+  ) {
     const grupo = await this.grupoRepo.findOne({ where: { id, empresaId } });
     if (!grupo) throw new NotFoundException('Grupo no encontrado');
     if (dto.nombre !== undefined) {
       const nombre = dto.nombre.trim();
-      if (!nombre) throw new BadRequestException('El nombre no puede quedar vacío');
-      const duplicado = await this.grupoRepo.findOne({ where: { empresaId, nombre } });
+      if (!nombre)
+        throw new BadRequestException('El nombre no puede quedar vacío');
+      const duplicado = await this.grupoRepo.findOne({
+        where: { empresaId, nombre },
+      });
       if (duplicado && duplicado.id !== id) {
         throw new BadRequestException(`Ya existe un grupo llamado '${nombre}'`);
       }
       grupo.nombre = nombre;
     }
-    if (dto.descripcion !== undefined) grupo.descripcion = dto.descripcion?.trim() || null;
+    if (dto.descripcion !== undefined)
+      grupo.descripcion = dto.descripcion?.trim() || null;
     if (dto.orden !== undefined) grupo.orden = dto.orden;
     return this.grupoRepo.save(grupo);
   }
@@ -82,44 +104,76 @@ export class AtributosPersonalizadosService {
 
   // ═══════════════ DEFINICIONES (campos) ═══════════════
 
-  async crearDefinicion(empresaId: string, grupoId: string, dto: {
-    etiqueta: string; tipoValor?: TipoValor; unidad?: string;
-    opciones?: string; requerido?: boolean; orden?: number;
-  }) {
-    const grupo = await this.grupoRepo.findOne({ where: { id: grupoId, empresaId } });
+  async crearDefinicion(
+    empresaId: string,
+    grupoId: string,
+    dto: {
+      etiqueta: string;
+      tipoValor?: TipoValor;
+      unidad?: string;
+      opciones?: string;
+      requerido?: boolean;
+      orden?: number;
+    },
+  ) {
+    const grupo = await this.grupoRepo.findOne({
+      where: { id: grupoId, empresaId },
+    });
     if (!grupo) throw new NotFoundException('Grupo no encontrado');
 
     const etiqueta = (dto.etiqueta ?? '').trim();
-    if (!etiqueta) throw new BadRequestException('La etiqueta del campo es obligatoria');
+    if (!etiqueta)
+      throw new BadRequestException('La etiqueta del campo es obligatoria');
 
     const clave = this.generarClave(etiqueta);
     const existe = await this.defRepo.findOne({ where: { grupoId, clave } });
-    if (existe) throw new BadRequestException(`Ya existe un campo '${etiqueta}' en este grupo`);
+    if (existe)
+      throw new BadRequestException(
+        `Ya existe un campo '${etiqueta}' en este grupo`,
+      );
 
     const tipoValor = dto.tipoValor ?? 'TEXT';
     if (tipoValor === 'SELECT' && !(dto.opciones ?? '').trim()) {
-      throw new BadRequestException("Un campo de tipo lista necesita opciones (sepáralas con '|')");
+      throw new BadRequestException(
+        "Un campo de tipo lista necesita opciones (sepáralas con '|')",
+      );
     }
 
-    return this.defRepo.save(this.defRepo.create({
-      empresaId, grupoId, clave, etiqueta, tipoValor,
-      unidad: dto.unidad?.trim() || null,
-      opciones: tipoValor === 'SELECT' ? this.normalizarOpciones(dto.opciones!) : null,
-      requerido: dto.requerido ?? false,
-      orden: dto.orden ?? 0,
-    }));
+    return this.defRepo.save(
+      this.defRepo.create({
+        empresaId,
+        grupoId,
+        clave,
+        etiqueta,
+        tipoValor,
+        unidad: dto.unidad?.trim() || null,
+        opciones:
+          tipoValor === 'SELECT' ? this.normalizarOpciones(dto.opciones) : null,
+        requerido: dto.requerido ?? false,
+        orden: dto.orden ?? 0,
+      }),
+    );
   }
 
-  async actualizarDefinicion(empresaId: string, id: string, dto: {
-    etiqueta?: string; tipoValor?: TipoValor; unidad?: string;
-    opciones?: string; requerido?: boolean; orden?: number;
-  }) {
+  async actualizarDefinicion(
+    empresaId: string,
+    id: string,
+    dto: {
+      etiqueta?: string;
+      tipoValor?: TipoValor;
+      unidad?: string;
+      opciones?: string;
+      requerido?: boolean;
+      orden?: number;
+    },
+  ) {
     const def = await this.defRepo.findOne({ where: { id, empresaId } });
     if (!def) throw new NotFoundException('Campo no encontrado');
 
     if (dto.etiqueta !== undefined) {
       const etiqueta = dto.etiqueta.trim();
-      if (!etiqueta) throw new BadRequestException('La etiqueta no puede quedar vacía');
+      if (!etiqueta)
+        throw new BadRequestException('La etiqueta no puede quedar vacía');
       def.etiqueta = etiqueta;
       // La clave NO se regenera al renombrar: así los valores ya guardados
       // en productos (que referencian la clave) siguen ligados.
@@ -127,13 +181,18 @@ export class AtributosPersonalizadosService {
     if (dto.tipoValor !== undefined) def.tipoValor = dto.tipoValor;
     if (dto.unidad !== undefined) def.unidad = dto.unidad?.trim() || null;
     if (dto.opciones !== undefined) {
-      def.opciones = def.tipoValor === 'SELECT' ? this.normalizarOpciones(dto.opciones) : null;
+      def.opciones =
+        def.tipoValor === 'SELECT'
+          ? this.normalizarOpciones(dto.opciones)
+          : null;
     }
     if (dto.requerido !== undefined) def.requerido = dto.requerido;
     if (dto.orden !== undefined) def.orden = dto.orden;
 
     if (def.tipoValor === 'SELECT' && !(def.opciones ?? '').trim()) {
-      throw new BadRequestException("Un campo de tipo lista necesita opciones (sepáralas con '|')");
+      throw new BadRequestException(
+        "Un campo de tipo lista necesita opciones (sepáralas con '|')",
+      );
     }
     return this.defRepo.save(def);
   }
@@ -154,8 +213,14 @@ export class AtributosPersonalizadosService {
    */
   async precargarEjemplos(empresaId: string) {
     const plantillas: Array<{
-      nombre: string; descripcion: string;
-      campos: Array<{ etiqueta: string; tipoValor: TipoValor; unidad?: string; opciones?: string }>;
+      nombre: string;
+      descripcion: string;
+      campos: Array<{
+        etiqueta: string;
+        tipoValor: TipoValor;
+        unidad?: string;
+        opciones?: string;
+      }>;
     }> = [
       {
         nombre: 'Farmacéutico',
@@ -163,8 +228,17 @@ export class AtributosPersonalizadosService {
         campos: [
           { etiqueta: 'Principio Activo', tipoValor: 'TEXT' },
           { etiqueta: 'Concentración', tipoValor: 'TEXT', unidad: 'mg/ml' },
-          { etiqueta: 'Forma Farmacéutica', tipoValor: 'SELECT', opciones: 'Tableta|Cápsula|Jarabe|Suspensión|Inyectable|Crema|Gotas' },
-          { etiqueta: 'Vía de Administración', tipoValor: 'SELECT', opciones: 'Oral|Tópica|Intravenosa|Intramuscular|Oftálmica|Ótica' },
+          {
+            etiqueta: 'Forma Farmacéutica',
+            tipoValor: 'SELECT',
+            opciones:
+              'Tableta|Cápsula|Jarabe|Suspensión|Inyectable|Crema|Gotas',
+          },
+          {
+            etiqueta: 'Vía de Administración',
+            tipoValor: 'SELECT',
+            opciones: 'Oral|Tópica|Intravenosa|Intramuscular|Oftálmica|Ótica',
+          },
           { etiqueta: 'Registro Sanitario', tipoValor: 'TEXT' },
           { etiqueta: 'Requiere Receta', tipoValor: 'BOOLEAN' },
           { etiqueta: 'Contenido (piezas)', tipoValor: 'NUMBER' },
@@ -175,11 +249,27 @@ export class AtributosPersonalizadosService {
         nombre: 'Cárnico / Alimentos',
         descripcion: 'Plantilla de ejemplo — edítala o elimínala',
         campos: [
-          { etiqueta: 'Especie', tipoValor: 'SELECT', opciones: 'Bovino|Porcino|Avícola|Ovino|Pescados y mariscos' },
+          {
+            etiqueta: 'Especie',
+            tipoValor: 'SELECT',
+            opciones: 'Bovino|Porcino|Avícola|Ovino|Pescados y mariscos',
+          },
           { etiqueta: 'Corte', tipoValor: 'TEXT' },
-          { etiqueta: 'Clasificación USDA', tipoValor: 'SELECT', opciones: 'Prime|Choice|Select|Standard' },
-          { etiqueta: 'Proceso de Conservación', tipoValor: 'SELECT', opciones: 'Fresco|Refrigerado|Congelado|Madurado' },
-          { etiqueta: 'Tipo Procesado', tipoValor: 'SELECT', opciones: 'Sin procesar|Marinado|Ahumado|Embutido' },
+          {
+            etiqueta: 'Clasificación USDA',
+            tipoValor: 'SELECT',
+            opciones: 'Prime|Choice|Select|Standard',
+          },
+          {
+            etiqueta: 'Proceso de Conservación',
+            tipoValor: 'SELECT',
+            opciones: 'Fresco|Refrigerado|Congelado|Madurado',
+          },
+          {
+            etiqueta: 'Tipo Procesado',
+            tipoValor: 'SELECT',
+            opciones: 'Sin procesar|Marinado|Ahumado|Embutido',
+          },
           { etiqueta: 'Origen Geográfico', tipoValor: 'TEXT' },
         ],
       },
@@ -189,7 +279,11 @@ export class AtributosPersonalizadosService {
         campos: [
           { etiqueta: 'Grado API', tipoValor: 'NUMBER', unidad: '°API' },
           { etiqueta: 'Contenido de Azufre', tipoValor: 'NUMBER', unidad: '%' },
-          { etiqueta: 'Punto de Inflamación', tipoValor: 'NUMBER', unidad: '°C' },
+          {
+            etiqueta: 'Punto de Inflamación',
+            tipoValor: 'NUMBER',
+            unidad: '°C',
+          },
           { etiqueta: 'Viscosidad', tipoValor: 'NUMBER', unidad: 'cSt' },
           { etiqueta: 'Norma Aplicable', tipoValor: 'TEXT' },
           { etiqueta: 'Clasificación ONU', tipoValor: 'TEXT' },
@@ -199,8 +293,16 @@ export class AtributosPersonalizadosService {
         nombre: 'Hotelero',
         descripcion: 'Plantilla de ejemplo — edítala o elimínala',
         campos: [
-          { etiqueta: 'Tipo de Amenidad', tipoValor: 'SELECT', opciones: 'Baño|Cama|Bienvenida|Minibar|Papelería' },
-          { etiqueta: 'Área de Suministro', tipoValor: 'SELECT', opciones: 'Habitaciones|Áreas públicas|Restaurante|Spa|Alberca' },
+          {
+            etiqueta: 'Tipo de Amenidad',
+            tipoValor: 'SELECT',
+            opciones: 'Baño|Cama|Bienvenida|Minibar|Papelería',
+          },
+          {
+            etiqueta: 'Área de Suministro',
+            tipoValor: 'SELECT',
+            opciones: 'Habitaciones|Áreas públicas|Restaurante|Spa|Alberca',
+          },
           { etiqueta: 'Dosis por Habitación', tipoValor: 'NUMBER' },
           { etiqueta: 'Proveedor Específico', tipoValor: 'TEXT' },
         ],
@@ -209,23 +311,33 @@ export class AtributosPersonalizadosService {
 
     let creados = 0;
     for (const p of plantillas) {
-      const existe = await this.grupoRepo.findOne({ where: { empresaId, nombre: p.nombre } });
+      const existe = await this.grupoRepo.findOne({
+        where: { empresaId, nombre: p.nombre },
+      });
       if (existe) continue;
-      const grupo = await this.grupoRepo.save(this.grupoRepo.create({
-        empresaId, nombre: p.nombre, descripcion: p.descripcion, orden: creados,
-      }));
+      const grupo = await this.grupoRepo.save(
+        this.grupoRepo.create({
+          empresaId,
+          nombre: p.nombre,
+          descripcion: p.descripcion,
+          orden: creados,
+        }),
+      );
       let orden = 1;
       for (const c of p.campos) {
-        await this.defRepo.save(this.defRepo.create({
-          empresaId, grupoId: grupo.id,
-          clave: this.generarClave(c.etiqueta),
-          etiqueta: c.etiqueta,
-          tipoValor: c.tipoValor,
-          unidad: c.unidad ?? null,
-          opciones: c.opciones ?? null,
-          requerido: false,
-          orden: orden++,
-        }));
+        await this.defRepo.save(
+          this.defRepo.create({
+            empresaId,
+            grupoId: grupo.id,
+            clave: this.generarClave(c.etiqueta),
+            etiqueta: c.etiqueta,
+            tipoValor: c.tipoValor,
+            unidad: c.unidad ?? null,
+            opciones: c.opciones ?? null,
+            requerido: false,
+            orden: orden++,
+          }),
+        );
       }
       creados++;
     }
@@ -237,17 +349,26 @@ export class AtributosPersonalizadosService {
   /** 'Principio Activo' → 'principioActivo' (sin acentos ni símbolos) */
   private generarClave(etiqueta: string): string {
     const limpio = etiqueta
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita acentos
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // quita acentos
       .replace(/[^a-zA-Z0-9 ]/g, ' ')
-      .trim().toLowerCase();
+      .trim()
+      .toLowerCase();
     const palabras = limpio.split(/\s+/);
-    return palabras
-      .map((w, i) => (i === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
-      .join('')
-      .slice(0, 100) || 'campo';
+    return (
+      palabras
+        .map((w, i) => (i === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join('')
+        .slice(0, 100) || 'campo'
+    );
   }
 
   private normalizarOpciones(raw: string): string {
-    return raw.split('|').map((o) => o.trim()).filter(Boolean).join('|').slice(0, 1000);
+    return raw
+      .split('|')
+      .map((o) => o.trim())
+      .filter(Boolean)
+      .join('|')
+      .slice(0, 1000);
   }
 }

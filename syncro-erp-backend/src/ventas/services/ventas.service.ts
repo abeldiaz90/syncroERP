@@ -1,5 +1,7 @@
 import {
-  Injectable, BadRequestException, NotFoundException,
+  Injectable,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -10,12 +12,25 @@ import { InventarioService } from '../../catalogo/services/inventario.service';
 import { PreciosService } from '../../catalogo/services/precios.service';
 import { Almacen } from '../../catalogo/entities/almacen.entity';
 import { StockPorAlmacen } from '../../catalogo/entities/stock-por-almacen.entity';
-import { MotorContableService } from '../../finanzas/services/motor-contable.service';
 import { NotificacionesService } from '../../notificaciones/notificaciones.service';
+import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
+import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
+import { CreditosService } from '../../credito/services/creditos.service';
+import { Cliente } from '../../clientes/entities/cliente.entity';
+import { CuentaBancaria } from '../../credito/entities/cuenta-bancaria.entity';
+import { TesoreriaService } from '../../tesoreria/services/tesoreria.service';
+import {
+  OrigenMovimiento,
+  TipoMovimiento,
+} from '../../tesoreria/entities/tesoreria.entity';
+import { SaldosFavorService } from './saldos-favor.service';
 
 // Métodos de pago que implican crédito (el email lo manda CreditosService)
 const METODOS_CREDITO = new Set([
-  'CREDITO_30D', 'CREDITO_60D', 'CREDITO_90D', 'MENSUALIDADES',
+  'CREDITO_30D',
+  'CREDITO_60D',
+  'CREDITO_90D',
+  'MENSUALIDADES',
 ]);
 
 /**
@@ -77,8 +92,11 @@ export class VentasService {
     private readonly inventarioService: InventarioService,
     private readonly precios: PreciosService,
     private readonly dataSource: DataSource,
-    private readonly motorContable: MotorContableService,
+    private readonly asientos: AsientosPendientesService,
+    private readonly creditos: CreditosService,
     private readonly notificaciones: NotificacionesService,
+    private readonly tesoreria: TesoreriaService,
+    private readonly saldosFavor: SaldosFavorService,
   ) {}
 
   // ── Almacén por defecto ────────────────────────────────────────
@@ -87,9 +105,10 @@ export class VentasService {
       where: { empresaId, activo: true },
       order: { fechaCreacion: 'ASC' },
     });
-    if (!almacen) throw new BadRequestException(
-      'No hay almacenes activos. Configura al menos uno en Catálogo → Almacenes.'
-    );
+    if (!almacen)
+      throw new BadRequestException(
+        'No hay almacenes activos. Configura al menos uno en Catálogo → Almacenes.',
+      );
     return almacen.id;
   }
 
@@ -103,10 +122,13 @@ export class VentasService {
     rolUsuario?: string,
   ) {
     if (!dto.detalles?.length) {
-      throw new BadRequestException('La venta debe tener al menos un producto.');
+      throw new BadRequestException(
+        'La venta debe tener al menos un producto.',
+      );
     }
 
-    const almacenId = dto.almacenId || await this.obtenerAlmacenDefault(empresaId);
+    const almacenId =
+      dto.almacenId || (await this.obtenerAlmacenDefault(empresaId));
 
     // ── Precios, impuestos y descuentos los decide el SERVIDOR ──
     // El navegador solo dijo qué producto y cuánta cantidad. `precioMostrado`
@@ -114,12 +136,12 @@ export class VentasService {
     // nunca se usa para calcular.
     const resuelta = await this.precios.resolverVenta(
       dto.detalles.map((d) => ({
-        productoId:          d.productoId,
-        cantidad:            d.cantidad,
+        productoId: d.productoId,
+        cantidad: d.cantidad,
         descuentoSolicitado: d.descuento,
-        equivalenciaId:      (d as { equivalenciaId?: string }).equivalenciaId,
-        loteEspecificoId:    (d as { loteEspecificoId?: string }).loteEspecificoId,
-        precioMostrado:      d.precioUnitario,
+        equivalenciaId: (d as { equivalenciaId?: string }).equivalenciaId,
+        loteEspecificoId: (d as { loteEspecificoId?: string }).loteEspecificoId,
+        precioMostrado: d.precioUnitario,
       })),
       empresaId,
       {
@@ -131,13 +153,56 @@ export class VentasService {
     const detallesCalculados = resuelta.detalles;
     const { subtotal, descuento, impuestoTotal, total } = resuelta;
 
+    const esCredito = METODOS_CREDITO.has(dto.metodoPago);
+    if (esCredito && !dto.clienteId) {
+      throw new BadRequestException(
+        'Una venta a crédito requiere seleccionar un cliente.',
+      );
+    }
+    if (esCredito && !dto.credito) {
+      throw new BadRequestException(
+        'Faltan las condiciones del crédito. La venta y el crédito deben registrarse juntos.',
+      );
+    }
+    if (!esCredito && dto.credito) {
+      throw new BadRequestException(
+        'Solo se aceptan condiciones de crédito en métodos de pago a crédito.',
+      );
+    }
+    if (Number(dto.saldoFavorSolicitado ?? 0) > 0 && !dto.clienteId)
+      throw new BadRequestException(
+        'Para usar saldo a favor debes seleccionar un cliente.',
+      );
+
     const qr = this.dataSource.createQueryRunner();
     await qr.connect();
     await qr.startTransaction();
 
     try {
+      if (dto.clienteId) {
+        const cliente = await qr.manager.findOne(Cliente, {
+          where: { id: dto.clienteId, empresaId, activo: true },
+        });
+        if (!cliente) {
+          throw new NotFoundException(
+            'El cliente no existe, está inactivo o pertenece a otra empresa.',
+          );
+        }
+      }
+      if (dto.cuentaBancariaId) {
+        const cuenta = await qr.manager.findOne(CuentaBancaria, {
+          where: { id: dto.cuentaBancariaId, empresaId, activo: true },
+        });
+        if (!cuenta) {
+          throw new NotFoundException(
+            'La cuenta de cobro no existe, está inactiva o pertenece a otra empresa.',
+          );
+        }
+      }
+
       // El bloqueo serializa la asignación del siguiente folio por empresa.
-      const ultima = await qr.manager.createQueryBuilder(Venta, 'v')
+      const ultima = await qr.manager
+        .createQueryBuilder(Venta, 'v')
         .setLock('pessimistic_write')
         .where('v.empresaId = :empresaId', { empresaId })
         .orderBy('v.folio', 'DESC')
@@ -148,32 +213,58 @@ export class VentasService {
       const venta = qr.manager.create(Venta, {
         empresaId,
         folio,
-        clienteId:     dto.clienteId     || null,
-        usuarioId:     usuarioId          || null,
+        clienteId: dto.clienteId || null,
+        usuarioId: usuarioId || null,
         almacenId,
         subtotal,
         descuento,
         impuestoTotal,
         total,
-        metodoPago:    dto.metodoPago     as Venta['metodoPago'],
-        montoRecibido: dto.montoRecibido  ?? null,
-        estado:        'COMPLETADA'       as EstadoVenta,
-        notas:         dto.notas,
+        saldoFavorAplicado: 0,
+        saldoFavorRestituido: 0,
+        metodoPago: dto.metodoPago as Venta['metodoPago'],
+        cuentaBancariaId: dto.cuentaBancariaId ?? null,
+        montoRecibido: dto.montoRecibido ?? null,
+        estado: 'COMPLETADA',
+        notas: dto.notas,
       });
       const ventaGuardada = await qr.manager.save(venta);
+      const saldoFavorAplicado =
+        dto.clienteId && Number(dto.saldoFavorSolicitado ?? 0) > 0
+          ? await this.saldosFavor.aplicar(qr.manager, {
+              empresaId,
+              clienteId: dto.clienteId,
+              ventaId: ventaGuardada.id,
+              solicitado: Number(dto.saldoFavorSolicitado),
+              totalVenta: total,
+              folio,
+              usuarioId,
+            })
+          : 0;
+      ventaGuardada.saldoFavorAplicado = saldoFavorAplicado;
+      await qr.manager.save(ventaGuardada);
+      const totalPorCobrar = Math.max(0, total - saldoFavorAplicado);
+      if (
+        dto.metodoPago === 'EFECTIVO' &&
+        Number(dto.montoRecibido ?? 0) < totalPorCobrar
+      ) {
+        throw new BadRequestException(
+          `El monto recibido debe cubrir ${totalPorCobrar.toFixed(2)} después del saldo a favor.`,
+        );
+      }
 
       // 2. Crear detalles — con los importes que resolvió el servidor
-      const detalles = detallesCalculados.map(d =>
+      const detalles = detallesCalculados.map((d) =>
         qr.manager.create(DetalleVenta, {
-          ventaId:            ventaGuardada.id,
-          productoId:         d.productoId,
-          cantidad:           d.cantidad,
-          precioUnitario:     d.precioUnitario,
-          descuento:          d.descuento          || 0,
-          subtotal:           d.subtotal,
+          ventaId: ventaGuardada.id,
+          productoId: d.productoId,
+          cantidad: d.cantidad,
+          precioUnitario: d.precioUnitario,
+          descuento: d.descuento || 0,
+          subtotal: d.subtotal,
           impuestoPorcentaje: d.impuestoPorcentaje || 0,
-          impuestoMonto:      d.impuestoMonto      || 0,
-        })
+          impuestoMonto: d.impuestoMonto || 0,
+        }),
       );
       await qr.manager.save(detalles);
 
@@ -181,53 +272,129 @@ export class VentasService {
       //    La validación de existencia vive aquí, dentro de la transacción y
       //    con bloqueo pesimista: es lo que impide que dos cajeros vendan la
       //    misma última pieza.
+      const costosPorProducto = new Map<string, number>();
       for (const d of detallesCalculados) {
-        await this.inventarioService.registrarSalida(
-          d.productoId, almacenId, d.cantidad,
+        const salida = await this.inventarioService.registrarSalida(
+          d.productoId,
+          almacenId,
+          d.cantidad,
           `Ticket #${folio} - Venta ${ventaGuardada.id.slice(0, 8)}`,
           empresaId,
-          d.equivalenciaId, d.loteEspecificoId, qr.manager,
+          d.equivalenciaId,
+          d.loteEspecificoId,
+          qr.manager,
           { id: ventaGuardada.id, tipo: 'VENTA' },
+        );
+        costosPorProducto.set(
+          d.productoId,
+          (costosPorProducto.get(d.productoId) ?? 0) +
+            Number(salida.costoTotal ?? 0),
+        );
+      }
+
+      let creditoGuardado: unknown = null;
+      if (esCredito && dto.credito && dto.clienteId) {
+        creditoGuardado = await this.creditos.crearCredito(
+          {
+            empresaId,
+            clienteId: dto.clienteId,
+            ventaId: ventaGuardada.id,
+            tipoCredito: dto.credito.tipoCredito,
+            montoVenta: total,
+            enganche: Number(dto.credito.enganche ?? 0),
+            saldoFavorAplicado,
+            numeroCuotas: Number(dto.credito.numeroCuotas),
+            tasaInteresMensual: Number(dto.credito.tasaInteresMensual ?? 0),
+            sinInteres: dto.credito.sinInteres,
+            fechaInicio: dto.credito.fechaInicio,
+            metodoPagoEnganche: dto.credito.metodoPagoEnganche,
+            cuentaBancariaEngancheId: dto.credito.cuentaBancariaEngancheId,
+            notas: `Generado con venta #${folio}`,
+          },
+          qr.manager,
+        );
+      }
+
+      const importeTesoreria = esCredito
+        ? Number(dto.credito?.enganche ?? 0)
+        : totalPorCobrar;
+      const cuentaTesoreriaId = esCredito
+        ? dto.credito?.cuentaBancariaEngancheId
+        : dto.cuentaBancariaId;
+      if (importeTesoreria > 0 && cuentaTesoreriaId) {
+        await this.tesoreria.registrarEnTransaccion(
+          {
+            cuentaBancariaId: cuentaTesoreriaId,
+            fecha: new Date().toISOString().slice(0, 10),
+            tipo: TipoMovimiento.INGRESO,
+            importe: importeTesoreria,
+            concepto: esCredito
+              ? `Enganche venta #${folio}`
+              : `Cobro venta #${folio}`,
+            origen: OrigenMovimiento.VENTA,
+            documentoId: ventaGuardada.id,
+            tipoDocumento: esCredito ? 'ENGANCHE_VENTA' : 'VENTA',
+            terceroId: dto.clienteId,
+          },
+          empresaId,
+          usuarioId,
+          qr.manager,
         );
       }
 
       await qr.commitTransaction();
 
-      // 4. Motor contable (no bloquea)
-      this.motorContable.generarAsientoDeVenta({
-        ventaId:          ventaGuardada.id,
-        folio,
-        fecha:            new Date(),
+      // 4. Contabilidad durable: si falla queda visible y se reintenta.
+      await this.asientos.intentar(
+        TipoAsiento.VENTA,
+        {
+          ventaId: ventaGuardada.id,
+          folio,
+          fecha: new Date(),
+          empresaId,
+          metodoPago: dto.metodoPago,
+          cuentaBancariaId: dto.cuentaBancariaId ?? undefined,
+          detalles: detallesCalculados.map((d) => ({
+            productoId: d.productoId,
+            cantidad: d.cantidad,
+            subtotal: d.subtotal,
+            impuestoMonto: d.impuestoMonto ?? 0,
+            costoTotal: costosPorProducto.get(d.productoId) ?? 0,
+          })),
+          totalGeneral: total,
+          enganche: esCredito ? Number(dto.credito?.enganche ?? 0) : 0,
+          saldoFavorAplicado,
+          cuentaBancariaEngancheId: dto.credito?.cuentaBancariaEngancheId,
+        },
         empresaId,
-        metodoPago:       dto.metodoPago,
-        cuentaBancariaId: dto.cuentaBancariaId ?? undefined,
-        detalles:         detallesCalculados.map(d => ({
-          productoId:    d.productoId,
-          cantidad:      d.cantidad,
-          subtotal:      d.subtotal,
-          impuestoMonto: d.impuestoMonto ?? 0,
-        })),
-        totalGeneral: total,
-      }).catch(err =>
-        console.error(`[MotorContable] Error venta #${folio}:`, err?.message)
+        `VENTA-${folio}`,
+        ventaGuardada.id,
       );
 
       // 5. Email de confirmación — solo para ventas de contado con cliente
       // Las ventas a crédito reciben email cuando se crea el CreditoCliente
       if (dto.clienteId && !METODOS_CREDITO.has(dto.metodoPago)) {
-        this.enviarEmailVenta(ventaGuardada.id, empresaId, folio)
-          .catch(err => console.error(`[Email] Venta #${folio}:`, err?.message));
+        this.enviarEmailVenta(ventaGuardada.id, empresaId, folio).catch((err) =>
+          console.error(`[Email] Venta #${folio}:`, err?.message),
+        );
       }
 
-      const ventaCompleta = await this.obtenerPorId(ventaGuardada.id, empresaId);
+      const ventaCompleta = await this.obtenerPorId(
+        ventaGuardada.id,
+        empresaId,
+      );
 
       // Si la pantalla mostraba otros precios, el punto de venta debe avisarlo:
       // se cobró el del catálogo, no el que veía el cajero.
-      return resuelta.discrepancias.length > 0
-        ? { ...ventaCompleta, discrepanciasPrecio: resuelta.discrepancias }
-        : ventaCompleta;
+      return {
+        ...ventaCompleta,
+        ...(creditoGuardado ? { credito: creditoGuardado } : {}),
+        ...(resuelta.discrepancias.length > 0
+          ? { discrepanciasPrecio: resuelta.discrepancias }
+          : {}),
+      };
     } catch (err) {
-      await qr.rollbackTransaction();
+      if (qr.isTransactionActive) await qr.rollbackTransaction();
       throw err;
     } finally {
       await qr.release();
@@ -235,7 +402,11 @@ export class VentasService {
   }
 
   // ── Carga la venta completa con cliente y manda el email ───────
-  private async enviarEmailVenta(ventaId: string, empresaId: string, folio: number) {
+  private async enviarEmailVenta(
+    ventaId: string,
+    empresaId: string,
+    folio: number,
+  ) {
     try {
       const venta = await this.ventaRepo.findOne({
         where: { id: ventaId, empresaId },
@@ -253,9 +424,9 @@ export class VentasService {
   // ─────────────────────────────────────────────────────────────────
   async obtenerTodas(
     empresaId: string,
-    pagina     = 1,
-    limite     = 20,
-    estado?:   EstadoVenta,
+    pagina = 1,
+    limite = 20,
+    estado?: EstadoVenta,
     clienteId?: string,
     fechaDesde?: string,
     fechaHasta?: string,
@@ -265,10 +436,11 @@ export class VentasService {
     pagina = Math.max(1, pagina);
     limite = Math.min(100, Math.max(1, limite));
 
-    const qb = this.ventaRepo.createQueryBuilder('v')
-      .leftJoinAndSelect('v.cliente',   'c')
-      .leftJoinAndSelect('v.detalles',  'd')
-      .leftJoinAndSelect('d.producto',  'p')
+    const qb = this.ventaRepo
+      .createQueryBuilder('v')
+      .leftJoinAndSelect('v.cliente', 'c')
+      .leftJoinAndSelect('v.detalles', 'd')
+      .leftJoinAndSelect('d.producto', 'p')
       .where('v.empresaId = :empresaId', { empresaId })
       .orderBy('v.fechaVenta', 'DESC')
       .skip((pagina - 1) * limite)
@@ -290,7 +462,12 @@ export class VentasService {
     }
 
     const [ventas, total] = await qb.getManyAndCount();
-    return { ventas, total, paginaActual: pagina, totalPaginas: Math.ceil(total / limite) };
+    return {
+      ventas,
+      total,
+      paginaActual: pagina,
+      totalPaginas: Math.ceil(total / limite),
+    };
   }
 
   async obtenerPorId(id: string, empresaId: string) {
@@ -316,50 +493,64 @@ export class VentasService {
   // MÉTRICAS DASHBOARD
   // ─────────────────────────────────────────────────────────────────
   async obtenerMetricasVentas(empresaId: string) {
-    const hoy    = new Date(); hoy.setHours(0, 0, 0, 0);
-    const manana = new Date(hoy); manana.setDate(manana.getDate() + 1);
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const manana = new Date(hoy);
+    manana.setDate(manana.getDate() + 1);
 
     const [hoyRes, semanaRes] = await Promise.all([
-      this.ventaRepo.createQueryBuilder('v')
-        .where('v.empresaId = :e',      { e: empresaId })
-        .andWhere('v.fechaVenta >= :hoy',   { hoy })
+      this.ventaRepo
+        .createQueryBuilder('v')
+        .where('v.empresaId = :e', { e: empresaId })
+        .andWhere('v.fechaVenta >= :hoy', { hoy })
         .andWhere('v.fechaVenta < :manana', { manana })
-        .andWhere('v.estado != :a',     { a: 'ANULADA' })
+        .andWhere('v.estado != :a', { a: 'ANULADA' })
         .select('COUNT(v.id)', 'cantidad')
-        .addSelect('COALESCE(SUM(v.total), 0)', 'total')
+        .addSelect('COALESCE(SUM(v.total - v.totalDevuelto), 0)', 'total')
         .getRawOne(),
-      this.ventaRepo.createQueryBuilder('v')
-        .where('v.empresaId = :e',       { e: empresaId })
-        .andWhere('v.fechaVenta >= :inicio', { inicio: new Date(Date.now() - 7 * 86400000) })
-        .andWhere('v.estado != :a',      { a: 'ANULADA' })
-        .select('COALESCE(SUM(v.total), 0)', 'total')
+      this.ventaRepo
+        .createQueryBuilder('v')
+        .where('v.empresaId = :e', { e: empresaId })
+        .andWhere('v.fechaVenta >= :inicio', {
+          inicio: new Date(Date.now() - 7 * 86400000),
+        })
+        .andWhere('v.estado != :a', { a: 'ANULADA' })
+        .select('COALESCE(SUM(v.total - v.totalDevuelto), 0)', 'total')
         .getRawOne(),
     ]);
 
     return {
-      ventasHoy:      Number(hoyRes?.cantidad)  || 0,
-      totalHoy:       Number(hoyRes?.total)      || 0,
-      ticketPromedio: hoyRes?.cantidad > 0
-        ? Number(hoyRes.total) / Number(hoyRes.cantidad) : 0,
-      totalSemana:    Number(semanaRes?.total)   || 0,
+      ventasHoy: Number(hoyRes?.cantidad) || 0,
+      totalHoy: Number(hoyRes?.total) || 0,
+      ticketPromedio:
+        hoyRes?.cantidad > 0
+          ? Number(hoyRes.total) / Number(hoyRes.cantidad)
+          : 0,
+      totalSemana: Number(semanaRes?.total) || 0,
     };
   }
 
   async obtenerTopProductos(empresaId: string, dias = 30) {
     const desde = new Date(Date.now() - dias * 86400000);
-    return this.detalleRepo.createQueryBuilder('d')
-      .leftJoin('d.venta',    'v')
+    return this.detalleRepo
+      .createQueryBuilder('d')
+      .leftJoin('d.venta', 'v')
       .leftJoin('d.producto', 'p')
-      .select('p.id',           'productoId')
-      .addSelect('p.nombre',    'nombre')
-      .addSelect('p.sku',       'sku')
-      .addSelect('SUM(d.cantidad)', 'cantidad')
-      .addSelect('SUM(d.subtotal)', 'importe')
-      .where('v.empresaId = :e',     { e: empresaId })
+      .select('p.id', 'productoId')
+      .addSelect('p.nombre', 'nombre')
+      .addSelect('p.sku', 'sku')
+      .addSelect('SUM(d.cantidad - d.cantidadDevuelta)', 'cantidad')
+      .addSelect(
+        'SUM(CASE WHEN d.cantidad = 0 THEN 0 ELSE d.subtotal * (d.cantidad - d.cantidadDevuelta) / d.cantidad END)',
+        'importe',
+      )
+      .where('v.empresaId = :e', { e: empresaId })
       .andWhere('v.fechaVenta >= :desde', { desde })
-      .andWhere('v.estado != :a',    { a: 'ANULADA' })
-      .groupBy('p.id').addGroupBy('p.nombre').addGroupBy('p.sku')
-      .orderBy('SUM(d.cantidad)', 'DESC')
+      .andWhere('v.estado != :a', { a: 'ANULADA' })
+      .groupBy('p.id')
+      .addGroupBy('p.nombre')
+      .addGroupBy('p.sku')
+      .orderBy('SUM(d.cantidad - d.cantidadDevuelta)', 'DESC')
       .limit(10)
       .getRawMany();
   }

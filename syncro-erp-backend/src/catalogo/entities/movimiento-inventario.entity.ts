@@ -1,6 +1,11 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn,
-  ManyToOne, JoinColumn, Index,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  Index,
 } from 'typeorm';
 import { Producto } from './producto.entity';
 import { Almacen } from './almacen.entity';
@@ -56,10 +61,22 @@ export class MovimientoInventario {
   @Column({ type: 'decimal', precision: 18, scale: 4, default: 0 })
   cantidad!: number;
 
-  @Column({ type: 'decimal', precision: 18, scale: 4, name: 'stock_anterior', default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 18,
+    scale: 4,
+    name: 'stock_anterior',
+    default: 0,
+  })
   stockAnterior!: number;
 
-  @Column({ type: 'decimal', precision: 18, scale: 4, name: 'stock_nuevo', default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 18,
+    scale: 4,
+    name: 'stock_nuevo',
+    default: 0,
+  })
   stockNuevo!: number;
 
   /* ── Costo ─────────────────────────────────────────────────────────────── */
@@ -69,7 +86,13 @@ export class MovimientoInventario {
    * En una entrada, lo que se pagó. En una salida, lo que costaba el lote del
    * que se tomó la mercancía.
    */
-  @Column({ type: 'decimal', precision: 18, scale: 4, name: 'costo_unitario', default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 18,
+    scale: 4,
+    name: 'costo_unitario',
+    default: 0,
+  })
   costoUnitario!: number;
 
   /**
@@ -77,7 +100,13 @@ export class MovimientoInventario {
    * Es el importe que va a la póliza. Se almacena calculado para que el asiento
    * contable y el kardex no puedan diferir por redondeo.
    */
-  @Column({ type: 'decimal', precision: 18, scale: 2, name: 'costo_total', default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 18,
+    scale: 2,
+    name: 'costo_total',
+    default: 0,
+  })
   costoTotal!: number;
 
   /* ── Trazabilidad ──────────────────────────────────────────────────────── */
@@ -92,7 +121,12 @@ export class MovimientoInventario {
   @Column({ type: 'uniqueidentifier', name: 'documento_id', nullable: true })
   documentoId?: string;
 
-  @Column({ type: 'varchar', length: 40, name: 'tipo_documento', nullable: true })
+  @Column({
+    type: 'varchar',
+    length: 40,
+    name: 'tipo_documento',
+    nullable: true,
+  })
   tipoDocumento?: string;
 
   @CreateDateColumn({ name: 'fecha_movimiento' })

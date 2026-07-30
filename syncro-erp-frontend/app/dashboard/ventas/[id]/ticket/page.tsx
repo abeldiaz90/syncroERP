@@ -42,6 +42,7 @@ interface IVenta {
   metodoPago: string; montoRecibido?: number;
   cliente?: ICliente;
   subtotal: number; descuento: number; impuestoTotal: number; total: number;
+  saldoFavorAplicado?: number;
   notas?: string;
   detalles: IDetalleVenta[];
 }
@@ -126,7 +127,8 @@ export default function TicketVentaPage() {
   const MetodoIcon  = metodoInfo.icon;
   const esCredito   = CREDITOS.has(venta.metodoPago);
   const esEfectivo  = venta.metodoPago === 'EFECTIVO';
-  const cambio      = esEfectivo && venta.montoRecibido ? venta.montoRecibido - venta.total : null;
+  const efectivoRequerido = Math.max(0, venta.total-Number(venta.saldoFavorAplicado||0));
+  const cambio      = esEfectivo && venta.montoRecibido ? venta.montoRecibido - efectivoRequerido : null;
   const isAnulada   = venta.estado === 'ANULADA';
   const fechaVenc   = venta.metodoPago in diasCredito
     ? new Date(new Date(venta.fechaVenta).getTime() + diasCredito[venta.metodoPago] * 86400000)
@@ -260,6 +262,12 @@ export default function TicketVentaPage() {
               <span>IVA</span>
               <span className="font-mono">{fmt$(venta.impuestoTotal)}</span>
             </div>
+            {Number(venta.saldoFavorAplicado||0)>0&&(
+              <div className="flex justify-between text-xs font-bold text-cyan-700">
+                <span>Saldo a favor aplicado</span>
+                <span>-{fmt$(Number(venta.saldoFavorAplicado))}</span>
+              </div>
+            )}
             <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-800 mt-1">
               <span className="font-black text-slate-900 uppercase text-sm">Total</span>
               <span className="font-black text-xl text-slate-900 font-mono">{fmt$(venta.total)}</span>

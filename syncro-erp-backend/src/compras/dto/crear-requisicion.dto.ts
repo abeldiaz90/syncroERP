@@ -3,7 +3,9 @@ import { Transform } from 'class-transformer';
 
 export class CrearRequisicionDto {
   @IsOptional()
-  @Transform(({ value }) => (value === '' || value === undefined ? undefined : value))
+  @Transform(({ value }) =>
+    value === '' || value === undefined ? undefined : value,
+  )
   usuarioSolicitanteId?: string;
 
   @IsOptional()

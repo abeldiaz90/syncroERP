@@ -1,6 +1,11 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column,
-  ManyToOne, JoinColumn, CreateDateColumn, Index
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+  Index,
 } from 'typeorm';
 import { Producto } from './producto.entity';
 
@@ -21,7 +26,6 @@ import { Producto } from './producto.entity';
 @Entity('producto_atributos')
 @Index(['productoId', 'clave'], { unique: true })
 export class ProductoAtributo {
-
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
@@ -78,37 +82,186 @@ export class ProductoAtributo {
 // ─────────────────────────────────────────────────────────────────
 
 export const ATRIBUTOS_FARMACEUTICO = [
-  { clave: 'principioActivo',    etiqueta: 'Principio Activo',       tipoValor: 'TEXT',   sector: 'FARMACEUTICO', orden: 1 },
-  { clave: 'concentracion',      etiqueta: 'Concentración',          tipoValor: 'TEXT',   sector: 'FARMACEUTICO', orden: 2, unidad: 'mg/ml' },
-  { clave: 'formaFarmaceutica',  etiqueta: 'Forma Farmacéutica',     tipoValor: 'SELECT', sector: 'FARMACEUTICO', orden: 3 },
-  { clave: 'viaAdministracion',  etiqueta: 'Vía de Administración',  tipoValor: 'SELECT', sector: 'FARMACEUTICO', orden: 4 },
-  { clave: 'registroSanitario',  etiqueta: 'Registro Sanitario',     tipoValor: 'TEXT',   sector: 'FARMACEUTICO', orden: 5 },
-  { clave: 'requiereReceta',     etiqueta: 'Requiere Receta',        tipoValor: 'BOOLEAN',sector: 'FARMACEUTICO', orden: 6 },
-  { clave: 'contenidoPiezas',    etiqueta: 'Contenido (piezas)',      tipoValor: 'NUMBER', sector: 'FARMACEUTICO', orden: 7 },
-  { clave: 'laboratorio',        etiqueta: 'Laboratorio Fabricante', tipoValor: 'TEXT',   sector: 'FARMACEUTICO', orden: 8 },
+  {
+    clave: 'principioActivo',
+    etiqueta: 'Principio Activo',
+    tipoValor: 'TEXT',
+    sector: 'FARMACEUTICO',
+    orden: 1,
+  },
+  {
+    clave: 'concentracion',
+    etiqueta: 'Concentración',
+    tipoValor: 'TEXT',
+    sector: 'FARMACEUTICO',
+    orden: 2,
+    unidad: 'mg/ml',
+  },
+  {
+    clave: 'formaFarmaceutica',
+    etiqueta: 'Forma Farmacéutica',
+    tipoValor: 'SELECT',
+    sector: 'FARMACEUTICO',
+    orden: 3,
+  },
+  {
+    clave: 'viaAdministracion',
+    etiqueta: 'Vía de Administración',
+    tipoValor: 'SELECT',
+    sector: 'FARMACEUTICO',
+    orden: 4,
+  },
+  {
+    clave: 'registroSanitario',
+    etiqueta: 'Registro Sanitario',
+    tipoValor: 'TEXT',
+    sector: 'FARMACEUTICO',
+    orden: 5,
+  },
+  {
+    clave: 'requiereReceta',
+    etiqueta: 'Requiere Receta',
+    tipoValor: 'BOOLEAN',
+    sector: 'FARMACEUTICO',
+    orden: 6,
+  },
+  {
+    clave: 'contenidoPiezas',
+    etiqueta: 'Contenido (piezas)',
+    tipoValor: 'NUMBER',
+    sector: 'FARMACEUTICO',
+    orden: 7,
+  },
+  {
+    clave: 'laboratorio',
+    etiqueta: 'Laboratorio Fabricante',
+    tipoValor: 'TEXT',
+    sector: 'FARMACEUTICO',
+    orden: 8,
+  },
 ];
 
 export const ATRIBUTOS_CARNICO = [
-  { clave: 'especie',            etiqueta: 'Especie',                tipoValor: 'SELECT', sector: 'CARNICO', orden: 1 },
-  { clave: 'corte',              etiqueta: 'Corte',                  tipoValor: 'TEXT',   sector: 'CARNICO', orden: 2 },
-  { clave: 'clasificacionUSDA',  etiqueta: 'Clasificación USDA',     tipoValor: 'SELECT', sector: 'CARNICO', orden: 3 },
-  { clave: 'procesoConservacion',etiqueta: 'Proceso de Conservación',tipoValor: 'SELECT', sector: 'CARNICO', orden: 4 },
-  { clave: 'tipoProcesado',      etiqueta: 'Tipo Procesado',         tipoValor: 'SELECT', sector: 'CARNICO', orden: 5 },
-  { clave: 'origenGeografico',   etiqueta: 'Origen Geográfico',      tipoValor: 'TEXT',   sector: 'CARNICO', orden: 6 },
+  {
+    clave: 'especie',
+    etiqueta: 'Especie',
+    tipoValor: 'SELECT',
+    sector: 'CARNICO',
+    orden: 1,
+  },
+  {
+    clave: 'corte',
+    etiqueta: 'Corte',
+    tipoValor: 'TEXT',
+    sector: 'CARNICO',
+    orden: 2,
+  },
+  {
+    clave: 'clasificacionUSDA',
+    etiqueta: 'Clasificación USDA',
+    tipoValor: 'SELECT',
+    sector: 'CARNICO',
+    orden: 3,
+  },
+  {
+    clave: 'procesoConservacion',
+    etiqueta: 'Proceso de Conservación',
+    tipoValor: 'SELECT',
+    sector: 'CARNICO',
+    orden: 4,
+  },
+  {
+    clave: 'tipoProcesado',
+    etiqueta: 'Tipo Procesado',
+    tipoValor: 'SELECT',
+    sector: 'CARNICO',
+    orden: 5,
+  },
+  {
+    clave: 'origenGeografico',
+    etiqueta: 'Origen Geográfico',
+    tipoValor: 'TEXT',
+    sector: 'CARNICO',
+    orden: 6,
+  },
 ];
 
 export const ATRIBUTOS_PETROLERO = [
-  { clave: 'gradoAPI',           etiqueta: 'Grado API',              tipoValor: 'NUMBER', sector: 'PETROLERO', orden: 1, unidad: '°API' },
-  { clave: 'contenidoAzufre',    etiqueta: 'Contenido de Azufre',    tipoValor: 'NUMBER', sector: 'PETROLERO', orden: 2, unidad: '%' },
-  { clave: 'puntoFlash',         etiqueta: 'Punto de Inflamación',   tipoValor: 'NUMBER', sector: 'PETROLERO', orden: 3, unidad: '°C' },
-  { clave: 'viscosidad',         etiqueta: 'Viscosidad',             tipoValor: 'NUMBER', sector: 'PETROLERO', orden: 4, unidad: 'cSt' },
-  { clave: 'normaAplicable',     etiqueta: 'Norma Aplicable',        tipoValor: 'TEXT',   sector: 'PETROLERO', orden: 5 },
-  { clave: 'clasificacionONU',   etiqueta: 'Clasificación ONU',      tipoValor: 'TEXT',   sector: 'PETROLERO', orden: 6 },
+  {
+    clave: 'gradoAPI',
+    etiqueta: 'Grado API',
+    tipoValor: 'NUMBER',
+    sector: 'PETROLERO',
+    orden: 1,
+    unidad: '°API',
+  },
+  {
+    clave: 'contenidoAzufre',
+    etiqueta: 'Contenido de Azufre',
+    tipoValor: 'NUMBER',
+    sector: 'PETROLERO',
+    orden: 2,
+    unidad: '%',
+  },
+  {
+    clave: 'puntoFlash',
+    etiqueta: 'Punto de Inflamación',
+    tipoValor: 'NUMBER',
+    sector: 'PETROLERO',
+    orden: 3,
+    unidad: '°C',
+  },
+  {
+    clave: 'viscosidad',
+    etiqueta: 'Viscosidad',
+    tipoValor: 'NUMBER',
+    sector: 'PETROLERO',
+    orden: 4,
+    unidad: 'cSt',
+  },
+  {
+    clave: 'normaAplicable',
+    etiqueta: 'Norma Aplicable',
+    tipoValor: 'TEXT',
+    sector: 'PETROLERO',
+    orden: 5,
+  },
+  {
+    clave: 'clasificacionONU',
+    etiqueta: 'Clasificación ONU',
+    tipoValor: 'TEXT',
+    sector: 'PETROLERO',
+    orden: 6,
+  },
 ];
 
 export const ATRIBUTOS_HOTELERO = [
-  { clave: 'tipoAmenidad',       etiqueta: 'Tipo de Amenidad',       tipoValor: 'SELECT', sector: 'HOTELERO', orden: 1 },
-  { clave: 'areaSuministro',     etiqueta: 'Área de Suministro',     tipoValor: 'SELECT', sector: 'HOTELERO', orden: 2 },
-  { clave: 'dosisXHabitacion',   etiqueta: 'Dosis por Habitación',   tipoValor: 'NUMBER', sector: 'HOTELERO', orden: 3 },
-  { clave: 'proveedor',          etiqueta: 'Proveedor Específico',   tipoValor: 'TEXT',   sector: 'HOTELERO', orden: 4 },
+  {
+    clave: 'tipoAmenidad',
+    etiqueta: 'Tipo de Amenidad',
+    tipoValor: 'SELECT',
+    sector: 'HOTELERO',
+    orden: 1,
+  },
+  {
+    clave: 'areaSuministro',
+    etiqueta: 'Área de Suministro',
+    tipoValor: 'SELECT',
+    sector: 'HOTELERO',
+    orden: 2,
+  },
+  {
+    clave: 'dosisXHabitacion',
+    etiqueta: 'Dosis por Habitación',
+    tipoValor: 'NUMBER',
+    sector: 'HOTELERO',
+    orden: 3,
+  },
+  {
+    clave: 'proveedor',
+    etiqueta: 'Proveedor Específico',
+    tipoValor: 'TEXT',
+    sector: 'HOTELERO',
+    orden: 4,
+  },
 ];

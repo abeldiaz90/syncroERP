@@ -48,7 +48,8 @@ import { MovimientoInventario } from '../../catalogo/entities/movimiento-inventa
  */
 
 const redondear2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-const redondear4 = (n: number) => Math.round((n + Number.EPSILON) * 10_000) / 10_000;
+const redondear4 = (n: number) =>
+  Math.round((n + Number.EPSILON) * 10_000) / 10_000;
 
 export interface InsumoConsumido {
   insumoId: string;
@@ -69,7 +70,11 @@ export interface ResultadoConsumo {
   costoPorPorcion: number;
   insumos: InsumoConsumido[];
   /** Insumos que no alcanzaron. La venta siguió; esto hay que revisarlo. */
-  faltantes: Array<{ insumoNombre: string; requerido: number; consumido: number }>;
+  faltantes: Array<{
+    insumoNombre: string;
+    requerido: number;
+    consumido: number;
+  }>;
 }
 
 @Injectable()
@@ -78,8 +83,10 @@ export class ConsumoRecetasService {
 
   constructor(
     @InjectRepository(Receta) private readonly recetaRepo: Repository<Receta>,
-    @InjectRepository(RecetaInsumo) private readonly insumoRepo: Repository<RecetaInsumo>,
-    @InjectRepository(MovimientoInventario) private readonly movRepo: Repository<MovimientoInventario>,
+    @InjectRepository(RecetaInsumo)
+    private readonly insumoRepo: Repository<RecetaInsumo>,
+    @InjectRepository(MovimientoInventario)
+    private readonly movRepo: Repository<MovimientoInventario>,
     private readonly inventario: InventarioService,
   ) {}
 
@@ -132,7 +139,9 @@ export class ConsumoRecetasService {
     for (const insumo of receta.insumos) {
       const merma = Number(insumo.mermaPorcentaje ?? 0);
       // La merma es cuánto se pierde al preparar: hay que tomar de más.
-      const requerido = redondear4(Number(insumo.cantidad) * (1 + merma / 100) * factor);
+      const requerido = redondear4(
+        Number(insumo.cantidad) * (1 + merma / 100) * factor,
+      );
 
       if (requerido <= 0) continue;
 
@@ -186,7 +195,7 @@ export class ConsumoRecetasService {
 
         this.logger.warn(
           `Insumo sin existencia al vender ${receta.productoNombre ?? datos.productoId}: ` +
-          `${insumo.insumoNombre} requiere ${requerido} ${insumo.unidad}. ${mensaje}`,
+            `${insumo.insumoNombre} requiere ${requerido} ${insumo.unidad}. ${mensaje}`,
         );
       }
     }
@@ -194,8 +203,8 @@ export class ConsumoRecetasService {
     if (faltantes.length > 0) {
       this.logger.warn(
         `Venta${datos.folio ? ` #${datos.folio}` : ''}: ${faltantes.length} insumos sin ` +
-        `existencia suficiente. El inventario de esos productos quedará mal hasta que ` +
-        `se registre la entrada faltante.`,
+          `existencia suficiente. El inventario de esos productos quedará mal hasta que ` +
+          `se registre la entrada faltante.`,
       );
     }
 
@@ -204,9 +213,10 @@ export class ConsumoRecetasService {
       productoId: datos.productoId,
       porciones: datos.cantidadVendida,
       costoTotal: redondear2(costoAcumulado),
-      costoPorPorcion: datos.cantidadVendida > 0
-        ? redondear4(costoAcumulado / datos.cantidadVendida)
-        : 0,
+      costoPorPorcion:
+        datos.cantidadVendida > 0
+          ? redondear4(costoAcumulado / datos.cantidadVendida)
+          : 0,
       insumos: consumidos,
       faltantes,
     };
@@ -223,7 +233,12 @@ export class ConsumoRecetasService {
     folio?: string,
   ): Promise<{ insumosDevueltos: number; costoTotal: number }> {
     const movimientos = await manager.find(MovimientoInventario, {
-      where: { documentoId, tipoDocumento: 'CONSUMO_RECETA', empresaId, tipo: 'SALIDA' },
+      where: {
+        documentoId,
+        tipoDocumento: 'CONSUMO_RECETA',
+        empresaId,
+        tipo: 'SALIDA',
+      },
     });
 
     let costo = 0;
@@ -245,7 +260,10 @@ export class ConsumoRecetasService {
       costo += Number(mov.costoTotal);
     }
 
-    return { insumosDevueltos: movimientos.length, costoTotal: redondear2(costo) };
+    return {
+      insumosDevueltos: movimientos.length,
+      costoTotal: redondear2(costo),
+    };
   }
 
   /* ══ COSTO TEÓRICO ═══════════════════════════════════════════════════════ */
@@ -265,22 +283,35 @@ export class ConsumoRecetasService {
     if (!receta) return null;
 
     const detalle: Array<{
-      insumoNombre: string; cantidad: number; unidad: string;
-      costoUnitario: number; costoTotal: number; sinCosto: boolean;
+      insumoNombre: string;
+      cantidad: number;
+      unidad: string;
+      costoUnitario: number;
+      costoTotal: number;
+      sinCosto: boolean;
     }> = [];
 
     let total = 0;
 
     for (const insumo of receta.insumos ?? []) {
       const lotes = await this.inventario.obtenerLotesPorProducto(
-        insumo.insumoId, empresaId, almacenId,
+        insumo.insumoId,
+        empresaId,
+        almacenId,
       );
 
       // Promedio ponderado de los lotes con existencia.
       const conStock = lotes.filter((l) => Number(l.stockRestante) > 0);
-      const stockTotal = conStock.reduce((s, l) => s + Number(l.stockRestante), 0);
-      const valorTotal = conStock.reduce((s, l) => s + Number(l.valorTotal ?? 0), 0);
-      const costoUnitario = stockTotal > 0 ? redondear4(valorTotal / stockTotal) : 0;
+      const stockTotal = conStock.reduce(
+        (s, l) => s + Number(l.stockRestante),
+        0,
+      );
+      const valorTotal = conStock.reduce(
+        (s, l) => s + Number(l.valorTotal ?? 0),
+        0,
+      );
+      const costoUnitario =
+        stockTotal > 0 ? redondear4(valorTotal / stockTotal) : 0;
 
       const merma = Number(insumo.mermaPorcentaje ?? 0);
       const cantidad = redondear4(Number(insumo.cantidad) * (1 + merma / 100));
@@ -316,10 +347,13 @@ export class ConsumoRecetasService {
 
   /** Actualiza el `costoTeorico` de todas las recetas con los precios de hoy. */
   async recalcularTodas(empresaId: string) {
-    const recetas = await this.recetaRepo.find({ where: { empresaId, activa: true } });
+    const recetas = await this.recetaRepo.find({
+      where: { empresaId, activa: true },
+    });
 
     let actualizadas = 0;
-    const cambios: Array<{ producto: string; antes: number; ahora: number }> = [];
+    const cambios: Array<{ producto: string; antes: number; ahora: number }> =
+      [];
 
     for (const r of recetas) {
       const calculo = await this.costoActual(r.id, empresaId);
@@ -340,8 +374,8 @@ export class ConsumoRecetasService {
     return {
       revisadas: recetas.length,
       actualizadas,
-      cambios: cambios.sort((a, b) =>
-        Math.abs(b.ahora - b.antes) - Math.abs(a.ahora - a.antes),
+      cambios: cambios.sort(
+        (a, b) => Math.abs(b.ahora - b.antes) - Math.abs(a.ahora - a.antes),
       ),
     };
   }
@@ -379,35 +413,67 @@ export class ConsumoRecetasService {
     // Todo lo demás que salió de esos mismos insumos: mermas y ajustes.
     const insumosAfectados = new Set(consumos.map((c) => c.productoId));
 
-    const otrasSalidas = insumosAfectados.size === 0 ? [] : await this.movRepo
-      .createQueryBuilder('m')
-      .where('m.empresaId = :empresaId', { empresaId })
-      .andWhere('m.tipo = :tipo', { tipo: 'SALIDA' })
-      .andWhere('m.fechaMovimiento BETWEEN :inicio AND :fin', { inicio, fin })
-      .andWhere('m.productoId IN (:...ids)', { ids: Array.from(insumosAfectados) })
-      .andWhere('(m.tipoDocumento IS NULL OR m.tipoDocumento != :consumo)', {
-        consumo: 'CONSUMO_RECETA',
-      })
-      .getMany();
+    const otrasSalidas =
+      insumosAfectados.size === 0
+        ? []
+        : await this.movRepo
+            .createQueryBuilder('m')
+            .where('m.empresaId = :empresaId', { empresaId })
+            .andWhere('m.tipo = :tipo', { tipo: 'SALIDA' })
+            .andWhere('m.fechaMovimiento BETWEEN :inicio AND :fin', {
+              inicio,
+              fin,
+            })
+            .andWhere('m.productoId IN (:...ids)', {
+              ids: Array.from(insumosAfectados),
+            })
+            .andWhere(
+              '(m.tipoDocumento IS NULL OR m.tipoDocumento != :consumo)',
+              {
+                consumo: 'CONSUMO_RECETA',
+              },
+            )
+            .getMany();
 
-    const porInsumo = new Map<string, {
-      teoricoCant: number; teoricoCosto: number;
-      otrasCant: number; otrasCosto: number;
-    }>();
+    const porInsumo = new Map<
+      string,
+      {
+        teoricoCant: number;
+        teoricoCosto: number;
+        otrasCant: number;
+        otrasCosto: number;
+      }
+    >();
 
     const acumular = (
-      id: string, campo: 'teorico' | 'otras', cant: number, costo: number,
+      id: string,
+      campo: 'teorico' | 'otras',
+      cant: number,
+      costo: number,
     ) => {
       const a = porInsumo.get(id) ?? {
-        teoricoCant: 0, teoricoCosto: 0, otrasCant: 0, otrasCosto: 0,
+        teoricoCant: 0,
+        teoricoCosto: 0,
+        otrasCant: 0,
+        otrasCosto: 0,
       };
-      if (campo === 'teorico') { a.teoricoCant += cant; a.teoricoCosto += costo; }
-      else { a.otrasCant += cant; a.otrasCosto += costo; }
+      if (campo === 'teorico') {
+        a.teoricoCant += cant;
+        a.teoricoCosto += costo;
+      } else {
+        a.otrasCant += cant;
+        a.otrasCosto += costo;
+      }
       porInsumo.set(id, a);
     };
 
     for (const m of consumos) {
-      acumular(m.productoId, 'teorico', Number(m.cantidad), Number(m.costoTotal));
+      acumular(
+        m.productoId,
+        'teorico',
+        Number(m.cantidad),
+        Number(m.costoTotal),
+      );
     }
     for (const m of otrasSalidas) {
       acumular(m.productoId, 'otras', Number(m.cantidad), Number(m.costoTotal));
@@ -424,9 +490,10 @@ export class ConsumoRecetasService {
         costoReal: redondear2(realCosto),
         desviacion: redondear2(v.otrasCosto),
         // Qué tanto se pasó del costo esperado
-        porcentajeDesviacion: v.teoricoCosto > 0
-          ? Math.round((v.otrasCosto / v.teoricoCosto) * 1000) / 10
-          : 0,
+        porcentajeDesviacion:
+          v.teoricoCosto > 0
+            ? Math.round((v.otrasCosto / v.teoricoCosto) * 1000) / 10
+            : 0,
       };
     });
 
@@ -438,9 +505,10 @@ export class ConsumoRecetasService {
       costoTeorico: redondear2(totalTeorico),
       costoReal: redondear2(totalReal),
       desviacion: redondear2(totalReal - totalTeorico),
-      porcentajeDesviacion: totalTeorico > 0
-        ? Math.round(((totalReal - totalTeorico) / totalTeorico) * 1000) / 10
-        : 0,
+      porcentajeDesviacion:
+        totalTeorico > 0
+          ? Math.round(((totalReal - totalTeorico) / totalTeorico) * 1000) / 10
+          : 0,
       // Los peores primero: por ahí empieza la investigación.
       filas: filas.sort((a, b) => b.desviacion - a.desviacion),
     };

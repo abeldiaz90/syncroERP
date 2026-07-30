@@ -29,8 +29,8 @@ export class PlantillaStockInicialService {
   // ── paleta ──
   private readonly VERDE = 'FF047857';
   private readonly VERDE_CLARO = 'FFD1FAE5';
-  private readonly GRIS_REF = 'FFF1F5F9';   // columnas informativas (no editar)
-  private readonly AMARILLO = 'FFFEF9C3';   // columnas a capturar
+  private readonly GRIS_REF = 'FFF1F5F9'; // columnas informativas (no editar)
+  private readonly AMARILLO = 'FFFEF9C3'; // columnas a capturar
   private readonly BORDE = 'FFCBD5E1';
 
   async generar(empresaId: string): Promise<Buffer> {
@@ -58,7 +58,7 @@ export class PlantillaStockInicialService {
       { key: 'precioCompraRef', width: 15 },
       { key: 'lote', width: 14 },
       { key: 'caducidad', width: 12 },
-    ] as any;
+    ];
 
     // Fila 1: título
     ws.mergeCells('A1:H1');
@@ -67,21 +67,35 @@ export class PlantillaStockInicialService {
       `CARGA DE STOCK INICIAL · ${productosActivos.length} productos de tu catálogo · ` +
       `Captura CANTIDAD y COSTO solo en los productos que tengan existencias. Las filas vacías se omiten.`;
     titulo.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-    titulo.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: this.VERDE } };
+    titulo.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: this.VERDE },
+    };
     titulo.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
     ws.getRow(1).height = 30;
 
     // Fila 2: encabezados (los nombres que lee el importador)
     const headers = [
-      'sku', 'nombre', 'almacen', 'cantidad',
-      'costoUnitario', 'precioCompraRef', 'lote', 'caducidad',
+      'sku',
+      'nombre',
+      'almacen',
+      'cantidad',
+      'costoUnitario',
+      'precioCompraRef',
+      'lote',
+      'caducidad',
     ];
     const encabezado = ws.getRow(2);
     headers.forEach((h, i) => {
       const c = encabezado.getCell(i + 1);
       c.value = h;
       c.font = { bold: true, size: 10, color: { argb: 'FF0F172A' } };
-      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: this.VERDE_CLARO } };
+      c.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: this.VERDE_CLARO },
+      };
       c.border = { bottom: { style: 'medium', color: { argb: this.VERDE } } };
       c.alignment = { horizontal: 'center' };
     });
@@ -89,7 +103,8 @@ export class PlantillaStockInicialService {
 
     // Dropdown de almacenes (lista inline si cabe en el límite de Excel de 255 chars)
     const listaAlmacenes = almacenes.map((a) => a.nombre).join(',');
-    const usarDropdown = listaAlmacenes.length > 0 && listaAlmacenes.length <= 250;
+    const usarDropdown =
+      listaAlmacenes.length > 0 && listaAlmacenes.length <= 250;
 
     // Filas de datos: UNA POR PRODUCTO, pre-llenadas
     productosActivos.forEach((p: any, i) => {
@@ -101,11 +116,19 @@ export class PlantillaStockInicialService {
       r.getCell(6).value = Number(p.precioCompra ?? 0) || null; // referencia del fallback
       // estilos por tipo de columna
       [1, 2, 6].forEach((col) => {
-        r.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: this.GRIS_REF } };
+        r.getCell(col).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: this.GRIS_REF },
+        };
         r.getCell(col).font = { color: { argb: 'FF475569' }, size: 10 };
       });
       [4, 5].forEach((col) => {
-        r.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: this.AMARILLO } };
+        r.getCell(col).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: this.AMARILLO },
+        };
       });
       for (let col = 1; col <= 8; col++) {
         r.getCell(col).border = {
@@ -115,19 +138,31 @@ export class PlantillaStockInicialService {
       }
       r.getCell(6).numFmt = '#,##0.00';
       r.getCell(4).dataValidation = {
-        type: 'decimal', operator: 'greaterThan', formulae: [0], allowBlank: true,
-        showErrorMessage: true, errorTitle: 'Cantidad inválida',
+        type: 'decimal',
+        operator: 'greaterThan',
+        formulae: [0],
+        allowBlank: true,
+        showErrorMessage: true,
+        errorTitle: 'Cantidad inválida',
         error: 'Debe ser un número mayor a 0 (o deja vacío si no hay stock).',
       };
       r.getCell(5).dataValidation = {
-        type: 'decimal', operator: 'greaterThan', formulae: [0], allowBlank: true,
-        showErrorMessage: true, errorTitle: 'Costo inválido',
-        error: 'Número mayor a 0. Vacío = se usa el precio de compra (columna de referencia).',
+        type: 'decimal',
+        operator: 'greaterThan',
+        formulae: [0],
+        allowBlank: true,
+        showErrorMessage: true,
+        errorTitle: 'Costo inválido',
+        error:
+          'Número mayor a 0. Vacío = se usa el precio de compra (columna de referencia).',
       };
       if (usarDropdown) {
         r.getCell(3).dataValidation = {
-          type: 'list', allowBlank: false, formulae: [`"${listaAlmacenes}"`],
-          showErrorMessage: true, errorTitle: 'Almacén no válido',
+          type: 'list',
+          allowBlank: false,
+          formulae: [`"${listaAlmacenes}"`],
+          showErrorMessage: true,
+          errorTitle: 'Almacén no válido',
           error: 'Elige un almacén de la lista.',
         };
       }
@@ -139,9 +174,15 @@ export class PlantillaStockInicialService {
     const wsAlm = wb.addWorksheet('Almacenes');
     wsAlm.getCell('A1').value = 'Almacenes válidos (nombres exactos)';
     wsAlm.getCell('A1').font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    wsAlm.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: this.VERDE } };
+    wsAlm.getCell('A1').fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: this.VERDE },
+    };
     wsAlm.getColumn(1).width = 36;
-    almacenes.forEach((a, i) => { wsAlm.getCell(`A${i + 2}`).value = a.nombre; });
+    almacenes.forEach((a, i) => {
+      wsAlm.getCell(`A${i + 2}`).value = a.nombre;
+    });
 
     // ════════ Hoja Instrucciones ════════
     const wsInst = wb.addWorksheet('Instrucciones');
@@ -167,7 +208,8 @@ export class PlantillaStockInicialService {
     lineas.forEach((l, i) => {
       const c = wsInst.getCell(`A${i + 1}`);
       c.value = l;
-      if (l === 'CÓMO LLENAR ESTA PLANTILLA' || l === 'AL APLICAR, EL SISTEMA:') c.font = { bold: true, size: 12 };
+      if (l === 'CÓMO LLENAR ESTA PLANTILLA' || l === 'AL APLICAR, EL SISTEMA:')
+        c.font = { bold: true, size: 12 };
     });
 
     const buffer = await wb.xlsx.writeBuffer();

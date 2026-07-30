@@ -20,14 +20,23 @@
  */
 
 import {
-  BadRequestException, ConflictException, Injectable, Logger, NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, DataSource, EntityManager, Repository } from 'typeorm';
 
 import {
-  EstadoCierre, EstadoConciliacion, EstadoCuentaBancario, LineaEstadoCuenta,
-  MovimientoTesoreria, OrigenMovimiento, TipoMovimiento,
+  EstadoCierre,
+  EstadoConciliacion,
+  EstadoCuentaBancario,
+  LineaEstadoCuenta,
+  MovimientoTesoreria,
+  OrigenMovimiento,
+  TipoMovimiento,
 } from '../entities/tesoreria.entity';
 import { CuentaBancaria } from '../../credito/entities/cuenta-bancaria.entity';
 
@@ -62,48 +71,106 @@ export class TesoreriaService {
   private readonly logger = new Logger(TesoreriaService.name);
 
   constructor(
-    @InjectRepository(MovimientoTesoreria) private readonly movimientos: Repository<MovimientoTesoreria>,
-    @InjectRepository(EstadoCuentaBancario) private readonly estados: Repository<EstadoCuentaBancario>,
-    @InjectRepository(LineaEstadoCuenta) private readonly lineas: Repository<LineaEstadoCuenta>,
-    @InjectRepository(CuentaBancaria) private readonly cuentas: Repository<CuentaBancaria>,
+    @InjectRepository(MovimientoTesoreria)
+    private readonly movimientos: Repository<MovimientoTesoreria>,
+    @InjectRepository(EstadoCuentaBancario)
+    private readonly estados: Repository<EstadoCuentaBancario>,
+    @InjectRepository(LineaEstadoCuenta)
+    private readonly lineas: Repository<LineaEstadoCuenta>,
+    @InjectRepository(CuentaBancaria)
+    private readonly cuentas: Repository<CuentaBancaria>,
     private readonly dataSource: DataSource,
   ) {}
 
   /* ══ MOVIMIENTOS ═════════════════════════════════════════════════════════ */
 
-  async registrar(dto: CrearMovimientoDto, empresaId: string, usuarioId?: string) {
-    if (dto.importe <= 0) {
+  async registrar(
+    dto: CrearMovimientoDto,
+    empresaId: string,
+    usuarioId?: string,
+  ) {
+    if (!Number.isFinite(Number(dto.importe)) || Number(dto.importe) <= 0) {
       throw new BadRequestException(
         'El importe debe ser positivo. El signo lo determina el tipo de movimiento.',
       );
     }
-
-    const cuenta = await this.cuentas.findOne({
-      where: { id: dto.cuentaBancariaId, empresaId },
-    });
-    if (!cuenta) throw new NotFoundException('La cuenta bancaria no existe.');
-    if (!cuenta.activo) throw new ConflictException('La cuenta bancaria está inactiva.');
-
     return this.dataSource.transaction(async (manager) => {
-      const repo = manager.getRepository(MovimientoTesoreria);
-      const fecha = new Date(dto.fecha);
+      return this.registrarConManager(dto, empresaId, usuarioId, manager);
+    });
+  }
 
-      const movimiento = await repo.save(repo.create({
+  /**
+   * Integra movimientos originados por otros módulos en la MISMA transacción
+   * de negocio. Evita que exista un reembolso sin salida de tesorería o una
+   * salida bancaria sin devolución.
+   */
+  async registrarEnTransaccion(
+    dto: CrearMovimientoDto,
+    empresaId: string,
+    usuarioId: string | undefined,
+    manager: EntityManager,
+  ) {
+    if (!Number.isFinite(Number(dto.importe)) || Number(dto.importe) <= 0) {
+      throw new BadRequestException(
+        'El importe de tesorería debe ser positivo.',
+      );
+    }
+    return this.registrarConManager(dto, empresaId, usuarioId, manager);
+  }
+
+  /**
+   * Todas las altas pasan por este método y bloquean la cuenta bancaria.
+   * Así dos cajas no pueden leer el mismo saldo y escribir cadenas distintas.
+   */
+  private async registrarConManager(
+    dto: CrearMovimientoDto,
+    empresaId: string,
+    usuarioId: string | undefined,
+    manager: EntityManager,
+    cuentaYaBloqueada = false,
+  ) {
+    const fecha = new Date(dto.fecha);
+    if (Number.isNaN(fecha.getTime())) {
+      throw new BadRequestException('La fecha del movimiento no es válida.');
+    }
+
+    if (!cuentaYaBloqueada) {
+      const cuenta = await manager
+        .getRepository(CuentaBancaria)
+        .createQueryBuilder('c')
+        .setLock('pessimistic_write')
+        .where('c.id = :id AND c.empresaId = :empresaId', {
+          id: dto.cuentaBancariaId,
+          empresaId,
+        })
+        .getOne();
+      if (!cuenta) throw new NotFoundException('La cuenta bancaria no existe.');
+      if (!cuenta.activo)
+        throw new ConflictException('La cuenta bancaria está inactiva.');
+    }
+
+    const repo = manager.getRepository(MovimientoTesoreria);
+    const movimiento = await repo.save(
+      repo.create({
         ...dto,
+        importe: Number(dto.importe),
         empresaId,
         fecha,
-        folio: await this.siguienteFolio(empresaId, manager.getRepository(MovimientoTesoreria)),
+        folio: await this.siguienteFolio(empresaId, repo),
         origen: dto.origen ?? OrigenMovimiento.MANUAL,
         registradoPorId: usuarioId,
         estadoConciliacion: EstadoConciliacion.PENDIENTE,
         saldoPosterior: 0,
-      }));
+      }),
+    );
 
-      // Reconstruye la cadena desde la fecha del movimiento hacia adelante.
-      await this.recalcularSaldos(dto.cuentaBancariaId, empresaId, fecha, manager);
-
-      return repo.findOne({ where: { id: movimiento.id } });
-    });
+    await this.recalcularSaldos(
+      dto.cuentaBancariaId,
+      empresaId,
+      fecha,
+      manager,
+    );
+    return repo.findOne({ where: { id: movimiento.id } });
   }
 
   private async siguienteFolio(
@@ -166,8 +233,12 @@ export class TesoreriaService {
   async listarMovimientos(
     empresaId: string,
     filtros: {
-      cuentaBancariaId?: string; desde?: string; hasta?: string;
-      tipo?: TipoMovimiento; conciliacion?: EstadoConciliacion; busqueda?: string;
+      cuentaBancariaId?: string;
+      desde?: string;
+      hasta?: string;
+      tipo?: TipoMovimiento;
+      conciliacion?: EstadoConciliacion;
+      busqueda?: string;
     } = {},
   ) {
     const q = this.movimientos
@@ -175,28 +246,47 @@ export class TesoreriaService {
       .leftJoinAndSelect('m.cuentaBancaria', 'c')
       .where('m.empresaId = :empresaId', { empresaId });
 
-    if (filtros.cuentaBancariaId) q.andWhere('m.cuentaBancariaId = :cta', { cta: filtros.cuentaBancariaId });
+    if (filtros.cuentaBancariaId)
+      q.andWhere('m.cuentaBancariaId = :cta', {
+        cta: filtros.cuentaBancariaId,
+      });
     if (filtros.tipo) q.andWhere('m.tipo = :tipo', { tipo: filtros.tipo });
-    if (filtros.conciliacion) q.andWhere('m.estadoConciliacion = :ec', { ec: filtros.conciliacion });
+    if (filtros.conciliacion)
+      q.andWhere('m.estadoConciliacion = :ec', { ec: filtros.conciliacion });
     if (filtros.desde && filtros.hasta) {
       q.andWhere('m.fecha BETWEEN :desde AND :hasta', {
-        desde: new Date(filtros.desde), hasta: new Date(filtros.hasta),
+        desde: new Date(filtros.desde),
+        hasta: new Date(filtros.hasta),
       });
     }
     if (filtros.busqueda) {
-      q.andWhere('(m.concepto LIKE :b OR m.referencia LIKE :b OR m.folio LIKE :b OR m.nombreTercero LIKE :b)', {
-        b: `%${filtros.busqueda}%`,
-      });
+      q.andWhere(
+        '(m.concepto LIKE :b OR m.referencia LIKE :b OR m.folio LIKE :b OR m.nombreTercero LIKE :b)',
+        {
+          b: `%${filtros.busqueda}%`,
+        },
+      );
     }
 
-    return q.orderBy('m.fecha', 'DESC').addOrderBy('m.fechaCreacion', 'DESC').getMany();
+    return q
+      .orderBy('m.fecha', 'DESC')
+      .addOrderBy('m.fechaCreacion', 'DESC')
+      .getMany();
   }
 
   /** Cancela con contrapartida en lugar de borrar: la auditoría se conserva. */
-  async cancelar(id: string, motivo: string, empresaId: string, usuarioId?: string) {
-    const original = await this.movimientos.findOne({ where: { id, empresaId } });
+  async cancelar(
+    id: string,
+    motivo: string,
+    empresaId: string,
+    usuarioId?: string,
+  ) {
+    const original = await this.movimientos.findOne({
+      where: { id, empresaId },
+    });
     if (!original) throw new NotFoundException('El movimiento no existe.');
-    if (original.cancelado) throw new ConflictException('El movimiento ya está cancelado.');
+    if (original.cancelado)
+      throw new ConflictException('El movimiento ya está cancelado.');
     if (original.estadoConciliacion === EstadoConciliacion.CONCILIADO) {
       throw new ConflictException(
         'El movimiento ya está conciliado con el banco. Desconcílialo antes de cancelarlo.',
@@ -217,63 +307,131 @@ export class TesoreriaService {
         [TipoMovimiento.TRASPASO_SALIDA]: TipoMovimiento.TRASPASO_ENTRADA,
       };
 
-      const contra = await repo.save(repo.create({
-        empresaId,
-        folio: await this.siguienteFolio(empresaId, repo),
-        cuentaBancariaId: original.cuentaBancariaId,
-        fecha: new Date(),
-        tipo: inverso[original.tipo],
-        origen: original.origen,
-        importe: original.importe,
-        concepto: `Cancelación de ${original.folio}: ${motivo}`,
-        referencia: original.folio,
-        registradoPorId: usuarioId,
-        estadoConciliacion: EstadoConciliacion.PENDIENTE,
-        saldoPosterior: 0,
-      }));
+      const contra = await repo.save(
+        repo.create({
+          empresaId,
+          folio: await this.siguienteFolio(empresaId, repo),
+          cuentaBancariaId: original.cuentaBancariaId,
+          fecha: new Date(),
+          tipo: inverso[original.tipo],
+          origen: original.origen,
+          importe: original.importe,
+          concepto: `Cancelación de ${original.folio}: ${motivo}`,
+          referencia: original.folio,
+          registradoPorId: usuarioId,
+          estadoConciliacion: EstadoConciliacion.PENDIENTE,
+          saldoPosterior: 0,
+        }),
+      );
 
-      await this.recalcularSaldos(original.cuentaBancariaId, empresaId, new Date(original.fecha), manager);
+      await this.recalcularSaldos(
+        original.cuentaBancariaId,
+        empresaId,
+        new Date(original.fecha),
+        manager,
+      );
       return { original, contrapartida: contra };
     });
   }
 
   /** Traspaso entre cuentas propias: dos movimientos, una sola transacción. */
   async traspasar(
-    dto: { origenId: string; destinoId: string; importe: number; fecha: string; concepto: string },
+    dto: {
+      origenId: string;
+      destinoId: string;
+      importe: number;
+      fecha: string;
+      concepto: string;
+    },
     empresaId: string,
     usuarioId?: string,
   ) {
     if (dto.origenId === dto.destinoId) {
-      throw new BadRequestException('La cuenta de origen y la de destino deben ser distintas.');
+      throw new BadRequestException(
+        'La cuenta de origen y la de destino deben ser distintas.',
+      );
     }
     if (dto.importe <= 0) {
-      throw new BadRequestException('El importe del traspaso debe ser mayor que cero.');
-    }
-
-    const saldoOrigen = await this.saldoActual(dto.origenId, empresaId);
-    if (saldoOrigen < dto.importe) {
-      throw new ConflictException(
-        `Saldo insuficiente en la cuenta de origen. Disponible: ${saldoOrigen.toFixed(2)}.`,
+      throw new BadRequestException(
+        'El importe del traspaso debe ser mayor que cero.',
       );
     }
 
-    const salida = await this.registrar({
-      cuentaBancariaId: dto.origenId, fecha: dto.fecha,
-      tipo: TipoMovimiento.TRASPASO_SALIDA, importe: dto.importe,
-      concepto: dto.concepto, origen: OrigenMovimiento.TRASPASO,
-    }, empresaId, usuarioId);
+    return this.dataSource.transaction(async (manager) => {
+      // Orden estable para evitar interbloqueos entre traspasos cruzados.
+      const ids = [dto.origenId, dto.destinoId].sort();
+      const bloqueadas: CuentaBancaria[] = [];
+      for (const id of ids) {
+        const cuenta = await manager
+          .getRepository(CuentaBancaria)
+          .createQueryBuilder('c')
+          .setLock('pessimistic_write')
+          .where('c.id = :id AND c.empresaId = :empresaId', { id, empresaId })
+          .getOne();
+        if (!cuenta)
+          throw new NotFoundException(
+            'Una de las cuentas bancarias no existe.',
+          );
+        if (!cuenta.activo)
+          throw new ConflictException(
+            `La cuenta ${cuenta.nombre} está inactiva.`,
+          );
+        bloqueadas.push(cuenta);
+      }
 
-    const entrada = await this.registrar({
-      cuentaBancariaId: dto.destinoId, fecha: dto.fecha,
-      tipo: TipoMovimiento.TRASPASO_ENTRADA, importe: dto.importe,
-      concepto: dto.concepto, origen: OrigenMovimiento.TRASPASO,
-      referencia: salida?.folio,
-    }, empresaId, usuarioId);
+      const repo = manager.getRepository(MovimientoTesoreria);
+      const ultimo = await repo.findOne({
+        where: {
+          cuentaBancariaId: dto.origenId,
+          empresaId,
+          cancelado: false,
+        },
+        order: { fecha: 'DESC', fechaCreacion: 'DESC' },
+      });
+      const saldoOrigen = ultimo ? Number(ultimo.saldoPosterior) : 0;
+      if (saldoOrigen < Number(dto.importe)) {
+        throw new ConflictException(
+          `Saldo insuficiente en la cuenta de origen. Disponible: ${saldoOrigen.toFixed(2)}.`,
+        );
+      }
 
-    return { salida, entrada };
+      const salida = await this.registrarConManager(
+        {
+          cuentaBancariaId: dto.origenId,
+          fecha: dto.fecha,
+          tipo: TipoMovimiento.TRASPASO_SALIDA,
+          importe: dto.importe,
+          concepto: dto.concepto,
+          origen: OrigenMovimiento.TRASPASO,
+        },
+        empresaId,
+        usuarioId,
+        manager,
+        true,
+      );
+      const entrada = await this.registrarConManager(
+        {
+          cuentaBancariaId: dto.destinoId,
+          fecha: dto.fecha,
+          tipo: TipoMovimiento.TRASPASO_ENTRADA,
+          importe: dto.importe,
+          concepto: dto.concepto,
+          origen: OrigenMovimiento.TRASPASO,
+          referencia: salida?.folio,
+        },
+        empresaId,
+        usuarioId,
+        manager,
+        true,
+      );
+      return { salida, entrada };
+    });
   }
 
-  async saldoActual(cuentaBancariaId: string, empresaId: string): Promise<number> {
+  async saldoActual(
+    cuentaBancariaId: string,
+    empresaId: string,
+  ): Promise<number> {
     const ultimo = await this.movimientos.findOne({
       where: { cuentaBancariaId, empresaId, cancelado: false },
       order: { fecha: 'DESC', fechaCreacion: 'DESC' },
@@ -282,33 +440,53 @@ export class TesoreriaService {
   }
 
   async saldosPorCuenta(empresaId: string) {
-    const cuentas = await this.cuentas.find({ where: { empresaId, activo: true } });
-    return Promise.all(cuentas.map(async (c) => ({
-      id: c.id,
-      nombre: c.nombre,
-      tipo: c.tipo,
-      numeroCuenta: c.numeroCuenta,
-      saldo: await this.saldoActual(c.id, empresaId),
-      pendientesConciliar: await this.movimientos.count({
-        where: { cuentaBancariaId: c.id, empresaId, estadoConciliacion: EstadoConciliacion.PENDIENTE, cancelado: false },
-      }),
-    })));
+    const cuentas = await this.cuentas.find({
+      where: { empresaId, activo: true },
+    });
+    return Promise.all(
+      cuentas.map(async (c) => ({
+        id: c.id,
+        nombre: c.nombre,
+        tipo: c.tipo,
+        numeroCuenta: c.numeroCuenta,
+        saldo: await this.saldoActual(c.id, empresaId),
+        pendientesConciliar: await this.movimientos.count({
+          where: {
+            cuentaBancariaId: c.id,
+            empresaId,
+            estadoConciliacion: EstadoConciliacion.PENDIENTE,
+            cancelado: false,
+          },
+        }),
+      })),
+    );
   }
 
   /* ══ CONCILIACIÓN ════════════════════════════════════════════════════════ */
 
   async crearEstadoCuenta(
     dto: {
-      cuentaBancariaId: string; ejercicio: number; mes: number;
-      saldoInicialBanco: number; saldoFinalBanco: number;
-      lineas: Array<{ fecha: string; descripcion: string; referencia?: string; cargo?: number; abono?: number }>;
+      cuentaBancariaId: string;
+      ejercicio: number;
+      mes: number;
+      saldoInicialBanco: number;
+      saldoFinalBanco: number;
+      lineas: Array<{
+        fecha: string;
+        descripcion: string;
+        referencia?: string;
+        cargo?: number;
+        abono?: number;
+      }>;
     },
     empresaId: string,
   ) {
     const existe = await this.estados.findOne({
       where: {
-        empresaId, cuentaBancariaId: dto.cuentaBancariaId,
-        ejercicio: dto.ejercicio, mes: dto.mes,
+        empresaId,
+        cuentaBancariaId: dto.cuentaBancariaId,
+        ejercicio: dto.ejercicio,
+        mes: dto.mes,
       },
     });
     if (existe) {
@@ -325,8 +503,8 @@ export class TesoreriaService {
     if (Math.abs(esperado - aCent(dto.saldoFinalBanco)) > 1) {
       throw new BadRequestException(
         `El estado de cuenta no cuadra. Saldo inicial más abonos menos cargos da ` +
-        `${aPesos(esperado).toFixed(2)}, pero el saldo final declarado es ` +
-        `${Number(dto.saldoFinalBanco).toFixed(2)}.`,
+          `${aPesos(esperado).toFixed(2)}, pero el saldo final declarado es ` +
+          `${Number(dto.saldoFinalBanco).toFixed(2)}.`,
       );
     }
 
@@ -342,15 +520,19 @@ export class TesoreriaService {
       });
 
       const repoLineas = manager.getRepository(LineaEstadoCuenta);
-      await repoLineas.save(dto.lineas.map((l) => repoLineas.create({
-        empresaId,
-        estadoCuentaId: estado.id,
-        fecha: new Date(l.fecha),
-        descripcion: l.descripcion,
-        referencia: l.referencia,
-        cargo: l.cargo ?? 0,
-        abono: l.abono ?? 0,
-      })));
+      await repoLineas.save(
+        dto.lineas.map((l) =>
+          repoLineas.create({
+            empresaId,
+            estadoCuentaId: estado.id,
+            fecha: new Date(l.fecha),
+            descripcion: l.descripcion,
+            referencia: l.referencia,
+            cargo: l.cargo ?? 0,
+            abono: l.abono ?? 0,
+          }),
+        ),
+      );
 
       return estado;
     });
@@ -365,7 +547,9 @@ export class TesoreriaService {
     empresaId: string,
     ventanaDias = 5,
   ) {
-    const estado = await this.estados.findOne({ where: { id: estadoCuentaId, empresaId } });
+    const estado = await this.estados.findOne({
+      where: { id: estadoCuentaId, empresaId },
+    });
     if (!estado) throw new NotFoundException('El estado de cuenta no existe.');
     if (estado.estado === EstadoCierre.CERRADA) {
       throw new ConflictException('El estado de cuenta ya está cerrado.');
@@ -394,7 +578,8 @@ export class TesoreriaService {
       const repoLin = manager.getRepository(LineaEstadoCuenta);
 
       for (const linea of lineas) {
-        const importeCent = aCent(linea.cargo) > 0 ? aCent(linea.cargo) : aCent(linea.abono);
+        const importeCent =
+          aCent(linea.cargo) > 0 ? aCent(linea.cargo) : aCent(linea.abono);
         const esCargo = aCent(linea.cargo) > 0;
         const fechaLinea = new Date(linea.fecha).getTime();
 
@@ -404,7 +589,8 @@ export class TesoreriaService {
           // Un cargo del banco corresponde a un egreso nuestro.
           const esEgreso = SIGNO[m.tipo] === -1;
           if (esCargo !== esEgreso) return false;
-          const dif = Math.abs(new Date(m.fecha).getTime() - fechaLinea) / 86_400_000;
+          const dif =
+            Math.abs(new Date(m.fecha).getTime() - fechaLinea) / 86_400_000;
           return dif <= ventanaDias;
         });
 
@@ -416,7 +602,10 @@ export class TesoreriaService {
             (m) => linea.referencia && m.referencia === linea.referencia,
           );
           if (porReferencia.length !== 1) {
-            ambiguas.push({ linea: linea.descripcion, candidatos: candidatos.length });
+            ambiguas.push({
+              linea: linea.descripcion,
+              candidatos: candidatos.length,
+            });
             continue;
           }
           candidatos.splice(0, candidatos.length, porReferencia[0]);
@@ -449,25 +638,49 @@ export class TesoreriaService {
   }
 
   /** Empareja una línea con un movimiento elegido por la persona. */
-  async conciliarManual(lineaId: string, movimientoId: string, empresaId: string) {
+  async conciliarManual(
+    lineaId: string,
+    movimientoId: string,
+    empresaId: string,
+  ) {
     return this.dataSource.transaction(async (manager) => {
-      const linea = await manager.getRepository(LineaEstadoCuenta)
+      const linea = await manager
+        .getRepository(LineaEstadoCuenta)
         .findOne({ where: { id: lineaId, empresaId } });
-      const movimiento = await manager.getRepository(MovimientoTesoreria)
+      const movimiento = await manager
+        .getRepository(MovimientoTesoreria)
         .findOne({ where: { id: movimientoId, empresaId } });
 
-      if (!linea) throw new NotFoundException('La línea del estado de cuenta no existe.');
+      if (!linea)
+        throw new NotFoundException('La línea del estado de cuenta no existe.');
       if (!movimiento) throw new NotFoundException('El movimiento no existe.');
-      if (linea.conciliada) throw new ConflictException('La línea ya está conciliada.');
+      if (linea.conciliada)
+        throw new ConflictException('La línea ya está conciliada.');
       if (movimiento.estadoConciliacion === EstadoConciliacion.CONCILIADO) {
-        throw new ConflictException('El movimiento ya está conciliado con otra línea.');
+        throw new ConflictException(
+          'El movimiento ya está conciliado con otra línea.',
+        );
       }
 
-      const importeLinea = aCent(linea.cargo) > 0 ? aCent(linea.cargo) : aCent(linea.abono);
+      const estado = await manager
+        .getRepository(EstadoCuentaBancario)
+        .findOne({ where: { id: linea.estadoCuentaId, empresaId } });
+      if (!estado)
+        throw new NotFoundException('El estado de cuenta no existe.');
+      if (estado.estado === EstadoCierre.CERRADA)
+        throw new ConflictException('El estado de cuenta ya está cerrado.');
+      if (movimiento.cuentaBancariaId !== estado.cuentaBancariaId) {
+        throw new BadRequestException(
+          'La línea y el movimiento pertenecen a cuentas bancarias distintas.',
+        );
+      }
+
+      const importeLinea =
+        aCent(linea.cargo) > 0 ? aCent(linea.cargo) : aCent(linea.abono);
       if (importeLinea !== aCent(movimiento.importe)) {
         throw new BadRequestException(
           `Los importes no coinciden: el banco reporta ${aPesos(importeLinea).toFixed(2)} ` +
-          `y el movimiento es de ${Number(movimiento.importe).toFixed(2)}.`,
+            `y el movimiento es de ${Number(movimiento.importe).toFixed(2)}.`,
         );
       }
 
@@ -486,7 +699,9 @@ export class TesoreriaService {
 
   /** El reporte que firma el contador: explica la diferencia contra el banco. */
   async reporteConciliacion(estadoCuentaId: string, empresaId: string) {
-    const estado = await this.estados.findOne({ where: { id: estadoCuentaId, empresaId } });
+    const estado = await this.estados.findOne({
+      where: { id: estadoCuentaId, empresaId },
+    });
     if (!estado) throw new NotFoundException('El estado de cuenta no existe.');
 
     const primerDia = new Date(estado.ejercicio, estado.mes - 1, 1);
@@ -522,14 +737,25 @@ export class TesoreriaService {
       .filter((m) => SIGNO[m.tipo] === -1)
       .reduce((s, m) => s + aCent(m.importe), 0);
 
-    const cargosNoRegistradosCent = noRegistrados.reduce((s, l) => s + aCent(l.cargo), 0);
-    const abonosNoRegistradosCent = noRegistrados.reduce((s, l) => s + aCent(l.abono), 0);
+    const cargosNoRegistradosCent = noRegistrados.reduce(
+      (s, l) => s + aCent(l.cargo),
+      0,
+    );
+    const abonosNoRegistradosCent = noRegistrados.reduce(
+      (s, l) => s + aCent(l.abono),
+      0,
+    );
 
     const saldoConciliadoCent =
-      aCent(estado.saldoFinalBanco) + depositosEnTransitoCent - chequesEnTransitoCent;
+      aCent(estado.saldoFinalBanco) +
+      depositosEnTransitoCent -
+      chequesEnTransitoCent;
 
-    const diferenciaCent = saldoConciliadoCent - saldoLibrosCent
-      + cargosNoRegistradosCent - abonosNoRegistradosCent;
+    const diferenciaCent =
+      saldoConciliadoCent -
+      saldoLibrosCent +
+      cargosNoRegistradosCent -
+      abonosNoRegistradosCent;
 
     return {
       cuentaBancariaId: estado.cuentaBancariaId,
@@ -545,12 +771,17 @@ export class TesoreriaService {
       cuadra: Math.abs(diferenciaCent) <= 1,
       detalle: {
         enTransito: enTransito.map((m) => ({
-          folio: m.folio, fecha: m.fecha, concepto: m.concepto,
-          importe: Number(m.importe), tipo: m.tipo,
+          folio: m.folio,
+          fecha: m.fecha,
+          concepto: m.concepto,
+          importe: Number(m.importe),
+          tipo: m.tipo,
         })),
         noRegistrados: noRegistrados.map((l) => ({
-          fecha: l.fecha, descripcion: l.descripcion,
-          cargo: Number(l.cargo), abono: Number(l.abono),
+          fecha: l.fecha,
+          descripcion: l.descripcion,
+          cargo: Number(l.cargo),
+          abono: Number(l.abono),
         })),
       },
     };
@@ -582,7 +813,8 @@ export class TesoreriaService {
       // Los traspasos entre cuentas propias no son flujo real: se excluyen
       // salvo que se esté viendo una cuenta específica.
       const esTraspaso =
-        m.tipo === TipoMovimiento.TRASPASO_ENTRADA || m.tipo === TipoMovimiento.TRASPASO_SALIDA;
+        m.tipo === TipoMovimiento.TRASPASO_ENTRADA ||
+        m.tipo === TipoMovimiento.TRASPASO_SALIDA;
       if (esTraspaso && !cuentaBancariaId) continue;
 
       const dia = new Date(m.fecha).toISOString().slice(0, 10);
@@ -592,8 +824,13 @@ export class TesoreriaService {
       const d = porDia.get(dia) ?? { entradas: 0, salidas: 0 };
       const o = porOrigen.get(m.origen) ?? { entradas: 0, salidas: 0 };
 
-      if (entra) { d.entradas += importe; o.entradas += importe; }
-      else { d.salidas += importe; o.salidas += importe; }
+      if (entra) {
+        d.entradas += importe;
+        o.entradas += importe;
+      } else {
+        d.salidas += importe;
+        o.salidas += importe;
+      }
 
       porDia.set(dia, d);
       porOrigen.set(m.origen, o);
@@ -617,7 +854,8 @@ export class TesoreriaService {
     const totalSalidas = serie.reduce((s, d) => s + aCent(d.salidas), 0);
 
     return {
-      desde, hasta,
+      desde,
+      hasta,
       totalEntradas: aPesos(totalEntradas),
       totalSalidas: aPesos(totalSalidas),
       flujoNeto: aPesos(totalEntradas - totalSalidas),

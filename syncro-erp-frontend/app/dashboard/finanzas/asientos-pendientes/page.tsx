@@ -12,28 +12,45 @@
  * ============================================================================
  */
 
-import { useState } from 'react';
-import { CheckCircle2, RefreshCw, ShieldAlert, XCircle } from 'lucide-react';
+import { useState } from "react";
+import { CheckCircle2, RefreshCw, ShieldAlert, XCircle } from "lucide-react";
 
-import { api } from '@/lib/api';
-import { fechaHora } from '@/lib/format';
-import { useAccion, useDatos } from '@/hooks/use-datos';
+import { api } from "@/lib/api";
+import { fechaHora } from "@/lib/format";
+import { useAccion, useDatos } from "@/hooks/use-datos";
 import {
-  Boton, Campo, Cargando, Distintivo, Entrada, EncabezadoPantalla,
-  ErrorPantalla, Indicador, Modal, Panel, Seleccion, SinDatos, useAvisos,
-} from '@/components/ui';
+  Boton,
+  Campo,
+  Cargando,
+  Distintivo,
+  Entrada,
+  EncabezadoPantalla,
+  ErrorPantalla,
+  Indicador,
+  Modal,
+  Panel,
+  Seleccion,
+  SinDatos,
+  useAvisos,
+} from "@/components/ui";
 
 interface Asiento {
   id: string;
   tipo: string;
   folioDocumento?: string;
-  estado: 'PENDIENTE' | 'REINTENTANDO' | 'GENERADO' | 'FALLIDO' | 'DESCARTADO';
+  estado: "PENDIENTE" | "REINTENTANDO" | "GENERADO" | "FALLIDO" | "DESCARTADO";
   intentos: number;
-  ultimoError?: string;
+  ultimoError?: string | null;
+  notaResolucion?: string | null;
   fechaUltimoIntento?: string;
   proximoIntento?: string;
   fechaCreacion: string;
-  payload?: { folio?: string; total?: number; fecha?: string; partidas?: number };
+  payload?: {
+    folio?: string;
+    total?: number;
+    fecha?: string;
+    partidas?: number;
+  };
 }
 
 interface Resumen {
@@ -45,42 +62,46 @@ interface Resumen {
 }
 
 const TONO = {
-  PENDIENTE: 'alerta',
-  REINTENTANDO: 'info',
-  GENERADO: 'exito',
-  FALLIDO: 'peligro',
-  DESCARTADO: 'neutro',
+  PENDIENTE: "alerta",
+  REINTENTANDO: "info",
+  GENERADO: "exito",
+  FALLIDO: "peligro",
+  DESCARTADO: "neutro",
 } as const;
 
 const ETIQUETA = {
-  PENDIENTE: 'En cola',
-  REINTENTANDO: 'Reintentando',
-  GENERADO: 'Resuelto',
-  FALLIDO: 'Requiere revisión',
-  DESCARTADO: 'Descartado',
+  PENDIENTE: "En cola",
+  REINTENTANDO: "Reintentando",
+  GENERADO: "Resuelto",
+  FALLIDO: "Requiere revisión",
+  DESCARTADO: "Descartado",
 } as const;
 
 const ETIQUETA_TIPO: Record<string, string> = {
-  VENTA: 'Venta',
-  COMPRA: 'Compra',
-  PAGO_PROVEEDOR: 'Pago a proveedor',
-  COBRANZA: 'Cobranza',
-  SALIDA_INVENTARIO: 'Salida de inventario',
-  INVENTARIO_INICIAL: 'Inventario inicial',
-  NOMINA: 'Nómina',
-  DEPRECIACION: 'Depreciación',
-  TESORERIA: 'Tesorería',
+  VENTA: "Venta",
+  CANCELACION_VENTA: "Cancelación de venta",
+  COMPRA: "Compra",
+  PAGO_PROVEEDOR: "Pago a proveedor",
+  COBRANZA: "Cobranza",
+  SALIDA_INVENTARIO: "Salida de inventario",
+  INVENTARIO_INICIAL: "Inventario inicial",
+  NOMINA: "Nómina",
+  DEPRECIACION: "Depreciación",
+  TESORERIA: "Tesorería",
 };
 
 export default function AsientosPendientesPage() {
   const { avisar } = useAvisos();
-  const [estado, setEstado] = useState<string>('');
+  const [estado, setEstado] = useState<string>("");
   const [aDescartar, setADescartar] = useState<Asiento | null>(null);
-  const [nota, setNota] = useState('');
+  const [nota, setNota] = useState("");
 
-  const resumen = useDatos<Resumen>(() => api.get('/finanzas/asientos-pendientes/resumen'), []);
+  const resumen = useDatos<Resumen>(
+    () => api.get("/finanzas/asientos-pendientes/resumen"),
+    [],
+  );
   const asientos = useDatos<Asiento[]>(
-    () => api.get('/finanzas/asientos-pendientes', { query: { estado } }),
+    () => api.get("/finanzas/asientos-pendientes", { query: { estado } }),
     [estado],
   );
 
@@ -88,17 +109,19 @@ export default function AsientosPendientesPage() {
     const r = await api.post<{ generado: boolean; mensaje: string }>(
       `/finanzas/asientos-pendientes/${id}/reintentar`,
     );
-    avisar(r.mensaje, r.generado ? 'exito' : 'error');
+    avisar(r.mensaje, r.generado ? "exito" : "error");
     void asientos.recargar();
     void resumen.recargar();
     return r;
   });
 
   const descartar = useAccion(async (id: string, texto: string) => {
-    await api.post(`/finanzas/asientos-pendientes/${id}/descartar`, { nota: texto });
-    avisar('Asiento descartado. Queda registrada la justificación.', 'info');
+    await api.post(`/finanzas/asientos-pendientes/${id}/descartar`, {
+      nota: texto,
+    });
+    avisar("Asiento descartado. Queda registrada la justificación.", "info");
     setADescartar(null);
-    setNota('');
+    setNota("");
     void asientos.recargar();
     void resumen.recargar();
   });
@@ -117,7 +140,10 @@ export default function AsientosPendientesPage() {
           <Boton
             variante="neutro"
             icono={<RefreshCw className="w-3.5 h-3.5" />}
-            onClick={() => { void asientos.recargar(); void resumen.recargar(); }}
+            onClick={() => {
+              void asientos.recargar();
+              void resumen.recargar();
+            }}
           >
             Actualizar
           </Boton>
@@ -127,7 +153,7 @@ export default function AsientosPendientesPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador
           etiqueta="Requieren revisión"
-          color={(resumen.datos?.fallidos ?? 0) > 0 ? '#e11d48' : '#64748b'}
+          color={(resumen.datos?.fallidos ?? 0) > 0 ? "#e11d48" : "#64748b"}
           cargando={resumen.cargando}
           icono={<ShieldAlert className="w-4 h-4" />}
           valor={resumen.datos?.fallidos ?? 0}
@@ -135,17 +161,21 @@ export default function AsientosPendientesPage() {
         />
         <Indicador
           etiqueta="En cola"
-          color={(resumen.datos?.pendientes ?? 0) > 0 ? '#d97706' : '#64748b'}
+          color={(resumen.datos?.pendientes ?? 0) > 0 ? "#d97706" : "#64748b"}
           cargando={resumen.cargando}
           valor={resumen.datos?.pendientes ?? 0}
           detalle="se reintentan solos"
         />
         <Indicador
-          etiqueta="Resueltos" color="#059669" cargando={resumen.cargando}
+          etiqueta="Resueltos"
+          color="#059669"
+          cargando={resumen.cargando}
           valor={resumen.datos?.generados ?? 0}
         />
         <Indicador
-          etiqueta="Descartados" color="#64748b" cargando={resumen.cargando}
+          etiqueta="Descartados"
+          color="#64748b"
+          cargando={resumen.cargando}
           valor={resumen.datos?.descartados ?? 0}
         />
       </div>
@@ -156,10 +186,11 @@ export default function AsientosPendientesPage() {
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <div>
               <p className="text-[13px] font-semibold text-slate-900">
-                Toda la operación está reflejada en la contabilidad
+                No hay asientos pendientes de atención
               </p>
               <p className="text-[12.5px] text-slate-500 mt-0.5">
-                No hay ventas, compras ni movimientos sin su póliza correspondiente.
+                La cola de recuperación contable no tiene fallos ni reintentos
+                pendientes.
               </p>
             </div>
           </div>
@@ -168,7 +199,11 @@ export default function AsientosPendientesPage() {
 
       <Panel sinRelleno>
         <div className="panel-cabecera">
-          <Seleccion value={estado} onChange={(e) => setEstado(e.target.value)} className="w-52">
+          <Seleccion
+            value={estado}
+            onChange={(e) => setEstado(e.target.value)}
+            className="w-52"
+          >
             <option value="">Todos los estados</option>
             <option value="FALLIDO">Requieren revisión</option>
             <option value="PENDIENTE">En cola</option>
@@ -183,11 +218,14 @@ export default function AsientosPendientesPage() {
         {asientos.cargando ? (
           <Cargando />
         ) : asientos.error ? (
-          <ErrorPantalla mensaje={asientos.error} onReintentar={asientos.recargar} />
+          <ErrorPantalla
+            mensaje={asientos.error}
+            onReintentar={asientos.recargar}
+          />
         ) : (asientos.datos?.length ?? 0) === 0 ? (
           <SinDatos
             titulo="Nada pendiente"
-            descripcion="Cada operación que se registró tiene su asiento contable. Así debe verse esta pantalla."
+            descripcion="La cola de recuperación contable no tiene registros para este filtro."
             icono={<CheckCircle2 className="w-5 h-5" />}
           />
         ) : (
@@ -199,40 +237,66 @@ export default function AsientosPendientesPage() {
                   <th>Documento</th>
                   <th>Estado</th>
                   <th className="text-right">Intentos</th>
-                  <th>Qué falló</th>
+                  <th>Resultado</th>
                   <th>Último intento</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {asientos.datos!.map((a) => (
-                  <tr key={a.id} className={a.estado === 'FALLIDO' ? 'bg-rose-50/40' : ''}>
-                    <td className="text-slate-900">{ETIQUETA_TIPO[a.tipo] ?? a.tipo}</td>
+                  <tr
+                    key={a.id}
+                    className={a.estado === "FALLIDO" ? "bg-rose-50/40" : ""}
+                  >
+                    <td className="text-slate-900">
+                      {ETIQUETA_TIPO[a.tipo] ?? a.tipo}
+                    </td>
                     <td className="cifra text-slate-600">
-                      {a.folioDocumento ?? a.payload?.folio ?? '—'}
+                      {a.folioDocumento ?? a.payload?.folio ?? "—"}
                       {a.payload?.total !== undefined && (
                         <span className="text-[11px] text-slate-400 ml-1.5">
-                          ${Number(a.payload.total).toLocaleString('es-MX')}
+                          ${Number(a.payload.total).toLocaleString("es-MX")}
                         </span>
                       )}
                     </td>
                     <td>
-                      <Distintivo tono={TONO[a.estado]}>{ETIQUETA[a.estado]}</Distintivo>
+                      <Distintivo tono={TONO[a.estado]}>
+                        {ETIQUETA[a.estado]}
+                      </Distintivo>
                     </td>
-                    <td className="text-right cifra text-slate-500">{a.intentos}</td>
+                    <td className="text-right cifra text-slate-500">
+                      {a.intentos}
+                    </td>
                     <td className="max-w-md">
-                      <p className="text-[12px] text-slate-600 line-clamp-2">
-                        {a.ultimoError ?? '—'}
+                      <p
+                        className={`text-[12px] line-clamp-2 ${
+                          a.estado === "GENERADO"
+                            ? "text-emerald-700"
+                            : a.estado === "DESCARTADO"
+                              ? "text-slate-500"
+                              : "text-slate-600"
+                        }`}
+                      >
+                        {a.estado === "GENERADO"
+                          ? "Generado correctamente"
+                          : a.estado === "DESCARTADO"
+                            ? (a.notaResolucion ??
+                              "Descartado con justificación")
+                            : (a.ultimoError ?? "Esperando el primer intento")}
                       </p>
                     </td>
                     <td className="cifra text-[12px] text-slate-500">
-                      {a.fechaUltimoIntento ? fechaHora(a.fechaUltimoIntento) : '—'}
+                      {a.fechaUltimoIntento
+                        ? fechaHora(a.fechaUltimoIntento)
+                        : "—"}
                     </td>
                     <td>
-                      {(a.estado === 'FALLIDO' || a.estado === 'PENDIENTE') && (
+                      {(a.estado === "FALLIDO" || a.estado === "PENDIENTE") && (
                         <div className="flex items-center gap-1 justify-end">
                           <button
-                            onClick={() => void reintentar.ejecutar(a.id).catch(() => {})}
+                            onClick={() =>
+                              void reintentar.ejecutar(a.id).catch(() => {})
+                            }
                             disabled={reintentar.ejecutando}
                             className="btn btn-fantasma btn-sm"
                             title="Reintentar ahora"
@@ -258,26 +322,38 @@ export default function AsientosPendientesPage() {
       </Panel>
 
       <p className="text-[11.5px] text-slate-400 mt-3">
-        La causa más común es una categoría de producto sin cuentas contables asignadas.
-        Corrígelo en Finanzas → Categorías contables y reintenta desde aquí.
+        La causa más común es una categoría de producto sin cuentas contables
+        asignadas. Corrígelo en Finanzas → Categorías contables y reintenta
+        desde aquí.
       </p>
 
       <Modal
         abierto={!!aDescartar}
-        onCerrar={() => { setADescartar(null); setNota(''); }}
+        onCerrar={() => {
+          setADescartar(null);
+          setNota("");
+        }}
         titulo="Descartar el asiento"
-        descripcion={`${ETIQUETA_TIPO[aDescartar?.tipo ?? ''] ?? ''} ${aDescartar?.folioDocumento ?? ''}`}
+        descripcion={`${ETIQUETA_TIPO[aDescartar?.tipo ?? ""] ?? ""} ${aDescartar?.folioDocumento ?? ""}`}
         ancho={480}
         pie={
           <>
-            <Boton variante="neutro" onClick={() => { setADescartar(null); setNota(''); }}>
+            <Boton
+              variante="neutro"
+              onClick={() => {
+                setADescartar(null);
+                setNota("");
+              }}
+            >
               Volver
             </Boton>
             <Boton
               variante="peligro"
               disabled={!nota.trim()}
               cargando={descartar.ejecutando}
-              onClick={() => void descartar.ejecutar(aDescartar!.id, nota).catch(() => {})}
+              onClick={() =>
+                void descartar.ejecutar(aDescartar!.id, nota).catch(() => {})
+              }
             >
               Descartar
             </Boton>
@@ -285,9 +361,11 @@ export default function AsientosPendientesPage() {
         }
       >
         <p className="text-[13px] text-slate-600 mb-3.5 leading-relaxed">
-          Descartar significa que esta operación <span className="font-semibold">no se
-          reflejará en la contabilidad</span>. La justificación queda registrada con tu
-          nombre.
+          Descartar significa que esta operación{" "}
+          <span className="font-semibold">
+            no se reflejará en la contabilidad
+          </span>
+          . La justificación queda registrada con tu nombre.
         </p>
         <Campo etiqueta="Justificación" requerido>
           <Entrada

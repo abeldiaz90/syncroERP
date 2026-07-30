@@ -11,7 +11,7 @@ export interface ICliente {
     id: string; nombre: string; curp?: string;
     tipoPersona: 'FISICA' | 'MORAL'; rfc: string; razonSocial: string;
     email: string; telefono: string; direccion: string; ciudad: string;
-    estado: string; codigoPostal: string; pais: string;
+    estado: string; estadoId: string; codigoPostal: string; pais: string; paisId: string;
     contactoNombre: string; contactoTelefono: string;
     limiteCredito: number; diasCredito: number; notas: string; activo: boolean;
 }
@@ -158,7 +158,7 @@ function CurpVerificador({ onVerificado, curpInicial = '' }: {
 const formVacio: FormData = {
     curp:'', nombre:'', tipoPersona:'FISICA', rfc:'', razonSocial:'',
     email:'', telefono:'', direccion:'', ciudad:'', estado:'',
-    codigoPostal:'', pais:'México', contactoNombre:'', contactoTelefono:'',
+    estadoId:'', codigoPostal:'', pais:'México', paisId:'', contactoNombre:'', contactoTelefono:'',
     limiteCredito:0, diasCredito:0, notas:'',
 };
 
@@ -176,6 +176,8 @@ export default function ClientesPage() {
     const [touched, setTouched]         = useState<Touched>({});
     const [submitTried, setSubmitTried] = useState(false);
     const [toast, setToast]             = useState<{msg:string;tipo:'ok'|'err'|'info'}|null>(null);
+    const [paises, setPaises]           = useState<any[]>([]);
+    const [estados, setEstados]         = useState<any[]>([]);
 
     const api   = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
     const tok   = () => localStorage.getItem('syncro_token') ?? '';
@@ -195,6 +197,19 @@ export default function ClientesPage() {
         setCargando(false);
     }, [busqDebounced, soloActivos]);
     useEffect(()=>{ fetchClientes(); },[fetchClientes]);
+    useEffect(() => {
+        fetch(`${api}/catalogos/paises`, {headers:heads()})
+          .then(r=>r.ok?r.json():[]).then((datos:any[]) => {
+            setPaises(datos);
+            const mx=datos.find(p=>p.codigoIso2==='MX'||p.codigo==='MX');
+            setFormData(f=>f.paisId||!mx?f:{...f,paisId:mx.id,pais:mx.nombre});
+          });
+    }, []);
+    useEffect(() => {
+        if (!formData.paisId) { setEstados([]); return; }
+        fetch(`${api}/catalogos/estados?paisId=${formData.paisId}`, {headers:heads()})
+          .then(r=>r.ok?r.json():[]).then(setEstados);
+    }, [formData.paisId]);
 
     // Validar en tiempo real
     useEffect(()=>{ setErrors(validar(formData)); },[formData]);
@@ -226,7 +241,8 @@ export default function ClientesPage() {
     };
 
     const abrirCrear = () => {
-        setEditId(null); setFormData(formVacio);
+        const mx=paises.find(p=>p.codigoIso2==='MX'||p.codigo==='MX');
+        setEditId(null); setFormData({...formVacio,paisId:mx?.id||'',pais:mx?.nombre||'México'});
         setErrors({}); setTouched({}); setSubmitTried(false); setModal(true);
     };
     const abrirEditar = (c: ICliente) => {
@@ -234,7 +250,7 @@ export default function ClientesPage() {
         setFormData({ curp:c.curp||'', nombre:c.nombre||'', tipoPersona:c.tipoPersona||'FISICA',
             rfc:c.rfc||'', razonSocial:c.razonSocial||'', email:c.email||'', telefono:c.telefono||'',
             direccion:c.direccion||'', ciudad:c.ciudad||'', estado:c.estado||'',
-            codigoPostal:c.codigoPostal||'', pais:c.pais||'México',
+            estadoId:c.estadoId||'', codigoPostal:c.codigoPostal||'', pais:c.pais||'México', paisId:c.paisId||'',
             contactoNombre:c.contactoNombre||'', contactoTelefono:c.contactoTelefono||'',
             limiteCredito:c.limiteCredito||0, diasCredito:c.diasCredito||0, notas:c.notas||'' });
         setErrors({}); setTouched({}); setSubmitTried(false); setModal(true);
@@ -578,9 +594,12 @@ export default function ClientesPage() {
                                                 className={inputCls(errors.ciudad, touched.ciudad)}/>
                                         </Campo>
                                         <Campo label="Estado" name="estado" error={errors.estado} touched={touched.estado}>
-                                            <input name="estado" value={formData.estado} onChange={handleChange} onBlur={handleBlur}
-                                                placeholder="Estado o provincia"
-                                                className={inputCls(errors.estado, touched.estado)}/>
+                                            <select name="estadoId" value={formData.estadoId}
+                                                onChange={e=>{const x=estados.find(s=>s.id===e.target.value);setFormData(f=>({...f,estadoId:e.target.value,estado:x?.nombre||''}));}}
+                                                className={inputCls(errors.estado, touched.estado)}>
+                                                <option value="">— Estado / provincia —</option>
+                                                {estados.map(e=><option key={e.id} value={e.id}>{e.nombre}</option>)}
+                                            </select>
                                         </Campo>
                                         <Campo label="Código Postal" name="codigoPostal" error={errors.codigoPostal} touched={touched.codigoPostal}>
                                             <input name="codigoPostal" value={formData.codigoPostal} onChange={handleChange} onBlur={handleBlur}
@@ -588,8 +607,12 @@ export default function ClientesPage() {
                                                 className={inputCls(errors.codigoPostal, touched.codigoPostal)}/>
                                         </Campo>
                                         <Campo label="País" name="pais" error={errors.pais} touched={touched.pais}>
-                                            <input name="pais" value={formData.pais} onChange={handleChange} onBlur={handleBlur}
-                                                className={inputCls(errors.pais, touched.pais)}/>
+                                            <select name="paisId" value={formData.paisId}
+                                                onChange={e=>{const p=paises.find(x=>x.id===e.target.value);setFormData(f=>({...f,paisId:e.target.value,pais:p?.nombre||'',estadoId:'',estado:''}));}}
+                                                className={inputCls(errors.pais, touched.pais)}>
+                                                <option value="">— País —</option>
+                                                {paises.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}
+                                            </select>
                                         </Campo>
                                     </div>
                                 </div>

@@ -1,11 +1,19 @@
-import { Controller, Get, Put, Body, Param, ForbiddenException, Post } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Put,
+  Body,
+  Param,
+  ForbiddenException,
+  Post,
+} from '@nestjs/common';
 import { PermisosDinamicosService } from '../services/permisos-dinamicos.service';
 import { ActiveUser } from '../decorators/active-user.decorator';
 import { SkipPermisos } from '../decorators/skip-permisos.decorator';
 
 @Controller('admin/permisos')
 export class AdminPermisosController {
-  constructor(private readonly permisosService: PermisosDinamicosService) { }
+  constructor(private readonly permisosService: PermisosDinamicosService) {}
 
   // ── Solo admin puede ver y editar el árbol completo ──────────────────────
 
@@ -42,7 +50,11 @@ export class AdminPermisosController {
     @ActiveUser('empresaId') empresaId: string,
   ) {
     if (rol !== 'admin') throw new ForbiddenException();
-    await this.permisosService.actualizarPermisos(rolAEditar, body.permisos, empresaId);
+    await this.permisosService.actualizarPermisos(
+      rolAEditar,
+      body.permisos,
+      empresaId,
+    );
     return { message: 'Permisos actualizados' };
   }
 
@@ -56,7 +68,10 @@ export class AdminPermisosController {
     @ActiveUser('rol') rol: string,
     @ActiveUser('empresaId') empresaId: string,
   ) {
-    const rutas = await this.permisosService.obtenerRutasPermitidas(rol, empresaId);
+    const rutas = await this.permisosService.obtenerRutasPermitidas(
+      rol,
+      empresaId,
+    );
     return { rutas };
   }
 

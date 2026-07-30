@@ -4,12 +4,25 @@
  * ============================================================================
  */
 
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CrmService } from '../services/crm.service';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
-import type { Actividad, EtapaEmbudo, Oportunidad, Prospecto } from '../entities/crm.entity';
+import type {
+  Actividad,
+  EtapaEmbudo,
+  Oportunidad,
+  Prospecto,
+} from '../entities/crm.entity';
 
 @ApiTags('CRM')
 @ApiBearerAuth('jwt')
@@ -55,7 +68,10 @@ export class CrmController {
   }
 
   @Post('etapas')
-  crearEtapa(@Body() dto: Partial<EtapaEmbudo>, @ActiveUser('empresaId') empresaId: string) {
+  crearEtapa(
+    @Body() dto: Partial<EtapaEmbudo>,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.crearEtapa(dto, empresaId);
   }
 
@@ -76,7 +92,10 @@ export class CrmController {
   }
 
   @Post('prospectos')
-  crearProspecto(@Body() dto: Partial<Prospecto>, @ActiveUser('empresaId') empresaId: string) {
+  crearProspecto(
+    @Body() dto: Partial<Prospecto>,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.crearProspecto(dto, empresaId);
   }
 
@@ -91,28 +110,39 @@ export class CrmController {
     @Query('soloAbiertas') soloAbiertas?: string,
   ) {
     return this.svc.listarOportunidades(empresaId, {
-      etapaId, responsableId, busqueda, soloAbiertas: soloAbiertas === 'true',
+      etapaId,
+      responsableId,
+      busqueda,
+      soloAbiertas: soloAbiertas === 'true',
     });
   }
 
   @Post('oportunidades')
-  crearOportunidad(@Body() dto: Partial<Oportunidad>, @ActiveUser('empresaId') empresaId: string) {
+  crearOportunidad(
+    @Body() dto: Partial<Oportunidad>,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.crearOportunidad(dto, empresaId);
   }
 
   @Get('oportunidades/:id')
-  obtenerOportunidad(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+  obtenerOportunidad(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.obtenerOportunidad(id, empresaId);
   }
 
   @Patch('oportunidades/:id/etapa')
   @ApiOperation({
     summary: 'Mueve la oportunidad de etapa',
-    description: 'Registra el historial y cierra la oportunidad si la etapa es terminal.',
+    description:
+      'Registra el historial y cierra la oportunidad si la etapa es terminal.',
   })
   moverEtapa(
     @Param('id') id: string,
-    @Body() body: { etapaId: string; motivoPerdida?: string; competidor?: string },
+    @Body()
+    body: { etapaId: string; motivoPerdida?: string; competidor?: string },
     @ActiveUser('empresaId') empresaId: string,
     @ActiveUser('id') usuarioId: string,
   ) {
@@ -131,12 +161,19 @@ export class CrmController {
     @Query('pendientes') pendientes?: string,
   ) {
     return this.svc.listarActividades(empresaId, {
-      desde, hasta, responsableId, oportunidadId, pendientes: pendientes === 'true',
+      desde,
+      hasta,
+      responsableId,
+      oportunidadId,
+      pendientes: pendientes === 'true',
     });
   }
 
   @Post('actividades')
-  crearActividad(@Body() dto: Partial<Actividad>, @ActiveUser('empresaId') empresaId: string) {
+  crearActividad(
+    @Body() dto: Partial<Actividad>,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.crearActividad(dto, empresaId);
   }
 

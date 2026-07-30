@@ -13,13 +13,19 @@ export class MarcaController {
   }
 
   @Post()
-  create(@Body() createDto: CreateMarcaDto, @ActiveUser('empresaId') empresaId: string) {
+  create(
+    @Body() createDto: CreateMarcaDto,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.marcaService.create(createDto.nombre, empresaId);
   }
 
   // RUTA ESPECÍFICA PRIMERO
   @Patch(':id/estado')
-  toggleStatus(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+  toggleStatus(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.marcaService.toggleStatus(id, empresaId);
   }
 

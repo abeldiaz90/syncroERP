@@ -21,7 +21,11 @@ export class AlmacenesService {
     try {
       return await this.almacenRepository.save(nuevo);
     } catch (error: any) {
-      if (error.number === 2627 || error.number === 2601 || error.code === '23505') {
+      if (
+        error.number === 2627 ||
+        error.number === 2601 ||
+        error.code === '23505'
+      ) {
         throw new ConflictException('Ya existe un almacén con ese nombre.');
       }
       throw new InternalServerErrorException('Error al crear el almacén.');
@@ -35,15 +39,25 @@ export class AlmacenesService {
     });
   }
 
-  async actualizarAlmacen(id: string, dto: Partial<CrearAlmacenDto>, empresaId: string) {
-    const almacen = await this.almacenRepository.findOne({ where: { id, empresaId } });
+  async actualizarAlmacen(
+    id: string,
+    dto: Partial<CrearAlmacenDto>,
+    empresaId: string,
+  ) {
+    const almacen = await this.almacenRepository.findOne({
+      where: { id, empresaId },
+    });
     if (!almacen) throw new NotFoundException('Almacén no encontrado.');
 
     Object.assign(almacen, dto);
     try {
       return await this.almacenRepository.save(almacen);
     } catch (error: any) {
-      if (error.number === 2627 || error.number === 2601 || error.code === '23505') {
+      if (
+        error.number === 2627 ||
+        error.number === 2601 ||
+        error.code === '23505'
+      ) {
         throw new ConflictException('Ya existe otro almacén con ese nombre.');
       }
       throw new InternalServerErrorException('Error al actualizar el almacén.');
@@ -51,7 +65,9 @@ export class AlmacenesService {
   }
 
   async toggleActivo(id: string, empresaId: string) {
-    const almacen = await this.almacenRepository.findOne({ where: { id, empresaId } });
+    const almacen = await this.almacenRepository.findOne({
+      where: { id, empresaId },
+    });
     if (!almacen) throw new NotFoundException('Almacén no encontrado.');
 
     almacen.activo = !almacen.activo;

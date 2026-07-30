@@ -58,21 +58,76 @@ export interface TarifasEjercicio {
 /* ── Tarifa base (art. 96 LISR, mensual) ──────────────────────────────────── */
 
 const ISR_MENSUAL_2025: RenglonIsr[] = [
-  { limiteInferior: 0.01,      limiteSuperior: 746.04,     cuotaFija: 0.00,      porcentaje: 1.92 },
-  { limiteInferior: 746.05,    limiteSuperior: 6332.05,    cuotaFija: 14.32,     porcentaje: 6.40 },
-  { limiteInferior: 6332.06,   limiteSuperior: 11128.01,   cuotaFija: 371.83,    porcentaje: 10.88 },
-  { limiteInferior: 11128.02,  limiteSuperior: 12935.82,   cuotaFija: 893.63,    porcentaje: 16.00 },
-  { limiteInferior: 12935.83,  limiteSuperior: 15487.71,   cuotaFija: 1182.88,   porcentaje: 17.92 },
-  { limiteInferior: 15487.72,  limiteSuperior: 31236.49,   cuotaFija: 1640.18,   porcentaje: 21.36 },
-  { limiteInferior: 31236.50,  limiteSuperior: 49233.00,   cuotaFija: 5004.12,   porcentaje: 23.52 },
-  { limiteInferior: 49233.01,  limiteSuperior: 93993.90,   cuotaFija: 9236.89,   porcentaje: 30.00 },
-  { limiteInferior: 93993.91,  limiteSuperior: 125325.20,  cuotaFija: 22665.17,  porcentaje: 32.00 },
-  { limiteInferior: 125325.21, limiteSuperior: 375975.61,  cuotaFija: 32691.18,  porcentaje: 34.00 },
-  { limiteInferior: 375975.62, limiteSuperior: Infinity,   cuotaFija: 117912.32, porcentaje: 35.00 },
+  {
+    limiteInferior: 0.01,
+    limiteSuperior: 746.04,
+    cuotaFija: 0.0,
+    porcentaje: 1.92,
+  },
+  {
+    limiteInferior: 746.05,
+    limiteSuperior: 6332.05,
+    cuotaFija: 14.32,
+    porcentaje: 6.4,
+  },
+  {
+    limiteInferior: 6332.06,
+    limiteSuperior: 11128.01,
+    cuotaFija: 371.83,
+    porcentaje: 10.88,
+  },
+  {
+    limiteInferior: 11128.02,
+    limiteSuperior: 12935.82,
+    cuotaFija: 893.63,
+    porcentaje: 16.0,
+  },
+  {
+    limiteInferior: 12935.83,
+    limiteSuperior: 15487.71,
+    cuotaFija: 1182.88,
+    porcentaje: 17.92,
+  },
+  {
+    limiteInferior: 15487.72,
+    limiteSuperior: 31236.49,
+    cuotaFija: 1640.18,
+    porcentaje: 21.36,
+  },
+  {
+    limiteInferior: 31236.5,
+    limiteSuperior: 49233.0,
+    cuotaFija: 5004.12,
+    porcentaje: 23.52,
+  },
+  {
+    limiteInferior: 49233.01,
+    limiteSuperior: 93993.9,
+    cuotaFija: 9236.89,
+    porcentaje: 30.0,
+  },
+  {
+    limiteInferior: 93993.91,
+    limiteSuperior: 125325.2,
+    cuotaFija: 22665.17,
+    porcentaje: 32.0,
+  },
+  {
+    limiteInferior: 125325.21,
+    limiteSuperior: 375975.61,
+    cuotaFija: 32691.18,
+    porcentaje: 34.0,
+  },
+  {
+    limiteInferior: 375975.62,
+    limiteSuperior: Infinity,
+    cuotaFija: 117912.32,
+    porcentaje: 35.0,
+  },
 ];
 
 const SUBSIDIO_MENSUAL: RenglonSubsidio[] = [
-  { desde: 0.01,    hasta: 1768.96, subsidio: 407.02 },
+  { desde: 0.01, hasta: 1768.96, subsidio: 407.02 },
   { desde: 1768.97, hasta: 2653.38, subsidio: 406.83 },
   { desde: 2653.39, hasta: 3472.84, subsidio: 406.62 },
   { desde: 3472.85, hasta: 3537.87, subsidio: 392.77 },
@@ -80,13 +135,13 @@ const SUBSIDIO_MENSUAL: RenglonSubsidio[] = [
   { desde: 4446.16, hasta: 4717.18, subsidio: 354.23 },
   { desde: 4717.19, hasta: 5335.42, subsidio: 324.87 },
   { desde: 5335.43, hasta: 6224.67, subsidio: 294.63 },
-  { desde: 6224.68, hasta: 7113.90, subsidio: 253.54 },
+  { desde: 6224.68, hasta: 7113.9, subsidio: 253.54 },
   { desde: 7113.91, hasta: 7382.33, subsidio: 217.61 },
-  { desde: 7382.34, hasta: Infinity, subsidio: 0.00 },
+  { desde: 7382.34, hasta: Infinity, subsidio: 0.0 },
 ];
 
 const IMSS_OBRERO_BASE: CuotasImssObrero = {
-  excedente: 0.40,
+  excedente: 0.4,
   prestacionesDinero: 0.25,
   gastosMedicos: 0.375,
   invalidezVida: 0.625,
@@ -99,7 +154,7 @@ export const TARIFAS: Record<number, TarifasEjercicio> = {
   2025: {
     ejercicio: 2025,
     uma: 113.14,
-    salarioMinimoGeneral: 278.80,
+    salarioMinimoGeneral: 278.8,
     isrMensual: ISR_MENSUAL_2025,
     subsidioEmpleo: SUBSIDIO_MENSUAL,
     imssObrero: IMSS_OBRERO_BASE,
@@ -110,7 +165,7 @@ export const TARIFAS: Record<number, TarifasEjercicio> = {
   2026: {
     ejercicio: 2026,
     uma: 113.14,
-    salarioMinimoGeneral: 278.80,
+    salarioMinimoGeneral: 278.8,
     isrMensual: ISR_MENSUAL_2025,
     subsidioEmpleo: SUBSIDIO_MENSUAL,
     imssObrero: IMSS_OBRERO_BASE,
@@ -128,8 +183,8 @@ export function obtenerTarifas(ejercicio: number): TarifasEjercicio {
     const disponibles = Object.keys(TARIFAS).join(', ');
     throw new Error(
       `No hay tarifas fiscales cargadas para el ejercicio ${ejercicio}. ` +
-      `Ejercicios disponibles: ${disponibles}. ` +
-      `Agrégalas en src/rrhh/data/tarifas-fiscales.ts antes de calcular la nómina.`,
+        `Ejercicios disponibles: ${disponibles}. ` +
+        `Agrégalas en src/rrhh/data/tarifas-fiscales.ts antes de calcular la nómina.`,
     );
   }
   return t;

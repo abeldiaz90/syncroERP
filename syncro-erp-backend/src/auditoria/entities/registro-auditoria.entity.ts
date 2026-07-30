@@ -1,8 +1,17 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  Index,
 } from 'typeorm';
 
-export type AccionAuditoria = 'CREAR' | 'ACTUALIZAR' | 'ELIMINAR' | 'CANCELAR' | 'ACCION';
+export type AccionAuditoria =
+  | 'CREAR'
+  | 'ACTUALIZAR'
+  | 'ELIMINAR'
+  | 'CANCELAR'
+  | 'ACCION';
 
 /**
  * RegistroAuditoria — la "caja negra" del ERP.
@@ -52,11 +61,11 @@ export class RegistroAuditoria {
   endpoint!: string | null;
 
   /** Estado anterior del registro (JSON). Null en altas. */
-  @Column({ type: 'nvarchar', length: 'MAX' as any, nullable: true })
+  @Column({ type: 'nvarchar', length: 'MAX', nullable: true })
   valorAnterior!: string | null;
 
   /** Estado nuevo / payload enviado (JSON). Null en bajas. */
-  @Column({ type: 'nvarchar', length: 'MAX' as any, nullable: true })
+  @Column({ type: 'nvarchar', length: 'MAX', nullable: true })
   valorNuevo!: string | null;
 
   @Column({ type: 'varchar', length: 60, nullable: true })

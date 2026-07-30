@@ -36,9 +36,16 @@ export class RecetasWizardController {
   ) {
     const nombreCat = nombre?.trim() || 'Insumos Bar';
     // Crear la categoría
-    await this.categoriasService.crearCategoria({ nombre: nombreCat } as any, e);
+    await this.categoriasService.crearCategoria({ nombre: nombreCat }, e);
     // Auto-configurar sus cuentas por número (130→Inventario, 501→Costo, etc.)
-    const resultado = await this.categoriasService.autoConfigurarCuentas(e, true);
-    return { ok: true, mensaje: `Categoría "${nombreCat}" creada y mapeada.`, resultado };
+    const resultado = await this.categoriasService.autoConfigurarCuentas(
+      e,
+      true,
+    );
+    return {
+      ok: true,
+      mensaje: `Categoría "${nombreCat}" creada y mapeada.`,
+      resultado,
+    };
   }
 }

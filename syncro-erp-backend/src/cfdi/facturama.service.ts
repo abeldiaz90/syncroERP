@@ -17,7 +17,7 @@ export class FacturamaService {
       : 'https://api.facturama.mx';
 
     const token = Buffer.from(
-      `${config.facturamaUser}:${config.facturamaPassword}`
+      `${config.facturamaUser}:${config.facturamaPassword}`,
     ).toString('base64');
 
     return axios.create({
@@ -40,10 +40,11 @@ export class FacturamaService {
       const { data } = await client.post('/api/3/cfdis', payload);
       return data;
     } catch (error: any) {
-      const msg = error.response?.data?.Details?.[0]
-        ?? error.response?.data?.Message
-        ?? error.message
-        ?? 'Error de comunicación con Facturama';
+      const msg =
+        error.response?.data?.Details?.[0] ??
+        error.response?.data?.Message ??
+        error.message ??
+        'Error de comunicación con Facturama';
       this.logger.error(`Error timbrado: ${msg}`, error.response?.data);
       throw new BadRequestException(`Error al timbrar: ${msg}`);
     }
@@ -60,13 +61,14 @@ export class FacturamaService {
   ): Promise<Buffer> {
     const client = this.getClient(config);
     try {
-      const { data } = await client.get(
-        `/api/Cfdi/${formato}/${facturamaId}`,
-        { responseType: 'arraybuffer' },
-      );
+      const { data } = await client.get(`/api/Cfdi/${formato}/${facturamaId}`, {
+        responseType: 'arraybuffer',
+      });
       return Buffer.from(data);
     } catch (error: any) {
-      throw new BadRequestException(`Error al descargar ${formato.toUpperCase()}`);
+      throw new BadRequestException(
+        `Error al descargar ${formato.toUpperCase()}`,
+      );
     }
   }
 
@@ -88,10 +90,13 @@ export class FacturamaService {
       const params: any = { motive: motivo };
       if (uuidSustitucion) params.uuidReplacement = uuidSustitucion;
 
-      const { data } = await client.delete(`/api/3/cfdis/${facturamaId}`, { params });
+      const { data } = await client.delete(`/api/3/cfdis/${facturamaId}`, {
+        params,
+      });
       return data;
     } catch (error: any) {
-      const msg = error.response?.data?.Message ?? error.message ?? 'Error al cancelar';
+      const msg =
+        error.response?.data?.Message ?? error.message ?? 'Error al cancelar';
       throw new BadRequestException(`Error al cancelar: ${msg}`);
     }
   }
@@ -107,7 +112,7 @@ export class FacturamaService {
     const client = this.getClient(config);
     try {
       await client.post(
-        `/api/Cfdi/${facturamaId}/send/${encodeURIComponent(correo)}`
+        `/api/Cfdi/${facturamaId}/send/${encodeURIComponent(correo)}`,
       );
     } catch (error: any) {
       this.logger.warn(`No se pudo enviar correo: ${error.message}`);

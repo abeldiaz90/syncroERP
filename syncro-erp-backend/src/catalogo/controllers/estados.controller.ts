@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+} from '@nestjs/common';
 import { EstadosService } from '../services/estados.service';
 import { CrearEstadoDto } from '../dto/crear-estado.dto';
 

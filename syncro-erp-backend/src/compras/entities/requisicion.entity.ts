@@ -19,7 +19,10 @@ export type EstadoRequisicion =
   | 'APROBADA'
   | 'RECHAZADA'
   | 'CONVERTIDA'
-  | 'ORDEN_GENERADA'; 
+  | 'ORDEN_GENERADA'
+  | 'RECIBIDA'
+  | 'CON_INCIDENCIAS'
+  | 'CANCELADA';
 
 @Entity('requisiciones')
 export class Requisicion {
@@ -47,7 +50,9 @@ export class Requisicion {
   notas?: string;
 
   // Detalles de la requisición
-  @OneToMany(() => DetalleRequisicion, (det) => det.requisicion, { cascade: true })
+  @OneToMany(() => DetalleRequisicion, (det) => det.requisicion, {
+    cascade: true,
+  })
   detalles: DetalleRequisicion[];
 
   // Cadena de aprobaciones

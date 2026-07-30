@@ -5,22 +5,30 @@ import {
   Patch,
   Param,
   Body,
-  BadRequestException,
 } from '@nestjs/common';
 import { OrdenesCompraService } from '../services/ordenes-compra.service';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { Navegable } from '../../iam/decorators/navegable.decorator';
+import {
+  CambiarEstadoOrdenCompraDto,
+  CrearOrdenDesdeCotizacionDto,
+  PagarOrdenCompraDto,
+  RecibirOrdenCompraDto,
+} from '../dto/operaciones-orden-compra.dto';
 
 @Controller('compras/ordenes')
 export class OrdenesCompraController {
-  constructor(private readonly ordenesService: OrdenesCompraService) { }
+  constructor(private readonly ordenesService: OrdenesCompraService) {}
 
   @Post()
   async crear(
-    @Body('cotizacionId') cotizacionId: string,
+    @Body() dto: CrearOrdenDesdeCotizacionDto,
     @ActiveUser('empresaId') empresaId: string,
   ) {
-    return this.ordenesService.crearDesdeCotizacion(cotizacionId, empresaId);
+    return this.ordenesService.crearDesdeCotizacion(
+      dto.cotizacionId,
+      empresaId,
+    );
   }
 
   @Get()
@@ -46,48 +54,37 @@ export class OrdenesCompraController {
   @Patch(':id/estado')
   async cambiarEstado(
     @Param('id') id: string,
-    @Body('estado') estado: string,
+    @Body() dto: CambiarEstadoOrdenCompraDto,
     @ActiveUser('empresaId') empresaId: string,
   ) {
-    return this.ordenesService.cambiarEstado(id, empresaId, estado);
+    return this.ordenesService.cambiarEstado(id, empresaId, dto.estado);
   }
-
 
   @Patch(':id/recibir')
   async recibir(
     @Param('id') id: string,
-    @Body('almacenId') almacenId: string,
-    @Body('detalles') detalles: any[],
-    @ActiveUser() usuarioActual: any,
+    @Body() dto: RecibirOrdenCompraDto,
+    @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('id') usuarioId: string,
   ) {
-    // 1. Auditoría rápida para ver qué trae tu token realmente
-    console.log('--- DATOS DEL USUARIO LOGUEADO ---', usuarioActual);
-
-    // 2. Extraemos el empresaId buscando las posibles variaciones
-    const idEmpresa = usuarioActual.empresaId || usuarioActual.empresa_id || usuarioActual.empresa?.id;
-
-    if (!idEmpresa) {
-      throw new BadRequestException('El token del usuario no contiene una empresa válida.');
-    }
-
-    // 3. Pasamos el idEmpresa seguro y el usuarioActual al servicio
-    return this.ordenesService.recibir(id, idEmpresa, almacenId, detalles, usuarioActual);
+    return this.ordenesService.recibir(
+      id,
+      empresaId,
+      dto.almacenId,
+      dto.detalles,
+      { id: usuarioId },
+    );
   }
-
 
   @Navegable('/dashboard/compras/pago-proveedores', 'Pago a Proveedores', 7)
   @Patch(':id/pagar')
   async pagar(
     @Param('id') id: string,
-    @Body() body: {
-      montoPagado: number;
-      cuentaBancariaId?: string;
-      referencia?: string;
-      fechaPago?: string;
-    },
+    @Body() body: PagarOrdenCompraDto,
     @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('id') usuarioId: string,
   ) {
-    return this.ordenesService.pagarOrden(id, empresaId, body);
+    return this.ordenesService.pagarOrden(id, empresaId, body, usuarioId);
   }
 
   @Get('dashboard/pendientes')

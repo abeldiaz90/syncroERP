@@ -26,7 +26,8 @@ interface IItemCarrito {
   cantidad: number; precioUnitario: number; descuento: number;
   tasaIVA: number; stockDisponible: number;
 }
-interface ICliente { id: string; nombre: string; email?: string; rfc?: string; }
+interface ICliente { id: string; nombre: string; email?: string; rfc?: string; limiteCredito?: number; diasCredito?: number; }
+interface IPoliticaCredito { limite:number; utilizado:number; disponible:number; vencido:number; diasCredito:number; puedeComprarCredito:boolean; razonBloqueo?:string|null; }
 interface ICuentaBancaria { id: string; nombre: string; tipo: string; esPorDefecto: boolean; }
 interface ICuota { numeroCuota: number; fechaVencimiento: string; montoCuota: number; montoCapital: number; montoInteres: number; saldoRestante: number; }
 
@@ -84,6 +85,9 @@ export default function POSPage() {
   const [errorCliente,      setErrorCliente]      = useState('');
   const [notas,             setNotas]             = useState('');
   const [errorMsg,          setErrorMsg]          = useState('');
+  const [politicaCredito,   setPoliticaCredito]   = useState<IPoliticaCredito|null>(null);
+  const [saldoFavor,        setSaldoFavor]        = useState(0);
+  const [usarSaldoFavor,    setUsarSaldoFavor]    = useState(true);
 
   // ── Estado modal de crédito ─────────────────────────────────────
   const [modalCredito,      setModalCredito]      = useState(false);
@@ -149,6 +153,22 @@ export default function POSPage() {
     return () => clearTimeout(t);
   }, [busquedaCliente]);
 
+  useEffect(() => {
+    setPoliticaCredito(null);
+    setSaldoFavor(0);
+    setUsarSaldoFavor(true);
+    if (!cliente) return;
+    Promise.all([
+      fetch(`${apiUrl}/credito/creditos/cliente/${cliente.id}/politica`, {headers:hdrs()})
+        .then(r=>r.ok?r.json():null),
+      fetch(`${apiUrl}/ventas/clientes/${cliente.id}/saldo-favor`, {headers:hdrs()})
+        .then(r=>r.ok?r.json():null),
+    ]).then(([politica, saldo]) => {
+      setPoliticaCredito(politica);
+      setSaldoFavor(n(saldo?.saldo));
+    });
+  }, [cliente, apiUrl]);
+
   // ── Crear cliente al vuelo desde el POS ─────────────────────────
   const crearClienteRapido = async () => {
     setErrorCliente('');
@@ -186,7 +206,8 @@ export default function POSPage() {
   // ── Simular amortización ────────────────────────────────────────
   const simularAmortizacion = useCallback(async () => {
     const { total } = calcTotales(carrito);
-    const capital = total - n(enganche);
+    const saldoAplicado = usarSaldoFavor ? Math.min(saldoFavor, total) : 0;
+    const capital = total - saldoAplicado - n(enganche);
     if (capital <= 0 || n(numeroCuotas)<1) return;
     setCargandoAmort(true);
     try {
@@ -200,16 +221,41 @@ export default function POSPage() {
       });
       if (res.ok) setTablaAmort(await res.json());
     } finally { setCargandoAmort(false); }
-  }, [carrito, enganche, numeroCuotas, tasaInteres, sinInteres]);
+  }, [carrito, enganche, numeroCuotas, tasaInteres, sinInteres, saldoFavor, usarSaldoFavor]);
 
   useEffect(() => {
     if (modalCredito && metodoPago==='MENSUALIDADES') simularAmortizacion();
   }, [enganche, numeroCuotas, tasaInteres, sinInteres, modalCredito]);
 
   // ── Carrito ─────────────────────────────────────────────────────
-  const agregarProducto = useCallback((prod: any) => {
-    const precio = extraerPrecio(prod);
-    const tasaIVA = n(prod?.impuesto?.porcentaje)>0 ? n(prod.impuesto.porcentaje)/100 : 0.16;
+  const agregarProducto = useCallback(async (prod: any) => {
+    let precio = extraerPrecio(prod);
+    let tasaIVA =
+      prod?.impuesto?.porcentaje !== undefined
+        ? n(prod.impuesto.porcentaje) / 100
+        : 0;
+    try {
+      const res = await fetch(
+        `${apiUrl}/catalogo/listas-precio/producto/${prod.id}`,
+        { headers: hdrs() },
+      );
+      if (!res.ok) {
+        const error = await res.json().catch(() => null);
+        throw new Error(error?.message || 'No se pudo consultar el precio');
+      }
+      const oficial = await res.json();
+      if (oficial.sinPrecio) {
+        throw new Error(`${prod.nombre} no tiene precio de venta configurado.`);
+      }
+      precio = n(oficial.precioUnitario);
+      tasaIVA = n(oficial.impuestoPorcentaje) / 100;
+    } catch (error) {
+      setErrorMsg(
+        error instanceof Error ? error.message : 'No se pudo consultar el precio',
+      );
+      setTimeout(() => setErrorMsg(''), 6000);
+      return;
+    }
     setCarrito(prev => {
       const existe = prev.find(i=>i.productoId===prod.id);
       if (existe) {
@@ -221,7 +267,7 @@ export default function POSPage() {
         descuento:0, tasaIVA, stockDisponible:n(prod.stockActual) }];
     });
     setBusqueda(''); searchRef.current?.focus();
-  }, []);
+  }, [apiUrl]);
 
   const actualizarCantidad = (id:string, delta:number) =>
     setCarrito(prev=>prev.map(i=>i.productoId!==id?i:{...i,cantidad:Math.max(0,Math.min(i.cantidad+delta,i.stockDisponible))}).filter(i=>i.cantidad>0));
@@ -242,13 +288,32 @@ export default function POSPage() {
     if (esCredito(metodoPago) && !cliente) {
       setErrorMsg('Para ventas a crédito debes seleccionar un cliente.'); setTimeout(()=>setErrorMsg(''),5000); return;
     }
+    if (esCredito(metodoPago) && politicaCredito && !politicaCredito.puedeComprarCredito) {
+      setErrorMsg(politicaCredito.razonBloqueo || 'El cliente no tiene crédito disponible.'); return;
+    }
     setProcesando(true);
     const { subtotal, impuestos, total } = calcTotales(carrito);
     const payload = {
       clienteId: cliente?.id??null, almacenId: almacenId||null,
       metodoPago, cuentaBancariaId: cuentaBancariaId||null,
       montoRecibido: metodoPago==='EFECTIVO' ? n(montoRecibido) : null,
+      saldoFavorSolicitado: usarSaldoFavor ? Math.min(saldoFavor, total) : 0,
       subtotal, descuento:0, impuestoTotal:impuestos, total, notas:notas||null,
+      credito: esCredito(metodoPago) ? {
+        tipoCredito: metodoPago,
+        enganche: metodoPago==='MENSUALIDADES' ? n(enganche) : 0,
+        numeroCuotas: metodoPago==='MENSUALIDADES' ? n(numeroCuotas) : 1,
+        tasaInteresMensual:
+          metodoPago==='MENSUALIDADES' && !sinInteres ? n(tasaInteres) : 0,
+        sinInteres: metodoPago!=='MENSUALIDADES' || sinInteres,
+        fechaInicio: new Date().toISOString(),
+        metodoPagoEnganche:
+          metodoPago==='MENSUALIDADES' && n(enganche)>0 ? 'EFECTIVO' : undefined,
+        cuentaBancariaEngancheId:
+          metodoPago==='MENSUALIDADES' && n(enganche)>0 && cuentaBancariaId
+            ? cuentaBancariaId
+            : undefined,
+      } : undefined,
       detalles: carrito.map(item => {
         const {base,iva} = calcItem(item);
         return { productoId:item.productoId, cantidad:item.cantidad,
@@ -267,36 +332,18 @@ export default function POSPage() {
       }
       const data = await res.json();
 
-      // Si es crédito → crear el crédito vinculado a la venta
-      if (esCredito(metodoPago) && cliente) {
-        const diasMap:Record<string,number> = { CREDITO_30D:30, CREDITO_60D:60, CREDITO_90D:90 };
-        const dias = diasMap[metodoPago];
-        const fechaVenc = new Date(); fechaVenc.setDate(fechaVenc.getDate()+(dias??0));
-
-        await fetch(`${apiUrl}/credito/creditos`,{
-          method:'POST', headers:{...hdrs(),'Content-Type':'application/json'},
-          body:JSON.stringify({
-            ventaId:            data.id,
-            clienteId:          cliente.id,
-            tipoCredito:        metodoPago,
-            montoVenta:         total,
-            enganche:           metodoPago==='MENSUALIDADES' ? n(enganche) : 0,
-            numeroCuotas:       metodoPago==='MENSUALIDADES' ? n(numeroCuotas) : 1,
-            tasaInteresMensual: (metodoPago==='MENSUALIDADES' && !sinInteres) ? n(tasaInteres) : 0,
-            sinInteres:         metodoPago!=='MENSUALIDADES' || sinInteres,
-            fechaInicio:        new Date().toISOString(),
-          }),
-        }).catch(e=>console.error('Error creando crédito:',e));
-      }
-
       setVentaExitosa({ id:data.id, folio:data.folio });
     } catch { setErrorMsg('Error de conexión.'); setTimeout(()=>setErrorMsg(''),6000); }
     finally { setProcesando(false); }
   };
 
   const { subtotal, impuestos, total } = calcTotales(carrito);
-  const cambio = metodoPago==='EFECTIVO'&&montoRecibido ? n(montoRecibido)-total : null;
-  const puedeVender = carrito.length>0 && (metodoPago!=='EFECTIVO'||!montoRecibido||n(montoRecibido)>=total);
+  const saldoAplicado = cliente&&usarSaldoFavor ? Math.min(saldoFavor,total) : 0;
+  const totalEfectivo = Math.max(0,total-saldoAplicado);
+  const cambio = metodoPago==='EFECTIVO'&&montoRecibido ? n(montoRecibido)-totalEfectivo : null;
+  const plazoMetodo = metodoPago==='CREDITO_30D'?30:metodoPago==='CREDITO_60D'?60:metodoPago==='CREDITO_90D'?90:n(numeroCuotas)*30;
+  const creditoPermitido = !esCredito(metodoPago) || (!!cliente && !!politicaCredito?.puedeComprarCredito && plazoMetodo<=n(politicaCredito?.diasCredito) && (total-saldoAplicado-n(enganche))<=n(politicaCredito?.disponible));
+  const puedeVender = carrito.length>0 && creditoPermitido && (metodoPago!=='EFECTIVO'||(!!montoRecibido&&n(montoRecibido)>=totalEfectivo));
 
   // ── Pantalla éxito ──────────────────────────────────────────────
   if (ventaExitosa) return (
@@ -503,6 +550,24 @@ export default function POSPage() {
             )}
           </div>
 
+          {cliente && (saldoFavor>0 || politicaCredito) && (
+            <div className="mx-4 mb-3 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-xs space-y-2">
+              {saldoFavor>0 && (
+                <label className="flex items-center justify-between gap-3 cursor-pointer">
+                  <span className="font-semibold text-cyan-900">Usar saldo a favor (${fmt(Math.min(saldoFavor,total))})</span>
+                  <input type="checkbox" checked={usarSaldoFavor} onChange={e=>setUsarSaldoFavor(e.target.checked)}
+                    className="w-4 h-4 rounded text-cyan-600"/>
+                </label>
+              )}
+              {politicaCredito && (
+                <div className={politicaCredito.puedeComprarCredito?'text-indigo-800':'text-rose-700'}>
+                  <p className="font-bold">Crédito disponible: ${fmt(politicaCredito.disponible)} · plazo máximo {politicaCredito.diasCredito} días</p>
+                  {!politicaCredito.puedeComprarCredito && <p>{politicaCredito.razonBloqueo}</p>}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Métodos de pago */}
           <div className="px-4 pb-3">
             {/* Tabs contado / crédito */}
@@ -529,7 +594,9 @@ export default function POSPage() {
             ) : (
               <div className="grid grid-cols-4 gap-1.5">
                 {METODOS_CREDITO.map(m=>(
-                  <button key={m.id} onClick={()=>{setMetodoPago(m.id);if(m.id==='MENSUALIDADES')setModalCredito(true)}}
+                  <button key={m.id}
+                    disabled={!cliente || !politicaCredito?.puedeComprarCredito || n(m.dias)>n(politicaCredito?.diasCredito)}
+                    onClick={()=>{setMetodoPago(m.id);if(m.id==='MENSUALIDADES')setModalCredito(true)}}
                     className={`flex flex-col items-center gap-1 py-2 rounded-xl border-2 text-[10px] font-bold transition-all ${metodoPago===m.id?'border-indigo-500 bg-indigo-50 text-indigo-700':'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
                     <m.icon className="w-4 h-4"/>
                     <span className="text-center leading-tight">{m.label}</span>
@@ -543,7 +610,7 @@ export default function POSPage() {
               <div className="mt-2 flex gap-2 items-center">
                 <div className="flex-1 relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
-                  <input type="number" step="0.01" min={total} value={montoRecibido} onChange={e=>setMontoRecibido(e.target.value)}
+                  <input type="number" step="0.01" min={totalEfectivo} value={montoRecibido} onChange={e=>setMontoRecibido(e.target.value)}
                     placeholder="Monto recibido" className="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"/>
                 </div>
                 {cambio!==null&&<div className={`px-3 py-2 rounded-xl text-sm font-black text-center min-w-[80px] ${cambio>=0?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-700'}`}>{cambio>=0?`+$${fmt(cambio)}`:`-$${fmt(Math.abs(cambio))}`}</div>}
@@ -569,7 +636,7 @@ export default function POSPage() {
               <div className="mt-2 bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-800">
                 <div className="flex items-center gap-2 font-bold">
                   <Clock className="w-3.5 h-3.5"/>
-                  Pago total en {metodoPago==='CREDITO_30D'?30:metodoPago==='CREDITO_60D'?60:90} días: <span className="text-base">${fmt(total)}</span>
+                  Pago total en {metodoPago==='CREDITO_30D'?30:metodoPago==='CREDITO_60D'?60:90} días: <span className="text-base">${fmt(total-saldoAplicado)}</span>
                 </div>
                 {!cliente&&<p className="text-amber-600 font-semibold mt-1">⚠ Selecciona un cliente para continuar</p>}
               </div>
@@ -596,17 +663,19 @@ export default function POSPage() {
           <div className="px-4 pb-3 space-y-1 border-t border-slate-200 pt-3">
             <div className="flex justify-between text-sm text-slate-500"><span>Subtotal</span><span className="font-semibold font-mono">${fmt(subtotal)}</span></div>
             <div className="flex justify-between text-sm text-slate-500"><span>IVA</span><span className="font-semibold font-mono">${fmt(impuestos)}</span></div>
+            {saldoAplicado>0&&<div className="flex justify-between text-sm text-cyan-700"><span>Saldo a favor aplicado</span><span className="font-semibold font-mono">-${fmt(saldoAplicado)}</span></div>}
             <div className="flex justify-between items-center border-t border-slate-200 pt-2 mt-2">
               <span className="text-base font-black text-slate-800">TOTAL</span>
               <span className="text-2xl font-black text-slate-900 tracking-tight">${fmt(total)}</span>
             </div>
+            {saldoAplicado>0&&<div className="flex justify-between font-bold text-sm text-slate-700"><span>RESTO A PAGAR</span><span>${fmt(totalEfectivo)}</span></div>}
           </div>
 
           {/* Botón cobrar */}
           <div className="px-4 pb-4">
             <button onClick={procesarVenta} disabled={!puedeVender||procesando}
               className={`w-full py-4 text-white font-black text-lg rounded-2xl active:scale-95 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 ${esCredito(metodoPago)?'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200':'bg-blue-600 hover:bg-blue-700 shadow-blue-200'}`}>
-              {procesando?<><Loader2 className="w-5 h-5 animate-spin"/> Procesando...</>:<><CheckCircle2 className="w-6 h-6"/> {esCredito(metodoPago)?`Registrar Crédito $${fmt(total)}`:`Cobrar $${fmt(total)}`}</>}
+              {procesando?<><Loader2 className="w-5 h-5 animate-spin"/> Procesando...</>:<><CheckCircle2 className="w-6 h-6"/> {esCredito(metodoPago)?`Registrar Crédito $${fmt(totalEfectivo)}`:`Cobrar $${fmt(totalEfectivo)}`}</>}
             </button>
             {metodoPago==='EFECTIVO'&&!montoRecibido&&carrito.length>0&&(
               <p className="text-center text-xs text-amber-600 font-medium mt-2 flex items-center justify-center gap-1">
@@ -647,7 +716,7 @@ export default function POSPage() {
                       </button>
                     ))}
                   </div>
-                  <input type="number" min="1" max="60" value={numeroCuotas} onChange={e=>setNumeroCuotas(e.target.value)}
+                  <input type="number" min="1" max={Math.min(60,Math.floor(n(politicaCredito?.diasCredito)/30))} value={numeroCuotas} onChange={e=>setNumeroCuotas(e.target.value)}
                     className="w-full px-3 py-2 mt-1.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="O escribe un número"/>
                 </div>
                 <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors hover:bg-indigo-50">
@@ -665,7 +734,7 @@ export default function POSPage() {
                   </div>
                 )}
                 <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs space-y-1 text-indigo-800">
-                  <div className="flex justify-between"><span>Capital financiado:</span><span className="font-bold">${fmt(total-n(enganche))}</span></div>
+                  <div className="flex justify-between"><span>Capital financiado:</span><span className="font-bold">${fmt(total-saldoAplicado-n(enganche))}</span></div>
                   {tablaAmort.length>0&&<>
                     <div className="flex justify-between"><span>Cuota mensual:</span><span className="font-bold">${fmt(tablaAmort[0]?.montoCuota)}</span></div>
                     <div className="flex justify-between"><span>Total a pagar:</span><span className="font-bold">${fmt(tablaAmort.reduce((s,c)=>s+c.montoCuota,0)+n(enganche))}</span></div>

@@ -30,27 +30,41 @@ export interface DiagnosticoRecetas {
 @Injectable()
 export class RecetasWizardService {
   constructor(
-    @InjectRepository(Producto) private readonly productoRepo: Repository<Producto>,
-    @InjectRepository(Categoria) private readonly categoriaRepo: Repository<Categoria>,
-    @InjectRepository(CuentaContable) private readonly cuentaRepo: Repository<CuentaContable>,
+    @InjectRepository(Producto)
+    private readonly productoRepo: Repository<Producto>,
+    @InjectRepository(Categoria)
+    private readonly categoriaRepo: Repository<Categoria>,
+    @InjectRepository(CuentaContable)
+    private readonly cuentaRepo: Repository<CuentaContable>,
   ) {}
 
   async diagnosticar(empresaId: string): Promise<DiagnosticoRecetas> {
     // 1) Cuentas contables: buscar una de inventario (1xx) y una de costo (5xx)
-    const cuentas = await this.cuentaRepo.find({ where: { empresaId, activo: true } });
-    const cuentaInv = cuentas.find(c => (c.numeroCuenta ?? '').startsWith('1') && /inventario|almac/i.test(c.nombre ?? ''))
-      ?? cuentas.find(c => (c.numeroCuenta ?? '').startsWith('13'))   // 130-01 típico
-      ?? null;
-    const cuentaCosto = cuentas.find(c => (c.numeroCuenta ?? '').startsWith('5'))
-      ?? null;
+    const cuentas = await this.cuentaRepo.find({
+      where: { empresaId, activo: true },
+    });
+    const cuentaInv =
+      cuentas.find(
+        (c) =>
+          (c.numeroCuenta ?? '').startsWith('1') &&
+          /inventario|almac/i.test(c.nombre ?? ''),
+      ) ??
+      cuentas.find((c) => (c.numeroCuenta ?? '').startsWith('13')) ?? // 130-01 típico
+      null;
+    const cuentaCosto =
+      cuentas.find((c) => (c.numeroCuenta ?? '').startsWith('5')) ?? null;
 
     // 2) Categorías (para insumos). Traemos todas para mostrarlas.
     const categorias = await this.categoriaRepo.find({ where: { empresaId } });
-    const categoriaInsumos = categorias.find(c => /insumo|bar|cocina|materia/i.test(c.nombre ?? ''));
+    const categoriaInsumos = categorias.find((c) =>
+      /insumo|bar|cocina|materia/i.test(c.nombre ?? ''),
+    );
 
     // 3) Productos que puedan servir de insumo (cualquier producto sirve;
     //    lo importante es que exista al menos uno)
-    const totalProductos = await this.productoRepo.count({ where: { empresaId, activo: true } });
+    const totalProductos = await this.productoRepo.count({
+      where: { empresaId, activo: true },
+    });
 
     const checks = {
       tieneCuentaInventario: !!cuentaInv,
@@ -60,17 +74,27 @@ export class RecetasWizardService {
     };
 
     const acciones: string[] = [];
-    if (!checks.tieneCuentaInventario || !checks.tieneCuentaCosto) acciones.push('crear-cuentas');
+    if (!checks.tieneCuentaInventario || !checks.tieneCuentaCosto)
+      acciones.push('crear-cuentas');
     if (!checks.tieneCategoriaInsumos) acciones.push('crear-categoria');
     if (!checks.tieneInsumos) acciones.push('crear-insumos');
 
     return {
-      listoParaRecetas: checks.tieneCuentaInventario && checks.tieneCuentaCosto && checks.tieneInsumos,
+      listoParaRecetas:
+        checks.tieneCuentaInventario &&
+        checks.tieneCuentaCosto &&
+        checks.tieneInsumos,
       checks,
       detalle: {
-        cuentaInventario: cuentaInv ? { numero: cuentaInv.numeroCuenta, nombre: cuentaInv.nombre } : null,
-        cuentaCosto: cuentaCosto ? { numero: cuentaCosto.numeroCuenta, nombre: cuentaCosto.nombre } : null,
-        categoriasSugeridas: categorias.slice(0, 10).map(c => ({ id: c.id, nombre: c.nombre })),
+        cuentaInventario: cuentaInv
+          ? { numero: cuentaInv.numeroCuenta, nombre: cuentaInv.nombre }
+          : null,
+        cuentaCosto: cuentaCosto
+          ? { numero: cuentaCosto.numeroCuenta, nombre: cuentaCosto.nombre }
+          : null,
+        categoriasSugeridas: categorias
+          .slice(0, 10)
+          .map((c) => ({ id: c.id, nombre: c.nombre })),
         totalProductos,
       },
       acciones,

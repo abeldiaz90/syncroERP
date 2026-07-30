@@ -5,15 +5,24 @@
  */
 
 import {
-  Body, Controller, Get, Param, Patch, Post, Query,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { RrhhService } from '../services/rrhh.service';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import {
-  type Empleado, type Incidencia, type Puesto,
-  EstadoEmpleado, RegimenPago,
+  type Empleado,
+  type Incidencia,
+  type Puesto,
+  EstadoEmpleado,
+  RegimenPago,
 } from '../entities/rrhh.entity';
 
 @ApiTags('RRHH')
@@ -25,7 +34,9 @@ export class RrhhController {
   /* ── Indicadores ───────────────────────────────────────────────────────── */
 
   @Get('resumen')
-  @ApiOperation({ summary: 'Plantilla, nómina mensual estimada e incidencias recientes' })
+  @ApiOperation({
+    summary: 'Plantilla, nómina mensual estimada e incidencias recientes',
+  })
   resumen(@ActiveUser('empresaId') empresaId: string) {
     return this.svc.resumen(empresaId);
   }
@@ -39,17 +50,29 @@ export class RrhhController {
     @Query('departamentoId') departamentoId?: string,
     @Query('busqueda') busqueda?: string,
   ) {
-    return this.svc.listarEmpleados(empresaId, { estado, departamentoId, busqueda });
+    return this.svc.listarEmpleados(empresaId, {
+      estado,
+      departamentoId,
+      busqueda,
+    });
   }
 
   @Post('empleados')
-  crearEmpleado(@Body() dto: Partial<Empleado>, @ActiveUser('empresaId') empresaId: string) {
+  crearEmpleado(
+    @Body() dto: Partial<Empleado>,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.crearEmpleado(dto, empresaId);
   }
 
   @Get('empleados/:id')
-  @ApiOperation({ summary: 'Ficha del empleado con antigüedad y días de vacaciones por ley' })
-  obtenerEmpleado(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+  @ApiOperation({
+    summary: 'Ficha del empleado con antigüedad y días de vacaciones por ley',
+  })
+  obtenerEmpleado(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.obtenerEmpleado(id, empresaId);
   }
 
@@ -63,7 +86,10 @@ export class RrhhController {
   }
 
   @Patch('empleados/:id/baja')
-  @ApiOperation({ summary: 'Da de baja al empleado y calcula las partes proporcionales del finiquito' })
+  @ApiOperation({
+    summary:
+      'Da de baja al empleado y calcula las partes proporcionales del finiquito',
+  })
   darDeBaja(
     @Param('id') id: string,
     @Body() body: { fecha: string; motivo: string },
@@ -80,7 +106,10 @@ export class RrhhController {
   }
 
   @Post('puestos')
-  crearPuesto(@Body() dto: Partial<Puesto>, @ActiveUser('empresaId') empresaId: string) {
+  crearPuesto(
+    @Body() dto: Partial<Puesto>,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.crearPuesto(dto, empresaId);
   }
 
@@ -97,9 +126,18 @@ export class RrhhController {
   }
 
   @Post('asistencia')
-  @ApiOperation({ summary: 'Registra entrada o salida; calcula horas trabajadas y extra' })
+  @ApiOperation({
+    summary: 'Registra entrada o salida; calcula horas trabajadas y extra',
+  })
   registrarAsistencia(
-    @Body() dto: { empleadoId: string; fecha: string; entrada?: string; salida?: string; observaciones?: string },
+    @Body()
+    dto: {
+      empleadoId: string;
+      fecha: string;
+      entrada?: string;
+      salida?: string;
+      observaciones?: string;
+    },
     @ActiveUser('empresaId') empresaId: string,
   ) {
     return this.svc.registrarAsistencia(dto, empresaId);
@@ -118,7 +156,10 @@ export class RrhhController {
   }
 
   @Post('incidencias')
-  crearIncidencia(@Body() dto: Partial<Incidencia>, @ActiveUser('empresaId') empresaId: string) {
+  crearIncidencia(
+    @Body() dto: Partial<Incidencia>,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.crearIncidencia(dto, empresaId);
   }
 
@@ -139,7 +180,9 @@ export class RrhhController {
   }
 
   @Post('conceptos/sembrar')
-  @ApiOperation({ summary: 'Crea los conceptos mínimos de percepción y deducción' })
+  @ApiOperation({
+    summary: 'Crea los conceptos mínimos de percepción y deducción',
+  })
   sembrarConceptos(@ActiveUser('empresaId') empresaId: string) {
     return this.svc.sembrarConceptos(empresaId);
   }
@@ -151,14 +194,22 @@ export class RrhhController {
     @ActiveUser('empresaId') empresaId: string,
     @Query('ejercicio') ejercicio?: string,
   ) {
-    return this.svc.listarPeriodos(empresaId, ejercicio ? Number(ejercicio) : undefined);
+    return this.svc.listarPeriodos(
+      empresaId,
+      ejercicio ? Number(ejercicio) : undefined,
+    );
   }
 
   @Post('nomina/periodos')
   crearPeriodo(
-    @Body() dto: {
-      ejercicio: number; numero: number; regimen: RegimenPago;
-      fechaInicio: string; fechaFin: string; fechaPago: string;
+    @Body()
+    dto: {
+      ejercicio: number;
+      numero: number;
+      regimen: RegimenPago;
+      fechaInicio: string;
+      fechaFin: string;
+      fechaPago: string;
     },
     @ActiveUser('empresaId') empresaId: string,
   ) {
@@ -168,9 +219,13 @@ export class RrhhController {
   @Post('nomina/periodos/:id/calcular')
   @ApiOperation({
     summary: 'Calcula la nómina del periodo',
-    description: 'Recalcular es seguro: reemplaza los recibos previos dentro de una transacción.',
+    description:
+      'Recalcular es seguro: reemplaza los recibos previos dentro de una transacción.',
   })
-  calcular(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+  calcular(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.calcularNomina(id, empresaId);
   }
 
@@ -189,7 +244,10 @@ export class RrhhController {
   }
 
   @Get('nomina/recibos/:id')
-  obtenerRecibo(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+  obtenerRecibo(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.obtenerRecibo(id, empresaId);
   }
 }

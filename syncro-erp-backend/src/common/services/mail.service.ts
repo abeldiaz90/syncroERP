@@ -25,8 +25,8 @@ export class MailService {
   async enviarCorreo(opciones: {
     destinatario: string;
     asunto: string;
-    cuerpo: string;         // texto plano
-    cuerpoHtml?: string;    // HTML opcional
+    cuerpo: string; // texto plano
+    cuerpoHtml?: string; // HTML opcional
   }): Promise<void> {
     const mailOptions = {
       from: this.configService.get<string>('MAIL_FROM', 'no-reply@erp.com'),

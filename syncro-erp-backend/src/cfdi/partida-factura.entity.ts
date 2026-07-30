@@ -1,6 +1,9 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column,
-  ManyToOne, JoinColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Factura } from '../cfdi/factura.entity';
 
@@ -9,7 +12,7 @@ export class PartidaFactura {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @ManyToOne(() => Factura, f => f.partidas, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Factura, (f) => f.partidas, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'facturaId' })
   factura!: Factura;
 

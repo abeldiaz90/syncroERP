@@ -32,6 +32,14 @@ export class Empresa {
   @Column({ type: 'nvarchar', length: 100, nullable: true })
   regimenFiscal!: string | null;
 
+  /** Tipo de contribuyente usado para validar compatibilidad de regímenes SAT. */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  tipoPersonaFiscal!: 'FISICA' | 'MORAL' | null;
+
+  /** Perfil operativo; no sustituye la determinación fiscal de cada operación. */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  perfilImpuestos!: 'GENERAL' | 'MIXTO' | 'EXENTO' | 'FRONTERA' | null;
+
   @Column({ type: 'nvarchar', length: 60, nullable: true })
   giro!: string | null;
 

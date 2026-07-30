@@ -20,8 +20,9 @@ export function validarPoliticaPassword(password: string): string[] {
   if (!/[0-9]/.test(p)) faltas.push('un número');
 
   // contraseñas triviales aunque cumplan lo anterior
-  const trivial = /^(password|contraseña|qwerty|abc|admin|syncro)/i.test(p)
-    || /^(\d)\1+$/.test(p);
+  const trivial =
+    /^(password|contraseña|qwerty|abc|admin|syncro)/i.test(p) ||
+    /^(\d)\1+$/.test(p);
   if (trivial) faltas.push('no ser una contraseña común');
 
   return faltas;

@@ -10,11 +10,21 @@
  */
 
 import {
-  Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query,
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { ActivosService, type CrearActivoDto } from '../services/activos.service';
+import {
+  ActivosService,
+  type CrearActivoDto,
+} from '../services/activos.service';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { EstadoActivo, MotivoBaja } from '../entities/activo-fijo.entity';
 
@@ -38,7 +48,10 @@ export class ActivosController {
   }
 
   @Get('resumen')
-  @ApiOperation({ summary: 'Indicadores del módulo: costo, valor en libros y desglose por categoría' })
+  @ApiOperation({
+    summary:
+      'Indicadores del módulo: costo, valor en libros y desglose por categoría',
+  })
   resumen(@ActiveUser('empresaId') empresaId: string) {
     return this.svc.resumen(empresaId);
   }
@@ -49,12 +62,17 @@ export class ActivosController {
   }
 
   @Post('categorias')
-  crearCategoria(@Body() dto: Record<string, unknown>, @ActiveUser('empresaId') empresaId: string) {
+  crearCategoria(
+    @Body() dto: Record<string, unknown>,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.crearCategoria(dto, empresaId);
   }
 
   @Post('categorias/sembrar')
-  @ApiOperation({ summary: 'Crea las categorías con las tasas máximas del art. 34 LISR' })
+  @ApiOperation({
+    summary: 'Crea las categorías con las tasas máximas del art. 34 LISR',
+  })
   sembrar(@ActiveUser('empresaId') empresaId: string) {
     return this.svc.sembrarCategorias(empresaId);
   }
@@ -73,7 +91,8 @@ export class ActivosController {
   @Post('depreciacion/corrida')
   @ApiOperation({
     summary: 'Deprecia todos los activos del periodo',
-    description: 'Es idempotente: repetir la llamada no duplica el gasto del mes.',
+    description:
+      'Es idempotente: repetir la llamada no duplica el gasto del mes.',
   })
   correr(
     @Body() body: { ejercicio: number; mes: number },
@@ -83,7 +102,9 @@ export class ActivosController {
   }
 
   @Post('depreciacion/revertir')
-  @ApiOperation({ summary: 'Revierte la corrida del último periodo depreciado' })
+  @ApiOperation({
+    summary: 'Revierte la corrida del último periodo depreciado',
+  })
   revertir(
     @Body() body: { ejercicio: number; mes: number },
     @ActiveUser('empresaId') empresaId: string,
@@ -94,7 +115,10 @@ export class ActivosController {
   /* ── Alta, detalle y baja ──────────────────────────────────────────────── */
 
   @Post()
-  crear(@Body() dto: CrearActivoDto, @ActiveUser('empresaId') empresaId: string) {
+  crear(
+    @Body() dto: CrearActivoDto,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.crear(dto, empresaId);
   }
 
@@ -104,10 +128,18 @@ export class ActivosController {
   }
 
   @Patch(':id/baja')
-  @ApiOperation({ summary: 'Da de baja el activo y calcula la utilidad o pérdida' })
+  @ApiOperation({
+    summary: 'Da de baja el activo y calcula la utilidad o pérdida',
+  })
   baja(
     @Param('id') id: string,
-    @Body() body: { motivo: MotivoBaja; fecha: string; valorVenta?: number; notas?: string },
+    @Body()
+    body: {
+      motivo: MotivoBaja;
+      fecha: string;
+      valorVenta?: number;
+      notas?: string;
+    },
     @ActiveUser('empresaId') empresaId: string,
   ) {
     return this.svc.darDeBaja(id, body, empresaId);

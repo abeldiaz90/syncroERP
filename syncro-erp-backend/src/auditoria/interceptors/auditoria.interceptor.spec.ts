@@ -17,12 +17,17 @@ function contexto(req: any) {
 function crearInterceptor(opts?: { eximido?: boolean }) {
   const registros: any[] = [];
   const auditoria: any = {
-    registrar: jest.fn(async (d: any) => { registros.push(d); }),
+    registrar: jest.fn(async (d: any) => {
+      registros.push(d);
+    }),
   };
   const reflector: any = {
     getAllAndOverride: jest.fn(() => opts?.eximido ?? false),
   };
-  return { interceptor: new AuditoriaInterceptor(auditoria, reflector), registros };
+  return {
+    interceptor: new AuditoriaInterceptor(auditoria, reflector),
+    registros,
+  };
 }
 
 const req = (over: Partial<any> = {}) => ({
@@ -37,9 +42,15 @@ const req = (over: Partial<any> = {}) => ({
   ...over,
 });
 
-async function ejecutar(interceptor: AuditoriaInterceptor, request: any, respuesta: any = { id: 'nuevo-1' }) {
+async function ejecutar(
+  interceptor: AuditoriaInterceptor,
+  request: any,
+  respuesta: any = { id: 'nuevo-1' },
+) {
   const handler = { handle: () => of(respuesta) };
-  return lastValueFrom(interceptor.intercept(contexto(request), handler as any));
+  return lastValueFrom(
+    interceptor.intercept(contexto(request), handler as any),
+  );
 }
 
 describe('AuditoriaInterceptor — qué se audita', () => {
@@ -47,10 +58,15 @@ describe('AuditoriaInterceptor — qué se audita', () => {
     const { interceptor, registros } = crearInterceptor();
     await ejecutar(interceptor, req());
     expect(registros).toHaveLength(1);
-    expect(registros[0]).toEqual(expect.objectContaining({
-      entidad: 'Producto', accion: 'CREAR',
-      usuarioEmail: 'ana@x.com', empresaId: 'emp-1', resultado: 'OK',
-    }));
+    expect(registros[0]).toEqual(
+      expect.objectContaining({
+        entidad: 'Producto',
+        accion: 'CREAR',
+        usuarioEmail: 'ana@x.com',
+        empresaId: 'emp-1',
+        resultado: 'OK',
+      }),
+    );
   });
 
   it('NO audita peticiones GET (solo escrituras)', async () => {
@@ -61,10 +77,14 @@ describe('AuditoriaInterceptor — qué se audita', () => {
 
   it('NO audita rutas fuera de la lista blanca', async () => {
     const { interceptor, registros } = crearInterceptor();
-    await ejecutar(interceptor, req({
-      url: '/api/auth/login', route: { path: '/api/auth/login' },
-      originalUrl: '/api/auth/login',
-    }));
+    await ejecutar(
+      interceptor,
+      req({
+        url: '/api/auth/login',
+        route: { path: '/api/auth/login' },
+        originalUrl: '/api/auth/login',
+      }),
+    );
     expect(registros).toHaveLength(0);
   });
 
@@ -77,27 +97,40 @@ describe('AuditoriaInterceptor — qué se audita', () => {
 
 describe('AuditoriaInterceptor — clasificación de acción', () => {
   const casos: Array<[string, string, string]> = [
-    ['POST',   '/api/catalogo/productos',            'CREAR'],
-    ['PATCH',  '/api/catalogo/productos/5',          'ACTUALIZAR'],
-    ['PUT',    '/api/catalogo/productos/5',          'ACTUALIZAR'],
-    ['DELETE', '/api/catalogo/productos/5',          'ELIMINAR'],
-    ['POST',   '/api/finanzas/polizas/9/cancelar',   'CANCELAR'],
+    ['POST', '/api/catalogo/productos', 'CREAR'],
+    ['PATCH', '/api/catalogo/productos/5', 'ACTUALIZAR'],
+    ['PUT', '/api/catalogo/productos/5', 'ACTUALIZAR'],
+    ['DELETE', '/api/catalogo/productos/5', 'ELIMINAR'],
+    ['POST', '/api/finanzas/polizas/9/cancelar', 'CANCELAR'],
   ];
   it.each(casos)('%s %s → %s', async (metodo, ruta, esperado) => {
     const { interceptor, registros } = crearInterceptor();
-    await ejecutar(interceptor, req({
-      method: metodo, url: ruta, route: { path: ruta }, originalUrl: ruta,
-      params: ruta.includes('/5') ? { id: '5' } : {},
-    }));
+    await ejecutar(
+      interceptor,
+      req({
+        method: metodo,
+        url: ruta,
+        route: { path: ruta },
+        originalUrl: ruta,
+        params: ruta.includes('/5') ? { id: '5' } : {},
+      }),
+    );
     expect(registros[0].accion).toBe(esperado);
   });
 
   it('la ruta finanzas/polizas se clasifica como Poliza (segmento más específico)', async () => {
     const { interceptor, registros } = crearInterceptor();
     const ruta = '/api/finanzas/polizas/9/cancelar';
-    await ejecutar(interceptor, req({
-      method: 'POST', url: ruta, route: { path: ruta }, originalUrl: ruta, params: { id: '9' },
-    }));
+    await ejecutar(
+      interceptor,
+      req({
+        method: 'POST',
+        url: ruta,
+        route: { path: ruta },
+        originalUrl: ruta,
+        params: { id: '9' },
+      }),
+    );
     expect(registros[0].entidad).toBe('Poliza');
   });
 });
@@ -105,11 +138,16 @@ describe('AuditoriaInterceptor — clasificación de acción', () => {
 describe('AuditoriaInterceptor — datos capturados', () => {
   it('saca el registroId de los params de la ruta en updates', async () => {
     const { interceptor, registros } = crearInterceptor();
-    await ejecutar(interceptor, req({
-      method: 'PATCH', url: '/api/catalogo/productos/abc',
-      route: { path: '/api/catalogo/productos/:id' },
-      originalUrl: '/api/catalogo/productos/abc', params: { id: 'abc' },
-    }));
+    await ejecutar(
+      interceptor,
+      req({
+        method: 'PATCH',
+        url: '/api/catalogo/productos/abc',
+        route: { path: '/api/catalogo/productos/:id' },
+        originalUrl: '/api/catalogo/productos/abc',
+        params: { id: 'abc' },
+      }),
+    );
     expect(registros[0].registroId).toBe('abc');
   });
 
@@ -121,17 +159,25 @@ describe('AuditoriaInterceptor — datos capturados', () => {
 
   it('captura la IP de x-forwarded-for', async () => {
     const { interceptor, registros } = crearInterceptor();
-    await ejecutar(interceptor, req({ headers: { 'x-forwarded-for': '187.190.1.1, 10.0.0.1' } }));
+    await ejecutar(
+      interceptor,
+      req({ headers: { 'x-forwarded-for': '187.190.1.1, 10.0.0.1' } }),
+    );
     expect(registros[0].ip).toBe('187.190.1.1');
   });
 
   it('en DELETE no manda payload como valorNuevo', async () => {
     const { interceptor, registros } = crearInterceptor();
-    await ejecutar(interceptor, req({
-      method: 'DELETE', url: '/api/catalogo/productos/5',
-      route: { path: '/api/catalogo/productos/:id' },
-      originalUrl: '/api/catalogo/productos/5', params: { id: '5' },
-    }));
+    await ejecutar(
+      interceptor,
+      req({
+        method: 'DELETE',
+        url: '/api/catalogo/productos/5',
+        route: { path: '/api/catalogo/productos/:id' },
+        originalUrl: '/api/catalogo/productos/5',
+        params: { id: '5' },
+      }),
+    );
     expect(registros[0].valorNuevo).toBeNull();
   });
 });
@@ -139,7 +185,9 @@ describe('AuditoriaInterceptor — datos capturados', () => {
 describe('AuditoriaInterceptor — errores', () => {
   it('audita como ERROR cuando la operación falla y re-lanza el error', async () => {
     const { interceptor, registros } = crearInterceptor();
-    const handler = { handle: () => throwError(() => new Error('falló el negocio')) };
+    const handler = {
+      handle: () => throwError(() => new Error('falló el negocio')),
+    };
     await expect(
       lastValueFrom(interceptor.intercept(contexto(req()), handler as any)),
     ).rejects.toThrow('falló el negocio');

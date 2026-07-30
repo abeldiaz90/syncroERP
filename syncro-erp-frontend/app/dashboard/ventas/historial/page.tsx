@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Swal from 'sweetalert2';
 import {
-  Ban, Search, Loader2, Receipt, History,
+  Ban, Search, Loader2, Receipt, History, RotateCcw,
   CheckCircle2, AlertCircle, Banknote, CreditCard, Store
 } from 'lucide-react';
 import { ProtectedElement } from "@/app/components/ProtectedElement"; // ← NUEVO
 
 export interface IClienteVenta { id: string; nombre: string; email: string; }
 export interface IVenta {
-  id: string; fechaVenta: string; total: number;
+  id: string; fechaVenta: string; total: number; totalDevuelto?: number;
   metodoPago: 'EFECTIVO' | 'TARJETA' | string;
   estado: 'COMPLETADA' | 'ANULADA' | string;
   cliente?: IClienteVenta;
@@ -86,7 +86,12 @@ export default function HistorialVentasPage() {
     return v.id.toLowerCase().includes(term) || (v.cliente?.nombre || '').toLowerCase().includes(term) || (v.cliente?.email || '').toLowerCase().includes(term);
   });
 
-  const getBadgeEstado = (estado: string) => estado === 'ANULADA' ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200';
+  const getBadgeEstado = (estado: string) => {
+    if (estado === 'ANULADA') return 'bg-rose-100 text-rose-700 border-rose-200';
+    if (estado === 'DEVUELTA') return 'bg-slate-100 text-slate-700 border-slate-200';
+    if (estado === 'PARCIALMENTE_DEVUELTA') return 'bg-amber-100 text-amber-700 border-amber-200';
+    return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+  };
 
   const renderMetodoPago = (metodo: string) => {
     if (metodo === 'EFECTIVO') return <span className="flex items-center gap-1.5 text-emerald-600 font-bold"><Banknote className="w-4 h-4" /> Efectivo</span>;
@@ -172,8 +177,13 @@ export default function HistorialVentasPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <span className={`text-lg font-black tracking-tight ${isAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-                          ${venta.total?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                          ${(Number(venta.total) - Number(venta.totalDevuelto ?? 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                         </span>
+                        {Number(venta.totalDevuelto ?? 0) > 0 && (
+                          <span className="block text-xs text-amber-600">
+                            Devuelto: ${Number(venta.totalDevuelto).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-center items-center gap-2">
@@ -181,6 +191,13 @@ export default function HistorialVentasPage() {
                           <Link href={`/dashboard/ventas/${venta.id}/ticket`} target="_blank" className="flex items-center justify-center w-10 h-10 bg-white text-slate-600 border border-slate-200 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 rounded-xl transition-all shadow-sm active:scale-95" title="Imprimir Ticket">
                             <Receipt className="w-4 h-4" />
                           </Link>
+                          {!['ANULADA', 'DEVUELTA'].includes(venta.estado) && (
+                            <ProtectedElement metodo="POST" ruta="/api/ventas/:id/devoluciones">
+                              <Link href={`/dashboard/ventas/devoluciones/nueva?ventaId=${venta.id}`} className="flex items-center justify-center w-10 h-10 bg-white text-amber-600 border border-amber-100 hover:bg-amber-50 hover:border-amber-200 rounded-xl transition-all shadow-sm active:scale-95" title="Registrar devolución">
+                                <RotateCcw className="w-4 h-4" />
+                              </Link>
+                            </ProtectedElement>
+                          )}
                           {/* ✅ Anular — solo aparece si tiene PATCH /api/ventas/:id/anular */}
                           {!isAnulada && (
                             <ProtectedElement metodo="PATCH" ruta="/api/ventas/:id/anular">

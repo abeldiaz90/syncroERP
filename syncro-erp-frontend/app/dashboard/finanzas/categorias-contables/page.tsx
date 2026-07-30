@@ -18,7 +18,7 @@ const CAMPOS_CUENTAS = [
   { key: 'cuentaVentasId',      label: 'Ingresos por Ventas',   desc: 'Se abona cada vez que se vende un producto de esta categoría.', color: 'emerald', ejemplo: 'Ej. 401-01 – Ventas Nacionales' },
   { key: 'cuentaCostoVentasId', label: 'Costo de Ventas',       desc: 'Se carga con el costo del producto al momento de la venta.',    color: 'rose',    ejemplo: 'Ej. 501-01 – Costo de Ventas' },
   { key: 'cuentaInventarioId',  label: 'Inventario',            desc: 'Refleja el valor del stock. Se abona al vender, se carga al comprar.', color: 'blue', ejemplo: 'Ej. 130-01 – Inventario de Mercancías' },
-  { key: 'cuentaDevolucionesId',label: 'Devoluciones s/ Ventas',desc: 'Se carga cuando un cliente devuelve mercancía.',                color: 'amber',   ejemplo: 'Ej. 401-02 – Devoluciones' },
+  { key: 'cuentaDevolucionesId',label: 'Devoluciones s/ Ventas',desc: 'Se carga cuando un cliente devuelve mercancía.',                color: 'amber',   ejemplo: 'Ej. SAT 402.01 – Devoluciones' },
   { key: 'cuentaMermasId',      label: 'Mermas y Pérdidas',     desc: 'Se carga cuando hay pérdida de inventario (daño, vencimiento).', color: 'purple', ejemplo: 'Ej. 601-01 – Mermas y Pérdidas' },
 ] as const;
 

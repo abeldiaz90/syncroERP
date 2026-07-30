@@ -1,7 +1,13 @@
 // hoteleria/entities/folio.entity.ts
 import {
-  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
-  ManyToOne, JoinColumn, OneToMany,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { Reservacion } from './reservacion.entity';
 
@@ -43,9 +49,9 @@ export class Folio {
 
 export enum TipoCargo {
   HOSPEDAJE = 'HOSPEDAJE', // noche de habitación
-  CONSUMO   = 'CONSUMO',   // minibar, producto
-  SERVICIO  = 'SERVICIO',  // lavandería, spa…
-  OTRO      = 'OTRO',
+  CONSUMO = 'CONSUMO', // minibar, producto
+  SERVICIO = 'SERVICIO', // lavandería, spa…
+  OTRO = 'OTRO',
 }
 
 @Entity('cargos_folio')
@@ -56,7 +62,10 @@ export class CargoFolio {
   @Column({ type: 'uniqueidentifier' })
   empresaId!: string;
 
-  @ManyToOne(() => Folio, (f) => f.cargos, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => Folio, (f) => f.cargos, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'folioId' })
   folio!: Folio;
 
@@ -81,6 +90,13 @@ export class CargoFolio {
 
   @Column({ type: 'decimal', precision: 18, scale: 2 })
   importe!: number;
+
+  /**
+   * Clave estable del evento que originó el cargo. La migración crea un índice
+   * único filtrado para que un reintento del cron no cobre la misma noche.
+   */
+  @Column({ type: 'varchar', length: 180, nullable: true })
+  claveIdempotencia!: string | null;
 
   @CreateDateColumn()
   fecha!: Date;

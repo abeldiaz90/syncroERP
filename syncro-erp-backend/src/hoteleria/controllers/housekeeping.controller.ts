@@ -1,5 +1,13 @@
 // hoteleria/controllers/housekeeping.controller.ts
-import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+} from '@nestjs/common';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { HousekeepingService } from '../services/housekeeping.service';
 import { EstadoTarea } from '../entities/tarea-housekeeping.entity';
@@ -18,12 +26,19 @@ export class HousekeepingController {
 
   // Tareas de limpieza
   @Get('tareas')
-  tareas(@Query('estado') estado: EstadoTarea, @ActiveUser('empresaId') e: string) {
+  tareas(
+    @Query('estado') estado: EstadoTarea,
+    @ActiveUser('empresaId') e: string,
+  ) {
     return this.svc.obtenerTareas(e, estado);
   }
 
   @Patch('tareas/:id/asignar')
-  asignar(@Param('id') id: string, @Body() dto: AsignarCamaristaDto, @ActiveUser('empresaId') e: string) {
+  asignar(
+    @Param('id') id: string,
+    @Body() dto: AsignarCamaristaDto,
+    @ActiveUser('empresaId') e: string,
+  ) {
     return this.svc.asignarCamarista(id, dto, e);
   }
 

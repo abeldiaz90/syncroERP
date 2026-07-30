@@ -32,35 +32,36 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { DiscoveryModule, APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { join } from 'path';
 
 import { validarEntorno } from './config/validar-entorno';
 
 // ── Módulos existentes ─────────────────────────────────────────────────────
-import { AuditoriaModule }      from './auditoria/modules/auditoria.module';
-import { IamModule }            from './iam/iam.module';
-import { CatalogoModule }       from './catalogo/catalogo.module';
-import { ClientesModule }       from './clientes/clientes.module';
-import { ProveedoresModule }    from './proveedores/proveedores.module';
-import { ComprasModule }        from './compras/modules/compras.module';
-import { CommonModule }         from './common/modules/common.module';
-import { DepartamentosModule }  from './departamentos/module/departamentos.module';
-import { VentasModule }         from './ventas/modules/ventas.module';
-import { CfdiModule }           from './cfdi/cfdi.module';
-import { FinanzasModule }       from './finanzas/modules/finanzas.module';
-import { CreditoModule }        from './credito/modules/credito.module';
+import { AuditoriaModule } from './auditoria/modules/auditoria.module';
+import { IamModule } from './iam/iam.module';
+import { CatalogoModule } from './catalogo/catalogo.module';
+import { ClientesModule } from './clientes/clientes.module';
+import { ProveedoresModule } from './proveedores/proveedores.module';
+import { ComprasModule } from './compras/modules/compras.module';
+import { CommonModule } from './common/modules/common.module';
+import { DepartamentosModule } from './departamentos/module/departamentos.module';
+import { VentasModule } from './ventas/modules/ventas.module';
+import { CfdiModule } from './cfdi/cfdi.module';
+import { FinanzasModule } from './finanzas/modules/finanzas.module';
+import { CreditoModule } from './credito/modules/credito.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
-import { RpaModule }            from './rpa/modules/curp-rpa.module';
-import { HoteleriaModule }      from './hoteleria/modules/hoteleria.module';
-import { RecetasModule }        from './recetas/modules/recetas.module';   // ← faltaba
+import { RpaModule } from './rpa/modules/curp-rpa.module';
+import { HoteleriaModule } from './hoteleria/modules/hoteleria.module';
+import { RecetasModule } from './recetas/modules/recetas.module'; // ← faltaba
 
 // ── Módulos nuevos ─────────────────────────────────────────────────────────
-import { RrhhModule }           from './rrhh/modules/rrhh.module';
-import { ActivosModule }        from './activos/modules/activos.module';
-import { TesoreriaModule }      from './tesoreria/modules/tesoreria.module';
-import { CrmModule }            from './crm/modules/crm.module';
+import { RrhhModule } from './rrhh/modules/rrhh.module';
+import { ActivosModule } from './activos/modules/activos.module';
+import { TesoreriaModule } from './tesoreria/modules/tesoreria.module';
+import { CrmModule } from './crm/modules/crm.module';
 
 // ── Guards ─────────────────────────────────────────────────────────────────
-import { JwtAuthGuard }         from './common/guards/jwt-auth.guard';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermisoEndpointGuard } from './common/guards/permiso-endpoint.guard';
 
 @Module({
@@ -76,8 +77,8 @@ import { PermisoEndpointGuard } from './common/guards/permiso-endpoint.guard';
 
     // Dos ventanas: frena la ráfaga y también el goteo sostenido.
     ThrottlerModule.forRoot([
-      { name: 'corta', ttl: 10_000,  limit: 40  },
-      { name: 'larga', ttl: 60_000,  limit: 250 },
+      { name: 'corta', ttl: 10_000, limit: 40 },
+      { name: 'larga', ttl: 60_000, limit: 250 },
     ]),
 
     TypeOrmModule.forRootAsync({
@@ -95,6 +96,7 @@ import { PermisoEndpointGuard } from './common/guards/permiso-endpoint.guard';
 
           // Descubre las entidades desde los módulos: una sola fuente de verdad.
           autoLoadEntities: true,
+          migrations: [join(__dirname, 'database', 'migrations', '*{.ts,.js}')],
 
           // Nunca en producción, ni por accidente.
           synchronize: !enProduccion && cfg.get('DB_SYNC') === 'true',

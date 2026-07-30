@@ -31,7 +31,15 @@
 
 import { plainToInstance, Type } from 'class-transformer';
 import {
-  IsEnum, IsInt, IsOptional, IsString, Matches, Max, Min, MinLength, validateSync,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  Min,
+  MinLength,
+  validateSync,
 } from 'class-validator';
 
 export enum Entorno {
@@ -48,13 +56,16 @@ const CORREO_O_REMITENTE =
   /^(?:[^<>]{1,80}\s)?<?[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}>?$/;
 
 class VariablesEntorno {
-  @IsEnum(Entorno, { message: 'NODE_ENV debe ser development, production o test' })
+  @IsEnum(Entorno, {
+    message: 'NODE_ENV debe ser development, production o test',
+  })
   @IsOptional()
   NODE_ENV: Entorno = Entorno.Desarrollo;
 
   @Type(() => Number)
   @IsInt({ message: 'PORT debe ser un número entero' })
-  @Min(1) @Max(65535)
+  @Min(1)
+  @Max(65535)
   @IsOptional()
   PORT = 4000;
 
@@ -65,7 +76,8 @@ class VariablesEntorno {
 
   @Type(() => Number)
   @IsInt({ message: 'DB_PORT debe ser un número entero' })
-  @Min(1) @Max(65535)
+  @Min(1)
+  @Max(65535)
   @IsOptional()
   DB_PORT = 1433;
 
@@ -79,7 +91,9 @@ class VariablesEntorno {
   DB_NAME!: string;
 
   @Type(() => Number)
-  @IsInt() @Min(1) @Max(200)
+  @IsInt()
+  @Min(1)
+  @Max(200)
   @IsOptional()
   DB_POOL_MAX = 20;
 
@@ -89,12 +103,13 @@ class VariablesEntorno {
   @MinLength(32, {
     message:
       'JWT_SECRET debe tener al menos 32 caracteres. Genera uno con: ' +
-      'node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))" ' +
+      "node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\" " +
       '— ojo: al cambiarlo se cierran todas las sesiones abiertas.',
   })
   JWT_SECRET!: string;
 
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   JWT_EXPIRATION = '8h';
 
   /* ── Correo (opcional: sin esto solo se pierden las invitaciones) ──────── */
@@ -102,7 +117,8 @@ class VariablesEntorno {
   @IsString() @IsOptional() MAIL_HOST?: string;
 
   @Type(() => Number)
-  @IsInt() @IsOptional()
+  @IsInt()
+  @IsOptional()
   MAIL_PORT?: number;
 
   @IsString() @IsOptional() MAIL_USER?: string;
@@ -118,11 +134,13 @@ class VariablesEntorno {
 
   /* ── Frontend ──────────────────────────────────────────────────────────── */
 
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   FRONTEND_URL = 'http://localhost:3000';
 
   /** Lista separada por comas de orígenes permitidos por CORS. */
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   CORS_ORIGINS = 'http://localhost:3000';
 
   /* ── Banderas ──────────────────────────────────────────────────────────── */
@@ -131,13 +149,16 @@ class VariablesEntorno {
    * Sincronización automática del esquema. Solo 'true' en desarrollo:
    * en producción TypeORM puede borrar columnas al detectar diferencias.
    */
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   DB_SYNC = 'false';
 
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   DB_ENCRYPT = 'false';
 
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   SWAGGER_HABILITADO = 'false';
 }
 
@@ -167,7 +188,7 @@ export function validarEntorno(config: Record<string, unknown>) {
 
     throw new Error(
       `\n\nLa configuración del entorno no es válida:\n${detalle}\n\n` +
-      `Revisa el archivo .env (usa .env.example como referencia).\n`,
+        `Revisa el archivo .env (usa .env.example como referencia).\n`,
     );
   }
 

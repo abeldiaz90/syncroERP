@@ -1,18 +1,24 @@
 // hoteleria/entities/habitacion.entity.ts
 import {
-  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
-  ManyToOne, JoinColumn, Unique,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  Unique,
 } from 'typeorm';
 import { Hotel } from './hotel.entity';
 import { TipoHabitacion } from './tipo-habitacion.entity';
 
 // Estados operativos de una habitación
 export enum EstadoHabitacion {
-  DISPONIBLE   = 'DISPONIBLE',    // limpia y lista para vender
-  OCUPADA      = 'OCUPADA',       // huésped dentro
-  LIMPIEZA     = 'LIMPIEZA',      // salió huésped, pendiente de limpiar
-  MANTENIMIENTO = 'MANTENIMIENTO',// fuera de servicio por reparación
-  BLOQUEADA    = 'BLOQUEADA',     // no vendible (uso interno, etc.)
+  DISPONIBLE = 'DISPONIBLE', // limpia y lista para vender
+  OCUPADA = 'OCUPADA', // huésped dentro
+  LIMPIEZA = 'LIMPIEZA', // salió huésped, pendiente de limpiar
+  MANTENIMIENTO = 'MANTENIMIENTO', // fuera de servicio por reparación
+  BLOQUEADA = 'BLOQUEADA', // no vendible (uso interno, etc.)
 }
 
 @Entity('habitaciones')
@@ -44,7 +50,7 @@ export class Habitacion {
   @Column({ type: 'int', nullable: true })
   piso!: number | null;
 
-@Column({
+  @Column({
     type: 'varchar',
     length: 20,
     default: EstadoHabitacion.DISPONIBLE,

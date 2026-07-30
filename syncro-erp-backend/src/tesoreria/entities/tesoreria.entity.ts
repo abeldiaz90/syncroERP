@@ -15,8 +15,14 @@
  */
 
 import {
-  Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne,
-  PrimaryGeneratedColumn, UpdateDateColumn,
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { CuentaBancaria } from '../../credito/entities/cuenta-bancaria.entity';
 
@@ -30,6 +36,7 @@ export enum TipoMovimiento {
 export enum OrigenMovimiento {
   MANUAL = 'MANUAL',
   VENTA = 'VENTA',
+  DEVOLUCION_VENTA = 'DEVOLUCION_VENTA',
   COBRANZA = 'COBRANZA',
   PAGO_PROVEEDOR = 'PAGO_PROVEEDOR',
   NOMINA = 'NOMINA',
@@ -78,28 +85,39 @@ export class MovimientoTesoreria {
    * Se almacena para que el estado de cuenta no tenga que recalcular la suma
    * completa en cada consulta: con miles de movimientos eso es inviable.
    */
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) saldoPosterior!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  saldoPosterior!: number;
 
   @Column({ type: 'varchar', length: 250 }) concepto!: string;
   @Column({ type: 'varchar', length: 60, nullable: true }) referencia?: string;
-  @Column({ type: 'varchar', length: 40, nullable: true }) numeroCheque?: string;
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  numeroCheque?: string;
 
   /** Documento que originó el movimiento (venta, orden de compra, recibo). */
   @Column({ type: 'uniqueidentifier', nullable: true }) documentoId?: string;
-  @Column({ type: 'varchar', length: 40, nullable: true }) tipoDocumento?: string;
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  tipoDocumento?: string;
   @Column({ type: 'uniqueidentifier', nullable: true }) terceroId?: string;
-  @Column({ type: 'varchar', length: 160, nullable: true }) nombreTercero?: string;
+  @Column({ type: 'varchar', length: 160, nullable: true })
+  nombreTercero?: string;
 
-  @Column({ type: 'varchar', length: 20, default: EstadoConciliacion.PENDIENTE })
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: EstadoConciliacion.PENDIENTE,
+  })
   estadoConciliacion!: EstadoConciliacion;
   @Column({ type: 'date', nullable: true }) fechaConciliacion?: Date;
-  @Column({ type: 'uniqueidentifier', nullable: true }) lineaEstadoCuentaId?: string;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  lineaEstadoCuentaId?: string;
 
   @Column({ type: 'uniqueidentifier', nullable: true }) polizaId?: string;
-  @Column({ type: 'uniqueidentifier', nullable: true }) registradoPorId?: string;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  registradoPorId?: string;
 
   @Column({ default: false }) cancelado!: boolean;
-  @Column({ type: 'varchar', length: 250, nullable: true }) motivoCancelacion?: string;
+  @Column({ type: 'varchar', length: 250, nullable: true })
+  motivoCancelacion?: string;
 
   @CreateDateColumn() fechaCreacion!: Date;
   @UpdateDateColumn() fechaActualizacion!: Date;
@@ -117,14 +135,18 @@ export class EstadoCuentaBancario {
   @Column({ type: 'int' }) ejercicio!: number;
   @Column({ type: 'int' }) mes!: number;
 
-  @Column({ type: 'decimal', precision: 18, scale: 2 }) saldoInicialBanco!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2 }) saldoFinalBanco!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2 })
+  saldoInicialBanco!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2 })
+  saldoFinalBanco!: number;
 
   @Column({ type: 'varchar', length: 20, default: EstadoCierre.ABIERTA })
   estado!: EstadoCierre;
 
-  @Column({ type: 'varchar', length: 200, nullable: true }) archivoOrigen?: string;
-  @Column({ type: 'uniqueidentifier', nullable: true }) conciliadoPorId?: string;
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  archivoOrigen?: string;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  conciliadoPorId?: string;
   @Column({ type: 'datetime2', nullable: true }) fechaCierre?: Date;
 
   @CreateDateColumn() fechaCreacion!: Date;
@@ -143,8 +165,10 @@ export class LineaEstadoCuenta {
   @Column({ type: 'varchar', length: 250 }) descripcion!: string;
   @Column({ type: 'varchar', length: 60, nullable: true }) referencia?: string;
 
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) cargo!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) abono!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  cargo!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  abono!: number;
 
   @Column({ default: false }) conciliada!: boolean;
   @Column({ type: 'uniqueidentifier', nullable: true }) movimientoId?: string;

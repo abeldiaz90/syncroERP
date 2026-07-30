@@ -13,8 +13,15 @@
  */
 
 import {
-  Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne,
-  OneToMany, PrimaryGeneratedColumn, UpdateDateColumn,
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { CuentaContable } from '../../finanzas/entities/cuenta-contable.entity';
 
@@ -56,7 +63,11 @@ export class CategoriaActivo {
   @Column({ type: 'decimal', precision: 5, scale: 2, default: 10 })
   tasaAnual!: number;
 
-  @Column({ type: 'varchar', length: 30, default: MetodoDepreciacion.LINEA_RECTA })
+  @Column({
+    type: 'varchar',
+    length: 30,
+    default: MetodoDepreciacion.LINEA_RECTA,
+  })
   metodo!: MetodoDepreciacion;
 
   /* Cuentas contables para que la póliza se genere sola */
@@ -68,12 +79,14 @@ export class CategoriaActivo {
   @ManyToOne(() => CuentaContable, { nullable: true })
   @JoinColumn({ name: 'cuentaDepreciacionAcumuladaId' })
   cuentaDepreciacionAcumulada?: CuentaContable;
-  @Column({ type: 'uniqueidentifier', nullable: true }) cuentaDepreciacionAcumuladaId?: string;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  cuentaDepreciacionAcumuladaId?: string;
 
   @ManyToOne(() => CuentaContable, { nullable: true })
   @JoinColumn({ name: 'cuentaGastoDepreciacionId' })
   cuentaGastoDepreciacion?: CuentaContable;
-  @Column({ type: 'uniqueidentifier', nullable: true }) cuentaGastoDepreciacionId?: string;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  cuentaGastoDepreciacionId?: string;
 
   @Column({ default: true }) activo!: boolean;
   @CreateDateColumn() fechaCreacion!: Date;
@@ -92,7 +105,8 @@ export class ActivoFijo {
   @Column({ type: 'varchar', length: 30 }) codigo!: string;
 
   @Column({ type: 'varchar', length: 160 }) nombre!: string;
-  @Column({ type: 'varchar', length: 400, nullable: true }) descripcion?: string;
+  @Column({ type: 'varchar', length: 400, nullable: true })
+  descripcion?: string;
 
   @ManyToOne(() => CategoriaActivo, { nullable: false, onDelete: 'NO ACTION' })
   @JoinColumn({ name: 'categoriaId' })
@@ -109,10 +123,13 @@ export class ActivoFijo {
 
   /* Adquisición */
   @Column({ type: 'date' }) fechaAdquisicion!: Date;
-  @Column({ type: 'decimal', precision: 18, scale: 2 }) costoAdquisicion!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) valorResidual!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2 })
+  costoAdquisicion!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  valorResidual!: number;
   @Column({ type: 'uniqueidentifier', nullable: true }) proveedorId?: string;
-  @Column({ type: 'varchar', length: 40, nullable: true }) facturaCompra?: string;
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  facturaCompra?: string;
 
   /* Depreciación */
   @Column({ type: 'varchar', length: 30 }) metodo!: MetodoDepreciacion;
@@ -132,8 +149,10 @@ export class ActivoFijo {
   estado!: EstadoActivo;
 
   @Column({ type: 'date', nullable: true }) fechaBaja?: Date;
-  @Column({ type: 'varchar', length: 30, nullable: true }) motivoBaja?: MotivoBaja;
-  @Column({ type: 'decimal', precision: 18, scale: 2, nullable: true }) valorVenta?: number;
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  motivoBaja?: MotivoBaja;
+  @Column({ type: 'decimal', precision: 18, scale: 2, nullable: true })
+  valorVenta?: number;
   @Column({ type: 'varchar', length: 400, nullable: true }) notasBaja?: string;
 
   @OneToMany(() => DepreciacionMensual, (d) => d.activo)
@@ -166,7 +185,8 @@ export class DepreciacionMensual {
   @Column({ type: 'int' }) mes!: number;
 
   @Column({ type: 'decimal', precision: 18, scale: 2 }) importe!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2 }) acumuladaAlCierre!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2 })
+  acumuladaAlCierre!: number;
   @Column({ type: 'decimal', precision: 18, scale: 2 }) valorEnLibros!: number;
 
   /** Póliza contable generada por la corrida, si la hubo. */

@@ -73,7 +73,9 @@ export class PlantillaInventarioService {
   private readonly instrucciones: string[][] = [
     ['Instrucciones — Carga masiva de inventario'],
     [''],
-    ['El SKU es el identificador: si ya existe se ACTUALIZA, si no se CREA (no duplica).'],
+    [
+      'El SKU es el identificador: si ya existe se ACTUALIZA, si no se CREA (no duplica).',
+    ],
     ['Borra la fila de ejemplo antes de importar.'],
     ['En categoría, marca, impuesto y almacén escribe el NOMBRE, no un ID.'],
     [''],
@@ -83,11 +85,15 @@ export class PlantillaInventarioService {
     ['tipoProducto: FISICO, SERVICIO, CONSUMIBLE, KIT, MATERIA_PRIMA'],
     ['monedaCosto: MXN, USD, EUR'],
     ['tipoCosto: PROMEDIO, ESTANDAR, FIFO, LIFO, ESPECIFICO'],
-    ['condicionAlmacen: AMBIENTE, REFRIGERADO, CONGELADO, CONTROLADO, INFLAMABLE'],
+    [
+      'condicionAlmacen: AMBIENTE, REFRIGERADO, CONGELADO, CONTROLADO, INFLAMABLE',
+    ],
     ['permiteVentaSinStock, requiereLote, requiereCaducidad, activo: SI o NO'],
     [''],
     ['NOTA: este archivo carga SOLO el catálogo (datos del producto).'],
-    ['Las existencias iniciales se cargan aparte, por el módulo de inventario,'],
+    [
+      'Las existencias iniciales se cargan aparte, por el módulo de inventario,',
+    ],
     ['para que generen su movimiento contable (Inventario es un activo).'],
     ['Precios sin símbolo de moneda, punto decimal (ej. 1299.00).'],
   ];
@@ -99,7 +105,9 @@ export class PlantillaInventarioService {
     const encabezados = this.columnas;
     const filaEjemplo = this.columnas.map((c) => this.ejemplo[c] ?? '');
     const aoa = [
-      ['PLANTILLA DE CARGA MASIVA DE INVENTARIO — borra la fila de ejemplo antes de cargar'],
+      [
+        'PLANTILLA DE CARGA MASIVA DE INVENTARIO — borra la fila de ejemplo antes de cargar',
+      ],
       encabezados,
       filaEjemplo,
     ];

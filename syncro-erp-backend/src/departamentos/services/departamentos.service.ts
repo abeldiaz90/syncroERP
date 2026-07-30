@@ -23,16 +23,22 @@ export class DepartamentosService {
     });
   }
 
-  async update(id: string, dto: Partial<CrearDepartamentoDto>, empresaId: string) {
+  async update(
+    id: string,
+    dto: Partial<CrearDepartamentoDto>,
+    empresaId: string,
+  ) {
     const departamento = await this.repo.findOne({ where: { id, empresaId } });
-    if (!departamento) throw new NotFoundException('Departamento no encontrado');
+    if (!departamento)
+      throw new NotFoundException('Departamento no encontrado');
     Object.assign(departamento, dto);
     return this.repo.save(departamento);
   }
 
   async toggle(id: string, empresaId: string) {
     const departamento = await this.repo.findOne({ where: { id, empresaId } });
-    if (!departamento) throw new NotFoundException('Departamento no encontrado');
+    if (!departamento)
+      throw new NotFoundException('Departamento no encontrado');
     departamento.activo = !departamento.activo;
     return this.repo.save(departamento);
   }

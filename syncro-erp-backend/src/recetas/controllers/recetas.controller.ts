@@ -14,12 +14,18 @@ export class RecetasController {
   }
 
   @Get('producto/:productoId')
-  obtener(@Param('productoId') productoId: string, @ActiveUser('empresaId') e: string): Promise<any> {
+  obtener(
+    @Param('productoId') productoId: string,
+    @ActiveUser('empresaId') e: string,
+  ): Promise<any> {
     return this.svc.obtenerReceta(productoId, e);
   }
 
   @Post('guardar')
-  guardar(@Body() dto: GuardarRecetaDto, @ActiveUser('empresaId') e: string): Promise<any> {
+  guardar(
+    @Body() dto: GuardarRecetaDto,
+    @ActiveUser('empresaId') e: string,
+  ): Promise<any> {
     return this.svc.guardarReceta(dto, e);
   }
 
@@ -35,7 +41,10 @@ export class RecetasController {
 
   // Producir/vender: descuenta insumos del inventario
   @Post('producir')
-  producir(@Body() dto: ProducirDto, @ActiveUser('empresaId') e: string): Promise<any> {
+  producir(
+    @Body() dto: ProducirDto,
+    @ActiveUser('empresaId') e: string,
+  ): Promise<any> {
     return this.svc.producir(dto, e);
   }
 }

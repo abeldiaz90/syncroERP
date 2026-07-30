@@ -1,5 +1,8 @@
 import {
-  CallHandler, ExecutionContext, Injectable, NestInterceptor,
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable, tap, catchError, throwError } from 'rxjs';
@@ -27,25 +30,25 @@ export class AuditoriaInterceptor implements NestInterceptor {
    * Amplíala cuando quieras auditar más módulos.
    */
   private static readonly RUTAS_AUDITABLES: Record<string, string> = {
-    'productos':   'Producto',
-    'categorias':  'Categoria',
-    'catalogo':    'Catalogo',
-    'usuarios':    'Usuario',
-    'roles':       'Rol',
-    'permisos':    'Permiso',
-    'finanzas':    'Finanzas',
-    'polizas':     'Poliza',
-    'cuentas':     'CuentaContable',
+    productos: 'Producto',
+    categorias: 'Categoria',
+    catalogo: 'Catalogo',
+    usuarios: 'Usuario',
+    roles: 'Rol',
+    permisos: 'Permiso',
+    finanzas: 'Finanzas',
+    polizas: 'Poliza',
+    cuentas: 'CuentaContable',
     'cuentas-contables': 'CuentaContable',
-    'clientes':    'Cliente',
-    'proveedores': 'Proveedor',
-    'compras':     'Compra',
-    'ventas':      'Venta',
-    'almacenes':   'Almacen',
-    'cierre':      'CierreContable',
+    clientes: 'Cliente',
+    proveedores: 'Proveedor',
+    compras: 'Compra',
+    ventas: 'Venta',
+    almacenes: 'Almacen',
+    cierre: 'CierreContable',
     'cierre-contable': 'CierreContable',
-    'creditos':    'Credito',
-    'empresas':    'Empresa',
+    creditos: 'Credito',
+    empresas: 'Empresa',
   };
 
   constructor(
@@ -64,7 +67,8 @@ export class AuditoriaInterceptor implements NestInterceptor {
 
     // Exención explícita
     const eximido = this.reflector.getAllAndOverride<boolean>(SIN_AUDITORIA, [
-      context.getHandler(), context.getClass(),
+      context.getHandler(),
+      context.getClass(),
     ]);
     if (eximido) return next.handle();
 
@@ -75,9 +79,21 @@ export class AuditoriaInterceptor implements NestInterceptor {
 
     const user = req?.user ?? {};
     const accion = this.accionDeMetodoYRuta(metodo, rutaCruda);
-    const endpoint = `${metodo} ${(req?.originalUrl ?? rutaCruda).split('?')[0]}`.substring(0, 300);
-    const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || req?.socket?.remoteAddress || '')
-      .toString().split(',')[0].trim().substring(0, 60);
+    const endpoint =
+      `${metodo} ${(req?.originalUrl ?? rutaCruda).split('?')[0]}`.substring(
+        0,
+        300,
+      );
+    const ip = (
+      req?.headers?.['x-forwarded-for'] ||
+      req?.ip ||
+      req?.socket?.remoteAddress ||
+      ''
+    )
+      .toString()
+      .split(',')[0]
+      .trim()
+      .substring(0, 60);
     const idDesdeRuta = req?.params?.id ?? null;
     const payload = this.soloEscritura(metodo) ? req?.body : null;
 
@@ -147,11 +163,15 @@ export class AuditoriaInterceptor implements NestInterceptor {
   private accionDeMetodoYRuta(metodo: string, ruta: string): AccionAuditoria {
     if (/cancelar/i.test(ruta)) return 'CANCELAR';
     switch (metodo) {
-      case 'POST':   return 'CREAR';
+      case 'POST':
+        return 'CREAR';
       case 'PUT':
-      case 'PATCH':  return 'ACTUALIZAR';
-      case 'DELETE': return 'ELIMINAR';
-      default:       return 'ACCION';
+      case 'PATCH':
+        return 'ACTUALIZAR';
+      case 'DELETE':
+        return 'ELIMINAR';
+      default:
+        return 'ACCION';
     }
   }
 

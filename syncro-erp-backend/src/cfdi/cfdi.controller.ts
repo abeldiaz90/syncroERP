@@ -1,28 +1,61 @@
 import {
-  Controller, Get, Post, Delete, Param, Body,
-  Query, Req, Res, DefaultValuePipe, ParseIntPipe,
-  HttpCode, HttpStatus,
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Param,
+  Body,
+  Query,
+  Req,
+  Res,
+  DefaultValuePipe,
+  ParseIntPipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { CfdiService } from './cfdi.service';
 import { CrearFacturaDto } from './crear-factura.dto';
 import { ConfiguracionFiscal } from './configuracion-fiscal.entity';
 import { EstadoFactura } from './factura.entity';
+import { ConfiguracionMexicoService } from './configuracion-mexico.service';
+import { ConfiguracionMexicoDto } from './configuracion-mexico.dto';
 
 @Controller('cfdi')
 export class CfdiController {
-  constructor(private readonly cfdiService: CfdiService) {}
+  constructor(
+    private readonly cfdiService: CfdiService,
+    private readonly configuracionMexicoService: ConfiguracionMexicoService,
+  ) {}
 
   // ── CONFIGURACIÓN FISCAL ──────────────────────────────────────────
 
   @Get('config')
   obtenerConfig(@Req() req) {
-    return this.cfdiService.obtenerConfig(req.user.empresaId);
+    return this.cfdiService.obtenerConfigPublica(req.user.empresaId);
   }
 
   @Post('config')
   guardarConfig(@Body() dto: Partial<ConfiguracionFiscal>, @Req() req) {
     return this.cfdiService.guardarConfig(req.user.empresaId, dto);
+  }
+
+  @Get('configuracion-mexico/catalogos')
+  obtenerCatalogosMexico() {
+    return this.configuracionMexicoService.catalogos();
+  }
+
+  @Get('configuracion-mexico/diagnostico')
+  diagnosticoMexico(@Req() req) {
+    return this.configuracionMexicoService.diagnostico(req.user.empresaId);
+  }
+
+  @Post('configuracion-mexico/aplicar')
+  aplicarConfiguracionMexico(
+    @Body() dto: ConfiguracionMexicoDto,
+    @Req() req,
+  ) {
+    return this.configuracionMexicoService.aplicar(req.user.empresaId, dto);
   }
 
   // ── FACTURAS ──────────────────────────────────────────────────────
@@ -34,7 +67,12 @@ export class CfdiController {
     @Query('limite', new DefaultValuePipe(20), ParseIntPipe) limite: number,
     @Query('estado') estado?: EstadoFactura,
   ) {
-    return this.cfdiService.obtenerFacturas(req.user.empresaId, pagina, limite, estado);
+    return this.cfdiService.obtenerFacturas(
+      req.user.empresaId,
+      pagina,
+      limite,
+      estado,
+    );
   }
 
   @Get(':id')
@@ -56,7 +94,10 @@ export class CfdiController {
     @Req() req,
   ) {
     return this.cfdiService.cancelar(
-      id, req.user.empresaId, motivo ?? '02', uuidSustitucion
+      id,
+      req.user.empresaId,
+      motivo ?? '02',
+      uuidSustitucion,
     );
   }
 

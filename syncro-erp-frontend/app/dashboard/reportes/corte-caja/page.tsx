@@ -42,12 +42,13 @@ export default function CorteCajaPage() {
   const METODOS_CONTADO = ['EFECTIVO', 'TARJETA', 'TRANSFERENCIA', 'MSI_BANCO'];
   const ventasContado   = ventas.filter(v => v.estado !== 'ANULADA' && METODOS_CONTADO.includes(v.metodoPago));
   const ventasCredito   = ventas.filter(v => v.estado !== 'ANULADA' && !METODOS_CONTADO.includes(v.metodoPago));
+  const neto = (v: any) => Number(v.total) - Number(v.totalDevuelto ?? 0);
 
-  const totalEfectivo     = ventasContado.filter(v => v.metodoPago === 'EFECTIVO').reduce((s, v) => s + Number(v.total), 0);
-  const totalTarjeta      = ventasContado.filter(v => ['TARJETA','MSI_BANCO'].includes(v.metodoPago)).reduce((s, v) => s + Number(v.total), 0);
-  const totalTransferencia = ventasContado.filter(v => v.metodoPago === 'TRANSFERENCIA').reduce((s, v) => s + Number(v.total), 0);
+  const totalEfectivo     = ventasContado.filter(v => v.metodoPago === 'EFECTIVO').reduce((s, v) => s + neto(v), 0);
+  const totalTarjeta      = ventasContado.filter(v => ['TARJETA','MSI_BANCO'].includes(v.metodoPago)).reduce((s, v) => s + neto(v), 0);
+  const totalTransferencia = ventasContado.filter(v => v.metodoPago === 'TRANSFERENCIA').reduce((s, v) => s + neto(v), 0);
   const totalCobranza     = pagos.reduce((s: number, p: any) => s + Number(p.montoPagado ?? 0), 0);
-  const totalCredito      = ventasCredito.reduce((s, v) => s + Number(v.total), 0);
+  const totalCredito      = ventasCredito.reduce((s, v) => s + neto(v), 0);
   const granTotal         = totalEfectivo + totalTarjeta + totalTransferencia + totalCobranza;
 
   return (
@@ -177,7 +178,7 @@ export default function CorteCajaPage() {
                       <td className="px-4 py-2.5 font-mono font-bold text-indigo-600">#{String(v.folio).padStart(5,'0')}</td>
                       <td className="px-4 py-2.5 text-slate-700">{v.cliente?.nombre ?? 'Mostrador'}</td>
                       <td className="px-4 py-2.5"><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{v.metodoPago}</span></td>
-                      <td className="px-4 py-2.5 text-right font-mono font-bold">{fmt$(Number(v.total))}</td>
+                      <td className="px-4 py-2.5 text-right font-mono font-bold">{fmt$(neto(v))}</td>
                     </tr>
                   ))}
                 </tbody>

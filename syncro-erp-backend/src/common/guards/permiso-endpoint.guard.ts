@@ -1,5 +1,8 @@
-import { 
-  Injectable, CanActivate, ExecutionContext, ForbiddenException 
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PermisosDinamicosService } from '../../iam/services/permisos-dinamicos.service';
@@ -25,10 +28,10 @@ export class PermisoEndpointGuard implements CanActivate {
     // Úsalo en endpoints del sistema IAM que necesitan el usuario
     // pero no deben pasar por la tabla de permisos.
     // Ej: GET /auth/menu, GET /auth/mis-permisos
-    const skipPermisos = this.reflector.getAllAndOverride<boolean>(SKIP_PERMISOS_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const skipPermisos = this.reflector.getAllAndOverride<boolean>(
+      SKIP_PERMISOS_KEY,
+      [context.getHandler(), context.getClass()],
+    );
     if (skipPermisos) return true;
 
     // ── 3. Verificar que el usuario esté autenticado ─────────────────
@@ -36,7 +39,9 @@ export class PermisoEndpointGuard implements CanActivate {
     const user = request.user;
 
     if (!user || !user.empresaId) {
-      throw new ForbiddenException('Usuario no autenticado o sin empresa asociada');
+      throw new ForbiddenException(
+        'Usuario no autenticado o sin empresa asociada',
+      );
     }
 
     // ── 4. Bypass para roles con acceso total ────────────────────────
@@ -57,9 +62,11 @@ export class PermisoEndpointGuard implements CanActivate {
 
     if (!tieneAcceso) {
       console.warn(
-        `⛔ Acceso bloqueado: Empresa ${user.empresaId} | Rol ${user.rol} | ${metodo} ${ruta}`
+        `⛔ Acceso bloqueado: Empresa ${user.empresaId} | Rol ${user.rol} | ${metodo} ${ruta}`,
       );
-      throw new ForbiddenException('No tienes permisos suficientes para esta acción');
+      throw new ForbiddenException(
+        'No tienes permisos suficientes para esta acción',
+      );
     }
 
     return true;

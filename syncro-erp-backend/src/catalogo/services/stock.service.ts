@@ -75,7 +75,10 @@ export class StockService {
 
   // Utilidad: recalcular el resumen de todos los almacenes de un producto desde cero
   // Útil para scripts de corrección de datos históricos
-  async recalcularTodoElStock(productoId: string, empresaId: string): Promise<void> {
+  async recalcularTodoElStock(
+    productoId: string,
+    empresaId: string,
+  ): Promise<void> {
     const lotes = await this.loteInventarioRepo.find({
       where: { productoId, empresaId, activo: true },
       select: ['almacenId'],

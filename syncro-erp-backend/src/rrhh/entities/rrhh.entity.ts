@@ -14,8 +14,15 @@
  */
 
 import {
-  Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne,
-  OneToMany, PrimaryGeneratedColumn, UpdateDateColumn,
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 export enum TipoContrato {
@@ -74,12 +81,15 @@ export class Puesto {
 
   @Column({ type: 'varchar', length: 20 }) clave!: string;
   @Column({ type: 'varchar', length: 120 }) nombre!: string;
-  @Column({ type: 'varchar', length: 400, nullable: true }) descripcion?: string;
+  @Column({ type: 'varchar', length: 400, nullable: true })
+  descripcion?: string;
 
   @Column({ type: 'uniqueidentifier', nullable: true }) departamentoId?: string;
 
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) salarioMinimo!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) salarioMaximo!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  salarioMinimo!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  salarioMaximo!: number;
 
   /** Plazas autorizadas: permite detectar sobrecontratación. */
   @Column({ type: 'int', default: 0 }) plazasAutorizadas!: number;
@@ -102,7 +112,8 @@ export class Empleado {
   /* Identidad */
   @Column({ type: 'varchar', length: 80 }) nombres!: string;
   @Column({ type: 'varchar', length: 80 }) apellidoPaterno!: string;
-  @Column({ type: 'varchar', length: 80, nullable: true }) apellidoMaterno?: string;
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  apellidoMaterno?: string;
   @Column({ type: 'varchar', length: 18, nullable: true }) curp?: string;
   @Column({ type: 'varchar', length: 13, nullable: true }) rfc?: string;
   @Column({ type: 'varchar', length: 11, nullable: true }) nss?: string;
@@ -113,8 +124,10 @@ export class Empleado {
   @Column({ type: 'varchar', length: 120, nullable: true }) email?: string;
   @Column({ type: 'varchar', length: 20, nullable: true }) telefono?: string;
   @Column({ type: 'varchar', length: 250, nullable: true }) direccion?: string;
-  @Column({ type: 'varchar', length: 120, nullable: true }) contactoEmergencia?: string;
-  @Column({ type: 'varchar', length: 20, nullable: true }) telefonoEmergencia?: string;
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  contactoEmergencia?: string;
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  telefonoEmergencia?: string;
 
   /* Relación laboral */
   @ManyToOne(() => Puesto, { nullable: true, onDelete: 'SET NULL' })
@@ -140,10 +153,12 @@ export class Empleado {
   /* Percepciones base */
   @Column({ type: 'decimal', precision: 18, scale: 2 }) salarioDiario!: number;
   /** Salario base de cotización para el IMSS (incluye prestaciones). */
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) salarioDiarioIntegrado!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  salarioDiarioIntegrado!: number;
 
   @Column({ type: 'int', default: 15 }) diasAguinaldo!: number;
-  @Column({ type: 'decimal', precision: 5, scale: 2, default: 25 }) primaVacacional!: number;
+  @Column({ type: 'decimal', precision: 5, scale: 2, default: 25 })
+  primaVacacional!: number;
 
   /* Pago */
   @Column({ type: 'varchar', length: 30, nullable: true }) banco?: string;
@@ -172,11 +187,14 @@ export class Asistencia {
   @Column({ type: 'datetime2', nullable: true }) entrada?: Date;
   @Column({ type: 'datetime2', nullable: true }) salida?: Date;
 
-  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 }) horasTrabajadas!: number;
-  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 }) horasExtra!: number;
+  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+  horasTrabajadas!: number;
+  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+  horasExtra!: number;
   @Column({ type: 'int', default: 0 }) minutosRetardo!: number;
 
-  @Column({ type: 'varchar', length: 200, nullable: true }) observaciones?: string;
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  observaciones?: string;
   @CreateDateColumn() fechaRegistro!: Date;
 }
 
@@ -192,14 +210,17 @@ export class Incidencia {
   @Column({ type: 'varchar', length: 30 }) tipo!: TipoIncidencia;
   @Column({ type: 'date' }) fechaInicio!: Date;
   @Column({ type: 'date' }) fechaFin!: Date;
-  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 }) dias!: number;
-  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 }) horas!: number;
+  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+  dias!: number;
+  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+  horas!: number;
 
   /** ¿Se paga? Vacaciones sí, falta no. Determina el efecto en nómina. */
   @Column({ default: true }) pagada!: boolean;
 
   @Column({ type: 'varchar', length: 400, nullable: true }) motivo?: string;
-  @Column({ type: 'varchar', length: 40, nullable: true }) folioIncapacidad?: string;
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  folioIncapacidad?: string;
 
   @Column({ default: false }) aprobada!: boolean;
   @Column({ type: 'uniqueidentifier', nullable: true }) aprobadaPorId?: string;
@@ -227,7 +248,8 @@ export class ConceptoNomina {
   @Column({ default: true }) integraSbc!: boolean;
   @Column({ default: false }) esFijo!: boolean;
 
-  @Column({ type: 'uniqueidentifier', nullable: true }) cuentaContableId?: string;
+  @Column({ type: 'uniqueidentifier', nullable: true })
+  cuentaContableId?: string;
 
   @Column({ default: true }) activo!: boolean;
   @CreateDateColumn() fechaCreacion!: Date;
@@ -253,9 +275,12 @@ export class PeriodoNomina {
   @Column({ type: 'varchar', length: 20, default: EstadoPeriodo.ABIERTO })
   estado!: EstadoPeriodo;
 
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) totalPercepciones!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) totalDeducciones!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) totalNeto!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  totalPercepciones!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  totalDeducciones!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  totalNeto!: number;
   @Column({ type: 'int', default: 0 }) empleadosCalculados!: number;
 
   @Column({ type: 'uniqueidentifier', nullable: true }) polizaId?: string;
@@ -286,12 +311,18 @@ export class ReciboNomina {
   @Column({ type: 'decimal', precision: 5, scale: 2 }) diasPagados!: number;
   @Column({ type: 'decimal', precision: 18, scale: 2 }) salarioDiario!: number;
 
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) totalPercepciones!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) totalDeducciones!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) neto!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) baseGravable!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) isrRetenido!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) imssRetenido!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  totalPercepciones!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  totalDeducciones!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  neto!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  baseGravable!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  isrRetenido!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  imssRetenido!: number;
 
   @Column({ type: 'varchar', length: 40, nullable: true }) uuidCfdi?: string;
   @Column({ default: false }) timbrado!: boolean;
@@ -315,8 +346,11 @@ export class PartidaRecibo {
   @Column({ type: 'varchar', length: 120 }) concepto!: string;
   @Column({ type: 'varchar', length: 20 }) naturaleza!: NaturalezaConcepto;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 }) cantidad!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) importeGravado!: number;
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) importeExento!: number;
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  cantidad!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  importeGravado!: number;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  importeExento!: number;
   @Column({ type: 'decimal', precision: 18, scale: 2 }) importe!: number;
 }

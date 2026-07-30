@@ -1,6 +1,13 @@
 import {
-  IsString, IsNumber, IsBoolean, IsOptional,
-  IsArray, ValidateNested, IsEnum, IsInt, Min,
+  IsString,
+  IsNumber,
+  IsBoolean,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  IsEnum,
+  IsInt,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
@@ -75,7 +82,6 @@ export class AtributoDto {
 // ─────────────────────────────────────────────────────────────────
 
 export class CrearProductoDto {
-
   // ── IDENTIFICACIÓN ──────────────────────────────────────────────
 
   @IsString()

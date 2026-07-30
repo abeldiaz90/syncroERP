@@ -15,14 +15,20 @@ const baseLayout = (title: string, color: string, content: string) => `
   </div>
 `;
 
-export function htmlNuevaRequisicion(requisicion: any, nombreDestinatario: string): string {
-  const resumen = requisicion.detalles
-    ?.map((det: any) => `
+export function htmlNuevaRequisicion(
+  requisicion: any,
+  nombreDestinatario: string,
+): string {
+  const resumen =
+    requisicion.detalles
+      ?.map(
+        (det: any) => `
       <tr>
         <td style="padding: 12px; border-bottom: 1px solid #f3f4f6; color: #1f2937;">${det.producto?.nombre || det.productoId}</td>
         <td style="padding: 12px; border-bottom: 1px solid #f3f4f6; text-align: center; font-weight: bold;">${det.cantidadSolicitada}</td>
-      </tr>`)
-    .join('') || '';
+      </tr>`,
+      )
+      .join('') || '';
 
   const enlace = `${FRONTEND_URL}/dashboard/compras/requisiciones/${requisicion.id}`;
 
@@ -52,7 +58,10 @@ export function htmlNuevaRequisicion(requisicion: any, nombreDestinatario: strin
   return baseLayout('Nueva Requisición', '#4f46e5', content);
 }
 
-export function htmlRechazoRequisicion(requisicion: any, comentario: string): string {
+export function htmlRechazoRequisicion(
+  requisicion: any,
+  comentario: string,
+): string {
   const enlace = `${FRONTEND_URL}/dashboard/compras/requisiciones/${requisicion.id}`;
   const content = `
     <p>Te informamos que tu requisición <strong>#${requisicion.id.slice(0, 8).toUpperCase()}</strong> ha sido rechazada.</p>

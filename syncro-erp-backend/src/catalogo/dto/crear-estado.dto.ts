@@ -9,6 +9,8 @@ export class CrearEstadoDto {
 
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => (value === '' || value === null ? undefined : value))
+  @Transform(({ value }) =>
+    value === '' || value === null ? undefined : value,
+  )
   paisId?: string;
 }

@@ -8,7 +8,10 @@ export class ConfiguracionesAprobacionController {
   constructor(private readonly service: ConfiguracionesAprobacionService) {}
 
   @Post()
-  crear(@Body() dto: CrearConfiguracionAprobacionDto, @ActiveUser('empresaId') empresaId: string) {
+  crear(
+    @Body() dto: CrearConfiguracionAprobacionDto,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.service.crear(dto, empresaId);
   }
 
@@ -21,7 +24,10 @@ export class ConfiguracionesAprobacionController {
   }
 
   @Delete(':id')
-  eliminar(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+  eliminar(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.service.eliminar(id, empresaId);
   }
 }

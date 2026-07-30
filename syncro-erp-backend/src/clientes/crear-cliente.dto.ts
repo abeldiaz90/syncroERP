@@ -7,6 +7,7 @@ import {
   IsNumber,
   Min,
 } from 'class-validator';
+import { IsSqlServerGuid } from '../common/validators/sql-server-guid.validator';
 
 export class CrearClienteDto {
   @IsString()
@@ -15,7 +16,7 @@ export class CrearClienteDto {
 
   @IsOptional()
   @IsIn(['FISICA', 'MORAL'])
-  tipoPersona?: 'FISICA' | 'MORAL';  // ← ahora es unión, no string
+  tipoPersona?: 'FISICA' | 'MORAL'; // ← ahora es unión, no string
 
   @IsOptional()
   @IsString()
@@ -56,6 +57,14 @@ export class CrearClienteDto {
   @IsOptional()
   @IsString()
   pais?: string;
+
+  @IsOptional()
+  @IsSqlServerGuid()
+  paisId?: string;
+
+  @IsOptional()
+  @IsSqlServerGuid()
+  estadoId?: string;
 
   @IsOptional()
   @IsString()

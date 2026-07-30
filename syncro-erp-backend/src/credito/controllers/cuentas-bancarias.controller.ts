@@ -1,13 +1,18 @@
 import { Controller, Post, Get, Patch, Param, Body } from '@nestjs/common';
 import { CuentasBancariasService } from '../services/cuentas-bancarias.service';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
+import { CrearCuentaBancariaDto } from '../dto/crear-cuenta-bancaria.dto';
+import { ActualizarCuentaBancariaDto } from '../dto/actualizar-cuenta-bancaria.dto';
 
 @Controller('credito/cuentas-bancarias')
 export class CuentasBancariasController {
   constructor(private readonly svc: CuentasBancariasService) {}
 
   @Post()
-  crear(@Body() body: any, @ActiveUser('empresaId') empresaId: string) {
+  crear(
+    @Body() body: CrearCuentaBancariaDto,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.crear(body, empresaId);
   }
 
@@ -17,17 +22,27 @@ export class CuentasBancariasController {
   }
 
   @Get(':id')
-  obtenerUna(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+  obtenerUna(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.obtenerPorId(id, empresaId);
   }
 
   @Patch(':id')
-  editar(@Param('id') id: string, @Body() body: any, @ActiveUser('empresaId') empresaId: string) {
+  editar(
+    @Param('id') id: string,
+    @Body() body: ActualizarCuentaBancariaDto,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.editar(id, body, empresaId);
   }
 
   @Patch(':id/estado')
-  toggleEstado(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+  toggleEstado(
+    @Param('id') id: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.svc.toggleEstado(id, empresaId);
   }
 }

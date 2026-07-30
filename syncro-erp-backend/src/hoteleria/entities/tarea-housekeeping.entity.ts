@@ -1,20 +1,25 @@
 // hoteleria/entities/tarea-housekeeping.entity.ts
 import {
-  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
-  ManyToOne, JoinColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Habitacion } from './habitacion.entity';
 
 export enum EstadoTarea {
-  PENDIENTE    = 'PENDIENTE',
-  EN_PROCESO   = 'EN_PROCESO',
-  TERMINADA    = 'TERMINADA',
+  PENDIENTE = 'PENDIENTE',
+  EN_PROCESO = 'EN_PROCESO',
+  TERMINADA = 'TERMINADA',
   INSPECCIONADA = 'INSPECCIONADA', // supervisor validó
 }
 
 export enum TipoLimpieza {
-  SALIDA     = 'SALIDA',      // limpieza profunda tras check-out
-  ESTANCIA   = 'ESTANCIA',    // arreglo diario con huésped dentro
+  SALIDA = 'SALIDA', // limpieza profunda tras check-out
+  ESTANCIA = 'ESTANCIA', // arreglo diario con huésped dentro
   MANTENIMIENTO = 'MANTENIMIENTO',
 }
 

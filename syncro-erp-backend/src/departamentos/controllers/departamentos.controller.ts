@@ -8,7 +8,10 @@ export class DepartamentosController {
   constructor(private readonly service: DepartamentosService) {}
 
   @Post()
-  create(@Body() dto: CrearDepartamentoDto, @ActiveUser('empresaId') empresaId: string) {
+  create(
+    @Body() dto: CrearDepartamentoDto,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
     return this.service.create(dto, empresaId);
   }
 

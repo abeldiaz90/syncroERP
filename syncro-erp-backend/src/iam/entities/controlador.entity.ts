@@ -1,6 +1,10 @@
-import { 
-  Entity, PrimaryGeneratedColumn, Column, 
-  CreateDateColumn, UpdateDateColumn, OneToMany 
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { Endpoint } from './endpoint.entity';
 
@@ -49,6 +53,6 @@ export class Controlador {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @OneToMany(() => Endpoint, endpoint => endpoint.controlador)
+  @OneToMany(() => Endpoint, (endpoint) => endpoint.controlador)
   endpoints: Endpoint[];
 }

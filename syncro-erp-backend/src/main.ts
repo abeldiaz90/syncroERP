@@ -49,9 +49,10 @@ async function bootstrap() {
   const logger = new Logger('Arranque');
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     // El logger de Nest respeta el nivel configurado; `debug` sólo en desarrollo.
-    logger: process.env.NODE_ENV === 'production'
-      ? ['error', 'warn', 'log']
-      : ['error', 'warn', 'log', 'debug', 'verbose'],
+    logger:
+      process.env.NODE_ENV === 'production'
+        ? ['error', 'warn', 'log']
+        : ['error', 'warn', 'log', 'debug', 'verbose'],
   });
 
   const config = app.get(ConfigService);
@@ -68,7 +69,9 @@ async function bootstrap() {
   app.use(compression());
 
   /* ── CORS por lista blanca ────────────────────────────────────────────── */
-  const permitidos = (config.get<string>('CORS_ORIGINS') ?? 'http://localhost:3000')
+  const permitidos = (
+    config.get<string>('CORS_ORIGINS') ?? 'http://localhost:3000'
+  )
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
@@ -82,7 +85,12 @@ async function bootstrap() {
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'X-Requested-With',
+    ],
     exposedHeaders: ['Content-Disposition'], // necesario para descargar Excel/PDF
     maxAge: 86_400,
   });
@@ -104,13 +112,13 @@ async function bootstrap() {
     new ValidationPipe({
       transform: true,
       whitelist: true,
-      forbidNonWhitelisted: true,   // avisa si mandan campos que no existen
+      forbidNonWhitelisted: true, // avisa si mandan campos que no existen
       transformOptions: { enableImplicitConversion: true },
       exceptionFactory: (errores) => {
         const aplanar = (errs: any[], prefijo = ''): string[] =>
           errs.flatMap((e) => {
             const ruta = prefijo ? `${prefijo}.${e.property}` : e.property;
-            const propios = Object.values(e.constraints ?? {}) as string[];
+            const propios = Object.values(e.constraints ?? {});
             const hijos = e.children?.length ? aplanar(e.children, ruta) : [];
             return [...propios.map((m) => `${ruta}: ${m}`), ...hijos];
           });
@@ -128,17 +136,39 @@ async function bootstrap() {
   if (!enProduccion || config.get('SWAGGER_HABILITADO') === 'true') {
     const doc = new DocumentBuilder()
       .setTitle('SyncroERP API')
-      .setDescription('ERP multiempresa: ventas, compras, inventario, finanzas, RRHH y activos.')
+      .setDescription(
+        'ERP multiempresa: ventas, compras, inventario, finanzas, RRHH y activos.',
+      )
       .setVersion(process.env.npm_package_version ?? '1.0')
-      .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'jwt')
-      .addTag('IAM').addTag('Catálogo').addTag('Ventas').addTag('Compras')
-      .addTag('Finanzas').addTag('Crédito').addTag('Tesorería')
-      .addTag('Activos fijos').addTag('RRHH').addTag('CRM').addTag('Hotelería')
+      .addBearerAuth(
+        { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+        'jwt',
+      )
+      .addTag('IAM')
+      .addTag('Catálogo')
+      .addTag('Ventas')
+      .addTag('Compras')
+      .addTag('Finanzas')
+      .addTag('Crédito')
+      .addTag('Tesorería')
+      .addTag('Activos fijos')
+      .addTag('RRHH')
+      .addTag('CRM')
+      .addTag('Hotelería')
       .build();
 
-    SwaggerModule.setup('swagger', app, SwaggerModule.createDocument(app, doc), {
-      swaggerOptions: { persistAuthorization: true, tagsSorter: 'alpha', operationsSorter: 'alpha' },
-    });
+    SwaggerModule.setup(
+      'swagger',
+      app,
+      SwaggerModule.createDocument(app, doc),
+      {
+        swaggerOptions: {
+          persistAuthorization: true,
+          tagsSorter: 'alpha',
+          operationsSorter: 'alpha',
+        },
+      },
+    );
   }
 
   /* ── Escuchar ─────────────────────────────────────────────────────────── */
@@ -146,11 +176,15 @@ async function bootstrap() {
   await app.listen(puerto, '0.0.0.0');
 
   logger.log(`API escuchando en http://localhost:${puerto}/api`);
-  if (!enProduccion) logger.log(`Swagger en http://localhost:${puerto}/swagger`);
+  if (!enProduccion)
+    logger.log(`Swagger en http://localhost:${puerto}/swagger`);
   logger.log(`Orígenes CORS permitidos: ${permitidos.join(', ')}`);
 }
 
 bootstrap().catch((e) => {
-  new Logger('Arranque').error('No se pudo iniciar la API', e instanceof Error ? e.stack : String(e));
+  new Logger('Arranque').error(
+    'No se pudo iniciar la API',
+    e instanceof Error ? e.stack : String(e),
+  );
   process.exit(1);
 });

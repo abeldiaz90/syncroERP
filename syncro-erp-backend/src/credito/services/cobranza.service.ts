@@ -1,11 +1,29 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { CreditoCliente, EstadoCredito } from '../entities/credito-cliente.entity';
-import { AmortizacionCuota, EstadoCuota } from '../entities/amortizacion-cuota.entity';
+import {
+  CreditoCliente,
+  EstadoCredito,
+} from '../entities/credito-cliente.entity';
+import {
+  AmortizacionCuota,
+  EstadoCuota,
+} from '../entities/amortizacion-cuota.entity';
 import { PagoCobranza } from '../entities/pago-cobranza.entity';
-import { MotorContableService } from '../../finanzas/services/motor-contable.service';
+import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
+import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
+import { CuentaBancaria } from '../entities/cuenta-bancaria.entity';
 import { NotificacionesService } from '../../notificaciones/notificaciones.service';
+import { Venta } from '../../ventas/entities/venta.entity';
+import { TesoreriaService } from '../../tesoreria/services/tesoreria.service';
+import {
+  OrigenMovimiento,
+  TipoMovimiento,
+} from '../../tesoreria/entities/tesoreria.entity';
 
 @Injectable()
 export class CobranzaService {
@@ -17,128 +35,246 @@ export class CobranzaService {
     @InjectRepository(PagoCobranza)
     private readonly pagoRepo: Repository<PagoCobranza>,
     private readonly dataSource: DataSource,
-    private readonly motorContable: MotorContableService,
+    private readonly asientos: AsientosPendientesService,
     private readonly notificaciones: NotificacionesService,
+    private readonly tesoreria: TesoreriaService,
   ) {}
 
   // ──────────────────────────────────────────────────────────────────────────
   // REGISTRAR PAGO / ABONO
   // ──────────────────────────────────────────────────────────────────────────
   async registrarPago(dto: {
-    creditoId:        string;
-    cuotaId?:         string;
-    montoPagado:      number;
-    metodoPago:       string;
+    creditoId: string;
+    cuotaId?: string;
+    montoPagado: number;
+    metodoPago: string;
     cuentaBancariaId?: string;
-    referencia?:      string;
-    fechaPago?:       string;
-    empresaId:        string;
+    referencia?: string;
+    fechaPago?: string;
+    empresaId: string;
+    usuarioId?: string;
   }) {
-    if (dto.montoPagado <= 0)
+    const monto = Number(dto.montoPagado);
+    if (!Number.isFinite(monto) || monto <= 0)
       throw new BadRequestException('El monto debe ser mayor a cero.');
 
-    const credito = await this.creditoRepo.findOne({
-      where: { id: dto.creditoId, empresaId: dto.empresaId },
-      relations: ['cuotas'],
-    });
-    if (!credito) throw new NotFoundException('Crédito no encontrado.');
-    if (credito.estado === EstadoCredito.LIQUIDADO)
-      throw new BadRequestException('Este crédito ya está liquidado.');
-    if (credito.estado === EstadoCredito.CANCELADO)
-      throw new BadRequestException('Este crédito está cancelado.');
-
     const fechaPago = dto.fechaPago ? new Date(dto.fechaPago) : new Date();
-    let montoRestante = dto.montoPagado;
-
-    // Aplicar el pago a las cuotas pendientes en orden
-    const cuotasPendientes = credito.cuotas
-      .filter(c => c.estado !== EstadoCuota.PAGADA)
-      .sort((a, b) => a.numeroCuota - b.numeroCuota);
-
-    // Si viene cuotaId específica, poner esa primera
-    if (dto.cuotaId) {
-      const idx = cuotasPendientes.findIndex(c => c.id === dto.cuotaId);
-      if (idx > 0) {
-        const [cuota] = cuotasPendientes.splice(idx, 1);
-        cuotasPendientes.unshift(cuota);
-      }
+    if (Number.isNaN(fechaPago.getTime())) {
+      throw new BadRequestException('La fecha de pago no es válida.');
     }
 
-    const cuotasAfectadas: AmortizacionCuota[] = [];
+    const resultado = await this.dataSource.transaction(async (em) => {
+      const credito = await em
+        .createQueryBuilder(CreditoCliente, 'c')
+        .setLock('pessimistic_write')
+        .where('c.id = :id AND c.empresaId = :empresaId', {
+          id: dto.creditoId,
+          empresaId: dto.empresaId,
+        })
+        .getOne();
+      if (!credito) throw new NotFoundException('Crédito no encontrado.');
+      if (credito.estado === EstadoCredito.LIQUIDADO)
+        throw new BadRequestException('Este crédito ya está liquidado.');
+      if (credito.estado === EstadoCredito.CANCELADO)
+        throw new BadRequestException('Este crédito está cancelado.');
 
-    for (const cuota of cuotasPendientes) {
-      if (montoRestante <= 0) break;
-      const saldoCuota = cuota.montoCuota - cuota.montoPagado;
-      const aplicar    = Math.min(montoRestante, saldoCuota);
-
-      cuota.montoPagado = Math.round((cuota.montoPagado + aplicar) * 100) / 100;
-      montoRestante     = Math.round((montoRestante - aplicar) * 100) / 100;
-
-      cuota.estado = cuota.montoPagado >= cuota.montoCuota
-        ? EstadoCuota.PAGADA
-        : EstadoCuota.PAGO_PARCIAL;
-
-      cuotasAfectadas.push(cuota);
-    }
-
-    // ── Todo en una transacción para evitar estados inconsistentes ──
-    await this.dataSource.transaction(async (em) => {
-      await em.save(AmortizacionCuota, cuotasAfectadas);
-
-      credito.saldoPendiente = Math.round(
-        (credito.saldoPendiente - dto.montoPagado) * 100
-      ) / 100;
-      if (credito.saldoPendiente <= 0) {
-        credito.saldoPendiente = 0;
-        credito.estado         = EstadoCredito.LIQUIDADO;
+      const saldoCredito = Number(credito.saldoPendiente);
+      if (monto - saldoCredito > 0.009) {
+        throw new BadRequestException(
+          `El pago excede el saldo pendiente de ${saldoCredito.toFixed(2)}.`,
+        );
       }
-      await em.save(CreditoCliente, credito);
 
-      // Insert directo — evita problemas de tipado de TypeORM save
-      await this.dataSource.query(
-        `INSERT INTO pagos_cobranza
-          (creditoId, cuotaId, empresaId, montoPagado, metodoPago,
-           cuentaBancariaId, referencia, fechaPago)
-         VALUES (@0, @1, @2, @3, @4, @5, @6, @7)`,
-        [
-          dto.creditoId,
-          dto.cuotaId ?? cuotasAfectadas[0]?.id ?? null,
-          dto.empresaId,
-          dto.montoPagado,
-          dto.metodoPago,
-          dto.cuentaBancariaId ?? null,
-          dto.referencia       ?? null,
-          fechaPago,
-        ]
+      if (dto.cuentaBancariaId) {
+        const cuenta = await em.findOne(CuentaBancaria, {
+          where: {
+            id: dto.cuentaBancariaId,
+            empresaId: dto.empresaId,
+            activo: true,
+          },
+        });
+        if (!cuenta) {
+          throw new NotFoundException(
+            'La cuenta de cobranza no existe, está inactiva o pertenece a otra empresa.',
+          );
+        }
+      }
+
+      const cuotasPendientes = await em.find(AmortizacionCuota, {
+        where: { creditoId: credito.id },
+        order: { numeroCuota: 'ASC' },
+      });
+      const pendientes = cuotasPendientes.filter(
+        (c) => c.estado !== EstadoCuota.PAGADA,
       );
+      if (dto.cuotaId) {
+        const idx = pendientes.findIndex((c) => c.id === dto.cuotaId);
+        if (idx < 0) {
+          throw new BadRequestException(
+            'La cuota indicada no pertenece al crédito o ya está pagada.',
+          );
+        }
+        const [preferida] = pendientes.splice(idx, 1);
+        pendientes.unshift(preferida);
+      }
+
+      let restante = monto;
+      let capitalAplicado = 0;
+      let interesAplicado = 0;
+      const afectadas: AmortizacionCuota[] = [];
+      for (const cuota of pendientes) {
+        if (restante <= 0.001) break;
+        const saldoCuota = Number(cuota.montoCuota) - Number(cuota.montoPagado);
+        if (saldoCuota <= 0) continue;
+        const aplicar = Math.min(restante, saldoCuota);
+        const proporcionCapital =
+          Number(cuota.montoCuota) > 0
+            ? Number(cuota.montoCapital) / Number(cuota.montoCuota)
+            : 1;
+        const capital = Math.round(aplicar * proporcionCapital * 100) / 100;
+        const interes = Math.round((aplicar - capital) * 100) / 100;
+        capitalAplicado += capital;
+        interesAplicado += interes;
+
+        cuota.montoPagado =
+          Math.round((Number(cuota.montoPagado) + aplicar) * 100) / 100;
+        cuota.fechaPago = fechaPago;
+        cuota.estado =
+          Number(cuota.montoPagado) + 0.001 >= Number(cuota.montoCuota)
+            ? EstadoCuota.PAGADA
+            : EstadoCuota.PAGO_PARCIAL;
+        afectadas.push(cuota);
+        restante = Math.round((restante - aplicar) * 100) / 100;
+      }
+      if (restante > 0.001) {
+        throw new BadRequestException('No fue posible aplicar todo el pago.');
+      }
+
+      await em.save(AmortizacionCuota, afectadas);
+      credito.saldoPendiente = Math.round((saldoCredito - monto) * 100) / 100;
+      if (Number(credito.saldoPendiente) <= 0) {
+        credito.saldoPendiente = 0;
+        credito.estado = EstadoCredito.LIQUIDADO;
+      } else {
+        const conservaVencido = cuotasPendientes.some(
+          (cuota) =>
+            cuota.estado !== EstadoCuota.PAGADA &&
+            new Date(cuota.fechaVencimiento).getTime() <
+              new Date(new Date().toISOString().slice(0, 10)).getTime(),
+        );
+        credito.estado = conservaVencido
+          ? EstadoCredito.VENCIDO
+          : EstadoCredito.ACTIVO;
+      }
+      await em.save(credito);
+
+      // Ajustar el último componente por cualquier centavo de redondeo.
+      interesAplicado = Math.round(interesAplicado * 100) / 100;
+      capitalAplicado = Math.round((monto - interesAplicado) * 100) / 100;
+
+      let ivaReclasificado = 0;
+      if (credito.ventaId && capitalAplicado > 0) {
+        const venta = await em.findOne(Venta, {
+          where: { id: credito.ventaId, empresaId: dto.empresaId },
+        });
+        if (venta && Number(venta.impuestoTotal) > 0) {
+          const [acumulado] = await em.query(
+            `SELECT
+               COALESCE(SUM(montoCapital), 0) capital,
+               COALESCE(SUM(ivaReclasificado), 0) iva
+             FROM pagos_cobranza
+             WHERE empresaId = @0 AND creditoId = @1`,
+            [dto.empresaId, credito.id],
+          );
+          const ivaPendienteOriginal = this.redondear(
+            (Number(venta.impuestoTotal) * Number(credito.capitalFinanciado)) /
+              Number(credito.montoVenta),
+          );
+          const ivaRestante = Math.max(
+            0,
+            this.redondear(ivaPendienteOriginal - Number(acumulado?.iva ?? 0)),
+          );
+          const liquidaCapital =
+            Number(acumulado?.capital ?? 0) + capitalAplicado + 0.009 >=
+            Number(credito.capitalFinanciado);
+          ivaReclasificado = liquidaCapital
+            ? ivaRestante
+            : Math.min(
+                ivaRestante,
+                this.redondear(
+                  (capitalAplicado * Number(venta.impuestoTotal)) /
+                    Number(credito.montoVenta),
+                ),
+              );
+        }
+      }
+
+      const pago = await em.save(
+        em.create(PagoCobranza, {
+          creditoId: credito.id,
+          cuotaId: dto.cuotaId ?? afectadas[0]?.id,
+          empresaId: dto.empresaId,
+          montoPagado: monto,
+          montoCapital: capitalAplicado,
+          montoInteres: interesAplicado,
+          ivaReclasificado,
+          metodoPago: dto.metodoPago,
+          cuentaBancariaId: dto.cuentaBancariaId,
+          referencia: dto.referencia,
+          fechaPago,
+        }),
+      );
+      if (dto.cuentaBancariaId) {
+        await this.tesoreria.registrarEnTransaccion(
+          {
+            cuentaBancariaId: dto.cuentaBancariaId,
+            fecha: fechaPago.toISOString().slice(0, 10),
+            tipo: TipoMovimiento.INGRESO,
+            importe: monto,
+            concepto: `Cobranza crédito ${credito.folio}`,
+            origen: OrigenMovimiento.COBRANZA,
+            referencia: dto.referencia,
+            documentoId: pago.id,
+            tipoDocumento: 'PAGO_COBRANZA',
+            terceroId: credito.clienteId,
+          },
+          dto.empresaId,
+          dto.usuarioId,
+          em,
+        );
+      }
+      return {
+        pago,
+        credito,
+        capitalAplicado,
+        interesAplicado,
+        ivaReclasificado,
+      };
     });
 
-    // Recuperar el pago recién insertado para el motor contable
-    const [pagoGuardado] = await this.dataSource.query(
-      `SELECT TOP 1 * FROM pagos_cobranza
-       WHERE creditoId = @0 ORDER BY fechaPago DESC`,
-      [dto.creditoId]
+    await this.asientos.intentar(
+      TipoAsiento.COBRANZA,
+      {
+        pagoId: resultado.pago.id,
+        creditoId: dto.creditoId,
+        clienteId: resultado.credito.clienteId,
+        fechaPago,
+        empresaId: dto.empresaId,
+        montoCapital: resultado.capitalAplicado,
+        montoInteres: resultado.interesAplicado,
+        ivaReclasificado: resultado.ivaReclasificado,
+        totalPagado: monto,
+        cuentaBancariaId: dto.cuentaBancariaId,
+      },
+      dto.empresaId,
+      `COBRO-${resultado.pago.id.slice(0, 8)}`,
+      resultado.pago.id,
     );
 
-    // Asiento contable — no bloquea
-    const capitalAplicado  = cuotasAfectadas.reduce((s, c) => s + c.montoCapital, 0);
-    const interesAplicado  = cuotasAfectadas.reduce((s, c) => s + c.montoInteres, 0);
-    this.motorContable.generarAsientoDeCobranza({
-      pagoId:          pagoGuardado.id,
-      creditoId:       dto.creditoId,
-      clienteId:       credito.clienteId,
-      fechaPago,
-      empresaId:       dto.empresaId,
-      montoCapital:    capitalAplicado,
-      montoInteres:    interesAplicado,
-      totalPagado:     dto.montoPagado,
-      cuentaBancariaId: dto.cuentaBancariaId,
-    }).catch(e => console.error('[MotorContable] Cobranza:', e?.message));
-
     return {
-      pago:    pagoGuardado,
+      pago: resultado.pago,
       credito: await this.creditoRepo.findOne({
-        where: { id: dto.creditoId },
+        where: { id: dto.creditoId, empresaId: dto.empresaId },
         relations: ['cuotas'],
       }),
     };
@@ -183,17 +319,20 @@ export class CobranzaService {
     }
 
     // Actualizar estado del crédito a VENCIDO si tiene cuotas vencidas
-    const creditosConVencidas = [...new Set(cuotasParaVencer.map(c => c.creditoId))];
+    const creditosConVencidas = [
+      ...new Set(cuotasParaVencer.map((c) => c.creditoId)),
+    ];
     for (const creditoId of creditosConVencidas) {
       await this.creditoRepo.update(
         { id: creditoId, estado: EstadoCredito.ACTIVO },
-        { estado: EstadoCredito.VENCIDO }
+        { estado: EstadoCredito.VENCIDO },
       );
     }
 
     // Enviar alertas de email en segundo plano
-    this.enviarAlertasVencimiento(empresaId, hoy)
-      .catch(e => console.error('[Email] Alertas vencimiento:', e?.message));
+    this.enviarAlertasVencimiento(empresaId, hoy).catch((e) =>
+      console.error('[Email] Alertas vencimiento:', e?.message),
+    );
 
     return { actualizadas: cuotasParaVencer.length };
   }
@@ -212,14 +351,20 @@ export class CobranzaService {
       .andWhere('cu.estado IN (:...estados)', {
         estados: [EstadoCuota.PENDIENTE, EstadoCuota.PAGO_PARCIAL],
       })
-      .andWhere(`CAST(cu.fechaVencimiento AS DATE) = :fecha`, { fecha: en3DiasStr })
+      .andWhere(`CAST(cu.fechaVencimiento AS DATE) = :fecha`, {
+        fecha: en3DiasStr,
+      })
       .getMany();
 
     for (const cuota of cuotasProximas) {
-      const cliente = await this.buscarCliente(cuota.credito.clienteId, empresaId);
+      const cliente = await this.buscarCliente(
+        cuota.credito.clienteId,
+        empresaId,
+      );
       if (!cliente?.email) continue;
-      this.notificaciones.notificarRecordatorioCuota(cuota, cuota.credito, cliente)
-        .catch(e => console.error('[Email] Recordatorio cuota:', e?.message));
+      this.notificaciones
+        .notificarRecordatorioCuota(cuota, cuota.credito, cliente)
+        .catch((e) => console.error('[Email] Recordatorio cuota:', e?.message));
     }
 
     // Cuotas vencidas hace 1, 3, 7, 15 o 30 días → alerta de morosidad
@@ -234,23 +379,37 @@ export class CobranzaService {
         .leftJoinAndSelect('cu.credito', 'c')
         .where('c.empresaId = :empresaId', { empresaId })
         .andWhere('cu.estado = :estado', { estado: EstadoCuota.VENCIDA })
-        .andWhere(`CAST(cu.fechaVencimiento AS DATE) = :fecha`, { fecha: fechaStr })
+        .andWhere(`CAST(cu.fechaVencimiento AS DATE) = :fecha`, {
+          fecha: fechaStr,
+        })
         .getMany();
 
       for (const cuota of vencidas) {
-        const cliente = await this.buscarCliente(cuota.credito.clienteId, empresaId);
+        const cliente = await this.buscarCliente(
+          cuota.credito.clienteId,
+          empresaId,
+        );
         if (!cliente?.email) continue;
-        this.notificaciones.notificarCuotaVencida(cuota, cuota.credito, cliente, dias)
-          .catch(e => console.error(`[Email] Cuota vencida ${dias}d:`, e?.message));
+        this.notificaciones
+          .notificarCuotaVencida(cuota, cuota.credito, cliente, dias)
+          .catch((e) =>
+            console.error(`[Email] Cuota vencida ${dias}d:`, e?.message),
+          );
       }
     }
   }
 
   private async buscarCliente(clienteId: string, empresaId: string) {
-    const rows = await this.dataSource.query(
-      `SELECT id, nombre, email, rfc FROM clientes WHERE id = @0 AND empresaId = @1`,
-      [clienteId, empresaId],
-    ).catch(() => []);
+    const rows = await this.dataSource
+      .query(
+        `SELECT id, nombre, email, rfc FROM clientes WHERE id = @0 AND empresaId = @1`,
+        [clienteId, empresaId],
+      )
+      .catch(() => []);
     return rows?.[0] ?? null;
+  }
+
+  private redondear(valor: number) {
+    return Math.round((Number(valor) + Number.EPSILON) * 100) / 100;
   }
 }

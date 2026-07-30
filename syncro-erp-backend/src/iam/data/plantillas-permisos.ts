@@ -18,9 +18,10 @@ export interface PlantillaRol {
 
 export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
   {
-    rol: 'empleado',            // Vendedor de mostrador
+    rol: 'empleado', // Vendedor de mostrador
     etiqueta: 'Empleado / Vendedor',
-    descripcion: 'Punto de venta, ventas, clientes, CFDI y consulta de productos.',
+    descripcion:
+      'Punto de venta, ventas, clientes, CFDI y consulta de productos.',
     prefijos: [
       '/ventas',
       '/clientes',
@@ -45,11 +46,11 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       '/catalogo/unidades-medida',
       '/catalogo/almacenes',
       '/catalogo/inventario',
-      '/compras/ordenes',        // para recibir mercancía (recepciones)
+      '/compras/ordenes', // para recibir mercancía (recepciones)
     ],
   },
   {
-    rol: 'finanzas',            // Contador
+    rol: 'finanzas', // Contador
     etiqueta: 'Finanzas / Contador',
     descripcion: 'Contabilidad, pólizas, CFDI, crédito y cobranza.',
     prefijos: [

@@ -1,5 +1,9 @@
 import {
-  BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
@@ -117,9 +121,12 @@ export class PreciosService {
   private readonly logger = new Logger(PreciosService.name);
 
   constructor(
-    @InjectRepository(Producto) private readonly productoRepo: Repository<Producto>,
-    @InjectRepository(ProductoPrecio) private readonly precioRepo: Repository<ProductoPrecio>,
-    @InjectRepository(ListaPrecio) private readonly listaRepo: Repository<ListaPrecio>,
+    @InjectRepository(Producto)
+    private readonly productoRepo: Repository<Producto>,
+    @InjectRepository(ProductoPrecio)
+    private readonly precioRepo: Repository<ProductoPrecio>,
+    @InjectRepository(ListaPrecio)
+    private readonly listaRepo: Repository<ListaPrecio>,
   ) {}
 
   /* ══ RESOLUCIÓN ══════════════════════════════════════════════════════════ */
@@ -146,7 +153,9 @@ export class PreciosService {
       throw new BadRequestException('La venta necesita al menos un producto.');
     }
 
-    const repoProd = manager ? manager.getRepository(Producto) : this.productoRepo;
+    const repoProd = manager
+      ? manager.getRepository(Producto)
+      : this.productoRepo;
 
     // Una sola consulta para todos los productos: no N+1 en una venta de
     // treinta renglones.
@@ -168,15 +177,24 @@ export class PreciosService {
       }
     }
 
-    const listaId = await this.resolverLista(opciones.listaPrecioId, empresaId, manager);
-    const preciosDeLista = await this.cargarPreciosDeLista(ids, listaId, empresaId, manager);
+    const listaId = await this.resolverLista(
+      opciones.listaPrecioId,
+      empresaId,
+      manager,
+    );
+    const preciosDeLista = await this.cargarPreciosDeLista(
+      ids,
+      listaId,
+      empresaId,
+      manager,
+    );
 
     const topeRol = this.topeDescuento(opciones.rolUsuario);
     const resueltos: RenglonResuelto[] = [];
     const discrepancias: VentaResuelta['discrepancias'] = [];
 
     for (const r of renglones) {
-      const producto = porId.get(r.productoId)!;
+      const producto = porId.get(r.productoId);
 
       if (!Number.isFinite(r.cantidad) || r.cantidad <= 0) {
         throw new BadRequestException(
@@ -184,23 +202,31 @@ export class PreciosService {
         );
       }
       if (producto.activo === false) {
-        throw new BadRequestException(`${producto.nombre} está dado de baja y no se puede vender.`);
+        throw new BadRequestException(
+          `${producto.nombre} está dado de baja y no se puede vender.`,
+        );
       }
 
       /* ── El precio lo pone el servidor ── */
-      const precioUnitario = this.precioDe(producto, preciosDeLista.get(r.productoId));
+      const precioUnitario = this.precioDe(
+        producto,
+        preciosDeLista.get(r.productoId),
+      );
 
       if (precioUnitario <= 0) {
         throw new BadRequestException(
           `${producto.nombre} no tiene precio en la lista aplicable. ` +
-          `En este ERP el precio de venta vive en las listas de precios: ` +
-          `agrégalo en Catálogos → Listas de precio antes de venderlo.`,
+            `En este ERP el precio de venta vive en las listas de precios: ` +
+            `agrégalo en Catálogos → Listas de precio antes de venderlo.`,
         );
       }
 
       // Si la pantalla mostraba otro precio, se reporta. No se acepta el de la
       // pantalla: se avisa para que el cajero sepa que el ticket cambió.
-      if (r.precioMostrado !== undefined && Math.abs(r.precioMostrado - precioUnitario) >= 0.01) {
+      if (
+        r.precioMostrado !== undefined &&
+        Math.abs(r.precioMostrado - precioUnitario) >= 0.01
+      ) {
         discrepancias.push({
           productoNombre: producto.nombre,
           precioMostrado: redondear2(r.precioMostrado),
@@ -215,9 +241,11 @@ export class PreciosService {
       let descuento = 0;
       if (r.descuentoPorcentaje !== undefined) {
         if (r.descuentoPorcentaje < 0 || r.descuentoPorcentaje > 100) {
-          throw new BadRequestException('El porcentaje de descuento no es válido.');
+          throw new BadRequestException(
+            'El porcentaje de descuento no es válido.',
+          );
         }
-        descuento = redondear2(bruto * r.descuentoPorcentaje / 100);
+        descuento = redondear2((bruto * r.descuentoPorcentaje) / 100);
       } else if (r.descuentoSolicitado !== undefined) {
         descuento = redondear2(r.descuentoSolicitado);
       }
@@ -236,8 +264,8 @@ export class PreciosService {
       if (porcentajeDescuento > topeRol && !opciones.descuentoAutorizadoPorId) {
         throw new ForbiddenException(
           `El descuento de ${porcentajeDescuento.toFixed(1)}% en ${producto.nombre} ` +
-          `supera el máximo de ${topeRol}% para tu perfil. ` +
-          `Requiere autorización de un supervisor.`,
+            `supera el máximo de ${topeRol}% para tu perfil. ` +
+            `Requiere autorización de un supervisor.`,
         );
       }
 
@@ -245,7 +273,7 @@ export class PreciosService {
 
       /* ── El impuesto lo pone el producto, no el navegador ── */
       const impuestoPorcentaje = Number(producto.impuesto?.porcentaje ?? 0);
-      const impuestoMonto = redondear2(subtotal * impuestoPorcentaje / 100);
+      const impuestoMonto = redondear2((subtotal * impuestoPorcentaje) / 100);
 
       resueltos.push({
         productoId: producto.id,
@@ -266,13 +294,17 @@ export class PreciosService {
     if (discrepancias.length > 0) {
       this.logger.warn(
         `${discrepancias.length} renglones con precio distinto al mostrado en pantalla. ` +
-        `Se aplicó el precio del catálogo.`,
+          `Se aplicó el precio del catálogo.`,
       );
     }
 
     const subtotal = redondear2(resueltos.reduce((s, d) => s + d.subtotal, 0));
-    const descuento = redondear2(resueltos.reduce((s, d) => s + d.descuento, 0));
-    const impuestoTotal = redondear2(resueltos.reduce((s, d) => s + d.impuestoMonto, 0));
+    const descuento = redondear2(
+      resueltos.reduce((s, d) => s + d.descuento, 0),
+    );
+    const impuestoTotal = redondear2(
+      resueltos.reduce((s, d) => s + d.impuestoMonto, 0),
+    );
 
     return {
       detalles: resueltos,
@@ -303,7 +335,11 @@ export class PreciosService {
     if (!producto) throw new NotFoundException('El producto no existe.');
 
     const listaId = await this.resolverLista(listaPrecioId, empresaId);
-    const precios = await this.cargarPreciosDeLista([productoId], listaId, empresaId);
+    const precios = await this.cargarPreciosDeLista(
+      [productoId],
+      listaId,
+      empresaId,
+    );
     const precioUnitario = this.precioDe(producto, precios.get(productoId));
 
     return {
@@ -328,14 +364,20 @@ export class PreciosService {
     const repo = manager ? manager.getRepository(ListaPrecio) : this.listaRepo;
 
     if (listaPrecioId) {
-      const lista = await repo.findOne({ where: { id: listaPrecioId, empresaId } });
+      const lista = await repo.findOne({
+        where: { id: listaPrecioId, empresaId },
+      });
       if (!lista) {
-        throw new BadRequestException('La lista de precios no existe o no es de tu empresa.');
+        throw new BadRequestException(
+          'La lista de precios no existe o no es de tu empresa.',
+        );
       }
       return lista.id;
     }
 
-    const porOmision = await repo.findOne({ where: { empresaId, esPorDefecto: true } });
+    const porOmision = await repo.findOne({
+      where: { empresaId, esPorDefecto: true },
+    });
     return porOmision?.id;
   }
 
@@ -347,7 +389,9 @@ export class PreciosService {
   ): Promise<Map<string, number>> {
     if (!listaPrecioId) return new Map();
 
-    const repo = manager ? manager.getRepository(ProductoPrecio) : this.precioRepo;
+    const repo = manager
+      ? manager.getRepository(ProductoPrecio)
+      : this.precioRepo;
     const filas = await repo.find({
       where: { listaPrecioId, productoId: In(productoIds) },
     });

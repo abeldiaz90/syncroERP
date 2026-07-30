@@ -1,5 +1,9 @@
 import {
-  BadRequestException, ConflictException, Injectable, Logger, NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -8,11 +12,20 @@ import { Venta } from '../entities/venta.entity';
 import { DetalleVenta } from '../entities/detalle-venta.entity';
 import { MovimientoInventario } from '../../catalogo/entities/movimiento-inventario.entity';
 import { LoteInventario } from '../../catalogo/entities/lote-inventario.entity';
-import { CreditoCliente, EstadoCredito } from '../../credito/entities/credito-cliente.entity';
+import {
+  CreditoCliente,
+  EstadoCredito,
+} from '../../credito/entities/credito-cliente.entity';
 import { StockService } from '../../catalogo/services/stock.service';
 import { MotorContableService } from '../../finanzas/services/motor-contable.service';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
+import { TesoreriaService } from '../../tesoreria/services/tesoreria.service';
+import {
+  MovimientoTesoreria,
+  OrigenMovimiento,
+  TipoMovimiento,
+} from '../../tesoreria/entities/tesoreria.entity';
 
 /**
  * ============================================================================
@@ -77,6 +90,7 @@ export class AnulacionVentasService {
     private readonly motorContable: MotorContableService,
     private readonly asientos: AsientosPendientesService,
     private readonly dataSource: DataSource,
+    private readonly tesoreria: TesoreriaService,
   ) {}
 
   async anular(
@@ -91,17 +105,47 @@ export class AnulacionVentasService {
       );
     }
 
-    const venta = await this.ventaRepo.findOne({
+    let venta = await this.ventaRepo.findOne({
       where: { id, empresaId },
       relations: ['detalles'],
     });
 
     if (!venta) throw new NotFoundException('Venta no encontrada.');
-    if (venta.estado === 'ANULADA') throw new ConflictException('La venta ya fue anulada.');
+    if (venta.estado !== 'COMPLETADA') {
+      throw new ConflictException(
+        venta.estado === 'PARCIALMENTE_DEVUELTA'
+          ? 'La venta ya tiene devoluciones parciales. Devuelve el remanente desde el módulo de devoluciones; no puede anularse completa.'
+          : `La venta está en estado ${venta.estado} y no puede anularse.`,
+      );
+    }
 
     const advertencias: string[] = [];
 
     return this.dataSource.transaction(async (em) => {
+      // Anulación y devolución comparten el mismo candado: nunca pueden
+      // procesarse simultáneamente sobre la misma venta.
+      await em.query(
+        `EXEC sp_getapplock
+           @Resource = @0,
+           @LockMode = 'Exclusive',
+           @LockOwner = 'Transaction',
+           @LockTimeout = 10000`,
+        [`devolucion:${empresaId}:${id}`],
+      );
+      const bloqueada = await em
+        .createQueryBuilder(Venta, 'v')
+        .leftJoinAndSelect('v.detalles', 'd')
+        .setLock('pessimistic_write')
+        .where('v.id = :id AND v.empresaId = :empresaId', { id, empresaId })
+        .getOne();
+      if (!bloqueada) throw new NotFoundException('Venta no encontrada.');
+      if (bloqueada.estado !== 'COMPLETADA') {
+        throw new ConflictException(
+          `La venta cambió a estado ${bloqueada.estado}; actualiza la pantalla antes de continuar.`,
+        );
+      }
+      venta = bloqueada;
+
       /* ══ 1. Devolver el inventario al ORIGEN y al COSTO original ══ */
 
       const movimientosSalida = await em.find(MovimientoInventario, {
@@ -112,11 +156,17 @@ export class AnulacionVentasService {
 
       if (movimientosSalida.length > 0) {
         // Camino correcto: se conoce el lote exacto y su costo.
-        const porProducto = new Map<string, { almacenId: string; cantidad: number; costo: number; lotes: number }>();
+        const porProducto = new Map<
+          string,
+          { almacenId: string; cantidad: number; costo: number; lotes: number }
+        >();
 
         for (const mov of movimientosSalida) {
+          let stockAnteriorDevolucion = 0;
+          let stockNuevoDevolucion = 0;
           if (mov.loteId) {
-            const lote = await em.createQueryBuilder(LoteInventario, 'l')
+            const lote = await em
+              .createQueryBuilder(LoteInventario, 'l')
               .setLock('pessimistic_write')
               .where('l.id = :id', { id: mov.loteId })
               .getOne();
@@ -124,8 +174,12 @@ export class AnulacionVentasService {
             if (lote) {
               const stockAnterior = Number(lote.stockRestante);
               const stockNuevo = stockAnterior + Number(mov.cantidad);
+              stockAnteriorDevolucion = stockAnterior;
+              stockNuevoDevolucion = stockNuevo;
               lote.stockRestante = stockNuevo;
-              lote.valorTotal = redondear2(stockNuevo * Number(lote.costoUnitario));
+              lote.valorTotal = redondear2(
+                stockNuevo * Number(lote.costoUnitario),
+              );
               await em.save(lote);
             } else {
               advertencias.push(
@@ -135,26 +189,31 @@ export class AnulacionVentasService {
           }
 
           // Contramovimiento con el MISMO costo con el que salió.
-          await em.save(em.create(MovimientoInventario, {
-            productoId: mov.productoId,
-            almacenId: mov.almacenId,
-            cantidad: Number(mov.cantidad),
-            tipo: 'ENTRADA',
-            motivo: `Anulación de venta #${venta.folio}: ${motivo}`,
-            empresaId,
-            stockAnterior: 0,
-            stockNuevo: 0,
-            costoUnitario: Number(mov.costoUnitario),
-            costoTotal: Number(mov.costoTotal),
-            lote: mov.lote,
-            loteId: mov.loteId,
-            documentoId: venta.id,
-            tipoDocumento: 'ANULACION_VENTA',
-            usuarioId,
-          }));
+          await em.save(
+            em.create(MovimientoInventario, {
+              productoId: mov.productoId,
+              almacenId: mov.almacenId,
+              cantidad: Number(mov.cantidad),
+              tipo: 'ENTRADA',
+              motivo: `Anulación de venta #${venta.folio}: ${motivo}`,
+              empresaId,
+              stockAnterior: stockAnteriorDevolucion,
+              stockNuevo: stockNuevoDevolucion,
+              costoUnitario: Number(mov.costoUnitario),
+              costoTotal: Number(mov.costoTotal),
+              lote: mov.lote,
+              loteId: mov.loteId,
+              documentoId: venta.id,
+              tipoDocumento: 'ANULACION_VENTA',
+              usuarioId,
+            }),
+          );
 
           const acc = porProducto.get(mov.productoId) ?? {
-            almacenId: mov.almacenId, cantidad: 0, costo: 0, lotes: 0,
+            almacenId: mov.almacenId,
+            cantidad: 0,
+            costo: 0,
+            lotes: 0,
           };
           acc.cantidad += Number(mov.cantidad);
           acc.costo += Number(mov.costoTotal);
@@ -168,7 +227,12 @@ export class AnulacionVentasService {
         );
         for (const clave of combinaciones) {
           const [productoId, almacenId] = clave.split('|');
-          await this.stockService.sincronizarResumen(productoId, almacenId, empresaId, em);
+          await this.stockService.sincronizarResumen(
+            productoId,
+            almacenId,
+            empresaId,
+            em,
+          );
         }
 
         for (const [productoId, v] of porProducto) {
@@ -184,33 +248,35 @@ export class AnulacionVentasService {
         // Venta anterior al costeo: no hay rastro de lote ni costo.
         advertencias.push(
           'Esta venta se registró antes de que el sistema guardara el costo por lote. ' +
-          'El inventario se devolvió al almacén de la venta, pero sin costo: ' +
-          'verifica la valuación de estos productos.',
+            'El inventario se devolvió al almacén de la venta, pero sin costo: ' +
+            'verifica la valuación de estos productos.',
         );
 
         const almacenId = venta.almacenId;
         if (!almacenId) {
           throw new ConflictException(
             'La venta no tiene almacén registrado y no hay movimientos de inventario ' +
-            'asociados. No se puede determinar a dónde devolver la mercancía. ' +
-            'Ajústalo manualmente desde Inventario → Ajustes.',
+              'asociados. No se puede determinar a dónde devolver la mercancía. ' +
+              'Ajústalo manualmente desde Inventario → Ajustes.',
           );
         }
 
         for (const det of venta.detalles) {
-          await em.save(em.create(MovimientoInventario, {
-            productoId: det.productoId,
-            almacenId,
-            cantidad: Number(det.cantidad),
-            tipo: 'ENTRADA',
-            motivo: `Anulación de venta #${venta.folio}: ${motivo}`,
-            empresaId,
-            costoUnitario: 0,
-            costoTotal: 0,
-            documentoId: venta.id,
-            tipoDocumento: 'ANULACION_VENTA',
-            usuarioId,
-          }));
+          await em.save(
+            em.create(MovimientoInventario, {
+              productoId: det.productoId,
+              almacenId,
+              cantidad: Number(det.cantidad),
+              tipo: 'ENTRADA',
+              motivo: `Anulación de venta #${venta.folio}: ${motivo}`,
+              empresaId,
+              costoUnitario: 0,
+              costoTotal: 0,
+              documentoId: venta.id,
+              tipoDocumento: 'ANULACION_VENTA',
+              usuarioId,
+            }),
+          );
 
           devoluciones.push({
             productoId: det.productoId,
@@ -233,22 +299,61 @@ export class AnulacionVentasService {
         if (credito.estado === EstadoCredito.LIQUIDADO) {
           throw new ConflictException(
             'El crédito de esta venta ya fue liquidado. Anular dejaría un pago sin ' +
-            'documento que lo respalde. Registra una devolución en su lugar.',
+              'documento que lo respalde. Registra una devolución en su lugar.',
           );
         }
 
-        const pagado = Number(credito.montoTotal ?? 0) - Number(credito.saldoPendiente ?? 0);
-        if (pagado > 0) {
-          advertencias.push(
-            `El cliente ya había abonado ${pagado.toFixed(2)} a este crédito. ` +
-            `Ese importe queda a su favor y debe devolverse o aplicarse a otra operación.`,
+        const pagado =
+          Number(credito.montoTotal ?? 0) - Number(credito.saldoPendiente ?? 0);
+        const enganche = Number(credito.enganche ?? 0);
+        if (pagado > 0 || enganche > 0) {
+          throw new ConflictException(
+            `La venta a crédito tiene ${enganche > 0 ? `un enganche de ${enganche.toFixed(2)}` : ''}` +
+              `${enganche > 0 && pagado > 0 ? ' y ' : ''}` +
+              `${pagado > 0 ? `abonos por ${pagado.toFixed(2)}` : ''}. ` +
+              'Debe procesarse como devolución con reembolso para no dejar CxC, caja e IVA inconsistentes.',
           );
         }
 
         credito.estado = EstadoCredito.CANCELADO;
-        credito.notas = `${credito.notas ?? ''}\nCancelado por anulación de la venta #${venta.folio}: ${motivo}`.trim();
+        credito.notas =
+          `${credito.notas ?? ''}\nCancelado por anulación de la venta #${venta.folio}: ${motivo}`.trim();
         await em.save(credito);
         creditoCancelado = true;
+      }
+
+      // Revierte el dinero sólo cuando existe el ingreso de tesorería original.
+      // Las ventas históricas anteriores al módulo no crean una salida ficticia.
+      const ingresoOriginal = await em.findOne(MovimientoTesoreria, {
+        where: {
+          empresaId,
+          documentoId: venta.id,
+          origen: OrigenMovimiento.VENTA,
+          cancelado: false,
+        },
+        order: { fechaCreacion: 'ASC' },
+      });
+      if (ingresoOriginal) {
+        await this.tesoreria.registrarEnTransaccion(
+          {
+            cuentaBancariaId: ingresoOriginal.cuentaBancariaId,
+            fecha: new Date().toISOString().slice(0, 10),
+            tipo: TipoMovimiento.EGRESO,
+            importe: Number(ingresoOriginal.importe),
+            concepto: `Anulación de venta #${venta.folio}`,
+            origen: OrigenMovimiento.DEVOLUCION_VENTA,
+            documentoId: venta.id,
+            tipoDocumento: 'ANULACION_VENTA',
+            terceroId: venta.clienteId,
+          },
+          empresaId,
+          usuarioId,
+          em,
+        );
+      } else if (!credito) {
+        advertencias.push(
+          'La venta es anterior a la integración de tesorería; no se creó una salida de caja automática.',
+        );
       }
 
       /* ══ 3. Marcar la venta ══ */
@@ -263,6 +368,21 @@ export class AnulacionVentasService {
       // de asientos pendientes se encarga de reintentarlo y de que quede
       // visible si no lo logra.
 
+      // Un producto puede aparecer en más de un renglón. El costo devuelto
+      // está agregado por producto; asignarlo completo a cada renglón
+      // duplicaba el costo de la póliza.
+      const costoPendiente = new Map(
+        devoluciones.map((d) => [d.productoId, Number(d.costoTotal)]),
+      );
+      const cantidadPendiente = new Map<string, number>();
+      for (const detalle of venta.detalles) {
+        cantidadPendiente.set(
+          detalle.productoId,
+          Number(cantidadPendiente.get(detalle.productoId) ?? 0) +
+            Number(detalle.cantidad),
+        );
+      }
+
       const datosReversion = {
         ventaId: venta.id,
         folio: venta.folio,
@@ -270,13 +390,30 @@ export class AnulacionVentasService {
         empresaId,
         metodoPago: venta.metodoPago,
         motivo,
-        detalles: venta.detalles.map((d: DetalleVenta) => ({
-          productoId: d.productoId,
-          cantidad: Number(d.cantidad),
-          subtotal: Number(d.subtotal),
-          impuestoMonto: Number(d.impuestoMonto ?? 0),
-          costoTotal: devoluciones.find((x) => x.productoId === d.productoId)?.costoTotal ?? 0,
-        })),
+        detalles: venta.detalles.map((d: DetalleVenta) => {
+          const costoDisponible = Number(costoPendiente.get(d.productoId) ?? 0);
+          const cantidadDisponible = Number(
+            cantidadPendiente.get(d.productoId) ?? 0,
+          );
+          const costo =
+            Number(d.cantidad) + 0.0001 >= cantidadDisponible
+              ? costoDisponible
+              : redondear2(
+                  costoDisponible * (Number(d.cantidad) / cantidadDisponible),
+                );
+          costoPendiente.set(d.productoId, redondear2(costoDisponible - costo));
+          cantidadPendiente.set(
+            d.productoId,
+            cantidadDisponible - Number(d.cantidad),
+          );
+          return {
+            productoId: d.productoId,
+            cantidad: Number(d.cantidad),
+            subtotal: Number(d.subtotal),
+            impuestoMonto: Number(d.impuestoMonto ?? 0),
+            costoTotal: costo,
+          };
+        }),
       };
 
       // CANCELACION_VENTA, no VENTA: si se usara VENTA, el motor generaría
@@ -292,18 +429,19 @@ export class AnulacionVentasService {
 
       /* ══ 5. CFDI ══ */
 
-      const cfdiRequiereCancelacion = venta.metodoPago !== 'EFECTIVO' || !!venta.clienteId;
+      const cfdiRequiereCancelacion =
+        venta.metodoPago !== 'EFECTIVO' || !!venta.clienteId;
       if (cfdiRequiereCancelacion) {
         advertencias.push(
           'Si esta venta tenía CFDI timbrado, debes cancelarlo ante el SAT desde el ' +
-          'módulo de facturación. La anulación en el ERP no cancela el comprobante fiscal.',
+            'módulo de facturación. La anulación en el ERP no cancela el comprobante fiscal.',
         );
       }
 
       this.logger.log(
         `Venta #${venta.folio} anulada por ${usuarioId ?? 'sistema'}. ` +
-        `Motivo: ${motivo}. Productos devueltos: ${devoluciones.length}. ` +
-        `Crédito cancelado: ${creditoCancelado}.`,
+          `Motivo: ${motivo}. Productos devueltos: ${devoluciones.length}. ` +
+          `Crédito cancelado: ${creditoCancelado}.`,
       );
 
       return {

@@ -21,8 +21,8 @@ describe('AuthController', () => {
           id: '1',
           nombre: 'Abel Diaz',
           rol: 'admin',
-          empresaId: 'uuid-simulado-123'
-        }
+          empresaId: 'uuid-simulado-123',
+        },
       };
     }),
   };

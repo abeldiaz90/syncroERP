@@ -35,7 +35,7 @@ export class DetalleOrdenCompra {
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   subtotal: number;
-  
+
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   cantidadRecibidaOk: number;
 

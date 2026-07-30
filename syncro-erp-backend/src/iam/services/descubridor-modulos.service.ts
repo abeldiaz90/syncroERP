@@ -34,7 +34,16 @@ export class DescubridorModulosService implements OnApplicationBootstrap {
 
   private extraerModulo(path: string): string | null {
     const partes = path.replace(/^\/+|\/+$/g, '').split('/');
-    const prefijosNoModulo = ['api', 'catalogo', 'catalogos', 'compras', 'ventas', 'iam', 'permisos', 'auth'];
+    const prefijosNoModulo = [
+      'api',
+      'catalogo',
+      'catalogos',
+      'compras',
+      'ventas',
+      'iam',
+      'permisos',
+      'auth',
+    ];
 
     for (let i = partes.length - 1; i >= 0; i--) {
       const parte = partes[i];

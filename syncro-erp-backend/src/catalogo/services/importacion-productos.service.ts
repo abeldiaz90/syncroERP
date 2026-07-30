@@ -116,7 +116,14 @@ export class ImportacionProductosService {
 
     // Modo validar: reporte sin tocar la base de datos
     if (modo === 'validar') {
-      return this.armarReporte('validar', filas.length, 0, 0, errores, advertencias);
+      return this.armarReporte(
+        'validar',
+        filas.length,
+        0,
+        0,
+        errores,
+        advertencias,
+      );
     }
 
     // 4· UPSERT por SKU dentro de una transacción
@@ -193,15 +200,16 @@ export class ImportacionProductosService {
   private aFilaDto(f: Record<string, any>): FilaProductoDto {
     const g = (k: string) => (f[k] != null ? f[k] : undefined);
     const s = (k: string) => (g(k) != null ? String(g(k)).trim() : undefined);
-    const n = (k: string) => (g(k) != null && g(k) !== '' ? Number(g(k)) : undefined);
+    const n = (k: string) =>
+      g(k) != null && g(k) !== '' ? Number(g(k)) : undefined;
     return {
-      sku: s('sku')!,
-      nombre: s('nombre')!,
+      sku: s('sku'),
+      nombre: s('nombre'),
       nombreCorto: s('nombreCorto'),
       codigoBarras: s('codigoBarras'),
       codigoProveedor: s('codigoProveedor'),
       descripcion: s('descripcion'),
-      tipoProducto: s('tipoProducto')?.toUpperCase()!,
+      tipoProducto: s('tipoProducto')?.toUpperCase(),
       categoria: s('categoria'),
       marca: s('marca'),
       unidadMedida: s('unidadMedida'),
@@ -230,7 +238,12 @@ export class ImportacionProductosService {
     const e: ErrorFila[] = [];
     const req = (campo: string, val: any) => {
       if (val == null || String(val).trim() === '')
-        e.push({ fila, sku: d.sku, campo, mensaje: `'${campo}' es obligatorio` });
+        e.push({
+          fila,
+          sku: d.sku,
+          campo,
+          mensaje: `'${campo}' es obligatorio`,
+        });
     };
 
     req('sku', d.sku);
@@ -252,7 +265,12 @@ export class ImportacionProductosService {
     const num = (campo: string) => {
       const v = (d as any)[campo];
       if (v != null && v !== '' && isNaN(Number(v)))
-        e.push({ fila, sku: d.sku, campo, mensaje: `'${campo}' debe ser numérico` });
+        e.push({
+          fila,
+          sku: d.sku,
+          campo,
+          mensaje: `'${campo}' debe ser numérico`,
+        });
     };
     [
       'precioCompra',
@@ -291,7 +309,10 @@ export class ImportacionProductosService {
     ) => {
       if (!nombre) {
         if (obligatorio)
-          errores.push({ mensaje: `'${campo}' es obligatorio`, campo: String(campo) });
+          errores.push({
+            mensaje: `'${campo}' es obligatorio`,
+            campo: String(campo),
+          });
         return;
       }
       const clave = nombre.trim().toLowerCase();
@@ -332,7 +353,7 @@ export class ImportacionProductosService {
     // categoría: se crea al vuelo (CategoriasService.crearCategoria)
     await resolver(ctx.categorias, d.categoria, 'categoria', async (nombre) => {
       const creada = await this.categorias.crearCategoria(
-        { nombre } as any,
+        { nombre },
         empresaId,
       );
       return (creada as any).id;

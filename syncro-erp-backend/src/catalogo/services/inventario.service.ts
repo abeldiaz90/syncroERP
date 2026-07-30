@@ -79,7 +79,8 @@ export interface ResultadoEntrada {
 }
 
 const redondear2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-const redondear4 = (n: number) => Math.round((n + Number.EPSILON) * 10_000) / 10_000;
+const redondear4 = (n: number) =>
+  Math.round((n + Number.EPSILON) * 10_000) / 10_000;
 
 @Injectable()
 export class InventarioService {
@@ -124,14 +125,20 @@ export class InventarioService {
     documento?: { id?: string; tipo?: string },
   ): Promise<ResultadoEntrada> {
     if (!almacenId) throw new BadRequestException('El almacén es obligatorio');
-    if (cantidad <= 0) throw new BadRequestException('La cantidad debe ser mayor a cero');
+    if (cantidad <= 0)
+      throw new BadRequestException('La cantidad debe ser mayor a cero');
     if (costoUnitario !== undefined && costoUnitario < 0) {
       throw new BadRequestException('El costo unitario no puede ser negativo');
     }
 
     const ejecutar = async (em: EntityManager): Promise<ResultadoEntrada> => {
-      const almacen = await em.findOne(Almacen, { where: { id: almacenId, empresaId } });
-      if (!almacen) throw new UnauthorizedException('El almacén no existe o no pertenece a tu empresa');
+      const almacen = await em.findOne(Almacen, {
+        where: { id: almacenId, empresaId },
+      });
+      if (!almacen)
+        throw new UnauthorizedException(
+          'El almacén no existe o no pertenece a tu empresa',
+        );
 
       const producto = await em.findOne(Producto, {
         where: { id: productoId, empresaId },
@@ -142,7 +149,8 @@ export class InventarioService {
       // El costo llega en la unidad en que se compra; hay que bajarlo a la
       // unidad base junto con la cantidad.
       let cantidadBase = cantidad;
-      let costoPorUnidadBase = costoUnitario ?? Number(producto.precioCompra ?? 0);
+      let costoPorUnidadBase =
+        costoUnitario ?? Number(producto.precioCompra ?? 0);
 
       if (equivalenciaId) {
         const eq = await em.findOne(ProductoEquivalencia, {
@@ -159,24 +167,29 @@ export class InventarioService {
       }
 
       if (costoPorUnidadBase <= 0) {
-        this.logger.warn(
-          `Entrada sin costo: producto ${productoId}, almacén ${almacenId}. ` +
-          `El inventario quedará valuado en cero para esta entrada.`,
+        throw new BadRequestException(
+          `${producto.nombre}: el costo de entrada debe ser mayor a cero. ` +
+            'Captura el costo de compra antes de ingresar existencias.',
         );
       }
 
       const lote = await this.obtenerOCrearLote(
-        em, productoId, almacenId, empresaId,
+        em,
+        productoId,
+        almacenId,
+        empresaId,
         numeroLote || 'ÚNICO',
         fechaCaducidad ? new Date(fechaCaducidad) : undefined,
       );
 
-      const loteActual = await em.createQueryBuilder(LoteInventario, 'lote')
+      const loteActual = await em
+        .createQueryBuilder(LoteInventario, 'lote')
         .setLock('pessimistic_write')
         .where('lote.id = :id', { id: lote.id })
         .getOne();
 
-      if (!loteActual) throw new NotFoundException('Lote no encontrado durante el bloqueo');
+      if (!loteActual)
+        throw new NotFoundException('Lote no encontrado durante el bloqueo');
 
       const stockAnterior = Number(loteActual.stockRestante);
       const costoAnterior = Number(loteActual.costoUnitario ?? 0);
@@ -186,36 +199,44 @@ export class InventarioService {
       // El valor que ya había, más el que entra, dividido entre el total.
       const valorAnterior = stockAnterior * costoAnterior;
       const valorEntrada = cantidadBase * costoPorUnidadBase;
-      const costoPromedio = stockNuevo > 0
-        ? redondear4((valorAnterior + valorEntrada) / stockNuevo)
-        : costoPorUnidadBase;
+      const costoPromedio =
+        stockNuevo > 0
+          ? redondear4((valorAnterior + valorEntrada) / stockNuevo)
+          : costoPorUnidadBase;
 
       loteActual.stockRestante = stockNuevo;
       loteActual.costoUnitario = costoPromedio;
       loteActual.valorTotal = redondear2(stockNuevo * costoPromedio);
       await em.save(loteActual);
 
-      await this.stockService.sincronizarResumen(productoId, almacenId, empresaId, em);
+      await this.stockService.sincronizarResumen(
+        productoId,
+        almacenId,
+        empresaId,
+        em,
+      );
 
       const costoTotalEntrada = redondear2(valorEntrada);
 
-      await em.save(em.create(MovimientoInventario, {
-        productoId,
-        almacenId,
-        cantidad: cantidadBase,
-        tipo: 'ENTRADA',
-        motivo: motivo || 'Entrada de inventario (compra)',
-        empresaId,
-        stockAnterior,
-        stockNuevo,
-        costoUnitario: redondear4(costoPorUnidadBase),
-        costoTotal: costoTotalEntrada,
-        lote: loteActual.numeroLote,
-        loteId: loteActual.id,
-        fechaCaducidadMovimiento: loteActual.fechaCaducidad,
-        documentoId: documento?.id,
-        tipoDocumento: documento?.tipo,
-      }));
+      await em.save(
+        em.create(MovimientoInventario, {
+          productoId,
+          almacenId,
+          cantidad: cantidadBase,
+          tipo: 'ENTRADA',
+          motivo: motivo || 'Entrada de inventario (compra)',
+          empresaId,
+          stockAnterior,
+          stockNuevo,
+          costoUnitario: redondear4(costoPorUnidadBase),
+          costoTotal: costoTotalEntrada,
+          lote: loteActual.numeroLote,
+          loteId: loteActual.id,
+          fechaCaducidadMovimiento: loteActual.fechaCaducidad,
+          documentoId: documento?.id,
+          tipoDocumento: documento?.tipo,
+        }),
+      );
 
       return {
         mensaje: 'Entrada registrada correctamente',
@@ -250,11 +271,17 @@ export class InventarioService {
     documento?: { id?: string; tipo?: string },
   ): Promise<ResultadoSalida> {
     if (!almacenId) throw new BadRequestException('El almacén es obligatorio');
-    if (cantidad <= 0) throw new BadRequestException('La cantidad debe ser mayor a cero');
+    if (cantidad <= 0)
+      throw new BadRequestException('La cantidad debe ser mayor a cero');
 
     const ejecutar = async (em: EntityManager): Promise<ResultadoSalida> => {
-      const almacen = await em.findOne(Almacen, { where: { id: almacenId, empresaId } });
-      if (!almacen) throw new UnauthorizedException('El almacén no existe o no pertenece a tu empresa');
+      const almacen = await em.findOne(Almacen, {
+        where: { id: almacenId, empresaId },
+      });
+      if (!almacen)
+        throw new UnauthorizedException(
+          'El almacén no existe o no pertenece a tu empresa',
+        );
 
       const producto = await em.findOne(Producto, {
         where: { id: productoId, empresaId },
@@ -275,7 +302,8 @@ export class InventarioService {
       let lotes: LoteInventario[];
 
       if (loteEspecificoId) {
-        const loteManual = await em.createQueryBuilder(LoteInventario, 'lote')
+        const loteManual = await em
+          .createQueryBuilder(LoteInventario, 'lote')
           .setLock('pessimistic_write')
           .where('lote.id = :id', { id: loteEspecificoId })
           .andWhere('lote.productoId = :productoId', { productoId })
@@ -284,11 +312,14 @@ export class InventarioService {
           .getOne();
 
         if (!loteManual || Number(loteManual.stockRestante) < cantidadBase) {
-          throw new BadRequestException('Lote seleccionado inválido o stock insuficiente');
+          throw new BadRequestException(
+            'Lote seleccionado inválido o stock insuficiente',
+          );
         }
         lotes = [loteManual];
       } else {
-        lotes = await em.createQueryBuilder(LoteInventario, 'lote')
+        lotes = await em
+          .createQueryBuilder(LoteInventario, 'lote')
           .setLock('pessimistic_write')
           .where('lote.productoId = :productoId', { productoId })
           .andWhere('lote.almacenId = :almacenId', { almacenId })
@@ -303,7 +334,10 @@ export class InventarioService {
           }
           if (!a.fechaCaducidad) return 1;
           if (!b.fechaCaducidad) return -1;
-          return new Date(a.fechaCaducidad).getTime() - new Date(b.fechaCaducidad).getTime();
+          return (
+            new Date(a.fechaCaducidad).getTime() -
+            new Date(b.fechaCaducidad).getTime()
+          );
         });
       }
 
@@ -328,23 +362,25 @@ export class InventarioService {
         lote.valorTotal = redondear2(stockNuevo * costoUnitario);
         await em.save(lote);
 
-        movimientos.push(em.create(MovimientoInventario, {
-          productoId,
-          almacenId,
-          cantidad: aDescontar,
-          tipo: 'SALIDA',
-          motivo: motivo || 'Salida de inventario',
-          empresaId,
-          stockAnterior,
-          stockNuevo,
-          costoUnitario,
-          costoTotal: costoDelConsumo,
-          lote: lote.numeroLote,
-          loteId: lote.id,
-          fechaCaducidadMovimiento: lote.fechaCaducidad,
-          documentoId: documento?.id,
-          tipoDocumento: documento?.tipo,
-        }));
+        movimientos.push(
+          em.create(MovimientoInventario, {
+            productoId,
+            almacenId,
+            cantidad: aDescontar,
+            tipo: 'SALIDA',
+            motivo: motivo || 'Salida de inventario',
+            empresaId,
+            stockAnterior,
+            stockNuevo,
+            costoUnitario,
+            costoTotal: costoDelConsumo,
+            lote: lote.numeroLote,
+            loteId: lote.id,
+            fechaCaducidadMovimiento: lote.fechaCaducidad,
+            documentoId: documento?.id,
+            tipoDocumento: documento?.tipo,
+          }),
+        );
 
         consumos.push({
           loteId: lote.id,
@@ -359,11 +395,18 @@ export class InventarioService {
       }
 
       if (restante > 0) {
-        throw new BadRequestException(`Stock insuficiente. Faltan ${restante} unidades.`);
+        throw new BadRequestException(
+          `Stock insuficiente. Faltan ${restante} unidades.`,
+        );
       }
 
       await em.save(movimientos);
-      await this.stockService.sincronizarResumen(productoId, almacenId, empresaId, em);
+      await this.stockService.sincronizarResumen(
+        productoId,
+        almacenId,
+        empresaId,
+        em,
+      );
 
       const costoTotal = redondear2(costoAcumulado);
 
@@ -372,8 +415,8 @@ export class InventarioService {
       if (costoTotal === 0 && cantidadBase > 0) {
         this.logger.warn(
           `Salida con costo cero: producto ${productoId} (${producto.nombre ?? ''}), ` +
-          `almacén ${almacenId}, cantidad ${cantidadBase}. ` +
-          `Revisa que las entradas de este producto estén registrando su costo.`,
+            `almacén ${almacenId}, cantidad ${cantidadBase}. ` +
+            `Revisa que las entradas de este producto estén registrando su costo.`,
         );
       }
 
@@ -381,7 +424,8 @@ export class InventarioService {
         mensaje: 'Salida registrada correctamente',
         cantidadTotal: cantidadBase,
         costoTotal,
-        costoUnitarioPromedio: cantidadBase > 0 ? redondear4(costoTotal / cantidadBase) : 0,
+        costoUnitarioPromedio:
+          cantidadBase > 0 ? redondear4(costoTotal / cantidadBase) : 0,
         consumos,
       };
     };
@@ -408,17 +452,26 @@ export class InventarioService {
     empresaId: string,
     manager?: EntityManager,
   ) {
-    if (cantidad <= 0) throw new BadRequestException('La cantidad debe ser mayor a cero');
-    if (origenId === destinoId) throw new BadRequestException('No se puede transferir al mismo almacén');
+    if (cantidad <= 0)
+      throw new BadRequestException('La cantidad debe ser mayor a cero');
+    if (origenId === destinoId)
+      throw new BadRequestException('No se puede transferir al mismo almacén');
 
     const ejecutar = async (em: EntityManager) => {
-      const producto = await em.findOne(Producto, { where: { id: productoId, empresaId } });
+      const producto = await em.findOne(Producto, {
+        where: { id: productoId, empresaId },
+      });
       if (!producto) throw new NotFoundException('Producto no encontrado');
 
       const salida = await this.registrarSalida(
-        productoId, origenId, cantidad,
+        productoId,
+        origenId,
+        cantidad,
         `Transferencia a almacén ${destinoId}`,
-        empresaId, undefined, undefined, em,
+        empresaId,
+        undefined,
+        undefined,
+        em,
         { tipo: 'TRANSFERENCIA' },
       );
 
@@ -426,9 +479,15 @@ export class InventarioService {
       const costoTransferido = salida.costoUnitarioPromedio;
 
       const entrada = await this.registrarCompra(
-        productoId, destinoId, cantidad,
+        productoId,
+        destinoId,
+        cantidad,
         `Transferencia desde almacén ${origenId}`,
-        empresaId, 'TRANSFER', undefined, undefined, em,
+        empresaId,
+        'TRANSFER',
+        undefined,
+        undefined,
+        em,
         costoTransferido,
         { tipo: 'TRANSFERENCIA' },
       );
@@ -460,32 +519,42 @@ export class InventarioService {
     costoUnitario?: number,
   ) {
     if (!almacenId) throw new BadRequestException('El almacén es obligatorio');
-    if (cantidad <= 0) throw new BadRequestException('La cantidad debe ser mayor a cero');
+    if (cantidad <= 0)
+      throw new BadRequestException('La cantidad debe ser mayor a cero');
 
     const ejecutar = async (em: EntityManager) => {
       if (tipo === 'MERMA') {
         const salida = await this.registrarSalida(
-          productoId, almacenId, cantidad,
-          `Merma: ${motivo}`, empresaId,
-          undefined, loteEspecificoId, em,
+          productoId,
+          almacenId,
+          cantidad,
+          `Merma: ${motivo}`,
+          empresaId,
+          undefined,
+          loteEspecificoId,
+          em,
           { tipo: 'MERMA' },
         );
 
         // El asiento usa el costo REAL de lo mermado, no el precio de lista.
-        this.motorContable.generarAsientoDeSalida({
-          movimientoId: `merma-${Date.now()}`,
-          tipo: 'MERMA',
-          motivo,
-          fecha: new Date(),
-          empresaId,
-          detalles: [{
-            productoId,
-            cantidad: salida.cantidadTotal,
-            costoUnitario: salida.costoUnitarioPromedio,
-          }],
-        }).catch((e) =>
-          this.logger.error(`Asiento de merma falló: ${e?.message}`),
-        );
+        this.motorContable
+          .generarAsientoDeSalida({
+            movimientoId: `merma-${Date.now()}`,
+            tipo: 'MERMA',
+            motivo,
+            fecha: new Date(),
+            empresaId,
+            detalles: [
+              {
+                productoId,
+                cantidad: salida.cantidadTotal,
+                costoUnitario: salida.costoUnitarioPromedio,
+              },
+            ],
+          })
+          .catch((e) =>
+            this.logger.error(`Asiento de merma falló: ${e?.message}`),
+          );
 
         return {
           mensaje: 'Merma registrada',
@@ -495,9 +564,15 @@ export class InventarioService {
       }
 
       const entrada = await this.registrarCompra(
-        productoId, almacenId, cantidad,
+        productoId,
+        almacenId,
+        cantidad,
         `Ajuste manual (ingreso): ${motivo}`,
-        empresaId, 'AJUSTE', undefined, undefined, em,
+        empresaId,
+        'AJUSTE',
+        undefined,
+        undefined,
+        em,
         costoUnitario,
         { tipo: 'AJUSTE' },
       );
@@ -519,11 +594,19 @@ export class InventarioService {
     });
   }
 
-  async obtenerStockEnAlmacen(productoId: string, almacenId: string, empresaId: string) {
+  async obtenerStockEnAlmacen(
+    productoId: string,
+    almacenId: string,
+    empresaId: string,
+  ) {
     return this.stockService.obtenerResumen(productoId, almacenId, empresaId);
   }
 
-  async obtenerLotesPorProducto(productoId: string, empresaId: string, almacenId?: string) {
+  async obtenerLotesPorProducto(
+    productoId: string,
+    empresaId: string,
+    almacenId?: string,
+  ) {
     const where: Record<string, unknown> = { productoId, empresaId };
     if (almacenId) where.almacenId = almacenId;
 
@@ -555,7 +638,10 @@ export class InventarioService {
     if (almacenId) q.andWhere('l.almacenId = :almacenId', { almacenId });
 
     const filas = await q.getRawMany<{
-      productoId: string; producto: string; existencia: string; valor: string;
+      productoId: string;
+      producto: string;
+      existencia: string;
+      valor: string;
     }>();
 
     const detalle = filas.map((f) => {

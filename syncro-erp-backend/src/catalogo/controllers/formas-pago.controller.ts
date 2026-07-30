@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+} from '@nestjs/common';
 import { FormasPagoService } from '../services/formas-pago.service';
 import { CrearFormaPagoDto } from '../dto/crear-forma-pago.dto';
 

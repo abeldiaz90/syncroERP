@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Endpoint } from './endpoint.entity';
 
 @Entity('rol_endpoint_permisos')
@@ -6,9 +14,9 @@ export class RolEndpointPermiso {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-// Una vez poblada la tabla, vuelve a esto:
-@Column({ type: 'uniqueidentifier', nullable: false }) 
-empresaId: string;
+  // Una vez poblada la tabla, vuelve a esto:
+  @Column({ type: 'uniqueidentifier', nullable: false })
+  empresaId: string;
 
   @Column({ length: 50 })
   rol: string;

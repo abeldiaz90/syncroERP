@@ -44,14 +44,25 @@ export class ProductosService {
     @InjectRepository(Categoria)
     private readonly categoriaRepository: Repository<Categoria>,
     private readonly dataSource: DataSource,
-  ) { }
+  ) {}
 
   // ─────────────────────────────────────────────────────────────────
   // CREAR PRODUCTO
   // ─────────────────────────────────────────────────────────────────
 
-  async crearProducto(dto: CrearProductoDto, almacenId: string, empresaId: string) {
-    const { imagenes, precios, equivalencias, atributos, stockActual, ...productoData } = dto;
+  async crearProducto(
+    dto: CrearProductoDto,
+    almacenId: string,
+    empresaId: string,
+  ) {
+    const {
+      imagenes,
+      precios,
+      equivalencias,
+      atributos,
+      stockActual,
+      ...productoData
+    } = dto;
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -125,7 +136,9 @@ export class ProductosService {
       if (stockInicial > 0) {
         const almacen = almacenId ?? dto.almacenId;
         if (!almacen) {
-          throw new ConflictException('Debes indicar un almacén para el stock inicial.');
+          throw new ConflictException(
+            'Debes indicar un almacén para el stock inicial.',
+          );
         }
         await this.inventarioService.registrarCompra(
           guardado.id,
@@ -143,7 +156,6 @@ export class ProductosService {
       await queryRunner.commitTransaction();
 
       return this.obtenerProductoPorId(guardado.id, empresaId);
-
     } catch (error: any) {
       await queryRunner.rollbackTransaction();
 
@@ -182,8 +194,6 @@ export class ProductosService {
     return { ...producto, stockActual: stock.get(id) ?? 0 };
   }
 
-
-
   // ─────────────────────────────────────────────────────────────────
   // OBTENER PRODUCTOS PAGINADOS (CON FILTROS)
   // ─────────────────────────────────────────────────────────────────
@@ -194,7 +204,7 @@ export class ProductosService {
     limite: number,
     categoriaId?: string,
     marcaId?: string,
-    soloConStock?: boolean
+    soloConStock?: boolean,
   ) {
     const skip = (pagina - 1) * limite;
 
@@ -230,24 +240,29 @@ export class ProductosService {
     }
 
     // 2. Calcular el stock
-    const stockMap = await this.calcularStockTotal(productos.map(p => p.id), empresaId);
+    const stockMap = await this.calcularStockTotal(
+      productos.map((p) => p.id),
+      empresaId,
+    );
 
     // 3. Mapear los productos con su stock
-    let productosMapeados = productos.map(p => ({
+    let productosMapeados = productos.map((p) => ({
       ...p,
-      stockActual: stockMap.get(p.id) ?? 0
+      stockActual: stockMap.get(p.id) ?? 0,
     }));
 
     // 4. Aplicar filtro de "Solo con stock" si está activado
     if (soloConStock) {
-      productosMapeados = productosMapeados.filter(p => p.stockActual > 0);
+      productosMapeados = productosMapeados.filter((p) => p.stockActual > 0);
     }
 
     return {
       productos: productosMapeados,
       total: soloConStock ? productosMapeados.length : total,
       paginaActual: pagina,
-      totalPaginas: Math.ceil((soloConStock ? productosMapeados.length : total) / limite),
+      totalPaginas: Math.ceil(
+        (soloConStock ? productosMapeados.length : total) / limite,
+      ),
     };
   }
 
@@ -255,8 +270,19 @@ export class ProductosService {
   // ACTUALIZAR PRODUCTO
   // ─────────────────────────────────────────────────────────────────
 
-  async actualizarProducto(id: string, dto: Partial<CrearProductoDto>, empresaId: string) {
-    const { imagenes, precios, equivalencias, atributos, stockActual, ...productoData } = dto;
+  async actualizarProducto(
+    id: string,
+    dto: Partial<CrearProductoDto>,
+    empresaId: string,
+  ) {
+    const {
+      imagenes,
+      precios,
+      equivalencias,
+      atributos,
+      stockActual,
+      ...productoData
+    } = dto;
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -275,7 +301,10 @@ export class ProductosService {
           await queryRunner.manager.save(
             imagenes.map((img, index) =>
               queryRunner.manager.create(ImagenProducto, {
-                productoId: id, url: img.url, orden: index, principal: img.principal ?? false,
+                productoId: id,
+                url: img.url,
+                orden: index,
+                principal: img.principal ?? false,
               }),
             ),
           );
@@ -289,7 +318,9 @@ export class ProductosService {
           await queryRunner.manager.save(
             precios.map((p) =>
               queryRunner.manager.create(ProductoPrecio, {
-                productoId: id, listaPrecioId: p.listaPrecioId, precio: p.precio,
+                productoId: id,
+                listaPrecioId: p.listaPrecioId,
+                precio: p.precio,
               }),
             ),
           );
@@ -298,7 +329,9 @@ export class ProductosService {
 
       // Equivalencias
       if (equivalencias !== undefined) {
-        await queryRunner.manager.delete(ProductoEquivalencia, { productoId: id });
+        await queryRunner.manager.delete(ProductoEquivalencia, {
+          productoId: id,
+        });
         if (equivalencias.length > 0) {
           await queryRunner.manager.save(
             equivalencias.map((eq) =>
@@ -339,11 +372,12 @@ export class ProductosService {
       await queryRunner.commitTransaction();
 
       return this.obtenerProductoPorId(id, empresaId);
-
     } catch (error) {
       await queryRunner.rollbackTransaction();
       if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Error al actualizar el producto.');
+      throw new InternalServerErrorException(
+        'Error al actualizar el producto.',
+      );
     } finally {
       await queryRunner.release();
     }
@@ -354,7 +388,9 @@ export class ProductosService {
   // ─────────────────────────────────────────────────────────────────
 
   async cambiarEstado(id: string, empresaId: string) {
-    const producto = await this.productoRepository.findOne({ where: { id, empresaId } });
+    const producto = await this.productoRepository.findOne({
+      where: { id, empresaId },
+    });
     if (!producto) throw new NotFoundException('Producto no encontrado.');
     producto.activo = !producto.activo;
     await this.productoRepository.save(producto);
@@ -380,15 +416,26 @@ export class ProductosService {
   async buscarProductos(query: string, empresaId: string) {
     const productos = await this.productoRepository.find({
       where: { empresaId, activo: true, nombre: Like(`%${query}%`) },
-      relations: ['imagenes', 'preciosProducto', 'preciosProducto.listaPrecio', 'equivalencias'],
+      relations: [
+        'imagenes',
+        'preciosProducto',
+        'preciosProducto.listaPrecio',
+        'equivalencias',
+      ],
       take: 15,
       order: { nombre: 'ASC' },
     });
 
     if (productos.length === 0) return [];
 
-    const stockMap = await this.calcularStockTotal(productos.map(p => p.id), empresaId);
-    return productos.map(p => ({ ...p, stockActual: stockMap.get(p.id) ?? 0 }));
+    const stockMap = await this.calcularStockTotal(
+      productos.map((p) => p.id),
+      empresaId,
+    );
+    return productos.map((p) => ({
+      ...p,
+      stockActual: stockMap.get(p.id) ?? 0,
+    }));
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -406,7 +453,9 @@ export class ProductosService {
       .groupBy('s.productoId')
       .getRawMany<{ productoId: string; totalStock: string }>();
 
-    const stockMap = new Map(stocksRaw.map(s => [s.productoId, Number(s.totalStock)]));
+    const stockMap = new Map(
+      stocksRaw.map((s) => [s.productoId, Number(s.totalStock)]),
+    );
 
     // Traer productos activos con su stockMinimo
     const productos = await this.productoRepository.find({
@@ -417,8 +466,8 @@ export class ProductosService {
 
     // Filtrar los que están en o debajo del mínimo y ordenar por stock
     return productos
-      .map(p => ({ ...p, stockActual: stockMap.get(p.id) ?? 0 }))
-      .filter(p => p.stockActual <= p.stockMinimo)
+      .map((p) => ({ ...p, stockActual: stockMap.get(p.id) ?? 0 }))
+      .filter((p) => p.stockActual <= p.stockMinimo)
       .sort((a, b) => a.stockActual - b.stockActual)
       .slice(0, 10);
   }
@@ -429,12 +478,15 @@ export class ProductosService {
 
   obtenerPresetAtributos(sector: string) {
     const preset = PRESETS_ATRIBUTOS[sector.toUpperCase()];
-    if (!preset) throw new NotFoundException(`No existe preset para el sector '${sector}'.`);
+    if (!preset)
+      throw new NotFoundException(
+        `No existe preset para el sector '${sector}'.`,
+      );
     return preset;
   }
 
   obtenerSectoresDisponibles() {
-    return Object.keys(PRESETS_ATRIBUTOS).map(sector => ({
+    return Object.keys(PRESETS_ATRIBUTOS).map((sector) => ({
       sector,
       totalAtributos: PRESETS_ATRIBUTOS[sector].length,
     }));
@@ -460,6 +512,6 @@ export class ProductosService {
       .groupBy('s.productoId')
       .getRawMany<{ productoId: string; total: string }>();
 
-    return new Map(stocks.map(s => [s.productoId, Number(s.total)]));
+    return new Map(stocks.map((s) => [s.productoId, Number(s.total)]));
   }
 }

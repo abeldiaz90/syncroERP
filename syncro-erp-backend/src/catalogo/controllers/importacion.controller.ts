@@ -37,7 +37,9 @@ export class ImportacionController {
     @Query('modo') modo: 'validar' | 'aplicar' = 'aplicar',
   ) {
     if (!archivo?.buffer)
-      throw new BadRequestException('No se recibió el archivo (campo "archivo")');
+      throw new BadRequestException(
+        'No se recibió el archivo (campo "archivo")',
+      );
     const esExcel = /\.(xlsx|xls)$/i.test(archivo.originalname);
     if (!esExcel)
       throw new BadRequestException('El archivo debe ser .xlsx o .xls');

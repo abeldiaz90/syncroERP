@@ -29,7 +29,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       relations: ['empresa'],
     });
     if (!usuario || !usuario.emailVerificado || !usuario.empresa?.activo) {
-      throw new UnauthorizedException('La cuenta o la empresa están desactivadas');
+      throw new UnauthorizedException(
+        'La cuenta o la empresa están desactivadas',
+      );
     }
     return {
       id: usuario.id,
