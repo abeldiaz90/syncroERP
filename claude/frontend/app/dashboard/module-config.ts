@@ -1,0 +1,1031 @@
+/**
+ * ============================================================================
+ * SyncroERP · Mapa de navegación
+ * ----------------------------------------------------------------------------
+ * QUÉ SE CORRIGIÓ RESPECTO A LA VERSIÓN ANTERIOR
+ *
+ * 1. RUTAS HUÉRFANAS. 24 pantallas existían en /app pero no aparecían en
+ *    ningún menú: auditoría, unidades de medida, atributos de producto,
+ *    cotizaciones de compra, importar inventario, stock inicial, países,
+ *    estados, categorías contables, cierre contable, RPA CURP, recetas…
+ *    Ahora TODAS están mapeadas.
+ *
+ * 2. MÓDULOS SIN PREFIJO → SIN BARRA DE NAVEGACIÓN. `/dashboard/rpa`,
+ *    `/dashboard/auditoria` y `/dashboard/unidades-medida` no estaban en
+ *    ningún `prefixes`, así que `detectarModulo()` devolvía null y la barra
+ *    superior simplemente no se pintaba. Esa era la causa principal del
+ *    "no se pinta la navegación".
+ *
+ * 3. COLISIÓN DE PREFIJOS. `/dashboard/marcas` estaba en Inventario y en
+ *    Catálogos a la vez; ganaba el primero del array y el ítem no existía en
+ *    sus `items`, dejando la pestaña sin resaltar. Ahora cada prefijo
+ *    pertenece a un único módulo y la resolución es por especificidad
+ *    (el prefijo más largo gana), no por orden del array.
+ *
+ * 4. ICONOS FANTASMA. Se usaban clases `ti ti-*` (Tabler) que nunca se
+ *    cargaron: los cuadros de módulo salían vacíos. Ahora se usan componentes
+ *    de `lucide-react`, que ya está instalado.
+ *
+ * 5. SECCIONES. Los módulos grandes (Finanzas, Compras) se dividen en grupos
+ *    para que el menú lateral sea legible con 80+ pantallas.
+ * ============================================================================
+ */
+
+import {
+  ShoppingCart,
+  Truck,
+  Package,
+  CreditCard,
+  Calculator,
+  BarChart3,
+  Database,
+  BedDouble,
+  Settings,
+  Users,
+  Wallet,
+  Briefcase,
+  Building,
+  type LucideIcon,
+} from "lucide-react";
+
+export interface ModuleItem {
+  label: string;
+  href: string;
+  /** Agrupación dentro del menú lateral. */
+  grupo?: string;
+  /** No se lista en el menú, pero sí resuelve el módulo (detalle, PDF, etc.). */
+  oculto?: boolean;
+  /** Etiqueta corta al lado del ítem: "Nuevo", "Beta". */
+  etiqueta?: string;
+}
+
+export interface ModuleAction {
+  label: string;
+  href: string;
+  descripcion?: string;
+  principal?: boolean;
+}
+
+export interface ModuleConfig {
+  id: string;
+  nombre: string;
+  desc: string;
+  Icono: LucideIcon;
+  /** Color de acento del módulo (texto, borde activo, espina lateral). */
+  color: string;
+  /** Fondo suave del ícono. */
+  bg: string;
+  border: string;
+  /** Destino al abrir el módulo desde el panel. */
+  href: string;
+  prefixes: string[];
+  items: ModuleItem[];
+  /** Acciones que deben estar a la mano dentro de cualquier pantalla del módulo. */
+  acciones?: ModuleAction[];
+  /** Vínculos hacia procesos relacionados de otros módulos. */
+  relacionados?: ModuleAction[];
+}
+
+export const MODULOS: ModuleConfig[] = [
+  {
+    id: "configuracion", nombre: "Configuración", desc: "Preparación y diagnóstico empresarial", Icono: Settings,
+    color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", href: "/dashboard/configuracion/centro",
+    prefixes: ["/dashboard/configuracion", "/dashboard/operaciones/pendientes"],
+    items: [
+      { label: "Centro de configuración", href: "/dashboard/configuracion/centro", grupo: "Preparación" },
+      { label: "Integridad de datos", href: "/dashboard/configuracion/integridad", grupo: "Preparación" },
+      { label: "Compatibilidad de BD", href: "/dashboard/configuracion/esquema", grupo: "Preparación" },
+      { label: "Operaciones pendientes", href: "/dashboard/operaciones/pendientes", grupo: "Operación" },
+      { label: "Wizard de ventas", href: "/dashboard/configuracion/wizard-ventas", grupo: "Asistentes" },
+      { label: "Wizard de compras", href: "/dashboard/configuracion/wizard-compras", grupo: "Asistentes" },
+      { label: "Wizard de inventario", href: "/dashboard/configuracion/wizard-inventario", grupo: "Asistentes" },
+      { label: "Wizard de crédito", href: "/dashboard/configuracion/wizard-credito", grupo: "Asistentes" },
+      { label: "Wizard financiero", href: "/dashboard/configuracion/wizard-finanzas", grupo: "Asistentes" },
+      { label: "Importación inicial", href: "/dashboard/configuracion/wizard-importacion", grupo: "Asistentes" },
+    ],
+  },
+
+  /* ── VENTAS ─────────────────────────────────────────────────────────── */
+  {
+    id: "ventas",
+    nombre: "Ventas",
+    desc: "Punto de venta, historial y facturación",
+    Icono: ShoppingCart,
+    color: "#4f46e5",
+    bg: "#eef2ff",
+    border: "#c7d2fe",
+    href: "/dashboard/centros/ventas",
+    prefixes: ["/dashboard/centros/ventas", "/dashboard/ventas"],
+    acciones: [
+      { label: "Nueva venta", href: "/dashboard/ventas/pos", principal: true },
+      { label: "Historial", href: "/dashboard/ventas/historial" },
+      { label: "Devoluciones", href: "/dashboard/ventas/devoluciones" },
+    ],
+    relacionados: [
+      { label: "Clientes", href: "/dashboard/clientes" },
+      { label: "Crédito y cobranza", href: "/dashboard/creditos/creditos" },
+      { label: "Existencias", href: "/dashboard/almacenes/existencias" },
+    ],
+    items: [
+      {
+        label: "Punto de venta",
+        href: "/dashboard/ventas/pos",
+        grupo: "Operación",
+      },
+      {
+        label: "Historial de ventas",
+        href: "/dashboard/ventas/historial",
+        grupo: "Operación",
+      },
+      {
+        label: "Devoluciones",
+        href: "/dashboard/ventas/devoluciones",
+        grupo: "Operación",
+        etiqueta: "Nuevo",
+      },
+    ],
+  },
+
+  /* ── COMPRAS ────────────────────────────────────────────────────────── */
+  {
+    id: "compras",
+    nombre: "Compras",
+    desc: "Requisiciones, cotizaciones, órdenes y pagos",
+    Icono: Truck,
+    color: "#0284c7",
+    bg: "#eff6ff",
+    border: "#bae6fd",
+    href: "/dashboard/centros/compras",
+    prefixes: ["/dashboard/centros/compras", "/dashboard/compras"],
+    acciones: [
+      { label: "Nueva requisición", href: "/dashboard/compras/requisiciones", principal: true },
+      { label: "Comparar cotizaciones", href: "/dashboard/compras/cotizaciones" },
+      { label: "Órdenes pendientes", href: "/dashboard/compras/ordenes" },
+      { label: "Recibir compra", href: "/dashboard/inventario/recepciones" },
+    ],
+    relacionados: [
+      { label: "Proveedores", href: "/dashboard/proveedores" },
+      { label: "Almacenes", href: "/dashboard/almacenes/centro" },
+      { label: "Pago a proveedores", href: "/dashboard/compras/pago-proveedores" },
+    ],
+    items: [
+      {
+        label: "Requisiciones",
+        href: "/dashboard/compras/requisiciones",
+        grupo: "Ciclo de compra",
+      },
+      {
+        label: "Cotizaciones",
+        href: "/dashboard/compras/cotizaciones",
+        grupo: "Ciclo de compra",
+      },
+      {
+        label: "Aprobaciones",
+        href: "/dashboard/compras/aprobaciones",
+        grupo: "Ciclo de compra",
+      },
+      {
+        label: "Órdenes de compra",
+        href: "/dashboard/compras/ordenes",
+        grupo: "Ciclo de compra",
+      },
+      {
+        label: "Recepciones",
+        href: "/dashboard/inventario/recepciones",
+        grupo: "Ciclo de compra",
+      },
+      {
+        label: "Pago a proveedores",
+        href: "/dashboard/compras/pago-proveedores",
+        grupo: "Cuentas por pagar",
+      },
+      {
+        label: "Proveedores",
+        href: "/dashboard/proveedores",
+        grupo: "Cuentas por pagar",
+      },
+      {
+        label: "Flujos de aprobación",
+        href: "/dashboard/configuraciones-aprobacion",
+        grupo: "Configuración",
+      },
+    ],
+  },
+
+  /* ── PRODUCTOS ─────────────────────────────────────────────────────── */
+  {
+    id: "productos",
+    nombre: "Productos",
+    desc: "Catálogo, variantes, precios y configuración logística",
+    Icono: Package,
+    color: "#0f766e",
+    bg: "#f0fdfa",
+    border: "#99f6e4",
+    href: "/dashboard/centros/productos",
+    prefixes: [
+      "/dashboard/centros/productos",
+      "/dashboard/productos",
+      "/dashboard/categorias",
+      "/dashboard/marcas",
+      "/dashboard/unidades-medida",
+      "/dashboard/listas-precio",
+    ],
+    acciones: [
+      { label: "Nuevo producto", href: "/dashboard/productos", descripcion: "Alta y edición del catálogo", principal: true },
+      { label: "Listas de precio", href: "/dashboard/listas-precio", descripcion: "Precios y vigencias" },
+      { label: "Importar productos", href: "/dashboard/inventario/importar", descripcion: "Carga inicial desde Excel" },
+    ],
+    relacionados: [
+      { label: "Ver existencias", href: "/dashboard/almacenes/centro", descripcion: "Stock y ubicación física" },
+      { label: "Crear requisición", href: "/dashboard/compras/requisiciones", descripcion: "Abastecimiento" },
+      { label: "Punto de venta", href: "/dashboard/ventas/pos", descripcion: "Venta del producto" },
+    ],
+    items: [
+      { label: "Catálogo de productos", href: "/dashboard/productos", grupo: "Catálogo" },
+      { label: "Atributos y variantes", href: "/dashboard/productos/atributos", grupo: "Catálogo" },
+      { label: "Categorías", href: "/dashboard/categorias", grupo: "Catálogo" },
+      { label: "Marcas", href: "/dashboard/marcas", grupo: "Catálogo" },
+      { label: "Unidades de medida", href: "/dashboard/unidades-medida", grupo: "Catálogo" },
+      { label: "Listas de precio", href: "/dashboard/listas-precio", grupo: "Comercial" },
+      { label: "Importar desde Excel", href: "/dashboard/inventario/importar", grupo: "Carga de datos" },
+      { label: "Stock inicial", href: "/dashboard/inventario/stock-inicial", grupo: "Carga de datos" },
+    ],
+  },
+
+  /* ── ALMACENES / WMS ───────────────────────────────────────────────── */
+  {
+    id: "almacenes",
+    nombre: "Almacenes",
+    desc: "Recepción, ubicación, movimientos, conteos y trazabilidad WMS",
+    Icono: Package,
+    color: "#059669",
+    bg: "#ecfdf5",
+    border: "#a7f3d0",
+    href: "/dashboard/almacenes/centro",
+    prefixes: [
+      "/dashboard/almacenes",
+      "/dashboard/inventario/recepciones",
+      "/dashboard/inventario/transferencias",
+      "/dashboard/inventario/reubicaciones",
+      "/dashboard/inventario/conteos",
+      "/dashboard/inventario/ubicaciones",
+      "/dashboard/inventario/ajustes",
+    ],
+    acciones: [
+      { label: "Recibir mercancía", href: "/dashboard/inventario/recepciones", descripcion: "Órdenes pendientes", principal: true },
+      { label: "Crear transferencia", href: "/dashboard/inventario/transferencias", descripcion: "Entre almacenes" },
+      { label: "Reubicar", href: "/dashboard/inventario/reubicaciones", descripcion: "Mover dentro del almacén" },
+      { label: "Abrir conteo", href: "/dashboard/inventario/conteos", descripcion: "Conteo físico" },
+      { label: "Registrar ajuste", href: "/dashboard/inventario/ajustes", descripcion: "Merma o regularización" },
+    ],
+    relacionados: [
+      { label: "Productos", href: "/dashboard/productos", descripcion: "Datos maestros" },
+      { label: "Órdenes de compra", href: "/dashboard/compras/ordenes", descripcion: "Origen de recepciones" },
+      { label: "Ventas", href: "/dashboard/ventas/historial", descripcion: "Salidas comerciales" },
+    ],
+    items: [
+      { label: "Centro de operaciones", href: "/dashboard/almacenes/centro", grupo: "Operación" },
+      { label: "Existencias y posiciones", href: "/dashboard/almacenes/existencias", grupo: "Operación" },
+      { label: "Recepciones", href: "/dashboard/inventario/recepciones", grupo: "Entradas" },
+      { label: "Transferencias", href: "/dashboard/inventario/transferencias", grupo: "Movimientos" },
+      { label: "Reubicaciones", href: "/dashboard/inventario/reubicaciones", grupo: "Movimientos" },
+      { label: "Conteos físicos", href: "/dashboard/inventario/conteos", grupo: "Control" },
+      { label: "Ajustes y mermas", href: "/dashboard/inventario/ajustes", grupo: "Control" },
+      { label: "Ubicaciones", href: "/dashboard/inventario/ubicaciones", grupo: "Configuración" },
+      { label: "Catálogo de almacenes", href: "/dashboard/almacenes", grupo: "Configuración" },
+    ],
+  },
+
+  /* ── CRÉDITO Y COBRANZA ─────────────────────────────────────────────── */
+  {
+    id: "credito",
+    nombre: "Crédito y cobranza",
+    desc: "Créditos, cobros y cartera vencida",
+    Icono: CreditCard,
+    color: "#d97706",
+    bg: "#fffbeb",
+    border: "#fde68a",
+    href: "/dashboard/centros/credito",
+    prefixes: ["/dashboard/centros/credito", "/dashboard/creditos"],
+    acciones: [
+      { label: "Consultar cartera", href: "/dashboard/creditos/creditos", principal: true },
+      { label: "Registrar cobranza", href: "/dashboard/creditos/cobranza" },
+      { label: "Cartera vencida", href: "/dashboard/creditos/cartera-vencida" },
+    ],
+    items: [
+      {
+        label: "Créditos",
+        href: "/dashboard/creditos/creditos",
+        grupo: "Cartera",
+      },
+      {
+        label: "Cobranza",
+        href: "/dashboard/creditos/cobranza",
+        grupo: "Cartera",
+      },
+      {
+        label: "Cartera vencida",
+        href: "/dashboard/creditos/cartera-vencida",
+        grupo: "Cartera",
+      },
+      {
+        label: "Estado de cuenta",
+        href: "/dashboard/reportes/estado-cuenta",
+        grupo: "Cartera",
+      },
+      {
+        // Antes del catálogo, los tipos de crédito vivían en el código: agregar
+        // un plazo era desplegar. Esta pantalla es donde se definen ahora.
+        label: "Productos de crédito",
+        href: "/dashboard/creditos/productos",
+        grupo: "Configuración",
+      },
+      {
+        // Qué se le exige a alguien antes de prestarle: identidad, burós,
+        // listas. El motor existía desde antes; esto es donde se configura.
+        label: "Flujo de verificación",
+        href: "/dashboard/creditos/verificacion",
+        grupo: "Configuración",
+      },
+      {
+        // El regreso de la integración: lo que pasó en el core y aquí no está.
+        label: "Avisos del core",
+        href: "/dashboard/creditos/avisos",
+        grupo: "Configuración",
+      },
+      {
+        label: "Cuentas bancarias",
+        href: "/dashboard/creditos/cuentas-bancarias",
+        grupo: "Configuración",
+      },
+    ],
+  },
+
+  /* ── TESORERÍA (NUEVO) ──────────────────────────────────────────────── */
+  {
+    id: "tesoreria",
+    nombre: "Tesorería",
+    desc: "Bancos, conciliación y flujo de efectivo",
+    Icono: Wallet,
+    color: "#0891b2",
+    bg: "#ecfeff",
+    border: "#a5f3fc",
+    href: "/dashboard/centros/tesoreria",
+    prefixes: ["/dashboard/centros/tesoreria", "/dashboard/tesoreria"],
+    items: [
+      {
+        label: "Caja, corte y arqueo",
+        href: "/dashboard/tesoreria/caja",
+        grupo: "Operación",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Movimientos bancarios",
+        href: "/dashboard/tesoreria/movimientos",
+        grupo: "Operación",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Conciliación bancaria",
+        href: "/dashboard/tesoreria/conciliacion",
+        grupo: "Operación",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Flujo de efectivo",
+        href: "/dashboard/tesoreria/flujo",
+        grupo: "Análisis",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Cuentas bancarias",
+        href: "/dashboard/creditos/cuentas-bancarias",
+        grupo: "Configuración",
+      },
+    ],
+  },
+
+  /* ── FINANZAS ───────────────────────────────────────────────────────── */
+  {
+    id: "finanzas",
+    nombre: "Finanzas",
+    desc: "Contabilidad, estados financieros y fiscal",
+    Icono: Calculator,
+    color: "#7c3aed",
+    bg: "#f5f3ff",
+    border: "#ddd6fe",
+    href: "/dashboard/centros/finanzas",
+    prefixes: ["/dashboard/centros/finanzas", "/dashboard/finanzas"],
+    acciones: [
+      { label: "Nueva póliza", href: "/dashboard/finanzas/polizas/nueva", principal: true },
+      { label: "Balanza", href: "/dashboard/finanzas/balanza" },
+      { label: "Cierre mensual", href: "/dashboard/finanzas/cierre-contable" },
+      { label: "Asientos pendientes", href: "/dashboard/finanzas/asientos-pendientes" },
+    ],
+    items: [
+      {
+        label: "Asistente Maestro",
+        href: "/configuracion-financiera",
+        grupo: "Configuración",
+        etiqueta: "Requerido",
+      },
+      {
+        label: "Libro diario",
+        href: "/dashboard/finanzas/polizas",
+        grupo: "Registro",
+      },
+      {
+        label: "Nueva póliza",
+        href: "/dashboard/finanzas/polizas/nueva",
+        grupo: "Registro",
+      },
+      {
+        label: "Saldos iniciales",
+        href: "/dashboard/finanzas/saldos-iniciales",
+        grupo: "Registro",
+      },
+      {
+        label: "Balanza de comprobación",
+        href: "/dashboard/finanzas/balanza",
+        grupo: "Estados financieros",
+      },
+      {
+        label: "Estado de resultados",
+        href: "/dashboard/finanzas/estado-resultados",
+        grupo: "Estados financieros",
+      },
+      {
+        label: "Balance general",
+        href: "/dashboard/finanzas/balance-general",
+        grupo: "Estados financieros",
+      },
+      {
+        label: "Declaración de IVA",
+        href: "/dashboard/finanzas/declaracion-iva",
+        grupo: "Fiscal",
+      },
+      {
+        label: "Clasificación SAT",
+        href: "/dashboard/finanzas/catalogos-sat",
+        grupo: "Fiscal",
+        etiqueta: "Guiado",
+      },
+      {
+        label: "Cierre mensual",
+        href: "/dashboard/finanzas/cierre-contable",
+        grupo: "Fiscal",
+        etiqueta: "Guiado",
+      },
+      {
+        label: "Conciliación inicial",
+        href: "/dashboard/finanzas/conciliacion-inicial",
+        grupo: "Control",
+        etiqueta: "Guiado",
+      },
+      {
+        label: "Asientos pendientes",
+        href: "/dashboard/finanzas/asientos-pendientes",
+        grupo: "Control",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Integridad financiera",
+        href: "/dashboard/finanzas/integridad",
+        grupo: "Control",
+        etiqueta: "Crítico",
+      },
+      {
+        label: "Catálogo de cuentas",
+        href: "/dashboard/finanzas/cuentas-contables",
+        grupo: "Configuración",
+      },
+      {
+        label: "Categorías contables",
+        href: "/dashboard/finanzas/categorias-contables",
+        grupo: "Configuración",
+      },
+      {
+        label: "Impuestos",
+        href: "/dashboard/impuestos",
+        grupo: "Configuración",
+      },
+    ],
+  },
+
+  /* ── ACTIVOS FIJOS (NUEVO) ──────────────────────────────────────────── */
+  {
+    id: "activos",
+    nombre: "Activos fijos",
+    desc: "Altas, depreciación y bajas de activos",
+    Icono: Building,
+    color: "#65a30d",
+    bg: "#f7fee7",
+    border: "#d9f99d",
+    href: "/dashboard/centros/activos",
+    prefixes: ["/dashboard/centros/activos", "/dashboard/activos"],
+    items: [
+      {
+        label: "Registro de activos",
+        href: "/dashboard/activos/registro",
+        grupo: "Operación",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Corrida de depreciación",
+        href: "/dashboard/activos/depreciacion",
+        grupo: "Operación",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Bajas y ventas",
+        href: "/dashboard/activos/bajas",
+        grupo: "Operación",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Cédula de depreciación",
+        href: "/dashboard/activos/cedula",
+        grupo: "Reportes",
+        etiqueta: "Nuevo",
+      },
+    ],
+  },
+
+  /* ── RECURSOS HUMANOS (NUEVO) ───────────────────────────────────────── */
+  {
+    id: "rrhh",
+    nombre: "Recursos humanos",
+    desc: "Empleados, asistencia y nómina",
+    Icono: Users,
+    color: "#db2777",
+    bg: "#fdf2f8",
+    border: "#fbcfe8",
+    href: "/dashboard/centros/rrhh",
+    prefixes: ["/dashboard/centros/rrhh", "/dashboard/rrhh", "/dashboard/departamentos"],
+    acciones: [
+      { label: "Nuevo empleado", href: "/dashboard/rrhh/empleados", principal: true },
+      { label: "Registrar incidencia", href: "/dashboard/rrhh/incidencias" },
+      { label: "Revisar asistencia", href: "/dashboard/rrhh/asistencia" },
+      { label: "Centro integral de nómina", href: "/dashboard/rrhh/centro-nomina" },
+    ],
+    relacionados: [
+      { label: "Puestos", href: "/dashboard/rrhh/puestos" },
+      { label: "Departamentos", href: "/dashboard/departamentos" },
+      { label: "Usuarios", href: "/dashboard/usuarios" },
+    ],
+    items: [
+      {
+        label: "Empleados",
+        href: "/dashboard/rrhh/empleados",
+        grupo: "Plantilla",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Puestos y salarios",
+        href: "/dashboard/rrhh/puestos",
+        grupo: "Plantilla",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Contratos laborales",
+        href: "/dashboard/rrhh/contratos",
+        grupo: "Plantilla",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Bajas y finiquitos",
+        href: "/dashboard/rrhh/bajas",
+        grupo: "Plantilla",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Asistencia",
+        href: "/dashboard/rrhh/asistencia",
+        grupo: "Operación",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Incidencias",
+        href: "/dashboard/rrhh/incidencias",
+        grupo: "Operación",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Vacaciones y saldos",
+        href: "/dashboard/rrhh/vacaciones",
+        grupo: "Operación",
+        etiqueta: "Ampliado",
+      },
+      {
+        label: "Periodos de nómina",
+        href: "/dashboard/rrhh/nomina",
+        grupo: "Nómina",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Centro integral de nómina",
+        href: "/dashboard/rrhh/centro-nomina",
+        grupo: "Nómina",
+        etiqueta: "Ampliado",
+      },
+      {
+        label: "Configuración patronal",
+        href: "/dashboard/rrhh/configuracion-nomina",
+        grupo: "Nómina",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Conceptos y asignaciones",
+        href: "/dashboard/rrhh/conceptos-nomina",
+        grupo: "Nómina",
+        etiqueta: "Ampliado",
+      },
+      {
+        label: "Cuentas bancarias",
+        href: "/dashboard/rrhh/cuentas-bancarias",
+        grupo: "Nómina",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Préstamos y descuentos",
+        href: "/dashboard/rrhh/prestamos",
+        grupo: "Nómina",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Dispersión y pagos",
+        href: "/dashboard/rrhh/pagos",
+        grupo: "Nómina",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Cumplimiento y cierre",
+        href: "/dashboard/rrhh/cumplimiento",
+        grupo: "Nómina",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Recibos",
+        href: "/dashboard/rrhh/recibos",
+        grupo: "Nómina",
+        etiqueta: "Nuevo",
+      },
+      /*
+       * Esta pantalla existía y era alcanzable desde Puestos, Departamentos y
+       * el asistente de empleado, pero no estaba en el mapa de navegación: se
+       * pintaba sin barra de módulo ni breadcrumb y, como el layout valida
+       * `puedeEntrar(permisos, pathname)`, cualquier usuario que no fuera
+       * administrador recibía «sin acceso» al llegar por esos enlaces. El
+       * flujo completo (solicitud → Gerencia → Finanzas) estaba construido y
+       * sólo lo podía ejecutar un administrador.
+       */
+      {
+        label: "Aprobaciones de estructura",
+        href: "/dashboard/rrhh/aprobaciones-estructura",
+        grupo: "Plantilla",
+      },
+      {
+        label: "Departamentos",
+        href: "/dashboard/departamentos",
+        grupo: "Configuración",
+      },
+    ],
+  },
+
+  /* ── CRM (NUEVO) ────────────────────────────────────────────────────── */
+  {
+    id: "crm",
+    nombre: "CRM",
+    desc: "Prospectos, oportunidades y seguimiento",
+    Icono: Briefcase,
+    color: "#ea580c",
+    bg: "#fff7ed",
+    border: "#fed7aa",
+    href: "/dashboard/centros/crm",
+    prefixes: ["/dashboard/centros/crm", "/dashboard/crm"],
+    items: [
+      {
+        label: "Pipeline",
+        href: "/dashboard/crm/pipeline",
+        grupo: "Ventas",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Oportunidades",
+        href: "/dashboard/crm/oportunidades",
+        grupo: "Ventas",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Actividades",
+        href: "/dashboard/crm/actividades",
+        grupo: "Seguimiento",
+        etiqueta: "Nuevo",
+      },
+      { label: "Clientes", href: "/dashboard/clientes", grupo: "Cartera" },
+    ],
+  },
+
+  /* ── REPORTES ───────────────────────────────────────────────────────── */
+  {
+    id: "reportes",
+    nombre: "Reportes",
+    desc: "Indicadores gerenciales y operativos",
+    Icono: BarChart3,
+    color: "#0d9488",
+    bg: "#f0fdfa",
+    border: "#99f6e4",
+    href: "/dashboard/centros/reportes",
+    prefixes: ["/dashboard/centros/reportes", "/dashboard/reportes"],
+    items: [
+      {
+        label: "Panel ejecutivo",
+        href: "/dashboard/reportes/ejecutivo",
+        grupo: "Dirección",
+      },
+      {
+        label: "Ventas",
+        href: "/dashboard/reportes/ventas",
+        grupo: "Operación",
+      },
+      {
+        label: "Top de productos",
+        href: "/dashboard/reportes/top-productos",
+        grupo: "Operación",
+      },
+      {
+        label: "Inventario",
+        href: "/dashboard/reportes/inventario",
+        grupo: "Operación",
+      },
+      {
+        label: "Corte de caja",
+        href: "/dashboard/reportes/corte-caja",
+        grupo: "Operación",
+      },
+      {
+        label: "Estado de cuenta",
+        href: "/dashboard/reportes/estado-cuenta",
+        grupo: "Cartera",
+      },
+      {
+        label: "Índice de reportes",
+        href: "/dashboard/reportes",
+        grupo: "Operación",
+        oculto: true,
+      },
+    ],
+  },
+
+  /* ── CATÁLOGOS ──────────────────────────────────────────────────────── */
+  {
+    id: "catalogos",
+    nombre: "Catálogos",
+    desc: "Clientes, proveedores y datos maestros",
+    Icono: Database,
+    color: "#e11d48",
+    bg: "#fff1f2",
+    border: "#fecdd3",
+    href: "/dashboard/centros/catalogos",
+    prefixes: [
+      "/dashboard/centros/catalogos",
+      "/dashboard/clientes",
+      "/dashboard/proveedores",
+      "/dashboard/impuestos",
+      "/dashboard/listas-precio",
+      "/dashboard/catalogos",
+    ],
+    items: [
+      { label: "Clientes", href: "/dashboard/clientes", grupo: "Terceros" },
+      {
+        label: "Proveedores",
+        href: "/dashboard/proveedores",
+        grupo: "Terceros",
+      },
+      {
+        label: "Listas de precio",
+        href: "/dashboard/listas-precio",
+        grupo: "Comercial",
+      },
+      { label: "Impuestos", href: "/dashboard/impuestos", grupo: "Comercial" },
+      {
+        label: "Formas de pago",
+        href: "/dashboard/catalogos/formas-pago",
+        grupo: "Sistema",
+      },
+      {
+        label: "Bancos",
+        href: "/dashboard/catalogos/bancos",
+        grupo: "Sistema",
+      },
+      {
+        label: "Países",
+        href: "/dashboard/catalogos/paises",
+        grupo: "Sistema",
+      },
+      {
+        label: "Estados",
+        href: "/dashboard/catalogos/estados",
+        grupo: "Sistema",
+      },
+    ],
+  },
+
+  /* ── HOTELERÍA ──────────────────────────────────────────────────────── */
+  {
+    id: "hoteleria",
+    nombre: "Hotelería",
+    desc: "Rack, reservas, housekeeping y recetas",
+    Icono: BedDouble,
+    color: "#0f766e",
+    bg: "#f0fdfa",
+    border: "#99f6e4",
+    href: "/dashboard/centros/hoteleria",
+    prefixes: ["/dashboard/centros/hoteleria", "/dashboard/hoteleria"],
+    items: [
+      {
+        label: "Rack de habitaciones",
+        href: "/dashboard/hoteleria/rack",
+        grupo: "Recepción",
+      },
+      {
+        label: "Reservaciones",
+        href: "/dashboard/hoteleria/reservaciones",
+        grupo: "Recepción",
+      },
+      {
+        label: "Folios y check-out",
+        href: "/dashboard/hoteleria/folios",
+        grupo: "Recepción",
+        etiqueta: "Financiero",
+      },
+      {
+        label: "Auditoría nocturna",
+        href: "/dashboard/hoteleria/auditoria",
+        grupo: "Recepción",
+      },
+      {
+        label: "Housekeeping",
+        href: "/dashboard/hoteleria/housekeeping",
+        grupo: "Operación",
+      },
+      {
+        label: "City Ledger y cobranza",
+        href: "/dashboard/hoteleria/city-ledger",
+        grupo: "Crédito hotelero",
+        etiqueta: "Convenios",
+      },
+      {
+        label: "Aprobaciones de crédito",
+        href: "/dashboard/aprobaciones",
+        grupo: "Crédito hotelero",
+      },
+      {
+        label: "Recetas y escandallos",
+        href: "/dashboard/hoteleria/recetas",
+        grupo: "Alimentos y bebidas",
+      },
+      {
+        label: "Control de costos",
+        href: "/dashboard/hoteleria/costos-recetas",
+        grupo: "Alimentos y bebidas",
+        etiqueta: "Nuevo",
+      },
+      {
+        label: "Configuración",
+        href: "/dashboard/hoteleria/configuracion",
+        grupo: "Configuración",
+      },
+    ],
+  },
+
+  /* ── ADMINISTRACIÓN ─────────────────────────────────────────────────── */
+  {
+    id: "admin",
+    nombre: "Administración",
+    desc: "Usuarios, permisos, auditoría y herramientas",
+    Icono: Settings,
+    color: "#475569",
+    bg: "#f8fafc",
+    border: "#e2e8f0",
+    href: "/dashboard/centros/admin",
+    prefixes: [
+      "/dashboard/centros/admin",
+      "/dashboard/usuarios",
+      "/dashboard/departamentos",
+      "/dashboard/permisos",
+      "/dashboard/configuraciones-aprobacion",
+      "/dashboard/aprobaciones",
+      "/dashboard/auditoria",
+      "/dashboard/rpa",
+    ],
+    items: [
+      { label: "Usuarios", href: "/dashboard/usuarios", grupo: "Accesos" },
+      {
+        label: "Roles y permisos",
+        href: "/dashboard/permisos",
+        grupo: "Accesos",
+      },
+      {
+        label: "Departamentos",
+        href: "/dashboard/departamentos",
+        grupo: "Organización",
+      },
+      {
+        label: "Bandeja de aprobaciones",
+        href: "/dashboard/aprobaciones",
+        grupo: "Organización",
+      },
+      {
+        label: "Flujos de aprobación",
+        href: "/dashboard/configuraciones-aprobacion",
+        grupo: "Organización",
+      },
+      {
+        label: "Bitácora de auditoría",
+        href: "/dashboard/auditoria",
+        grupo: "Control",
+      },
+      {
+        label: "Consulta de CURP (RPA)",
+        href: "/dashboard/rpa/curp",
+        grupo: "Herramientas",
+      },
+    ],
+  },
+];
+
+/* ── Resolución de módulo ────────────────────────────────────────────────── */
+
+/**
+ * Resuelve el módulo por el prefijo MÁS LARGO que coincida, comparando
+ * segmentos completos. Así `/dashboard/productos/atributos` resuelve
+ * Inventario sin ambigüedad, y un prefijo nuevo más específico gana sobre uno
+ * genérico sin depender del orden del array.
+ */
+export function detectarModulo(pathname: string): ModuleConfig | null {
+  if (!pathname || pathname === "/dashboard" || pathname === "/dashboard/")
+    return null;
+
+  let ganador: ModuleConfig | null = null;
+  let mejorLargo = -1;
+
+  for (const m of MODULOS) {
+    for (const p of m.prefixes) {
+      const coincide = pathname === p || pathname.startsWith(p + "/");
+      if (coincide && p.length > mejorLargo) {
+        mejorLargo = p.length;
+        ganador = m;
+      }
+    }
+  }
+  return ganador;
+}
+
+/** Ítem activo dentro del módulo (para resaltar y para el breadcrumb). */
+export function detectarItem(
+  modulo: ModuleConfig | null,
+  pathname: string,
+): ModuleItem | null {
+  if (!modulo) return null;
+  const candidatos = modulo.items.filter(
+    (i) => pathname === i.href || pathname.startsWith(i.href + "/"),
+  );
+  if (!candidatos.length) return null;
+  return candidatos.reduce((a, b) => (b.href.length > a.href.length ? b : a));
+}
+
+/** Índice plano de todas las pantallas: alimenta la paleta de comandos. */
+export interface EntradaBusqueda {
+  label: string;
+  href: string;
+  modulo: string;
+  color: string;
+  grupo?: string;
+}
+
+export const INDICE_PANTALLAS: EntradaBusqueda[] = MODULOS.flatMap((m) =>
+  m.items
+    .filter((i) => !i.oculto)
+    .map((i) => ({
+      label: i.label,
+      href: i.href,
+      modulo: m.nombre,
+      color: m.color,
+      grupo: i.grupo,
+    })),
+).filter((e, i, arr) => arr.findIndex((x) => x.href === e.href) === i);
+
+/** Agrupa los ítems visibles de un módulo respetando el orden de aparición. */
+export function agruparItems(
+  items: ModuleItem[],
+): Array<[string, ModuleItem[]]> {
+  const mapa = new Map<string, ModuleItem[]>();
+  for (const it of items) {
+    if (it.oculto) continue;
+    const g = it.grupo ?? "General";
+    if (!mapa.has(g)) mapa.set(g, []);
+    mapa.get(g)!.push(it);
+  }
+  return Array.from(mapa.entries());
+}

@@ -1,0 +1,4 @@
+SyncroERP v14.2 - resolución de imports relativos
+Archivos analizados: 633
+Imports relativos revisados: 1449
+Imports faltantes: 0

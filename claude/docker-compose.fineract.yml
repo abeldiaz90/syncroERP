@@ -1,0 +1,91 @@
+# ============================================================================
+# SyncroERP · Apache Fineract
+# ----------------------------------------------------------------------------
+# Se levanta junto a docker-compose.postgres.yml:
+#
+#   docker compose -f docker-compose.postgres.yml -f docker-compose.fineract.yml up -d
+#
+# Fineract usa su PROPIA base de datos, no la del ERP. Compartir esquema entre
+# los dos sería la forma más rápida de que una migración de Fineract rompa la
+# contabilidad del ERP. Se comunican por API, no por tablas.
+#
+# Autenticación: el mismo Keycloak que autentica al ERP. El ERP entra como
+# cliente de servicio (client_credentials), no suplantando usuarios.
+# ============================================================================
+
+services:
+  fineract-postgres:
+    image: postgres:16-alpine
+    container_name: fineract-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${FINERACT_DB_USER:-fineract}
+      POSTGRES_PASSWORD: ${FINERACT_DB_PASSWORD:?define FINERACT_DB_PASSWORD}
+      # Fineract crea el resto de bases al arrancar; ésta es la de arranque.
+      POSTGRES_DB: fineract_tenants
+    ports:
+      - "127.0.0.1:55433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - fineract_postgres_data:/var/lib/postgresql/data
+
+  fineract:
+    # Fijar la versión exacta: Fineract cambia el esquema entre menores y el
+    # arranque migra la base sin preguntar.
+    image: apache/fineract:1.10.1
+    container_name: fineract
+    restart: unless-stopped
+    depends_on:
+      fineract-postgres:
+        condition: service_healthy
+    environment:
+      # ── Base de datos ──────────────────────────────────────────────────────
+      FINERACT_HIKARI_DRIVER_SOURCE_CLASS_NAME: org.postgresql.Driver
+      FINERACT_HIKARI_JDBC_URL: jdbc:postgresql://fineract-postgres:5432/fineract_tenants
+      FINERACT_HIKARI_USERNAME: ${FINERACT_DB_USER:-fineract}
+      FINERACT_HIKARI_PASSWORD: ${FINERACT_DB_PASSWORD}
+      FINERACT_DEFAULT_TENANTDB_HOSTNAME: fineract-postgres
+      FINERACT_DEFAULT_TENANTDB_PORT: 5432
+      FINERACT_DEFAULT_TENANTDB_NAME: fineract_default
+      FINERACT_DEFAULT_TENANTDB_UID: ${FINERACT_DB_USER:-fineract}
+      FINERACT_DEFAULT_TENANTDB_PWD: ${FINERACT_DB_PASSWORD}
+      FINERACT_DEFAULT_TENANTDB_CONN_PARAMS: ""
+      # Zona horaria del inquilino. Determina el corte del día para la mora:
+      # con UTC, un pago de las 19:00 en México se contabiliza al día siguiente.
+      FINERACT_DEFAULT_TENANTDB_TIMEZONE: America/Mexico_City
+
+      # ── Servidor ───────────────────────────────────────────────────────────
+      FINERACT_SERVER_PORT: 8080
+      FINERACT_SERVER_SSL_ENABLED: "false"
+      FINERACT_SERVER_SERVLET_CONTEXT_PATH: /fineract-provider/api
+
+      # ── Autenticación por OAuth2 contra el Keycloak del ERP ────────────────
+      # Con esto activo, Fineract valida el mismo tipo de token RS256 que ya
+      # valida el ERP. Deja FINERACT_SECURITY_BASICAUTH_ENABLED en true sólo
+      # mientras configuras el realm; en producción debe quedar en false.
+      SPRING_PROFILES_ACTIVE: ${FINERACT_SPRING_PROFILES:-basicauth}
+      FINERACT_SECURITY_BASICAUTH_ENABLED: ${FINERACT_BASICAUTH_ENABLED:-true}
+      FINERACT_SECURITY_OAUTH_ENABLED: ${FINERACT_OAUTH_ENABLED:-false}
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${KEYCLOAK_ISSUER_URL:-}
+
+      # Sin esto, el primer arranque no crea el esquema.
+      FINERACT_MODE_READ_ENABLED: "true"
+      FINERACT_MODE_WRITE_ENABLED: "true"
+      FINERACT_MODE_BATCH_ENABLED: "true"
+      JAVA_TOOL_OPTIONS: "-Xmx1G -Duser.timezone=America/Mexico_City"
+    ports:
+      - "127.0.0.1:8443:8080"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl -fsS http://localhost:8080/fineract-provider/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 120s
+
+volumes:
+  fineract_postgres_data:

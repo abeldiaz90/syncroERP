@@ -1,0 +1,103 @@
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsEmail,
+  IsIn,
+  IsNumber,
+  IsBoolean,
+  Min,
+} from 'class-validator';
+import { IsSqlServerGuid } from '../common/validators/sql-server-guid.validator';
+
+export class CrearClienteDto {
+  @IsString()
+  @IsNotEmpty()
+  nombre: string;
+
+  @IsOptional()
+  @IsIn(['FISICA', 'MORAL'])
+  tipoPersona?: 'FISICA' | 'MORAL'; // ← ahora es unión, no string
+
+  @IsOptional()
+  @IsString()
+  rfc?: string;
+
+  @IsOptional()
+  @IsString()
+  curp?: string;
+
+  @IsOptional()
+  @IsString()
+  razonSocial?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  telefono?: string;
+
+  @IsOptional()
+  @IsString()
+  direccion?: string;
+
+  @IsOptional()
+  @IsString()
+  ciudad?: string;
+
+  @IsOptional()
+  @IsString()
+  estado?: string;
+
+  @IsOptional()
+  @IsString()
+  codigoPostal?: string;
+
+  @IsOptional()
+  @IsString()
+  pais?: string;
+
+  @IsOptional()
+  @IsSqlServerGuid()
+  paisId?: string;
+
+  @IsOptional()
+  @IsSqlServerGuid()
+  estadoId?: string;
+
+  @IsOptional()
+  @IsString()
+  contactoNombre?: string;
+
+  @IsOptional()
+  @IsString()
+  contactoTelefono?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  limiteCredito?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  diasCredito?: number;
+
+  @IsOptional()
+  @IsIn(['EMPRESA', 'AGENCIA'])
+  clasificacionHotelera?: 'EMPRESA' | 'AGENCIA' | null;
+
+  @IsOptional()
+  @IsIn(['BAJO', 'MEDIO', 'ALTO'])
+  nivelRiesgo?: 'BAJO' | 'MEDIO' | 'ALTO';
+
+  @IsOptional()
+  @IsBoolean()
+  bloquearCreditoConSaldoVencido?: boolean;
+
+  @IsOptional()
+  @IsString()
+  notas?: string;
+}

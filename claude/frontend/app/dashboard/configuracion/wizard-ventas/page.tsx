@@ -1,0 +1,7 @@
+import WizardPreparacion from '../_components/WizardPreparacion';
+export default function Page(){return <WizardPreparacion titulo='Preparar ventas' descripcion='Configura el circuito mínimo y realiza una primera venta controlada.' modulo='ventas' operacionRuta='/dashboard/ventas/pos' pasos={[{codigo:'productos',titulo:'Crear productos',descripcion:'Registra productos activos con SKU, unidad, categoría, impuesto y precio.',ruta:'/dashboard/productos',requisito:'VEN_PRODUCTOS',opcional:false},
+{codigo:'categorias',titulo:'Definir categorías',descripcion:'Organiza el catálogo antes de cargar grandes volúmenes.',ruta:'/dashboard/categorias',requisito:'VEN_CATEGORIAS',opcional:false},
+{codigo:'unidades',titulo:'Definir unidades',descripcion:'Configura piezas, cajas, servicios y demás unidades operativas.',ruta:'/dashboard/unidades-medida',requisito:'VEN_UNIDADES',opcional:false},
+{codigo:'pagos',titulo:'Configurar formas de pago',descripcion:'Habilita efectivo, transferencia, tarjeta y crédito según tu operación.',ruta:'/dashboard/catalogos/formas-pago',requisito:'VEN_FORMAS_PAGO',opcional:false},
+{codigo:'precios',titulo:'Activar lista de precios',descripcion:'Define la lista que usará el punto de venta.',ruta:'/dashboard/listas-precio',requisito:'VEN_LISTA_PRECIOS',opcional:false},
+{codigo:'clientes',titulo:'Registrar clientes',descripcion:'Agrega clientes o valida el cliente público general.',ruta:'/dashboard/clientes',requisito:'VEN_CLIENTES',opcional:true}]}/>}

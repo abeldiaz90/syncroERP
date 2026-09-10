@@ -1,0 +1,612 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Plus,
+  Save,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
+import { api, ApiError } from "@/lib/api";
+import {
+  Boton,
+  Campo,
+  Cargando,
+  Distintivo,
+  EncabezadoPantalla,
+  Panel,
+  Seleccion,
+  useAvisos,
+} from "@/components/ui";
+
+type Proceso = {
+  clave: string;
+  nombre: string;
+  modulo: string;
+  estadoIntegracion: "OPERATIVO" | "PREPARADO";
+};
+type Departamento = { id: string; nombre: string; activo?: boolean };
+type Usuario = {
+  id: string;
+  nombreCompleto: string;
+  rol?: string;
+  activo?: boolean;
+};
+type Nivel = {
+  id: string;
+  usuarioId?: string;
+  rolAprobador?: string;
+  orden: number;
+  montoDesde?: string;
+  montoHasta?: string;
+  tiempoLimiteHoras: string;
+  obligatorio: boolean;
+  permiteAutoaprobacion: boolean;
+};
+type ConfigGuardada = Nivel & {
+  proceso: string;
+  departamentoId?: string;
+  usuario?: Usuario;
+  departamento?: Departamento;
+};
+
+const PROCESOS_FINANCIEROS = new Set(["CREDITO_CLIENTE", "HOTEL_CONVENIO"]);
+
+const rolesBase: Array<[string, string]> = [
+  ["gerencia", "Gerencia"],
+  ["direccion", "Dirección"],
+  ["finanzas", "Finanzas"],
+  ["credito", "Crédito"],
+  ["cobranza", "Cobranza"],
+  ["hoteleria", "Hotelería"],
+  ["rrhh", "Recursos Humanos"],
+  ["tesoreria", "Tesorería"],
+  ["comprador", "Compras"],
+  ["admin", "Administrador"],
+];
+
+const nuevoNivel = (orden: number): Nivel => ({
+  id: crypto.randomUUID(),
+  orden,
+  rolAprobador: "",
+  usuarioId: "",
+  montoDesde: "",
+  montoHasta: "",
+  tiempoLimiteHoras: "24",
+  obligatorio: true,
+  permiteAutoaprobacion: false,
+});
+
+export default function ConfiguracionAprobacionesPage() {
+  const { avisar } = useAvisos();
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  const [procesos, setProcesos] = useState<Proceso[]>([]);
+  const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [matriz, setMatriz] = useState<ConfigGuardada[]>([]);
+  const [proceso, setProceso] = useState("NOMINA");
+  const [departamentoId, setDepartamentoId] = useState("");
+  const [niveles, setNiveles] = useState<Nivel[]>([nuevoNivel(1)]);
+
+  async function cargar() {
+    setCargando(true);
+    try {
+      const [procesosApi, departamentosApi, usuariosApi, matrizApi] =
+        await Promise.all([
+          api.get<Proceso[]>("/configuraciones-aprobacion/catalogo/procesos"),
+          api.get<Departamento[]>("/departamentos"),
+          api.get<Usuario[]>("/usuarios"),
+          api.get<ConfigGuardada[]>(
+            "/configuraciones-aprobacion/matriz/todos",
+          ),
+        ]);
+      setProcesos(procesosApi ?? []);
+      setDepartamentos(
+        (departamentosApi ?? []).filter((item) => item.activo !== false),
+      );
+      setUsuarios((usuariosApi ?? []).filter((item) => item.activo !== false));
+      setMatriz(matrizApi ?? []);
+    } catch (error) {
+      avisar(
+        error instanceof ApiError
+          ? error.mensajeParaPantalla()
+          : "No se pudo cargar la matriz.",
+        "error",
+      );
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  useEffect(() => {
+    void cargar();
+  }, []);
+
+  const requiereArea = proceso === "REQUISICION";
+  const esFinancieroCentral = PROCESOS_FINANCIEROS.has(proceso);
+  const procesoActual = procesos.find((item) => item.clave === proceso);
+  const procesoOperativo = procesoActual?.estadoIntegracion === "OPERATIVO";
+
+  useEffect(() => {
+    const existentes = matriz.filter(
+      (item) =>
+        item.proceso === proceso &&
+        (item.departamentoId ?? "") ===
+          (requiereArea ? departamentoId : ""),
+    );
+    setNiveles(
+      existentes.length
+        ? existentes.map((item, indice) => ({
+            ...item,
+            id: item.id || crypto.randomUUID(),
+            orden: indice + 1,
+            montoDesde:
+              item.montoDesde == null ? "" : String(item.montoDesde),
+            montoHasta:
+              item.montoHasta == null ? "" : String(item.montoHasta),
+            tiempoLimiteHoras: String(item.tiempoLimiteHoras || 24),
+            obligatorio: esFinancieroCentral ? true : item.obligatorio,
+            permiteAutoaprobacion: esFinancieroCentral
+              ? false
+              : item.permiteAutoaprobacion,
+          }))
+        : [nuevoNivel(1)],
+    );
+  }, [proceso, departamentoId, matriz, requiereArea, esFinancieroCentral]);
+
+  const configurados = useMemo(
+    () => new Set(matriz.map((item) => item.proceso)),
+    [matriz],
+  );
+  const roles = useMemo(() => {
+    const opciones = new Map<string, string>(rolesBase);
+    for (const usuario of usuarios) {
+      const original = String(usuario.rol ?? "").trim();
+      if (!original) continue;
+      const clave = original.toLowerCase();
+      if (!opciones.has(clave)) opciones.set(clave, original);
+    }
+    return [...opciones.entries()].sort((a, b) =>
+      a[1].localeCompare(b[1], "es", { sensitivity: "base" }),
+    );
+  }, [usuarios]);
+
+  function cambiar(id: string, datos: Partial<Nivel>) {
+    setNiveles((actuales) =>
+      actuales.map((item) =>
+        item.id === id ? { ...item, ...datos } : item,
+      ),
+    );
+  }
+
+  function mover(indice: number, delta: number) {
+    const destino = indice + delta;
+    if (destino < 0 || destino >= niveles.length) return;
+    const copia = [...niveles];
+    [copia[indice], copia[destino]] = [copia[destino], copia[indice]];
+    setNiveles(copia.map((item, i) => ({ ...item, orden: i + 1 })));
+  }
+
+  function validarEscalaFinanciera() {
+    let topeAnterior = -0.01;
+    for (let indice = 0; indice < niveles.length; indice += 1) {
+      const nivel = niveles[indice];
+      const ultimo = indice === niveles.length - 1;
+      if (ultimo && nivel.montoHasta !== "") {
+        return "El último nivel debe quedar sin tope para cubrir cualquier importe.";
+      }
+      if (!ultimo && nivel.montoHasta === "") {
+        return `Define el tope de autoridad del nivel ${indice + 1}.`;
+      }
+      if (nivel.montoHasta !== "") {
+        const tope = Number(nivel.montoHasta);
+        if (!Number.isFinite(tope) || tope < 0) {
+          return `El tope del nivel ${indice + 1} no es válido.`;
+        }
+        if (tope <= topeAnterior) {
+          return `El tope del nivel ${indice + 1} debe superar al nivel anterior.`;
+        }
+        topeAnterior = tope;
+      }
+    }
+    return null;
+  }
+
+  async function guardar() {
+    if (!procesoOperativo) {
+      return avisar(
+        "Este proceso todavía no está conectado a una operación real y no puede marcarse como configurado.",
+        "error",
+      );
+    }
+    if (requiereArea && !departamentoId) {
+      return avisar("Selecciona el área solicitante.", "error");
+    }
+    if (
+      niveles.some(
+        (nivel) => Boolean(nivel.usuarioId) === Boolean(nivel.rolAprobador),
+      )
+    ) {
+      return avisar(
+        "Cada nivel debe tener un usuario o un rol, no ambos.",
+        "error",
+      );
+    }
+    if (["ALTA_AREA", "ALTA_PUESTO"].includes(proceso) && niveles.length !== 2) {
+      return avisar("Este proceso requiere exactamente dos niveles.", "error");
+    }
+    if (esFinancieroCentral) {
+      const errorEscala = validarEscalaFinanciera();
+      if (errorEscala) return avisar(errorEscala, "error");
+    }
+
+    setGuardando(true);
+    try {
+      let desdeCalculado = 0;
+      const aprobadores = niveles.map((nivel, indice) => {
+        const montoHasta =
+          nivel.montoHasta === "" ? undefined : Number(nivel.montoHasta);
+        const montoDesde = esFinancieroCentral
+          ? desdeCalculado
+          : nivel.montoDesde === ""
+            ? undefined
+            : Number(nivel.montoDesde);
+        if (esFinancieroCentral && montoHasta != null) {
+          desdeCalculado = Math.round((montoHasta + 0.01) * 100) / 100;
+        }
+        return {
+          usuarioId: nivel.usuarioId || undefined,
+          rolAprobador: nivel.rolAprobador || undefined,
+          orden: indice + 1,
+          montoDesde,
+          montoHasta,
+          tiempoLimiteHoras: Number(nivel.tiempoLimiteHoras || 24),
+          obligatorio: esFinancieroCentral ? true : nivel.obligatorio,
+          permiteAutoaprobacion: esFinancieroCentral
+            ? false
+            : nivel.permiteAutoaprobacion,
+        };
+      });
+
+      await api.post("/configuraciones-aprobacion", {
+        proceso,
+        departamentoId: requiereArea ? departamentoId : undefined,
+        aprobadores,
+      });
+      avisar("Matriz de aprobación guardada.", "exito");
+      await cargar();
+    } catch (error) {
+      avisar(
+        error instanceof ApiError
+          ? error.mensajeParaPantalla()
+          : "No se pudo guardar.",
+        "error",
+      );
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  if (cargando) return <Cargando />;
+
+  return (
+    <div className="mx-auto max-w-[1450px] p-6">
+      <EncabezadoPantalla
+        titulo="Gobierno de aprobaciones"
+        descripcion="Crédito de clientes y convenios hoteleros utilizan una bandeja central y una escala acumulativa de autoridad. Los procesos preparados no se presentan como operativos."
+        acciones={
+          <Boton
+            variante="primario"
+            icono={<Save className="h-4 w-4" />}
+            cargando={guardando}
+            disabled={!procesoOperativo}
+            onClick={() => void guardar()}
+          >
+            Guardar flujo
+          </Boton>
+        }
+      />
+
+      <div className="grid gap-5 xl:grid-cols-[330px_1fr]">
+        <Panel>
+          <p className="eyebrow mb-3">Procesos controlados</p>
+          <div className="space-y-2">
+            {procesos.map((item) => (
+              <button
+                key={item.clave}
+                onClick={() => {
+                  setProceso(item.clave);
+                  setDepartamentoId("");
+                }}
+                className={`w-full rounded-xl border p-3 text-left transition ${
+                  proceso === item.clave
+                    ? "border-indigo-400 bg-indigo-50"
+                    : "border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-slate-900">
+                    {item.nombre}
+                  </span>
+                  {item.estadoIntegracion === "PREPARADO" ? (
+                    <Distintivo tono="neutro">No conectado</Distintivo>
+                  ) : configurados.has(item.clave) ? (
+                    <Distintivo tono="exito">Operativo</Distintivo>
+                  ) : (
+                    <Distintivo tono="alerta">Falta configurar</Distintivo>
+                  )}
+                </div>
+                <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                  {item.modulo}
+                </p>
+              </button>
+            ))}
+          </div>
+        </Panel>
+
+        <div className="space-y-5">
+          <Panel>
+            <div className="flex flex-wrap items-start gap-4">
+              <div className="grid h-11 w-11 place-items-center rounded-xl bg-indigo-600 text-white">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h2 className="font-black text-slate-950">
+                  {procesoActual?.nombre}
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Cada decisión conserva solicitante, aprobador, versión del
+                  documento, fecha, comentario y ciclo.
+                </p>
+                {esFinancieroCentral && (
+                  <p className="mt-2 rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800">
+                    Escala acumulativa: un importe debe pasar por todos los
+                    niveles anteriores hasta llegar al responsable con autoridad
+                    suficiente. Todos los niveles son obligatorios y nadie puede
+                    autoaprobarse.
+                  </p>
+                )}
+                {!procesoOperativo && (
+                  <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                    El proceso aún no bloquea ni dirige operaciones reales. Se
+                    muestra para planeación, pero el backend impedirá guardar una
+                    matriz que produzca una falsa sensación de control.
+                  </p>
+                )}
+              </div>
+              {requiereArea && (
+                <div className="w-72">
+                  <Campo etiqueta="Área solicitante" requerido>
+                    <Seleccion
+                      value={departamentoId}
+                      onChange={(event) => setDepartamentoId(event.target.value)}
+                    >
+                      <option value="">Seleccionar…</option>
+                      {departamentos.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.nombre}
+                        </option>
+                      ))}
+                    </Seleccion>
+                  </Campo>
+                </div>
+              )}
+            </div>
+          </Panel>
+
+          <div className="space-y-3">
+            {niveles.map((nivel, indice) => {
+              const ultimo = indice === niveles.length - 1;
+              return (
+                <Panel key={nivel.id}>
+                  <div className="mb-4 flex items-center gap-3">
+                    <span className="grid h-9 w-9 place-items-center rounded-full bg-indigo-100 text-sm font-black text-indigo-700">
+                      {indice + 1}
+                    </span>
+                    <div>
+                      <p className="font-bold text-slate-900">
+                        Nivel {indice + 1}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {esFinancieroCentral
+                          ? ultimo
+                            ? "Autoridad final sin tope"
+                            : "Aprobación acumulativa hasta el importe indicado"
+                          : "Responsable, rango y plazo de atención"}
+                      </p>
+                    </div>
+                    <div className="ml-auto flex gap-1">
+                      <button
+                        onClick={() => mover(indice, -1)}
+                        className="rounded-lg p-2 hover:bg-slate-100"
+                        aria-label="Subir nivel"
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => mover(indice, 1)}
+                        className="rounded-lg p-2 hover:bg-slate-100"
+                        aria-label="Bajar nivel"
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </button>
+                      <button
+                        disabled={niveles.length === 1}
+                        onClick={() =>
+                          setNiveles(
+                            niveles
+                              .filter((item) => item.id !== nivel.id)
+                              .map((item, i) => ({ ...item, orden: i + 1 })),
+                          )
+                        }
+                        className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-30"
+                        aria-label="Eliminar nivel"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <Campo etiqueta="Usuario específico">
+                      <Seleccion
+                        value={nivel.usuarioId || ""}
+                        onChange={(event) =>
+                          cambiar(nivel.id, {
+                            usuarioId: event.target.value,
+                            rolAprobador: "",
+                          })
+                        }
+                      >
+                        <option value="">No asignar por usuario</option>
+                        {usuarios.map((usuario) => (
+                          <option key={usuario.id} value={usuario.id}>
+                            {usuario.nombreCompleto} · {usuario.rol}
+                          </option>
+                        ))}
+                      </Seleccion>
+                    </Campo>
+
+                    <Campo etiqueta="O asignar por rol">
+                      <Seleccion
+                        value={nivel.rolAprobador || ""}
+                        onChange={(event) =>
+                          cambiar(nivel.id, {
+                            rolAprobador: event.target.value,
+                            usuarioId: "",
+                          })
+                        }
+                      >
+                        <option value="">No asignar por rol</option>
+                        {roles.map(([valor, etiqueta]) => (
+                          <option key={valor} value={valor}>
+                            {etiqueta}
+                          </option>
+                        ))}
+                      </Seleccion>
+                    </Campo>
+
+                    {esFinancieroCentral ? (
+                      <Campo
+                        etiqueta="Autoridad hasta"
+                        ayuda={ultimo ? "Último nivel: sin límite" : undefined}
+                      >
+                        <input
+                          className="campo"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          disabled={ultimo}
+                          value={ultimo ? "" : nivel.montoHasta}
+                          placeholder={ultimo ? "Sin límite" : "Ej. 50000"}
+                          onChange={(event) =>
+                            cambiar(nivel.id, {
+                              montoHasta: event.target.value,
+                            })
+                          }
+                        />
+                      </Campo>
+                    ) : (
+                      <>
+                        <Campo etiqueta="Aplica desde">
+                          <input
+                            className="campo"
+                            type="number"
+                            min="0"
+                            value={nivel.montoDesde}
+                            onChange={(event) =>
+                              cambiar(nivel.id, {
+                                montoDesde: event.target.value,
+                              })
+                            }
+                          />
+                        </Campo>
+                        <Campo etiqueta="Aplica hasta">
+                          <input
+                            className="campo"
+                            type="number"
+                            min="0"
+                            value={nivel.montoHasta}
+                            onChange={(event) =>
+                              cambiar(nivel.id, {
+                                montoHasta: event.target.value,
+                              })
+                            }
+                          />
+                        </Campo>
+                      </>
+                    )}
+
+                    <Campo etiqueta="SLA de atención (horas)">
+                      <input
+                        className="campo"
+                        type="number"
+                        min="1"
+                        max="720"
+                        value={nivel.tiempoLimiteHoras}
+                        onChange={(event) =>
+                          cambiar(nivel.id, {
+                            tiempoLimiteHoras: event.target.value,
+                          })
+                        }
+                      />
+                    </Campo>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-5 border-t pt-4 text-xs font-semibold text-slate-600">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={esFinancieroCentral || nivel.obligatorio}
+                        disabled={esFinancieroCentral}
+                        onChange={(event) =>
+                          cambiar(nivel.id, {
+                            obligatorio: event.target.checked,
+                          })
+                        }
+                      />
+                      Nivel obligatorio
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={
+                          esFinancieroCentral
+                            ? false
+                            : nivel.permiteAutoaprobacion
+                        }
+                        disabled={esFinancieroCentral}
+                        onChange={(event) =>
+                          cambiar(nivel.id, {
+                            permiteAutoaprobacion: event.target.checked,
+                          })
+                        }
+                      />
+                      Permitir autoaprobación
+                    </label>
+                  </div>
+                </Panel>
+              );
+            })}
+          </div>
+
+          <Boton
+            icono={<Plus className="h-4 w-4" />}
+            disabled={!procesoOperativo}
+            onClick={() =>
+              setNiveles((actuales) => [
+                ...actuales,
+                nuevoNivel(actuales.length + 1),
+              ])
+            }
+          >
+            Agregar nivel
+          </Boton>
+        </div>
+      </div>
+    </div>
+  );
+}

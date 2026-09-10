@@ -1,0 +1,7 @@
+SyncroERP Backend v14.2.1
+Archivo corregido: src/hoteleria/services/city-ledger.service.ts
+Error objetivo: TS2363 en cálculo limite - saldoGlobal
+Estado: corregido mediante tipos explícitos Map<string, number>
+Archivos TypeScript analizados: 453
+Errores sintácticos: 0
+Compilación integral: no ejecutada por fallo 404 del registro interno al descargar zod@3.25.76

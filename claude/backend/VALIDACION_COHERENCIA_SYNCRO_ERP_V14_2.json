@@ -1,0 +1,56 @@
+{
+  "version": "v14.2-coherencia",
+  "fecha": "2026-08-03",
+  "alcance": "Crédito de cliente, aprobaciones centrales, convenios hoteleros, City Ledger, cobranza, Tesorería/Caja y conexión contable",
+  "typescript_tsx": {
+    "archivos": 633,
+    "errores_sintaxis": 0
+  },
+  "imports_relativos": {
+    "total": 1449,
+    "faltantes": 0
+  },
+  "rutas_menu_next": {
+    "total": 123,
+    "faltantes": 0
+  },
+  "bypasses_aprobacion_obsoletos": 0,
+  "dialogos_nativos_frontend": 0,
+  "chart_remoto_cdn": 0,
+  "pruebas_backend_detectadas": 46,
+  "pruebas_frontend_detectadas": 0,
+  "instalacion_dependencias": {
+    "backend": "bloqueada_por_404_del_registro_interno_para_zod",
+    "frontend": "bloqueada_por_404_del_registro_interno_para_zod-validation-error",
+    "build_completo_ejecutado": false,
+    "jest_ejecutado": false
+  },
+  "migraciones_consolidacion": [
+    "1785765600000-AprobacionesCreditoHotelV142.ts",
+    "1785769200000-CoherenciaCreditoAprobacionesV143.ts",
+    "1785772800000-GobiernoCreditoFinanzasV144.ts",
+    "1785776400000-CicloVidaConveniosV145.ts",
+    "1785780000000-SlaSecuencialAprobacionesV146.ts",
+    "1785783600000-SolicitudCreditoMakerCheckerV147.ts",
+    "1785787200000-HistorialFinancieroConveniosV148.ts"
+  ],
+  "invariantes_revisadas": [
+    "El convenio no captura una segunda linea ni plazo de credito.",
+    "Una propuesta pendiente no reemplaza la linea autorizada.",
+    "El rechazo conserva las condiciones vigentes.",
+    "Los procesos CREDITO_CLIENTE y HOTEL_CONVENIO se resuelven en la bandeja central.",
+    "El solicitante queda excluido y cada nivel tiene una persona distinta asignada.",
+    "Las aprobaciones son secuenciales y el SLA inicia por nivel.",
+    "Cambiar la version maestra suspende o cancela convenios obsoletos.",
+    "Ventas y hoteleria comparten exposicion y candado de credito global.",
+    "Cada cuenta City Ledger conserva snapshot de convenio y linea aplicada.",
+    "Cobranza City Ledger conecta Tesoreria, Caja y outbox contable."
+  ],
+  "pendientes_antes_de_produccion": [
+    "npm ci, build y Jest en un entorno con registro funcional",
+    "migraciones y verificador en SQL Server staging",
+    "pruebas de concurrencia reales",
+    "conciliacion contable y UAT de Caja/City Ledger",
+    "validacion normativa final por Contabilidad y Legal"
+  ]
+}

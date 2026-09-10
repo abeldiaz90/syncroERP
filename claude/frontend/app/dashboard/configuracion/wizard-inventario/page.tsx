@@ -1,0 +1,6 @@
+import WizardPreparacion from '../_components/WizardPreparacion';
+export default function Page(){return <WizardPreparacion titulo='Preparar inventario' descripcion='Deja almacenes, ubicaciones y existencias listos para operar sin saldos ambiguos.' modulo='inventario' operacionRuta='/dashboard/almacenes' pasos={[{codigo:'almacen',titulo:'Crear almacén operativo',descripcion:'Define al menos un almacén activo y sus responsables.',ruta:'/dashboard/almacenes',requisito:'INV_ALMACEN',opcional:false},
+{codigo:'productos',titulo:'Productos inventariables',descripcion:'Verifica qué productos controlan existencias, lotes o series.',ruta:'/dashboard/productos',requisito:'INV_PRODUCTOS',opcional:false},
+{codigo:'ubicaciones',titulo:'Crear ubicaciones internas',descripcion:'Configura recepción, cuarentena, racks y embarque.',ruta:'/dashboard/inventario/ubicaciones',requisito:'INV_UBICACIONES',opcional:true},
+{codigo:'stock',titulo:'Cargar existencia inicial',descripcion:'Captura o importa el saldo físico con costo y lote.',ruta:'/dashboard/inventario/stock-inicial',requisito:undefined,opcional:false},
+{codigo:'conteo',titulo:'Realizar conteo de apertura',descripcion:'Confirma que la existencia del sistema coincide con la física.',ruta:'/dashboard/inventario/conteos',requisito:undefined,opcional:true}]}/>}

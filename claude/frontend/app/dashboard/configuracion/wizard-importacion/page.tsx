@@ -1,0 +1,5 @@
+import WizardPreparacion from '../_components/WizardPreparacion';
+export default function Page(){return <WizardPreparacion titulo='Importar datos iniciales' descripcion='Carga catálogos y saldos en el orden correcto, validando antes de operar.' modulo='inventario' operacionRuta='/dashboard/inventario/importar' pasos={[{codigo:'catalogos',titulo:'Preparar catálogos base',descripcion:'Configura categorías, unidades, impuestos, almacenes y proveedores.',ruta:'/dashboard/configuracion/centro',requisito:undefined,opcional:false},
+{codigo:'productos',titulo:'Importar productos',descripcion:'Usa la plantilla y corrige errores antes de confirmar.',ruta:'/dashboard/inventario/importar',requisito:undefined,opcional:false},
+{codigo:'stock',titulo:'Importar existencias',descripcion:'Carga almacén, lote, costo y cantidad inicial.',ruta:'/dashboard/inventario/stock-inicial',requisito:undefined,opcional:false},
+{codigo:'validar',titulo:'Ejecutar verificación de integridad',descripcion:'Revisa duplicados, negativos y documentos huérfanos.',ruta:'/dashboard/configuracion/integridad',requisito:undefined,opcional:false}]}/>}

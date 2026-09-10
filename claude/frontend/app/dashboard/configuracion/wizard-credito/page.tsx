@@ -1,0 +1,5 @@
+import WizardPreparacion from '../_components/WizardPreparacion';
+export default function Page(){return <WizardPreparacion titulo='Preparar crédito y cobranza' descripcion='Configura clientes, límites, vencimientos y cuentas para cobrar sin exceder exposición.' modulo='credito' operacionRuta='/dashboard/creditos/creditos' pasos={[{codigo:'clientes',titulo:'Registrar clientes',descripcion:'Completa datos fiscales y comerciales de los clientes sujetos a crédito.',ruta:'/dashboard/clientes',requisito:'CRE_CLIENTES',opcional:false},
+{codigo:'politica',titulo:'Definir políticas de crédito',descripcion:'Asigna límite, plazo, tolerancia y bloqueo por vencimiento.',ruta:'/dashboard/clientes',requisito:undefined,opcional:false},
+{codigo:'bancos',titulo:'Configurar cuentas de cobranza',descripcion:'Define dónde se aplicarán transferencias y depósitos.',ruta:'/dashboard/creditos/cuentas-bancarias',requisito:'CRE_BANCOS',opcional:true},
+{codigo:'prueba',titulo:'Probar una operación de crédito',descripcion:'Genera una venta controlada y valida saldo, vencimiento y disponible.',ruta:'/dashboard/creditos/creditos',requisito:'CRE_PRUEBA',opcional:true}]}/>}

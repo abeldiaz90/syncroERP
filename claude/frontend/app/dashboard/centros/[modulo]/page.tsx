@@ -1,0 +1,91 @@
+"use client";
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { ArrowRight, Layers3, Link2, Sparkles } from 'lucide-react';
+import { MODULOS, agruparItems } from '../../module-config';
+import { api, intentar, token } from '@/lib/api';
+import { esRolAdministrador } from '@/lib/roles';
+import { leerSesion, puedeVerEnlace } from '@/lib/session';
+
+export default function CentroModuloPage() {
+  const params = useParams<{ modulo: string }>();
+  const modulo = useMemo(() => MODULOS.find((m) => m.id === params.modulo), [params.modulo]);
+  const [permisos, setPermisos] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const sesion = leerSesion(token.get());
+      if (esRolAdministrador(sesion?.rol)) {
+        if (vivo) setPermisos(['*']);
+        return;
+      }
+      const r = await intentar(api.get<{ rutas?: string[] }>('/admin/permisos/mis-rutas'), { rutas: [] });
+      if (vivo) setPermisos(r.rutas ?? []);
+    })();
+    return () => { vivo = false; };
+  }, []);
+
+  if (!modulo) return <div className="p-8">Módulo no encontrado.</div>;
+  const items = modulo.items.filter((i) => !i.oculto && puedeVerEnlace(permisos, i.href));
+  const grupos = agruparItems(items);
+  const acciones = (modulo.acciones ?? []).filter((a) => puedeVerEnlace(permisos, a.href));
+  const relacionados = (modulo.relacionados ?? []).filter((a) => puedeVerEnlace(permisos, a.href));
+
+  return (
+    <div className="p-5 lg:p-8 max-w-[1380px] mx-auto space-y-6">
+      <header className="rounded-2xl border p-6" style={{ borderColor: modulo.border, background: `linear-gradient(135deg, ${modulo.bg}, white 65%)` }}>
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl grid place-items-center" style={{ background: 'white', border: `1px solid ${modulo.border}` }}>
+            <modulo.Icono className="w-6 h-6" style={{ color: modulo.color }} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: modulo.color }}>Centro de trabajo</p>
+            <h1 className="text-2xl font-bold text-slate-900 mt-1">{modulo.nombre}</h1>
+            <p className="text-[13px] text-slate-600 mt-1 max-w-2xl">{modulo.desc}. Desde aquí tienes a la mano las tareas, catálogos y procesos relacionados.</p>
+          </div>
+        </div>
+
+        {acciones.length > 0 && (
+          <div className="mt-5 flex flex-wrap gap-2">
+            {acciones.map((a, index) => (
+              <Link key={a.href} href={a.href} className={`rounded-xl px-4 py-3 min-w-[170px] border transition-shadow hover:shadow-sm ${index === 0 || a.principal ? 'text-white border-transparent' : 'bg-white text-slate-800 border-slate-200'}`} style={index === 0 || a.principal ? { background: modulo.color } : undefined}>
+                <span className="flex items-center justify-between gap-3 text-[12.5px] font-bold">{a.label}<ArrowRight className="w-3.5 h-3.5" /></span>
+                {a.descripcion && <span className={`block text-[11px] mt-1 ${index === 0 || a.principal ? 'text-white/75' : 'text-slate-500'}`}>{a.descripcion}</span>}
+              </Link>
+            ))}
+          </div>
+        )}
+      </header>
+
+      <section>
+        <div className="flex items-center gap-2 mb-3"><Layers3 className="w-4 h-4 text-slate-500" /><h2 className="text-[14px] font-bold text-slate-900">Todo el módulo</h2></div>
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {grupos.map(([grupo, opciones]) => (
+            <div key={grupo} className="panel p-4">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-2.5">{grupo}</p>
+              <div className="space-y-1">
+                {opciones.map((it) => (
+                  <Link key={it.href} href={it.href} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50 text-[12.5px] text-slate-700">
+                    <span>{it.label}</span><ArrowRight className="w-3.5 h-3.5 text-slate-300" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {relacionados.length > 0 && (
+        <section className="panel p-4">
+          <div className="flex items-center gap-2 mb-3"><Link2 className="w-4 h-4 text-slate-500" /><h2 className="text-[14px] font-bold text-slate-900">Procesos relacionados</h2></div>
+          <div className="flex flex-wrap gap-2">
+            {relacionados.map((a) => <Link key={a.href} href={a.href} className="btn btn-neutro btn-sm"><Sparkles className="w-3 h-3" />{a.label}</Link>)}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}

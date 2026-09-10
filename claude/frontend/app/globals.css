@@ -1,0 +1,326 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   SyncroERP · Sistema de diseño
+   ----------------------------------------------------------------------------
+   Criterio: esto es un instrumento de trabajo, no una landing page. Densidad
+   alta, jerarquía por peso y color antes que por tamaño, cifras alineadas.
+   Cada token existe porque algo lo usa; nada decorativo.
+
+   Antes había 41 variables de color que sólo repetían los valores por defecto
+   de Tailwind y un tailwind.config.ts que Tailwind 4 ni siquiera lee. Aquí
+   quedan sólo los tokens propios del producto.
+   ========================================================================== */
+
+@theme {
+  /* Marca ------------------------------------------------------------------ */
+  --color-marca-50:  #eef2ff;
+  --color-marca-100: #e0e7ff;
+  --color-marca-200: #c7d2fe;
+  --color-marca-400: #818cf8;
+  --color-marca-500: #6366f1;
+  --color-marca-600: #4f46e5;
+  --color-marca-700: #4338ca;
+
+  /* Superficies ------------------------------------------------------------ */
+  --color-lienzo:       #f6f7f9;   /* fondo de la aplicación   */
+  --color-superficie:   #ffffff;   /* tarjetas y tablas        */
+  --color-superficie-2: #fafbfc;   /* filas alternas, encabezados */
+  --color-tinta:        #0b1220;   /* barra superior y menú    */
+  --color-tinta-2:      #16203a;   /* elevación dentro de tinta */
+
+  /* Texto ------------------------------------------------------------------ */
+  --color-txt-fuerte: #0f172a;
+  --color-txt:        #334155;
+  --color-txt-suave:  #64748b;
+  --color-txt-tenue:  #94a3b8;
+
+  /* Líneas: el ERP se lee por su retícula, no por sus sombras --------------- */
+  --color-linea:       #e6e9ee;
+  --color-linea-suave: #f1f3f7;
+
+  /* Semánticos ------------------------------------------------------------- */
+  --color-exito:   #059669;
+  --color-alerta:  #d97706;
+  --color-peligro: #e11d48;
+  --color-info:    #0284c7;
+
+  /* Radios y sombras: mínimos y consistentes ------------------------------- */
+  --radius-campo: 8px;
+  --radius-panel: 12px;
+  --sombra-panel: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.03);
+  --sombra-flotante: 0 8px 28px rgb(15 23 42 / 0.12), 0 2px 6px rgb(15 23 42 / 0.06);
+
+  /* Densidad: una sola escala para toda la aplicación ---------------------- */
+  --alto-barra: 52px;
+  --alto-fila: 38px;
+  --ancho-menu: 244px;
+  --ancho-menu-min: 60px;
+}
+
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+
+* { border-color: var(--color-linea); }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--color-lienzo);
+  color: var(--color-txt);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+/* Cifras alineadas: sin esto una tabla de importes es ilegible. */
+.cifra, td.cifra, th.cifra, input[type="number"], .tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Foco visible en todo lo interactivo (accesibilidad, era inexistente). */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-marca-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* ── Componentes ──────────────────────────────────────────────────────────── */
+
+/* Panel: la unidad de composición. Borde fino, sombra casi nula. */
+.panel {
+  background: var(--color-superficie);
+  border: 1px solid var(--color-linea);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--sombra-panel);
+}
+
+.panel-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-linea-suave);
+}
+
+/* Etiqueta de sección: versalitas cortas, el idioma visual del sistema. */
+.eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-txt-tenue);
+}
+
+/* Tabla de datos ---------------------------------------------------------- */
+
+.tabla { width: 100%; border-collapse: separate; border-spacing: 0; }
+
+.tabla thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-superficie-2);
+  border-bottom: 1px solid var(--color-linea);
+  padding: 0 12px;
+  height: 34px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-txt-suave);
+  white-space: nowrap;
+}
+
+.tabla tbody td {
+  padding: 0 12px;
+  height: var(--alto-fila);
+  border-bottom: 1px solid var(--color-linea-suave);
+  color: var(--color-txt);
+}
+
+.tabla tbody tr:hover td { background: var(--color-superficie-2); }
+.tabla tbody tr:last-child td { border-bottom: 0; }
+
+.tabla tfoot td {
+  height: 38px;
+  padding: 0 12px;
+  font-weight: 700;
+  color: var(--color-txt-fuerte);
+  background: var(--color-superficie-2);
+  border-top: 1px solid var(--color-linea);
+}
+
+/* Botones ----------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--radius-campo);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+  border: 1px solid transparent;
+}
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.btn-primario   { background: var(--color-marca-600); color: #fff; }
+.btn-primario:hover:not(:disabled) { background: var(--color-marca-700); }
+
+.btn-neutro,
+.btn-secundario { background: #fff; color: var(--color-txt); border-color: var(--color-linea); }
+.btn-neutro:hover:not(:disabled),
+.btn-secundario:hover:not(:disabled) { background: var(--color-superficie-2); border-color: #cbd5e1; }
+
+.btn-peligro    { background: var(--color-peligro); color: #fff; }
+.btn-peligro:hover:not(:disabled) { background: #be123c; }
+
+.btn-fantasma   { background: transparent; color: var(--color-txt-suave); }
+.btn-fantasma:hover:not(:disabled) { background: var(--color-linea-suave); color: var(--color-txt-fuerte); }
+
+.btn-sm { height: 28px; padding: 0 10px; font-size: 12px; }
+.btn-icono { width: 34px; padding: 0; }
+
+/* Campos ------------------------------------------------------------------ */
+
+.campo,
+.entrada {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  background: #fff;
+  border: 1px solid #cfd6e0;
+  border-radius: var(--radius-campo);
+  font-size: 13px;
+  color: var(--color-txt-fuerte);
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+textarea.entrada,
+textarea.campo { height: auto; resize: vertical; }
+.campo::placeholder { color: var(--color-txt-tenue); }
+.campo:focus {
+  outline: none;
+  border-color: var(--color-marca-500);
+  box-shadow: 0 0 0 3px var(--color-marca-100);
+}
+.campo:disabled { background: var(--color-superficie-2); color: var(--color-txt-tenue); }
+.campo-error { border-color: var(--color-peligro); }
+.campo-error:focus { box-shadow: 0 0 0 3px #ffe4e6; }
+
+textarea.campo { height: auto; min-height: 76px; padding: 8px 10px; line-height: 1.5; }
+
+.etiqueta-campo {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-txt-suave);
+}
+
+/* Distintivos ------------------------------------------------------------- */
+
+.distintivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.distintivo-exito   { background: #ecfdf5; color: #047857; }
+.distintivo-alerta  { background: #fffbeb; color: #b45309; }
+.distintivo-peligro { background: #fff1f2; color: #be123c; }
+.distintivo-info    { background: #eff6ff; color: #0369a1; }
+.distintivo-neutro  { background: var(--color-linea-suave); color: var(--color-txt-suave); }
+
+/* Carga: esqueleto en lugar de pantalla en blanco ------------------------- */
+
+.esqueleto {
+  background: linear-gradient(90deg, #eef1f5 25%, #e3e8ef 37%, #eef1f5 63%);
+  background-size: 400% 100%;
+  animation: brillo 1.3s ease infinite;
+  border-radius: 6px;
+}
+@keyframes brillo { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+/* Firma visual: espina de color del módulo activo en el menú lateral ------ */
+
+.espina { position: relative; }
+.espina::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 3px; height: 18px;
+  border-radius: 0 3px 3px 0;
+  background: var(--espina-color, var(--color-marca-600));
+}
+
+/* ── Impresión ────────────────────────────────────────────────────────────── */
+
+@media print {
+  @page { margin: 12mm 10mm; size: A4 landscape; }
+
+  .no-imprimir,
+  header, aside, nav,
+  .btn, button,
+  [data-imprimir="no"] { display: none !important; }
+
+  body { background: #fff !important; color: #000 !important; font-size: 10.5px !important; }
+
+  .panel { border: 1px solid #d4d9e0 !important; box-shadow: none !important; border-radius: 0 !important; }
+
+  .print-header { display: block !important; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; }
+  .print-header h1 { font-size: 15px !important; font-weight: 800; color: #0f172a; }
+  .print-header p  { font-size: 9.5px; color: #475569; }
+
+  .tabla thead th {
+    background: #0f172a !important; color: #fff !important;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    height: 26px !important; font-size: 8.5px !important;
+  }
+  .tabla tbody td { height: auto !important; padding: 4px 8px !important; font-size: 9.5px !important; }
+  .tabla tbody tr:nth-child(even) td {
+    background: #f8fafc !important;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+
+  .salto-pagina { page-break-after: always; }
+  .sin-corte    { page-break-inside: avoid; }
+
+  a[href]::after { content: ''; }  /* no ensuciar el papel con URLs */
+}

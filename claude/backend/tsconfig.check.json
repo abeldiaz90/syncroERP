@@ -1,0 +1,6 @@
+{
+  "//": "Chequeo de tipos rápido. El proyecto completo tarda más de lo que aguanta una sesión remota; esto entra por app.module.ts, que arrastra todos los módulos, y por los scripts, que quedan fuera del grafo de la aplicación. Uso: npx tsc --noEmit -p tsconfig.check.json",
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "incremental": false },
+  "include": ["src/app.module.ts", "src/**/*.spec.ts", "scripts/**/*.ts"]
+}

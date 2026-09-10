@@ -1,0 +1,10 @@
+SyncroERP v14.2 - validación estática
+Archivos TypeScript/TSX analizados: 633
+Errores de sintaxis: 0
+Rutas Next.js del menú: 123
+Rutas faltantes: 0
+Bypasses obsoletos de aprobación: 0
+Diálogos nativos alert/confirm/prompt: 0
+Referencias remotas de Chart.js/CDN: 0
+
+Limitación: npm ci no pudo completar porque el registro interno devolvió 404 para paquetes válidos. No se afirma build ni Jest exitosos.

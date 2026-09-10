@@ -1,0 +1,44 @@
+SyncroERP v14 - Validación estática
+UTC 2026-08-03 15:58:59
+
+== Sintaxis TypeScript/TSX ==
+{
+  "files": 616,
+  "errors": 0
+}
+
+== Imports relativos ==
+{
+  "files": 615,
+  "parseErrors": 0,
+  "relativeImports": 1390,
+  "missingImports": 0
+}
+
+== DTOs runtime ==
+OK: todos los @Body usan clases DTO validables en runtime.
+
+== Columnas DECIMAL/NUMERIC ==
+{
+  "decimalColumns": 268,
+  "withoutTransformer": 0,
+  "missing": []
+}
+
+== Rutas del menú ==
+{
+  "menuRoutes": 123,
+  "missing": []
+}
+
+== Conteos adicionales ==
+Backend specs: 43
+Frontend tests: 0
+Direct fetch lines: 241
+localStorage lines: 138
+Native alert/confirm/prompt: 0
+Remote Chart.js/CDN: 0
+pessimistic_read in hotel availability: 0
+
+== Limitación de compilación ==
+No se ejecutaron npm ci/build/Jest/Next build: las dependencias no están instaladas y el registro de paquetes no estuvo disponible.
