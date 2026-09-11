@@ -36,6 +36,7 @@ import { AvisosIntegracionService } from '../services/avisos-integracion.service
 import { AltaEmpresasService } from '../services/alta-empresas.service';
 import { CarteraConciliacionService } from '../services/cartera-conciliacion.service';
 import { CarteraPublicadorService } from '../services/cartera-publicador.service';
+import { ClienteCarteraSubscriber } from '../services/cliente-cartera.subscriber';
 import { ContabilidadPublicadorService } from '../services/contabilidad-publicador.service';
 import { DecisionCreditoService } from '../services/decision-credito.service';
 import { DisponibilidadCreditoService } from '../services/disponibilidad-credito.service';
@@ -138,6 +139,7 @@ import { FineractAdapterModule } from '../adaptadores/fineract/fineract.module';
     DisponibilidadCreditoService,
     DecisionCreditoService,
     AccesoExternoService,
+    ClienteCarteraSubscriber,
     PolizaEspejoSubscriber,
     {
       provide: PUERTO_VALIDACION_IDENTIDAD,
