@@ -515,9 +515,10 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     }
     try {
       await this.http.post(
-        `/v1/loans/${input.creditoIdExterno}/transactions/${input.pagoIdExterno}?command=undo`,
+        `/v1/loans/${input.creditoIdExterno}/transactions/${input.pagoIdExterno}`,
         {
           transactionDate: input.fecha,
+          transactionAmount: 0,
           note: input.motivo ?? 'Reversa desde SyncroERP',
           locale: this.cfg.localePorDefecto,
           dateFormat: this.cfg.formatoFecha,
@@ -1012,7 +1013,7 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     monto: number,
     fecha: string,
   ): Promise<string | null> {
-    if (!(error instanceof ErrorFineract) || error.estadoHttp !== 403) return null;
+    if (!(error instanceof ErrorFineract) || ![400, 403, 409].includes(error.estadoHttp ?? 0)) return null;
     try {
       const transaccion = await this.http.get<{
         id?: number; amount?: number; date?: number[]; reversedOnDate?: number[] | null;
