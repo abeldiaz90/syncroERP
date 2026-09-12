@@ -39,3 +39,19 @@ La prueba Fineract exige destino localhost y un archivo de evidencia nuevo. Crea
 - Devolución comercial completa aplicada desde el ERP y comparada con Fineract.
 - Despacho automático y conciliación persistente de un flujo de prueba completo.
 - Configurar cuentas y probar pólizas ESPEJO, incluyendo su reversa e idempotencia. No se ha activado ESPEJO ni AUTORIDAD.
+
+## Prueba automática adicional y revisión del frontend — 18:59 UTC
+
+- `probar-outbox-automatico.cjs` creó un cliente sintético sin crédito ni saldo y publicó dos veces el mismo hecho dentro de una transacción; se comprobó que solo persistió un evento.
+- El script deshabilita sus propios cron y nunca llama al despachador. El backend ya en ejecución procesó el evento y quedó ENVIADO. El cliente externo resultante es 5; se conserva la trazabilidad en ambos sistemas.
+- La conciliación real por servicio revisó dos clientes vinculados y devolvió cero discrepancias. Esto prueba alta y conciliación de clientes sin cartera; no demuestra el ciclo automático de préstamos, cobros y devoluciones.
+- Se navegó con sesión humana por dashboard, crédito, verificación, POS y asistentes. El POS muestra Crédito deshabilitado porque todos los productos están en BORRADOR y además avisa que no existe lista de precios. La cartera no contiene créditos. El asistente de crédito tiene pendiente definir políticas; no se confirmó manualmente ese paso.
+- El centro de preparación indica 17% general. Faltan catálogos y configuración comercial para una venta completa por interfaz. No se introdujeron datos fiscales ficticios ni se activaron productos para venta.
+
+Repetir desde backend (conservar cada evidencia en un archivo nuevo):
+
+```powershell
+node scripts/probar-outbox-automatico.cjs --aplicar-prueba-local --resultado=C:/ruta/nueva/outbox.json
+```
+
+Este script deja un cliente sintético sin crédito en ERP y Fineract. Requiere PostgreSQL y Fineract locales y un backend ejecutándose con su despacho automático habilitado. Espera hasta 90 segundos. La creación del cliente es preparación técnica del escenario, no una prueba del formulario ni de aprobación de líneas.
