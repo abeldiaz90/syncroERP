@@ -298,12 +298,10 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
       return String(respuesta.resourceId);
     } catch (error) {
       // El pago ya estaba aplicado: reintento de un despacho anterior.
-      if (error instanceof ErrorFineract && error.estadoHttp === 403) {
-        this.logger.warn(
-          `El pago ${input.pagoId} ya existía en Fineract; se toma como aplicado.`,
-        );
-        return null;
-      }
+      const existente = await this.recuperarTransaccionDuplicada(
+        error, input.creditoIdExterno, referencia, input.monto, input.fechaPago,
+      );
+      if (existente) return existente;
       throw this.traducir(error);
     }
   }
@@ -499,12 +497,10 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
       return String(respuesta.resourceId);
     } catch (error) {
       // Ya aplicada en un despacho anterior: la referencia choca.
-      if (error instanceof ErrorFineract && error.estadoHttp === 403) {
-        this.logger.warn(
-          `La devolución ${input.devolucionId} ya existía en Fineract; se toma como aplicada.`,
-        );
-        return null;
-      }
+      const existente = await this.recuperarTransaccionDuplicada(
+        error, input.creditoIdExterno, referencia, input.monto, input.fecha,
+      );
+      if (existente) return existente;
       throw this.traducir(error);
     }
   }
@@ -1007,6 +1003,34 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
       error instanceof Error ? error.message : String(error),
       true,
     );
+  }
+
+  private async recuperarTransaccionDuplicada(
+    error: unknown,
+    creditoId: string,
+    referencia: string,
+    monto: number,
+    fecha: string,
+  ): Promise<string | null> {
+    if (!(error instanceof ErrorFineract) || error.estadoHttp !== 403) return null;
+    try {
+      const transaccion = await this.http.get<{
+        id?: number; amount?: number; date?: number[]; reversedOnDate?: number[] | null;
+      }>(`/v1/loans/${encodeURIComponent(creditoId)}/transactions/external-id/${encodeURIComponent(referencia)}`);
+      if (!transaccion.id || transaccion.reversedOnDate != null ||
+          Math.abs(Number(transaccion.amount) - monto) >= 0.005 ||
+          !Number.isFinite(Number(transaccion.amount)) ||
+          this.fechaDeArreglo(transaccion.date) !== fecha.slice(0, 10)) {
+        throw new ErrorIntegracionExterna(
+          'La referencia ya existe, pero no corresponde a una transacción vigente con el mismo importe y fecha.',
+          false,
+        );
+      }
+      return String(transaccion.id);
+    } catch (consulta) {
+      if (consulta instanceof ErrorFineract && consulta.estadoHttp === 404) return null;
+      throw this.traducir(consulta);
+    }
   }
 
   private fecha(valor: Date | string | null | undefined): string {

@@ -8,7 +8,7 @@ import { PolizasService } from './polizas.service';
  * Cancelar significa emitir su REVERSA (cargos ↔ abonos invertidos),
  * dejando ambas en el libro con referencia cruzada — como el FB08 de SAP.
  *
- * No tocan SQL Server: el DataSource está simulado por completo.
+ * No tocan PostgreSQL: el DataSource está simulado por completo.
  * Correr:  npm test -- polizas.service
  */
 
@@ -69,14 +69,14 @@ function crearArnes(opts?: {
 
   const dataSource: any = {
     query: jest.fn(async (sql: string, params: any[] = []) => {
-      if (sql.includes('sp_getapplock')) return [{ resultado: 0 }];
+      if (sql.includes('pg_advisory_xact_lock')) return [{ resultado: 0 }];
       if (sql.includes('cierres_contables')) {
         const clave = `${params[1]}/${params[2]}`;
         return (opts?.periodosCerrados ?? []).includes(clave)
           ? [{ id: 'cierre-1' }]
           : [];
       }
-      if (sql.includes('SELECT TOP 1 folio')) return []; // primer folio del año
+      if (sql.includes('SELECT folio FROM polizas')) return []; // primer folio del año
       return [];
     }),
     getRepository: jest.fn(() => ({
