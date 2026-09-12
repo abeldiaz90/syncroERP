@@ -18,12 +18,13 @@ rem  Postgres). La carpeta syncro-erp-backend es la foto vieja en SQL Server y
 rem  NO se usa.
 rem ============================================================================
 
-set "FINERACT_BAT=D:\fineract\fineract-r3\INICIAR_FINERACT_LOCAL.bat"
-set "ERP_ROOT=D:\syncroERP\syncroERP\claude"
+for %%I in ("%~dp0.") do set "ERP_ROOT=%%~fI"
+for %%I in ("%ERP_ROOT%\..\..\fineract") do set "FINERACT_ROOT=%%~fI"
+set "FINERACT_BAT=%FINERACT_ROOT%\INICIAR_FINERACT_LOCAL.bat"
 set "ERP_BACKEND=%ERP_ROOT%\backend"
 set "ERP_FRONTEND=%ERP_ROOT%\frontend"
 set "ERP_DB_CONTAINER=syncroerp-postgres"
-set "FINERACT_CERT=D:\fineract\fineract-r3\fineract-local.crt"
+set "FINERACT_CERT=%FINERACT_ROOT%\fineract-local.crt"
 
 set "REINICIAR="
 if /I "%~1"=="/reiniciar" set "REINICIAR=1"

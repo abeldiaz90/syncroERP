@@ -377,24 +377,7 @@ export class ProductosCreditoSyncService {
     const numeroCuotas = producto.cuotasMaximas > 1
       ? Math.min(producto.cuotasMaximas, Math.max(producto.cuotasMinimas, 6))
       : 1;
-    const fechaInicio = diaCalendario(new Date());
-
-    const ajustar = await this.vencimientos.ajustadorDe(empresaId);
-    const nuestra = this.creditos.calcularAmortizacion(
-      {
-        capital,
-        numeroCuotas,
-        tasaInteresMensual: Number(producto.tasaInteresMensual),
-        sinInteres: producto.sinInteres,
-        fechaInicio,
-        // El plazo sale del producto. Deducirlo de `tipoCreditoHeredado` sería
-        // volver a la deducción que causó el problema que esto viene a evitar,
-        // y además los productos importados no tienen tipo heredado.
-        unidadPlazo: producto.unidadPlazo,
-        cadaCuantos: producto.cadaCuantos,
-      },
-      ajustar,
-    );
+    let fechaInicio = diaCalendario(new Date());
 
     /*
      * Fineract exige un cliente para proyectar aunque no cree nada. Se usa
@@ -421,8 +404,30 @@ export class ProductosCreditoSyncService {
       return { aplicable: true, cuadra: false, ...detalle, diferencias: [] };
     }
 
+    let nuestra: ReturnType<CreditosService['calcularAmortizacion']>;
     let suya: CuotaProyectada[];
     try {
+      // La activación remota puede caer en el día siguiente por la zona horaria.
+      // Es una simulación: ambos motores deben usar la misma fecha válida.
+      const minima = await this.externo.fechaMinimaProyeccion?.(clienteIdExterno);
+      if (minima && minima > fechaInicio) fechaInicio = minima;
+      const ajustar = await this.vencimientos.ajustadorDe(empresaId);
+      nuestra = this.creditos.calcularAmortizacion(
+        {
+          capital,
+          numeroCuotas,
+          tasaInteresMensual: Number(producto.tasaInteresMensual),
+          sinInteres: producto.sinInteres,
+          fechaInicio,
+          // El plazo sale del producto. Deducirlo de `tipoCreditoHeredado` sería
+          // volver a la deducción que causó el problema que esto viene a evitar,
+          // y además los productos importados no tienen tipo heredado.
+          unidadPlazo: producto.unidadPlazo,
+          cadaCuantos: producto.cadaCuantos,
+        },
+        ajustar,
+      );
+
       // No se manda la tasa ni el tipo de interés: los toma de su propio
       // producto. Si se los mandáramos, estaríamos comparando el ERP contra sí
       // mismo con pasos extra.

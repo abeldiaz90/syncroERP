@@ -684,6 +684,19 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
    * plazo se mandaba en meses en vez de días. Lo único que revela eso es
    * comparar la tabla completa, cuota por cuota, fecha por fecha.
    */
+  async fechaMinimaProyeccion(clienteIdExterno: string): Promise<string | null> {
+    try {
+      const cliente = await this.http.get<{
+        timeline?: { activatedOnDate?: number[] };
+      }>(`/v1/clients/${encodeURIComponent(clienteIdExterno)}`, {
+        timeoutMs: this.cfg.timeoutFondoMs,
+      });
+      return this.fechaDeArreglo(cliente.timeline?.activatedOnDate) || null;
+    } catch (error) {
+      throw this.traducir(error);
+    }
+  }
+
   async proyectarAmortizacion(
     input: ProyectarAmortizacionExterna,
   ): Promise<CuotaProyectada[]> {

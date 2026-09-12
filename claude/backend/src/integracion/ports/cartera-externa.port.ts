@@ -290,6 +290,9 @@ export interface PuertoCarteraExterna {
    * definiciones de producto no basta: los importes cuadraban mientras las
    * fechas de vencimiento estaban equivocadas.
    */
+  /** Fecha mínima del cliente para una proyección, si el proveedor la exige. */
+  fechaMinimaProyeccion?(clienteIdExterno: string): Promise<string | null>;
+
   proyectarAmortizacion(
     input: ProyectarAmortizacionExterna,
   ): Promise<CuotaProyectada[]>;
