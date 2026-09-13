@@ -109,7 +109,7 @@ export class Venta {
   @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 12, scale: 4, default: 0 })
   cambio!: number;
 
-  @Column({ type: 'varchar', length: 20, default: 'COMPLETADA' })
+  @Column({ type: 'varchar', length: 30, default: 'COMPLETADA' })
   estado: EstadoVenta;
 
   @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })

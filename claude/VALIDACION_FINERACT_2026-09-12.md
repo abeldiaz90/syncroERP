@@ -65,3 +65,21 @@ Validación: cuatro regresiones pasaron (producto vinculado con contabilidad aut
 La simulación de aprovisionamiento completo devolvió 1.030 cuentas candidatas y 53 problemas correspondientes a cuentas de ORDEN sin equivalencia automática. Cero pendientes usadas no significa catálogo completo mapeado. No se aprovisionaron cuentas ni se activó ESPEJO. Las cuentas de orden requieren una definición contable explícita si llegan a usarse en el espejo.
 
 Pendientes principales: preparar catálogo/precios del POS para probar venta y devolución por interfaz; ejecutar el ciclo automático completo de créditos/pagos/devoluciones; validar un asiento espejo y su reversa; luego continuar Platform y SUMA. No dar por terminada la integración por tener una verificación sin avisos.
+
+## Devolución comercial transaccional — fallo reproducido y corregido
+
+La prueba real de DevolucionesVentasService contra PostgreSQL reprodujo un error al guardar PARCIALMENTE_DEVUELTA (21 caracteres) en ventas.estado varchar(20). La transacción se revertía y no se podía completar una devolución parcial.
+
+Se amplió la entidad a varchar(30) y se añadió/aplicó localmente la migración PostgreSQL AmpliarEstadoVenta1789257600000. El down no trunca datos: PostgreSQL rechaza reducir el tamaño si ya hay estados de más de 20 caracteres.
+
+Tras la corrección pasó probar-devolucion-transaccional.cjs: venta sintética de servicio por 1200, crédito MSI, devolución parcial de 600, reintento con mismo ID sin duplicado, devolución restante, crédito LIQUIDADO con saldo cero, venta DEVUELTA, dos eventos de devolución y rechazo de una devolución adicional. Se comprobó rollback de cliente, producto y venta sintéticos. TypeScript noEmit y git diff --check correctos.
+
+La venta inicial se prepara mediante entidades y el crédito mediante CreditosService. La devolución llama al método público crear del servicio real. La generación inmediata de póliza está diferida; el evento contable se registra realmente dentro de la transacción. No hay CFDI, inventario físico, reembolso bancario ni petición a Fineract en esta prueba. No equivale todavía a venta/devolución por POS ni a merchantIssuedRefund confirmado en el core.
+
+Repetición desde backend en PostgreSQL local de pruebas:
+
+```powershell
+node scripts/probar-devolucion-transaccional.cjs --aplicar-prueba-local
+```
+
+Aplicar la migración mediante el flujo de migraciones de cada instalación antes de probar. La ampliación local de esquema permanece; los datos comerciales sintéticos se revierten.
