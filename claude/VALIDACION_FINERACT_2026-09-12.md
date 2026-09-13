@@ -83,3 +83,19 @@ node scripts/probar-devolucion-transaccional.cjs --aplicar-prueba-local
 ```
 
 Aplicar la migración mediante el flujo de migraciones de cada instalación antes de probar. La ampliación local de esquema permanece; los datos comerciales sintéticos se revierten.
+
+## Devolución ERP–Fineract comprobada — 12 de septiembre, hora local
+
+Se ejecutó probar-devolucion-fineract.cjs con PostgreSQL y Fineract locales: el servicio real del ERP procesó devolución parcial y total de una venta sintética de servicio de 1200, y el adaptador real registró ambas en Fineract. El saldo se comparó en 1200, 600 y 0. La repetición de la devolución parcial devolvió el mismo ID externo.
+
+Evidencia del core: cliente sintético 6, préstamo 4 LIQUIDADO, transacciones de devolución 14 y 16. La consulta de la transacción parcial confirmó tipo 21, merchantIssuedRefund=true y repayment=false. No se necesitó compensación. Cliente, venta, producto y crédito del ERP se revirtieron; Fineract conserva historial sintético sin saldo activo.
+
+El escenario llama a servicios y adaptador, no al frontend ni al despachador automático. La prueba no cubre devolución de inventario físico, devolución con intereses, exceso ya pagado, transferencia bancaria ni timbrado. Siguen pendientes el recorrido POS, ciclo completo por outbox y asiento ESPEJO con reversa.
+
+Desde backend, con un archivo nuevo para preservar evidencia y fecha válida para el core:
+
+```powershell
+node scripts/probar-devolucion-fineract.cjs --aplicar-prueba-local --fecha=2026-09-13 --resultado=C:/ruta/nueva/devolucion.json
+```
+
+Si falla, el script intenta dejar sin saldo únicamente el préstamo sintético de su propia ejecución y registra cualquier limpieza pendiente. La evidencia debe revisarse incluso si la prueba falla.
