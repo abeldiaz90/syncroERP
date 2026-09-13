@@ -1,0 +1,151 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { randomUUID } = require('node:crypto');
+const root = process.env.ERP_BACKEND_ROOT || path.resolve(__dirname, '..');
+const output = process.argv.find(a => a.startsWith('--resultado='))?.slice(12);
+if (!process.argv.includes('--aplicar-prueba-local') || !output) throw new Error('Requiere --aplicar-prueba-local --resultado=ruta.json. Conserva un cliente sintético sin crédito en ERP y Fineract.');
+if (process.env.NODE_ENV === 'production') throw new Error('No se permite en producción');
+const journalPath = path.resolve(output);
+if (fs.existsSync(journalPath)) throw new Error('La evidencia ya existe');
+process.chdir(root);
+Object.assign(process.env, { CRONS_HABILITADOS: 'false', DB_SYNC: 'false', DB_MIGRATIONS_RUN: 'false' });
+require(root + '/node_modules/ts-node').register({ transpileOnly: true, project: root + '/tsconfig.json' });
+const load = p => require(root + '/src/' + p);
+const { NestFactory } = require(root + '/node_modules/@nestjs/core');
+const { DataSource } = require(root + '/node_modules/typeorm');
+const { Cliente } = load('clientes/entities/cliente.entity');
+const { EventoIntegracion } = load('integracion/entities/evento-integracion.entity');
+const { CarteraPublicadorService } = load('integracion/services/cartera-publicador.service');
+const { CarteraConciliacionService } = load('integracion/services/cartera-conciliacion.service');
+const { IntegracionVinculosService } = load('integracion/services/integracion-vinculos.service');
+const { TipoVinculo, PUERTO_CARTERA_EXTERNA } = load('integracion/integracion.constants');
+const journal = { inicio: new Date().toISOString(), clienteId: randomUUID(), alcance: 'Alta, crédito, pago y devolución por servicios reales y cron. Preparación sintética de venta/cliente/cuenta. Datos persistentes; no POS, no dinero real, no timbrado.' };
+const save = () => fs.writeFileSync(journalPath, JSON.stringify(journal, null, 2));
+async function main() {
+  const app = await NestFactory.createApplicationContext(load('app.module').AppModule, { logger: ['error'] });
+  try {
+    const ds = app.get(DataSource);
+    const cfg = app.get(load('integracion/adaptadores/fineract/fineract.config').FineractConfig);
+    assert(['localhost', '127.0.0.1', '[::1]'].includes(new URL(cfg.url).hostname), 'Fineract debe ser local');
+    assert(['localhost', '127.0.0.1', '::1'].includes(ds.options.host), 'PostgreSQL debe ser local');
+    const companies = await ds.query("SELECT id FROM empresas WHERE nombrecomercial='SUMA Local'");
+    assert.equal(companies.length, 1);
+    journal.empresaId = companies[0].id;
+    const publisher = app.get(CarteraPublicadorService);
+    assert(await publisher.activoPara(journal.empresaId));
+    save();
+    await ds.transaction(async em => {
+      await em.save(Cliente, em.create(Cliente, { id: journal.clienteId, empresaId: journal.empresaId, nombre: 'PRUEBA CODEX OUTBOX COBRO DEVOLUCION', activo: true, limiteCredito: 0, diasCredito: 0, estadoCredito: 'SIN_CREDITO' }));
+      await publisher.clienteAlta(journal.empresaId, journal.clienteId, em);
+      await publisher.clienteAlta(journal.empresaId, journal.clienteId, em);
+      const events = await em.getRepository(EventoIntegracion).find({ where: { empresaId: journal.empresaId, entidadId: journal.clienteId } });
+      assert.equal(events.length, 1, 'La publicación repetida no debe duplicar el evento');
+      journal.eventoId = events[0].id;
+    });
+    save();
+    console.log('PUBLICADO', journal.eventoId, 'Esperando al cron del backend; este script no invoca al despachador.');
+    const deadline = Date.now() + 90000;
+    while (Date.now() < deadline) {
+      const event = await ds.getRepository(EventoIntegracion).findOneByOrFail({ id: journal.eventoId });
+      journal.estado = event.estado; journal.intentos = event.intentos; save();
+      if (event.estado === 'ENVIADO') break;
+      assert.notEqual(event.estado, 'FALLIDO', event.ultimoError || 'Evento fallido');
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    assert.equal(journal.estado, 'ENVIADO', 'El proceso automático no envió el evento en 90 segundos');
+    const link = await app.get(IntegracionVinculosService).buscar(journal.empresaId, TipoVinculo.CLIENTE, journal.clienteId);
+    assert(link?.idExterno);
+    journal.clienteExterno = link.idExterno;
+    const summary = await app.get(PUERTO_CARTERA_EXTERNA).resumenCliente(link.idExterno);
+    assert.equal(summary.saldoTotal, 0);
+    const externa=app.get(PUERTO_CARTERA_EXTERNA);
+    const {CreditoCliente}=load('credito/entities/credito-cliente.entity');
+    const waitEvent=async key=>{
+      const deadline=Date.now()+90000;
+      while(Date.now()<deadline){
+        const event=await ds.getRepository(EventoIntegracion).findOneBy({empresaId:journal.empresaId,claveIdempotencia:key});
+        assert(event,'Falta el evento '+key);
+        if(event.estado==='ENVIADO')return event.id;
+        assert.notEqual(event.estado,'FALLIDO',event.ultimoError||'Evento fallido');
+        await new Promise(resolve=>setTimeout(resolve,5000));
+      }
+      throw new Error('El cron no completó '+key+' en 90 segundos');
+    };
+    const fecha=await externa.fechaMinimaProyeccion(link.idExterno);
+    const hoy=load('common/utils/fecha-calendario.util').diaCalendario();
+    journal.fechaCredito=fecha&&fecha>hoy?fecha:hoy;
+    const {Venta}=load('ventas/entities/venta.entity');
+    const {DetalleVenta}=load('ventas/entities/detalle-venta.entity');
+    const {Producto}=load('catalogo/entities/producto.entity');
+    const {CuentaBancaria}=load('credito/entities/cuenta-bancaria.entity');
+    const {Categoria}=load('catalogo/entities/categoria.entity');
+    journal.categoriaId=randomUUID();
+    journal.ventaId=randomUUID();journal.productoId=randomUUID();journal.cuentaId=randomUUID();save();
+    await ds.transaction(async em=>{
+      const cuentas=await em.query("SELECT id FROM cuentas_contables WHERE empresaid=$1 AND numerocuenta='402.01' AND activo=true",[journal.empresaId]);assert.equal(cuentas.length,1,'Se requiere cuenta de devoluciones 402.01');
+      await em.save(Categoria,em.create(Categoria,{id:journal.categoriaId,empresaId:journal.empresaId,nombre:'PRUEBA OUTBOX '+journal.categoriaId,cuentaDevolucionesId:cuentas[0].id,activo:true}));
+      await em.save(Producto,em.create(Producto,{id:journal.productoId,empresaId:journal.empresaId,nombre:'SERVICIO SINTETICO OUTBOX',categoriaId:journal.categoriaId,sku:'TEST-'+journal.productoId,tipo:'SERVICIO'}));
+      await em.save(CuentaBancaria,em.create(CuentaBancaria,{id:journal.cuentaId,empresaId:journal.empresaId,nombre:'CUENTA SINTETICA SIN DINERO REAL',tipo:'BANCO',activo:true}));
+      await em.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text,0))',['prueba-outbox-venta:'+journal.empresaId]);
+      const [{folio}]=await em.query('SELECT COALESCE(MAX(folio),0)+1 folio FROM ventas WHERE empresaid=$1',[journal.empresaId]);
+      await em.save(Venta,em.create(Venta,{id:journal.ventaId,empresaId:journal.empresaId,clienteId:journal.clienteId,folio:Number(folio),subtotal:1200,total:1200,metodoPago:'CREDITO',estado:'COMPLETADA',fechaVenta:new Date()}));
+      const detalle=await em.save(DetalleVenta,em.create(DetalleVenta,{ventaId:journal.ventaId,productoId:journal.productoId,cantidad:2,precioUnitario:600,subtotal:1200,impuestoMonto:0}));journal.detalleId=detalle.id;
+      await em.update(Cliente,{id:journal.clienteId},{estadoCredito:'AUTORIZADO',limiteCredito:1200,diasCredito:3650});
+      const products=await em.query("SELECT id,estado FROM productos_credito WHERE empresaid=$1 AND codigo='MSI' AND verificadoen IS NOT NULL FOR UPDATE",[journal.empresaId]);
+      assert.equal(products.length,1);const product=products[0];
+      await em.query("UPDATE productos_credito SET estado='ACTIVO' WHERE id=$1",[product.id]);
+      const credit=await app.get(load('credito/services/creditos.service').CreditosService).crearCredito({empresaId:journal.empresaId,clienteId:journal.clienteId,ventaId:journal.ventaId,productoCreditoId:product.id,montoVenta:1200,enganche:0,numeroCuotas:6,fechaInicio:journal.fechaCredito},em);
+      journal.creditoId=credit.id;
+      await em.query('UPDATE productos_credito SET estado=$2 WHERE id=$1',[product.id,product.estado]);
+    });
+    save();console.log('CREDITO PUBLICADO',journal.creditoId);
+    journal.eventoOriginacion=await waitEvent('credito:'+journal.creditoId);
+    const creditLink=await app.get(IntegracionVinculosService).buscar(journal.empresaId,TipoVinculo.CREDITO,journal.creditoId);
+    assert(creditLink?.idExterno);journal.creditoExterno=creditLink.idExterno;save();
+    const verificarSaldo=async esperado=>{
+      const local=await ds.getRepository(CreditoCliente).findOneByOrFail({id:journal.creditoId});
+      const remoto=await externa.saldoCredito(journal.creditoExterno);
+      assert.equal(Number(local.saldoPendiente),esperado);assert.equal(remoto.saldoTotal,esperado);
+      const resultado=await app.get(CarteraConciliacionService).conciliarEmpresa(journal.empresaId);assert.equal(resultado.discrepancias,0);
+      journal.ultimoSaldo=esperado;save();return remoto;
+    };
+    await verificarSaldo(1200);
+    const cobranza=app.get(load('credito/services/cobranza.service').CobranzaService);
+    const pagoDto={creditoId:journal.creditoId,cuentaBancariaId:journal.cuentaId,montoPagado:600,fechaPago:journal.fechaCredito,metodoPago:'TRANSFERENCIA',referencia:'PRUEBA SIN DINERO REAL',claveIdempotencia:randomUUID()};
+    journal.pagoClave=pagoDto.claveIdempotencia;save();
+    const pago=await cobranza.registrarPago(pagoDto,journal.empresaId);journal.pagoId=pago.pago.id;save();
+    const repetido=await cobranza.registrarPago(pagoDto,journal.empresaId);assert.equal(repetido.pago.id,pago.pago.id);assert.equal(repetido.idempotente,true);
+    console.log('PAGO PUBLICADO',journal.pagoId);
+    journal.eventoPago=await waitEvent('pago:'+journal.pagoId);await verificarSaldo(600);
+    const devoluciones=app.get(load('ventas/services/devoluciones-ventas.service').DevolucionesVentasService);
+    const dto={motivo:'DEVOLUCION SINTETICA POR CRON',destinoImporte:'SALDO_FAVOR',claveIdempotencia:randomUUID(),detalles:[{detalleVentaId:journal.detalleId,cantidad:1,condicion:'NO_REINTEGRABLE'}]};
+    journal.devolucionClave=dto.claveIdempotencia;save();
+    const devolucion=await devoluciones.crear(journal.ventaId,dto,journal.empresaId,undefined,'ADMIN');journal.devolucionId=devolucion.id;save();
+    assert.equal(Number(devolucion.ajusteCxC),600);assert.equal(Number(devolucion.importeReembolso),0);
+    assert.equal((await devoluciones.crear(journal.ventaId,dto,journal.empresaId,undefined,'ADMIN')).id,devolucion.id);
+    console.log('DEVOLUCION PUBLICADA',devolucion.id);
+    journal.eventoDevolucion=await waitEvent('devolucion:'+devolucion.id);
+    const cerrado=await verificarSaldo(0);assert.equal(cerrado.activo,false);
+    const http=app.get(load('integracion/adaptadores/fineract/fineract-http.service').FineractHttpService);
+    const trans=await http.get('/v1/loans/'+journal.creditoExterno+'/transactions/external-id/'+encodeURIComponent('syncro:devolucion:'+devolucion.id));
+    assert.equal(trans.type?.merchantIssuedRefund,true);journal.devolucionExterna=String(trans.id);journal.tipoDevolucion=trans.type.code;
+    for(const key of ['pago:'+journal.pagoId,'devolucion:'+journal.devolucionId])assert.equal(await ds.getRepository(EventoIntegracion).countBy({empresaId:journal.empresaId,claveIdempotencia:key}),1);
+    journal.asientos=await ds.query('SELECT id,tipo,estado FROM asientos_pendientes WHERE empresaid=$1 AND documentoid=ANY($2::uuid[])',[journal.empresaId,[journal.pagoId,journal.devolucionId]]);
+    assert.equal(journal.asientos.length,2);assert(journal.asientos.every(a=>a.estado==='GENERADO'),'Contabilización pendiente; revisar evidencia');
+    journal.polizas=await ds.query('SELECT p.id,sum(d.cargo) cargos,sum(d.abono) abonos FROM polizas p JOIN partidas_poliza d ON d.polizaid=p.id WHERE p.empresaid=$1 AND p.origenid=ANY($2::uuid[]) GROUP BY p.id',[journal.empresaId,[journal.pagoId,journal.devolucionId]]);
+    assert.equal(journal.polizas.length,2);for(const p of journal.polizas){assert.equal(Number(p.cargos),600);assert.equal(Number(p.abonos),600);}
+    await ds.getRepository(Categoria).update({id:journal.categoriaId},{activo:false});
+    journal.estadoCredito=cerrado.estado;
+    await ds.getRepository(Cliente).update({id:journal.clienteId},{estadoCredito:'SIN_CREDITO',limiteCredito:0,diasCredito:0});
+    await ds.getRepository(Producto).update({id:journal.productoId},{activo:false});
+    await ds.getRepository(CuentaBancaria).update({id:journal.cuentaId},{activo:false});
+    save();
+    journal.conciliacion = await app.get(CarteraConciliacionService).conciliarEmpresa(journal.empresaId);
+    assert.equal(journal.conciliacion.discrepancias, 0);
+    journal.fin = new Date().toISOString(); save();
+    console.log('PASA', JSON.stringify(journal));
+  } catch (error) { journal.error = error.message; save(); throw error; }
+  finally { await app.close(); }
+}
+main().catch(error => { console.error(error.message); process.exitCode = 1; });

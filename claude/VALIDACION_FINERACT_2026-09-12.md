@@ -115,3 +115,21 @@ node scripts/probar-outbox-credito.cjs --aplicar-prueba-local --resultado=C:/rut
 ```
 
 Pendiente: pagos y devoluciones por el cron en un mismo recorrido comercial, POS completo, mora real y ESPEJO contable. La ausencia de diferencias nuevas no resuelve automáticamente hallazgos anteriores; se revisan conservando una nota de auditoría.
+
+## Pago y devolución automáticos completos — 13 de septiembre
+
+Prueba real con servicios ERP sin sustituciones: alta de cliente, creación de crédito, pago parcial y devolución. Todos los eventos fueron procesados por el cron del backend; el script no invoca el despachador ni escribe al adaptador Fineract. La venta, cliente, producto y cuenta bancaria se preparan como datos sintéticos; no se usa POS.
+
+Resultado: cliente externo 9, préstamo 7. Saldos comparados en ERP y core: 1200, 600 tras pago y 0 tras devolución. Pago ERP 03b31d6f-b28a-4376-990e-efa32846fffd; devolución ERP 84930a55-a41c-4ecb-b1fb-6264a2be6aff, transacción externa 21 merchantIssuedRefund. Repetir las peticiones a los servicios retornó los mismos IDs y dejó un solo evento para cada hecho. Esto valida reintentos del productor, no un fallo de red después de aplicar una transacción externa. Conciliación final: cinco registros, cero diferencias. Préstamo closed.obligations.met, no activo.
+
+El producto sintético inicialmente carecía de categoría contable. La devolución comercial y su evento se confirmaron, mientras el asiento quedó pendiente con un error explícito de cuenta de devoluciones. Se creó exclusivamente para ese producto una categoría sintética con la cuenta existente 402.01 y se reintentó el asiento específico. Ambos asientos quedaron GENERADO: cobranza y devolución, cada póliza con cargos600 y abonos600. No se activó ESPEJO; son pólizas internas del ERP, no journal entries externos.
+
+La prueba preserva historial sintético en ERP y Fineract, incluida tesorería de prueba por600; no transfiere dinero real. Cliente sin línea vigente, producto y cuenta sintéticos desactivados. La venta queda parcialmente devuelta porque una unidad se pagó y la otra se devolvió. No representa prueba fiscal, inventario físico ni contabilidad completa de una venta, ya que su encabezado se preparó técnicamente.
+
+El script portable incluye desde el inicio la categoría contable y las comprobaciones de ambas pólizas. La ejecución real validó esa configuración mediante reintento focalizado; se comprobó la sintaxis del script final sin repetir otra corrida persistente.
+
+```powershell
+node scripts/probar-outbox-cobro-devolucion.cjs --aplicar-prueba-local --resultado=C:/ruta/nueva/cobro-devolucion.json
+```
+
+Ante un fallo, revisar el archivo de evidencia y recuperar exclusivamente esa corrida; no ejecutarlo de nuevo a ciegas. Pendientes principales: recorrido comercial POS y ESPEJO contable con reversa, además de mora y casos con intereses.
