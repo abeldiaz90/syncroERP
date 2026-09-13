@@ -343,36 +343,44 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     clienteIdExterno: string,
     timeoutMs?: number,
   ): Promise<ResumenCarteraCliente> {
+    const limite = Date.now() + (timeoutMs ?? this.cfg.timeoutPosMs);
+    const restante = () => {
+      const ms = limite - Date.now();
+      if (ms <= 0) throw new Error('Se agotó el tiempo para consultar la cartera del cliente.');
+      return ms;
+    };
     try {
       const respuesta = await this.http.get<{
-        loanAccounts?: {
+        loanAccounts?: { id?: number; status?: { active?: boolean } }[];
+      }>(`/v1/clients/${encodeURIComponent(clienteIdExterno)}/accounts`, {
+        timeoutMs: restante(),
+      });
+      const activos = (respuesta.loanAccounts ?? []).filter(p => p.status?.active === true);
+      const resumen: ResumenCarteraCliente = {
+        saldoTotal: 0, saldoVencido: 0, creditosActivos: 0, diasAtrasoMaximo: 0,
+      };
+      // /clients/:id/accounts enumera préstamos, pero no incluye summary.
+      // El saldo y vencido se obtienen del detalle, con un presupuesto de
+      // tiempo compartido para no multiplicar la espera del POS por préstamo.
+      for (const cuenta of activos) {
+        if (!cuenta.id) throw new Error('El registro externo devolvió un préstamo sin identificador.');
+        const prestamo = await this.http.get<{
           status?: { active?: boolean };
           summary?: { totalOutstanding?: number; totalOverdue?: number };
           delinquent?: { pastDueDays?: number };
-        }[];
-      }>(`/v1/clients/${clienteIdExterno}/accounts`, {
-        timeoutMs: timeoutMs ?? this.cfg.timeoutPosMs,
-      });
-
-      const activos = (respuesta.loanAccounts ?? []).filter(
-        (p) => p.status?.active === true,
-      );
-
-      return {
-        saldoTotal: activos.reduce(
-          (t, p) => t + Number(p.summary?.totalOutstanding ?? 0),
-          0,
-        ),
-        saldoVencido: activos.reduce(
-          (t, p) => t + Number(p.summary?.totalOverdue ?? 0),
-          0,
-        ),
-        creditosActivos: activos.length,
-        diasAtrasoMaximo: activos.reduce(
-          (m, p) => Math.max(m, Number(p.delinquent?.pastDueDays ?? 0)),
-          0,
-        ),
-      };
+        }>(`/v1/loans/${cuenta.id}`, { timeoutMs: restante() });
+        const saldo = prestamo.summary?.totalOutstanding;
+        if (saldo == null || !Number.isFinite(Number(saldo))) {
+          throw new Error(`El préstamo ${cuenta.id} no contiene un saldo válido.`);
+        }
+        // Puede haberse cerrado entre la enumeración y la lectura del detalle.
+        if (prestamo.status?.active !== true) continue;
+        resumen.saldoTotal += Number(saldo);
+        resumen.saldoVencido += Number(prestamo.summary?.totalOverdue ?? 0);
+        resumen.creditosActivos += 1;
+        resumen.diasAtrasoMaximo = Math.max(resumen.diasAtrasoMaximo, Number(prestamo.delinquent?.pastDueDays ?? 0));
+      }
+      return resumen;
     } catch (error) {
       throw this.traducir(error);
     }

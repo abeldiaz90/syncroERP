@@ -99,3 +99,19 @@ node scripts/probar-devolucion-fineract.cjs --aplicar-prueba-local --fecha=2026-
 ```
 
 Si falla, el script intenta dejar sin saldo únicamente el préstamo sintético de su propia ejecución y registra cualquier limpieza pendiente. La evidencia debe revisarse incluso si la prueba falla.
+
+## Saldo por cliente y ciclo automático corregidos — 13 de septiembre
+
+La primera prueba de crédito por outbox detectó SALDO_CLIENTE: ERP 1200, externo 0, aunque el préstamo externo sí tenía 1200. /clients/:id/accounts no incluye el bloque summary que el adaptador estaba sumando. Se corrigió resumenCliente para consultar el detalle de cada préstamo activo y obtener saldo y vencido desde summary. Las peticiones comparten el presupuesto de timeout. Un detalle sin saldo válido o una petición fallida ya no se convierte en saldo cero.
+
+Validación: cinco regresiones pasaron (saldos desde detalle, respuesta incompleta, fallo de lectura, cierre concurrente y presupuesto de tiempo), TypeScript noEmit pasó y git diff --check pasó.
+
+Prueba real posterior: cliente externo 8, préstamo 6 de 1200. Alta, originación y cancelación procesadas por el cron del backend; el script no invoca el despachador ni escribe al adaptador. Conciliación con crédito activo: cinco registros, cero diferencias. Tras cancelación: cuatro registros, cero diferencias. Estado remoto final withdrawn.by.client, saldo cero y no activo. La primera corrida también dejó cancelado su préstamo sintético 5.
+
+El alta es preparación técnica y la originación usa CreditosService. La cancelación se prepara como hecho sintético mediante estado ERP y publicador para probar el consumidor; no equivale a anular una venta por la interfaz. El historial sintético persiste en ambos sistemas, sin línea de crédito vigente. El script restaura el estado previo del producto dentro de la misma transacción. Al retomar, los productos ya estaban ACTIVO; esta prueba no decidió activarlos permanentemente.
+
+```powershell
+node scripts/probar-outbox-credito.cjs --aplicar-prueba-local --resultado=C:/ruta/nueva/outbox-credito.json
+```
+
+Pendiente: pagos y devoluciones por el cron en un mismo recorrido comercial, POS completo, mora real y ESPEJO contable. La ausencia de diferencias nuevas no resuelve automáticamente hallazgos anteriores; se revisan conservando una nota de auditoría.
