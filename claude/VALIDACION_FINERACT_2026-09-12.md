@@ -55,3 +55,13 @@ node scripts/probar-outbox-automatico.cjs --aplicar-prueba-local --resultado=C:/
 ```
 
 Este script deja un cliente sintético sin crédito en ERP y Fineract. Requiere PostgreSQL y Fineract locales y un backend ejecutándose con su despacho automático habilitado. Espera hasta 90 segundos. La creación del cliente es preparación técnica del escenario, no una prueba del formulario ni de aprobación de líneas.
+
+## Diagnóstico contable y cobertura del catálogo — 12 de septiembre, hora local
+
+Se corrigió verificarConfiguracion para consultar también los productos de integracion_vinculos de la empresa y proveedor Fineract. Antes sólo consultaba los parámetros históricos, vacíos en esta instalación, y por tanto omitía los cinco productos del catálogo actual. Se deduplican IDs compartidos con los parámetros anteriores.
+
+Validación: cuatro regresiones pasaron (producto vinculado con contabilidad automática, deduplicación, compatibilidad histórica y fallo de lectura); TypeScript noEmit pasó; git diff --check pasó. Una nueva ejecución real del servicio contra Fineract local devolvió cero avisos.
+
+La simulación de aprovisionamiento completo devolvió 1.030 cuentas candidatas y 53 problemas correspondientes a cuentas de ORDEN sin equivalencia automática. Cero pendientes usadas no significa catálogo completo mapeado. No se aprovisionaron cuentas ni se activó ESPEJO. Las cuentas de orden requieren una definición contable explícita si llegan a usarse en el espejo.
+
+Pendientes principales: preparar catálogo/precios del POS para probar venta y devolución por interfaz; ejecutar el ciclo automático completo de créditos/pagos/devoluciones; validar un asiento espejo y su reversa; luego continuar Platform y SUMA. No dar por terminada la integración por tener una verificación sin avisos.

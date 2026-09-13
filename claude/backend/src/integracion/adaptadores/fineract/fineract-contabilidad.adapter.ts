@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { VinculoIntegracion } from '../../entities/vinculo-integracion.entity';
+import { TipoVinculo } from '../../integracion.constants';
 import { ConfiguracionIntegracionEmpresa } from '../../entities/configuracion-integracion-empresa.entity';
 import { ErrorIntegracionExterna } from '../../ports/cartera-externa.port';
 import {
@@ -64,6 +66,8 @@ export class FineractContabilidadAdapter implements PuertoContabilidadExterna {
     private readonly cfg: FineractConfig,
     @InjectRepository(ConfiguracionIntegracionEmpresa)
     private readonly configEmpresa: Repository<ConfiguracionIntegracionEmpresa>,
+    @InjectRepository(VinculoIntegracion)
+    private readonly vinculos: Repository<VinculoIntegracion>,
   ) {}
 
   configurado(): boolean {
@@ -296,13 +300,27 @@ export class FineractContabilidadAdapter implements PuertoContabilidadExterna {
       ['productoMsiId', parametros.productoMsiId],
     ] as const;
 
+    // El catálogo vigente guarda sus productos en vínculos; los parámetros
+    // anteriores se conservan para instalaciones que aún los utilizan.
+    const vinculados = await this.vinculos.find({
+      where: { empresaId, tipo: TipoVinculo.PRODUCTO_CREDITO, proveedor: this.proveedor },
+    });
+    const porId = new Map<string, string>();
     for (const [nombre, id] of productos) {
-      if (!id) continue;
+      if (id) porId.set(String(id), nombre);
+    }
+    for (const vinculo of vinculados) {
+      if (vinculo.idExterno && !porId.has(vinculo.idExterno)) {
+        porId.set(vinculo.idExterno, 'producto:' + vinculo.entidadId);
+      }
+    }
+
+    for (const [id, nombre] of porId) {
       try {
         const producto = await this.http.get<{
           name?: string;
           accountingRule?: { id?: number; value?: string };
-        }>(`/v1/loanproducts/${id}`);
+        }>(`/v1/loanproducts/${encodeURIComponent(id)}`);
 
         const regla = producto.accountingRule?.id;
         if (regla !== undefined && regla !== CONTABILIDAD_NINGUNA) {
