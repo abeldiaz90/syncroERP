@@ -244,7 +244,7 @@ export class FineractContabilidadAdapter implements PuertoContabilidadExterna {
 
     try {
       const respuesta = await this.http.get<{
-        pageItems?: { debit?: boolean; amount?: number }[];
+        pageItems?: { entryType?: { id?: number }; amount?: number }[];
       }>('/v1/journalentries', {
         params: {
           glAccountId: Number(cuentaIdExterna),
@@ -258,11 +258,16 @@ export class FineractContabilidadAdapter implements PuertoContabilidadExterna {
 
       // Saldo deudor: cargos menos abonos. La conciliación compara contra el
       // saldo del ERP con el mismo criterio.
-      return (respuesta.pageItems ?? []).reduce(
-        (t, m) =>
-          t + (m.debit ? Number(m.amount ?? 0) : -Number(m.amount ?? 0)),
-        0,
-      );
+      return (respuesta.pageItems ?? []).reduce((total, movimiento) => {
+        // Fineract usa JournalEntryType: CREDIT=1, DEBIT=2; no publica debit.
+        const tipo = movimiento.entryType?.id;
+        const importe = Number(movimiento.amount);
+        if ((tipo !== 1 && tipo !== 2) || !Number.isFinite(importe)) {
+          throw new Error('Movimiento contable externo sin tipo o importe válido');
+        }
+        // Incluir original y contrapartida: juntos neutralizan una reversa.
+        return total + (tipo === 2 ? importe : -importe);
+      }, 0);
     } catch (error) {
       throw this.traducir(error);
     }
