@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { createHash } from 'node:crypto';
 
 import { AvisoIntegracion, EstadoAviso } from '../entities/aviso-integracion.entity';
@@ -272,7 +272,7 @@ export class AvisosIntegracionService {
   /** Los que llegaron sin empresa: recursos que el ERP no conoce. */
   async listarHuerfanos(limite = 100) {
     return this.avisos.find({
-      where: { empresaId: null },
+      where: { empresaId: IsNull() },
       order: { recibidoEn: 'DESC' },
       take: Math.min(Math.max(limite, 1), 500),
     });

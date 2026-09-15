@@ -251,7 +251,7 @@ export default function AvisosDelCorePage() {
                 )}
                 <details className="mt-2">
                   <summary className="text-xs text-gray-500 cursor-pointer">
-                    Lo que mandó el core, tal cual
+                    Detalle del aviso
                   </summary>
                   <pre className="text-xs bg-gray-50 border rounded p-2 overflow-x-auto max-h-64 mt-1">
 {JSON.stringify(a.cuerpo ?? a.cuerpoTexto ?? null, null, 2)}
@@ -340,7 +340,7 @@ export default function AvisosDelCorePage() {
                         nosotros no puede contestarla.
                       */}
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Lo que mandó el core, tal cual:</p>
+                        <p className="text-xs text-gray-500 mb-1">Detalle del aviso:</p>
                         <pre className="text-xs bg-gray-50 border rounded p-2 overflow-x-auto max-h-64">
 {JSON.stringify(a.cuerpo ?? a.cuerpoTexto ?? null, null, 2)}
                         </pre>

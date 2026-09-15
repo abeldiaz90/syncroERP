@@ -6,6 +6,7 @@ import { TipoVinculo } from '../../integracion.constants';
 import { ConfiguracionIntegracionEmpresa } from '../../entities/configuracion-integracion-empresa.entity';
 import { ErrorIntegracionExterna } from '../../ports/cartera-externa.port';
 import {
+  AsientoConsultado,
   AltaCuentaExterna,
   AsientoExterno,
   AvisoConfiguracion,
@@ -171,6 +172,41 @@ export class FineractContabilidadAdapter implements PuertoContabilidadExterna {
     } catch (error) {
       throw this.traducir(error);
     }
+  }
+
+  async consultarAsiento(id: string, oficinaId: string): Promise<AsientoConsultado | null> {
+    if (!id || !/^[1-9][0-9]*$/.test(oficinaId)) throw new Error('Asiento u oficina inválidos');
+    type Linea = { id: number; transactionId: string; officeId: number; glAccountId: number;
+      amount: number; entryType: { id: number }; reversed: boolean; referenceNumber?: string;
+      currency: { code: string } };
+    const lineas: Linea[] = [];
+    const vistos = new Set<number>();
+    try {
+      for (let pagina = 0; pagina < 100; pagina++) {
+        const respuesta = await this.http.get<{ totalFilteredRecords: number; pageItems: Linea[] }>('/v1/journalentries', {
+          params: { transactionId: id, officeId: Number(oficinaId), limit: 200, offset: lineas.length },
+          timeoutMs: this.cfg.timeoutFondoMs,
+        });
+        if (!Array.isArray(respuesta.pageItems) || !Number.isInteger(respuesta.totalFilteredRecords) || respuesta.totalFilteredRecords < 0) throw new Error('Respuesta contable incompleta');
+        for (const m of respuesta.pageItems) {
+          if (vistos.has(m.id) || String(m.transactionId) !== id || String(m.officeId) !== oficinaId ||
+              !Number.isInteger(m.id) || !Number.isInteger(m.glAccountId) || ![1, 2].includes(m.entryType?.id) ||
+              typeof m.amount !== 'number' || !Number.isFinite(m.amount) || m.amount < 0 ||
+              typeof m.reversed !== 'boolean' || !m.currency?.code) throw new Error('Partida contable inválida o fuera de alcance');
+          vistos.add(m.id); lineas.push(m);
+        }
+        if (lineas.length === respuesta.totalFilteredRecords) {
+          if (!lineas.length) return null;
+          const primera = lineas[0];
+          if (lineas.some(m => m.currency.code !== primera.currency.code || m.referenceNumber !== primera.referenceNumber)) throw new Error('Cabecera contable inconsistente');
+          return { id, referencia: primera.referenceNumber ?? '', moneda: primera.currency.code,
+            reversado: lineas.some(m => m.reversed),
+            movimientos: lineas.map(m => ({ cuentaIdExterna: String(m.glAccountId), cargo: m.entryType.id === 2 ? m.amount : 0, abono: m.entryType.id === 1 ? m.amount : 0 })) };
+        }
+        if (!respuesta.pageItems.length || lineas.length > respuesta.totalFilteredRecords) throw new Error('Paginación contable incompleta');
+      }
+      throw new Error('El asiento excede el límite de consulta');
+    } catch (error) { throw this.traducir(error); }
   }
 
   async cuentasDisponibles(): Promise<CuentaExterna[]> {

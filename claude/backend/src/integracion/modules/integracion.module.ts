@@ -1,3 +1,5 @@
+import { ContabilidadConciliacionService } from '../services/contabilidad-conciliacion.service';
+import { ContabilidadConciliacionController } from '../controllers/contabilidad-conciliacion.controller';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -119,12 +121,14 @@ import { FineractAdapterModule } from '../adaptadores/fineract/fineract.module';
     FineractAdapterModule,
   ],
   controllers: [
+    ContabilidadConciliacionController,
     IntegracionController,
     AvisosIntegracionController,
     AltaEmpresasController,
     ValidacionController,
   ],
   providers: [
+    ContabilidadConciliacionService,
     AltaEmpresasService,
     AvisosIntegracionService,
     IntegracionModoService,

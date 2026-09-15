@@ -67,7 +67,17 @@ export interface SaldoCuentaExterna {
   saldo: number;
 }
 
+export interface AsientoConsultado {
+  id: string;
+  referencia: string;
+  moneda: string;
+  reversado: boolean;
+  movimientos: Array<{ cuentaIdExterna: string; cargo: number; abono: number }>;
+}
+
 export interface PuertoContabilidadExterna {
+  /** Lectura completa de una transacción, acotada a la oficina de la empresa. */
+  consultarAsiento(id: string, oficinaId: string): Promise<AsientoConsultado | null>;
   readonly proveedor: string;
 
   configurado(): boolean;
@@ -153,6 +163,9 @@ export class ContabilidadExternaNoConfigurada
       'No hay un mayor contable externo configurado.',
       false,
     );
+  }
+  async consultarAsiento(): Promise<AsientoConsultado | null> {
+    throw new ErrorIntegracionExterna('No hay un mayor contable externo configurado.', false);
   }
   async buscarAsientoPorReferencia(): Promise<string | null> {
     return null;
