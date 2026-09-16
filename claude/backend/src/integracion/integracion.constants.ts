@@ -48,6 +48,8 @@ export enum TipoVinculo {
   PAGO_COBRANZA = 'PAGO_COBRANZA',
   PRODUCTO_CREDITO = 'PRODUCTO_CREDITO',
   OFICINA = 'OFICINA',
+  /** Ajuste de crédito por una devolución registrada en el externo. */
+  AJUSTE_DEVOLUCION_EXTERNA = 'AJUSTE_DEVOLUCION_EXTERNA',
   /** Póliza del ERP ↔ asiento del mayor externo. */
   POLIZA = 'POLIZA',
   /** Cuenta contable del ERP ↔ cuenta del mayor externo. */
@@ -123,3 +125,73 @@ export const PUERTO_CARTERA_EXTERNA = Symbol('PUERTO_CARTERA_EXTERNA');
 export const PUERTO_CONTABILIDAD_EXTERNA = Symbol('PUERTO_CONTABILIDAD_EXTERNA');
 /** Usuarios y roles del registro externo. */
 export const PUERTO_USUARIOS_EXTERNOS = Symbol('PUERTO_USUARIOS_EXTERNOS');
+
+/**
+ * Clasificación de las transacciones que devuelve el registro externo.
+ *
+ * Vive aquí, y no dentro de cada servicio, porque la usan dos: el que detecta
+ * las transacciones nacidas fuera y el que las refleja. Duplicarlas garantiza
+ * que un día se separen, y esa divergencia tiene una forma muy fea: el
+ * detector denuncia algo que el aplicador no sabe aplicar, y el hallazgo se
+ * repite para siempre sin que nadie entienda por qué.
+ */
+
+/**
+ * Dinero que ENTRA de parte del cliente. Es lo único que el ERP puede
+ * reflejar como cobranza.
+ */
+export const TIPOS_COBRANZA_DEL_CLIENTE = [
+  'repayment',
+  'downpayment',
+  'recoveryrepayment',
+];
+
+/**
+ * Movimientos que bajan el saldo SIN que entre dinero: devoluciones al
+ * cliente, bonificaciones de cortesía.
+ *
+ * Están separados porque reflejarlos como cobranza sería un error caro y
+ * silencioso: el ERP registraría un cobro, movería tesorería y cargaría la
+ * caja por un dinero que nunca entró. El arqueo saldría descuadrado y el
+ * asiento diría que la caja recibió algo que no recibió.
+ *
+ * Su reflejo correcto es otra operación del ERP —una devolución, que necesita
+ * la venta de origen—, y esa pieza todavía no existe. Hasta que exista se
+ * detectan y se reportan, pero no se aplican.
+ */
+export const TIPOS_REDUCCION_SIN_COBRO = [
+  'merchantissuedrefund',
+  'payoutrefund',
+  'goodwillcredit',
+];
+
+/** Todo lo que representa un movimiento real sobre el crédito. */
+export const TIPOS_TRANSACCION_REFLEJABLES = [
+  ...TIPOS_COBRANZA_DEL_CLIENTE,
+  ...TIPOS_REDUCCION_SIN_COBRO,
+];
+
+/**
+ * Transacciones que genera el propio externo y no son movimientos de nadie:
+ * el desembolso que abre el préstamo, los devengos, las reprogramaciones.
+ *
+ * Ninguna lleva referencia del ERP, porque el ERP no las creó. Sin esta lista
+ * el desembolso de CADA crédito se reportaría como operación externa.
+ */
+export const TIPOS_TRANSACCION_PROPIOS_DEL_CORE = [
+  'disbursement',
+  'accrual',
+  'accrualactivity',
+  'accrualadjustment',
+  'incomeposting',
+  'reage',
+  'reamortize',
+];
+
+/** Normaliza `loanTransactionType.repayment` a `repayment`. */
+export function tipoTransaccionNormalizado(tipo: string): string {
+  return tipo.split('.').pop()?.toLowerCase() ?? '';
+}
+
+/** Prefijo con el que el ERP marca todo lo que origina en el externo. */
+export const PREFIJO_REFERENCIA_ERP = 'syncro:';

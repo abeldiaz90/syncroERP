@@ -36,6 +36,9 @@ describe('AprobacionesDocumentosService - maker checker de crédito', () => {
       // Se deja como espía para comprobar que el maker-checker lo invoca sin
       // hablar con ningún sistema externo.
       { lineaAutorizada: jest.fn(async () => undefined) } as any,
+      // El motor de validación. Sin flujo activo la puerta no se aplica, que
+      // es el comportamiento de una empresa que no ha configurado ninguno.
+      { flujoActivo: jest.fn(async () => null), historial: jest.fn(async () => []) } as any,
     );
 
   const aprobacion = {

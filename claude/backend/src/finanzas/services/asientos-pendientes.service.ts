@@ -213,6 +213,8 @@ export class AsientosPendientesService {
       [TipoAsiento.COMPRA]: 'generarAsientoDeCompra',
       [TipoAsiento.PAGO_PROVEEDOR]: 'generarAsientoDePagoProveedor',
       [TipoAsiento.COBRANZA]: 'generarAsientoDeCobranza',
+      [TipoAsiento.CANCELACION_COBRANZA]: 'generarAsientoDeCancelacionCobranza',
+      [TipoAsiento.AJUSTE_DEVOLUCION_EXTERNA]: 'generarAsientoDeAjusteDevolucionExterna',
       [TipoAsiento.SALIDA_INVENTARIO]: 'generarAsientoDeSalida',
       [TipoAsiento.INVENTARIO_INICIAL]: 'generarAsientoDeInventarioInicial',
       [TipoAsiento.AJUSTE_INVENTARIO]: 'generarAsientoDeAjusteInventario',

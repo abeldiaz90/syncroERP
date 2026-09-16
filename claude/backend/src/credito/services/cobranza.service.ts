@@ -2,10 +2,17 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager } from 'typeorm';
+import {
+  Repository,
+  DataSource,
+  EntityManager,
+  MoreThanOrEqual,
+  Not,
+} from 'typeorm';
 import {
   CreditoCliente,
   EstadoCredito,
@@ -68,10 +75,20 @@ export class CobranzaService {
   // ──────────────────────────────────────────────────────────────────────────
   // REGISTRAR PAGO / ABONO
   // ──────────────────────────────────────────────────────────────────────────
+  /**
+   * Registra un abono.
+   *
+   * `opciones.idTransaccionExterna` es para UN solo caso: reflejar un pago que
+   * ya ocurrió en el registro externo. No está en el DTO a propósito, y no
+   * debe estarlo: si un cliente HTTP pudiera activarlo, podría registrar
+   * cobranza que nunca se replica al externo y descuadrar las dos carteras sin
+   * dejar rastro. Sólo lo pone código del servidor.
+   */
   async registrarPago(
     dto: RegistrarPagoCobranzaDto,
     empresaId: string,
     usuarioId?: string,
+    opciones?: { idTransaccionExterna?: string },
   ) {
     const monto = this.redondear(dto.montoPagado);
     if (!Number.isFinite(monto) || monto <= 0) {
@@ -308,17 +325,25 @@ export class CobranzaService {
        * evento vive o muere con el asiento que lo originó. La llamada al
        * proveedor la hace después el despachador.
        */
-      await this.cartera.pagoRegistrado(
-        empresaId,
-        {
-          pagoId: pago.id,
-          creditoId: credito.id,
-          monto,
-          fechaPago,
-          referencia: pago.referencia,
-        },
-        em,
-      );
+      /*
+       * Si el pago YA ocurrió en el externo, publicarlo lo mandaría de vuelta
+       * y crearía allá una segunda transacción por el mismo dinero. Es el eco
+       * clásico de una integración bidireccional, y aquí se corta en el único
+       * sitio donde se puede cortar sin ambigüedad: en el origen.
+       */
+      if (!opciones?.idTransaccionExterna) {
+        await this.cartera.pagoRegistrado(
+          empresaId,
+          {
+            pagoId: pago.id,
+            creditoId: credito.id,
+            monto,
+            fechaPago,
+            referencia: pago.referencia,
+          },
+          em,
+        );
+      }
 
       const cuentaCobranza = await em.findOne(CuentaBancaria, {
         where: { id: dto.cuentaBancariaId, empresaId, activo: true },
@@ -439,11 +464,331 @@ export class CobranzaService {
   // ──────────────────────────────────────────────────────────────────────────
   // OBTENER PAGOS DE UN CRÉDITO
   // ──────────────────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // CANCELAR PAGO
+  // ──────────────────────────────────────────────────────────────────────────
+  /**
+   * Deshace una cobranza.
+   *
+   * El ERP no sabía hacer esto: un pago mal capturado se quedaba para siempre.
+   * Y no es un caso raro —un cobro duplicado, un importe mal tecleado, un pago
+   * que el banco devuelve— sino de los que ocurren cada semana.
+   *
+   * El pago NO se borra: se marca. Un movimiento de dinero que desaparece de
+   * la base es justo lo que una auditoría no puede aceptar.
+   *
+   * `opciones.idTransaccionExterna` indica que la reversa ya ocurrió en el
+   * registro externo, y entonces no se republica: mandarla de vuelta
+   * intentaría reversar allá algo que allá ya está reversado.
+   */
+  async cancelarPago(
+    pagoId: string,
+    empresaId: string,
+    datos: { motivo: string },
+    usuarioId?: string,
+    opciones?: { idTransaccionExterna?: string },
+  ) {
+    const motivo = datos?.motivo?.trim();
+    if (!motivo || motivo.length < 5) {
+      throw new BadRequestException(
+        'La cancelación exige un motivo: es lo que explicará este movimiento dentro de seis meses.',
+      );
+    }
+
+    return this.dataSource.transaction('SERIALIZABLE', async (em) => {
+      const pago = await em
+        .createQueryBuilder(PagoCobranza, 'p')
+        .setLock('pessimistic_write')
+        .where('p.id = :pagoId AND p.empresaId = :empresaId', { pagoId, empresaId })
+        .getOne();
+      if (!pago) throw new NotFoundException('El pago no existe.');
+
+      // Idempotente: repetir la cancelación no es un error.
+      if (pago.cancelado) return { pago, idempotente: true };
+
+      /*
+       * Si ya se timbró el complemento de pago, cancelar aquí dejaría un CFDI
+       * vivo respaldando un cobro que el ERP da por inexistente. La
+       * cancelación fiscal va primero, y va por su camino.
+       */
+      if (pago.complementoPagoId || pago.estadoFiscal === EstadoFiscalCobranza.REP_GENERADO) {
+        throw new ConflictException(
+          'Este pago ya tiene complemento de pago timbrado. Cancela primero el CFDI; si no, quedaría un comprobante fiscal respaldando un cobro inexistente.',
+        );
+      }
+
+      /*
+       * Sólo el último pago vigente del crédito.
+       *
+       * El pago no guarda cómo se repartió entre cuotas, así que deshacerlo
+       * exige rehacer el reparto hacia atrás, y eso sólo es exacto si no hubo
+       * pagos posteriores. Cancelar en orden inverso es además como lo hace
+       * cualquier caja: primero se deshace lo último.
+       */
+      /*
+       * El `Not(id)` no sobra: la fecha que llega en la entidad viene
+       * truncada a milisegundos y en la base tiene microsegundos, así que el
+       * propio pago se contaba como posterior a sí mismo y NINGUNA
+       * cancelación era posible. Excluirlo por id es exacto pase lo que pase
+       * con la precisión.
+       */
+      const posteriores = await em.count(PagoCobranza, {
+        where: {
+          id: Not(pago.id),
+          empresaId,
+          creditoId: pago.creditoId,
+          cancelado: false,
+          fechaCreacion: MoreThanOrEqual(pago.fechaCreacion),
+        },
+      });
+      if (posteriores > 0) {
+        throw new ConflictException(
+          `Este crédito tiene ${posteriores} pago(s) posterior(es) vigentes. Cancélalos primero: deshacer uno intermedio dejaría el reparto entre cuotas mal calculado.`,
+        );
+      }
+
+      const credito = await em
+        .createQueryBuilder(CreditoCliente, 'c')
+        .setLock('pessimistic_write')
+        .where('c.id = :id AND c.empresaId = :empresaId', {
+          id: pago.creditoId,
+          empresaId,
+        })
+        .getOne();
+      if (!credito) throw new NotFoundException('Crédito no encontrado.');
+      if (credito.estado === EstadoCredito.CANCELADO) {
+        throw new ConflictException(
+          'El crédito está cancelado; no tiene sentido devolverle saldo.',
+        );
+      }
+
+      const monto = this.redondear(Number(pago.montoPagado));
+
+      // Devolver el importe a las cuotas, de la última pagada hacia atrás.
+      const cuotas = await em.find(AmortizacionCuota, {
+        where: { creditoId: credito.id },
+        order: { numeroCuota: 'DESC' },
+      });
+      let porDevolver = monto;
+      const afectadas: AmortizacionCuota[] = [];
+      for (const cuota of cuotas) {
+        if (porDevolver <= 0.0001) break;
+        const pagado = Number(cuota.montoPagado);
+        if (pagado <= 0.0001) continue;
+        const quitar = Math.min(pagado, porDevolver);
+        cuota.montoPagado = this.redondear(pagado - quitar);
+        cuota.estado =
+          Number(cuota.montoPagado) + 0.001 >= Number(cuota.montoCuota)
+            ? EstadoCuota.PAGADA
+            : EstadoCuota.PENDIENTE;
+        if (Number(cuota.montoPagado) <= 0.0001) cuota.fechaPago = null;
+        porDevolver = this.redondear(porDevolver - quitar);
+        afectadas.push(cuota);
+      }
+      if (afectadas.length) await em.save(AmortizacionCuota, afectadas);
+
+      credito.saldoPendiente = this.redondear(
+        Number(credito.saldoPendiente) + monto,
+      );
+      const hayVencidas = cuotas.some(
+        (cuota) =>
+          cuota.estado !== EstadoCuota.PAGADA &&
+          new Date(cuota.fechaVencimiento).getTime() < Date.now(),
+      );
+      credito.estado = hayVencidas ? EstadoCredito.VENCIDO : EstadoCredito.ACTIVO;
+      await em.save(credito);
+
+      pago.cancelado = true;
+      pago.fechaCancelacion = new Date();
+      pago.motivoCancelacion = motivo.slice(0, 500);
+      pago.canceladoPorId = usuarioId ?? null;
+      pago.estadoContable = EstadoContableCobranza.REVERTIDO;
+      await em.save(pago);
+
+      // La reversa contable va como póliza propia; la original no se toca.
+      await this.asientos.encolarEnTransaccion(
+        em,
+        TipoAsiento.CANCELACION_COBRANZA,
+        {
+          pagoId: pago.id,
+          creditoId: credito.id,
+          fechaCancelacion: pago.fechaCancelacion,
+          empresaId,
+          montoCapital: Number(pago.montoCapital),
+          montoInteres: Number(pago.montoInteres),
+          ivaReclasificado: Number(pago.ivaReclasificado),
+          totalPagado: monto,
+          cuentaBancariaId: pago.cuentaBancariaId ?? undefined,
+          motivo,
+        },
+        empresaId,
+        `CANCEL-${pago.id.slice(0, 8)}`,
+        pago.id,
+      );
+
+      /*
+       * El dinero también sale de la tesorería. Si el movimiento ya estaba
+       * conciliado con el banco, tesorería se niega, y con razón: eso ya no es
+       * un error de captura sino dinero que el banco vio entrar.
+       */
+      if (pago.movimientoTesoreriaId) {
+        await this.tesoreria.cancelar(
+          pago.movimientoTesoreriaId,
+          `Cancelación de cobranza: ${motivo}`,
+          empresaId,
+          usuarioId,
+        );
+      }
+
+      // Si la reversa nació fuera, ya está aplicada allá: republicarla
+      // intentaría reversar dos veces la misma transacción.
+      if (!opciones?.idTransaccionExterna) {
+        await this.cartera.pagoRevertido(
+          empresaId,
+          {
+            pagoId: pago.id,
+            creditoId: credito.id,
+            motivo,
+            fecha: pago.fechaCancelacion,
+          },
+          em,
+        );
+      }
+
+      return { pago, credito, montoDevuelto: monto, idempotente: false };
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // AJUSTE POR DEVOLUCIÓN REGISTRADA EN EL EXTERNO
+  // ──────────────────────────────────────────────────────────────────────────
+  /**
+   * Baja el saldo de un crédito por una devolución que ocurrió en el registro
+   * externo.
+   *
+   * NO es una devolución de venta y no pretende serlo. La devolución del ERP
+   * mueve inventario, calcula costo y merma por condición, y emite lo fiscal;
+   * para eso necesita saber QUÉ se devolvió, y el externo sólo sabe un
+   * importe sobre un préstamo. Inventar los renglones sería peor que no
+   * reflejar nada.
+   *
+   * Lo que sí es cierto y se refleja: el cliente debe menos. El efecto
+   * financiero se aplica y queda **pendiente de nota de crédito**, anunciado
+   * en la póliza, porque el CFDI sigue haciendo falta y esto no lo sustituye.
+   */
+  async ajustarPorDevolucionExterna(
+    empresaId: string,
+    datos: {
+      creditoId: string;
+      monto: number;
+      idTransaccionExterna: string;
+      fecha: string;
+      cuentaDevolucionId: string;
+    },
+  ) {
+    const monto = this.redondear(Number(datos.monto));
+    if (!Number.isFinite(monto) || monto <= 0) {
+      throw new BadRequestException('El importe del ajuste debe ser mayor a cero.');
+    }
+
+    return this.dataSource.transaction('SERIALIZABLE', async (em) => {
+      const credito = await em
+        .createQueryBuilder(CreditoCliente, 'c')
+        .setLock('pessimistic_write')
+        .where('c.id = :id AND c.empresaId = :empresaId', {
+          id: datos.creditoId,
+          empresaId,
+        })
+        .getOne();
+      if (!credito) throw new NotFoundException('Crédito no encontrado.');
+      if (credito.estado === EstadoCredito.CANCELADO) {
+        throw new ConflictException('El crédito está cancelado.');
+      }
+
+      /*
+       * No se baja más de lo que se debe. Si el externo devolvió más que el
+       * saldo vivo, el excedente es dinero a favor del cliente y eso es otra
+       * operación —con su propia cuenta y su propio tratamiento—, no algo que
+       * este ajuste deba inventar.
+       */
+      const saldo = Number(credito.saldoPendiente);
+      const aplicar = Math.min(monto, saldo);
+      if (aplicar <= 0.0001) {
+        throw new ConflictException(
+          'El crédito no tiene saldo pendiente sobre el que aplicar la devolución.',
+        );
+      }
+      const excedente = this.redondear(monto - aplicar);
+
+      // Se descuenta de las últimas cuotas hacia atrás, igual que una
+      // devolución del ERP reduce lo que queda por pagar.
+      const cuotas = await em.find(AmortizacionCuota, {
+        where: { creditoId: credito.id },
+        order: { numeroCuota: 'DESC' },
+      });
+      let porReducir = aplicar;
+      const afectadas: AmortizacionCuota[] = [];
+      for (const cuota of cuotas) {
+        if (porReducir <= 0.0001) break;
+        const resta = this.redondear(
+          Number(cuota.montoCuota) - Number(cuota.montoPagado),
+        );
+        if (resta <= 0.0001) continue;
+        const quitar = Math.min(resta, porReducir);
+        cuota.montoCuota = this.redondear(Number(cuota.montoCuota) - quitar);
+        cuota.estado =
+          Number(cuota.montoPagado) + 0.001 >= Number(cuota.montoCuota)
+            ? EstadoCuota.PAGADA
+            : cuota.estado;
+        porReducir = this.redondear(porReducir - quitar);
+        afectadas.push(cuota);
+      }
+      if (afectadas.length) await em.save(AmortizacionCuota, afectadas);
+
+      credito.saldoPendiente = this.redondear(saldo - aplicar);
+      credito.montoAjustesDevolucion = this.redondear(
+        Number(credito.montoAjustesDevolucion ?? 0) + aplicar,
+      );
+      credito.notas =
+        `${credito.notas ?? ''}\nAjuste por devolución externa ${datos.idTransaccionExterna}: -${aplicar.toFixed(2)}. Pendiente de nota de crédito.`.trim();
+      if (Number(credito.saldoPendiente) <= 0.0001) {
+        credito.saldoPendiente = 0;
+        credito.estado = EstadoCredito.LIQUIDADO;
+      }
+      await em.save(credito);
+
+      await this.asientos.encolarEnTransaccion(
+        em,
+        TipoAsiento.AJUSTE_DEVOLUCION_EXTERNA,
+        {
+          creditoId: credito.id,
+          idTransaccionExterna: datos.idTransaccionExterna,
+          fecha: datos.fecha,
+          empresaId,
+          monto: aplicar,
+          cuentaDevolucionId: datos.cuentaDevolucionId,
+        },
+        empresaId,
+        `DEV-EXT-${datos.idTransaccionExterna}`,
+        `devext:${datos.idTransaccionExterna}`,
+      );
+
+      // No se republica: la devolución ya está aplicada en el externo.
+      return { credito, aplicado: aplicar, excedente };
+    });
+  }
+
   async obtenerPagosPorCredito(creditoId: string, empresaId: string) {
     const credito = await this.creditoRepo.findOne({
       where: { id: creditoId, empresaId },
     });
     if (!credito) throw new NotFoundException('Crédito no encontrado.');
+    /*
+     * Los cancelados se devuelven también, marcados. Esconderlos haría que un
+     * estado de cuenta no explicara por qué el saldo no cuadra con la suma de
+     * los pagos visibles; quien mira quiere ver que hubo un cobro y que se
+     * deshizo.
+     */
     return this.pagoRepo.find({
       where: { creditoId, empresaId },
       order: { fechaPago: 'DESC' },

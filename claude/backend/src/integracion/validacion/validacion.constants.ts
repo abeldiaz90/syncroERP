@@ -70,3 +70,42 @@ export enum PropositoFlujo {
 }
 
 export const REGISTRO_EVALUADORES = Symbol('REGISTRO_EVALUADORES');
+
+/**
+ * Pasos que dependen de un proveedor externo y, por tanto, de lo que la
+ * empresa haya CONTRATADO.
+ *
+ * Ésta es la frontera entre la consola de SUMA y el ERP: la consola decide
+ * qué capacidades tiene contratada cada empresa —qué puede usar—; el ERP
+ * decide cómo las ordena en su flujo —cómo las usa—. Meter el diseño del
+ * flujo en la consola convertiría a SUMA en el comité de crédito de sus
+ * clientes, y decidir a quién se le presta es operación del cliente.
+ *
+ * Los que NO están aquí —historial propio, política interna, revisión
+ * humana— no consultan a nadie: son datos y criterio de la propia empresa, y
+ * no hay nada que contratar para usarlos.
+ */
+export const TIPOS_PASO_CONTRATABLES: TipoPasoValidacion[] = [
+  TipoPasoValidacion.IDENTIDAD_INE,
+  TipoPasoValidacion.BURO_CREDITO,
+  TipoPasoValidacion.CIRCULO_CREDITO,
+  TipoPasoValidacion.LISTA_BLOQUEO,
+];
+
+/**
+ * Qué capacidades puede usar esta empresa.
+ *
+ * `null` significa «SUMA no ha declarado nada», y entonces no se restringe.
+ * Es deliberado: hoy ninguna consola escribe esta lista, y tratar la ausencia
+ * como «ninguna contratada» dejaría a todas las empresas sin poder activar un
+ * flujo, por una decisión que nadie ha tomado todavía. Cuando la consola
+ * empiece a escribirla, la restricción entra sola.
+ */
+export function capacidadPermitida(
+  tipo: TipoPasoValidacion,
+  contratadas: string[] | null | undefined,
+): boolean {
+  if (!TIPOS_PASO_CONTRATABLES.includes(tipo)) return true;
+  if (!Array.isArray(contratadas)) return true;
+  return contratadas.includes(tipo);
+}

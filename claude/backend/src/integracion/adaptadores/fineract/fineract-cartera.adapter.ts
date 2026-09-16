@@ -23,6 +23,7 @@ import {
   ResumenCarteraCliente,
   SaldoCreditoExterno,
   RevertirPagoExterno,
+  TransaccionCreditoExterna,
 } from '../../ports/cartera-externa.port';
 import { FineractConfig } from './fineract.config';
 import { ErrorFineract, FineractHttpService } from './fineract-http.service';
@@ -333,8 +334,47 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
        * propagando lo demás, porque tratar una caída de red como «no existe»
        * inventaría discrepancias cada vez que el enlace se cae.
        */
-      const fallo = error as { estado?: number; status?: number };
-      if (fallo?.estado === 404 || fallo?.status === 404) return null;
+      if (this.esNoEncontrado(error)) return null;
+      throw this.traducir(error);
+    }
+  }
+
+  async transaccionesCredito(
+    idExterno: string,
+  ): Promise<TransaccionCreditoExterna[] | null> {
+    try {
+      const p = await this.http.get<{
+        transactions?: {
+          id?: number;
+          externalId?: string | null;
+          type?: { code?: string; value?: string };
+          amount?: number;
+          date?: number[];
+          manuallyReversed?: boolean;
+          reversed?: boolean;
+        }[];
+      }>(`/v1/loans/${encodeURIComponent(idExterno)}?associations=transactions`, {
+        timeoutMs: this.cfg.timeoutFondoMs,
+      });
+
+      return (p?.transactions ?? [])
+        .filter(t => t?.id != null)
+        .map(t => ({
+          idExterno: String(t.id),
+          /*
+           * Cadena vacía y ausente son lo mismo aquí —Fineract devuelve una u
+           * otra según la versión— y las dos significan «sin referencia del
+           * ERP». Dejar pasar la cadena vacía haría que una transacción nacida
+           * fuera se tomara por propia, que es justo el error caro.
+           */
+          referenciaErp: t.externalId ? String(t.externalId) : null,
+          tipo: String(t.type?.code ?? t.type?.value ?? ''),
+          monto: Number(t.amount ?? 0),
+          fecha: this.fechaDeArreglo(t.date),
+          reversada: t.manuallyReversed === true || t.reversed === true,
+        }));
+    } catch (error) {
+      if (this.esNoEncontrado(error)) return null;
       throw this.traducir(error);
     }
   }
@@ -995,6 +1035,21 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
       return null;
     }
     return this.buscarPorReferencia(recurso, referencia);
+  }
+
+  /**
+   * ¿El proveedor contestó «no existe»?
+   *
+   * Vive aparte porque el error del proveedor expone el código en
+   * `estadoHttp`, y comprobarlo en `estado` o `status` —que no existen— deja
+   * la rama muerta sin que nada falle: el 404 se propaga como avería de
+   * comunicación y la conciliación registra CONSULTA_FALLIDA en vez de
+   * DESAPARECIDO. Es un error silencioso y caro, porque lo primero se lee como
+   * «el enlace va regular» y lo segundo como «alguien borró un préstamo que
+   * aquí seguimos cobrando».
+   */
+  private esNoEncontrado(error: unknown): boolean {
+    return error instanceof ErrorFineract && error.estadoHttp === 404;
   }
 
   /** Traduce el error del proveedor al vocabulario del puerto. */

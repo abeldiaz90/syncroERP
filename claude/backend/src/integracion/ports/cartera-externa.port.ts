@@ -172,6 +172,29 @@ export interface SaldoCreditoExterno {
   activo: boolean;
 }
 
+/**
+ * Una transacción de un crédito, tal como la ve el registro externo.
+ *
+ * `referenciaErp` es la clave de todo el sentido externo → ERP: el ERP marca
+ * con su propia referencia cada transacción que origina, así que una
+ * transacción sin referencia conocida nació fuera del ERP. Distinguirlo así es
+ * exacto; hacerlo comparando importes y fechas es donde estas integraciones se
+ * vuelven frágiles en cuanto dos relojes se separan.
+ */
+export interface TransaccionCreditoExterna {
+  /** Identificador de la transacción en el proveedor. */
+  idExterno: string;
+  /** Referencia que puso el ERP al originarla. Null si no la originó el ERP. */
+  referenciaErp: string | null;
+  /** Código del proveedor sin interpretar: REPAYMENT, MERCHANT_ISSUED_REFUND… */
+  tipo: string;
+  monto: number;
+  /** AAAA-MM-DD. */
+  fecha: string;
+  /** Ya reversada en el externo. */
+  reversada: boolean;
+}
+
 export interface ResumenCarteraCliente {
   saldoTotal: number;
   saldoVencido: number;
@@ -261,6 +284,20 @@ export interface PuertoCarteraExterna {
    */
   saldoCredito(idExterno: string): Promise<SaldoCreditoExterno | null>;
 
+  /**
+   * Transacciones de UN crédito, con la referencia que el ERP les puso.
+   *
+   * Es la pieza que hace posible el sentido externo → ERP. Sin ella sólo se
+   * puede ver el saldo resultante, que dice que algo cambió pero no qué, y
+   * con eso no se puede reflejar una operación en el ERP.
+   *
+   * Devuelve null si el crédito ya no existe allá, con el mismo criterio que
+   * `saldoCredito`: eso es un hallazgo de conciliación, no un fallo de red.
+   */
+  transaccionesCredito(
+    idExterno: string,
+  ): Promise<TransaccionCreditoExterna[] | null>;
+
   /** Exposición consolidada del cliente. Es lo que consulta el POS. */
   resumenCliente(
     clienteIdExterno: string,
@@ -347,6 +384,12 @@ export class CarteraExternaNoConfigurada implements PuertoCarteraExterna {
   async revertirPago(): Promise<boolean> {
     this.negar();
   }
+  async transaccionesCredito(): Promise<TransaccionCreditoExterna[] | null> {
+    // Mismo criterio que `saldoCredito`: sin proveedor se niega, porque un
+    // arreglo vacío se leería como «ese crédito no tiene movimientos allá».
+    this.negar();
+  }
+
   async saldoCredito(): Promise<SaldoCreditoExterno | null> {
     // Sin proveedor no hay nada que conciliar. Se niega en vez de devolver
     // null, que la conciliación leería como «el crédito no existe allá».

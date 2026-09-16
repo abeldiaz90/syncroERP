@@ -52,6 +52,10 @@ export enum TipoAsiento {
   COMPRA = 'COMPRA',
   PAGO_PROVEEDOR = 'PAGO_PROVEEDOR',
   COBRANZA = 'COBRANZA',
+  /** Reversa de una cobranza cancelada. Póliza propia: la original no se toca. */
+  CANCELACION_COBRANZA = 'CANCELACION_COBRANZA',
+  /** Devolución registrada en el externo: baja el crédito sin venta detrás. */
+  AJUSTE_DEVOLUCION_EXTERNA = 'AJUSTE_DEVOLUCION_EXTERNA',
   SALIDA_INVENTARIO = 'SALIDA_INVENTARIO',
   INVENTARIO_INICIAL = 'INVENTARIO_INICIAL',
   AJUSTE_INVENTARIO = 'AJUSTE_INVENTARIO',

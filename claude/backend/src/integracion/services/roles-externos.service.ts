@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Usuario } from '../../iam/entities/usuario.entity';
 import { normalizarRol } from '../../iam/utils/roles.util';
+import { ROL_ADMINISTRADOR } from '../../iam/utils/roles-catalogo';
 import { PLANTILLAS_PERMISOS } from '../../iam/data/plantillas-permisos';
 import { PUERTO_USUARIOS_EXTERNOS, TipoVinculo } from '../integracion.constants';
 import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integracion-empresa.entity';
@@ -50,13 +51,29 @@ export class RolesExternosService {
     private readonly externos: PuertoUsuariosExternos,
   ) {}
 
-  /** Roles del ERP, para armar la pantalla de mapeo. */
+  /**
+   * Roles del ERP, para armar la pantalla de mapeo.
+   *
+   * Va primero ADMIN, que no tiene plantilla porque no la necesita: salta la
+   * tabla de permisos entera. Se quedaba fuera de esta lista y el resultado
+   * era que el diagnostico pedia mapear el rol del unico usuario real y la
+   * pantalla de mapeo no lo ofrecia. Un rol que existe y no se puede mapear
+   * es peor que no tenerlo.
+   */
   rolesErp(): { rol: string; etiqueta: string; descripcion: string }[] {
-    return PLANTILLAS_PERMISOS.map((p) => ({
-      rol: normalizarRol(p.rol),
-      etiqueta: p.etiqueta,
-      descripcion: p.descripcion,
-    }));
+    return [
+      {
+        rol: normalizarRol(ROL_ADMINISTRADOR),
+        etiqueta: 'Administrador',
+        descripcion:
+          'Puede todo en el ERP: no pasa por la tabla de permisos. Mapealo con cuidado.',
+      },
+      ...PLANTILLAS_PERMISOS.map((p) => ({
+        rol: normalizarRol(p.rol),
+        etiqueta: p.etiqueta,
+        descripcion: p.descripcion,
+      })),
+    ];
   }
 
   rolesExternos() {

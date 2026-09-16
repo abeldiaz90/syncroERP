@@ -32,6 +32,8 @@ import { CfdiModule } from '../../cfdi/cfdi.module';
 import { CajaModule } from '../../caja/modules/caja.module';
 import { CommonModule } from '../../common/modules/common.module';
 import { IntegracionModule } from '../../integracion/modules/integracion.module';
+import { ConfiguracionIntegracionEmpresa } from '../../integracion/entities/configuracion-integracion-empresa.entity';
+import { CarteraReflejoService } from '../services/cartera-reflejo.service';
 
 @Module({
   imports: [
@@ -45,6 +47,7 @@ import { IntegracionModule } from '../../integracion/modules/integracion.module'
       ProductoCredito,
       Banco,
       CuentaContable,
+      ConfiguracionIntegracionEmpresa,
     ]),
     FinanzasModule,
     TesoreriaModule,
@@ -68,10 +71,12 @@ import { IntegracionModule } from '../../integracion/modules/integracion.module'
     CobranzaService,
     CuentasBancariasService,
     CobranzaCronService,
+    CarteraReflejoService,
     EstadoCuentaService,
   ],
   exports: [
     CreditosService,
+    CarteraReflejoService,
     CobranzaService,
     CuentasBancariasService,
     ProductosCreditoService,

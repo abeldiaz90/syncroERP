@@ -6,6 +6,7 @@ import {
   IsIn,
   MinLength,
 } from 'class-validator';
+import { ROLES_ASIGNABLES } from '../utils/roles-catalogo';
 
 export class CrearUsuarioDto {
   @IsString()
@@ -20,7 +21,7 @@ export class CrearUsuarioDto {
   password: string;
 
   @IsOptional()
-  @IsIn(['admin', 'gerencia', 'rrhh', 'finanzas', 'empleado', 'comprador', 'almacenista'])
+  @IsIn(ROLES_ASIGNABLES)
   rol?: string;
 
   @IsOptional()

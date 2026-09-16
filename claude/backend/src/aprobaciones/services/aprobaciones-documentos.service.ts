@@ -28,6 +28,8 @@ import {
 import { PoliticaCreditoService } from '../../common/services/politica-credito.service';
 import { fechaCalendarioNegocio } from '../../common/utils/business-time.util';
 import { CarteraPublicadorService } from '../../integracion/services/cartera-publicador.service';
+import { EstadoEjecucion } from '../../integracion/validacion/validacion.constants';
+import { MotorValidacionService } from '../../integracion/validacion/services/motor-validacion.service';
 
 export const PROCESOS_APROBACION_CENTRAL =
   PROCESOS_FINANCIEROS_CENTRALES;
@@ -73,6 +75,7 @@ export class AprobacionesDocumentosService {
     private readonly hoteles: Repository<Hotel>,
     private readonly politicaCredito: PoliticaCreditoService,
     private readonly cartera: CarteraPublicadorService,
+    private readonly validacion: MotorValidacionService,
   ) {}
 
   async exigirConfiguracion(
@@ -1030,6 +1033,24 @@ export class AprobacionesDocumentosService {
           );
         }
 
+        /*
+         * La puerta de validación.
+         *
+         * Aquí es donde se decide a quién se le presta, así que aquí es donde
+         * tiene que mirarse el expediente: no en el punto de venta. Cuando el
+         * cliente llega a comprar ya trae línea o no la trae, y esa es
+         * exactamente la pregunta que se resuelve en este método.
+         *
+         * Una empresa sin flujo activo sigue funcionando como siempre. Quien
+         * lo activa está diciendo «no quiero autorizar líneas a ciegas», y a
+         * partir de ahí no se puede autorizar sin expediente.
+         */
+        await this.exigirValidacionFavorable(
+          aprobacion.empresaId,
+          cliente.id,
+          limiteSolicitado,
+        );
+
         const versionAnterior = Number(cliente.versionCredito ?? 1);
         const teniaLineaVigente =
           Number(cliente.limiteCredito ?? 0) > 0 &&
@@ -1216,4 +1237,52 @@ export class AprobacionesDocumentosService {
     convenio.comentarioResolucion = comentario?.trim() || null;
     await manager.save(convenio);
   }
+  /**
+   * Exige un expediente de validación favorable antes de autorizar la línea.
+   *
+   * RECHAZADA cierra la puerta: si el flujo dijo que no, no hay línea.
+   * REVISION_MANUAL la deja pasar a propósito —significa «que lo mire una
+   * persona», y una persona es justo quien está aprobando aquí—, pero el
+   * expediente tiene que existir y quedar registrado.
+   *
+   * El expediente también tiene que cubrir el importe: uno hecho para 5.000
+   * no justifica una línea de 500.000. Sin esa comprobación bastaría con
+   * validar barato una vez para autorizar cualquier cosa después.
+   */
+  private async exigirValidacionFavorable(
+    empresaId: string,
+    clienteId: string,
+    limiteSolicitado: number,
+  ): Promise<void> {
+    const flujo = await this.validacion.flujoActivo(empresaId);
+    if (!flujo) return;
+
+    const historial = await this.validacion.historial(empresaId, clienteId);
+    const expediente = (historial ?? []).find(e => !e.simulacion);
+
+    if (!expediente) {
+      throw new ConflictException(
+        `La empresa tiene activo el flujo «${flujo.nombre}» y este cliente no tiene expediente de validación. Ejecuta la verificación antes de autorizar la línea.`,
+      );
+    }
+
+    if (expediente.estado === EstadoEjecucion.RECHAZADA) {
+      throw new ConflictException(
+        `El expediente de validación de este cliente quedó RECHAZADA: ${
+          (expediente.motivos ?? []).join(' ') || 'sin motivo registrado'
+        }`,
+      );
+    }
+
+    if (Number(expediente.limiteSolicitado ?? 0) + 0.005 < limiteSolicitado) {
+      throw new ConflictException(
+        `El expediente de validación se hizo por ${Number(
+          expediente.limiteSolicitado ?? 0,
+        ).toFixed(2)} y se está autorizando ${limiteSolicitado.toFixed(
+          2,
+        )}. Vuelve a verificar por el importe que se va a autorizar.`,
+      );
+    }
+  }
+
 }

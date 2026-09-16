@@ -42,6 +42,22 @@ export class IntegracionVinculosService {
     return vinculo?.idExterno ?? null;
   }
 
+  /**
+   * Búsqueda inversa: qué entidad del ERP corresponde a un id externo.
+   *
+   * Hace falta para el sentido externo → ERP. Al reflejar una transacción
+   * nacida en el core no se puede cambiar su identificador allá, así que la
+   * única forma de no aplicarla dos veces es preguntar aquí si ya se reflejó.
+   */
+  async porIdExterno(
+    empresaId: string,
+    tipo: TipoVinculo,
+    idExterno: string,
+    em?: EntityManager,
+  ): Promise<VinculoIntegracion | null> {
+    return this.acceso(em).findOne({ where: { empresaId, tipo, idExterno } });
+  }
+
   /** Registra o actualiza la correspondencia. Idempotente. */
   async vincular(
     datos: {

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { ModoCartera, TipoEventoIntegracion } from '../integracion.constants';
 import { diaCalendario } from '../../common/utils/fecha-calendario.util';
+import { fechaCalendarioNegocio } from '../../common/utils/business-time.util';
 import { IntegracionModoService } from './integracion-modo.service';
 import { IntegracionOutboxService } from './integracion-outbox.service';
 
@@ -175,8 +176,16 @@ export class CarteraPublicadorService {
     );
   }
 
+  /**
+   * Un instante hay que bajarlo al dia de negocio, no al dia del reloj del
+   * proceso. Con el proceso en UTC, una venta de las 20:30 en Mexico cae el
+   * dia siguiente, y Fineract acaba fechando un dia por delante del ERP: los
+   * saldos cuadran y las fechas no. Una cadena `yyyy-mm-dd` ya es un dia de
+   * calendario y se respeta tal cual.
+   */
   private dia(valor?: Date | string): string {
-    return diaCalendario(valor ?? new Date());
+    if (typeof valor === 'string') return diaCalendario(valor);
+    return fechaCalendarioNegocio(valor ?? new Date());
   }
 
   /** Pago de cobranza aplicado en el ERP. */

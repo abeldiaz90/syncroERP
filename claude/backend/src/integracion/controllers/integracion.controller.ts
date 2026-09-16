@@ -36,6 +36,7 @@ import { PuertoContabilidadExterna } from '../ports/contabilidad-externa.port';
 import { IntegracionDespachadorService } from '../services/integracion-despachador.service';
 import { IntegracionModoService } from '../services/integracion-modo.service';
 import { IntegracionOutboxService } from '../services/integracion-outbox.service';
+import { SincronizacionInicialService } from '../services/sincronizacion-inicial.service';
 import { IntegracionVinculosService } from '../services/integracion-vinculos.service';
 import { DecisionCreditoService } from '../services/decision-credito.service';
 import { DisponibilidadCreditoService } from '../services/disponibilidad-credito.service';
@@ -59,6 +60,7 @@ export class IntegracionController {
     private readonly decision: DecisionCreditoService,
     private readonly vinculos: IntegracionVinculosService,
     private readonly outbox: IntegracionOutboxService,
+    private readonly sincronizacionInicial_: SincronizacionInicialService,
     private readonly despachador: IntegracionDespachadorService,
     private readonly conciliacion: CarteraConciliacionService,
     private readonly mapeo: MapeoCuentasService,
@@ -136,6 +138,9 @@ export class IntegracionController {
       'productoCreditoSimpleId',
       'productoMensualidadesId',
       'productoMsiId',
+      'cuentaCobranzaExternaId',
+      'cuentaDevolucionExternaId',
+      'capacidadesValidacion',
     ] as const) {
       if (dto[clave] !== undefined) parametros[clave] = dto[clave];
     }
@@ -276,6 +281,24 @@ export class IntegracionController {
   }
 
   /** Eventos del outbox con su último error. Es la bitácora de la integración. */
+  /**
+   * Pone al día el externo con lo que el ERP ya tenía.
+   *
+   * `?simular=1` sólo informa. Es un paso explícito, no un efecto de cambiar
+   * el modo: en un cliente real puede mover miles de eventos y eso no debe
+   * ocurrir porque alguien tocó un selector.
+   */
+  @Post('sincronizacion-inicial')
+  @Roles('administrador', 'direccion')
+  sincronizacionInicial(
+    @ActiveUser('empresaId') empresaId: string,
+    @Query('simular') simular?: string,
+  ) {
+    return this.sincronizacionInicial_.sincronizar(empresaId, {
+      simular: simular === '1',
+    });
+  }
+
   @Get('outbox')
   @Roles('administrador', 'direccion', 'contador')
   listarOutbox(

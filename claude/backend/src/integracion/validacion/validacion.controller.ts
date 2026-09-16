@@ -16,6 +16,7 @@ import {
 } from './dto/flujo-validacion.dto';
 import { FlujosValidacionService } from './services/flujos-validacion.service';
 import { MotorValidacionService } from './services/motor-validacion.service';
+import { TIPOS_PASO_CONTRATABLES } from './validacion.constants';
 
 /**
  * Diseño y ejecución de los flujos de validación previos al crédito.
@@ -39,6 +40,28 @@ export class ValidacionController {
   }
 
   /** Punto de partida sugerido para que nadie empiece con una hoja en blanco. */
+  /**
+   * Qué capacidades de validación tiene contratadas esta empresa.
+   *
+   * Las gobierna la consola de SUMA, igual que los modos de contratación. El
+   * ERP sólo las lee, para no ofrecer en el diseñador pasos que después no se
+   * podrán activar.
+   */
+  @Get('capacidades')
+  @Roles('administrador', 'direccion', 'gerencia')
+  async capacidades(@ActiveUser('empresaId') empresaId: string) {
+    const contratadas = await this.flujos.capacidadesContratadas(empresaId);
+    return {
+      contratables: TIPOS_PASO_CONTRATABLES,
+      contratadas,
+      sinRestriccion: contratadas === null,
+      nota:
+        contratadas === null
+          ? 'SUMA no ha declarado capacidades para esta empresa, así que no se restringe ninguna.'
+          : 'Los pasos fuera de esta lista pueden diseñarse pero no activarse.',
+    };
+  }
+
   @Get('flujos/plantilla')
   @Roles('administrador', 'direccion', 'gerencia')
   plantilla() {

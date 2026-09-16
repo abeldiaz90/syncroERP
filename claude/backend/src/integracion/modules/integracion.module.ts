@@ -46,6 +46,7 @@ import { IntegracionDespachadorService } from '../services/integracion-despachad
 import { IntegracionModoService } from '../services/integracion-modo.service';
 import { IntegracionOutboxService } from '../services/integracion-outbox.service';
 import { IntegracionVinculosService } from '../services/integracion-vinculos.service';
+import { SincronizacionInicialService } from '../services/sincronizacion-inicial.service';
 import { MapeoCuentasService } from '../services/mapeo-cuentas.service';
 import { RolesExternosService } from '../services/roles-externos.service';
 import { PolizaEspejoSubscriber } from '../services/poliza-espejo.subscriber';
@@ -133,6 +134,7 @@ import { FineractAdapterModule } from '../adaptadores/fineract/fineract.module';
     AvisosIntegracionService,
     IntegracionModoService,
     IntegracionVinculosService,
+    SincronizacionInicialService,
     IntegracionOutboxService,
     IntegracionDespachadorService,
     CarteraPublicadorService,

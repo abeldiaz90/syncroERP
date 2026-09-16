@@ -58,3 +58,10 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Runtime uploads - no versionar datos de ejecución
 /uploads/*
 !/uploads/.gitkeep
+
+# Respaldos de archivos de entorno. El .gitignore cubria .env.local pero no
+# sus copias: un `.env.local.bak` habria subido la contrasena de la base y
+# el token de aprovisionamiento al repositorio. Estuvo a punto de pasar.
+.env*.bak
+.env*.bak-*
+*.bak-claude

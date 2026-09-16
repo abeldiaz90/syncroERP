@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
 import { confirmarElegante, solicitarTexto } from '@/components/ui/dialogos';
+import { ExpedienteCliente } from '@/components/clientes/expediente-cliente';
 import {
     Search, Plus, Edit2, Power, X, Users, AlertCircle, CheckCircle2,
     Building2, User, MapPin, Phone, ShieldCheck, Loader2, AlertTriangle,
@@ -116,71 +117,6 @@ const inputCls = (error?: string, touched?: boolean) =>
             : 'border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100'
     }`;
 
-// ── Verificador CURP ──────────────────────────────────────────────────────────
-function CurpVerificador({ onVerificado, curpInicial = '' }: {
-    onVerificado?: (d: any) => void; curpInicial?: string;
-}) {
-    const [curp, setCurp]           = useState(curpInicial);
-    const [resultado, setResultado] = useState<any>(null);
-    const [verificando, setV]       = useState(false);
-    const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
-    const h   = () => ({ Authorization: `Bearer ${localStorage.getItem('syncro_token')}`, 'Content-Type': 'application/json' });
-    useEffect(() => { setCurp(curpInicial); setResultado(null); }, [curpInicial]);
-    const verificar = async () => {
-        if (curp.length !== 18) return;
-        setV(true); setResultado(null);
-        const r = await fetch(`${api}/rpa/curp/consultar`, {
-            method: 'POST', headers: h(),
-            body: JSON.stringify({ tipo: 'CURP', curp: curp.trim().toUpperCase() }),
-        }).catch(() => null);
-        if (r?.ok) {
-            const d = await r.json(); setResultado(d);
-            if (d.exitosa && onVerificado) onVerificado({ ...d, curpCapturada: curp.toUpperCase() });
-        } else setResultado({ exitosa: false, error: 'Error de conexión' });
-        setV(false);
-    };
-    const color = resultado === null ? 'slate' : resultado.exitosa ? 'emerald' : 'rose';
-    return (
-        <div className="space-y-2">
-            <div className="flex gap-2">
-                <input value={curp}
-                    onChange={e => { setCurp(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'')); setResultado(null); }}
-                    onKeyDown={e => e.key==='Enter' && curp.length===18 && verificar()}
-                    maxLength={18} placeholder="XXXX000000XXXXXXXX00"
-                    className={`flex-1 px-3 py-2.5 border rounded-lg text-sm font-mono tracking-widest uppercase outline-none transition-all ${
-                        resultado?.exitosa ? 'border-emerald-400 bg-emerald-50 focus:ring-2 focus:ring-emerald-100'
-                        : resultado ? 'border-rose-400 bg-rose-50' : 'border-slate-300 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100'
-                    }`}/>
-                <button type="button" onClick={verificar} disabled={curp.length!==18||verificando}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 transition-all whitespace-nowrap">
-                    {verificando ? <Loader2 className="w-4 h-4 animate-spin"/> : <ShieldCheck className="w-4 h-4"/>}
-                    {verificando ? 'Consultando…' : 'Verificar'}
-                </button>
-            </div>
-            <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>{curp.length}/18 caracteres</span>
-                {resultado?.desdeCache && <span className="text-indigo-400">✓ desde caché</span>}
-            </div>
-            {resultado && (
-                <div className={`flex items-start gap-2 px-3 py-2.5 rounded-lg text-sm border ${
-                    resultado.exitosa
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                        : 'bg-rose-50 border-rose-200 text-rose-800'
-                }`}>
-                    {resultado.exitosa
-                        ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600"/>
-                        : <AlertCircle  className="w-4 h-4 mt-0.5 shrink-0 text-rose-600"/>}
-                    <span className="font-medium">
-                        {resultado.exitosa
-                            ? `✓ ${[resultado.nombre, resultado.primerApellido, resultado.segundoApellido].filter(Boolean).join(' ')} · ${resultado.fechaNacimiento}`
-                            : resultado.error || 'CURP no encontrada en RENAPO'}
-                    </span>
-                </div>
-            )}
-        </div>
-    );
-}
-
 // ── Página principal ──────────────────────────────────────────────────────────
 const formVacio: FormData = {
     curp:'', nombre:'', tipoPersona:'FISICA', rfc:'', razonSocial:'',
@@ -205,6 +141,22 @@ export default function ClientesPage() {
     const [submitTried, setSubmitTried] = useState(false);
     const [toast, setToast]             = useState<{msg:string;tipo:'ok'|'err'|'info'}|null>(null);
     const [paises, setPaises]           = useState<any[]>([]);
+    /*
+     * Verificacion de credito. El backend se niega a autorizar una linea si la
+     * empresa tiene un flujo activo y el cliente no trae expediente favorable,
+     * y hasta ahora eso se descubria al final, con un 409 en la pantalla de
+     * aprobaciones. Se trae el flujo activo y el expediente del cliente para
+     * decirlo aqui, donde se teclea el limite, no tres pantallas despues.
+     */
+    const [flujoVerif, setFlujoVerif]   = useState<{ id:string; nombre:string } | null>(null);
+    const [expediente, setExpediente]   = useState<any|null|undefined>(undefined);
+    /* El cliente que se esta editando, para leer su estado real de linea. */
+    const clienteEnEdicion = editId ? clientes.find(c => c.id === editId) ?? null : null;
+    /* Cual expediente se esta viendo. La pantalla ya no es una tabla: siempre
+       hay un cliente abierto a la derecha, y al cargar se abre el primero
+       para que nadie llegue a un panel vacio sin saber que hacer. */
+    const [seleccionado, setSeleccionado] = useState<string|null>(null);
+    const clienteActivo = clientes.find(c => c.id === seleccionado) ?? null;
     const [estados, setEstados]         = useState<any[]>([]);
 
     const api   = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
@@ -225,6 +177,16 @@ export default function ClientesPage() {
         setCargando(false);
     }, [busqDebounced, soloActivos]);
     useEffect(()=>{ fetchClientes(); },[fetchClientes]);
+    useEffect(() => {
+        if (!clientes.length) { setSeleccionado(null); return; }
+        setSeleccionado(prev => (prev && clientes.some(c=>c.id===prev)) ? prev : clientes[0].id);
+    }, [clientes]);
+    useEffect(() => {
+        fetch(`${api}/integracion/validacion/flujos/activo`, { headers: heads() })
+          .then(r => r.ok ? r.json() : null)
+          .then((f:any) => setFlujoVerif(f && f.id ? { id:f.id, nombre:f.nombre } : null))
+          .catch(()=>setFlujoVerif(null));
+    }, []);
     useEffect(() => {
         fetch(`${api}/catalogos/paises`, {headers:heads()})
           .then(r=>r.ok?r.json():[]).then((datos:any[]) => {
@@ -256,21 +218,10 @@ export default function ClientesPage() {
     const handleBlur = (e: React.FocusEvent<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>) =>
         touch(e.target.name as keyof FormData);
 
-    const handleCurpVerificado = (d: any) => {
-        const nom = [d.nombre, d.primerApellido, d.segundoApellido].filter(Boolean).join(' ');
-        setFormData(p=>({
-            ...p,
-            curp:           d.curpCapturada   ?? p.curp,
-            nombre:         p.nombre          || nom,
-            contactoNombre: p.contactoNombre  || nom,
-            estado:         p.estado          || d.entidadNacimiento || '',
-        }));
-        showToast(`CURP verificada · ${nom}`, 'ok');
-    };
-
     const abrirCrear = () => {
         const mx=paises.find(p=>p.codigoIso2==='MX'||p.codigo==='MX');
         setEditId(null); setFormData({...formVacio,paisId:mx?.id||'',pais:mx?.nombre||'México'});
+        setExpediente(null);
         setErrors({}); setTouched({}); setSubmitTried(false); setModal(true);
     };
     const abrirEditar = (c: ICliente) => {
@@ -293,6 +244,13 @@ export default function ClientesPage() {
                 ? c.clasificacionHoteleraSolicitada
                 : c.clasificacionHotelera)||'', notas:c.notas||'' });
         setErrors({}); setTouched({}); setSubmitTried(false); setModal(true);
+        /* El expediente mas reciente que NO sea simulacion: es el unico que el
+           candado de aprobacion mira. */
+        setExpediente(undefined);
+        fetch(`${api}/integracion/validacion/expedientes?clienteId=${c.id}`, { headers: heads() })
+          .then(r => r.ok ? r.json() : [])
+          .then((h:any[]) => setExpediente((Array.isArray(h)?h:[]).find(e => !e.simulacion) ?? null))
+          .catch(()=>setExpediente(null));
     };
 
     const handleGuardar = async (e: React.FormEvent) => {
@@ -390,6 +348,20 @@ export default function ClientesPage() {
                 </div>
             )}
 
+            {/* ══════════════════════════════════════════════════════════════
+                CARTERA DE CLIENTES · panel, no tabla
+
+                Era una rejilla con un popup encima, y eso decía que el cliente
+                es un renglón. No lo es: es un expediente —identidad, línea,
+                verificaciones, historia— y la pantalla tiene que enseñarlo
+                entero sin abrir nada.
+
+                De ahí la forma: un resumen de cartera arriba, la lista a la
+                izquierda para elegir, y a la derecha el expediente del elegido.
+                El formulario de alta y edición sigue siendo un modal porque es
+                captura, no consulta: se abre, se llena y se cierra.
+               ══════════════════════════════════════════════════════════════ */}
+
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
@@ -397,7 +369,7 @@ export default function ClientesPage() {
                         <div className="p-2 bg-indigo-100 rounded-lg"><Users className="w-5 h-5 text-indigo-600"/></div>
                         Cartera de Clientes
                     </h1>
-                    <p className="text-sm text-slate-500 mt-1">Gestión de clientes, crédito y verificación de identidad</p>
+                    <p className="text-sm text-slate-500 mt-1">Expediente, crédito y verificaciones de cada cliente</p>
                 </div>
                 <button onClick={abrirCrear}
                     className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-all active:scale-95">
@@ -405,165 +377,189 @@ export default function ClientesPage() {
                 </button>
             </div>
 
-            {/* Barra de búsqueda */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4 mb-5 flex flex-col sm:flex-row gap-3 items-center">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
-                    <input value={busqueda} onChange={e=>setBusqueda(e.target.value)}
-                        placeholder="Buscar por nombre, RFC, CURP o correo…"
-                        className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50"/>
-                </div>
-                <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer whitespace-nowrap">
-                    <div className="relative">
-                        <input type="checkbox" className="sr-only" checked={!soloActivos} onChange={e=>setSoloActivos(!e.target.checked)}/>
-                        <div className={`w-9 h-5 rounded-full transition-colors ${!soloActivos?'bg-indigo-500':'bg-slate-300'}`}/>
-                        <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${!soloActivos?'translate-x-4':''}`}/>
+            {/* ── Resumen de cartera ─────────────────────────────────────────
+                Cuatro números que se leen de un tirón. El último es el que
+                nadie miraba: cuántos tienen línea viva sin haber pasado por
+                una verificación. */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+                {[
+                    { etiqueta: 'Clientes', valor: clientes.length, pie: soloActivos ? 'activos' : 'incluye inactivos', color: 'text-slate-900' },
+                    { etiqueta: 'Con línea vigente', valor: clientes.filter(c=>Number(c.limiteCredito??0)>0).length, pie: 'pueden comprar a crédito', color: 'text-emerald-700' },
+                    { etiqueta: 'En aprobación', valor: clientes.filter(c=>c.estadoSolicitudCredito==='PENDIENTE').length, pie: 'esperan maker-checker', color: 'text-indigo-700' },
+                    { etiqueta: 'Sin crédito', valor: clientes.filter(c=>!(Number(c.limiteCredito??0)>0)).length, pie: 'compran de contado', color: 'text-slate-500' },
+                ].map(k=>(
+                    <div key={k.etiqueta} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{k.etiqueta}</p>
+                        <p className={`text-2xl font-bold tabular-nums mt-0.5 ${k.color}`}>{k.valor}</p>
+                        <p className="text-[11px] text-slate-400">{k.pie}</p>
                     </div>
-                    Ver inactivos
-                </label>
+                ))}
             </div>
 
-            {/* Tabla */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                {cargando ? (
-                    <div className="py-16 flex flex-col items-center text-slate-400">
-                        <Loader2 className="w-7 h-7 animate-spin mb-3"/>
-                        <p className="text-sm">Cargando clientes…</p>
+            <div className="grid lg:grid-cols-[340px_1fr] gap-5 items-start">
+                {/* ── Columna izquierda: elegir cliente ───────────────────── */}
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden lg:sticky lg:top-4">
+                    <div className="p-3 border-b border-slate-100 space-y-2">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
+                            <input value={busqueda} onChange={e=>setBusqueda(e.target.value)}
+                                placeholder="Buscar por nombre, RFC o correo…"
+                                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50"/>
+                        </div>
+                        <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer">
+                            <div className="relative">
+                                <input type="checkbox" className="sr-only" checked={!soloActivos} onChange={e=>setSoloActivos(!e.target.checked)}/>
+                                <div className={`w-8 h-4 rounded-full transition-colors ${!soloActivos?'bg-indigo-500':'bg-slate-300'}`}/>
+                                <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${!soloActivos?'translate-x-4':''}`}/>
+                            </div>
+                            Ver inactivos
+                        </label>
                     </div>
-                ) : clientes.length === 0 ? (
-                    <div className="py-16 flex flex-col items-center text-slate-400">
-                        <Users className="w-12 h-12 mb-3 opacity-30"/>
-                        <p className="font-medium text-slate-600">Sin clientes registrados</p>
-                        <p className="text-sm mt-1">Haz clic en "Nuevo Cliente" para comenzar.</p>
-                    </div>
-                ) : (
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500 font-semibold">
-                                <th className="px-5 py-3 text-left">Cliente</th>
-                                <th className="px-5 py-3 text-left">Contacto</th>
-                                <th className="px-5 py-3 text-center">Tipo</th>
-                                <th className="px-5 py-3 text-center">Crédito</th>
-                                <th className="px-5 py-3 text-center">Ciclo / riesgo</th>
-                                <th className="px-5 py-3 text-center">Estado</th>
-                                <th className="px-5 py-3 text-center">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {clientes.map(c=>(
-                                <tr key={c.id} className={`hover:bg-slate-50/80 transition-colors ${!c.activo?'opacity-50':''}`}>
-                                    <td className="px-5 py-3.5">
-                                        <p className="font-semibold text-slate-900">{c.nombre}</p>
-                                        {c.rfc && <p className="text-xs text-slate-400 font-mono mt-0.5">RFC: {c.rfc}</p>}
-                                        {c.curp && (
-                                            <p className="text-xs text-indigo-400 font-mono mt-0.5 flex items-center gap-1">
-                                                <ShieldCheck className="w-3 h-3"/> {c.curp}
-                                            </p>
+
+                    {cargando ? (
+                        <div className="py-12 flex flex-col items-center text-slate-400">
+                            <Loader2 className="w-6 h-6 animate-spin mb-2"/>
+                            <p className="text-xs">Cargando…</p>
+                        </div>
+                    ) : clientes.length === 0 ? (
+                        <div className="py-12 px-4 flex flex-col items-center text-center text-slate-400">
+                            <Users className="w-10 h-10 mb-3 opacity-30"/>
+                            <p className="font-medium text-slate-600 text-sm">Sin clientes</p>
+                            <p className="text-xs mt-1">Empieza con «Nuevo Cliente».</p>
+                        </div>
+                    ) : (
+                        <div className="max-h-[70vh] overflow-auto divide-y divide-slate-100">
+                            {clientes.map(c=>{
+                                const conLinea = Number(c.limiteCredito ?? 0) > 0;
+                                const elegido = seleccionado === c.id;
+                                return (
+                                    <button key={c.id} onClick={()=>setSeleccionado(c.id)}
+                                        className={`w-full text-left px-3 py-2.5 transition-colors ${
+                                            elegido ? 'bg-indigo-50' : 'hover:bg-slate-50'} ${!c.activo?'opacity-50':''}`}>
+                                        <div className="flex items-start gap-2">
+                                            <span className={`w-1 self-stretch rounded-full shrink-0 ${elegido?'bg-indigo-500':'bg-transparent'}`}/>
+                                            <div className="min-w-0 flex-1">
+                                                <p className={`text-sm truncate ${elegido?'font-bold text-indigo-900':'font-semibold text-slate-800'}`}>
+                                                    {c.nombre}
+                                                </p>
+                                                <p className="text-[11px] text-slate-400 truncate">
+                                                    {c.rfc || c.email || (c.tipoPersona==='MORAL'?'Persona moral':'Persona física')}
+                                                </p>
+                                            </div>
+                                            <span className={`shrink-0 text-[10px] font-semibold tabular-nums ${conLinea?'text-emerald-700':'text-slate-300'}`}>
+                                                {conLinea ? `$${Number(c.limiteCredito).toLocaleString('es-MX')}` : '—'}
+                                            </span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* ── Columna derecha: el expediente ──────────────────────── */}
+                <div>
+                    {!clienteActivo ? (
+                        <div className="rounded-xl border border-dashed border-slate-300 bg-white py-20 flex flex-col items-center text-center px-6">
+                            <Users className="w-12 h-12 text-slate-200 mb-4"/>
+                            <p className="font-semibold text-slate-700">Elige un cliente</p>
+                            <p className="text-sm text-slate-500 mt-1 max-w-sm">
+                                Aquí aparece su expediente: identidad, línea de crédito y todas las
+                                verificaciones que se le han hecho.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-5">
+                            {/* Ficha de identidad y estado */}
+                            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                                <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3 flex-wrap">
+                                    <div className="min-w-0">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                            Expediente del cliente
+                                        </p>
+                                        <h2 className="text-lg font-semibold text-slate-900 mt-0.5">{clienteActivo.nombre}</h2>
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            <span className="font-mono">{[clienteActivo.rfc, clienteActivo.curp].filter(Boolean).join(' · ') || 'sin RFC ni CURP'}</span>
+                                            {clienteActivo.email && <> · {clienteActivo.email}</>}
+                                            {clienteActivo.telefono && <> · {clienteActivo.telefono}</>}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <Link href={`/dashboard/clientes/${clienteActivo.id}/expediente`}
+                                            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg" title="Abrir el expediente a pantalla completa">
+                                            <FileText className="w-4 h-4"/>
+                                        </Link>
+                                        {clienteActivo.estadoCredito === 'AUTORIZADO' && (
+                                            <button onClick={()=>gestionarCredito(clienteActivo,'SUSPENDER')}
+                                                className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg" title="Suspender crédito">
+                                                <AlertTriangle className="w-4 h-4"/>
+                                            </button>
                                         )}
-                                    </td>
-                                    <td className="px-5 py-3.5">
-                                        {c.email && <p className="text-slate-600 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-400"/>{c.email}</p>}
-                                        {c.telefono && <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1"><Phone className="w-3 h-3"/>{c.telefono}</p>}
-                                    </td>
-                                    <td className="px-5 py-3.5 text-center">
-                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold border ${
-                                            c.tipoPersona==='MORAL'
-                                                ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                                : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                                            {c.tipoPersona==='MORAL'?<Building2 className="w-3 h-3"/>:<User className="w-3 h-3"/>}
-                                            {c.tipoPersona==='MORAL'?'Moral':'Física'}
-                                        </span>
-                                    </td>
-                                    <td className="px-5 py-3.5 text-center">
-                                        <div className="space-y-1">
-                                            {c.limiteCredito > 0 ? (
-                                                <div>
-                                                    <p className="text-xs font-semibold text-slate-700">
-                                                        Vigente ${Number(c.limiteCredito).toLocaleString('es-MX')}
-                                                    </p>
-                                                    <p className="text-xs text-slate-400">{c.diasCredito} días · v{c.versionCredito ?? 1}</p>
-                                                </div>
-                                            ) : <span className="text-xs text-slate-300">Sin línea vigente</span>}
-                                            {Number(c.limiteCreditoSolicitado ?? 0) > 0 && (
-                                                <div className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1">
-                                                    <p className="text-[11px] font-semibold text-indigo-700">
-                                                        Propuesta ${Number(c.limiteCreditoSolicitado).toLocaleString('es-MX')}
-                                                    </p>
-                                                    <p className="text-[10px] text-indigo-500">{c.diasCreditoSolicitados} días · solicitud v{c.versionSolicitudCredito ?? 0}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-3.5 text-center">
-                                        <div className="flex flex-col items-center gap-1">
-                                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
-                                                {(c.etapaComercial ?? 'PROSPECTO').replaceAll('_', ' ')}
-                                            </span>
-                                            <span className={`text-[11px] font-medium ${c.nivelRiesgo === 'ALTO' ? 'text-rose-600' : c.nivelRiesgo === 'BAJO' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                                Riesgo vigente {c.nivelRiesgo ?? 'MEDIO'} · {(c.estadoCredito ?? 'SIN_CREDITO').replaceAll('_', ' ')}
-                                            </span>
-                                            <span className={`text-[10px] font-semibold ${c.estadoSolicitudCredito === 'PENDIENTE' ? 'text-indigo-600' : c.estadoSolicitudCredito === 'RECHAZADA' ? 'text-rose-600' : 'text-slate-400'}`}>
-                                                Solicitud {(c.estadoSolicitudCredito ?? 'NINGUNA').replaceAll('_', ' ')}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-3.5 text-center">
-                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
-                                            c.activo ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${c.activo?'bg-emerald-500':'bg-slate-400'}`}/>
-                                            {c.activo?'Activo':'Inactivo'}
-                                        </span>
-                                    </td>
-                                    <td className="px-5 py-3.5">
-                                        <div className="flex justify-center gap-1.5">
-                                            {c.estadoSolicitudCredito === 'PENDIENTE' && (
-                                                <Link
-                                                    href="/dashboard/aprobaciones"
-                                                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                    title="Abrir la bandeja central de aprobaciones"
-                                                >
-                                                    <ShieldCheck className="w-4 h-4"/>
-                                                </Link>
-                                            )}
-                                            {c.estadoCredito === 'AUTORIZADO' && (
-                                                <button onClick={()=>gestionarCredito(c,'SUSPENDER')}
-                                                    className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Suspender crédito">
-                                                    <AlertTriangle className="w-4 h-4"/>
-                                                </button>
-                                            )}
-                                            {(
-                                                (
-                                                    ['RECHAZADA', 'CANCELADA'].includes(c.estadoSolicitudCredito ?? '') &&
-                                                    Number(c.limiteCreditoSolicitado ?? 0) > 0 &&
-                                                    Number(c.diasCreditoSolicitados ?? 0) > 0
-                                                ) ||
-                                                (
-                                                    c.estadoCredito === 'SUSPENDIDO' &&
-                                                    Number(c.limiteCredito ?? 0) > 0 &&
-                                                    Number(c.diasCredito ?? 0) > 0
-                                                )
-                                            ) && c.estadoSolicitudCredito !== 'PENDIENTE' && (
-                                                <button onClick={()=>gestionarCredito(c,'REENVIAR')}
-                                                    className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Reenviar crédito a aprobación">
-                                                    <ShieldCheck className="w-4 h-4"/>
-                                                </button>
-                                            )}
-                                            <button onClick={()=>abrirEditar(c)}
-                                                className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Editar">
-                                                <Edit2 className="w-4 h-4"/>
-                                            </button>
-                                            <button onClick={()=>toggleEstado(c.id,c.activo)}
-                                                className={`p-1.5 rounded-lg transition-colors ${c.activo?'text-rose-500 hover:bg-rose-50':'text-emerald-600 hover:bg-emerald-50'}`}
-                                                title={c.activo?'Desactivar':'Activar'}>
-                                                <Power className="w-4 h-4"/>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
+                                        <button onClick={()=>abrirEditar(clienteActivo)}
+                                            className="px-3 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                                            <Edit2 className="w-4 h-4"/> Editar
+                                        </button>
+                                        <button onClick={()=>toggleEstado(clienteActivo.id, clienteActivo.activo)}
+                                            className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg"
+                                            title={clienteActivo.activo?'Desactivar':'Activar'}>
+                                            <Power className="w-4 h-4"/>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="grid sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+                                    <div className="px-5 py-3">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Tipo</p>
+                                        <p className="text-sm font-semibold text-slate-900 mt-0.5">
+                                            {clienteActivo.tipoPersona==='MORAL'?'Persona moral':'Persona física'}
+                                        </p>
+                                        <p className="text-[11px] text-slate-400">{clienteActivo.activo?'Activo':'Inactivo'}</p>
+                                    </div>
+                                    <div className="px-5 py-3">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Línea de crédito</p>
+                                        <p className="text-sm font-semibold text-slate-900 mt-0.5 tabular-nums">
+                                            {Number(clienteActivo.limiteCredito ?? 0) > 0
+                                                ? `$${Number(clienteActivo.limiteCredito).toLocaleString('es-MX')}`
+                                                : 'Sin línea'}
+                                        </p>
+                                        <p className="text-[11px] text-slate-400">
+                                            {Number(clienteActivo.limiteCredito ?? 0) > 0
+                                                ? `${clienteActivo.diasCredito} días · v${clienteActivo.versionCredito ?? 1}`
+                                                : 'compra de contado'}
+                                        </p>
+                                    </div>
+                                    <div className="px-5 py-3">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Estado</p>
+                                        <p className="text-sm font-semibold text-slate-900 mt-0.5">
+                                            {(clienteActivo.estadoCredito ?? 'SIN_CREDITO').replace(/_/g,' ').toLowerCase()}
+                                        </p>
+                                        <p className="text-[11px] text-slate-400">Riesgo {clienteActivo.nivelRiesgo ?? 'MEDIO'}</p>
+                                    </div>
+                                    <div className="px-5 py-3">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Propuesta</p>
+                                        {Number(clienteActivo.limiteCreditoSolicitado ?? 0) > 0 ? (
+                                            <>
+                                                <p className="text-sm font-semibold text-indigo-700 mt-0.5 tabular-nums">
+                                                    ${Number(clienteActivo.limiteCreditoSolicitado).toLocaleString('es-MX')}
+                                                </p>
+                                                <p className="text-[11px] text-slate-400">
+                                                    {(clienteActivo.estadoSolicitudCredito ?? '').toLowerCase()}
+                                                </p>
+                                            </>
+                                        ) : (
+                                            <p className="text-sm text-slate-400 mt-0.5">Ninguna</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Verificaciones e historia */}
+                            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                                <ExpedienteCliente clienteId={clienteActivo.id} limiteHistoria={4}/>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* ── MODAL ─────────────────────────────────────────────────────── */}
@@ -665,15 +661,17 @@ export default function ClientesPage() {
                                                 className={`${inputCls(errors.rfc, touched.rfc)} uppercase font-mono tracking-wider`}/>
                                         </Campo>
                                         {formData.tipoPersona==='FISICA' && (
-                                            <Campo label="CURP (verificación RENAPO)" name="curp" error={errors.curp} touched={touched.curp}>
-                                                <CurpVerificador
-                                                    curpInicial={formData.curp ?? ''}
-                                                    onVerificado={d => {
-                                                        handleCurpVerificado(d);
-                                                        setFormData(p=>({...p, curp: d.curpCapturada ?? p.curp}));
-                                                        touch('curp');
-                                                    }}
-                                                />
+                                            <Campo label="CURP" name="curp" error={errors.curp} touched={touched.curp}>
+                                                {/* Se capturaba con verificación contra RENAPO. Se quitó: esa
+                                                    integración se hará aparte más adelante, y hasta entonces
+                                                    la CURP es un dato que se teclea, no uno que se comprueba.
+                                                    Dejarla con botón de «Verificar» prometía una comprobación
+                                                    que ya no ocurre. La identidad se valida en el flujo de
+                                                    verificación de crédito, que es donde corresponde. */}
+                                                <input name="curp" value={formData.curp ?? ''}
+                                                    onChange={handleChange} onBlur={handleBlur}
+                                                    placeholder="18 caracteres" maxLength={18}
+                                                    className={`${inputCls(errors.curp, touched.curp)} uppercase font-mono tracking-wider`}/>
                                             </Campo>
                                         )}
                                     </div>
@@ -763,13 +761,140 @@ export default function ClientesPage() {
                                     </div>
                                 </div>
 
-                                {/* ── SECCIÓN 4: Crédito ── */}
-                                <div className="mb-5">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <div className="flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">4</div>
-                                        <h3 className="text-sm font-bold text-slate-700">Condiciones de Crédito</h3>
-                                        <div className="flex-1 h-px bg-slate-200"/>
+                                {/* ── LÍNEA DE CRÉDITO ─────────────────────────────────────────
+                                    Fuera del alta, y a propósito.
+
+                                    No todo cliente pide crédito: muchos compran de contado y no
+                                    tienen por qué pasar por una verificación de identidad ni por un
+                                    buró. Tener el límite como «sección 4» del alta invitaba a
+                                    teclear una cifra antes de haber validado nada, y convertía en
+                                    trámite de crédito el simple hecho de registrar a alguien.
+
+                                    Abrir una línea es un acto aparte: primero existe la persona,
+                                    después —si lo pide— se le verifica, y sólo entonces se propone
+                                    un importe. Por eso este panel no aparece al dar de alta. */}
+                                {editId && (
+                                <div className="mb-5 rounded-2xl border border-slate-200 overflow-hidden">
+                                    <div className="flex items-center justify-between gap-3 bg-slate-50 border-b border-slate-200 px-4 py-3">
+                                        <div className="flex items-center gap-2">
+                                            <CreditCard className="w-4 h-4 text-slate-400"/>
+                                            <h3 className="text-sm font-bold text-slate-700">Línea de crédito</h3>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <Link href={`/dashboard/clientes/${editId}/expediente`}
+                                                className="text-[11px] font-semibold text-indigo-600 hover:underline">
+                                                Ver expediente completo
+                                            </Link>
+                                            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                                Opcional · sólo si la solicita
+                                            </span>
+                                        </div>
                                     </div>
+
+                                    {/* El ciclo, para que se vea en qué paso va y cuál falta. */}
+                                    <div className="flex items-center gap-1 px-4 pt-4 pb-1 text-[11px] font-semibold">
+                                        {(() => {
+                                            const tieneExp = !!expediente && expediente.estado !== 'RECHAZADA';
+                                            const tienePropuesta = Number(formData.limiteCredito || 0) > 0;
+                                            const autorizada = clienteEnEdicion?.estadoCredito === 'AUTORIZADO'
+                                                && Number(clienteEnEdicion?.limiteCredito ?? 0) > 0;
+                                            const pasos = [
+                                                { etiqueta: 'Solicitud',  hecho: true },
+                                                { etiqueta: 'Verificación', hecho: tieneExp },
+                                                { etiqueta: 'Propuesta',  hecho: tienePropuesta },
+                                                { etiqueta: 'Autorizada', hecho: autorizada },
+                                            ];
+                                            return pasos.map((x, i) => (
+                                                <span key={x.etiqueta} className="flex items-center gap-1">
+                                                    {i > 0 && <span className="text-slate-300">›</span>}
+                                                    <span className={x.hecho
+                                                        ? 'text-emerald-700'
+                                                        : 'text-slate-300'}>{x.etiqueta}</span>
+                                                </span>
+                                            ));
+                                        })()}
+                                    </div>
+
+                                    <div className="p-4 pt-3">
+
+                                    {/* ── Expediente de verificación ──────────────────────────
+                                        Lo que el candado de aprobación va a exigir, dicho aquí.
+                                        Sin flujo activo no se pinta nada: sería ruido. */}
+                                    {flujoVerif && (() => {
+                                        const propuesto = Number(formData.limiteCredito || 0);
+                                        const verificado = Number(expediente?.limiteSolicitado ?? 0);
+                                        const enlace = (
+                                            <Link href="/dashboard/creditos/verificacion/ejecutar"
+                                                className="underline font-semibold whitespace-nowrap">
+                                                Verificar ahora
+                                            </Link>
+                                        );
+
+                                        if (!editId) return (
+                                            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 flex items-start gap-2">
+                                                <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-slate-400"/>
+                                                <span>
+                                                    La empresa tiene activo el flujo <strong>{flujoVerif.nombre}</strong>.
+                                                    Podrás verificar a esta persona en cuanto se guarde; la línea no se
+                                                    autoriza sin expediente.
+                                                </span>
+                                            </div>
+                                        );
+
+                                        if (expediente === undefined) return (
+                                            <div className="mb-4 flex items-center gap-2 text-xs text-slate-500">
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin"/> Buscando expediente de verificación…
+                                            </div>
+                                        );
+
+                                        if (!expediente) return (
+                                            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2">
+                                                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600"/>
+                                                <span>
+                                                    Este cliente <strong>no tiene expediente de verificación</strong>, y el flujo
+                                                    <strong> {flujoVerif.nombre}</strong> está activo. Puedes capturar la propuesta,
+                                                    pero la autorización de la línea se va a negar hasta que se verifique. {enlace}
+                                                </span>
+                                            </div>
+                                        );
+
+                                        if (expediente.estado === 'RECHAZADA') return (
+                                            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900 flex items-start gap-2">
+                                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600"/>
+                                                <span>
+                                                    El expediente de este cliente quedó <strong>RECHAZADO</strong>
+                                                    {(expediente.motivos ?? []).length > 0 && <>: {(expediente.motivos as string[]).join(' ')}</>}
+                                                    . No se puede autorizar una línea con este expediente. {enlace}
+                                                </span>
+                                            </div>
+                                        );
+
+                                        if (propuesto > verificado + 0.005) return (
+                                            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2">
+                                                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600"/>
+                                                <span>
+                                                    El expediente se hizo por <strong>${verificado.toLocaleString('es-MX')}</strong>
+                                                    {' '}y estás proponiendo <strong>${propuesto.toLocaleString('es-MX')}</strong>.
+                                                    Hay que volver a verificar por el importe que se va a autorizar: no se valida
+                                                    barato una vez para autorizar caro después. {enlace}
+                                                </span>
+                                            </div>
+                                        );
+
+                                        return (
+                                            <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900 flex items-start gap-2">
+                                                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600"/>
+                                                <span>
+                                                    Expediente <strong>{String(expediente.estado).replace(/_/g,' ').toLowerCase()}</strong>
+                                                    {' '}por hasta <strong>${verificado.toLocaleString('es-MX')}</strong>, puntaje
+                                                    {' '}{expediente.puntaje}
+                                                    {expediente.fechaCreacion && <> · {new Date(expediente.fechaCreacion).toLocaleDateString('es-MX')}</>}
+                                                    . La propuesta cabe dentro de lo verificado.
+                                                </span>
+                                            </div>
+                                        );
+                                    })()}
+
                                     <div className="grid grid-cols-2 gap-4">
                                         <Campo label="Límite de Crédito ($)" name="limiteCredito" error={errors.limiteCredito} touched={touched.limiteCredito}>
                                             <div className="relative">
@@ -830,8 +955,11 @@ export default function ClientesPage() {
                                                 <strong>{formData.diasCredito} días</strong>, riesgo <strong>{formData.nivelRiesgo}</strong> y política de vencidos se enviará al flujo maker-checker. Una línea ya autorizada seguirá vigente hasta la resolución final; los convenios nunca consumen la propuesta, sólo la versión aprobada.
                                             </div>
                                         )}
+                                        </div>
                                     </div>
                                 </div>
+                                )}
+
 
                                 {/* ── SECCIÓN 5: Notas ── */}
                                 <div>

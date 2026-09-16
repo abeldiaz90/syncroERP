@@ -29,6 +29,7 @@ import {
   ShieldCheck, Plus, X, Play, Power, PauseCircle, Loader2, AlertCircle,
   CheckCircle2, GripVertical, FlaskConical, ChevronDown, ChevronRight,
 } from 'lucide-react';
+import Link from 'next/link';
 import { api, ApiError } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
 
@@ -210,10 +211,18 @@ export default function FlujoVerificacionPage() {
           </p>
         </div>
         {!editor && (
-          <button onClick={() => void nuevoDesdePlantilla()}
-            className="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-2">
-            <Plus className="w-4 h-4" /> Nuevo flujo
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Disenar el flujo y correrlo son dos oficios distintos: quien lo
+                disena lo hace una vez, quien lo corre lo hace cada dia. */}
+            <Link href="/dashboard/creditos/verificacion/ejecutar"
+              className="px-3 py-2 text-sm rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center gap-2">
+              <Play className="w-4 h-4" /> Verificar a un cliente
+            </Link>
+            <button onClick={() => void nuevoDesdePlantilla()}
+              className="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-2">
+              <Plus className="w-4 h-4" /> Nuevo flujo
+            </button>
+          </div>
         )}
       </div>
 

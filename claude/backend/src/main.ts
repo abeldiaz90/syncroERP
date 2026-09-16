@@ -1,3 +1,21 @@
+/* Antes que nada, y antes de que cualquier import cree un Date: la zona del proceso. */
+/**
+ * Las columnas de fecha del sistema son `timestamp without time zone`: 199 de
+ * las 206 `@CreateDateColumn`. Postgres escribe el instante en UTC sin
+ * etiqueta y el driver lo reconstruye con la zona del proceso. Con el proceso
+ * en hora de Mexico, una venta de las 20:33 quedaba guardada como las 02:33
+ * del dia siguiente: seis horas adelantada. Se veia dentro de un mismo
+ * renglon del outbox, con `fechaEnvio` correcta y `fechaCreacion` corrida, y
+ * bastaba para que ninguna venta de la tarde se pudiera devolver esa noche.
+ *
+ * Va aqui y no en el lanzador porque el `--watch` reinicia el proceso al
+ * guardar un archivo y la variable del shell no sobrevive a ese reinicio.
+ * El arreglo de fondo sigue siendo migrar esas 199 columnas a `timestamptz`;
+ * esto las deja legibles mientras tanto. El dia de NEGOCIO no depende de
+ * esto: se calcula aparte con BUSINESS_TIMEZONE.
+ */
+process.env.TZ = process.env.TZ || 'UTC';
+
 /**
  * ============================================================================
  * SyncroERP · Arranque de la API

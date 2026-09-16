@@ -50,6 +50,28 @@ export class PagoCobranza {
   @Column({ type: 'varchar', length: 100 }) claveIdempotencia!: string;
   @Column({ type: 'uuid', nullable: true }) usuarioId!: string | null;
   @Column({ type: 'uuid', nullable: true }) movimientoTesoreriaId!: string | null;
+
+  /*
+   * Cancelación.
+   *
+   * El pago no se borra, se marca. Un movimiento de dinero que desaparece de
+   * la base es justo lo que una auditoría no puede aceptar: lo que hubo que
+   * deshacer también es un hecho, y tiene que poder contarse.
+   */
+  @Column({ default: false }) cancelado!: boolean;
+  @Column({ type: 'timestamptz', nullable: true }) fechaCancelacion!: Date | null;
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  motivoCancelacion!: string | null;
+  @Column({ type: 'uuid', nullable: true }) canceladoPorId!: string | null;
+
+  /**
+   * Identificador de la transacción del registro externo que originó este
+   * pago, cuando no nació en el ERP. Sirve para no republicarlo y para saber,
+   * mirando el pago, de dónde vino.
+   */
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  origenExterno!: string | null;
+
   @ManyToOne(() => Factura, { nullable: true, onDelete: 'NO ACTION' })
   @JoinColumn({ name: 'complementopagoid' })
   complementoPago!: Factura | null;

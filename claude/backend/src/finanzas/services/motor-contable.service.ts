@@ -1169,6 +1169,231 @@ export class MotorContableService {
     }
   }
 
+  /**
+   * Reversa contable de una cobranza cancelada.
+   *
+   * Es el mismo asiento con cargo y abono invertidos, y va como póliza propia,
+   * no tocando la original. Una póliza registrada no se edita: lo que se hizo
+   * y lo que se deshizo son dos hechos, y los dos tienen que poder contarse.
+   *
+   * Se reconstruye desde los mismos datos que generaron la original —capital,
+   * interés, IVA reclasificado— en vez de leer la póliza. Si el catálogo de
+   * cuentas cambió, la reversa usa las cuentas vigentes y eso es lo correcto:
+   * el asiento tiene que ser válido hoy, no en el momento del cobro.
+   */
+  async generarAsientoDeCancelacionCobranza(datos: {
+    pagoId: string;
+    creditoId: string;
+    fechaCancelacion: Date | string;
+    empresaId: string;
+    montoCapital: number;
+    montoInteres: number;
+    ivaReclasificado?: number;
+    totalPagado: number;
+    cuentaBancariaId?: string;
+    motivo?: string;
+  }): Promise<void> {
+    try {
+      const { empresaId } = datos;
+
+      const cuentaCaja = datos.cuentaBancariaId
+        ? await this.buscarCuentaSegunMetodoPago(
+            empresaId,
+            'EFECTIVO',
+            datos.cuentaBancariaId,
+          )
+        : await this.buscarCuentaPorRol(
+            empresaId,
+            RolCuentaSistema.CAJA,
+            'ACTIVO',
+            '1',
+          );
+      const cuentaCxC = await this.buscarCuentaPorRol(
+        empresaId,
+        RolCuentaSistema.CLIENTES_CXC,
+        'ACTIVO',
+        '14',
+      );
+
+      if (!cuentaCaja)
+        throw new Error('Cancelación de cobranza: falta la cuenta de caja/banco.');
+      if (!cuentaCxC)
+        throw new Error('Cancelación de cobranza: falta la cuenta Clientes CxC (140-xx).');
+
+      const ref = `Cancelación cobro CRD-${datos.creditoId.slice(0, 8)}`;
+      // Invertido respecto al cobro: sale el dinero de caja y vuelve la deuda.
+      const partidas: PartidaInput[] = [
+        {
+          cuentaContableId: cuentaCaja.id,
+          cargo: 0,
+          abono: datos.totalPagado,
+          referencia: ref,
+        },
+        {
+          cuentaContableId: cuentaCxC.id,
+          cargo: datos.montoCapital,
+          abono: 0,
+          referencia: ref,
+        },
+      ];
+
+      if (datos.montoInteres > 0) {
+        const cuentaInteres = await this.buscarCuentaPorRol(
+          empresaId,
+          RolCuentaSistema.INTERESES,
+          'INGRESO',
+          '402',
+        );
+        if (!cuentaInteres)
+          throw new Error(
+            'Cancelación de cobranza: falta la cuenta de ingresos por intereses.',
+          );
+        partidas.push({
+          cuentaContableId: cuentaInteres.id,
+          cargo: datos.montoInteres,
+          abono: 0,
+          referencia: 'Intereses cancelados',
+        });
+      }
+
+      const ivaReclasificado = this.redondear(
+        Number(datos.ivaReclasificado ?? 0),
+      );
+      if (ivaReclasificado > 0) {
+        const [ivaNoCobrado, ivaCobrado] = await Promise.all([
+          this.buscarCuentaPorRol(
+            empresaId,
+            RolCuentaSistema.IVA_TRASLADADO_NO_COBRADO,
+            'PASIVO',
+            '207',
+          ),
+          this.buscarCuentaPorRol(
+            empresaId,
+            RolCuentaSistema.IVA_TRASLADADO_COBRADO,
+            'PASIVO',
+            '208',
+          ),
+        ]);
+        if (!ivaNoCobrado || !ivaCobrado) {
+          throw new Error(
+            'Cancelación de cobranza: faltan las cuentas de IVA no cobrado y cobrado.',
+          );
+        }
+        partidas.push(
+          {
+            cuentaContableId: ivaNoCobrado.id,
+            cargo: 0,
+            abono: ivaReclasificado,
+            referencia: `IVA ${ref}`,
+          },
+          {
+            cuentaContableId: ivaCobrado.id,
+            cargo: ivaReclasificado,
+            abono: 0,
+            referencia: `IVA ${ref}`,
+          },
+        );
+      }
+
+      await this.crearPoliza({
+        empresaId,
+        tipo: TipoPoliza.DIARIO,
+        concepto: `Cancelación de cobranza — Crédito ${datos.creditoId.slice(
+          0,
+          8,
+        )}${datos.motivo ? `. ${datos.motivo}` : ''}`,
+        /*
+         * El payload viaja serializado en la bandeja de asientos, así que la
+         * fecha vuelve como texto. Reconstruirla aquí evita el fallo que sólo
+         * aparece al reintentar, no al encolar.
+         */
+        fecha: new Date(datos.fechaCancelacion),
+        partidas,
+        origenClave: `CANCELACION_COBRANZA:${datos.pagoId}`,
+        origenTipo: 'CANCELACION_COBRANZA',
+        origenId: datos.pagoId,
+      });
+      this.logger.log(
+        `Póliza de cancelación de cobranza generada: pago ${datos.pagoId.slice(0, 8)}`,
+      );
+    } catch (err: any) {
+      this.logger.error(
+        `[Cancelación cobranza ${datos.pagoId}] ${err?.message}`,
+      );
+      throw err;
+    }
+  }
+
+  /**
+   * Devolución registrada directamente en el registro externo.
+   *
+   * Baja la cuenta por cobrar contra la cuenta de devoluciones que la empresa
+   * haya designado. La cuenta NO se adivina: no hay rol de sistema para
+   * devoluciones y elegir una por parecido de código acabaría metiendo el
+   * importe en una cuenta de ingresos equivocada, que es de los errores más
+   * difíciles de encontrar meses después.
+   *
+   * Este asiento refleja el efecto financiero. NO sustituye a la nota de
+   * crédito: el CFDI sigue siendo necesario y se anuncia en el concepto para
+   * que quede a la vista de quien revise la póliza.
+   */
+  async generarAsientoDeAjusteDevolucionExterna(datos: {
+    creditoId: string;
+    idTransaccionExterna: string;
+    fecha: Date | string;
+    empresaId: string;
+    monto: number;
+    cuentaDevolucionId: string;
+  }): Promise<void> {
+    try {
+      const { empresaId } = datos;
+      const cuentaCxC = await this.buscarCuentaPorRol(
+        empresaId,
+        RolCuentaSistema.CLIENTES_CXC,
+        'ACTIVO',
+        '14',
+      );
+      if (!cuentaCxC)
+        throw new Error(
+          'Ajuste por devolución externa: falta la cuenta Clientes CxC.',
+        );
+
+      const ref = `Devolución externa ${datos.idTransaccionExterna}`;
+      await this.crearPoliza({
+        empresaId,
+        tipo: TipoPoliza.DIARIO,
+        concepto:
+          `Ajuste por devolución en el registro externo — Crédito ${datos.creditoId.slice(
+            0,
+            8,
+          )}. PENDIENTE DE NOTA DE CRÉDITO.`,
+        fecha: new Date(datos.fecha),
+        partidas: [
+          {
+            cuentaContableId: datos.cuentaDevolucionId,
+            cargo: datos.monto,
+            abono: 0,
+            referencia: ref,
+          },
+          {
+            cuentaContableId: cuentaCxC.id,
+            cargo: 0,
+            abono: datos.monto,
+            referencia: ref,
+          },
+        ],
+        origenClave: `AJUSTE_DEVOLUCION_EXTERNA:${datos.idTransaccionExterna}`,
+        origenTipo: 'AJUSTE_DEVOLUCION_EXTERNA',
+        origenId: datos.creditoId,
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[Ajuste devolución externa ${datos.idTransaccionExterna}] ${err?.message}`,
+      );
+      throw err;
+    }
+  }
+
   // ─── Helpers privados ─────────────────────────────────────────────────────
 
   private async cargarProductosConCategoria(

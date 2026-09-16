@@ -12,7 +12,9 @@ import {
   PoliticaPaso,
   PropositoFlujo,
   TipoPasoValidacion,
+  capacidadPermitida,
 } from '../validacion.constants';
+import { ConfiguracionIntegracionEmpresa } from '../../entities/configuracion-integracion-empresa.entity';
 
 export interface PasoEntrada {
   tipo: TipoPasoValidacion;
@@ -38,6 +40,8 @@ export class FlujosValidacionService {
     @InjectRepository(PasoFlujoValidacion)
     private readonly pasos: Repository<PasoFlujoValidacion>,
     private readonly dataSource: DataSource,
+    @InjectRepository(ConfiguracionIntegracionEmpresa)
+    private readonly configuraciones: Repository<ConfiguracionIntegracionEmpresa>,
   ) {}
 
   async listar(empresaId: string) {
@@ -132,6 +136,25 @@ export class FlujosValidacionService {
       throw new BadRequestException('Un flujo sin pasos no puede activarse.');
     }
 
+    /*
+     * Un flujo no puede activarse con pasos que la empresa no tiene
+     * contratados. Se comprueba al activar y no al diseñar: diseñar un flujo
+     * con un paso que aún no se contrata es legítimo —sirve para ver qué
+     * faltaría—, lo que no puede es entrar en vigor y prometer un control que
+     * nadie va a ejecutar.
+     */
+    const contratadas = await this.capacidadesContratadas(empresaId);
+    const sinContratar = flujo.pasos
+      .filter(paso => !capacidadPermitida(paso.tipo, contratadas))
+      .map(paso => paso.tipo);
+    if (sinContratar.length) {
+      throw new BadRequestException(
+        `El flujo usa capacidades que esta empresa no tiene contratadas: ${[
+          ...new Set(sinContratar),
+        ].join(', ')}. Quítalas del flujo o contrátalas.`,
+      );
+    }
+
     return this.dataSource.transaction(async (em) => {
       await em.update(
         FlujoValidacion,
@@ -141,6 +164,20 @@ export class FlujosValidacionService {
       await em.update(FlujoValidacion, { id }, { activo: true });
       return this.obtenerEn(em, id);
     });
+  }
+
+  /**
+   * Capacidades de validación que la empresa tiene contratadas.
+   *
+   * Las escribe la consola de SUMA, que es quien gobierna la contratación.
+   * `null` significa que todavía no ha declarado nada y entonces no se
+   * restringe; ver `capacidadPermitida`.
+   */
+  async capacidadesContratadas(empresaId: string): Promise<string[] | null> {
+    const cfg = await this.configuraciones.findOne({ where: { empresaId } });
+    const valor = (cfg?.parametrosProveedor as Record<string, unknown> | null)
+      ?.capacidadesValidacion;
+    return Array.isArray(valor) ? valor.map(String) : null;
   }
 
   async desactivar(id: string, empresaId: string) {
