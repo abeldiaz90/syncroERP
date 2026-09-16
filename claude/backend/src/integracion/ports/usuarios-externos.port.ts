@@ -39,6 +39,21 @@ export interface PuertoUsuariosExternos {
   /** Catálogo de roles del otro lado, para poder mapear contra los del ERP. */
   rolesDisponibles(): Promise<RolExterno[]>;
 
+  /**
+   * Crea un rol en el registro externo, SIN permisos.
+   *
+   * Y sin permisos es deliberado. El ERP sabe qué rol de los suyos equivale a
+   * cuál de allá —eso es la correspondencia— pero no sabe, ni puede saber, qué
+   * permisos bancarios necesita un «Almacenista» dentro del core. Adivinarlos
+   * sería peor que dejarlo explícito: un permiso de más en un core bancario no
+   * se nota hasta que alguien lo usa.
+   *
+   * Es el mismo criterio por el que aquí no se aprovisionan operadores solos.
+   * El ERP propone la correspondencia; los permisos los decide quien conoce el
+   * core.
+   */
+  crearRol(datos: { nombre: string; descripcion?: string }): Promise<string>;
+
   /** Usuario por nombre de usuario. Null si no existe. */
   buscarUsuario(usuario: string): Promise<UsuarioExterno | null>;
 
@@ -68,6 +83,9 @@ export class UsuariosExternosNoConfigurado implements PuertoUsuariosExternos {
   }
   async buscarUsuario(): Promise<UsuarioExterno | null> {
     return null;
+  }
+  async crearRol(): Promise<string> {
+    this.negar();
   }
   async crearUsuario(): Promise<string> {
     this.negar();

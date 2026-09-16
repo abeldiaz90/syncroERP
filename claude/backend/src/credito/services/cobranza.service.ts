@@ -875,6 +875,45 @@ export class CobranzaService {
       );
     }
 
+    /*
+     * Y el camino de vuelta, que no existía.
+     *
+     * Esto sólo escalaba: marcaba VENCIDO y nunca desmarcaba. El único modo de
+     * volver a ACTIVO era `registrarPago`, que sí recalcula bien. Cualquier
+     * otra forma de dejar de estar en mora —una cuota reprogramada, una fecha
+     * corregida, una devolución que baja el saldo— dejaba al cliente en VENCIDO
+     * para siempre.
+     *
+     * No es cosmético: la disponibilidad calcula la mora por fecha en tiempo
+     * real y deja comprar, pero el ESTADO es lo que ven las pantallas, lo que
+     * suma la cartera vencida y lo que alimenta las provisiones. Un cliente al
+     * corriente contado como moroso distorsiona a quién se le vuelve a prestar.
+     *
+     * Se limita a los que están en VENCIDO: no toca LIQUIDADO ni CANCELADO, que
+     * son estados finales y no se reabren por no tener cuotas vencidas.
+     */
+    const alCorriente = await creditoRepo
+      .createQueryBuilder('c')
+      .select('c.id', 'id')
+      .where('c.empresaId = :empresaId', { empresaId })
+      .andWhere('c.estado = :vencido', { vencido: EstadoCredito.VENCIDO })
+      .andWhere(
+        `NOT EXISTS (
+           SELECT 1 FROM amortizacion_cuotas q
+            WHERE q.creditoid = c.id
+              AND q.estado <> :pagada
+              AND q.fechavencimiento < :hoy)`,
+        { pagada: EstadoCuota.PAGADA, hoy },
+      )
+      .getRawMany<{ id: string }>();
+
+    for (const { id } of alCorriente) {
+      await creditoRepo.update(
+        { id, estado: EstadoCredito.VENCIDO },
+        { estado: EstadoCredito.ACTIVO },
+      );
+    }
+
     // Las alertas sólo salen en la corrida de verdad: mandar correos de mora
     // desde una prueba que se va a deshacer sería avisarle a un cliente de una
     // deuda que nunca existió.
@@ -884,7 +923,10 @@ export class CobranzaService {
       );
     }
 
-    return { actualizadas: cuotasParaVencer.length };
+    return {
+      actualizadas: cuotasParaVencer.length,
+      regularizados: alCorriente.length,
+    };
   }
 
   // ── Alertas de vencimiento y recordatorios preventivos ─────────────────

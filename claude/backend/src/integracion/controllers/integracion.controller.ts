@@ -350,6 +350,21 @@ export class IntegracionController {
     return { erp: this.roles.rolesErp(), externos, error };
   }
 
+  /**
+   * Crea en el registro externo un rol espejo por cada rol del ERP y deja la
+   * correspondencia hecha. Con `?simular=1` sólo dice qué haría.
+   *
+   * Los roles nacen sin permisos, a propósito: ver el servicio.
+   */
+  @Post('roles/espejo')
+  @Roles('administrador', 'direccion')
+  crearRolesEspejo(
+    @ActiveUser('empresaId') empresaId: string,
+    @Query('simular') simular?: string,
+  ) {
+    return this.roles.crearRolesEspejo(empresaId, simular === '1');
+  }
+
   @Get('roles/mapeo')
   @Roles('administrador', 'direccion')
   listarMapeoRoles(@ActiveUser('empresaId') empresaId: string) {

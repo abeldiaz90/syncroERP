@@ -15,6 +15,8 @@ import { ProductoAtributo } from '../entities/producto-atributo.entity';
 import { CrearProductoDto } from '../dto/crear-producto.dto';
 import { InventarioService } from './inventario.service';
 import { Categoria } from '../entities/categoria.entity';
+import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
+import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
 import { StockPorAlmacen } from '../entities/stock-por-almacen.entity';
 import { ListaPrecio } from '../entities/lista-precio.entity';
 import {
@@ -45,6 +47,7 @@ export class ProductosService {
     @InjectRepository(Categoria)
     private readonly categoriaRepository: Repository<Categoria>,
     private readonly dataSource: DataSource,
+    private readonly asientos: AsientosPendientesService,
   ) {}
 
   private validarReglasProducto(
@@ -240,7 +243,7 @@ export class ProductosService {
             'Debes indicar un almacén para el stock inicial.',
           );
         }
-        await this.inventarioService.registrarCompra(
+        const entradaInicial = await this.inventarioService.registrarCompra(
           guardado.id,
           almacen,
           stockInicial,
@@ -250,6 +253,43 @@ export class ProductosService {
           undefined,
           undefined,
           queryRunner.manager,
+        );
+
+        /*
+         * La mercancia entraba al almacen y no a la contabilidad.
+         *
+         * `registrarCompra` la usan nueve sitios —ordenes de compra,
+         * transferencias, conteos, recetas— y cada uno tiene su propio
+         * contraasiento, asi que el asiento NO puede vivir dentro de ella:
+         * marcaria como inventario inicial hasta una compra a proveedor.
+         * Va aqui, en el unico camino que lo necesita y no lo tenia; el
+         * importador masivo ya hacia lo mismo desde su lado.
+         *
+         * Sin esto, la cuenta de Inventario quedaba en saldo ACREEDOR en
+         * cuanto se vendia la primera pieza: se abonaba la salida sin que
+         * nadie hubiera cargado la entrada. Una cuenta deudora en saldo
+         * acreedor no se puede explicar en un cierre.
+         *
+         * Se encola dentro de la MISMA transaccion que el alta: si el
+         * producto no llega a existir, su asiento tampoco.
+         */
+        await this.asientos.encolarEnTransaccion(
+          queryRunner.manager,
+          TipoAsiento.INVENTARIO_INICIAL,
+          {
+            empresaId,
+            fecha: new Date(),
+            detalles: [
+              {
+                productoId: guardado.id,
+                cantidad: stockInicial,
+                costoUnitario: Number(entradaInicial?.costoUnitarioLote ?? 0),
+              },
+            ],
+          },
+          empresaId,
+          `ALTA-${String(guardado.sku ?? guardado.id).slice(0, 24)}`,
+          guardado.id,
         );
       }
 

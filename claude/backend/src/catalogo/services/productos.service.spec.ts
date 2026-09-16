@@ -3,7 +3,7 @@ import { ProductosService } from './productos.service';
 
 describe('ProductosService · separación maestro/inventario', () => {
   const service = new ProductosService(
-    {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+    {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
   );
 
   it('no exige almacén al editar precios de un producto que ya tiene stock', () => {

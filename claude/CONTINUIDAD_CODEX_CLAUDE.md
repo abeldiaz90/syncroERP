@@ -1417,3 +1417,60 @@ Las 96 decoraciones `@Roles()` se quedan como están, documentadas. No es un agu
 
 1. **Crear en Fineract los roles espejo** con permisos mínimos. El puerto `PuertoUsuariosExternos` sabe listar roles, buscar y crear usuarios y asignar roles, pero **no sabe crear roles**: haría falta `crearRol()` en el puerto y en el adaptador (`POST /v1/roles` + `PUT /v1/roles/{id}/permissions`). Con un criterio: el ERP propone la **correspondencia**, no los **permisos** — qué puede hacer alguien dentro del core lo decide quien conoce el core, igual que hoy no se aprovisionan operadores solos.
 2. Sembrar un mapeo por omisión una vez existan esos roles.
+
+### 2026-09-16 — Claude: P0 cerrado y avance en el P1
+
+#### P0 · El trabajo, salvado y subido
+
+Commit **`11ae550`** con **44 archivos**, subido a `origin/codex/verificacion-productos-fecha-activacion`. Los **1,308 de finales de línea quedaron fuera** a propósito: merecen su propio commit de normalización con `.gitattributes`.
+
+**El susto del día.** El `.gitignore` cubría `.env.local` pero **no sus copias**. El respaldo `.env.local.bak-claude` que creé al probar AUTORIDAD aparecía como archivo nuevo, sin ignorar, con la contraseña de la base y el token de aprovisionamiento dentro. Con 1,300 archivos modificados en pantalla, `git add -A` es lo que cualquiera habría hecho.
+
+Se sacó del repo (está en `_backups-local/respaldos-claude/`) y se reforzó el `.gitignore` con `.env*.bak`, `.env*.bak-*` y `*.bak-claude`, verificado creando un archivo de prueba. **El historial se revisó y está limpio**: el único `.env` que existió es un `.env.example` con `CAMBIAR_ESTA_PASSWORD`, y ni la contraseña ni el token reales aparecen en ningún commit.
+
+Sólo `syncroERP` tenía algo que subir. `suma-consola` (21 archivos sin commitear) y `fineract` no tienen commits pendientes de push.
+
+#### P1-3 · El stock inicial ya llega a contabilidad
+
+**Y por poco lo arreglo mal.** El instinto era meter el asiento dentro de `registrarCompra`. **La usan nueve sitios** —órdenes de compra, transferencias WMS, conteos, recetas, el importador masivo, el alta de producto— y cada uno tiene su propio contraasiento. Ponerlo ahí habría marcado como «inventario inicial» hasta una compra a proveedor, que es peor que el bug original.
+
+El arreglo va en `catalogo/services/productos.service.ts`, **el único camino que movía inventario sin contabilizar**: encola `TipoAsiento.INVENTARIO_INICIAL` dentro de la misma transacción del alta, con el costo real que devuelve `registrarCompra` (`costoUnitarioLote`), no con el precio de catálogo. Si el producto no llega a existir, su asiento tampoco.
+
+Revisión de los otros ocho caminos: `ordenes-compra` y `wms` sí contabilizan. `consumo-recetas` no lo hace, **pero es una reversión por anulación de venta** y ese flujo asienta por su lado (`anulacion-ventas.service.ts:496`) — queda como duda a confirmar, no como hallazgo.
+
+`npx tsc --noEmit` limpio. **Falta probarlo en vivo**: dar de alta un producto con existencias y comprobar que `115.01` deja de quedar en saldo acreedor. No se pudo porque el navegador dejó de responder.
+
+#### P1-2 · Migración de fechas escrita, NO aplicada
+
+`1789560000000-FechasConZonaHoraria.ts`. Recorre `information_schema` en vez de enumerar 199 columnas a mano, y convierte a `timestamptz` interpretando lo guardado como UTC.
+
+**Lleva una advertencia dentro y conviene leerla antes de correrla.** La conversión es correcta para lo que escribió Postgres y para todo lo posterior al arreglo de `main.ts`. **No lo es para las filas anteriores que escribió la aplicación con `new Date()`**: el driver las mandaba con hora de pared de México, así que al convertirlas con `'UTC'` se desplazan seis horas. Los timestamps viejos son **una mezcla y no hay forma de distinguirlos columna por columna**.
+
+En una base de pruebas da igual y hay que correrla. En una con historia real, qué hacer con lo anterior al arreglo **no lo decide una migración**.
+
+#### P1-4 · Los roles espejo ya se pueden crear
+
+`crearRol()` en `PuertoUsuariosExternos`, en el adaptador de Fineract (`POST /v1/roles`) y en la implementación inerte. Y `POST /integracion/roles/espejo` (con `?simular=1`), que crea un rol en el core por cada rol del ERP y **deja la correspondencia hecha en el mismo paso**. No pisa lo que ya existe: si allá ya hay un rol con ese nombre, lo reutiliza y sólo guarda el mapeo.
+
+**Los roles nacen SIN permisos, y es deliberado.** El ERP sabe qué rol suyo equivale a cuál de allá —eso es la correspondencia— pero no puede saber qué permisos bancarios necesita un «Almacenista» dentro del core. Adivinarlos sería peor que dejarlo explícito: un permiso de más en un core bancario no se nota hasta que alguien lo usa. Un rol inerte es visible y auditable. Es el mismo criterio por el que aquí nunca se aprovisionan operadores solos.
+
+La respuesta incluye el aviso: *«Los roles espejo nacen SIN permisos. Asígnaselos en el core antes de que alguien opere con ellos.»*
+
+#### P2-8 · El crédito ya vuelve a ACTIVO
+
+`actualizarVencidos` sólo escalaba. Ahora, al final de la misma corrida, regulariza: devuelve a ACTIVO **los créditos en VENCIDO que ya no tienen ninguna cuota vencida sin pagar**, y devuelve `regularizados` junto a `actualizadas`.
+
+Dos cuidados que conviene no perder si alguien lo toca:
+
+- **Se limita a los que están en VENCIDO.** El error fácil es regularizar por «no tiene cuotas vencidas» sin mirar el estado, y eso resucitaría créditos LIQUIDADO y CANCELADO, que son finales.
+- Los nombres de columna del SQL en crudo (`amortizacion_cuotas`, `q.creditoid`, `q.fechavencimiento`) se verificaron **contra la consulta que ya corre** en `cartera-conciliacion.service.ts:147`, no de memoria.
+
+Nueva suite `credito/services/cobranza-regularizacion.spec.ts`: seis casos sobre la regla, incluidos los dos estados finales.
+
+#### Pruebas
+
+**23 suites, 130 pruebas, todas pasando** en integración, crédito y catálogo, ejecutadas de verdad en contenedor con estos cambios dentro.
+
+#### Sin verificar todavía
+
+El navegador dejó de responder, así que quedan sin comprobar en vivo: el asiento del stock inicial, los roles espejo, y que la pantalla de correspondencia deje de decir «sólo 3 roles».

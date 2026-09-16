@@ -80,6 +80,78 @@ export class RolesExternosService {
     return this.externos.rolesDisponibles();
   }
 
+  /**
+   * Crea en el registro externo un rol espejo por cada rol del ERP que no
+   * tenga uno con ese nombre, y deja la correspondencia hecha.
+   *
+   * Existe porque sin esto el mapeo no puede significar nada: recien montado,
+   * el core sólo trae «Super user», «Self Service User» y la cuenta técnica.
+   * Mapear cualquier rol del ERP contra ese catálogo es mapearlo a Super user,
+   * y un cajero acabaría pudiendo cerrar el periodo.
+   *
+   * Los roles nacen SIN permisos, a propósito. El ERP propone la
+   * correspondencia; qué puede hacer cada rol dentro del core lo decide quien
+   * conoce el core. Un rol inerte es visible y auditable; un rol con permisos
+   * adivinados no se nota hasta que alguien los usa.
+   *
+   * No pisa lo que ya existe: si allá ya hay un rol con ese nombre, se reutiliza.
+   */
+  async crearRolesEspejo(empresaId: string, simular = false) {
+    const existentes = await this.externos.rolesDisponibles();
+    const porNombre = new Map(
+      existentes.map((r) => [normalizarRol(r.nombre), r]),
+    );
+
+    const creados: { rol: string; idExterno: string }[] = [];
+    const reutilizados: { rol: string; idExterno: string }[] = [];
+    const problemas: { rol: string; motivo: string }[] = [];
+
+    for (const r of this.rolesErp()) {
+      const yaEsta = porNombre.get(normalizarRol(r.etiqueta)) ?? porNombre.get(r.rol);
+      if (yaEsta) {
+        reutilizados.push({ rol: r.rol, idExterno: String(yaEsta.id) });
+        if (!simular) {
+          await this.guardarMapeo(empresaId, {
+            rolErp: r.rol,
+            rolesExternos: [String(yaEsta.id)],
+            descripcionExterna: yaEsta.nombre,
+          });
+        }
+        continue;
+      }
+      if (simular) {
+        creados.push({ rol: r.rol, idExterno: '(se crearia)' });
+        continue;
+      }
+      try {
+        const id = await this.externos.crearRol({
+          nombre: r.etiqueta,
+          descripcion: `${r.descripcion} · Espejo del rol ${r.rol} de SyncroERP. Sin permisos: asignalos aqui.`,
+        });
+        await this.guardarMapeo(empresaId, {
+          rolErp: r.rol,
+          rolesExternos: [id],
+          descripcionExterna: r.etiqueta,
+        });
+        creados.push({ rol: r.rol, idExterno: id });
+      } catch (e) {
+        problemas.push({
+          rol: r.rol,
+          motivo: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
+    return {
+      simulacion: simular,
+      creados,
+      reutilizados,
+      problemas,
+      aviso:
+        'Los roles espejo nacen SIN permisos. Asignaselos en el core antes de que alguien opere con ellos.',
+    };
+  }
+
   async listarMapeo(empresaId: string): Promise<MapeoRolExterno[]> {
     return this.mapeos.find({ where: { empresaId }, order: { rolErp: 'ASC' } });
   }

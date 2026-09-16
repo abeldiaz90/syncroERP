@@ -61,6 +61,31 @@ export class FineractUsuariosAdapter implements PuertoUsuariosExternos {
     }
   }
 
+  /**
+   * Crea el rol en Fineract. Sin permisos: ver el porqué en el puerto.
+   *
+   * Fineract acepta un rol sin permisos y lo deja inerte, que es exactamente
+   * lo que se quiere: existe, se puede mapear contra un rol del ERP, y no
+   * habilita nada hasta que alguien decida qué habilita.
+   */
+  async crearRol(datos: { nombre: string; descripcion?: string }): Promise<string> {
+    try {
+      const respuesta = await this.http.post<{ resourceId: number }>(
+        '/v1/roles',
+        {
+          name: datos.nombre,
+          description:
+            datos.descripcion ??
+            'Creado desde SyncroERP para la correspondencia de roles. Sin permisos: asignalos aqui.',
+        },
+        this.comoUsuario,
+      );
+      return String(respuesta.resourceId);
+    } catch (error) {
+      throw this.traducir(error);
+    }
+  }
+
   async buscarUsuario(usuario: string): Promise<UsuarioExterno | null> {
     try {
       // Fineract no expone búsqueda por nombre de usuario; se lista y se filtra.
