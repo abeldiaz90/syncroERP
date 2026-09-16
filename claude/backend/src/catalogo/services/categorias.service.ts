@@ -10,6 +10,7 @@ import { Categoria } from '../entities/categoria.entity';
 import { CrearCategoriaDto } from '../dto/crear-categoria.dto';
 // ⚠️ Ajusta la ruta si tu entidad de cuentas está en otra ubicación
 import { CuentaContable } from '../../finanzas/entities/cuenta-contable.entity';
+import { RolCuentaSistema } from '../../finanzas/entities/cuenta-contable.entity';
 
 @Injectable()
 export class CategoriasService {
@@ -128,16 +129,42 @@ export class CategoriasService {
       );
     }
 
-    // 2) Resolver qué cuenta va en cada rol, por número
+    /*
+     * 2) Resolver qué cuenta va en cada rol.
+     *
+     * PRIMERO por `rolSistema`, que es la respuesta inequívoca: la propia
+     * cuenta declara para qué sirve, y hay un índice único por empresa y rol
+     * que garantiza que no haya dos candidatas.
+     *
+     * Esto se resolvía sólo por número, y los respaldos de un dígito
+     * —`porPrefijo('4')`, `porPrefijo('5')`— toman la PRIMERA cuenta que
+     * empiece por ahí, en el orden que devuelva la base, que no está
+     * garantizado. En un catálogo SAT de mil cuentas eso es una lotería: la
+     * cuenta de ventas podía acabar siendo «Devoluciones sobre ventas».
+     *
+     * El número se conserva como respaldo, para catálogos donde nadie haya
+     * marcado los roles todavía. Y se conserva entero, incluida la variante
+     * con guion: hay instalaciones con `501-01` y otras con `501.01`.
+     *
+     * Devoluciones no tiene rol de sistema declarado, así que ésa sigue
+     * resolviéndose por número. No se inventa un rol que el catálogo no tiene.
+     */
     const sinGuion = (n: string) => n.replace(/-/g, '');
     const porExacto = (num: string) =>
       cuentas.find((c) => c.numeroCuenta === num);
     const porPrefijo = (pref: string) =>
       cuentas.find((c) => sinGuion(c.numeroCuenta).startsWith(pref));
+    const porRol = (rol: RolCuentaSistema) =>
+      cuentas.find((c) => c.rolSistema === rol);
 
-    const ventas = porExacto('401-01') || porPrefijo('401') || porPrefijo('4');
-    const costo = porExacto('501-01') || porPrefijo('501') || porPrefijo('5');
+    const ventas =
+      porRol(RolCuentaSistema.VENTAS) ||
+      porExacto('401-01') || porPrefijo('401') || porPrefijo('4');
+    const costo =
+      porRol(RolCuentaSistema.COSTO_VENTAS) ||
+      porExacto('501-01') || porPrefijo('501') || porPrefijo('5');
     const inventario =
+      porRol(RolCuentaSistema.INVENTARIO) ||
       porExacto('115.01') ||
       porExacto('130-01') ||
       porPrefijo('115') ||
@@ -145,6 +172,7 @@ export class CategoriasService {
     const devoluciones =
       porExacto('402.01') || porExacto('401-02') || porPrefijo('402');
     const mermas =
+      porRol(RolCuentaSistema.MERMAS) ||
       porExacto('601.84') || porExacto('601-01') || porPrefijo('601');
 
     const mapeo = {

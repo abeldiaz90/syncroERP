@@ -200,6 +200,73 @@ export class MapeoCuentasService {
    * Lo que importa es la superficie real: lo que ya se usa. Ordenadas por
    * frecuencia, para que quien mapee empiece por lo que más pesa.
    */
+  /**
+   * Cuentas que la CONFIGURACIÓN dice que se van a usar y todavía no están
+   * mapeadas al mayor externo.
+   *
+   * `pendientes()` mira las partidas ya escritas, así que sólo ve una cuenta
+   * DESPUÉS de que una póliza la usó — y para entonces el espejo ya falló y
+   * hay un evento en rojo. Pasó cuatro veces seguidas, siempre igual: apareció
+   * una operación nueva, trajo una cuenta que nadie había mapeado, y nos
+   * enteramos por el fallo.
+   *
+   * Esto mira al otro lado: las cuentas que las categorías tienen asignadas y
+   * las que declaran un `rolSistema`. Todas ésas se van a usar en cuanto
+   * alguien venda, devuelva o merme. Se pueden mapear ANTES, que es cuándo
+   * cuesta cinco minutos en vez de una reconciliación.
+   *
+   * El mapeo de cuentas no es una tarea de puesta en marcha: crece con la
+   * operación. Cada tipo de movimiento nuevo puede meter una cuenta nueva.
+   */
+  async previstas(
+    empresaId: string,
+  ): Promise<{ id: string; numeroCuenta: string; nombre: string; motivo: string }[]> {
+    const mapeadas = await this.repo.find({
+      where: { empresaId, activo: true },
+      select: { cuentaContableId: true },
+    });
+    const conocidas = new Set(mapeadas.map((m) => m.cuentaContableId));
+
+    const filas = await this.repo.manager.query<
+      { id: string; numerocuenta: string; nombre: string; motivo: string }[]
+    >(
+      `SELECT c.id, c.numerocuenta, c.nombre, m.motivo
+         FROM cuentas_contables c
+         JOIN (
+           SELECT cuentaventasid AS cta, 'cuenta de ventas de una categoria' AS motivo
+             FROM categorias WHERE empresaid = $1 AND cuentaventasid IS NOT NULL
+           UNION
+           SELECT cuentacostoventasid, 'cuenta de costo de ventas de una categoria'
+             FROM categorias WHERE empresaid = $1 AND cuentacostoventasid IS NOT NULL
+           UNION
+           SELECT cuentainventarioid, 'cuenta de inventario de una categoria'
+             FROM categorias WHERE empresaid = $1 AND cuentainventarioid IS NOT NULL
+           UNION
+           SELECT cuentadevolucionesid, 'cuenta de devoluciones de una categoria'
+             FROM categorias WHERE empresaid = $1 AND cuentadevolucionesid IS NOT NULL
+           UNION
+           SELECT cuentamermasid, 'cuenta de mermas de una categoria'
+             FROM categorias WHERE empresaid = $1 AND cuentamermasid IS NOT NULL
+           UNION
+           SELECT id, 'cuenta con rol de sistema: ' || rolsistema
+             FROM cuentas_contables
+            WHERE empresaid = $1 AND rolsistema IS NOT NULL
+         ) m ON m.cta = c.id
+        WHERE c.empresaid = $1
+        ORDER BY c.numerocuenta`,
+      [empresaId],
+    );
+
+    return filas
+      .filter((f) => !conocidas.has(f.id))
+      .map((f) => ({
+        id: f.id,
+        numeroCuenta: f.numerocuenta,
+        nombre: f.nombre,
+        motivo: f.motivo,
+      }));
+  }
+
   async pendientes(
     empresaId: string,
     soloUsadas = true,

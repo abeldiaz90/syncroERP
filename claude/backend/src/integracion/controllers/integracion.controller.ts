@@ -90,6 +90,9 @@ export class IntegracionController {
         modoEfectivo: perfil.contabilidad,
         oficinaContableExterna: fila?.oficinaContableExterna ?? null,
         cuentasSinMapear: (await this.mapeo.pendientes(empresaId)).length,
+        /* Las que la configuración dice que se van a usar y aún no se mapean.
+           Se ven ANTES de que una póliza falle, que es cuando cuesta poco. */
+        cuentasPorMapear: (await this.mapeo.previstas(empresaId)).length,
       },
       enlace: this.disponibilidad.estado(),
       outbox: await this.outbox.resumen(empresaId),
@@ -213,6 +216,18 @@ export class IntegracionController {
    * Crea en el mayor externo las cuentas que faltan y guarda el mapeo, usando
    * el mismo código en los dos lados. `?simular=1` sólo dice qué haría.
    */
+  /**
+   * Cuentas que se van a necesitar y todavía no están mapeadas.
+   *
+   * A diferencia de `cuentas/pendientes`, que mira lo ya usado, ésta mira lo
+   * configurado: avisa antes del primer fallo, no después.
+   */
+  @Get('cuentas/previstas')
+  @Roles('administrador', 'direccion', 'contador')
+  cuentasPrevistas(@ActiveUser('empresaId') empresaId: string) {
+    return this.mapeo.previstas(empresaId);
+  }
+
   @Post('cuentas/aprovisionar')
   @Roles('administrador', 'direccion', 'contador')
   aprovisionarCuentas(

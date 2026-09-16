@@ -1474,3 +1474,31 @@ Nueva suite `credito/services/cobranza-regularizacion.spec.ts`: seis casos sobre
 #### Sin verificar todavía
 
 El navegador dejó de responder, así que quedan sin comprobar en vivo: el asiento del stock inicial, los roles espejo, y que la pantalla de correspondencia deje de decir «sólo 3 roles».
+
+#### Verificado en vivo: los tres arreglos funcionan
+
+**El inventario inicial ya contabiliza.** Alta de `INV-CLAUDE-002` con 20 piezas a 50. El asiento `ALTA-INV-CLAUDE-002` salió **GENERADO** sin error y produjo la póliza *«Carga de inventario inicial — 1 productos»*: **115.01 Inventario cargo 1,000 / 399-01 Carga de saldos iniciales abono 1,000**, que son los 20 × 50 exactos. La cuenta pasó de **−360 a +640**: dejó de estar en saldo acreedor.
+
+Ojo: **no arregla lo anterior**. Los productos dados de alta antes de esto siguen sin su asiento de entrada, y ésa es la diferencia que queda entre el valor físico del almacén y el saldo contable. Si importa, hay que regularizarlos a mano.
+
+**Los roles espejo, creados.** `POST /integracion/roles/espejo?simular=1` anunció 13 a crear, ninguno a reutilizar, sin problemas. La corrida real creó **13 roles en Fineract, cero problemas**, y dejó las 13 correspondencias hechas en el mismo paso. El core pasó de **3 roles a 16**.
+
+En la pantalla, «Sin correspondencia» pasó de **13 a 0** y el aviso de «sólo 3 roles, ninguno operativo» desapareció solo.
+
+Y el diagnóstico **avanzó un paso por su cuenta**: de `MAPEAR_ROL` a **`CORREGIR_ROLES`**. Ahora que existe el mapa, detecta que el usuario opera en el core como *Super user* cuando el mapa dice *Administrador*. Es el sistema diciendo la verdad, y queda un botón para corregirlo.
+
+**Recordatorio que no conviene perder:** esos 13 roles **no tienen permisos**. Existen, se pueden mapear y son auditables, pero nadie puede operar con ellos hasta que alguien les asigne permisos en el core. Es deliberado.
+
+#### P5-16 · `autoConfigurarCuentas` ya usa `rolSistema`
+
+Resolvía sólo por número, y los respaldos de un dígito —`porPrefijo('4')`, `porPrefijo('5')`— toman la **primera** cuenta que empiece por ahí en el orden que devuelva la base, que no está garantizado. En un catálogo SAT de mil cuentas eso es una lotería: la de ventas podía acabar siendo «Devoluciones sobre ventas».
+
+Ahora pregunta primero por `rolSistema`, que es inequívoco y tiene índice único por empresa y rol. El número se conserva como respaldo para catálogos donde nadie haya marcado los roles. **Devoluciones no tiene rol de sistema declarado**, así que ésa sigue por número: no se inventa un rol que el catálogo no tiene.
+
+#### P5-15 · El aviso de cuentas sin mapear, ahora ANTES del fallo
+
+`pendientes()` mira las partidas ya escritas, así que sólo ve una cuenta **después** de que una póliza la usó — y para entonces el espejo ya falló. Pasó cuatro veces seguidas, siempre igual.
+
+Nuevo `previstas()` + `GET /integracion/cuentas/previstas`, y `cuentasPorMapear` en el estado. Mira lo **configurado**: las cuentas que las categorías tienen asignadas y las que declaran un `rolSistema`, con el motivo de cada una.
+
+**Resultado en la primera corrida:** `cuentasSinMapear: 0` —nada ha fallado— y **`cuentasPorMapear: 10`**. Diez cuentas que se van a usar en cuanto alguien opere y que hoy harían fallar el espejo: Bancos nacionales, IVA acreditable pagado, IVA pendiente de pago, y siete más. Esa es exactamente la diferencia entre enterarse antes y enterarse por un evento en rojo.
