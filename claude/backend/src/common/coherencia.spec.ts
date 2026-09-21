@@ -20,7 +20,10 @@
  */
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'fs';
-import { join, relative } from 'path';
+import { join, relative, sep} from 'path';
+import { PLANTILLAS_PERMISOS } from '../iam/data/plantillas-permisos';
+import { ENDPOINTS_NAVEGABLES } from '../iam/data/endpoints-navegables';
+import { moduloDeRuta } from '../iam/data/modulos-catalogo';
 
 const SRC = join(__dirname, '..');
 const RAIZ = join(SRC, '..', '..');
@@ -52,8 +55,25 @@ const leer = (ruta: string) => readFileSync(ruta, 'utf8');
  */
 const sinComentarios = (texto: string) =>
   texto.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+/*
+ * ============================================================================
+ * Las rutas se normalizan a barras
+ * ----------------------------------------------------------------------------
+ * `relative()` devuelve `iam\data\x.ts` en Windows y `iam/data/x.ts` en Linux,
+ * y esta especificación compara rutas con cadenas escritas con barras. En
+ * Windows —que es donde se corre— fallaban nueve casos sin que ninguno fuera un
+ * defecto del sistema: la comparación del mapa de endpoints navegables y los
+ * ocho de «dinero en tres capas», que buscaban archivos por una ruta que en esa
+ * máquina nunca coincidía.
+ *
+ * El efecto era peor que un falso negativo: esta especificación existe para
+ * vigilar reglas que no se ven leyendo un archivo suelto, y llevaba tiempo en
+ * rojo por un separador, así que sus hallazgos de verdad —tres, y reales— se
+ * perdían entre el ruido.
+ * ============================================================================
+ */
 const CODIGO = TODOS.filter((f) => !f.endsWith('.spec.ts')).map((f) => ({
-  ruta: relative(SRC, f),
+  ruta: relative(SRC, f).split(sep).join('/'),
   texto: leer(f),
 }));
 const TODO_EL_CODIGO = CODIGO.map((f) => f.texto).join('\n');
@@ -255,14 +275,38 @@ describe('Coherencia · navegación y permisos', () => {
       join(FRONTEND, 'app/dashboard/module-config.ts'),
       'utf8',
     );
+    /*
+     * Las portadas de módulo quedan fuera: no son una pantalla con datos, son
+     * la tapa del módulo. Y no deben tener acción propia, porque el permiso de
+     * pantalla cubre los descendientes y conceder la portada concedería el
+     * árbol entero —fue exactamente lo que pasó con `/dashboard/reportes`—. Se
+     * entra a ellas si se puede abrir algo de dentro, y eso lo resuelve el
+     * layout, no la tabla de permisos.
+     */
+    const contenedores = new Set(
+      [
+        ...(menu.split('RUTAS_CONTENEDOR')[1] ?? '')
+          .split(']')[0]
+          .matchAll(/"([^"]+)"/g),
+      ].map((m) => m[1]),
+    );
     const hrefs = [...menu.matchAll(/href:\s*"([^"]+)"/g)]
       .map((m) => m[1])
-      .filter((h) => !h.startsWith('/dashboard/centros'));
+      .filter((h) => !h.startsWith('/dashboard/centros') && !contenedores.has(h));
 
     const mapa = leer(join(SRC, 'iam/data/endpoints-navegables.ts'));
-    const cubiertas = new Set(
-      [...mapa.matchAll(/rutaFrontend:\s*'([^']+)'/g)].map((m) => m[1]),
-    );
+    /*
+     * Cuentan `rutaFrontend` y también `rutasAdicionales`: una misma acción
+     * puede habilitar más de una pantalla. El caso real es la caja, que vive en
+     * `/pos` y dejó `/dashboard/ventas/pos` como página que redirige para quien
+     * la tenga en favoritos — las dos las habilita poder registrar una venta.
+     */
+    const cubiertas = new Set([
+      ...[...mapa.matchAll(/rutaFrontend:\s*'([^']+)'/g)].map((m) => m[1]),
+      ...[...mapa.matchAll(/rutasAdicionales:\s*\[([^\]]*)\]/g)].flatMap((m) =>
+        [...m[1].matchAll(/'([^']+)'/g)].map((r) => r[1]),
+      ),
+    ]);
     const decoradas = new Set(
       [...TODO_EL_CODIGO.matchAll(/@Navegable\(\s*'([^']+)'/g)].map(
         (m) => m[1],
@@ -524,6 +568,33 @@ describe('Coherencia · identificadores de SQL Server', () => {
     }
     expect(infractores).toEqual([]);
   });
+
+  /*
+   * Hallazgo al usar la pantalla: dar de alta un proveedor fallaba con
+   * «email: email must be an email» señalando el correo que el usuario había
+   * dejado en blanco a propósito —el formulario dice, con razón, que basta con
+   * capturar el de la empresa o el del contacto.
+   *
+   * `@IsOptional()` omite la validación con `undefined` o `null`, no con
+   * cadena vacía, y un `<input>` que nadie tocó vale `''`. Por eso existe
+   * `@IsEmailOpcional`, hermano de `@IsSqlServerGuidOpcional`.
+   */
+  it('ningún DTO valida correos opcionales con @IsOptional() + @IsEmail()', () => {
+    const infractores: string[] = [];
+
+    for (const { ruta, texto } of CODIGO) {
+      if (!ruta.endsWith('.dto.ts')) continue;
+      const lineas = texto.split('\n');
+      lineas.forEach((linea, i) => {
+        const mismaLinea = /@IsOptional\(\)\s*@IsEmail\(/.test(linea);
+        const dosLineas =
+          /@IsOptional\(\)\s*$/.test(linea) &&
+          /^\s*@IsEmail\(/.test(lineas[i + 1] ?? '');
+        if (mismaLinea || dosLineas) infractores.push(`${ruta}:${i + 1}`);
+      });
+    }
+    expect(infractores).toEqual([]);
+  });
 });
 
 describe('Coherencia · salidas de inventario contabilizadas', () => {
@@ -596,5 +667,579 @@ describe('Coherencia · despliegue', () => {
       readFileSync(join(SRC, '..', 'package.json'), 'utf8'),
     );
     expect(backend.engines?.node).toBeTruthy();
+  });
+});
+
+describe('Coherencia · bloqueos pesimistas', () => {
+  /*
+   * PostgreSQL rechaza `FOR UPDATE` cuando la consulta trae un LEFT JOIN:
+   * "FOR UPDATE cannot be applied to the nullable side of an outer join".
+   * Cuatro servicios lo hacían (resolver aprobación de requisición, generar
+   * orden de compra desde cotización, cerrar conteo de inventario y anular
+   * venta) y cada uno devolvía 500 en vez de operar. La forma correcta es
+   * bloquear únicamente la tabla raíz: setLock(modo, undefined, ['alias']).
+   */
+  it('ningún setLock convive con un join sin acotar las tablas bloqueadas', () => {
+    const infractores: string[] = [];
+    for (const { ruta, texto } of CODIGO) {
+      if (ruta.endsWith('.spec.ts')) continue;
+      const lineas = texto.split('\n');
+      lineas.forEach((linea, i) => {
+        if (!/setLock\(/.test(linea)) return;
+        if (/setLock\([^)]*,\s*undefined\s*,\s*\[/.test(linea)) return;
+        // Sólo la sentencia que contiene el setLock: se abre en la línea que
+        // arranca la consulta y se cierra en el primer `;`.
+        let inicio = i;
+        while (inicio > 0 && !/;|=\s*await|=\s*em\.|=\s*this\./.test(lineas[inicio - 1])) {
+          inicio -= 1;
+        }
+        let fin = i;
+        while (fin < lineas.length - 1 && !lineas[fin].includes(';')) fin += 1;
+        const cadena = lineas.slice(inicio - 1 >= 0 ? inicio - 1 : 0, fin + 1).join('\n');
+        if (/\.(left|inner)Join(AndSelect)?\(/.test(cadena)) {
+          infractores.push(`${ruta}:${i + 1}`);
+        }
+      });
+    }
+    expect(infractores).toEqual([]);
+  });
+});
+
+describe('Coherencia · identificadores opcionales en DTOs', () => {
+  /*
+   * Un `<select>` en blanco manda cadena vacía, no `undefined`. `@IsOptional()`
+   * sólo perdona `undefined` y `null`, así que la cadena vacía llegaba hasta
+   * PostgreSQL y reventaba al escribirla en una columna uuid, con el mensaje
+   * genérico «El identificador o alguno de los valores no tiene el formato
+   * esperado», que no nombra ningún campo. Doce identificadores opcionales
+   * estaban así: dar de alta un usuario sin área, un producto sin categoría o
+   * una categoría sin cuenta contable era imposible.
+   *
+   * `@IsSqlServerGuidOpcional()` convierte la cadena vacía en ausencia antes de
+   * validar. Un `@Transform` propio que haga lo mismo también vale.
+   */
+  it('todo identificador opcional normaliza la cadena vacía', () => {
+    const infractores: string[] = [];
+    for (const { ruta, texto } of CODIGO) {
+      if (!ruta.endsWith('.dto.ts')) continue;
+      const lineas = texto.split('\n');
+      lineas.forEach((linea, i) => {
+        const propiedad = /^\s*(\w+)\??:\s*string;?\s*$/.exec(linea);
+        if (!propiedad || !propiedad[1].endsWith('Id')) return;
+        let j = i - 1;
+        const decoradores: string[] = [];
+        while (j >= 0 && /^\s*(@|\/\/|\*|\/\*)/.test(lineas[j])) {
+          decoradores.unshift(lineas[j].trim());
+          j -= 1;
+        }
+        const bloque = decoradores.join('\n');
+        if (!bloque.includes('@IsOptional()')) return;
+        if (bloque.includes('Guid') || bloque.includes('Transform')) return;
+        infractores.push(`${ruta}:${i + 1} ${propiedad[1]}`);
+      });
+    }
+    expect(infractores).toEqual([]);
+  });
+});
+
+describe('Coherencia · contrato de roles', () => {
+  /*
+   * ==========================================================================
+   * Lo que cada puesto SIEMPRE puede y NUNCA puede
+   * --------------------------------------------------------------------------
+   * Las plantillas declaran módulos, y un módulo es un conjunto que cambia:
+   * la recepción de mercancía se reclasificó de «Compras» a «Inventario» y las
+   * empresas ya sembradas se quedaron con la acción apagada —78 de 79— hasta
+   * que un almacenista se quedó con el camión en la puerta y un 403 al firmar.
+   *
+   * Por eso lo que define un puesto se declara por RUTA, que no cambia, y se
+   * repone en cada escritura y en cada arranque. Estas pruebas cuidan que esas
+   * declaraciones sigan apuntando a endpoints que existen: un contrato que
+   * nombra una ruta renombrada es un contrato mudo, y falla en silencio.
+   * ==========================================================================
+   */
+  const plantillas = PLANTILLAS_PERMISOS;
+  const rutas = rutasDelBackend();
+
+  it('toda acción irrenunciable o vedada apunta a un endpoint real', () => {
+    const huerfanas: string[] = [];
+    for (const p of plantillas) {
+      for (const accion of [
+        ...(p.accionesIrrenunciables ?? []),
+        ...(p.accionesVedadas ?? []),
+      ]) {
+        if (!rutas.has(accion)) huerfanas.push(`${p.rol}: ${accion}`);
+      }
+    }
+    expect(huerfanas).toEqual([]);
+  });
+
+  it('ninguna acción es a la vez irrenunciable y vedada para el mismo rol', () => {
+    const choques: string[] = [];
+    for (const p of plantillas) {
+      const vedadas = new Set(p.accionesVedadas ?? []);
+      for (const a of p.accionesIrrenunciables ?? []) {
+        if (vedadas.has(a)) choques.push(`${p.rol}: ${a}`);
+      }
+    }
+    expect(choques).toEqual([]);
+  });
+
+  it('el almacén conserva la recepción de mercancía', () => {
+    const almacenista = plantillas.find((p) => p.rol === 'almacenista');
+    expect(almacenista?.accionesIrrenunciables).toContain(
+      'PATCH /compras/ordenes/:id/recibir',
+    );
+  });
+
+  it('alg\u00fan rol distinto del administrador puede pagar al proveedor', () => {
+    /*
+     * Al vedarle el pago al comprador se cerr\u00f3 un hueco de separaci\u00f3n de
+     * funciones y se abri\u00f3 otro: ning\u00fan rol ten\u00eda el m\u00f3dulo «compras»
+     * completo, as\u00ed que no quedaba nadie capaz de pagar salvo el admin. Un
+     * control que deja el trabajo sin hacer no es un control, es una aver\u00eda.
+     */
+    const PAGAR = 'PATCH /compras/ordenes/:id/pagar';
+    const pueden = plantillas.filter((p) =>
+      (p.accionesIrrenunciables ?? []).includes(PAGAR),
+    );
+    expect(pueden.map((p) => p.rol).sort()).toEqual(['finanzas', 'tesoreria']);
+
+    const vedado = plantillas.filter((p) => (p.accionesVedadas ?? []).includes(PAGAR));
+    expect(vedado.map((p) => p.rol)).toEqual(['comprador']);
+  });
+
+  it('el comprador no puede pagar ni autorizar lo que él mismo compra', () => {
+    const comprador = plantillas.find((p) => p.rol === 'comprador');
+    expect(comprador?.accionesVedadas).toEqual(
+      expect.arrayContaining([
+        'PATCH /compras/ordenes/:id/pagar',
+        'PATCH /compras/requisiciones/aprobaciones/:id',
+      ]),
+    );
+  });
+
+  it('quien puede ejecutar una acci\u00f3n tambi\u00e9n puede ver sobre qu\u00e9 la ejecuta', () => {
+    /*
+     * Una acci\u00f3n sin su consulta es una pantalla vac\u00eda con un bot\u00f3n: al
+     * almacenista se le dio ver el manifiesto sin poder firmarlo, y a
+     * tesorer\u00eda lo contrario —pod\u00eda firmar el pago y `GET /compras/ordenes`
+     * le daba 403, as\u00ed que la lista de lo que deb\u00eda pagar sal\u00eda vac\u00eda.
+     */
+    const LECTURA_EXIGIDA: Record<string, string[]> = {
+      'PATCH /compras/ordenes/:id/pagar': ['GET /compras/ordenes', 'GET /compras/ordenes/:id'],
+      'PATCH /compras/ordenes/:id/recibir': ['GET /compras/ordenes/:id'],
+    };
+
+    const faltantes: string[] = [];
+    for (const p of plantillas) {
+      const declaradas = new Set(p.accionesIrrenunciables ?? []);
+      for (const [accion, lecturas] of Object.entries(LECTURA_EXIGIDA)) {
+        if (!declaradas.has(accion)) continue;
+        for (const lectura of lecturas) {
+          const porModulo = (p.modulosConsulta ?? []).length > 0 || p.modulos.length > 0;
+          if (!declaradas.has(lectura) && !porModulo) {
+            faltantes.push(`${p.rol}: ${accion} sin ${lectura}`);
+          }
+        }
+      }
+    }
+    expect(faltantes).toEqual([]);
+
+    // Y explicitamente: los dos roles que pagan declaran su lectura por ruta.
+    for (const rol of ['tesoreria', 'finanzas']) {
+      const p = plantillas.find((x) => x.rol === rol)!;
+      expect(p.accionesIrrenunciables).toEqual(
+        expect.arrayContaining(['GET /compras/ordenes', 'GET /compras/ordenes/:id']),
+      );
+    }
+  });
+
+  it('el contrato se aplica en la escritura y en el arranque, no sólo al sembrar', () => {
+    const servicio = CODIGO.find((f) =>
+      f.ruta.endsWith('iam/services/permisos-dinamicos.service.ts'),
+    )!.texto;
+    // En la única puerta de escritura de la tabla de permisos.
+    expect(servicio).toMatch(/async actualizarPermisos[\s\S]*?accionesIrrenunciables/);
+    // Y reconciliado al levantar, para instalaciones sembradas antes.
+    expect(servicio).toContain('aplicarContratoDeRoles');
+    expect(servicio).toMatch(
+      /sincronizarControladoresYEndpoints[\s\S]*?aplicarContratoDeRoles\(\)/,
+    );
+  });
+});
+
+describe('Coherencia · los roles nacen con lo suyo', () => {
+  /*
+   * ==========================================================================
+   * Un rol se amplía; no se recorta por debajo de su trabajo
+   * --------------------------------------------------------------------------
+   * Quitarle a un rol una acción con la que opera —el almacenista sin recibir
+   * mercancía, el cajero sin cobrar, el contador sin pólizas— no produce un rol
+   * más restringido, produce un rol roto. Y el que lo rompe casi nunca es
+   * quien descubre el estropicio: lo descubre el que llega el lunes y no puede
+   * trabajar, sin saber qué cambió ni cuándo.
+   *
+   * Por eso el piso no es una convención de la pantalla, es código en la única
+   * puerta de escritura de la tabla de permisos. Estas pruebas cuidan que siga
+   * ahí.
+   * ==========================================================================
+   */
+  const servicio = () =>
+    CODIGO.find((f) => f.ruta.endsWith('iam/services/permisos-dinamicos.service.ts'))!
+      .texto;
+
+  it('el piso abarca todo lo que la plantilla concede, no sólo la consulta', () => {
+    const texto = servicio();
+    expect(texto).toContain('pisoDeAccionesDeRol');
+    // Los módulos propios entran enteros...
+    expect(texto).toMatch(
+      /pisoDeAccionesDeRol[\s\S]*?for \(const moduloId of plantilla\.modulos\)[\s\S]*?protegidos\.add\(ep\.id\)/,
+    );
+    // ...y de los de consulta, sus GET.
+    expect(texto).toMatch(
+      /pisoDeAccionesDeRol[\s\S]*?modulosConsulta[\s\S]*?esConsulta\(ep\)[\s\S]*?protegidos\.add\(ep\.id\)/,
+    );
+  });
+
+  it('la escritura de permisos repone lo que se intente quitar del piso', () => {
+    expect(servicio()).toMatch(
+      /async actualizarPermisos[\s\S]*?pisoDeAccionesDeRol[\s\S]*?permisos\[id\] = true/,
+    );
+  });
+
+  it('asignar módulos no degrada a consulta el trabajo propio del rol', () => {
+    const texto = servicio();
+    expect(texto).toMatch(
+      /for \(const moduloId of piso\)[\s\S]*?efectivos\[moduloId\] = 'completo'/,
+    );
+  });
+
+  it('ningún rol con plantilla se puede borrar: no existe esa puerta', () => {
+    const controladores = CODIGO.filter(
+      (f) => f.ruta.startsWith('iam/') && f.ruta.endsWith('.controller.ts'),
+    );
+    const conBorrado = controladores.filter((f) => /@Delete\(/.test(f.texto));
+    expect(conBorrado.map((f) => f.ruta)).toEqual([]);
+  });
+
+  it('toda plantilla declara al menos un módulo propio', () => {
+    const vacias = PLANTILLAS_PERMISOS.filter((p) => p.modulos.length === 0);
+    expect(vacias.map((p) => p.rol)).toEqual([]);
+  });
+});
+
+
+describe('Coherencia · el mapa del menú no regala pantallas vecinas', () => {
+  /*
+   * ==========================================================================
+   * Una pantalla concedida no puede abrir la de al lado
+   * --------------------------------------------------------------------------
+   * El permiso de pantalla cubre la ruta Y SUS DESCENDIENTES. Eso es
+   * deliberado y necesario: quien puede abrir `/dashboard/compras/ordenes`
+   * tiene que poder abrir el detalle de una orden, que cuelga de ahí.
+   *
+   * El efecto secundario es que conceder una portada concede el árbol entero,
+   * y eso deja de ser inocente en cuanto las hojas son de OTRO módulo de
+   * negocio. Pasó con `/dashboard/reportes`: la acción que lo concedía era la
+   * métrica del catálogo de productos —la tiene el almacenista— y por debajo
+   * cuelgan el panel ejecutivo, el corte de caja y el estado de cuenta de los
+   * clientes. Y con `/dashboard/hoteleria`, que cuelga el escandallo y el
+   * costo teórico contra real de Recetas.
+   *
+   * La regla, entonces, no es «ninguna ruta puede ser padre de otra» —eso
+   * rompería el detalle de la orden—, es: **ninguna ruta puede ser padre de
+   * una ruta de otro módulo**. Dentro de un módulo el permiso ya viaja junto;
+   * entre módulos, no debe.
+   * ==========================================================================
+   */
+  const porRuta = new Map<string, Set<string>>();
+  for (const [clave, meta] of Object.entries(ENDPOINTS_NAVEGABLES)) {
+    const modulo = moduloDeRuta(clave.split(' ')[1]);
+    for (const ruta of [meta.rutaFrontend, ...(meta.rutasAdicionales ?? [])]) {
+      if (!porRuta.has(ruta)) porRuta.set(ruta, new Set());
+      porRuta.get(ruta)!.add(modulo);
+    }
+  }
+
+  it('ninguna pantalla es antecesora de otra de un módulo distinto', () => {
+    const rutas = [...porRuta.keys()];
+    const invasiones: string[] = [];
+    for (const padre of rutas) {
+      for (const hija of rutas) {
+        if (padre === hija || !hija.startsWith(padre + '/')) continue;
+        const suyos = porRuta.get(padre)!;
+        const ajenos = [...porRuta.get(hija)!].filter((m) => !suyos.has(m));
+        if (ajenos.length) {
+          invasiones.push(`${padre} [${[...suyos]}] abre ${hija} [${ajenos}]`);
+        }
+      }
+    }
+    expect(invasiones).toEqual([]);
+  });
+});
+
+describe('Coherencia · las cuentas contables no se tocan desde el almacén', () => {
+  /*
+   * ==========================================================================
+   * Quién decide a qué cuenta va cada familia de productos
+   * --------------------------------------------------------------------------
+   * Las cinco cuentas de una categoría —ventas, costo, inventario,
+   * devoluciones, mermas— son las que el motor contable usa para armar el
+   * asiento de cada venta y de cada salida de almacén. Se editaban en el PATCH
+   * general de la categoría, que pertenece al módulo de Inventario y que el
+   * almacenista tiene completo. Nadie lo hizo con mala intención y nadie se
+   * habría enterado: el desajuste aparece en el cierre, semanas después.
+   *
+   * Ahora cuelgan de `/catalogo/categorias/:id/cuentas`, un prefijo declarado
+   * dentro de Contabilidad. Estas pruebas cuidan que no vuelvan.
+   * ==========================================================================
+   */
+  it('las cuentas de una categoría pertenecen a Contabilidad', () => {
+    expect(moduloDeRuta('/catalogo/categorias/:id/cuentas')).toBe('finanzas');
+    expect(moduloDeRuta('/catalogo/categorias/auto-configurar')).toBe('finanzas');
+    // El catálogo en sí sigue siendo del almacén.
+    expect(moduloDeRuta('/catalogo/categorias/:id')).toBe('inventario');
+    expect(moduloDeRuta('/catalogo/categorias')).toBe('inventario');
+  });
+
+  it('el DTO del catálogo ya no acepta cuentas contables', () => {
+    const dto = CODIGO.find((f) =>
+      f.ruta.endsWith('catalogo/dto/crear-categoria.dto.ts'),
+    )!.texto;
+    expect(dto).not.toMatch(/cuenta(Ventas|CostoVentas|Inventario|Devoluciones|Mermas)Id/);
+  });
+
+  it('quien mapea cuentas puede ver las categorías que va a mapear', () => {
+    for (const rol of ['contador', 'finanzas']) {
+      const plantilla = PLANTILLAS_PERMISOS.find((p) => p.rol === rol)!;
+      const puedeVer =
+        (plantilla.accionesIrrenunciables ?? []).includes('GET /catalogo/categorias') ||
+        plantilla.modulos.includes('inventario') ||
+        (plantilla.modulosConsulta ?? []).includes('inventario');
+      expect([rol, puedeVer]).toEqual([rol, true]);
+    }
+  });
+});
+
+
+describe('Coherencia · lo que se le retira a un rol queda escrito', () => {
+  /*
+   * ==========================================================================
+   * Un módulo no se quita borrándolo de la plantilla
+   * --------------------------------------------------------------------------
+   * La reconciliación de arranque sólo ENCIENDE, nunca apaga, para que una
+   * ampliación hecha a mano sobreviva al reinicio. La consecuencia es que
+   * quitar un módulo de `modulosConsulta` no retira nada en las empresas ya
+   * sembradas: se queda encendido para siempre y sólo se nota revisando la
+   * matriz acción por acción. Pasó al sacarle «precios» al almacenista.
+   *
+   * Por eso la retirada se declara —`modulosVedados`— y se aplica en las dos
+   * puertas: el arranque y cada escritura de permisos.
+   * ==========================================================================
+   */
+  const servicio = () =>
+    CODIGO.find((f) => f.ruta.endsWith('iam/services/permisos-dinamicos.service.ts'))!
+      .texto;
+
+  it('existe el techo por módulo y se aplica en cada escritura', () => {
+    const texto = servicio();
+    expect(texto).toContain('techoDeModulosVedados');
+    expect(texto).toMatch(
+      /async actualizarPermisos[\s\S]*?techoDeModulosVedados[\s\S]*?permisos\[id\] = false/,
+    );
+  });
+
+  it('el arranque retira lo vedado, no sólo repone lo irrenunciable', () => {
+    expect(servicio()).toMatch(
+      /aplicarContratoDeRoles[\s\S]*?techoDeModulosVedados[\s\S]*?fila\.permitido = false/,
+    );
+  });
+
+  it('el piso nunca repone algo que el techo veda', () => {
+    const texto = servicio();
+    const veces = texto.match(/techoDeModulosVedados\(\w+(?:\.\w+)?\)\) (?:protegidos|piso)\.delete/g) ?? [];
+    expect(veces.length).toBe(2);
+  });
+
+  it('ningún módulo está a la vez concedido y vedado', () => {
+    const contradicciones = PLANTILLAS_PERMISOS.filter((p) => {
+      const tiene = new Set([...p.modulos, ...(p.modulosConsulta ?? [])]);
+      return (p.modulosVedados ?? []).some((m) => tiene.has(m));
+    });
+    expect(contradicciones.map((p) => p.rol)).toEqual([]);
+  });
+});
+
+
+describe('Coherencia · los guardas de la interfaz nombran acciones que existen', () => {
+  /*
+   * ==========================================================================
+   * Un botón que se esconde para siempre y no avisa
+   * --------------------------------------------------------------------------
+   * La interfaz decide si pinta un botón preguntando `tienePermiso(metodo,
+   * ruta)` contra el mapa que devuelve `/auth/mis-permisos`, cuyas llaves son
+   * literalmente «METODO /ruta» tal como el controlador las declara. Si el
+   * guarda nombra un verbo distinto del real, la pregunta no encuentra llave,
+   * devuelve false, y el botón simplemente no se dibuja. No hay error en
+   * consola, no hay 403, no hay nada: la función existe, el usuario tiene el
+   * permiso, y la pantalla se comporta como si no lo tuviera.
+   *
+   * Pasó con la edición de productos: la ficha se guarda con
+   * `PUT /catalogo/productos/:id` y el guarda pedía `PATCH`. El almacenista
+   * —que es el único rol que da de alta productos— no podía editar ninguno, y
+   * revisar los permisos por API no lo mostraba, porque por API el permiso
+   * estaba concedido. Sólo se ve abriendo la pantalla.
+   *
+   * Por eso esta prueba lee los guardas del frontend y los contrasta contra
+   * las rutas declaradas en los controladores de Nest.
+   * ==========================================================================
+   */
+  const ALIAS: Record<string, string> = {
+    PuedeVer: 'GET',
+    PuedeCrear: 'POST',
+    PuedeEditar: 'PATCH',
+    PuedeEliminar: 'DELETE',
+  };
+  const norm = (r: string) =>
+    r.replace(/^\/api/, '').replace(/\/$/, '').replace(/:[^/]+/g, ':p') || '/';
+
+  /** Rutas declaradas en los controladores, por verbo. */
+  const porVerbo = (() => {
+    const mapa = new Map<string, Set<string>>();
+    for (const f of CODIGO.filter((x) => x.ruta.endsWith('.controller.ts'))) {
+      const mc = f.texto.match(/@Controller\(\s*['\"]([^'\"]*)['\"]\s*\)/);
+      const base = mc ? mc[1] : '';
+      const re = /@(Get|Post|Put|Patch|Delete)\(\s*(?:['\"]([^'\"]*)['\"])?\s*\)/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(f.texto))) {
+        const ruta =
+          ('/' + [base, m[2] ?? ''].filter(Boolean).join('/'))
+            .replace(/\/+/g, '/')
+            .replace(/\/$/, '') || '/';
+        const verbo = m[1].toUpperCase();
+        if (!mapa.has(verbo)) mapa.set(verbo, new Set());
+        mapa.get(verbo)!.add(norm(ruta));
+      }
+    }
+    return mapa;
+  })();
+
+  it('cada guarda del frontend corresponde a un endpoint real', () => {
+    if (!FRONTEND) return; // el frontend no está junto al backend en este entorno
+
+    const archivos: Array<{ ruta: string; texto: string }> = [];
+    const recorrer = (dir: string) => {
+      if (!existsSync(dir)) return;
+      for (const nombre of readdirSync(dir)) {
+        if (nombre === 'node_modules' || nombre === '.next' || nombre.startsWith('.')) continue;
+        const completo = join(dir, nombre);
+        if (statSync(completo).isDirectory()) recorrer(completo);
+        else if (/\.tsx?$/.test(nombre)) {
+          archivos.push({
+            ruta: relative(FRONTEND, completo).split(sep).join('/'),
+            texto: readFileSync(completo, 'utf8'),
+          });
+        }
+      }
+    };
+    recorrer(join(FRONTEND, 'app'));
+    recorrer(join(FRONTEND, 'components'));
+
+    const rotos: string[] = [];
+    for (const f of archivos) {
+      // El propio componente documenta su uso con ejemplos: no son guardas.
+      if (f.ruta.endsWith('components/ProtectedElement.tsx')) continue;
+      const guardas: Array<{ metodo: string; ruta: string }> = [];
+      let m: RegExpExecArray | null;
+
+      const conMetodo = /<ProtectedElement\b[^>]*?metodo=[\"'](\w+)[\"'][^>]*?ruta=[\"']([^\"']+)[\"']/gs;
+      while ((m = conMetodo.exec(f.texto))) guardas.push({ metodo: m[1].toUpperCase(), ruta: m[2] });
+      const alReves = /<ProtectedElement\b[^>]*?ruta=[\"']([^\"']+)[\"'][^>]*?metodo=[\"'](\w+)[\"']/gs;
+      while ((m = alReves.exec(f.texto))) guardas.push({ metodo: m[2].toUpperCase(), ruta: m[1] });
+      for (const [alias, metodo] of Object.entries(ALIAS)) {
+        const re = new RegExp(`<${alias}\\b[^>]*?ruta=[\"']([^\"']+)[\"']`, 'gs');
+        while ((m = re.exec(f.texto))) guardas.push({ metodo, ruta: m[1] });
+      }
+
+      for (const g of guardas) {
+        const verbosReales = [...porVerbo.entries()]
+          .filter(([, rutas]) => rutas.has(norm(g.ruta)))
+          .map(([verbo]) => verbo);
+        if (!verbosReales.length) {
+          rotos.push(`${f.ruta}: ${g.metodo} ${g.ruta} — ningún controlador declara esa ruta`);
+        } else if (!verbosReales.includes(g.metodo)) {
+          rotos.push(
+            `${f.ruta}: ${g.metodo} ${g.ruta} — el verbo real es ${verbosReales.join('/')}`,
+          );
+        }
+      }
+    }
+    expect(rotos).toEqual([]);
+  });
+});
+
+
+describe('Coherencia · los secretos del usuario no salen por la API', () => {
+  /*
+   * ==========================================================================
+   * Una promesa en un comentario no es una defensa
+   * --------------------------------------------------------------------------
+   * `passwordHash` llevaba `@Exclude()` y encima un comentario que decía
+   * «NUNCA DEVOLVERÁ EL HASH AL FRONTEND». Era falso: `@Exclude()` sólo actúa
+   * si está registrado el `ClassSerializerInterceptor` de Nest, y no lo estaba
+   * en ninguna parte. El servicio de usuarios limpiaba la respuesta a mano
+   * —así que `/usuarios` salía bien y el bug parecía no existir—, pero
+   * cualquier otro servicio que cargue la relación `usuario` devuelve la
+   * entidad entera: `GET /configuraciones-aprobacion/matriz/todos` entregaba el
+   * hash de cada aprobador a cualquier rol que pudiera consultar aprobaciones.
+   *
+   * La defensa está ahora en la capa de datos: la columna no se carga. Lo mismo
+   * para el token de invitación y el de recuperación, con los que se activa o
+   * se secuestra una cuenta ajena.
+   * ==========================================================================
+   */
+  const entidad = () =>
+    CODIGO.find((f) => f.ruta.endsWith('iam/entities/usuario.entity.ts'))!.texto;
+
+  it('el hash y los tokens no se cargan en consultas ordinarias', () => {
+    const texto = entidad();
+    for (const campo of ['passwordHash', 'tokenVerificacion', 'tokenRecuperacion']) {
+      const decorador = new RegExp(`@Column\\(\\{[^}]*select: false[^}]*\\}\\)[\\s\\S]{0,400}?\\b${campo}!`);
+      expect([campo, decorador.test(texto)]).toEqual([campo, true]);
+    }
+  });
+
+  it('sólo el login pide el hash, y lo pide explícitamente', () => {
+    const lectores = CODIGO.filter(
+      (f) => !f.ruta.endsWith('usuario.entity.ts') && /addSelect\(['"]u\.passwordHash['"]\)/.test(f.texto),
+    ).map((f) => f.ruta);
+    expect(lectores).toEqual(['iam/services/auth.service.ts']);
+  });
+
+  it('nadie confía en @Exclude mientras no exista el interceptor que lo aplica', () => {
+    const hayInterceptor = CODIGO.some((f) =>
+      /ClassSerializerInterceptor/.test(f.texto),
+    );
+    if (hayInterceptor) return; // si algún día se registra, esta prueba sobra
+    /*
+     * Sin el interceptor, `@Exclude()` es decoración. Que nadie añada un campo
+     * sensible creyendo que con eso basta: la lista de campos protegidos de
+     * verdad es la de `select: false` de la prueba anterior.
+     */
+    const entidadesConExclude = CODIGO.filter(
+      (f) => f.ruta.endsWith('.entity.ts') && /@Exclude\(\)/.test(f.texto),
+    );
+    for (const f of entidadesConExclude) {
+      const camposExcluidos = [
+        ...f.texto.matchAll(/@Exclude\(\)[\s\S]{0,200}?(\w+)!/g),
+      ].map((m) => m[1]);
+      for (const campo of camposExcluidos) {
+        const protegido = new RegExp(
+          `@Column\\(\\{[^}]*select: false[^}]*\\}\\)[\\s\\S]{0,600}?\\b${campo}!`,
+        );
+        expect([f.ruta, campo, protegido.test(f.texto)]).toEqual([f.ruta, campo, true]);
+      }
+    }
   });
 });

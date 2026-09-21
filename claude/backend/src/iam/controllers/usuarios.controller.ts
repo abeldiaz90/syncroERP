@@ -8,6 +8,8 @@ import {
   Query,
 } from '@nestjs/common';
 import { UsuariosService } from '../services/usuarios.service';
+import { DirectorioIdentidadService } from '../services/directorio-identidad.service';
+import { ConfigService } from '@nestjs/config';
 import { CrearUsuarioDto } from '../dto/crear-usuario.dto';
 import { ActualizarUsuarioDto } from '../dto/actualizar-usuario.dto';
 import { AceptarInvitacionDto } from '../dto/aceptar-invitacion.dto';
@@ -19,7 +21,10 @@ import { SkipPermisos } from '../decorators/skip-permisos.decorator';
 
 @Controller('usuarios')
 export class UsuariosController {
-  constructor(private readonly usuariosService: UsuariosService) {}
+  constructor(private readonly usuariosService: UsuariosService,
+    private readonly directorio: DirectorioIdentidadService,
+    private readonly config: ConfigService,
+  ) {}
 
   @Post()
   crear(
@@ -64,6 +69,12 @@ export class UsuariosController {
   // ── CRUD normal (requiere sesión) ─────────────────────────────────────────
 
   @SkipPermisos()
+  @Get('me')
+  miContexto(@ActiveUser('id') id: string, @ActiveUser('empresaId') empresaId: string) {
+    return this.usuariosService.obtenerMiContexto(id, empresaId);
+  }
+
+  @SkipPermisos()
   @Get('me/preferencias')
   preferencias(@ActiveUser('id') id: string, @ActiveUser('empresaId') empresaId: string) {
     return this.usuariosService.obtenerPreferencias(id, empresaId);
@@ -77,6 +88,24 @@ export class UsuariosController {
     @ActiveUser('empresaId') empresaId: string,
   ) {
     return this.usuariosService.actualizarPreferencias(id, empresaId, dto);
+  }
+
+  /**
+   * Si el ERP puede crear identidades, y con qué candado.
+   *
+   * La pantalla lo anuncia al cargar: sin provisionador, dar de alta a alguien
+   * deja un pendiente manual, y quien lo hace tiene derecho a saberlo ANTES de
+   * llenar el formulario, no después.
+   */
+  @Get('directorio')
+  estadoDirectorio() {
+    return {
+      configurado: this.directorio.configurado,
+      motivo: this.directorio.motivoNoConfigurado,
+      dominios: this.directorio.dominiosPermitidos,
+      identidadEnDirectorio:
+        this.config.get<string>('AUTH_MODE', 'keycloak') === 'keycloak',
+    };
   }
 
   @Get()
@@ -94,7 +123,9 @@ export class UsuariosController {
     @Param('id') id: string,
     @ActiveUser('empresaId') empresaId: string,
   ) {
-    return this.usuariosService.obtenerPorId(id, empresaId);
+    // La versión saneada: la entidad cruda lleva el hash y el token de
+    // invitación, y eso no viaja a un navegador.
+    return this.usuariosService.obtenerPorIdPublico(id, empresaId);
   }
 
   @Patch(':id')

@@ -15,7 +15,6 @@ import * as crypto from 'crypto';
 
 import { Empresa } from '../entities/empresa.entity';
 import { Usuario } from '../entities/usuario.entity';
-import { RegisterDto } from '../dto/register.dto';
 import { OnboardingPasoDto } from '../dto/onboarding-paso.dto';
 import { LoginDto } from '../dto/login.dto';
 import { PermisosDinamicosService } from './permisos-dinamicos.service';
@@ -157,98 +156,10 @@ export class AuthService {
     });
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // REGISTRO
-  // ═══════════════════════════════════════════════════════════════════════
-  async registrarEmpresa(registerDto: RegisterDto) {
-    const { nombreComercial, nombreCompleto, email, password } = registerDto;
-    const emailNorm = email.toLowerCase().trim();
-
-    exigirPoliticaPassword(password);
-
-    const usuarioExistente = await this.usuarioRepository.findOne({
-      where: { email: emailNorm },
-    });
-    if (usuarioExistente) {
-      throw new ConflictException('El correo electrónico ya está registrado');
-    }
-
-    const { token, tokenHash, expira } = this.generarToken(24);
-
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    let empresaId: string;
-    try {
-      const nuevaEmpresa = queryRunner.manager.create(Empresa, {
-        nombreComercial: nombreComercial.trim(),
-        activo: false,
-        onboardingCompletado: false,
-        onboardingPaso: 0,
-        terminosAceptadosEn: new Date(),
-        terminosVersion: registerDto.terminosVersion,
-      });
-      const empresaGuardada = await queryRunner.manager.save(nuevaEmpresa);
-      empresaId = empresaGuardada.id;
-
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash(password, salt);
-
-      const nuevoUsuario = queryRunner.manager.create(Usuario, {
-        empresaId,
-        nombreCompleto: nombreCompleto.trim(),
-        email: emailNorm,
-        passwordHash,
-        rol: 'admin',
-        esPropietario: true,
-        tokenVersion: 0,
-        emailVerificado: false,
-        tokenVerificacion: tokenHash, // solo el hash toca la BD
-        tokenExpira: expira,
-      });
-      await queryRunner.manager.save(nuevoUsuario);
-
-      await queryRunner.commitTransaction();
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      const { msg, stack } = this.describirError(error);
-      this.logger.error(`Error al registrar empresa: ${msg}`, stack);
-
-      const sqlNumber =
-        error instanceof QueryFailedError
-          ? Number((error as QueryFailedError & { driverError?: { number?: number } }).driverError?.number)
-          : undefined;
-      if (sqlNumber === 2601 || sqlNumber === 2627) {
-        throw new ConflictException('El correo electrónico ya está registrado');
-      }
-
-      throw new InternalServerErrorException(
-        'Error al registrar la empresa, cambios revertidos',
-      );
-    } finally {
-      await queryRunner.release();
-    }
-
-    // Correo FUERA de la transacción: si el SMTP falla, el registro se
-    // conserva y el usuario puede usar "reenviar verificación".
-    try {
-      await this.enviarCorreoVerificacion(emailNorm, nombreCompleto, token);
-    } catch (error) {
-      const { msg, stack } = this.describirError(error);
-      this.logger.error(
-        `FALLO ENVÍO DE CORREO DE VERIFICACIÓN a ${emailNorm}: ${msg}`,
-        stack,
-      );
-    }
-
-    return {
-      mensaje:
-        'Cuenta creada. Revisa tu correo para verificarla y poder iniciar sesión.',
-      empresaId,
-      registroContrato: '2026-07-31-v2-terminos',
-    };
-  }
+  /*
+   * `registrarEmpresa` se retiró con el alta pública: una empresa sólo nace
+   * desde la consola de SUMA, por la puerta de aprovisionamiento.
+   */
 
   // ═══════════════════════════════════════════════════════════════════════
   // VERIFICAR EMAIL — idempotente, sin crear sesión automáticamente.
@@ -522,10 +433,18 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
-    const usuario = await this.usuarioRepository.findOne({
-      where: { email: email.toLowerCase().trim() },
-      relations: ['empresa'],
-    });
+    /*
+     * El hash se pide EXPLÍCITAMENTE porque la columna es `select: false`: no
+     * se carga en ninguna consulta ordinaria, para que ninguna relación pueda
+     * arrastrarla hasta una respuesta de la API por descuido. Éste es el único
+     * lugar del sistema que necesita leerla.
+     */
+    const usuario = await this.usuarioRepository
+      .createQueryBuilder('u')
+      .leftJoinAndSelect('u.empresa', 'empresa')
+      .addSelect('u.passwordHash')
+      .where('u.email = :email', { email: email.toLowerCase().trim() })
+      .getOne();
 
     if (!usuario) {
       // Comparación de cortesía: iguala el tiempo de respuesta con el de

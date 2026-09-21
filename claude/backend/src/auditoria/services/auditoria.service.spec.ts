@@ -39,7 +39,17 @@ function crearArnes(opts?: { fallarSave?: boolean }) {
    */
   const manager: any = {
     query: jest.fn(async (sql: string) => {
-      if (sql.includes('sp_getapplock')) return [{ resultado: 0 }];
+      /*
+       * Mismo desfase que en el motor contable: el candado pasó de
+       * `sp_getapplock` a `pg_advisory_xact_lock` y el simulador se quedó con
+       * el nombre viejo. El servicio leía `undefined` como -999, abortaba la
+       * transacción y `registrar()` se tragaba el error —está diseñado para no
+       * tumbar la operación auditada—, así que las cinco pruebas veían la lista
+       * vacía sin ninguna pista de por qué.
+       */
+      if (sql.includes('pg_advisory_xact_lock') || sql.includes('sp_getapplock')) {
+        return [{ resultado: 0 }];
+      }
       return []; // sin registro previo en la cadena
     }),
     getRepository: () => repo,

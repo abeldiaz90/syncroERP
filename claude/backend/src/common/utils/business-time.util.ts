@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 const DEFAULT_TIME_ZONE = process.env.BUSINESS_TIMEZONE?.trim() || 'America/Mexico_City';
 
 function partesEnZona(fecha: Date, timeZone: string) {
@@ -53,4 +54,51 @@ export function rangoUltimosDiasNegocio(dias: number, timeZone = DEFAULT_TIME_ZO
     finExclusivo: fechaLocalNegocioAUtc(`${sumarDias(hoy, 1)}T00:00:00`, timeZone),
     zonaHoraria: timeZone,
   };
+}
+
+/**
+ * ============================================================================
+ * Un rango de fechas válido, o un error que se entiende
+ * ----------------------------------------------------------------------------
+ * Varios reportes hacían `Between(new Date(desde), new Date(hasta))` con lo que
+ * viniera en la consulta. Sin parámetros, `new Date(undefined)` es una fecha
+ * inválida, la base la rechaza y el usuario recibe un 500 «No se pudo completar
+ * la operación en la base de datos» — que no dice nada y parece una caída del
+ * sistema. Se detectó llamando a `/tesoreria/flujo-efectivo` y a
+ * `/recetas/costos/teorico-vs-real` sin parámetros: los dos reventaban.
+ *
+ * Aquí se valida antes de tocar la base: si falta o no se entiende la fecha, se
+ * dice cuál y con qué formato; y se exige que el rango vaya hacia adelante,
+ * porque un rango invertido no falla, simplemente devuelve vacío y el usuario
+ * concluye que no hubo movimientos.
+ * ============================================================================
+ */
+export function exigirRangoDeFechas(
+  desde: unknown,
+  hasta: unknown,
+): { desde: Date; hasta: Date } {
+  const leer = (valor: unknown, nombre: string): Date => {
+    const texto = String(valor ?? '').trim();
+    if (!texto) {
+      throw new BadRequestException(
+        `Falta la fecha "${nombre}". Se espera AAAA-MM-DD.`,
+      );
+    }
+    const fecha = new Date(texto);
+    if (Number.isNaN(fecha.getTime())) {
+      throw new BadRequestException(
+        `La fecha "${nombre}" no se entiende: "${texto}". Se espera AAAA-MM-DD.`,
+      );
+    }
+    return fecha;
+  };
+
+  const d = leer(desde, 'desde');
+  const h = leer(hasta, 'hasta');
+  if (d.getTime() > h.getTime()) {
+    throw new BadRequestException(
+      'El rango está invertido: "desde" es posterior a "hasta".',
+    );
+  }
+  return { desde: d, hasta: h };
 }

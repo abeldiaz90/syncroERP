@@ -59,9 +59,18 @@ describe('PoliticaCreditoService', () => {
     );
     expect(resultado.utilizado).toBe(50_000);
     expect(resultado.disponible).toBe(50_000);
+    /*
+     * El candado se toma ANTES de leer los saldos, y por eso se comprueba que
+     * sea la primera consulta: sin él, dos operaciones simultáneas leen el
+     * mismo disponible y las dos pasan.
+     *
+     * Decía `sp_getapplock`, que es de SQL Server. Al migrar a PostgreSQL el
+     * código pasó a `pg_advisory_xact_lock` y esta expectativa se quedó atrás:
+     * llevaba tiempo en rojo sin que nadie mirara si el candado seguía puesto.
+     */
     expect(manager.query).toHaveBeenNthCalledWith(
       1,
-      expect.stringContaining('sp_getapplock'),
+      expect.stringContaining('pg_advisory_xact_lock'),
       ['LINEA_CREDITO:empresa-1:cliente-1'],
     );
   });

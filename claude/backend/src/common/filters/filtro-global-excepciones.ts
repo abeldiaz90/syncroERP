@@ -32,30 +32,84 @@ interface RespuestaError {
 }
 
 /** Códigos de SQL Server que sí conviene traducir para el usuario. */
-const SQL_CONOCIDOS: Record<number, { estado: number; mensaje: string }> = {
-  2601: {
-    estado: HttpStatus.CONFLICT,
-    mensaje: 'Ya existe un registro con esos datos.',
-  },
-  2627: {
-    estado: HttpStatus.CONFLICT,
-    mensaje: 'Ya existe un registro con esos datos.',
-  },
+/**
+ * ============================================================================
+ * Errores de base de datos, traducidos
+ * ----------------------------------------------------------------------------
+ * Esta tabla estaba indexada por `number`, que es como reporta los errores el
+ * driver de SQL Server. Al migrar a PostgreSQL —que los reporta en `code`, una
+ * cadena como `23505`— la tabla dejó de coincidir con nada y **todos** los
+ * errores de base de datos cayeron al 500 genérico «No se pudo completar la
+ * operación en la base de datos».
+ *
+ * El costo no era teórico: un RFC duplicado, una cuenta en uso o un id mal
+ * formado en la URL devolvían el mismo 500 indistinguible, así que la pantalla
+ * no podía decirle al usuario qué corregir y el operador no tenía más remedio
+ * que llamar a soporte.
+ *
+ * Se conservan los códigos de SQL Server porque el ERP todavía atiende
+ * instalaciones con ese motor.
+ * ============================================================================
+ */
+type TraduccionSql = { estado: number; mensaje: string };
+
+const SQL_SERVER: Record<number, TraduccionSql> = {
+  2601: { estado: HttpStatus.CONFLICT, mensaje: 'Ya existe un registro con esos datos.' },
+  2627: { estado: HttpStatus.CONFLICT, mensaje: 'Ya existe un registro con esos datos.' },
   547: {
     estado: HttpStatus.CONFLICT,
-    mensaje:
-      'El registro está en uso por otro documento y no puede modificarse.',
+    mensaje: 'El registro está en uso por otro documento y no puede modificarse.',
   },
   8152: {
     estado: HttpStatus.BAD_REQUEST,
     mensaje: 'Alguno de los valores excede la longitud permitida.',
   },
-  515: {
-    estado: HttpStatus.BAD_REQUEST,
-    mensaje: 'Falta un campo obligatorio.',
-  },
+  515: { estado: HttpStatus.BAD_REQUEST, mensaje: 'Falta un campo obligatorio.' },
 };
 
+const POSTGRES: Record<string, TraduccionSql> = {
+  /*
+   * `22P02` es el que más se ve y el que peor se explicaba: ocurre cuando una
+   * ruta como `/activos/registro` cae en un `@Get(':id')` y «registro» llega a
+   * la consulta donde se esperaba un UUID. Es una petición mal formada, no una
+   * falla del servidor, y responder 500 mandaba a revisar la base cuando lo
+   * único incorrecto era la URL.
+   */
+  '22P02': {
+    estado: HttpStatus.BAD_REQUEST,
+    mensaje: 'El identificador o alguno de los valores no tiene el formato esperado.',
+  },
+  '23505': { estado: HttpStatus.CONFLICT, mensaje: 'Ya existe un registro con esos datos.' },
+  '23503': {
+    estado: HttpStatus.CONFLICT,
+    mensaje: 'El registro está en uso por otro documento, o apunta a uno que ya no existe.',
+  },
+  '23502': { estado: HttpStatus.BAD_REQUEST, mensaje: 'Falta un campo obligatorio.' },
+  '23514': {
+    estado: HttpStatus.BAD_REQUEST,
+    mensaje: 'Alguno de los valores no está entre los permitidos para ese campo.',
+  },
+  '22001': {
+    estado: HttpStatus.BAD_REQUEST,
+    mensaje: 'Alguno de los valores excede la longitud permitida.',
+  },
+  '22003': {
+    estado: HttpStatus.BAD_REQUEST,
+    mensaje: 'Alguna cifra excede el rango permitido por su columna.',
+  },
+  '40001': {
+    estado: HttpStatus.CONFLICT,
+    mensaje: 'Otra operación modificó los mismos datos al mismo tiempo. Vuelve a intentarlo.',
+  },
+  '40P01': {
+    estado: HttpStatus.CONFLICT,
+    mensaje: 'Dos operaciones se bloquearon entre sí. Vuelve a intentarlo.',
+  },
+  '57014': {
+    estado: HttpStatus.REQUEST_TIMEOUT,
+    mensaje: 'La consulta tardó demasiado y se canceló.',
+  },
+};
 @Catch()
 export class FiltroGlobalExcepciones implements ExceptionFilter {
   private readonly logger = new Logger('Excepcion');
@@ -88,17 +142,25 @@ export class FiltroGlobalExcepciones implements ExceptionFilter {
     } else if (excepcion instanceof QueryFailedError) {
       const errorSql = excepcion as unknown as {
         number?: number;
-        driverError?: { message?: string };
+        code?: string;
+        driverError?: { message?: string; code?: string; number?: number };
         message?: string;
       };
-      const numero = errorSql.number;
-      const conocido = numero ? SQL_CONOCIDOS[numero] : undefined;
+      /*
+       * El código vive en sitios distintos según el driver y según si TypeORM
+       * envolvió el error: se buscan los cuatro lugares en vez de suponer uno.
+       */
+      const numero = errorSql.number ?? errorSql.driverError?.number;
+      const codigo = errorSql.code ?? errorSql.driverError?.code;
+      const conocido =
+        (codigo ? POSTGRES[codigo] : undefined) ??
+        (numero ? SQL_SERVER[numero] : undefined);
       estado = conocido?.estado ?? HttpStatus.INTERNAL_SERVER_ERROR;
       const detalleSql =
         errorSql.driverError?.message ?? errorSql.message ?? '';
       const columnaNula =
-        numero === 515
-          ? detalleSql.match(/column ['"]([^'"]+)['"]/i)?.[1]
+        numero === 515 || codigo === '23502'
+          ? detalleSql.match(/column ["']([^"']+)["']/i)?.[1]
           : undefined;
       /*
        * Una tabla que no existe casi siempre significa una migración sin

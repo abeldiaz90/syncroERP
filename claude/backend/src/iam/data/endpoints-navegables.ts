@@ -33,6 +33,16 @@ export interface EndpointNavMeta {
   titulo: string;
   modulo: string;
   ordenMenu: number;
+  /**
+   * Otras pantallas que esta misma acción habilita.
+   *
+   * Existe para un caso concreto: la caja se mudó a `/pos`, fuera del área de
+   * trabajo, y la dirección vieja `/dashboard/ventas/pos` se quedó como página
+   * que redirige, para quien la tenga en favoritos. Las dos las habilita la
+   * misma acción —poder registrar una venta—, y sin esto la vieja quedaba fuera
+   * del perfil justo de la gente que tiene el favorito.
+   */
+  rutasAdicionales?: string[];
 }
 
 export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
@@ -44,7 +54,9 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     ordenMenu: 2,
   },
   'POST /ventas': {
-    rutaFrontend: '/dashboard/ventas/pos',
+    // La caja es `/pos`; `/dashboard/ventas/pos` sólo redirige a ella.
+    rutaFrontend: '/pos',
+    rutasAdicionales: ['/dashboard/ventas/pos'],
     titulo: 'Punto de venta',
     modulo: 'ventas',
     ordenMenu: 1,
@@ -267,7 +279,7 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     modulo: 'finanzas',
     ordenMenu: 48,
   },
-  'PATCH /catalogo/categorias/:id': {
+  'PATCH /catalogo/categorias/:id/cuentas': {
     rutaFrontend: '/dashboard/finanzas/categorias-contables',
     titulo: 'Categorías contables',
     modulo: 'finanzas',
@@ -473,8 +485,15 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
   },
 
   /* ── HOTELERÍA ─────────────────────────────────────────────────────────── */
+  /*
+   * Misma historia que el índice de reportes: `/dashboard/hoteleria` es padre
+   * de `/dashboard/hoteleria/recetas` y `/costos-recetas`, que son del módulo
+   * de Recetas y producción. Conceder el panel regalaba el escandallo y el
+   * costo teórico contra real a cualquiera con hotelería en consulta —cobranza
+   * los tenía—. El panel es el rack.
+   */
   'GET /hoteleria/operacion/panel': {
-    rutaFrontend: '/dashboard/hoteleria',
+    rutaFrontend: '/dashboard/hoteleria/rack',
     titulo: 'Panel hotelero',
     modulo: 'hoteleria',
     ordenMenu: 99,
@@ -585,29 +604,44 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     modulo: 'configuracion',
     ordenMenu: 3,
   },
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Los seis asistentes de puesta en marcha, en una sola acción
+   * --------------------------------------------------------------------------
+   * Cada asistente colgaba de la acción del dueño del dato de fondo: quien
+   * podía crear almacenes veía el wizard de inventario, quien podía dar de alta
+   * proveedores veía el de compras, y quien podía bajar la plantilla de
+   * importación veía «Importación inicial». La idea era razonable y el efecto
+   * no: al almacenista le aparecía un cuadro de «Configuración» con asistentes
+   * de arranque de la empresa, y en la lista de primeros pasos, renglones
+   * fiscales que no puede ni entender ni capturar. Quien acomoda mercancía no
+   * configura el régimen fiscal ni activa los libros contables.
+   *
+   * Los asistentes son de puesta en marcha: se corren una vez, al abrir la
+   * empresa, y son trabajo de quien administra el sistema. Por eso cuelgan de
+   * una acción de `/configuracion`, que pertenece al módulo «Administración del
+   * sistema» y no está en ninguna plantilla: sólo el administrador.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  'GET /configuracion/empresa': {
+    rutaFrontend: '/dashboard/configuracion/centro',
+    rutasAdicionales: [
+      '/dashboard/configuracion/wizard-ventas',
+      '/dashboard/configuracion/wizard-compras',
+      '/dashboard/configuracion/wizard-inventario',
+      '/dashboard/configuracion/wizard-credito',
+      '/dashboard/configuracion/wizard-finanzas',
+      '/dashboard/configuracion/wizard-importacion',
+    ],
+    titulo: 'Asistentes de puesta en marcha',
+    modulo: 'configuracion',
+    ordenMenu: 5,
+  },
   'GET /configuracion/pendientes': {
     rutaFrontend: '/dashboard/operaciones/pendientes',
     titulo: 'Operaciones pendientes',
     modulo: 'configuracion',
     ordenMenu: 4,
-  },
-  'GET /configuracion/empresa': {
-    rutaFrontend: '/dashboard/configuracion/wizard-ventas',
-    titulo: 'Wizard de ventas',
-    modulo: 'configuracion',
-    ordenMenu: 5,
-  },
-  'GET /finanzas/activacion': {
-    rutaFrontend: '/dashboard/configuracion/wizard-finanzas',
-    titulo: 'Wizard financiero',
-    modulo: 'configuracion',
-    ordenMenu: 9,
-  },
-  'GET /catalogo/importacion/plantilla': {
-    rutaFrontend: '/dashboard/configuracion/wizard-importacion',
-    titulo: 'Importación inicial',
-    modulo: 'configuracion',
-    ordenMenu: 10,
   },
   'GET /finanzas/activacion/acceso': {
     rutaFrontend: '/configuracion-financiera',
@@ -735,29 +769,62 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     modulo: 'ventas',
     ordenMenu: 4,
   },
-  'POST /proveedores': {
-    rutaFrontend: '/dashboard/configuracion/wizard-compras',
-    titulo: 'Wizard de compras',
-    modulo: 'configuracion',
-    ordenMenu: 7,
+  /*
+   * Iba a `/dashboard/reportes` —el índice— y eso no era un renglón de menú
+   * más: los permisos de pantalla cubren la ruta Y SUS DESCENDIENTES, así que
+   * conceder el índice concedía el árbol entero. Quien tuviera esta acción,
+   * que es la métrica del catálogo de productos, entraba también al panel
+   * ejecutivo, al corte de caja y al estado de cuenta de los clientes. Lo
+   * tenían el almacenista, el comprador y hotelería.
+   *
+   * Ahora apunta a la pantalla que de verdad abre. El índice de reportes es un
+   * contenedor, como los centros de trabajo, y se resuelve en el layout: se
+   * entra si se puede abrir al menos un reporte de dentro.
+   */
+  /*
+   * El espejo contable existía y no lo habilitaba ninguna acción: sólo lo veía
+   * el administrador, y no por decisión sino por omisión —el administrador se
+   * salta la tabla de permisos entera—. Es la pantalla donde se ve qué cuentas
+   * no tienen equivalencia en el core y qué pólizas no llegaron; si el contador
+   * no entra, nadie mira eso hasta que la balanza no cuadra contra Fineract.
+   */
+  'GET /integracion/cuentas/pendientes': {
+    rutaFrontend: '/dashboard/finanzas/espejo-contable',
+    titulo: 'Espejo contable',
+    modulo: 'finanzas',
+    ordenMenu: 47,
   },
-  'POST /catalogo/almacenes': {
-    rutaFrontend: '/dashboard/configuracion/wizard-inventario',
-    titulo: 'Wizard de inventario',
-    modulo: 'configuracion',
-    ordenMenu: 6,
-  },
-  'POST /credito/cuentas-bancarias': {
-    rutaFrontend: '/dashboard/configuracion/wizard-credito',
-    titulo: 'Wizard de crédito',
-    modulo: 'configuracion',
-    ordenMenu: 8,
-  },
+
   'GET /catalogo/productos/dashboard/metricas': {
-    rutaFrontend: '/dashboard/reportes',
-    titulo: 'Índice de reportes',
+    rutaFrontend: '/dashboard/reportes/inventario',
+    titulo: 'Reporte de inventario',
     modulo: 'reportes',
     ordenMenu: 80,
+  },
+
+  /* ── CRÉDITO · pantallas que no habilitaba ninguna acción ─────────────────
+   * Las tres existían en el menú y ninguna acción las concedía, así que sólo
+   * las veía un administrador —y no por decisión, sino por omisión: el
+   * administrador salta la tabla de permisos entera—. Lo detectó
+   * `coherencia.spec.ts` en cuanto dejó de fallar por un separador de ruta.
+   */
+  'GET /credito/productos': {
+    rutaFrontend: '/dashboard/creditos/productos',
+    titulo: 'Productos de crédito',
+    modulo: 'credito',
+    ordenMenu: 30,
+  },
+  'GET /integracion/validacion/flujos': {
+    rutaFrontend: '/dashboard/creditos/verificacion',
+    titulo: 'Verificación de crédito',
+    modulo: 'credito',
+    ordenMenu: 31,
+  },
+  'GET /integracion/avisos': {
+    rutaFrontend: '/dashboard/creditos/avisos',
+    titulo: 'Avisos del core',
+    modulo: 'integracion',
+    ordenMenu: 32,
   },
 };
 

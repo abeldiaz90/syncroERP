@@ -16,17 +16,41 @@ import { Controlador } from '../entities/controlador.entity';
 import { Endpoint } from '../entities/endpoint.entity';
 import { RolEndpointPermiso } from '../entities/rol-endpoint-permiso.entity';
 import { PLANTILLAS_PERMISOS } from '../data/plantillas-permisos';
+import { ROLES_ASIGNABLES } from '../utils/roles-catalogo';
+import {
+  AccesoModulo,
+  MODULOS_NEGOCIO,
+  MODULOS_POR_ID,
+  MODULO_OTROS,
+  moduloDeRuta,
+} from '../data/modulos-catalogo';
 import { ENDPOINTS_NAVEGABLES } from '../data/endpoints-navegables';
 import { esRolAdministrador, normalizarRol } from '../utils/roles.util';
 import { SKIP_PERMISOS_KEY } from '../decorators/skip-permisos.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
+/**
+ * El enum `RequestMethod` de NestJS, tal cual. Estaba mal: tenia 3 como PATCH
+ * y 4 como DELETE, y en NestJS es al reves (DELETE=3, PATCH=4).
+ *
+ * No era un detalle cosmetico. Cada handler `@Patch` quedaba registrado como
+ * DELETE y cada `@Delete` como PATCH, y `verificarPermiso()` busca el endpoint
+ * por metodo + ruta y NIEGA cuando no lo encuentra. Resultado: ninguna ruta
+ * PATCH o DELETE del ERP era ejecutable por un rol que no fuera admin, por
+ * mucho que se le concediera el permiso en pantalla -- aprobar una cotizacion,
+ * recibir una orden de compra, cambiar el estado de una requisicion. Nadie lo
+ * noto porque el unico usuario real es admin, y admin salta la tabla entera.
+ *
+ * Al corregirlo, la sincronizacion descubre las filas correctas y desactiva
+ * las equivocadas; `migrarPermisosDeMetodosIntercambiados()` se lleva los
+ * permisos de unas a otras para que nadie pierda accesos ya configurados.
+ */
 const METHOD_MAP: Record<number, string> = {
   0: 'GET',
   1: 'POST',
   2: 'PUT',
-  3: 'PATCH',
-  4: 'DELETE',
+  3: 'DELETE',
+  4: 'PATCH',
   5: 'ALL',
   6: 'OPTIONS',
   7: 'HEAD',
@@ -489,6 +513,20 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
             actualizado = true;
           }
 
+          /*
+           * Y si nadie le declaró un título, el nombre es el del handler que
+           * atiende la ruta. Esto rescata los pares que quedaron cruzados por
+           * el defecto de PATCH/DELETE: la fila `PATCH /…/definiciones/:id`
+           * existía con el nombre «Eliminar Definición» porque la creó el
+           * handler equivocado. Al corregir el mapa, la fila se reutiliza para
+           * el handler bueno y hay que devolverle su nombre, o la pantalla
+           * enseña «Eliminar» donde en realidad se actualiza.
+           */
+          if (!navMeta && existente.nombre !== ep.nombre) {
+            existente.nombre = ep.nombre;
+            actualizado = true;
+          }
+
           if (existente.controladorId !== ctrl.id) {
             existente.controladorId = ctrl.id;
             actualizado = true;
@@ -511,10 +549,232 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     }
 
     await this.sincronizarPermisoHistorialAprobaciones();
+    await this.aplicarContratoDeRoles();
+    await this.migrarPermisosDeMetodosIntercambiados();
     this.cache.clear();
     this.logger.log(
       `Sincronizacion completada: ${clavesDescubiertas.size} endpoints activos, ${obsoletos} obsoletos desactivados`,
     );
+  }
+
+  /**
+   * Rescata los permisos que quedaron colgando de las filas con el metodo
+   * equivocado, cuando PATCH y DELETE estaban cruzados en `METHOD_MAP`.
+   *
+   * Tras corregir el mapa, la sincronizacion crea la fila buena y desactiva la
+   * mala. Si alguien ya habia configurado permisos sobre la mala, se perderian
+   * en silencio. Aqui se mueven: fila inactiva con metodo cruzado -> fila
+   * activa con la misma ruta y el metodo contrario.
+   *
+   * Es idempotente y no pisa nada: solo copia los permisos concedidos que no
+   * existan ya en el destino. Cuando no hay filas cruzadas no hace nada y no
+   * escribe una linea de log.
+   */
+  private async migrarPermisosDeMetodosIntercambiados() {
+    const CRUZADOS: Record<string, string> = { PATCH: 'DELETE', DELETE: 'PATCH' };
+    const inactivos = await this.endpointRepo.find({ where: { activo: false } });
+    const candidatos = inactivos.filter((ep) => CRUZADOS[ep.metodo]);
+    if (candidatos.length === 0) return;
+
+    let movidos = 0;
+    for (const viejo of candidatos) {
+      const destino = await this.endpointRepo.findOne({
+        where: { metodo: CRUZADOS[viejo.metodo], ruta: viejo.ruta, activo: true },
+      });
+      if (!destino) continue;
+
+      const permisos = await this.permisoRepo.find({
+        where: { endpointId: viejo.id, permitido: true },
+      });
+      for (const permiso of permisos) {
+        const yaEsta = await this.permisoRepo.findOne({
+          where: {
+            empresaId: permiso.empresaId,
+            rol: permiso.rol,
+            endpointId: destino.id,
+          },
+        });
+        if (yaEsta) {
+          if (!yaEsta.permitido) {
+            yaEsta.permitido = true;
+            await this.permisoRepo.save(yaEsta);
+            movidos += 1;
+          }
+          continue;
+        }
+        await this.permisoRepo.save(
+          this.permisoRepo.create({
+            empresaId: permiso.empresaId,
+            rol: permiso.rol,
+            endpointId: destino.id,
+            permitido: true,
+          }),
+        );
+        movidos += 1;
+      }
+    }
+
+    if (movidos > 0) {
+      this.logger.log(
+        `Metodos intercambiados: ${movidos} permisos movidos a la fila con el verbo correcto.`,
+      );
+    }
+  }
+
+  /**
+   * ==========================================================================
+   * El contrato de cada rol, reconciliado en cada arranque
+   * --------------------------------------------------------------------------
+   * Las plantillas declaran módulos, y eso basta el día que se siembra una
+   * empresa. No basta después: un endpoint cambia de módulo, alguien afina la
+   * matriz a mano, o una empresa se sembró con una versión anterior del
+   * catálogo. El permiso queda apagado y nadie se entera hasta que el trabajo
+   * se detiene —la recepción de mercancía estuvo así, con el camión en la
+   * puerta y un 403 al firmar.
+   *
+   * Por eso las acciones que DEFINEN un puesto, y las que un puesto no puede
+   * tener nunca, se declaran por ruta en la plantilla y se reponen aquí en
+   * cada arranque, para todas las empresas. Implementación nueva o instalación
+   * de hace un año: al desplegar, quedan igual.
+   * ==========================================================================
+   */
+  private async aplicarContratoDeRoles() {
+    const conContrato = PLANTILLAS_PERMISOS;
+    if (!conContrato.length) return;
+
+    const rutas = new Set<string>();
+    for (const p of conContrato) {
+      for (const a of p.accionesIrrenunciables ?? []) rutas.add(a);
+      for (const a of p.accionesVedadas ?? []) rutas.add(a);
+    }
+
+    const endpoints = await this.endpointRepo.find({ where: { activo: true } });
+    const porClave = new Map(endpoints.map((ep) => [`${ep.metodo} ${ep.ruta}`, ep]));
+
+    const faltantes = [...rutas].filter((r) => !porClave.has(r));
+    if (faltantes.length) {
+      this.logger.warn(
+        `El contrato de roles menciona rutas que no existen en el catálogo: ${faltantes.join(', ')}.`,
+      );
+    }
+
+    const empresas = await this.permisoRepo
+      .createQueryBuilder('p')
+      .select('DISTINCT p.empresaId', 'empresaId')
+      .getRawMany<{ empresaId: string }>();
+
+    let repuestas = 0;
+    let retiradas = 0;
+    for (const { empresaId } of empresas) {
+      for (const plantilla of conContrato) {
+        const rol = normalizarRol(plantilla.rol);
+
+        /*
+         * ────────────────────────────────────────────────────────────────────
+         * El piso completo, no sólo las rutas que el contrato nombra
+         * --------------------------------------------------------------------
+         * Antes aquí sólo se reponían las acciones listadas una por una en
+         * `accionesIrrenunciables`. Eso dejaba fuera el caso más común y el más
+         * silencioso: una acción NUEVA dentro de un módulo que el rol ya tiene.
+         * El endpoint nace, la sincronización lo da de alta, y nadie crea la
+         * fila de permiso; en las empresas ya sembradas queda apagado para
+         * todos menos para el administrador. La función estrena apagada y nadie
+         * lo sabe hasta que alguien la necesita.
+         *
+         * Pasó en cuanto se separaron las cuentas contables de la categoría:
+         * `PATCH /catalogo/categorias/:id/cuentas` nació dentro de Contabilidad
+         * y ni el contador ni finanzas podían usarla, aunque el módulo entero
+         * es suyo.
+         *
+         * Así que el piso se reconcilia entero: todo lo de sus módulos, y los
+         * GET de los que sólo consulta. Sólo enciende —nunca apaga— porque un
+         * rol se amplía a mano y esa ampliación debe sobrevivir al reinicio.
+         * Lo que sí debe apagarse se declara en `accionesVedadas`, que se
+         * aplica después y gana.
+         * ────────────────────────────────────────────────────────────────────
+         */
+        const piso = await this.pisoDeAccionesDeRol(plantilla.rol);
+        for (const id of await this.techoDeModulosVedados(plantilla.rol)) piso.delete(id);
+        if (piso.size) {
+          const yaTiene = new Map(
+            (
+              await this.permisoRepo.find({
+                where: { empresaId, rol },
+                select: ['id', 'endpointId', 'permitido'],
+              })
+            ).map((f) => [f.endpointId, f]),
+          );
+          const nuevas: RolEndpointPermiso[] = [];
+          for (const endpointId of piso) {
+            const fila = yaTiene.get(endpointId);
+            if (!fila) {
+              nuevas.push(
+                this.permisoRepo.create({ empresaId, rol, endpointId, permitido: true }),
+              );
+              repuestas += 1;
+            } else if (!fila.permitido) {
+              fila.permitido = true;
+              await this.permisoRepo.save(fila);
+              repuestas += 1;
+            }
+          }
+          // De golpe: son cientos de filas la primera vez y ninguna después.
+          if (nuevas.length) await this.permisoRepo.save(nuevas, { chunk: 200 });
+        }
+
+        /*
+         * El techo: módulos que el contrato le veda al rol. Va después del
+         * piso —que sólo enciende— porque retirar es lo que el piso no puede
+         * hacer, y antes de las acciones sueltas no cambiaría nada: ninguna
+         * acción irrenunciable vive en un módulo vedado, y si alguna viviera,
+         * sería un error del contrato que la prueba de coherencia detiene.
+         */
+        const techo = await this.techoDeModulosVedados(plantilla.rol);
+        if (techo.size) {
+          const filas = await this.permisoRepo.find({
+            where: { empresaId, rol },
+            select: ['id', 'endpointId', 'permitido'],
+          });
+          for (const fila of filas) {
+            if (fila.permitido && techo.has(fila.endpointId)) {
+              fila.permitido = false;
+              await this.permisoRepo.save(fila);
+              retiradas += 1;
+            }
+          }
+        }
+
+        for (const [acciones, permitido] of [
+          [plantilla.accionesIrrenunciables ?? [], true] as const,
+          [plantilla.accionesVedadas ?? [], false] as const,
+        ]) {
+          for (const accion of acciones) {
+            const ep = porClave.get(accion);
+            if (!ep) continue;
+            const existente = await this.permisoRepo.findOne({
+              where: { empresaId, rol, endpointId: ep.id },
+            });
+            if (existente) {
+              if (existente.permitido === permitido) continue;
+              existente.permitido = permitido;
+              await this.permisoRepo.save(existente);
+            } else {
+              await this.permisoRepo.save(
+                this.permisoRepo.create({ empresaId, rol, endpointId: ep.id, permitido }),
+              );
+            }
+            if (permitido) repuestas += 1;
+            else retiradas += 1;
+          }
+        }
+      }
+    }
+
+    if (repuestas || retiradas) {
+      this.logger.log(
+        `Contrato de roles aplicado: ${repuestas} acción(es) repuesta(s) y ${retiradas} retirada(s).`,
+      );
+    }
   }
 
   /**
@@ -826,6 +1086,102 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     empresaId: string,
   ) {
     if (esRolAdministrador(rol)) return;
+
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * El piso también se respeta afinando acción por acción
+     * ------------------------------------------------------------------------
+     * La pantalla de módulos ya no deja dejar a un rol sin su propio trabajo,
+     * pero esta puerta —el ajuste fino, casilla por casilla— llegaba directo a
+     * la tabla. Sin esto, el candado se saltaría desmarcando a mano las mismas
+     * acciones, que es exactamente como se rompen los candados que sólo viven
+     * en una pantalla.
+     *
+     * Se protege la CONSULTA de los módulos propios del rol: quitar la
+     * escritura sigue permitido, apagar el acceso a su propio módulo no.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const protegidos = await this.pisoDeAccionesDeRol(rol);
+    for (const id of await this.techoDeModulosVedados(rol)) protegidos.delete(id);
+    if (protegidos.size) {
+      let repuestos = 0;
+      for (const id of Object.keys(permisos)) {
+        if (permisos[id] === false && protegidos.has(id)) {
+          permisos[id] = true;
+          repuestos += 1;
+        }
+      }
+      if (repuestos) {
+        this.logger.warn(
+          `Se intentó quitar ${repuestos} acción(es) con las que opera el rol "${rol}"; se repusieron. Un rol se amplía, no se recorta por debajo de su trabajo.`,
+        );
+      }
+    }
+
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * Piso y techo declarados por acción
+     * ------------------------------------------------------------------------
+     * El bloque anterior protege la CONSULTA de los módulos del rol. Falta lo
+     * que no se puede expresar en módulos:
+     *
+     *  · Lo IRRENUNCIABLE: acciones que definen el puesto y viven en el módulo
+     *    de otro. Dar entrada a la mercancía cuelga de `/compras`, y al
+     *    almacenista se le concede compras solo en consulta. Se repone siempre.
+     *
+     *  · Lo VEDADO: acciones que el módulo entrega de más y que rompen la
+     *    separación de funciones. Al comprador, el módulo «Compras» completo
+     *    le daba pagar al proveedor y resolver aprobaciones de requisición.
+     *
+     * Va aquí, en la única puerta de escritura de la tabla, y no en la
+     * plantilla: una regla que solo se aplica al sembrar es una regla que dura
+     * hasta el primer ajuste a mano.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const contrato = this.plantillaDe(rol);
+    if (contrato?.accionesIrrenunciables?.length || contrato?.accionesVedadas?.length) {
+      const todos = await this.endpointRepo.find({ where: { activo: true } });
+      const clave = (ep: Endpoint) => `${ep.metodo} ${ep.ruta}`;
+      const porClave = new Map(todos.map((ep) => [clave(ep), ep]));
+
+      let repuestas = 0;
+      for (const accion of contrato.accionesIrrenunciables ?? []) {
+        const ep = porClave.get(accion);
+        if (!ep) continue;
+        if (permisos[ep.id] !== true) {
+          permisos[ep.id] = true;
+          repuestas += 1;
+        }
+      }
+      let vedadas = 0;
+      for (const accion of contrato.accionesVedadas ?? []) {
+        const ep = porClave.get(accion);
+        if (!ep) continue;
+        if (permisos[ep.id] !== false) {
+          permisos[ep.id] = false;
+          vedadas += 1;
+        }
+      }
+      // Y los módulos vedados enteros, para que no haga falta nombrar cada
+      // acción ni acordarse de las que nazcan después.
+      for (const id of await this.techoDeModulosVedados(rol)) {
+        if (permisos[id] !== false) {
+          permisos[id] = false;
+          vedadas += 1;
+        }
+      }
+      if (repuestas) {
+        this.logger.warn(
+          `Se repusieron ${repuestas} acción(es) irrenunciables del rol "${rol}".`,
+        );
+      }
+      if (vedadas) {
+        this.logger.warn(
+          `Se retiraron ${vedadas} acción(es) vedadas al rol "${rol}" por separación de funciones.`,
+        );
+      }
+    }
+
     rol = normalizarRol(rol);
     const entradas = Object.entries(permisos);
     const ids = entradas.map(([endpointId]) => endpointId);
@@ -894,19 +1250,27 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
           return [];
         }),
     ]);
-    return Array.from(
-      new Set(
-        [
-          'admin',
-          'empleado',
-          'comprador',
-          'almacenista',
-          'finanzas',
-          ...rolesPermisos.map((r) => String(r.rol)),
-          ...rolesUsuarios.map((r: { rol: string }) => String(r.rol)),
-        ].filter(Boolean),
-      ),
-    ).sort((a, b) => a.localeCompare(b));
+    // El catalogo unico manda. Antes aqui habia cinco roles escritos a mano y
+    // por eso la pantalla de permisos solo ofrecia cuatro perfiles aunque
+    // hubiera trece plantillas sembrando permisos de verdad.
+    //
+    // Se deduplica por rol NORMALIZADO, no por la cadena tal cual: la tabla de
+    // permisos guarda el rol en mayusculas y la lista de usuarios como se
+    // escribio, asi que un Set de cadenas devolvia "almacenista" y
+    // "ALMACENISTA" como si fueran dos roles distintos. Gana la grafia del
+    // catalogo, que es la que se asigna a los usuarios.
+    const porNombre = new Map<string, string>();
+    for (const valor of [
+      ...ROLES_ASIGNABLES,
+      ...rolesPermisos.map((r) => String(r.rol)),
+      ...rolesUsuarios.map((r: { rol: string }) => String(r.rol)),
+    ]) {
+      if (!valor) continue;
+      const clave = normalizarRol(valor);
+      if (!clave || porNombre.has(clave)) continue;
+      porNombre.set(clave, valor);
+    }
+    return Array.from(porNombre.values()).sort((a, b) => a.localeCompare(b));
   }
 
   private async limpiarMetodosNumericos() {
@@ -966,60 +1330,145 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
   // ══════════════════════════════════════════════════════════════════════════
   // RUTAS PERMITIDAS — devuelve las rutaFrontend a las que tiene acceso el rol
   // ══════════════════════════════════════════════════════════════════════════
+  /**
+   * ==========================================================================
+   * Las rutas que este rol puede abrir — de aquí sale el menú
+   * --------------------------------------------------------------------------
+   * Esto estaba roto y no se veía, porque el administrador sale por la primera
+   * línea con `['*']` y nunca llega al resto. Lo descubrió el primer usuario
+   * real: un almacenista con 102 acciones concedidas entraba y veía «Todavía no
+   * tienes módulos asignados» y un menú vacío, mientras la API le respondía 200
+   * a productos, almacenes y categorías. Los permisos estaban bien; esta
+   * consulta devolvía una lista vacía.
+   *
+   * Eran dos restos de SQL Server en consultas escritas a mano:
+   *
+   *  · `rep.empresaId` sin comillas. PostgreSQL pasa a minúsculas lo que no va
+   *    entrecomillado, así que buscaba una columna `empresaid` que no existe
+   *    —TypeORM la creó como `empresaId`— y la consulta reventaba.
+   *  · `rep.permitido = 1`. Ahí `permitido` es booleano, y en PostgreSQL
+   *    comparar un booleano con un entero es un error de tipo.
+   *
+   * Y los dos errores caían en un `.catch` que devolvía `[]`. El sistema no se
+   * caía: se quedaba callado y dejaba a todo el mundo sin menú. Por eso ahora
+   * va con el constructor de consultas, como el resto del servicio: los nombres
+   * de columna y los tipos los pone el mismo mapeo que creó las tablas, en vez
+   * de repetirlos a mano en una cadena.
+   * ==========================================================================
+   */
   async obtenerRutasPermitidas(
     rol: string,
     empresaId: string,
   ): Promise<string[]> {
     if (esRolAdministrador(rol)) return ['*'];
 
-    // SQL directo con nombres reales de columnas (snake_case en BD)
-    const SQL_RUTAS = `
-      SELECT DISTINCT e.ruta_frontend
-        FROM rol_endpoint_permisos rep
-        JOIN endpoints e ON e.id = rep.endpoint_id
-       WHERE UPPER(REPLACE(REPLACE(LTRIM(RTRIM(rep.rol)), '-', '_'), ' ', '_')) = $1
-         AND rep.empresaId = $2
-         AND rep.permitido = 1
-         AND e.ruta_frontend IS NOT NULL
-         AND e.activo=true`;
-
-    const SQL_EPS = `
-      SELECT DISTINCT e.metodo, e.ruta
-        FROM rol_endpoint_permisos rep
-        JOIN endpoints e ON e.id = rep.endpoint_id
-       WHERE UPPER(REPLACE(REPLACE(LTRIM(RTRIM(rep.rol)), '-', '_'), ' ', '_')) = $1
-         AND rep.empresaId = $2
-         AND rep.permitido = 1`;
-
-    const rolConsulta = normalizarRol(rol);
-    const [rows, endpointsConPermiso] = await Promise.all([
-      this.dataSource.query(SQL_RUTAS, [rolConsulta, empresaId]).catch((error) => {
-        this.logger.error('No se pudieron consultar las rutas permitidas.', error?.stack);
-        return [];
-      }),
-      this.dataSource.query(SQL_EPS, [rolConsulta, empresaId]).catch((error) => {
-        this.logger.error('No se pudieron consultar los endpoints permitidos.', error?.stack);
-        return [];
-      }),
-    ]);
-
-    const rutasSet = new Set<string>(
-      (rows as Array<{ ruta_frontend: string }>)
-        .map((r) => r.ruta_frontend)
-        .filter(Boolean),
-    );
-
-    // Completar con diccionario estático para endpoints sin ruta_frontend en BD
-    for (const ep of endpointsConPermiso as Array<{
+    const filas: Array<{
+      rutaFrontend: string | null;
       metodo: string;
       ruta: string;
-    }>) {
-      const clave = ep.metodo + ' ' + ep.ruta;
-      const nav = ENDPOINTS_NAVEGABLES[clave];
-      if (nav?.rutaFrontend) rutasSet.add(nav.rutaFrontend);
+    }> = await this.permisoRepo
+      .createQueryBuilder('p')
+      .innerJoin(Endpoint, 'e', 'e.id = p.endpointId')
+      .where('p.empresaId = :empresaId', { empresaId })
+      .andWhere(this.consultaRolNormalizado('p'), {
+        rolNormalizado: normalizarRol(rol),
+      })
+      .andWhere('p.permitido = :si', { si: true })
+      .andWhere('e.activo = :activo', { activo: true })
+      .select('e.rutaFrontend', 'rutaFrontend')
+      .addSelect('e.metodo', 'metodo')
+      .addSelect('e.ruta', 'ruta')
+      .getRawMany();
+
+    const rutas = new Set<string>();
+    for (const f of filas) {
+      if (f.rutaFrontend) rutas.add(f.rutaFrontend);
+      // Los endpoints que no traen ruta en la base se completan con el
+      // diccionario estático, que es el que sabe a qué pantalla llevan.
+      const nav = ENDPOINTS_NAVEGABLES[`${f.metodo} ${f.ruta}`];
+      if (nav?.rutaFrontend) rutas.add(nav.rutaFrontend);
+      // Una misma acción puede habilitar más de una pantalla: la caja vive en
+      // `/pos` y la dirección vieja sigue redirigiendo a ella.
+      for (const extra of nav?.rutasAdicionales ?? []) rutas.add(extra);
+    }
+    return Array.from(rutas);
+  }
+
+  /**
+   * Resumen por rol, para que la pantalla de administracion pueda hablar de
+   * roles y no de endpoints.
+   *
+   * La tabla `rol_endpoint_permiso` sigue siendo el motor: esto no la sustituye
+   * ni la simplifica por debajo. Lo unico que hace es contar, por rol, cuantas
+   * acciones tiene encendidas y cuanta gente lo trae puesto, que es lo que un
+   * administrador necesita ver antes de entrar al detalle.
+   *
+   * `admin` sale con `accionesActivas: null` a proposito: no tiene filas en la
+   * tabla porque `esRolAdministrador()` la salta entera. Poner 0 seria mentira
+   * y poner el total tambien, porque ese total cambia con cada endpoint nuevo.
+   */
+  async obtenerResumenRoles(empresaId: string) {
+    // La clave va normalizada porque `normalizarRol` pasa a MAYUSCULAS y los
+    // roles de las plantillas estan en minusculas: buscar por `p.rol` tal cual
+    // no encontraba ninguna y todos los roles salian "sin plantilla".
+    const plantillas = new Map(
+      PLANTILLAS_PERMISOS.map((p) => [normalizarRol(p.rol), p]),
+    );
+
+    const [porRol, usuarios, disponibles] = await Promise.all([
+      this.permisoRepo
+        .createQueryBuilder('p')
+        .select('p.rol', 'rol')
+        .addSelect('COUNT(*)', 'total')
+        .where('p.empresaId = :empresaId', { empresaId })
+        .andWhere('p.permitido = true')
+        .groupBy('p.rol')
+        .getRawMany<{ rol: string; total: string }>()
+        .catch((error) => {
+          this.logger.error('No se pudo contar permisos por rol.', error?.stack);
+          return [] as Array<{ rol: string; total: string }>;
+        }),
+      this.dataSource
+        .query(
+          'SELECT rol, COUNT(*)::int AS total FROM usuarios WHERE empresaId = $1 AND rol IS NOT NULL GROUP BY rol',
+          [empresaId],
+        )
+        .catch((error) => {
+          this.logger.error('No se pudo contar usuarios por rol.', error?.stack);
+          return [] as Array<{ rol: string; total: number }>;
+        }),
+      this.obtenerRolesDisponibles(empresaId),
+    ]);
+
+    const acciones = new Map<string, number>();
+    for (const fila of porRol) {
+      acciones.set(normalizarRol(fila.rol), Number(fila.total));
+    }
+    const gente = new Map<string, number>();
+    for (const fila of usuarios as Array<{ rol: string; total: number }>) {
+      const clave = normalizarRol(fila.rol);
+      gente.set(clave, (gente.get(clave) ?? 0) + Number(fila.total));
     }
 
-    return Array.from(rutasSet);
+    return disponibles.map((rol) => {
+      const clave = normalizarRol(rol);
+      const plantilla = plantillas.get(clave);
+      const administrador = esRolAdministrador(rol);
+      return {
+        rol,
+        // `admin` no tiene plantilla, asi que se le pone su nombre aqui: sin
+        // esto la pantalla de usuarios enseñaba el identificador en crudo.
+        etiqueta: administrador ? 'Administrador' : (plantilla?.etiqueta ?? rol),
+        descripcion: administrador
+          ? 'Acceso total. No pasa por la tabla de permisos.'
+          : (plantilla?.descripcion ??
+            'Rol sin plantilla: sus permisos se configuraron a mano.'),
+        esAdministrador: administrador,
+        tienePlantilla: !!plantilla,
+        usuarios: gente.get(clave) ?? 0,
+        accionesActivas: administrador ? null : (acciones.get(clave) ?? 0),
+      };
+    });
   }
 
   obtenerPlantillasDisponibles() {
@@ -1028,6 +1477,51 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       etiqueta: p.etiqueta,
       descripcion: p.descripcion,
     }));
+  }
+
+  /**
+   * ==========================================================================
+   * Sembrar la plantilla de un rol que todavía no tiene permisos
+   * --------------------------------------------------------------------------
+   * Las doce plantillas existían y **no se aplicaban solas**. Se comprobó dando
+   * de alta usuarios de verdad: `credito` y `rrhh` quedaron con un usuario cada
+   * uno y **cero acciones**. Como el guardia niega lo que no está concedido, esa
+   * persona entra y no puede hacer nada: menú vacío y «esta sección no está en
+   * tu perfil» en todas partes, hasta que un administrador entra a Roles y
+   * permisos y pulsa «aplicar plantilla» — un paso que no está escrito en
+   * ningún lado y que nadie adivina.
+   *
+   * No es sólo incómodo: es por empresa. Cada cliente nuevo de SUMA nace con
+   * los trece roles vacíos, así que el sistema llega roto a cada alta.
+   *
+   * La regla para que sembrar sea seguro: **sólo si el rol no tiene NINGÚN
+   * permiso en esa empresa**. Un rol que ya tiene algo lo tiene porque alguien
+   * lo decidió —aunque haya sido quitarle casi todo— y volver a sembrarle la
+   * plantilla desharía esa decisión sin avisar. Con esa condición es
+   * idempotente y se puede llamar en cualquier alta sin pensarlo.
+   * ==========================================================================
+   */
+  async sembrarPlantillaSiVacia(rol: string, empresaId: string) {
+    if (!rol || !empresaId || esRolAdministrador(rol)) {
+      return { sembrado: false, activados: 0 };
+    }
+
+    const yaTiene = await this.permisoRepo
+      .createQueryBuilder('p')
+      .where('p.empresaId = :empresaId', { empresaId })
+      .andWhere(this.consultaRolNormalizado('p'), {
+        rolNormalizado: normalizarRol(rol),
+      })
+      .getCount();
+    if (yaTiene > 0) return { sembrado: false, activados: 0 };
+
+    const resultado = await this.aplicarPlantillaRol(rol, empresaId, 'agregar');
+    if (resultado.activados > 0) {
+      this.logger.log(
+        `Permisos sembrados para el rol "${rol}" de la empresa ${empresaId}: ${resultado.activados} acciones desde su plantilla.`,
+      );
+    }
+    return { sembrado: resultado.activados > 0, activados: resultado.activados };
   }
 
   async aplicarPlantillaRol(
@@ -1043,45 +1537,427 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       };
     }
 
-    const plantilla = PLANTILLAS_PERMISOS.find((p) => p.rol === rol);
+    const plantilla = this.plantillaDe(rol);
     if (!plantilla) {
       // Rol sin plantilla definida: no es error, simplemente no hay sugerencia
       return {
         ok: false,
-        mensaje: `No hay permisos sugeridos para el rol "${rol}". Configúralo manualmente.`,
+        mensaje: `No hay accesos sugeridos para el rol "${rol}". Configúralo por módulo.`,
         activados: 0,
       };
     }
 
-    const todosEndpoints = await this.endpointRepo.find({
-      where: { activo: true },
-    });
-
-    // Un endpoint aplica si su ruta empieza por alguno de los prefijos del rol
-    const aplica = (ruta: string) =>
-      plantilla.prefijos.some((pref) => ruta === pref || ruta.startsWith(pref));
-
-    const permisos: Record<string, boolean> = {};
-    let activados = 0;
-
-    for (const ep of todosEndpoints) {
-      const debeActivar = aplica(ep.ruta);
-      if (debeActivar) {
-        permisos[ep.id] = true;
-        activados++;
-      } else if (modo === 'reemplazar') {
-        permisos[ep.id] = false;
-      }
-      // en modo 'agregar' no tocamos los que no aplican
+    // La plantilla ya no es una lista de prefijos: dice qué MODULOS atiende el
+    // rol y cuáles solo consulta. Se traduce a accesos y se aplica por la misma
+    // puerta que usa la pantalla, para que no haya dos caminos distintos de
+    // escribir la tabla de permisos.
+    const accesos: Record<string, AccesoModulo> = {};
+    for (const moduloId of plantilla.modulosConsulta ?? []) {
+      accesos[moduloId] = 'consulta';
+    }
+    for (const moduloId of plantilla.modulos) {
+      accesos[moduloId] = 'completo';
     }
 
-    await this.actualizarPermisos(rol, permisos, empresaId);
+    const resultado = await this.asignarModulosARol(rol, empresaId, accesos, modo);
 
     return {
       ok: true,
-      mensaje: `Se activaron ${activados} permisos sugeridos para "${plantilla.etiqueta}".`,
-      activados,
+      mensaje: `"${plantilla.etiqueta}": ${resultado.activados} acciones activas en ${
+        plantilla.modulos.length
+      } ${plantilla.modulos.length === 1 ? 'módulo' : 'módulos'}${
+        (plantilla.modulosConsulta?.length ?? 0) > 0
+          ? ` y consulta en ${plantilla.modulosConsulta!.length} más`
+          : ''
+      }.`,
+      activados: resultado.activados,
       rol,
+    };
+  }
+
+  /** La plantilla del rol, tolerando mayúsculas y acentos en el nombre. */
+  private plantillaDe(rol: string) {
+    const clave = normalizarRol(rol);
+    return PLANTILLAS_PERMISOS.find((p) => normalizarRol(p.rol) === clave);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ADMINISTRACION POR MODULO
+  // --------------------------------------------------------------------------
+  // La tabla `rol_endpoint_permiso` no cambia: sigue siendo endpoint por
+  // endpoint, y el guard le sigue preguntando a ella. Lo que cambia es por
+  // dónde se administra. Un módulo es un conjunto de rutas declarado en
+  // `modulos-catalogo.ts`, y conceder un módulo es encender de golpe todos sus
+  // endpoints activos.
+  //
+  // Tres estados, y no más, porque son los que un administrador sabe explicar:
+  //   completo → ver, crear, modificar y eliminar dentro del módulo
+  //   consulta → solo los GET
+  //   ninguno  → nada
+  // `parcial` existe como lectura, no como opción: es lo que se ve cuando
+  // alguien afinó a mano por acción.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /** Endpoints activos agrupados por módulo de negocio. */
+  private async endpointsPorModulo() {
+    const endpoints = await this.endpointRepo.find({ where: { activo: true } });
+    const porModulo = new Map<string, Endpoint[]>();
+    for (const ep of endpoints) {
+      const moduloId = moduloDeRuta(ep.ruta);
+      const lista = porModulo.get(moduloId) ?? [];
+      lista.push(ep);
+      porModulo.set(moduloId, lista);
+    }
+    return porModulo;
+  }
+
+  private esConsulta(ep: Endpoint) {
+    return ep.metodo === 'GET';
+  }
+
+  /**
+   * Catálogo de módulos con lo que hay dentro de cada uno. El módulo "Otros"
+   * solo se devuelve si de verdad recogió algo: si aparece, es que falta
+   * declarar rutas en el catálogo.
+   */
+  async obtenerModulos() {
+    const porModulo = await this.endpointsPorModulo();
+    return MODULOS_NEGOCIO.filter(
+      (m) => m.id !== MODULO_OTROS || (porModulo.get(m.id)?.length ?? 0) > 0,
+    ).map((m) => {
+      const eps = porModulo.get(m.id) ?? [];
+      return {
+        id: m.id,
+        nombre: m.nombre,
+        descripcion: m.descripcion,
+        icono: m.icono,
+        grupo: m.grupo,
+        orden: m.orden,
+        sensible: !!m.sensible,
+        acciones: eps.length,
+        accionesConsulta: eps.filter((ep) => this.esConsulta(ep)).length,
+      };
+    });
+  }
+
+  /** Qué tiene concedido un rol, módulo por módulo. */
+  async obtenerModulosDeRol(rol: string, empresaId: string) {
+    const catalogo = await this.obtenerModulos();
+    const administrador = esRolAdministrador(rol);
+    const piso = this.pisoDeRol(rol);
+    const porModulo = await this.endpointsPorModulo();
+
+    const concedidos = new Set<string>();
+    if (!administrador) {
+      const permisos = await this.permisoRepo
+        .createQueryBuilder('p')
+        .select('p.endpointId', 'endpointId')
+        .where('p.empresaId = :empresaId', { empresaId })
+        .andWhere('p.permitido = true')
+        .andWhere(this.consultaRolNormalizado('p'), {
+          rolNormalizado: normalizarRol(rol),
+        })
+        .getRawMany<{ endpointId: string }>();
+      for (const fila of permisos) concedidos.add(fila.endpointId);
+    }
+
+    return catalogo.map((m) => {
+      const eps = porModulo.get(m.id) ?? [];
+      const activos = administrador
+        ? eps.length
+        : eps.filter((ep) => concedidos.has(ep.id)).length;
+      const consulta = eps.filter((ep) => this.esConsulta(ep));
+      const consultaActivos = administrador
+        ? consulta.length
+        : consulta.filter((ep) => concedidos.has(ep.id)).length;
+
+      let estado: 'completo' | 'consulta' | 'parcial' | 'ninguno' = 'parcial';
+      if (activos === 0) estado = 'ninguno';
+      else if (activos === eps.length) estado = 'completo';
+      else if (activos === consulta.length && consultaActivos === consulta.length)
+        estado = 'consulta';
+
+      /*
+       * `minimo` viaja hasta la pantalla para que el candado se vea antes de
+       * intentarlo. Un botón que se puede pulsar y luego se deshace solo es
+       * peor que un botón que dice por qué no se puede.
+       */
+      return { ...m, activos, consultaActivos, estado, minimo: piso.has(m.id) };
+    });
+  }
+
+  /**
+   * El ajuste fino, cuando hace falta: las acciones de UN módulo agrupadas por
+   * sección, con lo que el rol tiene concedido en cada una.
+   *
+   * Vive aquí y no en el frontend porque quien decide qué ruta pertenece a qué
+   * módulo es el catálogo, y tener esa decisión en dos sitios es como se acaba
+   * con una pantalla que concede un permiso distinto del que enseña.
+   */
+  async obtenerAccionesDeModulo(
+    rol: string,
+    empresaId: string,
+    moduloId: string,
+  ) {
+    const porModulo = await this.endpointsPorModulo();
+    const eps = porModulo.get(moduloId) ?? [];
+    const administrador = esRolAdministrador(rol);
+
+    const concedidos = new Set<string>();
+    if (!administrador && eps.length > 0) {
+      const permisos = await this.permisoRepo
+        .createQueryBuilder('p')
+        .select('p.endpointId', 'endpointId')
+        .where('p.empresaId = :empresaId', { empresaId })
+        .andWhere('p.permitido = true')
+        .andWhere(this.consultaRolNormalizado('p'), {
+          rolNormalizado: normalizarRol(rol),
+        })
+        .getRawMany<{ endpointId: string }>();
+      for (const fila of permisos) concedidos.add(fila.endpointId);
+    }
+
+    const secciones = new Map<
+      string,
+      { clave: string; etiqueta: string; rutaFrontend: string | null; acciones: any[] }
+    >();
+
+    for (const ep of eps) {
+      const partes = ep.ruta.split('/').filter(Boolean);
+      // La seccion es el segundo segmento cuando existe y no es un parametro:
+      // /catalogo/productos -> productos. Si no, el primero: /clientes.
+      const segundo = partes[1] && !partes[1].startsWith(':') ? partes[1] : null;
+      const clave = segundo ? `${partes[0]}/${segundo}` : (partes[0] ?? 'general');
+      const etiqueta = this.humanizar(segundo ?? partes[0] ?? 'general');
+
+      if (!secciones.has(clave)) {
+        secciones.set(clave, {
+          clave,
+          etiqueta,
+          rutaFrontend: null,
+          acciones: [],
+        });
+      }
+      const seccion = secciones.get(clave)!;
+      if (!seccion.rutaFrontend && ep.rutaFrontend) {
+        seccion.rutaFrontend = ep.rutaFrontend;
+      }
+      seccion.acciones.push({
+        id: ep.id,
+        metodo: ep.metodo,
+        ruta: ep.ruta,
+        nombre: ep.nombre,
+        permitido: administrador || concedidos.has(ep.id),
+      });
+    }
+
+    return Array.from(secciones.values())
+      .map((seccion) => ({
+        ...seccion,
+        acciones: seccion.acciones.sort(
+          (a, b) => a.ruta.localeCompare(b.ruta) || a.metodo.localeCompare(b.metodo),
+        ),
+      }))
+      .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta));
+  }
+
+  /**
+   * Escribe el acceso de un rol por módulos.
+   *
+   * Solo se tocan los módulos que vengan en `accesos`. Un módulo que no se
+   * menciona se queda como estaba, y eso es deliberado: si alguien afinó a mano
+   * una acción suelta en otro módulo, guardar aquí no se la borra.
+   *
+   * `modo: 'reemplazar'` (el de la pantalla) escribe el módulo tal cual: lo que
+   * no corresponde al acceso elegido queda apagado dentro de ese módulo.
+   * `'agregar'` solo enciende, y es el que usan las plantillas cuando alguien
+   * quiere sumar un perfil sobre otro.
+   */
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * El piso: lo que a un rol no se le puede quitar
+   * --------------------------------------------------------------------------
+   * Un rol del catálogo existe porque alguien hace ese trabajo. Dejarlo sin sus
+   * módulos no es «configurarlo restrictivo»: es dejar a esas personas sin poder
+   * trabajar, y el efecto no se ve al guardar —se ve al día siguiente, cuando
+   * el almacenista no puede recibir mercancía y nadie sabe por qué—.
+   *
+   * La regla, dicha en una línea: **de los módulos propios de un rol se puede
+   * quitar la escritura, no la consulta.** Agregar módulos es libre; quitar por
+   * debajo del piso se ajusta solo y se avisa de lo que se ajustó.
+   *
+   * Consulta y no acceso completo, a propósito: un administrador tiene motivos
+   * legítimos para quitarle a un rol la capacidad de modificar —una empresa
+   * donde el almacenista cuenta pero no corrige existencias es una empresa
+   * razonable—. Lo que no tiene sentido es que no pueda ni ver su propio
+   * almacén; eso no es una política, es un rol roto.
+   *
+   * El administrador no tiene piso porque no tiene tabla: `esRolAdministrador`
+   * la salta entera.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  private pisoDeRol(rol: string): Set<string> {
+    if (esRolAdministrador(rol)) return new Set();
+    const plantilla = this.plantillaDe(rol);
+    return new Set(plantilla?.modulos ?? []);
+  }
+
+  /**
+   * ==========================================================================
+   * El rol nace con lo suyo y eso ya no se le quita
+   * --------------------------------------------------------------------------
+   * Un rol se puede AMPLIAR cuanto se quiera. Lo que no se puede es recortarlo
+   * por debajo de aquello con lo que opera: el almacenista sin recibir
+   * mercancía, el cajero sin cobrar o el contador sin pólizas no son roles
+   * restringidos, son roles rotos, y el que los rompe casi nunca es el mismo
+   * que descubre el estropicio —lo descubre quien llega el lunes y no puede
+   * trabajar, sin saber qué cambió ni cuándo.
+   *
+   * El piso es exactamente lo que la plantilla concede: los módulos que el rol
+   * atiende por completo, y los GET de los que sólo consulta. Se devuelve como
+   * ids de endpoint para poder compararlo con lo que se intenta escribir.
+   * ==========================================================================
+   */
+  /**
+   * Las acciones que este rol no puede tener, por pertenecer a un módulo que
+   * su contrato le veda. Simétrico de `pisoDeAccionesDeRol`: aquél es el suelo
+   * y éste el techo.
+   */
+  private async techoDeModulosVedados(rol: string): Promise<Set<string>> {
+    const vedados = new Set<string>();
+    if (esRolAdministrador(rol)) return vedados;
+
+    const plantilla = this.plantillaDe(rol);
+    if (!plantilla?.modulosVedados?.length) return vedados;
+
+    const porModulo = await this.endpointsPorModulo();
+    for (const moduloId of plantilla.modulosVedados) {
+      for (const ep of porModulo.get(moduloId) ?? []) vedados.add(ep.id);
+    }
+    return vedados;
+  }
+
+  private async pisoDeAccionesDeRol(rol: string): Promise<Set<string>> {
+    const protegidos = new Set<string>();
+    if (esRolAdministrador(rol)) return protegidos;
+
+    const plantilla = this.plantillaDe(rol);
+    if (!plantilla) return protegidos;
+
+    const porModulo = await this.endpointsPorModulo();
+    for (const moduloId of plantilla.modulos) {
+      for (const ep of porModulo.get(moduloId) ?? []) protegidos.add(ep.id);
+    }
+    for (const moduloId of plantilla.modulosConsulta ?? []) {
+      for (const ep of porModulo.get(moduloId) ?? []) {
+        if (this.esConsulta(ep)) protegidos.add(ep.id);
+      }
+    }
+    return protegidos;
+  }
+
+  /** Los módulos propios de un rol, para que la pantalla pueda marcarlos. */
+  modulosMinimosDeRol(rol: string): string[] {
+    return Array.from(this.pisoDeRol(rol));
+  }
+
+  async asignarModulosARol(
+    rol: string,
+    empresaId: string,
+    accesos: Record<string, AccesoModulo>,
+    modo: 'agregar' | 'reemplazar' = 'reemplazar',
+  ) {
+    if (esRolAdministrador(rol)) {
+      return {
+        ok: true,
+        mensaje: 'El rol administrador no pasa por la tabla de permisos.',
+        activados: 0,
+      };
+    }
+
+    const porModulo = await this.endpointsPorModulo();
+    const permisos: Record<string, boolean> = {};
+    let activados = 0;
+
+    /*
+     * Se sube a `consulta` lo que se pidió dejar en `ninguno` dentro del piso
+     * del rol, y se anota para poder decirlo. En modo `reemplazar` hay que
+     * añadir además los módulos del piso que ni siquiera vinieron mencionados:
+     * si no, se apagarían por omisión.
+     */
+    const plantilla = this.plantillaDe(rol);
+    const piso = this.pisoDeRol(rol);
+    const pisoConsulta = new Set(plantilla?.modulosConsulta ?? []);
+    const ajustados: string[] = [];
+    const efectivos: Record<string, AccesoModulo> = { ...accesos };
+
+    /*
+     * Los módulos que el rol atiende por completo se quedan completos. Antes
+     * se degradaban a consulta, que es tanto como decirle al almacenista que
+     * puede mirar el almacén: el rol dejaba de poder trabajar y nadie se
+     * enteraba hasta el lunes. Ampliar sí, recortar por debajo de su trabajo
+     * no.
+     */
+    for (const moduloId of piso) {
+      if (efectivos[moduloId] !== 'completo') {
+        if (efectivos[moduloId] || modo === 'reemplazar') ajustados.push(moduloId);
+        efectivos[moduloId] = 'completo';
+      }
+    }
+    // Y los de sólo consulta conservan al menos la consulta.
+    for (const moduloId of pisoConsulta) {
+      const pedido = efectivos[moduloId];
+      if (pedido === 'ninguno' || (modo === 'reemplazar' && !pedido)) {
+        if (pedido === 'ninguno') ajustados.push(moduloId);
+        efectivos[moduloId] = 'consulta';
+      }
+    }
+    /*
+     * El techo va al final y gana sobre todo lo anterior: un módulo vedado no
+     * se concede aunque venga pedido en la pantalla. `actualizarPermisos`
+     * vuelve a aplicarlo acción por acción —es la única puerta de escritura—,
+     * pero dejarlo también aquí evita que la pantalla de roles muestre por un
+     * instante un módulo encendido que el servidor va a apagar.
+     */
+    for (const moduloId of plantilla?.modulosVedados ?? []) {
+      if (efectivos[moduloId] && efectivos[moduloId] !== 'ninguno') {
+        ajustados.push(moduloId);
+      }
+      efectivos[moduloId] = 'ninguno';
+    }
+
+    for (const [moduloId, eps] of porModulo.entries()) {
+      if (!MODULOS_POR_ID.has(moduloId) && moduloId !== MODULO_OTROS) continue;
+      const acceso = efectivos[moduloId];
+      if (!acceso) continue; // módulo no mencionado: se queda como está
+
+      for (const ep of eps) {
+        const conceder =
+          acceso === 'completo' || (acceso === 'consulta' && this.esConsulta(ep));
+        if (conceder) {
+          permisos[ep.id] = true;
+          activados += 1;
+        } else if (modo === 'reemplazar') {
+          permisos[ep.id] = false;
+        }
+      }
+    }
+
+    await this.actualizarPermisos(rol, permisos, empresaId);
+    if (ajustados.length) {
+      this.logger.warn(
+        `Se intentó recortar al rol "${rol}" en ${ajustados.join(', ')}; se conservó su mínimo operativo.`,
+      );
+    }
+    return {
+      ok: true,
+      activados,
+      ajustados,
+      aviso: ajustados.length
+        ? `Estos módulos son el trabajo propio del rol y se conservaron: ${ajustados
+            .map((m) => MODULOS_POR_ID.get(m)?.nombre ?? m)
+            .join(', ')}. A un rol se le puede dar más, no menos de aquello con lo que opera.`
+        : null,
     };
   }
 }

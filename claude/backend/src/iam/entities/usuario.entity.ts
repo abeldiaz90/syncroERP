@@ -27,8 +27,31 @@ export class Usuario {
   @Column({ type: 'varchar', length: 64, nullable: true, unique: true })
   keycloakSubject!: string | null;
 
-  @Column({ type: 'varchar', length: 255 })
-  @Exclude() // ✅ NUNCA DEVOLVERÁ EL HASH AL FRONTEND
+  /**
+   * ==========================================================================
+   * El hash no sale de la base, y por eso no puede salir de la API
+   * --------------------------------------------------------------------------
+   * Tenía `@Exclude()` y un comentario que prometía que nunca llegaría al
+   * frontend. La promesa era falsa: `@Exclude()` sólo actúa si está registrado
+   * el `ClassSerializerInterceptor` de Nest, y en este proyecto no está
+   * registrado en ninguna parte. El decorador no hacía nada.
+   *
+   * El servicio de usuarios sí limpiaba la respuesta a mano, así que `/usuarios`
+   * salía bien y el problema parecía resuelto. Pero cualquier OTRO servicio que
+   * cargue la relación `usuario` devuelve la entidad entera, y nadie se acuerda
+   * de limpiarla: `GET /configuraciones-aprobacion/matriz/todos` —que puede
+   * leer cualquier rol con aprobaciones en consulta— devolvía el hash de cada
+   * aprobador. Aquí la instalación usa Keycloak y el valor es un texto fijo,
+   * así que no se filtró nada real; en una empresa con contraseña local se
+   * habría filtrado el hash de sus directivos.
+   *
+   * `select: false` mueve la defensa a la capa correcta: la columna no se carga
+   * en ninguna consulta ordinaria, así que ninguna relación puede arrastrarla
+   * por descuido. Quien la necesita —sólo el login— la pide explícitamente.
+   * ==========================================================================
+   */
+  @Column({ type: 'varchar', length: 255, select: false })
+  @Exclude()
   passwordHash!: string;
 
   @Column({ type: 'varchar', length: 20, default: 'empleado' })
@@ -68,7 +91,7 @@ export class Usuario {
   @Column({ type: 'boolean', default: false })
   emailVerificado!: boolean;
 
-  @Column({ type: 'varchar', length: 64, nullable: true })
+  @Column({ type: 'varchar', length: 64, nullable: true , select: false })
   tokenVerificacion!: string | null;
 
   @Column({ type: 'timestamptz', nullable: true })
@@ -84,7 +107,7 @@ export class Usuario {
   bloqueadoHasta!: Date | null;
 
   // ── Recuperación de contraseña ────────────────────────────────────
-  @Column({ type: 'varchar', length: 64, nullable: true })
+  @Column({ type: 'varchar', length: 64, nullable: true , select: false })
   tokenRecuperacion!: string | null;
 
   @Column({ type: 'timestamptz', nullable: true })

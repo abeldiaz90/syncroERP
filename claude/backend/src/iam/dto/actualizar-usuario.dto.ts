@@ -6,14 +6,15 @@ import {
   MinLength,
 } from 'class-validator';
 import { ROLES_ASIGNABLES } from '../utils/roles-catalogo';
+import { IsEmailOpcional } from '../../common/validators/email-opcional.validator';
+import { IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 
 export class ActualizarUsuarioDto {
   @IsOptional()
   @IsString()
   nombreCompleto?: string;
 
-  @IsOptional()
-  @IsEmail()
+  @IsEmailOpcional()
   email?: string;
 
   @IsOptional()
@@ -25,8 +26,7 @@ export class ActualizarUsuarioDto {
   @IsIn(ROLES_ASIGNABLES)
   rol?: string;
 
-  @IsOptional()
-  @IsString()
+  @IsSqlServerGuidOpcional()
   departamentoId?: string;
 
   @IsOptional()

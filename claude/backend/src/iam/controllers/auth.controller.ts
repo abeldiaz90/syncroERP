@@ -10,7 +10,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../services/auth.service';
 import { PermisosDinamicosService } from '../services/permisos-dinamicos.service';
-import { RegisterDto } from '../dto/register.dto';
 import { ReenviarVerificacionDto } from '../dto/reenviar-verificacion.dto';
 import { OnboardingPasoDto } from '../dto/onboarding-paso.dto';
 import { LoginDto } from '../dto/login.dto';
@@ -38,30 +37,23 @@ export class AuthController {
     }
   }
 
-  @Public()
-  @Post('register')
-  async register(@Body() registerDto: RegisterDto) {
-    this.exigirAutenticacionLocal();
-    return this.authService.registrarEmpresa(registerDto);
-  }
-
-  /** Permite comprobar que frontend y backend usan el mismo contrato de registro. */
-  @Public()
-  @Get('register/contrato')
-  contratoRegistro() {
-    return {
-      version: '2026-07-31-v2-terminos',
-      campos: [
-        'nombreComercial',
-        'nombreCompleto',
-        'email',
-        'password',
-        'aceptaTerminos',
-        'terminosVersion',
-      ],
-      requiereVerificacionCorreo: true,
-    };
-  }
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Aquí ya no se dan de alta empresas
+   * --------------------------------------------------------------------------
+   * Había un alta pública: cualquiera con la dirección creaba una empresa y se
+   * quedaba de administrador de ella, con su correo por verificar y un asistente
+   * de puesta en marcha. Eso tenía sentido cuando el ERP se vendía solo; ahora
+   * quien decide qué empresa existe y qué contrata es SUMA, desde su consola, y
+   * el alta entra por la puerta de aprovisionamiento —clave de servicio, no
+   * sesión de persona— en `AltaEmpresasController`.
+   *
+   * Dejar las dos puertas abiertas significaba que una empresa podía nacer sin
+   * pasar por la consola: sin plan contratado, sin inquilino, sin identidad en
+   * el directorio y sin que SUMA supiera que existe. Se quitó el alta pública,
+   * su verificación de correo y su asistente.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
 
   @Public()
   @Post('login')
