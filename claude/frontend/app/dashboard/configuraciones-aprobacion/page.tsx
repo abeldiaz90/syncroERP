@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
+import { usePermiso } from "@/hooks/use-permisos";
 import {
   Boton,
   Campo,
@@ -81,6 +82,18 @@ const nuevoNivel = (orden: number): Nivel => ({
 });
 
 export default function ConfiguracionAprobacionesPage() {
+  /*
+   * Esta pantalla la ven ahora dos públicos distintos.
+   *
+   * Quien gobierna la matriz la edita. Los siete roles que APRUEBAN
+   * conservan la lectura —ver por qué un documento te llega no es gobernarlo—
+   * pero no pueden escribirla: podrían borrar el renglón que exige su propia
+   * firma. Hasta hoy la pantalla no preguntaba nada y pintaba los botones
+   * para todos; el servidor contestaba 403 al pulsar.
+   */
+  const { tienePermiso } = usePermiso();
+  const puedeGobernar = tienePermiso("POST", "/configuraciones-aprobacion");
+
   const { avisar } = useAvisos();
   const [cargando, setCargando] = useState(true);
   const [sinAcceso, setSinAcceso] = useState(false);
@@ -361,13 +374,26 @@ export default function ConfiguracionAprobacionesPage() {
             variante="primario"
             icono={<Save className="h-4 w-4" />}
             cargando={guardando}
-            disabled={!procesoOperativo}
+            disabled={!procesoOperativo || !puedeGobernar}
             onClick={() => void guardar()}
           >
             Guardar flujo
           </Boton>
         }
       />
+
+      {!puedeGobernar && (
+        <div className="mb-5 flex gap-3 rounded-2xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-700">
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
+          <p>
+            <strong className="font-bold">Esta pantalla es de consulta para tu rol.</strong>{" "}
+            Puedes ver por qué un documento llega a tu bandeja y con qué plazo,
+            pero la matriz la gobierna el rol «Gobierno de aprobaciones», que no
+            firma ninguno de los documentos que enruta. Quien aprueba no escribe
+            la regla que lo obliga a aprobar.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[330px_1fr]">
         <Panel>
@@ -495,21 +521,23 @@ export default function ConfiguracionAprobacionesPage() {
                     </div>
                     <div className="ml-auto flex gap-1">
                       <button
+                        disabled={!puedeGobernar}
                         onClick={() => mover(indice, -1)}
-                        className="rounded-lg p-2 hover:bg-slate-100"
+                        className="rounded-lg p-2 hover:bg-slate-100 disabled:opacity-30"
                         aria-label="Subir nivel"
                       >
                         <ArrowUp className="h-4 w-4" />
                       </button>
                       <button
+                        disabled={!puedeGobernar}
                         onClick={() => mover(indice, 1)}
-                        className="rounded-lg p-2 hover:bg-slate-100"
+                        className="rounded-lg p-2 hover:bg-slate-100 disabled:opacity-30"
                         aria-label="Bajar nivel"
                       >
                         <ArrowDown className="h-4 w-4" />
                       </button>
                       <button
-                        disabled={niveles.length === 1}
+                        disabled={niveles.length === 1 || !puedeGobernar}
                         onClick={() =>
                           setNiveles(
                             niveles
@@ -686,7 +714,7 @@ export default function ConfiguracionAprobacionesPage() {
 
           <Boton
             icono={<Plus className="h-4 w-4" />}
-            disabled={!procesoOperativo}
+            disabled={!procesoOperativo || !puedeGobernar}
             onClick={() =>
               setNiveles((actuales) => [
                 ...actuales,

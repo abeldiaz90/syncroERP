@@ -128,14 +128,37 @@ export const MODULOS_NEGOCIO: ModuloNegocio[] = [
     orden: 17,
     prefijos: ['/crm'],
   },
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Resolver un documento y escribir la regla que obliga a resolverlo son dos
+   * trabajos, no uno
+   * --------------------------------------------------------------------------
+   * Hasta el 21-sep-2026 este módulo llevaba los dos prefijos, así que quien
+   * recibía la bandeja para trabajar recibía de propina la potestad de
+   * reescribir la matriz: los montos a partir de los cuales hace falta firma,
+   * el orden de los niveles, y a quién le toca cada uno. Es decir, podía
+   * borrar la regla que exige su propia firma.
+   *
+   * No era un rol suelto: lo tenían SIETE de los doce —finanzas, tesorería,
+   * crédito, hotelería, rrhh, gerencia y dirección—, que son precisamente
+   * todos los que aprueban algo. Un control que puede desactivar el
+   * controlado no es un control.
+   *
+   * Es la misma separación que se hizo con `inventario` y `almacenes`: un
+   * módulo que cubría dos oficios con autoridad distinta. Aquí la bandeja se
+   * queda en Operación, porque es trabajo diario, y la matriz se va a Sistema
+   * marcada como sensible, porque es gobierno.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
   {
     id: 'aprobaciones',
     nombre: 'Aprobaciones',
-    descripcion: 'Bandeja central de aprobaciones y los flujos que la gobiernan.',
+    descripcion:
+      'Bandeja central: resolver los documentos que esperan tu firma.',
     icono: 'CheckCircle2',
     grupo: 'Operación',
     orden: 18,
-    prefijos: ['/aprobaciones', '/configuraciones-aprobacion'],
+    prefijos: ['/aprobaciones'],
   },
 
   // ── Catálogos ────────────────────────────────────────────────────────────
@@ -339,6 +362,17 @@ export const MODULOS_NEGOCIO: ModuloNegocio[] = [
     grupo: 'Sistema',
     orden: 51,
     prefijos: ['/integracion'],
+    sensible: true,
+  },
+  {
+    id: 'gobierno-aprobaciones',
+    nombre: 'Gobierno de aprobaciones',
+    descripcion:
+      'La matriz: quién aprueba qué, desde qué monto, en qué orden y con qué plazo. Quien la escribe no debería ser quien firma.',
+    icono: 'Scale',
+    grupo: 'Sistema',
+    orden: 49,
+    prefijos: ['/configuraciones-aprobacion'],
     sensible: true,
   },
   {

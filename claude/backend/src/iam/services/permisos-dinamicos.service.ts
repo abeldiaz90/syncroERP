@@ -1874,7 +1874,19 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
    * encuentran nada. Un modulo se quita de esta lista cuando ya no haya bases
    * anteriores a su separacion.
    */
-  private static readonly MODULOS_RECIEN_SEPARADOS = ['almacenes'];
+  /*
+   * «gobierno-aprobaciones» se separo de «aprobaciones» el 21-sep-2026. Hasta
+   * ese dia `/configuraciones-aprobacion` caia dentro del modulo de la
+   * bandeja, asi que los SIETE roles que aprueban algo —finanzas, tesoreria,
+   * credito, hoteleria, rrhh, gerencia y direccion— podian reescribir la
+   * matriz que decide quien aprueba que, incluido el renglon que exige su
+   * propia firma. Esas filas se apagan aqui; la lectura la conservan por
+   * `modulosConsulta`, porque ver por que algo te llega no es gobernarlo.
+   */
+  private static readonly MODULOS_RECIEN_SEPARADOS = [
+    'almacenes',
+    'gobierno-aprobaciones',
+  ];
 
   /**
    * ──────────────────────────────────────────────────────────────────────────
@@ -1976,16 +1988,25 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     for (const moduloId of PermisosDinamicosService.MODULOS_RECIEN_SEPARADOS) {
       const endpoints = porModulo.get(moduloId) ?? [];
       if (!endpoints.length) continue;
-      const idsDelModulo = new Set(endpoints.map((ep) => ep.id));
+      const porId = new Map(endpoints.map((ep) => [ep.id, ep]));
 
       for (const plantilla of PLANTILLAS_PERMISOS) {
         const rol = normalizarRol(plantilla.rol);
         if (esRolAdministrador(rol)) continue;
 
-        const concedido =
-          (plantilla.modulos ?? []).includes(moduloId) ||
-          (plantilla.modulosConsulta ?? []).includes(moduloId);
-        if (concedido) continue;
+        // Con el modulo completo no hay nada que retirar.
+        if ((plantilla.modulos ?? []).includes(moduloId)) continue;
+
+        /*
+         * En CONSULTA si lo hay, y es el caso que importa aqui: al partir
+         * «aprobaciones» los siete roles que aprueban conservan la lectura de
+         * la matriz —ver por que un documento les llega no es gobernarlo—,
+         * pero las filas de escritura que traian del reparto viejo seguirian
+         * encendidas. Saltarse el rol entero por tener el modulo en consulta
+         * dejaria intacto justo lo que se queria cerrar: POST y DELETE sobre
+         * `/configuraciones-aprobacion`.
+         */
+        const soloLectura = (plantilla.modulosConsulta ?? []).includes(moduloId);
 
         // Lo que el contrato concede por ACCION se respeta aunque su modulo no
         // este concedido: para eso existe «irrenunciable».
@@ -2002,8 +2023,10 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
           });
           for (const fila of filas) {
             if (!fila.permitido) continue;
-            if (!idsDelModulo.has(fila.endpointId)) continue;
+            const ep = porId.get(fila.endpointId);
+            if (!ep) continue;
             if (salvadas.has(fila.endpointId)) continue;
+            if (soloLectura && this.esConsulta(ep)) continue;
             fila.permitido = false;
             await this.permisoRepo.save(fila);
             apagadas += 1;

@@ -36,6 +36,21 @@ export const PROCESOS_APROBACION_CENTRAL =
 
 export type ProcesoAprobacionCentral = ProcesoFinancieroCentral;
 
+/**
+ * Roles que ven la traza completa sin ser administradores.
+ *
+ * Uno solo, y no por casualidad: `gobierno` es el rol que escribe la matriz de
+ * aprobacion y tiene vedado `PATCH /aprobaciones/:id/resolver`. No se puede
+ * gobernar lo que no se ve —el expediente de Maria Fernanda estuvo tres dias
+ * parado y nadie lo miraba— y es seguro darselo precisamente porque no puede
+ * actuar sobre nada de lo que ve. Esa es la posicion del auditor.
+ *
+ * Quien agregue un rol a esta lista esta ampliando quien lee expedientes
+ * crediticios ajenos: nombre, RFC, limite y nivel de riesgo. Que sea un rol
+ * que no pueda firmar nada no es un detalle, es la condicion.
+ */
+export const ROLES_CON_TRAZA_COMPLETA = ['gobierno'] as const;
+
 type PrepararAprobacionInput = {
   proceso: ProcesoAprobacionCentral;
   documentoId: string;
@@ -614,8 +629,10 @@ export class AprobacionesDocumentosService {
     rol?: string,
   ) {
     const tope = Math.min(500, Math.max(1, Number(limite || 100)));
-    const esAdministrador = esRolAdministrador(rol);
     const rolNormalizado = normalizarRol(rol);
+    const veTodo =
+      esRolAdministrador(rol) ||
+      (ROLES_CON_TRAZA_COMPLETA as readonly string[]).includes(rolNormalizado);
 
     const ventana = await this.aprobaciones
       .createQueryBuilder('aprobacion')
@@ -626,11 +643,11 @@ export class AprobacionesDocumentosService {
       .orderBy('aprobacion.fechaCreacion', 'DESC')
       .addOrderBy('aprobacion.ciclo', 'DESC')
       .addOrderBy('aprobacion.nivel', 'ASC')
-      .take(esAdministrador ? tope : Math.max(tope, 2000))
+      .take(veTodo ? tope : Math.max(tope, 2000))
       .getMany();
 
     const registros = (
-      esAdministrador
+      veTodo
         ? ventana
         : ventana.filter(
             (aprobacion) =>

@@ -269,7 +269,15 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'precios',
       'aprobaciones',
     ],
-    modulosConsulta: ['ventas', 'compras', 'clientes', 'proveedores', 'credito', 'caja'],
+    modulosConsulta: [
+      'ventas',
+      'compras',
+      'clientes',
+      'proveedores',
+      'credito',
+      'caja',
+      'gobierno-aprobaciones',
+    ],
     /*
      * Alguien tiene que poder pagarle al proveedor. El pago cuelga de
      * `/compras`, que a este rol se le da solo en consulta, y al comprador se
@@ -306,7 +314,15 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     etiqueta: 'Contador',
     descripcion: 'Pólizas, cierres, CFDI, activos y catálogos SAT.',
     modulos: ['finanzas', 'facturacion', 'activos', 'catalogos'],
-    modulosConsulta: ['ventas', 'compras', 'tesoreria', 'precios', 'caja', 'aprobaciones'],
+    modulosConsulta: [
+      'ventas',
+      'compras',
+      'tesoreria',
+      'precios',
+      'caja',
+      'aprobaciones',
+      'gobierno-aprobaciones',
+    ],
     /*
      * Decidir a qué cuenta va cada familia de productos es trabajo suyo, y la
      * pantalla donde se hace necesita listar las categorías. Las categorías
@@ -336,7 +352,14 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     modulos: ['tesoreria', 'caja', 'aprobaciones'],
     // Quien paga tiene que poder ver qué paga y a quién: la orden de compra y
     // el padrón de proveedores, en consulta.
-    modulosConsulta: ['finanzas', 'credito', 'catalogos', 'compras', 'proveedores'],
+    modulosConsulta: [
+      'finanzas',
+      'credito',
+      'catalogos',
+      'compras',
+      'proveedores',
+      'gobierno-aprobaciones',
+    ],
     /*
      * Alguien tiene que poder pagarle al proveedor. El pago cuelga de
      * `/compras`, que a este rol se le da solo en consulta, y al comprador se
@@ -360,7 +383,7 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     etiqueta: 'Crédito',
     descripcion: 'Línea de crédito, verificación del cliente y originación.',
     modulos: ['credito', 'clientes', 'aprobaciones'],
-    modulosConsulta: ['ventas', 'facturacion', 'integracion'],
+    modulosConsulta: ['ventas', 'facturacion', 'integracion', 'gobierno-aprobaciones'],
     /*
      * De la integración con el core le toca lo suyo: la disponibilidad del
      * cliente y los avisos. La correspondencia de cuentas contra el mayor
@@ -404,14 +427,14 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     descripcion:
       'Operación del hotel: disponibilidad, ama de llaves, city ledger, recetas y auditoría nocturna.',
     modulos: ['hoteleria', 'recetas', 'clientes', 'aprobaciones'],
-    modulosConsulta: ['inventario', 'ventas'],
+    modulosConsulta: ['inventario', 'ventas', 'gobierno-aprobaciones'],
   },
   {
     rol: 'rrhh',
     etiqueta: 'Recursos Humanos',
     descripcion: 'Empleados, puestos, asistencia, incidencias, vacaciones, nómina y departamentos.',
     modulos: ['rrhh', 'aprobaciones'],
-    modulosConsulta: ['tablero'],
+    modulosConsulta: ['tablero', 'gobierno-aprobaciones'],
   },
   {
     rol: 'gerencia',
@@ -435,6 +458,7 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'hoteleria',
       'facturacion',
       'activos',
+      'gobierno-aprobaciones',
     ],
   },
   {
@@ -462,6 +486,58 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'hoteleria',
       'facturacion',
       'integracion',
+      'gobierno-aprobaciones',
     ],
+  },
+
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Gobierno de aprobaciones
+   * --------------------------------------------------------------------------
+   * El rol que escribe la regla y no la firma.
+   *
+   * Hasta hoy la matriz de aprobación —quién aprueba qué, desde qué monto, en
+   * qué orden— la podían reescribir siete de los doce roles, que son
+   * exactamente los siete que aprueban algo. Cualquiera de ellos podía borrar
+   * el renglón que exige su propia firma, y el sistema lo habría aceptado sin
+   * dejar rastro en ninguna pantalla.
+   *
+   * Es el «approval administrator» de Business Central y el superusuario que
+   * define los procedimientos de aprobación en SAP B1, con una diferencia
+   * deliberada: aquí no aprueba nada. `PATCH /aprobaciones/:id/resolver` le
+   * está vedado explícitamente, no sólo ausente, para que siga vedado aunque
+   * un día alguien le conceda el módulo entero desde la pantalla de permisos.
+   *
+   * Por qué SÍ ve la bandeja y el historial completo: no se puede gobernar lo
+   * que no se ve. Quien diseña la matriz tiene que poder comprobar que los
+   * documentos llegan a quien deben y que no se quedan parados —el expediente
+   * de María Fernanda estuvo tres días atascado y nadie lo miraba—. Y es el
+   * rol seguro para dárselo precisamente porque no puede actuar sobre nada de
+   * lo que ve: ésa es la posición del auditor.
+   *
+   * Los dos GET sueltos van por acción y no por módulo a propósito.
+   * `/departamentos` vive en RRHH junto a la nómina, y `/usuarios` en
+   * Administración junto a los permisos; necesita leer los dos para clavar
+   * aprobadores, y ninguno de los dos módulos entero.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  {
+    rol: 'gobierno',
+    etiqueta: 'Gobierno de aprobaciones',
+    descripcion:
+      'Define quién aprueba qué, desde qué monto y en qué orden. Vigila que los documentos lleguen y avancen. No firma ninguno.',
+    modulos: ['gobierno-aprobaciones'],
+    modulosConsulta: ['aprobaciones', 'tablero'],
+    accionesIrrenunciables: [
+      'GET /departamentos',
+      'GET /usuarios',
+      'GET /usuarios/:id',
+    ],
+    /*
+     * Lo que lo define. Si algún día este renglón desaparece, el rol deja de
+     * ser un control y pasa a ser un aprobador más con poder para reescribir
+     * las reglas: el peor de los dos mundos.
+     */
+    accionesVedadas: ['PATCH /aprobaciones/:id/resolver'],
   },
 ];

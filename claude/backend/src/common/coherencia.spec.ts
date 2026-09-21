@@ -24,6 +24,8 @@ import { join, relative, sep} from 'path';
 import { PLANTILLAS_PERMISOS } from '../iam/data/plantillas-permisos';
 import { ENDPOINTS_NAVEGABLES } from '../iam/data/endpoints-navegables';
 import { moduloDeRuta, MODULOS_ASIGNABLES, MODULOS_POR_ID } from '../iam/data/modulos-catalogo';
+import { MODULOS_NEGOCIO } from '../iam/data/modulos-catalogo';
+import { ROLES_CON_TRAZA_COMPLETA } from '../aprobaciones/services/aprobaciones-documentos.service';
 
 const SRC = join(__dirname, '..');
 const RAIZ = join(SRC, '..', '..');
@@ -1783,5 +1785,147 @@ describe('Coherencia · quien debe aprobar puede producir lo que se le exige', (
       texto.indexOf('private async exigirValidacionFavorable'),
     );
     expect(puerta.slice(0, 600)).toContain('this.evaluarValidacion(');
+  });
+});
+
+describe('Coherencia · quien aprueba no escribe la regla que lo obliga', () => {
+  const APROBADORES = [
+    'finanzas',
+    'tesoreria',
+    'credito',
+    'hoteleria',
+    'rrhh',
+    'gerencia',
+    'direccion',
+  ];
+  const plantilla = (rol: string) =>
+    PLANTILLAS_PERMISOS.find((p) => p.rol === rol);
+
+  /*
+   * Hasta el 21-sep-2026 el módulo `aprobaciones` llevaba los dos prefijos:
+   * la bandeja y la matriz. Quien recibía la bandeja para trabajar recibía de
+   * propina la potestad de reescribir la regla que decide quién firma —es
+   * decir, de borrar el renglón que exige su propia firma—. Y no era un rol
+   * suelto: lo tenían los siete que aprueban algo.
+   */
+  it('la bandeja y la matriz son módulos distintos', () => {
+    const bandeja = MODULOS_NEGOCIO.find((m) => m.id === 'aprobaciones');
+    const matriz = MODULOS_NEGOCIO.find((m) => m.id === 'gobierno-aprobaciones');
+
+    expect(bandeja?.prefijos).toEqual(['/aprobaciones']);
+    expect(matriz?.prefijos).toEqual(['/configuraciones-aprobacion']);
+    expect(matriz?.sensible).toBe(true);
+  });
+
+  it('ningún rol que aprueba puede escribir la matriz', () => {
+    const infractores = APROBADORES.filter((rol) =>
+      (plantilla(rol)?.modulos ?? []).includes('gobierno-aprobaciones'),
+    );
+    expect(infractores).toEqual([]);
+  });
+
+  /*
+   * Pero sí tienen que poder LEERLA. Un documento que llega sin que se pueda
+   * averiguar por qué llega —o con qué plazo— es la mitad del problema del
+   * que venimos: el expediente de María Fernanda estuvo tres días parado
+   * porque nadie podía ver la regla que lo enrutaba.
+   */
+  it('todos los que aprueban conservan la lectura de la matriz', () => {
+    const ciegos = APROBADORES.filter(
+      (rol) =>
+        !(plantilla(rol)?.modulosConsulta ?? []).includes(
+          'gobierno-aprobaciones',
+        ),
+    );
+    expect(ciegos).toEqual([]);
+  });
+
+  it('el gobierno de la matriz lo tiene exactamente un rol', () => {
+    const duenos = PLANTILLAS_PERMISOS.filter((p) =>
+      (p.modulos ?? []).includes('gobierno-aprobaciones'),
+    ).map((p) => p.rol);
+    expect(duenos).toEqual(['gobierno']);
+  });
+
+  /*
+   * Lo que define al rol. Si este renglón desaparece deja de ser un control y
+   * pasa a ser un aprobador más con poder para reescribir las reglas: el peor
+   * de los dos mundos.
+   */
+  it('el rol de gobierno tiene vedado resolver documentos', () => {
+    expect(plantilla('gobierno')?.accionesVedadas ?? []).toContain(
+      'PATCH /aprobaciones/:id/resolver',
+    );
+    expect(plantilla('gobierno')?.modulos ?? []).not.toContain('aprobaciones');
+  });
+
+  /*
+   * Lee usuarios y departamentos por ACCIÓN, no por módulo: necesita los dos
+   * para clavar aprobadores, y ninguno de los dos enteros —en uno vive la
+   * nómina y en el otro los permisos—.
+   */
+  it('lo que necesita de otros módulos lo toma por acción', () => {
+    const acciones = plantilla('gobierno')?.accionesIrrenunciables ?? [];
+    expect(acciones).toContain('GET /departamentos');
+    expect(acciones).toContain('GET /usuarios');
+    const modulos = plantilla('gobierno')?.modulos ?? [];
+    expect(modulos).not.toContain('rrhh');
+    expect(modulos).not.toContain('administracion');
+  });
+
+  /*
+   * El invariante que hace segura la vista completa del historial: quien ve
+   * todo no puede firmar nada. Ver expedientes crediticios ajenos —nombre,
+   * RFC, límite, nivel de riesgo— sólo se justifica desde una posición que no
+   * pueda actuar sobre ellos.
+   */
+  it('quien ve la traza completa no puede resolver', () => {
+    for (const rol of ROLES_CON_TRAZA_COMPLETA) {
+      const p = plantilla(rol);
+      expect(p).toBeDefined();
+      expect(p?.accionesVedadas ?? []).toContain(
+        'PATCH /aprobaciones/:id/resolver',
+      );
+      expect(p?.modulos ?? []).not.toContain('aprobaciones');
+    }
+  });
+
+  /*
+   * Las filas viejas no se apagan solas: el contrato sólo enciende. Y saltarse
+   * un rol entero por tener el módulo en consulta dejaría intacto justo lo que
+   * se quería cerrar —POST y DELETE sobre la matriz—, porque los siete
+   * conservan la lectura.
+   */
+  it('la separación retira lo escrito antes, respetando la consulta', () => {
+    const texto = leer(join(SRC, 'iam/services/permisos-dinamicos.service.ts'));
+    const lista = texto.slice(
+      texto.indexOf('MODULOS_RECIEN_SEPARADOS = ['),
+      texto.indexOf('MODULOS_RECIEN_SEPARADOS = [') + 200,
+    );
+    expect(lista).toContain("'gobierno-aprobaciones'");
+    const sinComentar = sinComentarios(texto);
+    expect(sinComentar).toContain('const soloLectura = (plantilla.modulosConsulta');
+    expect(sinComentar).toContain('if (soloLectura && this.esConsulta(ep)) continue;');
+  });
+
+  /*
+   * Y la pantalla tiene que preguntarlo. Ahora la ven dos públicos: quien la
+   * gobierna y los siete que sólo la consultan. Sin guarda, a estos últimos
+   * les pinta «Guardar flujo» y el servidor contesta 403 al pulsar, que es
+   * exactamente el patrón que se cerró en crédito.
+   */
+  it('la pantalla de la matriz esconde la escritura a quien sólo consulta', () => {
+    if (!FRONTEND) return;
+    const texto = leer(
+      join(FRONTEND, 'app/dashboard/configuraciones-aprobacion/page.tsx'),
+    );
+    expect(texto).toMatch(
+      /tienePermiso\(\s*"POST",\s*"\/configuraciones-aprobacion"\s*\)/,
+    );
+    const guardar = texto.slice(
+      texto.indexOf('Guardar flujo') - 400,
+      texto.indexOf('Guardar flujo'),
+    );
+    expect(guardar).toContain('puedeGobernar');
   });
 });
