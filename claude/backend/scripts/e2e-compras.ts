@@ -53,6 +53,10 @@ import { PermisosDinamicosService } from '../src/iam/services/permisos-dinamicos
 import { FormaPago } from '../src/catalogo/entities/forma-pago.entity';
 import { randomUUID } from 'node:crypto';
 
+const arg = (n: string, d = '') => {
+  const i = process.argv.indexOf(`--${n}`);
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d;
+};
 const APLICAR = process.argv.includes('--aplicar');
 const LIMPIAR = process.argv.includes('--limpiar');
 
@@ -86,9 +90,50 @@ async function main() {
     const cotizaciones = app.get(CotizacionesService);
     const ordenes = app.get(OrdenesCompraService);
 
-    // ── Contexto ────────────────────────────────────────────────────────────
-    const empresa = await ds.getRepository(Empresa).findOne({ where: {} });
-    if (!empresa) throw new Error('No hay empresa en la base.');
+    /*
+     * ── Contexto ──────────────────────────────────────────────────────────
+     * La empresa NO se adivina.
+     *
+     * Antes era `findOne({ where: {} })`: no «la primera», sino la que la base
+     * devolviera primero, sin orden alguno. Con varias empresas —y esta base
+     * tiene las de las pruebas de aislamiento— el script podia sembrar un
+     * ciclo de compras COMPLETO, con sus ordenes, recepciones, pagos y polizas
+     * contables, en una empresa al azar. El 21-sep-2026 eligio «EMPRESA B
+     * PRUEBA AISLAMIENTO» y solo se detuvo porque no tenia dos usuarios; con
+     * dos, habria escrito contabilidad donde no debia y nadie se entera hasta
+     * el cierre.
+     *
+     * Si hay una sola empresa activa, se usa. Si hay varias, se listan y se
+     * exige elegir. Adivinar no es una opcion cuando lo que se escribe es
+     * contabilidad.
+     */
+    const empresasActivas = await ds.getRepository(Empresa).find({
+      where: { activo: true },
+      order: { nombreComercial: 'ASC' },
+    });
+    if (!empresasActivas.length) throw new Error('No hay ninguna empresa activa en la base.');
+
+    const pedida = arg('empresa').trim().toLowerCase();
+    let empresa: Empresa | undefined;
+    if (pedida) {
+      empresa = empresasActivas.find(
+        (e) =>
+          e.id.toLowerCase() === pedida ||
+          (e.nombreComercial ?? '').toLowerCase().includes(pedida),
+      );
+      if (!empresa) {
+        console.log('\n\x1b[1mEmpresas activas\x1b[0m');
+        for (const e of empresasActivas) console.log(`  ${e.id}  ${e.nombreComercial}`);
+        throw new Error(`Ninguna empresa activa coincide con "${pedida}".`);
+      }
+    } else if (empresasActivas.length === 1) {
+      empresa = empresasActivas[0];
+    } else {
+      console.log('\n\x1b[1mHay varias empresas activas; elige una\x1b[0m');
+      for (const e of empresasActivas) console.log(`  ${e.id}  ${e.nombreComercial}`);
+      console.log('\n  npm.cmd run compras:e2e -- --empresa "<parte del nombre o el id>" --aplicar\n');
+      throw new Error('Falta --empresa. No se adivina donde escribir contabilidad.');
+    }
     const empresaId = empresa.id;
     console.log(`\nEmpresa: ${empresa.nombreComercial ?? empresaId}`);
 
@@ -126,21 +171,39 @@ async function main() {
     // ── Siembra ─────────────────────────────────────────────────────────────
     paso('Siembra de datos maestros');
 
-    const depRepo = ds.getRepository(Departamento);
-    let departamento = await depRepo.findOne({ where: { empresaId, nombre: `${MARCA} · Depto` } });
-    if (!departamento) {
-      departamento = await depRepo.save(depRepo.create({ empresaId, nombre: `${MARCA} · Depto` }));
-    }
-    ok(`Departamento ${departamento.nombre}`);
-
     /*
-     * El solicitante necesita departamento: el servicio lo exige y hoy ningún
-     * usuario lo tenía, que es la razón por la que el módulo no arrancaba.
+     * El area del solicitante no se le cambia.
+     *
+     * Antes el script creaba su propio departamento y MOVIA alli al usuario
+     * que eligiera como solicitante, permanentemente y sin devolverlo. Correr
+     * una prueba dejaba a una persona real fuera de su area, y con ella fuera
+     * de su ruta de aprobacion: el efecto no aparece hoy, aparece la proxima
+     * vez que esa persona levanta una requisicion y va a firmar quien no debe.
+     *
+     * Si el solicitante ya tiene area, se usa LA SUYA —y con ella su ruta de
+     * aprobacion real, que es justamente lo que interesa probar—. El
+     * departamento propio del script solo se crea para el caso en que no
+     * tenga ninguna.
      */
-    if (solicitante.departamentoId !== departamento.id) {
-      await ds.getRepository(Usuario).update({ id: solicitante.id }, { departamentoId: departamento.id });
-      ok(`Departamento asignado a ${solicitante.nombreCompleto}`);
+    const depRepo = ds.getRepository(Departamento);
+    let departamento: Departamento | null = solicitante.departamentoId
+      ? await depRepo.findOne({ where: { id: solicitante.departamentoId, empresaId } })
+      : null;
+
+    if (departamento) {
+      ok(`Departamento del solicitante: ${departamento.nombre} — no se toca`);
+    } else {
+      departamento = await depRepo.findOne({ where: { empresaId, nombre: `${MARCA} · Depto` } });
+      if (!departamento) {
+        departamento = await depRepo.save(depRepo.create({ empresaId, nombre: `${MARCA} · Depto` }));
+      }
+      await ds.getRepository(Usuario).update(
+        { id: solicitante.id },
+        { departamentoId: departamento.id },
+      );
+      ok(`${solicitante.nombreCompleto} no tenía área; se le asigna ${departamento.nombre}`);
     }
+
 
     const iva16 = await ds.getRepository(Impuesto).findOne({ where: { empresaId, porcentaje: 16, activo: true } });
     if (!iva16) throw new Error('No existe un impuesto al 16 % en el catálogo.');
@@ -186,26 +249,66 @@ async function main() {
     }
     ok(`Dos proveedores homologados`);
 
+    /*
+     * Las rutas de aprobacion de la empresa NO se tocan.
+     *
+     * Antes se buscaba `{ empresaId, proceso, orden: 1 }` sin acotar por
+     * departamento y, si existia, se SOBRESCRIBIA apuntandola al usuario de
+     * prueba. Es decir: correr este script reapuntaba la matriz real de
+     * aprobacion de la empresa —la de Almacen, la de Compras— a quien el
+     * script eligiera, y la dejaba asi. Un script de pruebas que modifica la
+     * configuracion de gobierno y no lo dice es peor que un script que falla.
+     *
+     * Ahora: para REQUISICION se acota al departamento propio del script, que
+     * nadie mas usa. Para COTIZACION, que es global, si ya existe una ruta se
+     * REUTILIZA tal cual y el script se adapta a ella —con lo que ademas se
+     * prueba la configuracion de verdad, no una inventada.
+     */
     const cfgRepo = ds.getRepository(ConfiguracionAprobacion);
-    for (const [proceso, departamentoId] of [
-      ['REQUISICION', departamento.id],
-      ['COTIZACION', null],
-    ] as const) {
-      const existente = await cfgRepo.findOne({ where: { empresaId, proceso, orden: 1 } });
-      if (!existente) {
-        await cfgRepo.save(cfgRepo.create({
-          empresaId, proceso, departamentoId: departamentoId ?? undefined,
-          usuarioId: aprobador.id, orden: 1, tiempoLimiteHoras: 24,
-          obligatorio: true, permiteAutoaprobacion: false, activo: true,
-        }));
-      } else {
-        await cfgRepo.update({ id: existente.id }, {
-          usuarioId: aprobador.id, activo: true,
-          departamentoId: departamentoId ?? undefined,
-        });
-      }
+
+    let rutaReq = await cfgRepo.findOne({
+      where: { empresaId, proceso: 'REQUISICION', departamentoId: departamento.id, orden: 1 },
+    });
+    if (!rutaReq) {
+      rutaReq = await cfgRepo.save(cfgRepo.create({
+        empresaId, proceso: 'REQUISICION', departamentoId: departamento.id,
+        usuarioId: aprobador.id, orden: 1, tiempoLimiteHoras: 24,
+        obligatorio: true, permiteAutoaprobacion: false, activo: true,
+      }));
+      ok(`Ruta de requisición creada para «${departamento.nombre}»`);
+    } else {
+      ok(`Ruta de requisición ya existente para «${departamento.nombre}» — se respeta`);
     }
-    ok('Rutas de aprobación de requisición y cotización');
+
+    const rutaCot = await cfgRepo.findOne({
+      where: { empresaId, proceso: 'COTIZACION', orden: 1 },
+    });
+    if (!rutaCot) {
+      await cfgRepo.save(cfgRepo.create({
+        empresaId, proceso: 'COTIZACION', usuarioId: aprobador.id, orden: 1,
+        tiempoLimiteHoras: 24, obligatorio: true, permiteAutoaprobacion: false, activo: true,
+      }));
+      ok('Ruta de adjudicación creada');
+    } else {
+      ok('Ruta de adjudicación ya existente — se respeta y el script se adapta a ella');
+    }
+
+    /*
+     * Quien firma es quien la ruta diga, no quien el script prefiera. Si la
+     * empresa tiene la adjudicacion asignada al contador, es el contador quien
+     * debe resolverla aqui: es la unica forma de que esta corrida pruebe la
+     * configuracion real.
+     */
+    const idAdjudicador = rutaCot?.usuarioId ?? aprobador.id;
+    const adjudicador =
+      (await ds.getRepository(Usuario).findOne({ where: { id: idAdjudicador, empresaId } })) ??
+      aprobador;
+    const idFirmaReq = rutaReq.usuarioId ?? aprobador.id;
+    const firmanteReq =
+      (await ds.getRepository(Usuario).findOne({ where: { id: idFirmaReq, empresaId } })) ??
+      aprobador;
+    dato(`Firma requisición: ${firmanteReq.nombreCompleto} (${firmanteReq.rol})`);
+    dato(`Firma adjudicación: ${adjudicador.nombreCompleto} (${adjudicador.rol})`);
 
     const cuenta = await ds.getRepository(CuentaBancaria).findOne({ where: { empresaId, activo: true } });
     if (!cuenta) throw new Error('No hay cuenta bancaria activa para registrar el pago.');
@@ -231,7 +334,8 @@ async function main() {
       ok('El solicitante no puede aprobar lo que pidió');
     }
 
-    await requisiciones.resolverAprobacion(pendiente.id, 'APROBADO', 'UAT', empresaId, aprobador.id);
+    // El guardia exige la persona asignada, sin excepcion para administrador.
+    await requisiciones.resolverAprobacion(pendiente.id, 'APROBADO', 'UAT', empresaId, firmanteReq.id);
     const reqAprobada = await ds.getRepository('requisiciones').findOne({ where: { id: req!.id } }) as { estado: string };
     comparar('Tras aprobar', reqAprobada.estado, 'COTIZANDO');
 
@@ -262,7 +366,7 @@ async function main() {
     } catch {
       ok('Quien pide la adjudicación no la aprueba');
     }
-    await cotizaciones.aprobar(ganadora.id, empresaId, aprobador.id, aprobador.rol, 'UAT');
+    await cotizaciones.aprobar(ganadora.id, empresaId, adjudicador.id, adjudicador.rol, 'UAT');
     const cotAprobada = await cotizaciones.obtenerPorId(ganadora.id, empresaId);
     comparar('Cotización', cotAprobada.estado, 'APROBADA');
 

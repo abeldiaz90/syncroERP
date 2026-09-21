@@ -44,9 +44,47 @@ async function main() {
   const ds = app.get(DataSource);
   const repo = ds.getRepository(Usuario);
 
-  const [empresa] = await ds.query<{ id: string; nombre: string }[]>(
-    `SELECT id, nombrecomercial AS nombre FROM empresas WHERE activo = true ORDER BY fechacreacion LIMIT 1`,
+  /*
+   * La empresa no se adivina.
+   *
+   * Esto tomaba la empresa activa mas antigua y seguia. En una base con varias
+   * —y esta tiene las de las pruebas de aislamiento— eso significa dar de alta
+   * a una persona en la empresa equivocada: entra, no ve nada de lo suyo, y
+   * el diagnostico se va en permisos cuando el problema era el inquilino.
+   *
+   * Con una sola empresa activa se usa. Con varias hay que elegir.
+   */
+  const empresas = await ds.query<{ id: string; nombre: string }[]>(
+    `SELECT id, nombrecomercial AS nombre FROM empresas WHERE activo = true ORDER BY nombrecomercial ASC`,
   );
+  if (!empresas.length) {
+    mal('No hay ninguna empresa activa en la base.');
+    await app.close();
+    process.exit(1);
+  }
+  const empresaPedida = arg('empresa').trim().toLowerCase();
+  let empresa = empresas[0];
+  if (empresaPedida) {
+    const hallada = empresas.find(
+      (e) =>
+        String(e.id).toLowerCase() === empresaPedida ||
+        String(e.nombre ?? '').toLowerCase().includes(empresaPedida),
+    );
+    if (!hallada) {
+      mal(`Ninguna empresa activa coincide con "${empresaPedida}".`);
+      for (const e of empresas) info(`  ${e.id}  ${e.nombre}`);
+      await app.close();
+      process.exit(1);
+    }
+    empresa = hallada;
+  } else if (empresas.length > 1) {
+    mal('Hay varias empresas activas: elige una con --empresa.');
+    for (const e of empresas) info(`  ${e.id}  ${e.nombre}`);
+    info('');
+    info('  npm.cmd run usuario:alta -- --empresa "<parte del nombre>" --email <correo> --rol <rol> --nombre "<nombre>" --aplicar');
+    await app.close();
+    process.exit(1);
+  }
 
   const existentes = await repo.find({
     where: { empresaId: empresa.id },
