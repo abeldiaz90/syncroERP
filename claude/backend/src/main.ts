@@ -44,12 +44,18 @@ process.env.TZ = process.env.TZ || 'UTC';
  * ============================================================================
  */
 
-import { ValidationPipe, BadRequestException, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+  ValidationPipe,
+} from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
+import { PREFIJO_SUBIDAS, RAIZ_SUBIDAS } from './common/almacenamiento/rutas-subidas';
 
 // `compression` es CommonJS puro y no expone un `default` real. El tsconfig de
 // este proyecto tiene `allowSyntheticDefaultImports` pero NO `esModuleInterop`,
@@ -126,7 +132,21 @@ async function bootstrap() {
       // Peticiones sin Origin (curl, health checks, apps móviles) se permiten.
       if (!origin || permitidos.includes(origin)) return cb(null, true);
       logger.warn(`CORS rechazado para origen: ${origin}`);
-      cb(new Error('Origen no permitido por CORS'), false);
+      /*
+       * Se rechaza con una excepción HTTP, no con un `Error` pelón.
+       *
+       * El navegador manda cabecera `Origin` en TODO lo que no sea GET o HEAD,
+       * incluso cuando el origen es el propio servidor. Con un `Error` normal,
+       * cualquier POST desde un origen no listado terminaba en 500 «ocurrió un
+       * error inesperado» con su número de traza: el rechazo se veía igual que
+       * una caída del servidor. En producción eso significa que un escáner
+       * cualquiera llena la bitácora de errores 500 y entierra los que sí
+       * importan.
+       *
+       * Sigue sin ejecutarse la petición —que es lo que protege— pero ahora lo
+       * dice con el código que corresponde.
+       */
+      cb(new ForbiddenException('Origen no permitido por CORS.'), false);
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
@@ -143,12 +163,23 @@ async function bootstrap() {
   });
 
   /* ── Rutas ────────────────────────────────────────────────────────────── */
-  // `salud` queda fuera del prefijo para que los balanceadores lo consulten
-  // sin conocer el esquema de la API.
-  app.setGlobalPrefix('api', { exclude: ['salud'] });
+  /*
+   * Las dos rutas de salud quedan fuera del prefijo para que los balanceadores
+   * las consulten sin conocer el esquema de la API. Se listan LAS DOS: la
+   * exclusión es por ruta exacta, no por prefijo, así que excluir sólo `salud`
+   * dejaba `salud/listo` colgando de `/api/salud/listo` —viva pero en la
+   * dirección equivocada, que en un chequeo de salud es igual que muerta.
+   */
+  app.setGlobalPrefix('api', { exclude: ['salud', 'salud/listo'] });
 
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
-    prefix: '/uploads/',
+  /*
+   * La raíz se importa, no se vuelve a calcular: ver `rutas-subidas.ts`. Aquí
+   * decía `join(__dirname, '..', 'uploads')` y apuntaba a `dist/uploads`,
+   * mientras las subidas se escribían en `uploads/`. Ninguna imagen de producto
+   * se servía.
+   */
+  app.useStaticAssets(RAIZ_SUBIDAS, {
+    prefix: PREFIJO_SUBIDAS,
     maxAge: '7d',
     index: false,
     dotfiles: 'deny',

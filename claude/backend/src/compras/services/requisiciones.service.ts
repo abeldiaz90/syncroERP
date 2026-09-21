@@ -61,7 +61,15 @@ export class RequisicionesService {
     }
     if (!usuario.departamentoId) {
       throw new BadRequestException(
-        'Asigna un departamento al solicitante antes de crear requisiciones.',
+        /*
+         * El mensaje le hablaba al administrador, pero lo lee quien acaba de
+         * capturar la requisición —el almacenista— y le pide hacer algo que no
+         * puede hacer, después de llenar el formulario. Ahora dice de quién es
+         * el pendiente y por qué existe la regla.
+         */
+        'Tu usuario todavía no tiene departamento asignado, y de él dependen ' +
+          'los aprobadores de la requisición. Pídele al administrador que te ' +
+          'asigne uno en Usuarios; en cuanto lo tengas, esta captura funciona.',
       );
     }
 
@@ -309,7 +317,12 @@ export class RequisicionesService {
         estado: 'PENDIENTE',
         requisicion: { empresaId },
       },
-      relations: ['requisicion', 'requisicion.detalles', 'requisicion.detalles.producto'],
+      relations: [
+        'requisicion',
+        'requisicion.usuarioSolicitante',
+        'requisicion.detalles',
+        'requisicion.detalles.producto',
+      ],
       order: { fechaCreacion: 'ASC' },
     });
     const visibles: Aprobacion[] = [];
@@ -339,7 +352,7 @@ export class RequisicionesService {
 
       const aprobacion = await aprobaciones
         .createQueryBuilder('a')
-        .setLock('pessimistic_write')
+        .setLock('pessimistic_write', undefined, ['a'])
         .leftJoinAndSelect('a.requisicion', 'r')
         .leftJoinAndSelect('r.usuarioSolicitante', 'solicitante')
         .where('a.id = :id', { id })

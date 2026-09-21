@@ -12,7 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 import { EstadoOC } from '../entities/orden-compra.entity';
 
 export class CrearOrdenDesdeCotizacionDto {
@@ -61,8 +61,7 @@ export class DetalleRecepcionCompraDto {
   @IsDateString()
   fechaCaducidad?: string;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   equivalenciaId?: string;
 
   @IsSqlServerGuid()

@@ -5,11 +5,17 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { EstadoOC, OrdenCompra } from '../entities/orden-compra.entity';
+import {
+  EstadoOC,
+  OrdenCompra,
+  estadoDerivadoOC,
+  valorRecibidoOC,
+} from '../entities/orden-compra.entity';
 import { DetalleOrdenCompra } from '../entities/detalle-orden-compra.entity';
 import { Cotizacion } from '../entities/cotizacion.entity';
 import { Requisicion } from '../entities/requisicion.entity';
 import { InventarioService } from '../../catalogo/services/inventario.service';
+import { Producto } from '../../catalogo/entities/producto.entity';
 import { MailService } from '../../common/services/mail.service';
 import { NotificacionesService } from '../../notificaciones/notificaciones.service';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
@@ -30,6 +36,11 @@ import {
 import { RecepcionCompra } from '../entities/recepcion-compra.entity';
 import { RecepcionCompraDetalle } from '../entities/recepcion-compra-detalle.entity';
 import { TesoreriaService } from '../../tesoreria/services/tesoreria.service';
+import { esViolacionUnicidad } from '../../common/database/errores-sql';
+import {
+  diaCalendario,
+  fechaCalendario,
+} from '../../common/utils/fecha-calendario.util';
 import {
   OrigenMovimiento,
   TipoMovimiento,
@@ -62,7 +73,7 @@ export class OrdenesCompraService {
     try {
       const cotizacion = await qr.manager
         .createQueryBuilder(Cotizacion, 'cot')
-        .setLock('pessimistic_write')
+        .setLock('pessimistic_write', undefined, ['cot'])
         .leftJoinAndSelect('cot.detalles', 'detalles')
         .leftJoinAndSelect('cot.proveedor', 'proveedor')
         .where('cot.id = :cotizacionId AND cot.empresaId = :empresaId', { cotizacionId, empresaId })
@@ -108,9 +119,16 @@ export class OrdenesCompraService {
         empresaId, cotizacionId: cotizacion.id, proveedorId: cotizacion.proveedorId,
         total: Number(cotizacion.total), totalPagado: 0, saldoPendiente: Number(cotizacion.total),
       }));
+      /*
+       * La tasa y el importe de impuesto se COPIAN de la cotización. No se
+       * vuelven a calcular ni se leen del catálogo: lo que se pactó con el
+       * proveedor es lo que se va a recibir y lo que se va a pagar.
+       */
       await qr.manager.save(cotizacion.detalles.map(det => qr.manager.create(DetalleOrdenCompra, {
         ordenCompraId: oc.id, productoId: det.productoId, cantidad: Number(det.cantidad),
         precioUnitario: Number(det.precioUnitario), subtotal: Number(det.subtotal),
+        tasaIva: Number(det.tasaIva ?? 0),
+        impuestoImporte: Number(det.impuestoImporte ?? 0),
       })));
 
       cotizacion.estado = 'SELECCIONADA';
@@ -162,21 +180,51 @@ export class OrdenesCompraService {
     return oc;
   }
 
+  /**
+   * Las únicas dos transiciones que se deciden a mano: enviar y cancelar.
+   *
+   * El resto de la etiqueta ya no se escribe: se deriva de cuánto llegó y
+   * cuánto se pagó. Antes se permitía volver de `CON_INCIDENCIAS` a `ENVIADA`,
+   * que era un parche para poder seguir recibiendo; ahora recibir no depende
+   * de la etiqueta, así que el parche sobra.
+   *
+   * Cancelar exige que no haya pasado nada: una orden con mercancía recibida o
+   * con dinero pagado no se cancela, se cierra por otra vía —devolución o nota
+   * de crédito— porque ya dejó rastro en inventario y en contabilidad.
+   */
   async cambiarEstado(id: string, empresaId: string, nuevoEstado: EstadoOC) {
     const oc = await this.ocRepo.findOne({ where: { id, empresaId } });
     if (!oc) throw new NotFoundException('Orden de compra no encontrada');
-    const transiciones: Partial<Record<EstadoOC, EstadoOC[]>> = {
-      PENDIENTE: ['ENVIADA', 'CANCELADA'],
-      ENVIADA: ['CANCELADA'],
-      CON_INCIDENCIAS: ['ENVIADA', 'CANCELADA'],
-    };
-    if (!(transiciones[oc.estado] ?? []).includes(nuevoEstado)) {
-      throw new BadRequestException(
-        `No se permite cambiar una orden de ${oc.estado} a ${nuevoEstado}.`,
-      );
+
+    if (nuevoEstado === 'ENVIADA') {
+      if (oc.estado !== 'PENDIENTE') {
+        throw new BadRequestException(
+          `Sólo una orden PENDIENTE puede enviarse; ésta está ${oc.estado}.`,
+        );
+      }
+      oc.estado = 'ENVIADA';
+      return this.ocRepo.save(oc);
     }
-    oc.estado = nuevoEstado;
-    return this.ocRepo.save(oc);
+
+    if (nuevoEstado === 'CANCELADA') {
+      if (oc.estado === 'CANCELADA') return oc;
+      if (oc.estadoRecepcion !== 'PENDIENTE') {
+        throw new BadRequestException(
+          'No se puede cancelar una orden con mercancía ya recibida. Registra la devolución al proveedor.',
+        );
+      }
+      if (oc.estadoPago !== 'PENDIENTE') {
+        throw new BadRequestException(
+          'No se puede cancelar una orden con pagos registrados.',
+        );
+      }
+      oc.estado = 'CANCELADA';
+      return this.ocRepo.save(oc);
+    }
+
+    throw new BadRequestException(
+      `El estado ${nuevoEstado} no se asigna a mano: se deriva de las recepciones y los pagos.`,
+    );
   }
 
   /**
@@ -254,11 +302,7 @@ export class OrdenesCompraService {
     });
 
     if (!oc) throw new NotFoundException('Orden de compra no encontrada');
-    if (!['ENVIADA', 'CON_INCIDENCIAS'].includes(oc.estado)) {
-      throw new BadRequestException(
-        'La OC debe estar ENVIADA o CON_INCIDENCIAS para recibir mercancía',
-      );
-    }
+    this.exigirRecepcionPosible(oc);
 
     // ── Validación previa: nada de recibir más de lo ordenado ──
     // Se hace antes de abrir la transacción para fallar rápido y con un
@@ -323,9 +367,11 @@ export class OrdenesCompraService {
         .getOne();
       if (!bloqueada)
         throw new NotFoundException('Orden de compra no encontrada');
-      if (!['ENVIADA', 'CON_INCIDENCIAS'].includes(bloqueada.estado)) {
+      try {
+        this.exigirRecepcionPosible(bloqueada);
+      } catch {
         throw new BadRequestException(
-          `La orden cambió al estado ${bloqueada.estado} mientras se recibía.`,
+          `La orden cambió de estado mientras se recibía (${bloqueada.estado}). Recarga e intenta de nuevo.`,
         );
       }
       const actual = await qr.manager.findOne(OrdenCompra, {
@@ -454,6 +500,30 @@ export class OrdenesCompraService {
         }
 
         if (recibidaCaptura > 0) {
+          /*
+           * ──────────────────────────────────────────────────────────────────
+           * El costo se manda en la MISMA unidad que la cantidad
+           * ------------------------------------------------------------------
+           * `registrarCompra` recibe cantidad y costo en la unidad de empaque y
+           * los baja a unidad base dividiendo entre el factor: «una caja de 12 a
+           * $120 son $10 la pieza». Pero `det.precioUnitario` de la orden ya
+           * viene POR UNIDAD BASE —lo confirma la validación de sobre-recepción
+           * de arriba, que compara `recibida * factor` contra `det.cantidad`—,
+           * así que se estaba volviendo a dividir.
+           *
+           * El daño: 120 piezas a $10 recibidas como «10 cajas de 12» entraban
+           * al inventario valuadas a $0.83 la pieza. El lote quedaba en $100 en
+           * vez de $1,200, el costo promedio absorbía el error para siempre, y
+           * toda venta posterior mostraba una utilidad inflada mientras el
+           * inventario valuado se separaba $1,100 de la cuenta contable.
+           *
+           * Se multiplica por el factor antes de mandarlo, para que al dividir
+           * vuelva a ser el costo por unidad base que de verdad se pagó.
+           * ──────────────────────────────────────────────────────────────────
+           */
+          const costoPorEmpaque =
+            Number(det.precioUnitario || 0) * factorMultiplicador;
+
           await this.inventarioService.registrarCompra(
             det.productoId,
             almacenId,
@@ -464,15 +534,62 @@ export class OrdenesCompraService {
             captura.fechaCaducidad,
             captura.equivalenciaId,
             qr.manager, // ← dentro de la transacción
-            Number(det.precioUnitario || 0), // ← el costo, que faltaba
+            costoPorEmpaque,
             { id: recepcion.id, tipo: 'RECEPCION_COMPRA' },
             captura.ubicacionId,
           );
+          /*
+           * ──────────────────────────────────────────────────────────────────
+           * El costo de reposición del catálogo se mantiene solo
+           * ------------------------------------------------------------------
+           * `producto.precioCompra` no es el costo de lo que hay en piso —ese
+           * vive en los lotes y lo arma el promedio ponderado—, es el costo de
+           * REPOSICIÓN: cuánto costaría comprarlo hoy. Se usa para valorar la
+           * requisición antes de cotizar, para sugerir el precio de una orden
+           * nueva y como red cuando una entrada llega sin costo.
+           *
+           * Nadie lo mantenía. Se tecleaba una vez al dar de alta el producto
+           * —y lo tecleaba el almacenista, que no compra— y se quedaba ahí para
+           * siempre, mientras el proveedor subía el precio cada trimestre. La
+           * cifra envejecía en silencio y sólo se notaba cuando una entrada sin
+           * costo la usaba de fallback y valuaba inventario con el precio de
+           * hace dos años.
+           *
+           * La orden de compra ya sabe lo que se pagó. Se escribe aquí, en la
+           * recepción, que es el momento en que ese precio deja de ser una
+           * promesa: se recibió la mercancía a ese precio.
+           *
+           * Se escribe con `update` sobre `{ id, empresaId }` y sólo esa
+           * columna: nada más de la ficha del producto viaja de vuelta.
+           * ──────────────────────────────────────────────────────────────────
+           */
+          const costoPorUnidadBase = Number(det.precioUnitario || 0);
+          if (costoPorUnidadBase > 0) {
+            await qr.manager.update(
+              Producto,
+              { id: det.productoId, empresaId },
+              { precioCompra: costoPorUnidadBase },
+            );
+          }
+
+          /*
+           * Y el asiento se arma en unidad base con el costo por unidad base:
+           * antes multiplicaba empaques por costo unitario, así que la póliza de
+           * una recepción de 10 cajas decía $100 donde la factura del proveedor
+           * decía $1,200.
+           */
+          /*
+           * La tasa sale de la PARTIDA, no del catálogo del producto.
+           * Leyéndola del catálogo, cambiar el IVA de un producto entre la
+           * orden y su recepción hacía que la póliza registrara un impuesto
+           * distinto del que después se acreditaría al pagar, y la cuenta de
+           * IVA pendiente quedaba con residuo para siempre.
+           */
           detallesContables.push({
             productoId: det.productoId,
-            cantidad: recibidaCaptura,
+            cantidad: recibidasBase,
             costoUnitario: Number(det.precioUnitario || 0),
-            tasaIva: Number(det.producto?.impuesto?.porcentaje ?? 0) / 100,
+            tasaIva: Number(det.tasaIva ?? 0),
           });
         }
       }
@@ -482,13 +599,21 @@ export class OrdenesCompraService {
       const completa = oc.detalles.every(
         (d) => Number(d.cantidadRecibidaOk ?? 0) >= Number(d.cantidad),
       );
-      oc.estado = completa ? 'RECIBIDA' : 'CON_INCIDENCIAS';
+      const algoRecibido = oc.detalles.some(
+        (d) => Number(d.cantidadRecibidaOk ?? 0) > 0,
+      );
+      oc.estadoRecepcion = completa
+        ? 'COMPLETA'
+        : algoRecibido
+          ? 'PARCIAL'
+          : 'PENDIENTE';
+      oc.estado = estadoDerivadoOC(oc);
       huboIncidencias = !completa || huboIncidencias;
       ocGuardada = await qr.manager.save(oc);
 
       if (oc.cotizacion && oc.cotizacion.requisicionId) {
         await qr.manager.update(Requisicion, oc.cotizacion.requisicionId, {
-          estado: (oc.estado === 'RECIBIDA'
+          estado: (oc.estadoRecepcion === 'COMPLETA'
             ? 'RECIBIDA'
             : 'CON_INCIDENCIAS') as any,
         });
@@ -520,14 +645,14 @@ export class OrdenesCompraService {
       await qr.commitTransaction();
     } catch (err) {
       if (qr.isTransactionActive) await qr.rollbackTransaction();
-      if (this.esViolacionUnica(err)) {
+      if (esViolacionUnicidad(err)) {
         const existente = await this.dataSource
           .getRepository(RecepcionCompra)
           .findOne({
             where: {
               empresaId,
               ordenCompraId: id,
-              claveIdempotencia: claveIdempotencia!.trim(),
+              claveIdempotencia: claveIdempotencia!.trim().toLowerCase(),
             },
           });
         if (existente) {
@@ -570,16 +695,55 @@ export class OrdenesCompraService {
     };
   }
 
+  /**
+   * ¿Se puede recibir sobre esta orden?
+   *
+   * Depende de la recepción y no de la etiqueta. Antes exigía estar `ENVIADA`
+   * o `CON_INCIDENCIAS`, y en cuanto se registraba un pago parcial la etiqueta
+   * pasaba a `PARCIALMENTE_PAGADA`: la mercancía que faltaba ya no se podía
+   * dar de alta nunca.
+   */
+  private exigirRecepcionPosible(oc: OrdenCompra): void {
+    if (oc.estado === 'CANCELADA') {
+      throw new BadRequestException('La orden está cancelada.');
+    }
+    const fueEnviada =
+      oc.estado === 'ENVIADA' || oc.estadoRecepcion !== 'PENDIENTE';
+    if (!fueEnviada) {
+      throw new BadRequestException(
+        'La orden debe enviarse al proveedor antes de poder recibir mercancía.',
+      );
+    }
+    if (oc.estadoRecepcion === 'COMPLETA') {
+      throw new BadRequestException(
+        'Esta orden ya se recibió por completo.',
+      );
+    }
+  }
+
+  /**
+   * Lo que el almacén puede tener enfrente: todo lo que se envió al proveedor
+   * y no está cancelado.
+   *
+   * Se filtra por los ejes y no por la etiqueta. Con la etiqueta, una orden
+   * recibida a medias y pagada a medias se rotulaba `PARCIALMENTE_PAGADA` y
+   * desaparecía de esta lista: la mercancía que faltaba se volvía invisible
+   * para quien tenía que recibirla.
+   */
   async obtenerParaRecepcion(empresaId: string) {
-    return this.ocRepo.find({
-      where: [
-        { empresaId, estado: 'ENVIADA' },
-        { empresaId, estado: 'RECIBIDA' },
-        { empresaId, estado: 'CON_INCIDENCIAS' },
-      ],
-      relations: ['detalles', 'detalles.producto', 'proveedor'],
-      order: { fechaCreacion: 'DESC' },
-    });
+    return this.ocRepo
+      .createQueryBuilder('oc')
+      .leftJoinAndSelect('oc.detalles', 'detalles')
+      .leftJoinAndSelect('detalles.producto', 'producto')
+      .leftJoinAndSelect('oc.proveedor', 'proveedor')
+      .where('oc.empresaId = :empresaId', { empresaId })
+      .andWhere('oc.estado <> :cancelada', { cancelada: 'CANCELADA' })
+      .andWhere(
+        '(oc.estado = :enviada OR oc.estadoRecepcion <> :sinRecibir)',
+        { enviada: 'ENVIADA', sinRecibir: 'PENDIENTE' },
+      )
+      .orderBy('oc.fechaCreacion', 'DESC')
+      .getMany();
   }
 
   async pagarOrden(
@@ -612,27 +776,69 @@ export class OrdenesCompraService {
     if (!Number.isFinite(monto) || monto <= 0) {
       throw new BadRequestException('El monto pagado debe ser mayor a cero.');
     }
-    const fechaPago = dto.fechaPago ? new Date(dto.fechaPago) : new Date();
+    /*
+     * ──────────────────────────────────────────────────────────────────────
+     * La fecha de pago es un DÍA, no un instante
+     * ----------------------------------------------------------------------
+     * `new Date('2026-09-20')` es medianoche UTC, y TypeORM escribe las
+     * columnas `date` con los captadores locales: en UTC-6 ese pago quedaba
+     * registrado el 19. Peor, el movimiento de tesorería se fechaba con
+     * `toISOString()`, que rinde en UTC, así que decía 20.
+     *
+     * Resultado: el pago y su movimiento de tesorería quedaban en días
+     * distintos. Nadie lo nota hasta que alguien concilia el banco por día y
+     * le falta un cargo que aparece en la víspera. Con `fechaPago` vacía
+     * pasaba lo simétrico: todo pago capturado después de las 18:00 se le iba
+     * al día siguiente en tesorería.
+     *
+     * `fechaCalendario` parsea a medianoche LOCAL y `diaCalendario` rinde con
+     * los mismos captadores con los que se guarda. El día que entra es el día
+     * que sale, en los dos registros.
+     * ──────────────────────────────────────────────────────────────────────
+     */
+    const fechaPago = fechaCalendario(dto.fechaPago ?? undefined);
     if (Number.isNaN(fechaPago.getTime())) {
       throw new BadRequestException('La fecha de pago no es válida.');
     }
+    const diaPago = diaCalendario(fechaPago);
 
     let resultado: any;
     try {
       resultado = await this.dataSource.transaction(async (em) => {
       const oc = await em
         .createQueryBuilder(OrdenCompra, 'oc')
-        .leftJoinAndSelect('oc.cotizacion', 'cotizacion')
         .setLock('pessimistic_write')
         .where('oc.id = :id AND oc.empresaId = :empresaId', { id, empresaId })
         .getOne();
       if (!oc) throw new NotFoundException('Orden de compra no encontrada');
-      // Una orden con incidencias aún puede recibir reposiciones. Mezclar ese
-      // estado con pagos impedía terminar la recepción posteriormente.
-      if (!['RECIBIDA', 'PARCIALMENTE_PAGADA'].includes(oc.estado)) {
+      oc.detalles = await em.find(DetalleOrdenCompra, {
+        where: { ordenCompraId: id },
+      });
+
+      /*
+       * ──────────────────────────────────────────────────────────────────────
+       * Se paga lo que llegó, no lo que se pidió
+       * ----------------------------------------------------------------------
+       * Antes el pago exigía estar `RECIBIDA`, es decir: entrega completa. Una
+       * orden de 10 piezas con 8 entregadas no se podía pagar aunque el
+       * proveedor ya hubiera facturado esas 8, y como la etiqueta se quedaba
+       * en `CON_INCIDENCIAS` para siempre, tampoco se podía pagar después.
+       *
+       * Ahora basta con que haya llegado algo, y el techo es el VALOR
+       * RECIBIDO con su impuesto proporcional. Pagar contra el total ordenado
+       * con la entrega corta sería pagar mercancía que no está en el almacén.
+       * ──────────────────────────────────────────────────────────────────────
+       */
+      if (oc.estado === 'CANCELADA') {
+        throw new BadRequestException('La orden está cancelada.');
+      }
+      if (oc.estadoRecepcion === 'PENDIENTE') {
         throw new BadRequestException(
-          `La orden no admite pagos en estado ${oc.estado}.`,
+          'No se puede pagar una orden de la que no se ha recibido nada.',
         );
+      }
+      if (oc.estadoPago === 'PAGADA') {
+        throw new BadRequestException('La orden ya está liquidada.');
       }
 
       {
@@ -647,10 +853,15 @@ export class OrdenesCompraService {
       }
 
       const pagadoAnterior = Number(oc.totalPagado ?? 0);
-      const saldo = Math.max(0, Number(oc.total) - pagadoAnterior);
+      const pagable = valorRecibidoOC(oc.detalles ?? []);
+      const saldo = Math.max(0, pagable - pagadoAnterior);
       if (monto - saldo > 0.009) {
         throw new BadRequestException(
-          `El pago excede el saldo pendiente de ${saldo.toFixed(2)}.`,
+          oc.estadoRecepcion === 'COMPLETA'
+            ? `El pago excede el saldo pendiente de ${saldo.toFixed(2)}.`
+            : `De esta orden se ha recibido ${pagable.toFixed(2)} y ya se pagaron ` +
+              `${pagadoAnterior.toFixed(2)}: el máximo a pagar ahora es ${saldo.toFixed(2)}. ` +
+              'El resto podrá pagarse conforme llegue la mercancía.',
         );
       }
 
@@ -660,22 +871,42 @@ export class OrdenesCompraService {
          WHERE empresaId = $1 AND ordenCompraId = $2`,
         [empresaId, id],
       );
-      const ivaTotal = Number(oc.cotizacion?.impuestoTotal ?? 0);
+      /*
+       * El IVA de la orden se suma de sus propias partidas. Antes se leía de
+       * `cotizacion.impuestoTotal`: si la orden se generaba de una cotización
+       * que luego se tocaba, o si la cotización no venía cargada, la
+       * reclasificación de IVA acreditable se calculaba sobre un número que ya
+       * no correspondía —o sobre cero, y entonces no se acreditaba nunca.
+       */
+      const [sumaIva] = await em.query(
+        `SELECT COALESCE(SUM(impuestoimporte), 0) iva
+           FROM detalles_orden_compra
+          WHERE ordencompraid = $1`,
+        [id],
+      );
+      const ivaTotal = Number(sumaIva?.iva ?? 0);
       const ivaRestante = Math.max(
         0,
         Math.round(
           (ivaTotal - Number(acumuladoIva?.iva ?? 0) + Number.EPSILON) * 100,
         ) / 100,
       );
-      const liquidaOrden = monto + 0.009 >= saldo;
+      /*
+       * Liquida la orden sólo si además ya llegó todo. Con entrega parcial se
+       * paga el saldo de lo recibido, pero queda pendiente lo que falta, así
+       * que no se puede acreditar el IVA que todavía no se ha causado.
+       */
+      const liquidaOrden =
+        monto + 0.009 >= saldo && oc.estadoRecepcion === 'COMPLETA';
       const ivaReclasificado =
-        ivaTotal > 0 && Number(oc.total) > 0
+        ivaTotal > 0 && pagable > 0
           ? liquidaOrden
             ? ivaRestante
             : Math.min(
                 ivaRestante,
                 Math.round(
-                  ((monto * ivaTotal) / Number(oc.total) + Number.EPSILON) *
+                  ((monto * ivaTotal) / Number(oc.total || pagable) +
+                    Number.EPSILON) *
                     100,
                 ) / 100,
               )
@@ -699,7 +930,7 @@ export class OrdenesCompraService {
       const movimiento = await this.tesoreria.registrarEnTransaccion(
         {
           cuentaBancariaId: dto.cuentaBancariaId,
-          fecha: fechaPago.toISOString().slice(0, 10),
+          fecha: diaPago,
           tipo: TipoMovimiento.EGRESO,
           importe: monto,
           concepto: `Pago a proveedor OC ${id.slice(0, 8).toUpperCase()}`,
@@ -757,19 +988,37 @@ export class OrdenesCompraService {
           cuentaBancariaId: dto.cuentaBancariaId,
         },
         empresaId,
-        `PAGO-OC-${pago.id}`,
+        /*
+         * El folio del asiento es un FOLIO, no un identificador: aquí se
+         * metía el uuid entero y `PAGO-OC-` + 36 caracteres da 44, contra una
+         * columna de 40. PostgreSQL abortaba la transacción con «Alguno de los
+         * valores excede la longitud permitida», un mensaje que no nombra el
+         * campo, y el pago a proveedor no se podía registrar NUNCA. La
+         * recepción, dos pasos antes, ya usaba los primeros ocho.
+         */
+        `PAGO-OC-${pago.id.slice(0, 8).toUpperCase()}`,
         pago.id,
       );
       pago.asientoPendienteId = eventoContable.id;
       await em.save(pago);
 
       oc.totalPagado = Math.round((pagadoAnterior + monto) * 100) / 100;
+      /*
+       * El saldo pendiente sigue midiéndose contra el TOTAL de la orden: es lo
+       * que el proveedor acabará cobrando si entrega todo. Lo que cambia es
+       * cuánto de ese saldo se puede pagar hoy.
+       */
       oc.saldoPendiente = Math.max(
         0,
         Math.round((Number(oc.total) - Number(oc.totalPagado)) * 100) / 100,
       );
-      oc.estado =
-        Number(oc.saldoPendiente) <= 0 ? 'PAGADA' : 'PARCIALMENTE_PAGADA';
+      oc.estadoPago =
+        Number(oc.saldoPendiente) <= 0
+          ? 'PAGADA'
+          : Number(oc.totalPagado) > 0
+            ? 'PARCIAL'
+            : 'PENDIENTE';
+      oc.estado = estadoDerivadoOC(oc);
       const orden = await em.save(oc);
       return {
         orden,
@@ -779,7 +1028,7 @@ export class OrdenesCompraService {
       };
       });
     } catch (err) {
-      if (this.esViolacionUnica(err)) {
+      if (esViolacionUnicidad(err)) {
         const existente = await this.dataSource
           .getRepository(PagoProveedor)
           .findOne({
@@ -828,15 +1077,6 @@ export class OrdenesCompraService {
     };
   }
 
-
-  private esViolacionUnica(error: any): boolean {
-    const numero = Number(
-      error?.number ??
-        error?.originalError?.info?.number ??
-        error?.driverError?.number,
-    );
-    return numero === 2601 || numero === 2627;
-  }
 
   async contarPendientes(empresaId: string) {
     return this.ocRepo.count({ where: { empresaId, estado: 'PENDIENTE' } });

@@ -38,12 +38,21 @@ export class Cotizacion {
   @Column({ type: 'text', nullable: true }) motivoSeleccion?: string | null;
   @Column({ type: 'text', nullable: true }) comentarioAprobacion?: string | null;
 
-  @ManyToOne(() => Usuario, { nullable: true })
+  /*
+   * `persistence: false` en las dos relaciones de auditoría: son de SÓLO
+   * LECTURA. Comparten columna física con su `*Id`, y cuando la relación viene
+   * cargada TypeORM escribe la llave desde el OBJETO y pisa el id que el
+   * servicio acaba de asignar. Así quedó una adjudicación registrada a nombre
+   * de quien la había rechazado en la vuelta anterior, no de quien la aprobó.
+   * Con esto, la llave se escribe siempre desde `aprobadoPorId` /
+   * `solicitadoAprobacionPorId`, y la relación sólo sirve para leer el nombre.
+   */
+  @ManyToOne(() => Usuario, { nullable: true, persistence: false })
   @JoinColumn({ name: 'solicitadoaprobacionporid' }) solicitadoAprobacionPor?: Usuario;
   @Column({ type: 'uuid', nullable: true }) solicitadoAprobacionPorId?: string;
   @Column({ type: 'timestamptz', nullable: true }) fechaSolicitudAprobacion?: Date;
 
-  @ManyToOne(() => Usuario, { nullable: true })
+  @ManyToOne(() => Usuario, { nullable: true, persistence: false })
   @JoinColumn({ name: 'aprobadoporid' }) aprobadoPor?: Usuario;
   @Column({ type: 'uuid', nullable: true }) aprobadoPorId?: string;
   @Column({ type: 'timestamptz', nullable: true }) fechaAprobacion?: Date;

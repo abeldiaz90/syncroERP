@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, Repository } from 'typeorm';
+import { Brackets, DataSource, IsNull, Repository } from 'typeorm';
 import { ConfiguracionAprobacion } from '../entities/configuracion-aprobacion.entity';
 import { CrearConfiguracionAprobacionDto, PROCESOS_APROBABLES } from '../dto/crear-configuracion-aprobacion.dto';
 import { Usuario } from '../../iam/entities/usuario.entity';
@@ -14,6 +14,51 @@ import {
   esProcesoFinancieroCentral,
   existeAsignacionSegregada,
 } from '../utils/rutas-aprobacion.util';
+
+/**
+ * ============================================================================
+ * Qué necesita poder tocar quien aprueba, por proceso
+ * ----------------------------------------------------------------------------
+ * Designar a alguien como aprobador y no darle el permiso para aprobar produce
+ * el peor de los resultados: el documento se le asigna, lo ve en su bandeja, y
+ * al oprimir el botón —si es que la interfaz se lo muestra— recibe un 403. El
+ * documento queda atascado para siempre, porque resolver una aprobación exige
+ * ser la persona asignada: ni el administrador puede desatascarlo.
+ *
+ * Eso es exactamente lo que pasaba con requisiciones y cotizaciones. El código
+ * ya resolvía el problema para crédito de clientes y convenios hoteleros
+ * —concediendo los permisos de la bandeja central al guardar el flujo— pero
+ * los procesos de compras se habían quedado fuera de esa lista.
+ *
+ * Esta tabla lo hace explícito y ampliable: cada proceso declara los endpoints
+ * sin los cuales su aprobador no puede trabajar. Si mañana se conecta
+ * `ALTA_PROVEEDOR`, se agrega aquí y deja de ser un olvido posible.
+ * ============================================================================
+ */
+export const ENDPOINTS_POR_PROCESO: Record<string, Array<{ metodo: string; ruta: string }>> = {
+  CREDITO_CLIENTE: [
+    { metodo: 'GET', ruta: '/aprobaciones/pendientes' },
+    { metodo: 'GET', ruta: '/aprobaciones/historial' },
+    { metodo: 'PATCH', ruta: '/aprobaciones/:id/resolver' },
+  ],
+  HOTEL_CONVENIO: [
+    { metodo: 'GET', ruta: '/aprobaciones/pendientes' },
+    { metodo: 'GET', ruta: '/aprobaciones/historial' },
+    { metodo: 'PATCH', ruta: '/aprobaciones/:id/resolver' },
+  ],
+  REQUISICION: [
+    { metodo: 'GET', ruta: '/compras/requisiciones' },
+    { metodo: 'GET', ruta: '/compras/requisiciones/:id' },
+    { metodo: 'GET', ruta: '/compras/requisiciones/aprobaciones/pendientes' },
+    { metodo: 'PATCH', ruta: '/compras/requisiciones/aprobaciones/:id' },
+  ],
+  COTIZACION: [
+    { metodo: 'GET', ruta: '/compras/cotizaciones/:id' },
+    { metodo: 'GET', ruta: '/compras/cotizaciones/requisicion/:id' },
+    { metodo: 'PATCH', ruta: '/compras/cotizaciones/:id/aprobar' },
+    { metodo: 'PATCH', ruta: '/compras/cotizaciones/:id/rechazar' },
+  ],
+};
 
 @Injectable()
 export class ConfiguracionesAprobacionService {
@@ -223,31 +268,40 @@ export class ConfiguracionesAprobacionService {
       }));
       const guardadas = await repo.save(configs);
 
-      if (['CREDITO_CLIENTE', 'HOTEL_CONVENIO'].includes(dto.proceso)) {
+      const endpointsRequeridos = ENDPOINTS_POR_PROCESO[dto.proceso] ?? [];
+      if (endpointsRequeridos.length > 0) {
         const endpointRepo = em.getRepository(Endpoint);
         const permisoRepo = em.getRepository(RolEndpointPermiso);
         const endpoints = await endpointRepo
           .createQueryBuilder('endpoint')
-          .where(
-            `((endpoint.metodo=:get AND endpoint.ruta IN (:...rutasGet))
-              OR (endpoint.metodo=:patch AND endpoint.ruta=:resolver))
-             AND endpoint.activo=true`,
-            {
-              get: 'GET',
-              rutasGet: [
-                '/aprobaciones/pendientes',
-                '/aprobaciones/historial',
-              ],
-              patch: 'PATCH',
-              resolver: '/aprobaciones/:id/resolver',
-            },
+          .where('endpoint.activo = true')
+          .andWhere(
+            new Brackets((qb) => {
+              endpointsRequeridos.forEach((requerido, indice) => {
+                qb.orWhere(
+                  `(endpoint.metodo = :metodo${indice} AND endpoint.ruta = :ruta${indice})`,
+                  { [`metodo${indice}`]: requerido.metodo, [`ruta${indice}`]: requerido.ruta },
+                );
+              });
+            }),
           )
           .getMany();
-        if (endpoints.length !== 3) {
+
+        if (endpoints.length !== endpointsRequeridos.length) {
+          /*
+           * Se nombra lo que falta. Un «no están sincronizados» a secas obliga
+           * a adivinar, y el arreglo casi siempre es reiniciar el backend para
+           * que el sincronizador de endpoints los registre.
+           */
+          const faltantes = endpointsRequeridos
+            .filter((r) => !endpoints.some((e) => e.metodo === r.metodo && e.ruta === r.ruta))
+            .map((r) => `${r.metodo} ${r.ruta}`);
           throw new BadRequestException(
-            'Los endpoints de la bandeja central aún no están sincronizados. Reinicia el backend y vuelve a guardar el flujo.',
+            `Faltan endpoints por registrar para este flujo: ${faltantes.join(', ')}. ` +
+              'Reinicia el backend para que se sincronicen y vuelve a guardar.',
           );
         }
+
         for (const rol of rolesAprobadores) {
           if (esRolAdministrador(rol)) continue;
           for (const endpoint of endpoints) {
@@ -266,12 +320,7 @@ export class ConfiguracionesAprobacionService {
               await permisoRepo.save(existente);
             } else {
               await permisoRepo.save(
-                permisoRepo.create({
-                  empresaId,
-                  rol,
-                  endpointId: endpoint.id,
-                  permitido: true,
-                }),
+                permisoRepo.create({ empresaId, rol, endpointId: endpoint.id, permitido: true }),
               );
             }
           }

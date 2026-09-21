@@ -21,6 +21,7 @@ import { Departamento } from '../../departamentos/entities/departamento.entity';
 import { Producto } from '../../catalogo/entities/producto.entity';
 
 import { RequisicionesController } from '../controllers/requisiciones.controller';
+import { RutasAprobacionInicialesService } from '../services/rutas-aprobacion-iniciales.service';
 import { RequisicionesService } from '../services/requisiciones.service';
 import { ConfiguracionesAprobacionController } from '../controllers/configuraciones-aprobacion.controller';
 import { ConfiguracionesAprobacionService } from '../services/configuraciones-aprobacion.service';
@@ -73,6 +74,12 @@ import { IamModule } from '../../iam/iam.module';
   ],
   providers: [
     RequisicionesService,
+    /*
+     * Garantiza que toda área nazca con ruta de aprobación de requisiciones.
+     * Sin ella, abrir un área no alcanzaba para trabajar y el usuario lo
+     * descubría al guardar, con el formulario ya lleno.
+     */
+    RutasAprobacionInicialesService,
     ConfiguracionesAprobacionService,
     CotizacionesService,
     OrdenesCompraService,

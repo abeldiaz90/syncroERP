@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 
 export const PROCESOS_APROBABLES = [
   'REQUISICION', 'COTIZACION', 'ORDEN_COMPRA', 'NOMINA', 'ALTA_PUESTO',
@@ -9,7 +9,7 @@ export const PROCESOS_APROBABLES = [
 ] as const;
 
 export class AprobadorConfiguracionDto {
-  @IsOptional() @IsSqlServerGuid() usuarioId?: string;
+  @IsSqlServerGuidOpcional() usuarioId?: string;
   @IsOptional() @IsString() rolAprobador?: string;
   @Type(() => Number) @IsInt() @Min(1) orden!: number;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) montoDesde?: number;
@@ -21,7 +21,7 @@ export class AprobadorConfiguracionDto {
 
 export class CrearConfiguracionAprobacionDto {
   @IsOptional() @IsIn(PROCESOS_APROBABLES) proceso: typeof PROCESOS_APROBABLES[number] = 'REQUISICION';
-  @IsOptional() @IsSqlServerGuid() departamentoId?: string;
+  @IsSqlServerGuidOpcional() departamentoId?: string;
   @IsArray() @ValidateNested({ each: true }) @Type(() => AprobadorConfiguracionDto)
   aprobadores!: AprobadorConfiguracionDto[];
 }
