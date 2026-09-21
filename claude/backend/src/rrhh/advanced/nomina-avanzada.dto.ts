@@ -23,7 +23,7 @@ import {
   EstadoValidacionCuentaBancaria,
   TipoObligacionEmpleado,
 } from './nomina-avanzada.entity';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -85,22 +85,22 @@ export class ConfiguracionPatronalDto {
   @MaxLength(80)
   proveedorPac?: string;
 
-  @IsOptional() @IsSqlServerGuid() cuentaNominaPorPagarId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaBancoNominaId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaIsrRetenidoId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaImssObreroId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaImssPatronalId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaInfonavitId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaFonacotId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaIsnId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaGastoImssPatronalId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaGastoInfonavitId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaGastoIsnId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaPrestamosEmpleadoId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaPensionId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaEmbargosId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaOtrasDeduccionesId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaSubsidioEmpleoId?: string;
+  @IsSqlServerGuidOpcional() cuentaNominaPorPagarId?: string;
+  @IsSqlServerGuidOpcional() cuentaBancoNominaId?: string;
+  @IsSqlServerGuidOpcional() cuentaIsrRetenidoId?: string;
+  @IsSqlServerGuidOpcional() cuentaImssObreroId?: string;
+  @IsSqlServerGuidOpcional() cuentaImssPatronalId?: string;
+  @IsSqlServerGuidOpcional() cuentaInfonavitId?: string;
+  @IsSqlServerGuidOpcional() cuentaFonacotId?: string;
+  @IsSqlServerGuidOpcional() cuentaIsnId?: string;
+  @IsSqlServerGuidOpcional() cuentaGastoImssPatronalId?: string;
+  @IsSqlServerGuidOpcional() cuentaGastoInfonavitId?: string;
+  @IsSqlServerGuidOpcional() cuentaGastoIsnId?: string;
+  @IsSqlServerGuidOpcional() cuentaPrestamosEmpleadoId?: string;
+  @IsSqlServerGuidOpcional() cuentaPensionId?: string;
+  @IsSqlServerGuidOpcional() cuentaEmbargosId?: string;
+  @IsSqlServerGuidOpcional() cuentaOtrasDeduccionesId?: string;
+  @IsSqlServerGuidOpcional() cuentaSubsidioEmpleoId?: string;
   @IsOptional() @IsBoolean() permiteCierreSinTimbrar = false;
 
   @IsOptional()
@@ -144,14 +144,14 @@ export class AplicacionPagoDto {
   metodo!: string;
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) monto!: number;
   @IsOptional() @IsString() @MaxLength(120) referencia?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaFinancieraId?: string;
+  @IsSqlServerGuidOpcional() cuentaFinancieraId?: string;
   /**
    * Caja, banco o TPV del que sale el dinero. Sin este dato el pago se
    * contabiliza pero no se registra en Tesorería, y el saldo bancario queda
    * sobrevaluado por el importe de la nómina. Obligatorio salvo en
    * COMPENSACION, que no mueve efectivo.
    */
-  @IsOptional() @IsSqlServerGuid() cuentaBancariaId?: string;
+  @IsSqlServerGuidOpcional() cuentaBancariaId?: string;
   @IsOptional() @Transform(upper) @Matches(/^[A-Z]{3}$/) moneda = 'MXN';
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 6 }) @Min(0.000001) tipoCambio = 1;
 }
@@ -190,7 +190,7 @@ export class GenerarCfdiDto {
 /** Solo para webhook autenticado del adaptador PAC; no se expone como cambio manual. */
 export class ResultadoPacDto {
   @IsIn(['TIMBRADO', 'ERROR', 'CANCELADO', 'SUSTITUIDO']) estado!: string;
-  @IsOptional() @IsSqlServerGuid() uuidFiscal?: string;
+  @IsSqlServerGuidOpcional() uuidFiscal?: string;
   @IsOptional() @IsString() xmlTimbrado?: string;
   @IsOptional() @IsString() acuseCancelacion?: string;
   @IsOptional() @IsString() @MaxLength(500) ultimoError?: string;

@@ -35,6 +35,7 @@ import {
   TipoActividad,
   TipoEtapa,
 } from '../entities/crm.entity';
+import { exigirRangoDeFechas } from '../../common/utils/business-time.util';
 
 const aCent = (v: number | string) => Math.round(Number(v ?? 0) * 100);
 const aPesos = (c: number) => Math.round(c) / 100;
@@ -539,8 +540,9 @@ export class CrmService {
 
   /** Indicadores del embudo para el periodo indicado. */
   async metricas(empresaId: string, desde: string, hasta: string) {
-    const d = new Date(desde);
-    const h = new Date(hasta);
+    // Igual que en los demás reportes: la fecha se valida aquí y no en la
+    // base, para que el error diga qué falta en vez de «Database Error».
+    const { desde: d, hasta: h } = exigirRangoDeFechas(desde, hasta);
 
     const cerradas = await this.oportunidades.find({
       where: { empresaId, fechaCierreReal: Between(d, h) },

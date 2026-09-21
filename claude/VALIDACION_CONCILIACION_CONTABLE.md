@@ -1,4 +1,4 @@
-# Conciliación de pólizas vinculadas — Codex, 14/15 septiembre 2026
+# Conciliación de pólizas vinculadas — 14 y 15 de septiembre de 2026
 
 ## Resultado
 
@@ -17,13 +17,13 @@ El ERP detecta la reversa externa de IN-2026-00005. La consulta real final revis
 
 ## Validación
 
-21 pruebas focalizadas aprobadas (5 suites), TypeScript backend aprobado. Las4 suites adicionales nuevas de Claude pasaron47 pruebas, pero eso no constituye aprobación completa de su implementación financiera.
+21 pruebas focalizadas aprobadas (5 suites), TypeScript backend aprobado. las 4 suites adicionales nuevas pasaron47 pruebas, pero eso no constituye aprobación completa de su implementación financiera.
 
-Prueba real de servicio: una ejecución y su reintento generaron un único aviso de reversa 02653050-c0c8-4b1f-8679-2a443546513e. Visible en /dashboard/creditos/avisos. Después de las nuevas operaciones de Claude, la consulta de sólo lectura revisó15 pólizas y siguió detectando únicamente la reversa. No se repitieron ventas/pagos/devoluciones.
+Prueba real de servicio: una ejecución y su reintento generaron un único aviso de reversa 02653050-c0c8-4b1f-8679-2a443546513e. Visible en /dashboard/creditos/avisos. Después de las nuevas operaciones, la consulta de sólo lectura revisó15 pólizas y siguió detectando únicamente la reversa. No se repitieron ventas/pagos/devoluciones.
 
 La pantalla muestra además un aviso histórico CONSULTA_FALLIDA de IN-2026-00006 generado por la tarea. La consulta final ya lee esa póliza correctamente. Los avisos conservan el historial y requieren revisión; no se cierran solos. No confundir la cantidad de avisos pendientes con discrepancias de la consulta actual.
 
-Evidencias locales compartidas en D:\SUMA\erpfineract\evidencias-codex:
+Evidencias locales compartidas en D:\SUMA\erpfineract\evidencias:
 - conciliacion-contable-codex.json
 - conciliacion-contable-reintento-codex.json
 - conciliacion-contable-final-codex.json
@@ -35,9 +35,9 @@ Script portable: backend/scripts/verificar-conciliacion-contable.cjs --empresa=U
 
 No repara automáticamente los libros, no recupera historia anterior a ESPEJO y no compara saldos de apertura ni asientos externos sin vínculo. El asiento original reversado sigue vinculado y la póliza ERP sigue vigente. No se debe reencolar para intentar arreglarlo: exige decidir la corrección contable.
 
-Revisar el relevo reciente RELEVO_PARA_CODEX.md de Claude. Su código financiero sigue pendiente de publicación/revisión completa. Riesgos encontrados leyendo el código, aún sin corrección:
+Revisar el relevo reciente RELEVO_DE_TURNO.md. Ese código financiero sigue pendiente de publicación/revisión completa. Riesgos encontrados leyendo el código, aún sin corrección:
 1. SincronizacionInicialService selecciona pagos de créditos vivos sin filtrar cancelado; replicaría también pagos anulados.
 2. CarteraReflejoService guarda entidadId=t.idExterno para ajustes externos, pero entidadId es UUID. Además el ajuste y el vínculo se confirman en transacciones separadas; un fallo después de bajar el saldo deja un reintento que puede bajarlo otra vez. Requiere idempotencia atómica del ajuste, no sólo una búsqueda previa de vínculo.
 3. CobranzaService.cancelarPago llama a tesoreria.cancelar dentro de su transacción pero sin pasar su EntityManager: revisar atomicidad entre saldo/cancelación y tesorería antes de publicar.
 
-No promover AUTORIDAD ni iniciar nuevos reflejos monetarios para probar estos caminos hasta corregirlos. Mantener todos los archivos de Claude intactos mientras se prepara una corrección revisable. Su migración de cancelación se reporta ya aplicada localmente; no revertirla.
+No promover AUTORIDAD ni iniciar nuevos reflejos monetarios para probar estos caminos hasta corregirlos. Mantener todos esos archivos intactos mientras se prepara una corrección revisable. Su migración de cancelación se reporta ya aplicada localmente; no revertirla.

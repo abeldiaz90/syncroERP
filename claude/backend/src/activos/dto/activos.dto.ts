@@ -1,6 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 import { MetodoDepreciacion, MotivoBaja } from '../entities/activo-fijo.entity';
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
 const upper = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toUpperCase() : value;
@@ -9,9 +9,9 @@ export class CrearCategoriaActivoDto {
   @Transform(trim) @IsString() @MinLength(2) @MaxLength(100) nombre!: string;
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100) tasaAnual!: number;
   @IsOptional() @IsEnum(MetodoDepreciacion) metodo?: MetodoDepreciacion;
-  @IsOptional() @IsSqlServerGuid() cuentaActivoId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaDepreciacionAcumuladaId?: string;
-  @IsOptional() @IsSqlServerGuid() cuentaGastoDepreciacionId?: string;
+  @IsSqlServerGuidOpcional() cuentaActivoId?: string;
+  @IsSqlServerGuidOpcional() cuentaDepreciacionAcumuladaId?: string;
+  @IsSqlServerGuidOpcional() cuentaGastoDepreciacionId?: string;
   @IsOptional() @IsBoolean() activo?: boolean;
 }
 export class PeriodoDepreciacionDto {
@@ -32,12 +32,12 @@ export class CrearActivoDto {
   @IsOptional() @Transform(trim) @IsString() @MaxLength(80) marca?: string;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(80) modelo?: string;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(120) ubicacion?: string;
-  @IsOptional() @IsSqlServerGuid() responsableId?: string;
-  @IsOptional() @IsSqlServerGuid() departamentoId?: string;
+  @IsSqlServerGuidOpcional() responsableId?: string;
+  @IsSqlServerGuidOpcional() departamentoId?: string;
   @IsDateString() fechaAdquisicion!: string;
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) costoAdquisicion!: number;
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) valorResidual?: number;
-  @IsOptional() @IsSqlServerGuid() proveedorId?: string;
+  @IsSqlServerGuidOpcional() proveedorId?: string;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(100) facturaCompra?: string;
   @IsOptional() @IsEnum(MetodoDepreciacion) metodo?: MetodoDepreciacion;
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100) tasaAnual?: number;

@@ -16,7 +16,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 import {
   OrigenProspecto,
   TipoActividad,
@@ -116,12 +116,10 @@ export class CrearProspectoDto {
   @IsEnum(OrigenProspecto)
   origen?: OrigenProspecto;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   responsableId?: string;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   clienteId?: string;
 
   @IsOptional()
@@ -158,8 +156,7 @@ export class CrearOportunidadDto {
   @MaxLength(160)
   nombreContacto?: string;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   etapaId?: string;
 
   @Type(() => Number)
@@ -184,8 +181,7 @@ export class CrearOportunidadDto {
   @IsDateString()
   fechaCierreEstimada?: string;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   responsableId?: string;
 
   @IsOptional()
@@ -246,8 +242,7 @@ export class CrearActividadDto {
   @Max(1440)
   duracionMinutos?: number;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   responsableId?: string;
 }
 

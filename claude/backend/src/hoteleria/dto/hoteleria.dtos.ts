@@ -19,7 +19,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 import { MetodoPagoHotel } from '../entities/folio.entity';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -47,8 +47,7 @@ export class CrearHotelDto {
   registroNacionalTurismo?: string;
   @Transform(trim) @IsString() @IsOptional() @MaxLength(20) telefono?: string;
   @Transform(({ value }) => (value === '' ? null : value))
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   almacenId?: string | null;
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) @IsOptional() horaCheckIn?: string;
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) @IsOptional() horaCheckOut?: string;
@@ -239,7 +238,7 @@ export class AgregarConsumoDto {
   // Se conserva por compatibilidad con clientes anteriores, pero el servidor
   // siempre toma el precio de la lista oficial y nunca confía en este valor.
   @Type(() => Number) @IsNumber() @Min(0) @IsOptional() precioUnitario?: number;
-  @IsSqlServerGuid() @IsOptional() listaPrecioId?: string;
+  @IsSqlServerGuidOpcional() listaPrecioId?: string;
   @Transform(trim)
   @IsString()
   @IsOptional()
@@ -261,8 +260,7 @@ export class PagoCheckOutDto {
   cuentaBancariaId?: string;
 
   /** Obligatorio únicamente para CREDITO_EMPRESA y CREDITO_AGENCIA. */
-  @IsSqlServerGuid()
-  @IsOptional()
+  @IsSqlServerGuidOpcional()
   convenioId?: string;
 
   @Transform(trim)
@@ -300,7 +298,7 @@ export class CheckOutDto {
 }
 
 export class AsignarCamaristaDto {
-  @IsSqlServerGuid() @IsOptional() asignadoAId?: string;
+  @IsSqlServerGuidOpcional() asignadoAId?: string;
   @Transform(trim)
   @IsString()
   @IsOptional()

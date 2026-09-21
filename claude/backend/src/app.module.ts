@@ -23,6 +23,8 @@
  */
 
 import { Module } from '@nestjs/common';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, DiscoveryModule } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -64,6 +66,7 @@ import { TesoreriaModule } from './tesoreria/modules/tesoreria.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { LowercaseNamingStrategy } from './database/lowercase-naming.strategy';
 import { PermisoEndpointGuard } from './common/guards/permiso-endpoint.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 
 @Module({
   imports: [
@@ -190,9 +193,11 @@ import { PermisoEndpointGuard } from './common/guards/permiso-endpoint.guard';
     RpaModule,
   ],
 
-  controllers: [],
+  /* Viveza y disponibilidad. Fuera del prefijo `api`, públicas. */
+  controllers: [AppController],
 
   providers: [
+    AppService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
@@ -204,6 +209,15 @@ import { PermisoEndpointGuard } from './common/guards/permiso-endpoint.guard';
     {
       provide: APP_GUARD,
       useClass: PermisoEndpointGuard,
+    },
+    /*
+     * Va después del de permisos y no lo sustituye: uno pregunta «¿este rol
+     * tiene este módulo?» y el otro «¿este endpoint es de administración?».
+     * Hasta hoy las 47 anotaciones `@Roles(...)` no las leía nadie.
+     */
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
   ],
 })

@@ -64,7 +64,15 @@
     "empresa:prueba": "ts-node -r tsconfig-paths/register scripts/empresa-prueba-autoridad.ts",
     "autoridad:probar": "ts-node -r tsconfig-paths/register scripts/probar-autoridad.ts",
     "aislamiento:administradores": "ts-node -r tsconfig-paths/register scripts/verificar-aislamiento-administradores.ts",
-    "fineract:limpiar-inquilinos": "ts-node -r tsconfig-paths/register scripts/limpiar-inquilinos-fineract.ts"
+    "fineract:limpiar-inquilinos": "ts-node -r tsconfig-paths/register scripts/limpiar-inquilinos-fineract.ts",
+    "cp:importar": "ts-node -r tsconfig-paths/register scripts/importar-codigos-postales.ts",
+    "compras:e2e": "ts-node -r tsconfig-paths/register scripts/e2e-compras.ts",
+    "compras:verificar": "ts-node -r tsconfig-paths/register scripts/verificar-compras.ts",
+    "cp:estatus": "ts-node -r tsconfig-paths/register scripts/estado-codigos-postales.ts",
+    "cliente:duplicado": "ts-node -r tsconfig-paths/register scripts/diagnosticar-duplicado-cliente.ts",
+    "clientes:auditar-nombres": "ts-node -r tsconfig-paths/register scripts/auditar-nombres-clientes.ts",
+    "fineract:contabilidad": "ts-node -r tsconfig-paths/register scripts/aprovisionar-contabilidad-fineract.ts",
+    "clientes:expediente": "ts-node -r tsconfig-paths/register scripts/sincronizar-expedientes-clientes.ts"
   },
   "dependencies": {
     "@nestjs-modules/mailer": "^2.3.7",
@@ -153,6 +161,9 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "transformIgnorePatterns": [
+      "/node_modules/(?!jose)"
+    ]
   }
 }

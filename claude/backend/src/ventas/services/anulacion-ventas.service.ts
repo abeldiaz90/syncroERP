@@ -170,7 +170,7 @@ export class AnulacionVentasService {
       const bloqueada = await em
         .createQueryBuilder(Venta, 'v')
         .leftJoinAndSelect('v.detalles', 'd')
-        .setLock('pessimistic_write')
+        .setLock('pessimistic_write', undefined, ['v'])
         .where('v.id = :id AND v.empresaId = :empresaId', { id, empresaId })
         .getOne();
       if (!bloqueada) throw new NotFoundException('Venta no encontrada.');

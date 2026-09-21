@@ -1,4 +1,5 @@
 import { PartialType } from '@nestjs/swagger';
+import { IsEmailOpcional } from '../../common/validators/email-opcional.validator';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean, IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsNumber, IsOptional,
@@ -8,7 +9,7 @@ import {
 import {
   EstadoEmpleado, JornadaLaboral, NaturalezaConcepto, RegimenPago, TipoContrato, TipoIncidencia, TipoSalario,
 } from '../entities/rrhh.entity';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
 const upper = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toUpperCase() : value;
@@ -22,11 +23,11 @@ export class CrearEmpleadoDto {
   @Transform(upper) @IsOptional() @Matches(/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/) rfc?: string;
   @IsOptional() @Matches(/^\d{11}$/) nss?: string;
   @IsOptional() @IsDateString() fechaNacimiento?: string;
-  @IsOptional() @IsEmail() @MaxLength(120) email?: string;
+  @IsEmailOpcional() @MaxLength(120) email?: string;
   @IsOptional() @IsString() @MaxLength(20) telefono?: string;
-  @IsOptional() @IsSqlServerGuid() puestoId?: string;
+  @IsSqlServerGuidOpcional() puestoId?: string;
   @IsSqlServerGuid() departamentoId!: string;
-  @IsOptional() @IsSqlServerGuid() jefeDirectoId?: string;
+  @IsSqlServerGuidOpcional() jefeDirectoId?: string;
   @IsDateString() fechaIngreso!: string;
   @IsEnum(TipoContrato) tipoContrato!: TipoContrato;
   @IsEnum(RegimenPago) regimenPago!: RegimenPago;
@@ -102,7 +103,7 @@ export class CrearConceptoNominaDto {
   @IsBoolean() integraSbc = true;
   @IsBoolean() esFijo = false;
   @IsBoolean() activo = true;
-  @IsOptional() @IsSqlServerGuid() cuentaContableId?: string;
+  @IsSqlServerGuidOpcional() cuentaContableId?: string;
   @IsOptional() @IsString() @MaxLength(500) formula?: string;
   @IsOptional() @IsDateString() vigenciaDesde?: string;
   @IsOptional() @IsDateString() vigenciaHasta?: string;
@@ -120,8 +121,8 @@ export class CrearContratoLaboralDto {
   @IsOptional() @IsDateString() fechaSbc?: string;
   @IsOptional() @Matches(/^\d{5}$/) codigoPostalFiscal?: string;
   @IsOptional() @Matches(/^\d{3}$/) regimenFiscal?: string;
-  @IsOptional() @IsSqlServerGuid() puestoId?: string;
-  @IsOptional() @IsSqlServerGuid() departamentoId?: string;
+  @IsSqlServerGuidOpcional() puestoId?: string;
+  @IsSqlServerGuidOpcional() departamentoId?: string;
   @IsOptional() @IsString() @MaxLength(120) centroCostos?: string;
   @IsOptional() @IsString() @MaxLength(500) observaciones?: string;
 }

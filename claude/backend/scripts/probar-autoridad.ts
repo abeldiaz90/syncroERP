@@ -28,7 +28,11 @@ import { Empresa } from '../src/iam/entities/empresa.entity';
 import { CarteraConciliacionService } from '../src/integracion/services/cartera-conciliacion.service';
 import { IntegracionModoService } from '../src/integracion/services/integracion-modo.service';
 import { ProductosCreditoService } from '../src/credito/services/productos-credito.service';
-import { ModoCartera } from '../src/integracion/integracion.constants';
+import { IntegracionOutboxService } from '../src/integracion/services/integracion-outbox.service';
+import {
+  EstadoEventoIntegracion,
+  ModoCartera,
+} from '../src/integracion/integracion.constants';
 
 const ok = (m: string) => console.log(`  \x1b[32mOK\x1b[0m    ${m}`);
 const mal = (m: string) => console.log(`  \x1b[31mFALLA\x1b[0m ${m}`);
@@ -42,9 +46,27 @@ async function main() {
   const ds = app.get(DataSource);
   const modos = app.get(IntegracionModoService);
   const conciliacion = app.get(CarteraConciliacionService);
+  const outbox = app.get(IntegracionOutboxService);
   const productos = app.get(ProductosCreditoService);
 
   const contar = async (id: string) => (await conciliacion.abiertas(id)).length;
+
+  /*
+   * Las dos sondas que pide el servicio. La de eventos sin resolver se lee del
+   * outbox: es la que impide apagar una empresa dejando eventos que nadie va a
+   * despachar nunca.
+   */
+  const sondas = {
+    discrepanciasAbiertas: contar,
+    eventosSinResolver: async (id: string) => {
+      const resumen = await outbox.resumen(id);
+      return (
+        (resumen[EstadoEventoIntegracion.PENDIENTE] ?? 0) +
+        (resumen[EstadoEventoIntegracion.REINTENTABLE] ?? 0) +
+        (resumen[EstadoEventoIntegracion.FALLIDO] ?? 0)
+      );
+    },
+  };
 
   const limpia = await ds.getRepository(Empresa).findOne({
     where: { nombreComercial: NOMBRE_PRUEBA },
@@ -73,13 +95,15 @@ async function main() {
       const r = await modos.establecerModoCartera(
         sucia.empresaId,
         ModoCartera.AUTORIDAD,
-        contar,
-      );
+        sondas,
+);
       if (r.aplicado) {
         mal('¡SUBIÓ A AUTORIDAD CON DISCREPANCIAS ABIERTAS! El candado no sirve.');
         fallos += 1;
         // Se devuelve de inmediato: dejarla en AUTORIDAD sería peor que el fallo.
-        await modos.establecerModoCartera(sucia.empresaId, ModoCartera.SOMBRA, contar);
+        await modos.establecerModoCartera(sucia.empresaId, ModoCartera.SOMBRA,
+        sondas,
+);
       } else {
         ok(`Negado, como debe: ${r.motivo}`);
       }
@@ -104,7 +128,9 @@ async function main() {
     fallos += 1;
   } else {
     ok('Sin discrepancias.');
-    const r = await modos.establecerModoCartera(limpia.id, ModoCartera.AUTORIDAD, contar);
+    const r = await modos.establecerModoCartera(limpia.id, ModoCartera.AUTORIDAD,
+        sondas,
+);
     if (!r.aplicado) {
       mal(`No dejó subir pese a estar limpia: ${r.motivo}`);
       fallos += 1;
@@ -150,7 +176,9 @@ async function main() {
 
   // ── 4. Dejar todo como estaba ────────────────────────────────────────────
   titulo('4 · Restaurar');
-  await modos.establecerModoCartera(limpia.id, ModoCartera.SOMBRA, contar);
+  await modos.establecerModoCartera(limpia.id, ModoCartera.SOMBRA,
+        sondas,
+);
   ok(`Empresa de prueba devuelta a ${await modos.modoDe(limpia.id)}.`);
 
   titulo(fallos ? `${fallos} comprobación(es) fallaron` : 'Todo correcto');

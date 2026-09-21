@@ -1,6 +1,6 @@
 # Sincronización bidireccional ERP ↔ Fineract
 
-Especificación de diseño. Escrita por Claude el 2026-09-14 a partir del criterio que fijó el usuario. Sustituye cualquier supuesto previo sobre el sentido core → ERP.
+Especificación de diseño. Escrita el 2026-09-14 a partir del criterio que fijó el usuario. Sustituye cualquier supuesto previo sobre el sentido core → ERP.
 
 ## 1. Criterio del usuario
 
@@ -90,7 +90,7 @@ Todo lo anterior vive bajo el modo efectivo. En concreto:
 - Empresa en **sólo Fineract**: no debe existir empresa operando en el ERP.
 - El filtro va por **modo efectivo**, nunca por el modo pedido por la empresa: el techo global manda, tal como ya hace `combinarContabilidad`.
 
-La conciliación contable de Codex ya lo hace bien y sirve de patrón a copiar.
+La conciliación contable ya lo hace bien y sirve de patrón a copiar.
 
 ## 9. Orden de trabajo sugerido
 
@@ -115,7 +115,7 @@ El motor está construido y es bueno: `integracion/validacion/`. Siete tipos de 
 
 Hay pantalla de diseño en `/dashboard/creditos/verificacion`, con plantilla sugerida para no empezar en blanco, y guardado como borrador separado de la activación —«activarlo cambia a quién se le presta, y eso es un paso aparte»—.
 
-**Simulado por Claude el 14/09** sobre un flujo de 5 pasos, con respuestas forzadas:
+**Simulado  el 14/09** sobre un flujo de 5 pasos, con respuestas forzadas:
 
 | Escenario | Veredicto | Puntaje |
 |---|---|---|
@@ -159,7 +159,7 @@ Dicho de otro modo: **la consola dice qué puedes usar; el ERP dice cómo lo usa
 
 ## A4. Estado dejado por la prueba
 
-Flujo **PRUEBA CLAUDE - Originacion de credito** (`fbd60ae4`), 5 pasos, **ACTIVO** en la empresa de pruebas. Se dejó activo a propósito, para que se vea en pantalla que hay flujo y aun así el POS vende a crédito sin consultarlo. 8 expedientes de simulación guardados. Todo sintético y desechable: borrar cuando estorbe.
+Flujo **Originación con revisión manual** (`fbd60ae4`), 5 pasos, **ACTIVO** en la empresa de pruebas. Se dejó activo a propósito, para que se vea en pantalla que hay flujo y aun así el POS vende a crédito sin consultarlo. 8 expedientes de simulación guardados. Todo sintético y desechable: borrar cuando estorbe.
 
 ## A5. CORRECCIÓN — el flujo va en el otorgamiento de la línea, no en la venta
 

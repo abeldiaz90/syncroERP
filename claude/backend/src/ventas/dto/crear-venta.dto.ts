@@ -13,7 +13,7 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { TipoCredito } from '../../credito/entities/credito-cliente.entity';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 import { MetodoPagoVenta } from '../constants/metodos-pago';
 
 export class CrearDetalleVentaDto {
@@ -37,22 +37,18 @@ export class CrearDetalleVentaDto {
   @Min(0)
   descuento?: number;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   equivalenciaId?: string;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   loteEspecificoId?: string;
 
   /** Posición física de surtido. Si se omite, el backend aplica picking FEFO. */
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   ubicacionId?: string;
 
   /** Reserva WMS que esta salida debe consumir. Debe corresponder al mismo producto y almacén. */
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   reservaId?: string;
 
   // Compatibilidad temporal con clientes anteriores. El backend no confía
@@ -73,8 +69,7 @@ export class CondicionesCreditoVentaDto {
    * captura, y el punto de venta no puede pedir un plazo que el producto no
    * admite.
    */
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   productoCreditoId?: string;
 
   /**
@@ -111,8 +106,7 @@ export class CondicionesCreditoVentaDto {
   @IsString()
   metodoPagoEnganche?: string;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   cuentaBancariaEngancheId?: string;
 }
 
@@ -135,8 +129,7 @@ export class CrearVentaDto {
   @IsSqlServerGuid()
   almacenId?: string | null;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   listaPrecioId?: string;
 
   // Compatibilidad temporal: se aceptan, pero nunca se usan como fuente de

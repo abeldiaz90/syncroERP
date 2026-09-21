@@ -10,6 +10,7 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Reservacion, EstadoReservacion } from '../entities/reservacion.entity';
 import { Habitacion, EstadoHabitacion } from '../entities/habitacion.entity';
 import { TipoHabitacion } from '../entities/tipo-habitacion.entity';
+import { exigirRangoDeFechas } from '../../common/utils/business-time.util';
 
 /**
  * ============================================================================
@@ -335,8 +336,10 @@ export class DisponibilidadService {
     if (!desde || !hasta) {
       throw new BadRequestException('Indica el rango de ocupación.');
     }
-    const inicio = new Date(desde);
-    const fin = new Date(hasta);
+    // Se valida antes de tocar la base: sin esto, una fecha ausente o mal
+    // escrita llegaba como `Invalid Date` y el usuario recibía un 500
+    // «Database Error» en vez de saber qué le falta.
+    const { desde: inicio, hasta: fin } = exigirRangoDeFechas(desde, hasta);
 
     if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) {
       throw new BadRequestException('El rango de ocupación no es válido.');

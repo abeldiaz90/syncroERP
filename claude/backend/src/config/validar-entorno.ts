@@ -328,5 +328,39 @@ export function validarEntorno(config: Record<string, unknown>) {
     );
   }
 
+  /*
+   * ── Una URL de desarrollo en producción no es un detalle ──────────────────
+   * `FRONTEND_URL` y `CORS_ORIGINS` tienen valor por omisión para que levantar
+   * el proyecto en una máquina nueva no exija configurar nada. Ese mismo valor,
+   * en producción, produce dos fallas que cuestan horas de diagnóstico porque
+   * ninguna de las dos dice su causa:
+   *
+   *  · CORS rechaza al frontend real y el navegador reporta un error de red
+   *    genérico, sin mencionar la configuración del servidor.
+   *  · Los correos de alta de usuario y de recuperación salen con enlaces a
+   *    `localhost`, que funcionan para quien los prueba desde el servidor y
+   *    para nadie más.
+   *
+   * Se detiene el arranque. Un servicio que no levanta se arregla en minutos;
+   * uno que levanta y manda enlaces rotos se descubre cuando un usuario llama.
+   */
+  if (instancia.NODE_ENV === Entorno.Produccion) {
+    const esLocal = (valor: string) =>
+      /localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]/i.test(valor);
+
+    if (esLocal(instancia.FRONTEND_URL)) {
+      throw new Error(
+        `FRONTEND_URL apunta a ${instancia.FRONTEND_URL}. En producción los correos de alta y ` +
+          'de recuperación llevarían enlaces que sólo funcionan dentro del servidor.',
+      );
+    }
+    if (esLocal(instancia.CORS_ORIGINS)) {
+      throw new Error(
+        `CORS_ORIGINS apunta a ${instancia.CORS_ORIGINS}. En producción el navegador rechazaría ` +
+          'toda llamada del frontend real, con un error de red que no menciona esta configuración.',
+      );
+    }
+  }
+
   return instancia;
 }

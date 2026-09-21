@@ -6,6 +6,7 @@ import { Receta } from '../entities/receta.entity';
 import { RecetaInsumo } from '../entities/receta-insumo.entity';
 import { InventarioService } from '../../catalogo/services/inventario.service';
 import { MovimientoInventario } from '../../catalogo/entities/movimiento-inventario.entity';
+import { exigirRangoDeFechas } from '../../common/utils/business-time.util';
 
 /**
  * ============================================================================
@@ -360,8 +361,10 @@ export class ConsumoRecetasService {
     hasta: string,
     almacenId?: string,
   ) {
-    const inicio = new Date(desde);
-    const fin = new Date(hasta);
+    // Se valida antes de tocar la base: sin esto, una fecha ausente o mal
+    // escrita llegaba como `Invalid Date` y el usuario recibía un 500
+    // «Database Error» en vez de saber qué le falta.
+    const { desde: inicio, hasta: fin } = exigirRangoDeFechas(desde, hasta);
 
     // Lo que salió por consumo de receta: el teórico, ya escalado por venta.
     const consumos = await this.movRepo.find({

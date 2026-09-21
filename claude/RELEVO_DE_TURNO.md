@@ -1,6 +1,6 @@
-# Relevo para Codex — estado de las pruebas end-to-end
+# Relevo de turno — estado de las pruebas end-to-end
 
-Escrito por Claude el 2026-09-15. Complementa `CONTINUIDAD_CODEX_CLAUDE.md`, que lleva la bitácora larga; esto es el resumen operativo para retomar sin leerla entera.
+Escrito el 2026-09-15. Complementa `BITACORA_TECNICA.md`, que lleva la bitácora larga; esto es el resumen operativo para retomar sin leerla entera.
 
 ---
 
@@ -39,7 +39,7 @@ docker exec -i syncroerp-postgres psql -U syncroerp -d syncroerp -c "..."
 | **Modo AUTORIDAD**: la disponibilidad cambia a origen EXTERNO | ✅ con reserva (ver 3.8) |
 | **Pago nacido en Fineract reflejado en el ERP, sin eco** | ✅ |
 
-**Suites de Claude: 47 de 47 pasando**, ejecutadas de verdad en contenedor.
+**Suites nuevas: 47 de 47 pasando**, ejecutadas de verdad en contenedor.
 Las 6 suites que fallan son **anteriores** a este trabajo; se verificó quitando los métodos nuevos y seguían fallando igual.
 
 ---
@@ -154,7 +154,7 @@ Un dedazo ahí crea un administrador que no podrá entrar nunca y reserva esa ca
 
 ---
 
-## 4. Cambios hechos por Claude que **no están en Git**
+## 4. Cambios hechos  que **no están en Git**
 
 Nada de esto está versionado. Ojo con los finales de línea: el repo tiene archivos CRLF y LF mezclados, y hay que respetar el de cada archivo.
 
@@ -177,7 +177,7 @@ Nada de esto está versionado. Ojo con los finales de línea: el repo tiene arch
 
 **Specs nuevas, las cuatro pasando:** `fineract-transacciones-credito.spec.ts`, `cartera-transacciones-externas.spec.ts`, `cartera-reflejo.spec.ts`, `aprobaciones-validacion.spec.ts`.
 
-Limpiar cuando ya no sirva: `_backups-local\claude-tests-src.tgz`.
+Limpiar cuando ya no sirva: `_backups-local\tests-src.tgz`.
 
 ---
 
@@ -186,7 +186,7 @@ Limpiar cuando ya no sirva: `_backups-local\claude-tests-src.tgz`.
 - Empresa `7dfc9526-986f-47e5-9503-f896646e347b` «SUMA Local», en **SOMBRA / ESPEJO**.
 - **Basura de prueba: `EMPRESA B PRUEBA AISLAMIENTO`** (`866908f3-…`), creada el 15/09 con el administrador `el-correo-con-el-que-entras-al-erp` —un marcador de posición que se pegó literal—. Inerte (`usaFineract: false`, modo `APAGADO`) pero conviene borrarla con su usuario.
 - `CARTERA_MODO=SOMBRA` restaurado en `.env.local` (surte efecto al próximo reinicio completo; la empresa ya está en SOMBRA, así que el efectivo es el correcto).
-- Producto `INV-CLAUDE-001` TERMO ACERO: **8 piezas**, costo 120, precio 200.
+- Producto `INV-001` TERMO ACERO: **8 piezas**, costo 120, precio 200.
 - **CRD-2026-0010 ACTIVO con saldo 100**, préstamo 14 en Fineract con desembolso 36 y pago 37. Este es el crédito que nació con la integración apagada, se recuperó con el backfill, y recibió un pago nacido en Fineract.
 - CRD-2026-0008 y CRD-2026-0009 LIQUIDADOS; préstamos 12 y 13 cerrados.
 - CRD-2026-0007 en **VENCIDO** con cuotas al corriente (ver 3.3).
@@ -227,7 +227,7 @@ Con `?command=repayment` responde «Transacción de crédito no permitida», que
 
 ---
 
-## 7. Pendientes, priorizados (Claude, 15/09 tarde)
+## 7. Pendientes, priorizados (15/09, tarde)
 
 El criterio del orden es daño × probabilidad, no esfuerzo. Lo primero no es lo más difícil: es lo que más duele si no se hace.
 
@@ -286,4 +286,4 @@ git add <esas rutas>  &&  git commit
 **17.** Validar el formato del correo en el alta de empresas (3.10).
 **18.** El asistente de devoluciones que pide un UUID a mano (3.6).
 **19.** Las 96 `@Roles()` decorativas — decidido: documentadas, sin tocar.
-**20.** Limpieza: `EMPRESA B PRUEBA AISLAMIENTO` con su usuario inventado, y en `_backups-local` los archivos `claude-tests-src.tgz`, `src-hoy.tgz` y `jest.claude.config.js.borrar`.
+**20.** Limpieza: `EMPRESA B PRUEBA AISLAMIENTO` con su usuario inventado, y en `_backups-local` los archivos `tests-src.tgz`, `src-hoy.tgz` y `jest.config.js.borrar`.

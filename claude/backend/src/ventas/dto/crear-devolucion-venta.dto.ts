@@ -12,7 +12,7 @@ import {
   ValidateNested,
   IsNumber,
 } from 'class-validator';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 import { CondicionDevolucion } from '../entities/detalle-devolucion-venta.entity';
 
 export enum DestinoImporteDevolucion {
@@ -58,8 +58,7 @@ export class CrearDevolucionVentaDto {
   @IsEnum(MetodoReembolso)
   metodoReembolso?: MetodoReembolso;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   cuentaBancariaId?: string;
 
   @IsOptional()
