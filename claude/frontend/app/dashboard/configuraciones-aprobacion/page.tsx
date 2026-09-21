@@ -586,6 +586,22 @@ export default function ConfiguracionAprobacionesPage() {
                       </Campo>
                     ) : (
                       <>
+                        {/*
+                          Una requisición no trae precios: se pide cantidad, no
+                          dinero. Se valúa con el costo de reposición de cada
+                          producto —el que la recepción mantiene al día—, que es
+                          lo que hace SAP B1 con su «Last Purchase Price» para
+                          valuar una solicitud antes de cotizarla. Sin decirlo
+                          aquí, nadie adivina contra qué se compara el umbral.
+                        */}
+                        {requiereArea && (
+                          <p className="col-span-full text-[11px] leading-snug text-slate-500">
+                            La requisición se valúa con el <strong>costo de reposición</strong> de
+                            cada producto por la cantidad pedida. Un producto sin costo conocido
+                            cuenta como cero, así que lo desconocido nunca escala solo.
+                            Deja ambos campos vacíos para que el nivel aplique siempre.
+                          </p>
+                        )}
                         <Campo etiqueta="Aplica desde">
                           <input
                             className="campo"

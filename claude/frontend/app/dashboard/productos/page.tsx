@@ -122,12 +122,30 @@ export default function ProductosPage() {
       const token = localStorage.getItem('syncro_token');
       const h = { Authorization: `Bearer ${token}` };
       try {
+        /*
+         * No se pide lo que ya sabemos que va a responder 403.
+         *
+         * Impuestos y listas de precio son del área de precios, y al almacén
+         * se le quitó a propósito: quien acomoda cajas no decide a cuánto se
+         * venden. Pero la pantalla los pedía igual en CADA carga, y `r.ok`
+         * convertía el rechazo en un arreglo vacío sin que nadie se enterara.
+         *
+         * Dos rechazos de rutina por carga ensucian la bitácora del servidor y
+         * entierran el 403 que sí significa algo: cuando todo el mundo genera
+         * negativas normales, el permiso mal puesto no se ve. Es el mismo
+         * defecto que se corrigió en el panel y en el centro de almacenes.
+         */
+        const vacio = Promise.resolve([] as never[]);
         const [cat, alm, mar, imp, listas, unids] = await Promise.all([
           fetch(`${apiUrl}/catalogo/categorias`, { headers: h }).then(r => r.ok ? r.json() : []),
           fetch(`${apiUrl}/catalogo/almacenes`, { headers: h }).then(r => r.ok ? r.json() : []),
           fetch(`${apiUrl}/catalogo/marcas`, { headers: h }).then(r => r.ok ? r.json() : []),
-          fetch(`${apiUrl}/catalogo/impuestos`, { headers: h }).then(r => r.ok ? r.json() : []),
-          fetch(`${apiUrl}/catalogo/listas-precio`, { headers: h }).then(r => r.ok ? r.json() : []),
+          tienePermiso('GET', '/api/catalogo/impuestos')
+            ? fetch(`${apiUrl}/catalogo/impuestos`, { headers: h }).then(r => r.ok ? r.json() : [])
+            : vacio,
+          llevaPrecios
+            ? fetch(`${apiUrl}/catalogo/listas-precio`, { headers: h }).then(r => r.ok ? r.json() : [])
+            : vacio,
           fetch(`${apiUrl}/catalogo/unidades-medida?soloActivas=true`, { headers: h }).then(r => r.ok ? r.json() : []),
         ]);
         setCategorias(cat); setAlmacenes(alm); setMarcas(mar);
@@ -136,7 +154,7 @@ export default function ProductosPage() {
       } catch (e) { console.error('Error cargando catálogos:', e); }
     };
     fetchCatalogos();
-  }, [apiUrl]);
+  }, [apiUrl, llevaPrecios, tienePermiso]);
 
   const busquedaActiva = busquedaDebounced.trim() !== '' || filtros.categoriaId !== '' || filtros.marcaId !== '' || filtros.soloConStock || mostrarCatalogoCompleto;
 
