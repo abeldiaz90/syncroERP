@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { CuentasContablesService } from '../../finanzas/services/cuentas-contables.service';
 import { CatalogosSatService } from '../../finanzas/services/catalogos-sat.service';
+import { CategoriasService } from './categorias.service';
 import { FormaPago } from '../entities/forma-pago.entity';
 
 /**
@@ -16,6 +17,7 @@ export class CatalogosInicialesService implements OnApplicationBootstrap {
     private readonly dataSource: DataSource,
     private readonly cuentas: CuentasContablesService,
     private readonly catalogosSat: CatalogosSatService,
+    private readonly categorias: CategoriasService,
   ) {}
 
   async onApplicationBootstrap() {
@@ -33,6 +35,7 @@ export class CatalogosInicialesService implements OnApplicationBootstrap {
           `Plan mexicano inicial: ${resultado.creadas} cuentas creadas para ${empresa.id}.`,
         );
       }
+      await this.asegurarCuentasDeCategorias(String(empresa.id));
     }
   }
 
@@ -89,6 +92,47 @@ export class CatalogosInicialesService implements OnApplicationBootstrap {
     this.logger.log(
       `Formas de pago del SAT: ${oficiales.length} sembradas (el catalogo estaba vacio).`,
     );
+  }
+
+
+  /**
+   * Cada categoria nace con sus cuentas contables.
+   *
+   * Sin `cuentaInventarioId` en la categoria del producto, el motor contable
+   * no puede armar la poliza de la compra: lanza «falta la cuenta de
+   * inventario», AsientosPendientesService lo encola y lo reintenta, y el
+   * reintento vuelve a fallar para siempre porque lo que falta no es un dato
+   * de la operacion sino configuracion que nadie cargo.
+   *
+   * Lo grave no es que falle: es que la RECEPCION SI entra. La mercancia queda
+   * en el inventario y la poliza en una cola. Verificado el 21-sep-2026
+   * corriendo el ciclo completo: dos recepciones entraron, dos polizas
+   * quedaron pendientes, y el almacenista no tenia forma de enterarse.
+   *
+   * `autoConfigurarCuentas(empresaId, true)` solo llena las categorias que no
+   * tienen cuentas: no pisa lo que Contabilidad haya decidido. Y corre despues
+   * de precargar el plan, porque sin cuentas en el catalogo no hay nada que
+   * asignar.
+   */
+  private async asegurarCuentasDeCategorias(empresaId: string) {
+    try {
+      const r = await this.categorias.autoConfigurarCuentas(empresaId, true);
+      const tocadas = Number((r as { actualizadas?: number })?.actualizadas ?? 0);
+      if (tocadas > 0) {
+        this.logger.log(
+          `Cuentas de categoria: ${tocadas} categoria(s) sin cuentas quedaron configuradas en ${empresaId}.`,
+        );
+      }
+    } catch (error) {
+      /*
+       * Una empresa sin catalogo de cuentas todavia no puede tenerlas, y eso
+       * no es motivo para impedir que el sistema arranque. Se dice y se sigue.
+       */
+      this.logger.warn(
+        `No se pudieron configurar las cuentas de categoria en ${empresaId}: ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
 }

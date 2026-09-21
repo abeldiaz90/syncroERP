@@ -35,6 +35,9 @@ import { Usuario } from '../src/iam/entities/usuario.entity';
 import { Departamento } from '../src/departamentos/entities/departamento.entity';
 import { Producto } from '../src/catalogo/entities/producto.entity';
 import { Impuesto } from '../src/catalogo/entities/impuesto.entity';
+import { Categoria } from '../src/catalogo/entities/categoria.entity';
+import { CategoriasService } from '../src/catalogo/services/categorias.service';
+import { AsientoPendiente } from '../src/finanzas/entities/asiento-pendiente.entity';
 import { Almacen } from '../src/catalogo/entities/almacen.entity';
 import { UbicacionAlmacen } from '../src/catalogo/entities/ubicacion-almacen.entity';
 import { ProductoUbicacion } from '../src/catalogo/entities/producto-ubicacion.entity';
@@ -209,16 +212,40 @@ async function main() {
     const iva16 = await ds.getRepository(Impuesto).findOne({ where: { empresaId, porcentaje: 16, activo: true } });
     if (!iva16) throw new Error('No existe un impuesto al 16 % en el catálogo.');
 
+    /*
+     * El producto necesita CATEGORIA, y la categoria necesita cuenta de
+     * inventario: sin eso el motor contable no puede armar la poliza de la
+     * compra. La recepcion entra igual y la poliza queda en la cola de
+     * asientos pendientes —verificado el 21-sep-2026: dos recepciones
+     * entraron y dos polizas quedaron encoladas—. Una corrida que no cuadra
+     * la contabilidad no esta probando el ciclo, esta probando la mitad.
+     */
+    const catRepo = ds.getRepository(Categoria);
+    let categoria = await catRepo.findOne({ where: { empresaId, nombre: `${MARCA} · Categoría` } });
+    if (!categoria) {
+      categoria = await catRepo.save(catRepo.create({
+        empresaId, nombre: `${MARCA} · Categoría`, activo: true,
+      } as Partial<Categoria>));
+    }
+    if (!categoria.cuentaInventarioId) {
+      await app.get(CategoriasService).autoConfigurarCuentas(empresaId, true);
+      categoria = (await catRepo.findOne({ where: { id: categoria.id } }))!;
+    }
+    if (categoria.cuentaInventarioId) ok(`Categoría ${categoria.nombre} con cuenta de inventario`);
+    else mal(`La categoría ${categoria.nombre} sigue sin cuenta de inventario: la póliza no va a cuadrar.`);
+
     const prodRepo = ds.getRepository(Producto);
     let producto = await prodRepo.findOne({ where: { empresaId, sku: 'UAT-COMPRAS-001' } });
     if (!producto) {
       producto = await prodRepo.save(prodRepo.create({
         empresaId, nombre: `${MARCA} · Artículo`, sku: 'UAT-COMPRAS-001',
         unidadMedida: 'PZA', precioCompra: PRECIO, precioVenta: PRECIO * 1.4,
-        impuestoId: iva16.id, activo: true,
+        impuestoId: iva16.id, categoriaId: categoria.id, activo: true,
       } as Partial<Producto>));
-    } else if (!producto.activo || producto.impuestoId !== iva16.id) {
-      await prodRepo.update({ id: producto.id }, { activo: true, impuestoId: iva16.id });
+    } else if (!producto.activo || producto.impuestoId !== iva16.id || producto.categoriaId !== categoria.id) {
+      await prodRepo.update({ id: producto.id }, {
+        activo: true, impuestoId: iva16.id, categoriaId: categoria.id,
+      });
     }
     ok(`Producto ${producto.sku} con IVA 16 %`);
 
@@ -606,8 +633,24 @@ async function main() {
      * proposito: la del ciclo principal ya cerro, y probar sobre ella habria
      * dado un rechazo por estado en vez de por autoridad.
      */
+    /*
+     * Requisicion nueva a proposito: la del ciclo principal termino en
+     * RECIBIDA y `cotizaciones.crear` exige COTIZANDO. Probar sobre ella daba
+     * un rechazo por ESTADO, no por autoridad, y una prueba que pasa por el
+     * motivo equivocado es peor que una que falla.
+     */
+    const reqPrueba = await requisiciones.crear(
+      { detalles: [{ productoId: producto.id, cantidadSolicitada: 1 }], prioridad: 'NORMAL' } as never,
+      empresaId, solicitante.id,
+    );
+    const firmaPrueba = (await requisiciones.obtenerAprobacionesPendientes(firmanteReq.id, empresaId))
+      .find((a: { requisicionId?: string }) => a.requisicionId === reqPrueba!.id);
+    if (firmaPrueba) {
+      await requisiciones.resolverAprobacion(firmaPrueba.id, 'APROBADO', 'UAT', empresaId, firmanteReq.id);
+    }
+
     const cotPrueba = await cotizaciones.crear({
-      requisicionId: req!.id, proveedorId: proveedores[0].id,
+      requisicionId: reqPrueba!.id, proveedorId: proveedores[0].id,
       detalles: [{ productoId: producto.id, cantidad: 1, precioUnitario: PRECIO }],
     } as never, empresaId);
     await cotizaciones.solicitarAprobacion(
@@ -649,6 +692,30 @@ async function main() {
       ok(`Formas de pago del SAT sembradas: ${formasPago}`);
     } else {
       mal('El catalogo de formas de pago esta vacio y el campo es obligatorio.');
+    }
+
+    paso('G11f · La contabilidad de la compra cuadró');
+
+    /*
+     * La recepcion entra aunque la poliza falle: se propaga a proposito y
+     * AsientosPendientesService la encola y reintenta. Es el diseño correcto
+     * —el almacen no se detiene porque Contabilidad no haya configurado una
+     * cuenta— pero deja un modo de fallo silencioso: la mercancia en el
+     * inventario y los libros sin el asiento.
+     *
+     * Si esta comprobacion falla, la recepcion funciono y la contabilidad no.
+     */
+    const pendientes = await ds.getRepository(AsientoPendiente).find({
+      where: { empresaId, documentoId: oc!.id },
+    });
+    const sinGenerar = pendientes.filter((a) => a.estado !== 'GENERADO');
+    if (!sinGenerar.length) {
+      ok(`Asientos de la orden: ${pendientes.length || 'generados en línea'}, ninguno pendiente`);
+    } else {
+      mal(`${sinGenerar.length} asiento(s) de esta orden sin generar — la mercancía entró y los libros no.`);
+      for (const a of sinGenerar.slice(0, 3)) {
+        dato(`${a.tipo} · ${a.estado} · intentos ${a.intentos} · ${a.ultimoError ?? 'sin detalle'}`);
+      }
     }
 
     // ── Cierre ──────────────────────────────────────────────────────────────
