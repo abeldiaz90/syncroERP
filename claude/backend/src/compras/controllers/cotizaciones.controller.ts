@@ -2,7 +2,7 @@ import { Controller, Get, Post, Patch, Param, Body } from '@nestjs/common';
 import { CotizacionesService } from '../services/cotizaciones.service';
 import { CrearCotizacionDto } from '../dto/crear-cotizacion.dto';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
-import { ResolverAprobacionCotizacionDto, SolicitarAprobacionCotizacionDto } from '../dto/decision-cotizacion.dto';
+import { RechazarCotizacionDto, ResolverAprobacionCotizacionDto, SolicitarAprobacionCotizacionDto } from '../dto/decision-cotizacion.dto';
 
 @Controller('compras/cotizaciones')
 export class CotizacionesController {
@@ -31,7 +31,7 @@ export class CotizacionesController {
   }
 
   @Patch(':id/rechazar')
-  rechazar(@Param('id') id: string, @Body() dto: ResolverAprobacionCotizacionDto,
+  rechazar(@Param('id') id: string, @Body() dto: RechazarCotizacionDto,
     @ActiveUser('empresaId') empresaId: string, @ActiveUser('id') usuarioId: string, @ActiveUser('rol') rol: string) {
     return this.service.rechazar(id, empresaId, usuarioId, rol, dto.comentario);
   }

@@ -66,7 +66,25 @@ export default function AprobacionesPage() {
     if (r.ok) {
       toast$(estado === 'APROBADO' ? '✓ Requisición aprobada' : '✗ Requisición rechazada', estado === 'APROBADO');
       setAprobaciones(prev => prev.filter(a => a.id !== id));
-    } else toast$('Error al procesar', false);
+    } else {
+      /*
+       * «Error al procesar» borraba la unica pista util.
+       *
+       * Esta pantalla devolvia 400 en CADA aprobacion —el DTO exigia comentario
+       * siempre y el campo dice «obligatorio si rechazas», asi que al aprobar
+       * se mandaba cadena vacia— y lo unico que veia quien firmaba era un
+       * «Error al procesar» rojo, sin decir que faltaba. La requisicion del
+       * almacenista estuvo un dia entero atorada por eso: no faltaba la firma,
+       * el boton no podia firmar.
+       *
+       * El servidor sabe exactamente que pasa —el nivel anterior sin resolver,
+       * la aprobacion asignada a otro, la requisicion que ya cambio de estado—.
+       * Repetirlo es mas util que cualquier mensaje que se invente aqui.
+       */
+      const e = await r.json().catch(() => ({}));
+      const detalle = Array.isArray(e?.message) ? e.message[0] : e?.message;
+      toast$(detalle ?? 'No se pudo procesar la aprobación', false);
+    }
   };
 
   return (
