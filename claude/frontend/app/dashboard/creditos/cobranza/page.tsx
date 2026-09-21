@@ -114,7 +114,21 @@ export default function CobranzaPage() {
      */
     const claveIdempotencia =
       `cobranza:${creditoSeleccionado.id}:${cuotaSeleccionada?.id ?? 'saldo'}:${claveIntento}`;
-    const res = await fetch(`${api}/credito/cobranza/pago`, {
+    /*
+     * El `fetch` va dentro de try/catch/finally.
+     *
+     * Estaba desnudo: si la promesa se rechazaba —backend caído, DNS, CORS— no
+     * se ejecutaba nunca `setGuardando(false)` ni ningún aviso. El cobrador
+     * capturaba un abono, pulsaba «Registrar Pago» y el botón se quedaba en
+     * «Guardando…» para siempre, con el modal abierto y sin saber si el pago
+     * había entrado. La única salida era recargar.
+     *
+     * La clave de idempotencia hace que reintentar sea seguro, así que el
+     * mensaje puede invitar a intentar de nuevo sin riesgo de cobrar dos veces.
+     */
+    let res: Response;
+    try {
+      res = await fetch(`${api}/credito/cobranza/pago`, {
       method: 'POST',
       headers: { 'Content-Type':'application/json', ...h() },
       body: JSON.stringify({
@@ -126,13 +140,24 @@ export default function CobranzaPage() {
         referencia:       referencia || null,
         fechaPago,
         claveIdempotencia,
-      }),
-    });
+        }),
+      });
+    } catch {
+      setGuardando(false);
+      toast$(
+        'No se pudo contactar al servidor. El pago NO se registró; puedes volver a intentarlo.',
+        false,
+      );
+      return;
+    }
     setGuardando(false);
     if (res.ok) {
       toast$('Pago registrado correctamente');
       setModalPago(false);
       cargar();
+    } else if (res.status === 401) {
+      // Si no, la sesión caducada se ve igual que un error del pago.
+      toast$('Tu sesión caducó. Vuelve a iniciar sesión para registrar el pago.', false);
     } else {
       const e = await res.json().catch(()=>({}));
       toast$(e.message??'Error al registrar el pago', false);

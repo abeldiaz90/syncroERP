@@ -19,6 +19,17 @@ export default function CorteCajaPage() {
   const [pagos, setPagos]     = useState<any[]>([]);
   const [fecha, setFecha]     = useState(HOY);
   const [cargando, setCargando] = useState(false);
+  /*
+   * Un corte de caja que no se pudo leer NO es un corte en cero.
+   *
+   * `if (rv.ok)` dejaba las ventas en `[]` cuando la respuesta era 403 o 500, y
+   * la pantalla pintaba el reporte completo con $0.00 en todos los renglones,
+   * sin decir nada. Un almacenista lo abrió por accidente —tiene el módulo de
+   * reportes— y vio «TOTAL COBRADO $0.00» en un día con ventas. Con eso se
+   * puede cerrar una caja mal, y es de las cosas que no se descubren hasta que
+   * falta dinero.
+   */
+  const [problema, setProblema] = useState<string | null>(null);
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const tok = () => localStorage.getItem('syncro_token') ?? '';
@@ -30,7 +41,20 @@ export default function CorteCajaPage() {
       fetch(`${api}/ventas?fechaDesde=${fecha}&fechaHasta=${fecha}&limite=500`, { headers: h() }),
       fetch(`${api}/credito/cobranza/pagos-del-dia?fecha=${fecha}`, { headers: h() }).catch(() => ({ ok: false })),
     ]);
-    if (rv.ok) { const d = await rv.json(); setVentas(d.ventas ?? d); }
+    if (rv.ok) {
+      const d = await rv.json();
+      setVentas(d.ventas ?? d);
+      setProblema(null);
+    } else {
+      setVentas([]);
+      setProblema(
+        rv.status === 403
+          ? 'Tu perfil no incluye las ventas, así que este corte no se puede calcular. Pídeselo a quien lleva la caja.'
+          : rv.status === 401
+            ? 'Tu sesión caducó. Vuelve a entrar para ver el corte.'
+            : 'No se pudieron leer las ventas del día. El corte no está completo; vuelve a intentarlo.',
+      );
+    }
     if ((rp as any).ok) setPagos(await (rp as Response).json());
     else setPagos([]);
     setCargando(false);
@@ -89,6 +113,12 @@ export default function CorteCajaPage() {
       {cargando ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"/>
+        </div>
+      ) : problema ? (
+        /* Ningún número: un corte incompleto no se muestra como corte. */
+        <div className="bg-white rounded-2xl border border-amber-200 p-10 text-center">
+          <p className="text-sm font-bold text-amber-700 mb-1">No se puede mostrar el corte</p>
+          <p className="text-sm text-slate-600 max-w-md mx-auto">{problema}</p>
         </div>
       ) : (
         <div className="space-y-4">

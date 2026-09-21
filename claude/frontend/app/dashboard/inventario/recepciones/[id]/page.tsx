@@ -105,11 +105,22 @@ export default function RecepcionDetallePage() {
     if (faltanDatosTrazabilidad) return setToast({ mensaje: 'Faltan capturar Lotes o Fechas de Caducidad obligatorios', tipo: 'error' });
 
     const almacenNombre = almacenes.find(a => a.id === almacenSeleccionado)?.nombre;
+    /*
+     * Hay incidencia si se rechaza mercancía o si esta entrega deja la partida
+     * corta. Se compara contra lo que FALTABA, no contra el total de la orden:
+     * al recibir las 2 piezas pendientes de una orden de 10, la pantalla
+     * anunciaba «Has reportado mermas o faltantes» sobre una entrega que
+     * completaba el pedido exactamente.
+     */
     const hayIncidencias = detallesProcesados.some(d => {
       if (d.cantidadRechazada > 0) return true;
       const detOriginal = oc.detalles.find((x: any) => x.id === d.id);
       const factor = detOriginal?.producto?.equivalencias?.find((e: any) => e.id === d.equivalenciaId)?.factorConversion || 1;
-      return (d.cantidadRecibidaOk * factor) < Number(detOriginal?.cantidad || 0);
+      const pendiente = Math.max(
+        0,
+        Number(detOriginal?.cantidad || 0) - Number(detOriginal?.cantidadRecibidaOk || 0),
+      );
+      return (d.cantidadRecibidaOk * factor) < pendiente;
     });
 
     if (!await confirmarElegante(`Se dará entrada física en ${almacenNombre}. ${hayIncidencias ? 'Has reportado mermas o faltantes.' : 'Todo coincide con el manifiesto original.'}`, { titulo: hayIncidencias ? 'Registrar ingreso con incidencias' : 'Confirmar ingreso', peligroso: hayIncidencias })) return;
@@ -136,6 +147,25 @@ export default function RecepcionDetallePage() {
       }
     } catch (error: any) { setToast({ mensaje: error.message, tipo: 'error' }); setProcesando(false); }
   };
+
+  /*
+   * ════════════════════════════════════════════════════════════════════════
+   * Si el manifiesto sigue abierto lo dice la RECEPCIÓN, no el estado comercial
+   * ------------------------------------------------------------------------
+   * Esta pantalla decidía con `oc.estado`, aceptando sólo ENVIADA o
+   * CON_INCIDENCIAS. Basta que se pague un anticipo para que la orden pase a
+   * PARCIALMENTE_PAGADA y el manifiesto se abría en SÓLO LECTURA, con el
+   * cartel verde de «Recepción Perfecta» encima de una entrega de 8 de 10.
+   * El almacén se quedaba sin poder ingresar el resto y con un documento que
+   * afirmaba lo contrario de lo que había en el andén.
+   *
+   * Mientras la recepción no esté COMPLETA, el manifiesto se puede seguir
+   * capturando. Lo único que lo cierra de verdad es una orden cancelada.
+   * ════════════════════════════════════════════════════════════════════════
+   */
+  const recepcionCompleta = (oc?.estadoRecepcion ?? (oc?.estado === 'RECIBIDA' ? 'COMPLETA' : 'PENDIENTE')) === 'COMPLETA';
+  const puedeRecibir = !!oc && oc.estado !== 'CANCELADA' && !recepcionCompleta;
+  const huboRechazos = !!oc?.detalles?.some((d: any) => Number(d.cantidadRechazada || 0) > 0);
 
   if (cargando) return <div className="flex flex-col items-center justify-center p-20 text-slate-400"><Loader2 className="w-10 h-10 animate-spin text-emerald-500 mb-4" /><p className="font-bold">Cargando manifiesto...</p></div>;
   if (!oc) return <div className="text-center p-20 text-rose-500 font-bold">Documento no encontrado.</div>;
@@ -164,8 +194,8 @@ export default function RecepcionDetallePage() {
             </h1>
             <p className="text-slate-500 mt-2 font-bold font-mono text-lg">OC-{oc.id.substring(0, 8).toUpperCase()}</p>
           </div>
-          <span className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest ${oc.estado === 'RECIBIDA' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : oc.estado === 'CON_INCIDENCIAS' ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
-            Estado: {oc.estado.replace('_', ' ')}
+          <span className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest ${recepcionCompleta ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : oc.estadoRecepcion === 'PARCIAL' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+            {recepcionCompleta ? 'Recepción completa' : oc.estadoRecepcion === 'PARCIAL' ? 'Entrega incompleta' : 'Por recibir'}
           </span>
         </div>
 
@@ -184,7 +214,7 @@ export default function RecepcionDetallePage() {
         {/* Tabla */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Verificación y Trazabilidad</h3>
-          {['ENVIADA','CON_INCIDENCIAS'].includes(oc.estado) && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">Cantidades OK pre-llenadas</span>}
+          {puedeRecibir && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">Cantidades OK pre-llenadas</span>}
         </div>
 
         <div className="border border-slate-200 rounded-2xl overflow-hidden mb-8">
@@ -193,7 +223,7 @@ export default function RecepcionDetallePage() {
               <thead className="bg-slate-900 text-white text-[11px] uppercase tracking-widest font-black">
                 <tr>
                   <th className="px-4 py-4">Producto / SKU</th>
-                  <th className="px-4 py-4 text-center">Esperado</th>
+                  <th className="px-4 py-4 text-center">Por recibir</th>
                   <th className="px-4 py-4 text-center">Trazabilidad / Empaque</th>
                   <th className="px-4 py-4 text-center text-emerald-400">Cant. OK</th>
                   <th className="px-4 py-4 text-center text-rose-400">Rechazo</th>
@@ -206,7 +236,12 @@ export default function RecepcionDetallePage() {
                   const producto = det.producto;
                   const factor = producto?.equivalencias?.find((e: any) => e.id === estadoCaptura?.equivalenciaId)?.factorConversion || 1;
                   const totalIngresado = (estadoCaptura?.cantidadRecibidaOk || 0) * factor;
-                  const diferencia = Number(det.cantidad) - (totalIngresado + (estadoCaptura?.cantidadRechazada || 0));
+                  // Lo que queda por recibir de esta partida, no lo pedido al inicio:
+                  // en una segunda entrega, «esperado 10» con 8 ya en almacén
+                  // invita a capturar 10 y a descuadrar el inventario.
+                  const yaRecibido = Number(det.cantidadRecibidaOk || 0);
+                  const pendientePartida = Math.max(0, Number(det.cantidad) - yaRecibido);
+                  const diferencia = pendientePartida - (totalIngresado + (estadoCaptura?.cantidadRechazada || 0));
 
                   return (
                     <tr key={det.id} className="hover:bg-slate-50/80 transition-colors">
@@ -215,11 +250,16 @@ export default function RecepcionDetallePage() {
                         <span className="text-[10px] text-slate-400 font-mono mt-0.5">{producto?.sku}</span>
                       </td>
                       <td className="px-4 py-4 text-center">
-                        <span className="text-lg font-black text-slate-400">{det.cantidad}</span>
+                        <span className="text-lg font-black text-slate-400">{pendientePartida}</span>
                         <span className="block text-[9px] text-slate-400 uppercase">{producto?.unidadMedida}</span>
+                        {yaRecibido > 0 && (
+                          <span className="block text-[9px] text-emerald-600 font-bold mt-0.5">
+                            {yaRecibido} ya en almacén
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-4 bg-slate-50/50">
-                        {['ENVIADA','CON_INCIDENCIAS'].includes(oc.estado) ? (
+                        {puedeRecibir ? (
                           <div className="space-y-2 min-w-[200px]">
                             <div className="flex items-center gap-2">
                               <Warehouse className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -262,7 +302,7 @@ export default function RecepcionDetallePage() {
                         )}
                       </td>
 
-                      {['ENVIADA','CON_INCIDENCIAS'].includes(oc.estado) ? (
+                      {puedeRecibir ? (
                         <>
                           <td className="px-4 py-4 text-center">
                             <input type="number" min="0" step="any" value={estadoCaptura?.cantidadRecibidaOk === 0 && estadoCaptura?.cantidadRechazada === 0 ? '' : estadoCaptura?.cantidadRecibidaOk} onChange={(e) => handleCapturaChange(det.id, 'cantidadRecibidaOk', e.target.value)}
@@ -300,7 +340,7 @@ export default function RecepcionDetallePage() {
         </div>
 
         {/* Zona de confirmación */}
-        {['ENVIADA','CON_INCIDENCIAS'].includes(oc.estado) ? (
+        {puedeRecibir ? (
           <div className="bg-slate-900 p-8 rounded-[2rem] flex flex-col md:flex-row items-center gap-6 justify-between shadow-xl">
             <div className="flex-1 w-full">
               <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Rampa o almacén de ingreso</label>
@@ -320,10 +360,10 @@ export default function RecepcionDetallePage() {
               </button>
             </ProtectedElement>
           </div>
-        ) : oc.estado === 'CON_INCIDENCIAS' ? (
+        ) : huboRechazos ? (
           <div className="bg-rose-50 p-8 rounded-2xl border border-rose-200 flex items-center gap-4 text-rose-700">
             <div className="p-3 bg-rose-100 rounded-full"><ShieldAlert className="w-8 h-8" /></div>
-            <div><p className="font-black text-xl">Documento con Discrepancias Logísticas</p><p className="text-sm font-medium mt-1">Este manifiesto fue cerrado. Compras ha sido notificado para gestionar devoluciones.</p></div>
+            <div><p className="font-black text-xl">Documento con Discrepancias Logísticas</p><p className="text-sm font-medium mt-1">Este manifiesto se cerró con mercancía rechazada. Compras ha sido notificado para gestionar devoluciones.</p></div>
           </div>
         ) : (
           <div className="bg-emerald-50 p-8 rounded-2xl border border-emerald-200 flex items-center gap-4 text-emerald-700">

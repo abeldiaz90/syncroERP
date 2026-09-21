@@ -36,7 +36,8 @@ import {
   Search, ShieldOff, Loader2, Landmark, ExternalLink,
 } from 'lucide-react';
 
-import { MODULOS, detectarModulo, detectarItem, agruparItems } from './module-config';
+import { MODULOS, detectarModulo, detectarItem, agruparItems, RUTAS_CONTENEDOR } from './module-config';
+import { usePermiso } from '@/hooks/use-permisos';
 import { api, token, intentar } from '@/lib/api';
 import { leerSesion, sesionVigente, iniciales, puedeEntrar, puedeVerEnlace, type Sesion } from '@/lib/session';
 import PaletaComandos from '@/components/PaletaComandos';
@@ -45,6 +46,7 @@ import { PermisosProvider } from '@/app/context/PermisosContext';
 import { BarraContextualModulo } from '@/components/navigation/BarraContextualModulo';
 import { useI18n } from '@/components/I18nProvider';
 import { cerrarSesionKeycloak } from '@/lib/keycloak';
+import { useContratacion } from '@/lib/contratacion';
 
 /** Rutas accesibles para cualquier usuario autenticado. */
 const RUTAS_LIBRES = new Set(['/dashboard', '/dashboard/']);
@@ -57,6 +59,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { idioma, cambiarIdioma, t } = useI18n();
 
   const [sesion, setSesion] = useState<Sesion | null>(null);
+  /* Qué módulos compró esta empresa. Decide qué se enseña, no qué se permite. */
+  const plan = useContratacion();
   const [empresa, setEmpresa] = useState('');
   const [permisos, setPermisos] = useState<string[] | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -126,6 +130,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   /* ── Acceso ────────────────────────────────────────────────────────────── */
 
+  const { tienePermiso } = usePermiso();
+
   const accesoDenegado = useMemo(() => {
     if (permisos === null) return false;
     if (RUTAS_LIBRES.has(pathname)) return false;
@@ -134,7 +140,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (pathname.startsWith('/dashboard/centros/') && modulo) {
       return !modulo.items.some((i) => !i.oculto && puedeVerEnlace(permisos, i.href));
     }
-    if (pathname === '/dashboard/almacenes/centro' && modulo) {
+    // Las portadas de módulo —el índice de reportes, el centro de almacenes—
+    // se tratan igual que los centros de trabajo: son navegación, no datos.
+    if (RUTAS_CONTENEDOR.has(pathname) && modulo) {
       return !modulo.items.some((i) => !i.oculto && puedeVerEnlace(permisos, i.href));
     }
     return !puedeEntrar(permisos, pathname);
@@ -277,7 +285,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             })}
 
             {/* Fineract conserva su propia autorización. Keycloak aporta SSO,
-                pero SyncroERP nunca traduce ni suplanta sus permisos bancarios. */}
+                pero SyncroERP nunca traduce ni suplanta sus permisos bancarios.
+
+                Solo aparece si la empresa lo contrató —una que solo usa el ERP
+                no tiene nada al otro lado de ese enlace— y solo para quien
+                tiene algo que hacer allí. Sin esa segunda condición el enlace
+                se le pintaba a todos: el almacenista lo veía en su menú, lo
+                abría y aterrizaba en un login del core que lo rechazaba. Un
+                enlace que siempre termina en un error no es una función, es
+                una trampa. */}
+            {plan?.usaRegistroExterno && tienePermiso('GET', '/api/integracion/estado') && (
+            <>
             <div className="h-px bg-white/[0.06] my-2" />
             <a
               href={FINERACT_URL}
@@ -294,6 +312,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </>
               )}
             </a>
+            </>
+            )}
           </nav>
 
           {/* Colapsar */}
@@ -420,7 +440,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Navegación contextual: el usuario no depende sólo del menú lateral. */}
           {modulo && !accesoDenegado && (
-            <BarraContextualModulo modulo={modulo} items={itemsVisibles} activo={itemActivo} />
+            <BarraContextualModulo modulo={modulo} items={itemsVisibles} activo={itemActivo} permisos={permisos} />
           )}
 
           {/* Contenido */}

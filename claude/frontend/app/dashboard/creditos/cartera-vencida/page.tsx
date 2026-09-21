@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { AlertTriangle, TrendingDown, Clock, Users, DollarSign, RefreshCw, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import { ProtectedElement } from '@/app/components/ProtectedElement';
 
 interface IAgingItem {
   cuota: {
@@ -43,18 +44,45 @@ export default function CarteraVencidaPage() {
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const tok = () => localStorage.getItem('syncro_token') ?? '';
 
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * Abrir una pantalla no debe escribir en la base
+   * --------------------------------------------------------------------------
+   * Aquí se hacía `POST /credito/cobranza/actualizar-vencidos` en cada carga,
+   * antes de leer. Dos problemas:
+   *
+   *  · Ver un reporte marcaba cuotas como vencidas. Un movimiento con efecto
+   *    contable disparado por mirar, sin que nadie lo pidiera y sin quedar
+   *    claro en la bitácora quién decidió qué.
+   *  · Los roles que consultan crédito en sólo lectura —finanzas, tesorería,
+   *    gerencia, dirección— no tienen ese POST: recibían un 403 que el código
+   *    ni siquiera miraba (`await fetch` sin comprobar), así que veían el
+   *    reporte sin saber que no se había recalculado.
+   *
+   * El recálculo ya lo hace la tarea programada `cobranza-cron` para todas las
+   * empresas. Aquí se lee y punto; quien además pueda recalcular tiene el botón
+   * de abajo, que lo hace a propósito y avisa del resultado.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
   const cargar = async () => {
     setCargando(true);
     try {
-      // Primero actualizar vencidos
-      await fetch(`${api}/credito/cobranza/actualizar-vencidos`, {
-        method:'POST', headers:{ Authorization:`Bearer ${tok()}` }
-      });
       const res = await fetch(`${api}/credito/creditos/cartera-vencida`,{
         headers:{ Authorization:`Bearer ${tok()}` }
       });
       if (res.ok) setCartera(await res.json());
     } finally { setCargando(false); }
+  };
+
+  const [recalculando, setRecalculando] = useState(false);
+  const recalcular = async () => {
+    setRecalculando(true);
+    try {
+      await fetch(`${api}/credito/cobranza/actualizar-vencidos`, {
+        method:'POST', headers:{ Authorization:`Bearer ${tok()}` }
+      });
+      await cargar();
+    } finally { setRecalculando(false); }
   };
 
   useEffect(() => { cargar(); }, []);
@@ -82,10 +110,21 @@ export default function CarteraVencidaPage() {
           </h1>
           <p className="text-slate-500 text-sm mt-1">Análisis de antigüedad de saldos (aging report).</p>
         </div>
-        <button onClick={cargar}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 text-sm font-medium hover:bg-slate-50 shadow-sm">
-          <RefreshCw className="w-4 h-4"/> Actualizar
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={cargar}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 text-sm font-medium hover:bg-slate-50 shadow-sm">
+            <RefreshCw className="w-4 h-4"/> Actualizar
+          </button>
+          {/* Recalcular SÍ escribe: sólo aparece para quien puede hacerlo. */}
+          <ProtectedElement metodo="POST" ruta="/api/credito/cobranza/actualizar-vencidos">
+            <button onClick={recalcular} disabled={recalculando}
+              title="Vuelve a clasificar las cuotas por días de atraso"
+              className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl text-sm font-semibold hover:bg-rose-700 shadow-sm disabled:opacity-50">
+              <RefreshCw className={`w-4 h-4 ${recalculando ? 'animate-spin' : ''}`}/>
+              {recalculando ? 'Recalculando…' : 'Recalcular antigüedad'}
+            </button>
+          </ProtectedElement>
+        </div>
       </div>
 
       {/* KPIs */}

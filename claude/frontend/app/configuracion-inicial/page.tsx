@@ -85,6 +85,17 @@ export default function ConfiguracionInicialPage() {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+  /*
+   * Esta pantalla vive fuera de `/dashboard`, así que el guardián del layout
+   * no la cubre: cualquiera con la dirección entra. Y la dirección se hereda
+   * sin querer —el callback de Keycloak devuelve a donde estabas—, de modo que
+   * al almacenista le apareció el formulario de la Constancia de Situación
+   * Fiscal con un «No tienes permisos suficientes» encima, sobre un formulario
+   * que sí se podía llenar. Pedirle el RFC de la empresa a quien acomoda
+   * mercancía, y encima que no funcione, es de las cosas que hacen pensar que
+   * el sistema está roto el primer día.
+   */
+  const [sinPermiso, setSinPermiso] = useState(false);
   const [resultado, setResultado] = useState<ResultadoConfiguracion | null>(null);
   const [form, setForm] = useState({
     tipoPersona: "MORAL" as TipoPersona,
@@ -106,6 +117,10 @@ export default function ConfiguracionInicialPage() {
           fetch(`${api}/cfdi/configuracion-mexico/catalogos`, { headers }),
           fetch(`${api}/cfdi/configuracion-mexico/diagnostico`, { headers }),
         ]);
+        if (respuesta.status === 403 || respuesta.status === 401) {
+          setSinPermiso(true);
+          return;
+        }
         const datos = await respuesta.json().catch(() => null);
         const diagnostico = (await respuestaDiagnostico.json().catch(() => null)) as DiagnosticoMexico | null;
         if (!respuesta.ok) {
@@ -230,6 +245,28 @@ export default function ConfiguracionInicialPage() {
         <div className="text-center">
           <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin" />
           Consultando catálogos fiscales…
+        </div>
+      </div>
+    );
+
+  if (sinPermiso)
+    return (
+      <div className="min-h-screen grid place-items-center bg-slate-50 px-6">
+        <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <ShieldCheck className="mx-auto mb-4 h-10 w-10 text-slate-300" />
+          <h1 className="text-lg font-bold text-slate-900">
+            Esto lo configura el administrador
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            La identidad fiscal de la empresa —RFC, régimen, domicilio— se captura una sola vez y
+            desde una cuenta con permisos de administración. Tu trabajo está en el panel.
+          </p>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="mt-6 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
+          >
+            Ir a mi panel
+          </button>
         </div>
       </div>
     );

@@ -16,6 +16,12 @@ export interface ICotizacion {
   proveedor?: { nombre: string }; notas: string;
   estado: 'PENDIENTE' | 'PENDIENTE_APROBACION' | 'APROBADA' | 'SELECCIONADA' | 'RECHAZADA' | string;
   motivoSeleccion?: string; comentarioAprobacion?: string; ordenesCompra?: any[];
+  solicitadoAprobacionPorId?: string | null;
+  aprobacionPendiente?: {
+    nivel: number; ciclo: number;
+    usuarioAprobadorId?: string | null;
+    rolAprobador?: string | null;
+  } | null;
   subtotal: number; impuestoTotal: number; total: number; detalles: any[];
 }
 
@@ -28,6 +34,32 @@ export interface IRequisicion {
 export default function CotizacionesRequisicionPage() {
   const params = useParams();
   const id = params?.id;
+
+  /*
+   * Quien pide la adjudicación no puede aprobarla: el backend lo rechaza con
+   * un 400. La pantalla igual le pintaba «Aprobar» y «Rechazar», así que el
+   * comprador descubría la regla estrellándose contra ella.
+   */
+  const sesion = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('syncro_user') || '{}') as { id?: string; rol?: string };
+    } catch {
+      return {} as { id?: string; rol?: string };
+    }
+  })();
+  const usuarioActualId = sesion.id;
+  const rolActual = (sesion.rol ?? '').toLowerCase();
+
+  /** Si el nivel vigente lo tiene que resolver esta persona. */
+  const meToca = (cot: ICotizacion) => {
+    const paso = cot.aprobacionPendiente;
+    if (!paso) return true; // sin dato, se deja decidir al backend
+    if (paso.usuarioAprobadorId) return paso.usuarioAprobadorId === usuarioActualId;
+    if (paso.rolAprobador) {
+      return paso.rolAprobador.toLowerCase() === rolActual || rolActual === 'admin';
+    }
+    return true;
+  };
   const requisicionId = Array.isArray(id) ? id[0] : id;
 
   const [cotizaciones, setCotizaciones] = useState<ICotizacion[]>([]);
@@ -105,9 +137,16 @@ export default function CotizacionesRequisicionPage() {
     finally { setProcesandoId(null); }
   };
 
-  // La cotización de menor precio para resaltarla
-  const menorPrecio = cotizaciones.length > 0
-    ? Math.min(...cotizaciones.map(c => c.total))
+  /*
+   * La oferta más competitiva se decide por SUBTOTAL, no por total.
+   * El IVA de una compra es acreditable: no es costo para la empresa, y
+   * comparar totales premiaba al proveedor con la tasa más baja aunque
+   * vendiera más caro. Con un proveedor de zona fronteriza al 8% frente a
+   * uno al 16%, el comparador señalaba como "más competitiva" la oferta
+   * que de verdad costaba más.
+   */
+  const menorSubtotal = cotizaciones.length > 0
+    ? Math.min(...cotizaciones.map(c => c.subtotal))
     : null;
 
   if (!requisicionId) {
@@ -189,7 +228,7 @@ export default function CotizacionesRequisicionPage() {
         <div className="space-y-6">
           {cotizaciones.map((cot, idx) => {
             const isSeleccionada = cot.estado === 'SELECCIONADA';
-            const esMenorPrecio = menorPrecio !== null && cot.total === menorPrecio && !isSeleccionada;
+            const esMenorPrecio = menorSubtotal !== null && cot.subtotal === menorSubtotal && !isSeleccionada;
 
             return (
               <div key={cot.id} className={`bg-white rounded-3xl overflow-hidden transition-all duration-300 ${
@@ -205,7 +244,7 @@ export default function CotizacionesRequisicionPage() {
                   <div className={`px-6 py-2.5 flex items-center gap-2 text-sm font-black ${isSeleccionada ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white'}`}>
                     {isSeleccionada
                       ? <><Award className="w-4 h-4" /> PROVEEDOR SELECCIONADO — ORDEN DE COMPRA GENERADA</>
-                      : <><TrendingDown className="w-4 h-4" /> OFERTA MÁS COMPETITIVA</>
+                      : <><TrendingDown className="w-4 h-4" /> OFERTA MÁS COMPETITIVA — MENOR COSTO ANTES DE IVA</>
                     }
                   </div>
                 )}
@@ -281,13 +320,37 @@ export default function CotizacionesRequisicionPage() {
                     <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-100 text-emerald-700 rounded-xl font-bold text-sm border border-emerald-200">
                       <CheckCircle className="w-4 h-4" /> Orden de Compra Generada
                     </span>
-                  ) : cot.estado === 'PENDIENTE' ? (
-                    <ProtectedElement metodo="PATCH" ruta="/api/compras/cotizaciones/:id/solicitar-aprobacion">
-                      <button onClick={() => ejecutarDecision(cot, 'solicitar-aprobacion', 'Solicitar aprobación de adjudicación', '¿Por qué debe elegirse esta propuesta?')} disabled={procesandoId === cot.id}
-                        className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 font-bold shadow-lg text-sm">
-                        <Award className="w-4 h-4" /> Enviar a aprobación
-                      </button>
-                    </ProtectedElement>
+                  ) : cot.estado === 'PENDIENTE' || cot.estado === 'RECHAZADA' ? (
+                    <div className="flex items-center gap-3">
+                      {cot.estado === 'RECHAZADA' && (
+                        <span className="inline-flex items-center gap-2 px-4 py-2.5 bg-rose-50 text-rose-700 rounded-xl font-bold text-sm border border-rose-200">
+                          Adjudicación rechazada
+                        </span>
+                      )}
+                      <ProtectedElement metodo="PATCH" ruta="/api/compras/cotizaciones/:id/solicitar-aprobacion">
+                        <button onClick={() => ejecutarDecision(cot, 'solicitar-aprobacion', 'Solicitar aprobación de adjudicación', '¿Por qué debe elegirse esta propuesta?')} disabled={procesandoId === cot.id}
+                          className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 font-bold shadow-lg text-sm">
+                          <Award className="w-4 h-4" /> {cot.estado === 'RECHAZADA' ? 'Reenviar a aprobación' : 'Enviar a aprobación'}
+                        </button>
+                      </ProtectedElement>
+                    </div>
+                  ) : cot.estado === 'PENDIENTE_APROBACION' &&
+                    !!usuarioActualId &&
+                    cot.solicitadoAprobacionPorId === usuarioActualId ? (
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-700 rounded-xl font-bold text-sm border border-amber-200">
+                        <Award className="w-4 h-4" /> En espera de aprobación — no puedes aprobar lo que tú solicitaste
+                      </span>
+                      {/* Aprobar no; retirar la propia solicitud sí. */}
+                      <ProtectedElement metodo="PATCH" ruta="/api/compras/cotizaciones/:id/rechazar">
+                        <button onClick={() => ejecutarDecision(cot, 'rechazar', 'Retirar la adjudicación', 'Motivo por el que la retiras')} disabled={procesandoId === cot.id}
+                          className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200">Retirar solicitud</button>
+                      </ProtectedElement>
+                    </div>
+                  ) : cot.estado === 'PENDIENTE_APROBACION' && !meToca(cot) ? (
+                    <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm border border-slate-200">
+                      <Award className="w-4 h-4" /> En espera de aprobación — este nivel no te corresponde
+                    </span>
                   ) : cot.estado === 'PENDIENTE_APROBACION' ? (
                     <div className="flex gap-2">
                       <ProtectedElement metodo="PATCH" ruta="/api/compras/cotizaciones/:id/rechazar">

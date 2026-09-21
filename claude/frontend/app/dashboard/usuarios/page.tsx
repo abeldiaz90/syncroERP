@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Users, Loader2, ShieldCheck, Mail, UserPlus,
   Edit, Search, UserCheck, UserX, AlertCircle
@@ -17,9 +18,76 @@ export default function UsuariosPage() {
   const [busqueda, setBusqueda] = useState('');
   const [modal, setModal] = useState<'CREAR'|'ROL'|null>(null);
   const [editando, setEditando] = useState<any>(null);
-  const [form, setForm] = useState({ nombreCompleto:'', email:'', password:'', rol:'empleado' });
+  const [form, setForm] = useState({ nombreCompleto:'', email:'', password:'', rol:'empleado', departamentoId:'' });
+  /*
+   * El área a la que pertenece cada persona.
+   *
+   * No es un adorno organizacional: la ruta de aprobación de una requisición
+   * se elige POR DEPARTAMENTO, y el servicio rechaza crear una requisición si
+   * el solicitante no tiene uno. Hasta ahora esta pantalla sólo permitía
+   * cambiar el rol, así que no existía forma alguna de asignar el área desde
+   * la interfaz y el módulo de compras quedaba imposible de arrancar.
+   */
+  const [departamentos, setDepartamentos] = useState<Array<{ id: string; nombre: string }>>([]);
+  /*
+   * Los roles se piden al servidor. Antes esta pantalla tenia su propia lista
+   * de siete <option> escritos a mano, que era la CUARTA lista de roles del
+   * sistema y no coincidia con ninguna: credito, cobranza, hoteleria,
+   * direccion, tesoreria y contador tenian permisos configurables y no se
+   * podian asignar a nadie desde aqui.
+   *
+   * Aqui solo se ASIGNA un rol. Que puede hacer cada rol se decide en un unico
+   * sitio, la pantalla de Roles y permisos.
+   */
+  const [catalogoRoles, setCatalogoRoles] = useState<Array<{ rol: string; etiqueta: string }>>([]);
+  /*
+   * Si el ERP puede crear la identidad en el directorio. Se pregunta al cargar
+   * porque cambia el formulario —con directorio no hay contraseña que capturar—
+   * y porque sin provisionador el alta deja un pendiente manual, y eso se avisa
+   * ANTES de llenar el formulario, no después.
+   */
+  const [directorio, setDirectorio] = useState<{
+    configurado: boolean; motivo: string | null; dominios: string[]; identidadEnDirectorio: boolean;
+  } | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000/api';
+
+  const cargarDirectorio = async () => {
+    const token = localStorage.getItem('syncro_token');
+    try {
+      const res = await fetch(`${apiUrl}/usuarios/directorio`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setDirectorio(await res.json());
+    } catch {
+      /* Sin respuesta se deja como estaba: el formulario clásico. */
+    }
+  };
+
+  const cargarDepartamentos = async () => {
+    const token = localStorage.getItem('syncro_token');
+    try {
+      const res = await fetch(`${apiUrl}/departamentos`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setDepartamentos(await res.json());
+    } catch {
+      /* Sin áreas la lista queda vacía y el modal lo explica. */
+    }
+  };
+
+  const cargarRoles = async () => {
+    const token = localStorage.getItem('syncro_token');
+    try {
+      const res = await fetch(`${apiUrl}/admin/permisos/resumen-roles`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setCatalogoRoles(await res.json());
+    } catch {
+      // Sin catalogo la pantalla sigue sirviendo: se muestra el rol que ya
+      // tiene el usuario y no se ofrece cambiarlo a ciegas.
+    }
+  };
 
   const cargarUsuarios = async () => {
     setCargando(true);
@@ -44,9 +112,7 @@ export default function UsuariosPage() {
     }
   };
 
-  useEffect(() => {
-    cargarUsuarios();
-  }, []);
+  useEffect(() => { void cargarUsuarios(); void cargarRoles(); void cargarDirectorio(); void cargarDepartamentos(); }, []);
 
   // FILTRO DE BÚSQUEDA
   const usuariosFiltrados = usuarios.filter(u =>
@@ -56,18 +122,33 @@ export default function UsuariosPage() {
 
   // CREAR USUARIO
   const handleCrearUsuario = async () => {
-    if (!form.nombreCompleto.trim() || !/^\S+@\S+\.\S+$/.test(form.email) || form.password.length < 8) return avisar('Captura nombre, correo válido y contraseña de al menos 8 caracteres.', 'alerta');
+    /* Con la identidad en el directorio no hay contraseña que validar. */
+    const pideClave = directorio ? !directorio.identidadEnDirectorio : true;
+    if (!form.nombreCompleto.trim() || !/^\S+@\S+\.\S+$/.test(form.email)) {
+      return avisar('Captura nombre y correo válido.', 'alerta');
+    }
+    if (pideClave && form.password.length < 8) {
+      return avisar('La contraseña inicial necesita al menos 8 caracteres.', 'alerta');
+    }
       setCargando(true);
       const token = localStorage.getItem('syncro_token');
       try {
         const res = await fetch(`${apiUrl}/usuarios`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify(form)
+          body: JSON.stringify(pideClave ? form : { ...form, password: undefined })
         });
 
         if (res.ok) {
-          avisar('Usuario creado exitosamente.', 'exito'); setModal(null); setForm({nombreCompleto:'',email:'',password:'',rol:'empleado'});
+          /*
+           * El servidor cuenta qué pasó en cada sistema —identidad creada,
+           * reutilizada, o creada sin que saliera el correo—. «Usuario creado»
+           * a secas era justo lo que hacía que nadie se enterara de que la
+           * persona no podía entrar.
+           */
+          const datos = await res.json().catch(() => null);
+          avisar(datos?.mensaje ?? 'Usuario creado exitosamente.', 'exito');
+          setModal(null); setForm({nombreCompleto:'',email:'',password:'',rol:'empleado',departamentoId:''});
           cargarUsuarios();
         } else {
           const errorData = await res.json();
@@ -83,18 +164,30 @@ export default function UsuariosPage() {
   // EDITAR ROL
   const handleEditarRol = async (usuario: any) => {
     const nuevoRol = form.rol;
-    if (nuevoRol && nuevoRol !== usuario.rol) {
+    const nuevoDepartamento = form.departamentoId || null;
+    const cambioRol = Boolean(nuevoRol) && nuevoRol !== usuario.rol;
+    const cambioArea = nuevoDepartamento !== (usuario.departamentoId ?? null);
+    if (cambioRol || cambioArea) {
       setProcesandoId(usuario.id);
       const token = localStorage.getItem('syncro_token');
       try {
         const res = await fetch(`${apiUrl}/usuarios/${usuario.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ rol: nuevoRol })
+          body: JSON.stringify({
+            ...(cambioRol ? { rol: nuevoRol } : {}),
+            ...(cambioArea ? { departamentoId: nuevoDepartamento } : {}),
+          })
         });
 
         if (res.ok) {
-          avisar('Rol actualizado correctamente.', 'exito'); setModal(null);
+          avisar(
+            cambioRol && cambioArea ? 'Rol y área actualizados.'
+            : cambioRol ? 'Rol actualizado correctamente.'
+            : 'Área actualizada.',
+            'exito',
+          );
+          setModal(null);
           cargarUsuarios();
         }
       } catch (error) {
@@ -129,6 +222,10 @@ export default function UsuariosPage() {
       }
     }
   };
+
+  /** El nombre bonito del rol, como lo declara el catalogo del servidor. */
+  const etiquetaDe = (rol: string) =>
+    catalogoRoles.find((r) => r.rol === rol)?.etiqueta ?? rol;
 
   // ESTILOS DE ROLES
   const getRoleBadge = (rol: string) => {
@@ -171,7 +268,7 @@ export default function UsuariosPage() {
           </div>
 
           <button 
-            onClick={()=>{setForm({nombreCompleto:'',email:'',password:'',rol:'empleado'});setModal('CREAR')}}
+            onClick={()=>{setForm({nombreCompleto:'',email:'',password:'',rol:'empleado',departamentoId:''});setModal('CREAR')}}
             className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-600 transition-colors shadow-lg whitespace-nowrap"
           >
             <UserPlus className="w-5 h-5" /> Nuevo Usuario
@@ -224,6 +321,27 @@ export default function UsuariosPage() {
                           <div className="flex items-center gap-1.5 text-slate-500 text-sm font-medium mt-0.5">
                             <Mail className="w-3.5 h-3.5" /> {user.email}
                           </div>
+                          {/*
+                            * El área decide a quién le llega a aprobar lo que
+                            * esta persona solicite, y no se veía en el listado:
+                            * había que abrir el modal de cada usuario para
+                            * saberlo. Sin área, la persona ni siquiera puede
+                            * levantar una requisición —y el error aparecía al
+                            * guardar, no antes—, así que la falta se marca aquí.
+                            */}
+                          <div className="mt-1 text-xs">
+                            {departamentos.find((d) => d.id === user.departamentoId)?.nombre ? (
+                              <span className="text-slate-500">
+                                Área: <span className="font-semibold text-slate-700">
+                                  {departamentos.find((d) => d.id === user.departamentoId)!.nombre}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-700 border border-amber-200">
+                                Sin área asignada
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -231,7 +349,7 @@ export default function UsuariosPage() {
                     {/* ROL */}
                     <td className="px-6 py-4 text-center">
                       <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-black uppercase tracking-widest border ${getRoleBadge(user.rol)}`}>
-                        <ShieldCheck className="w-3.5 h-3.5 mr-1.5" /> {user.rol}
+                        <ShieldCheck className="w-3.5 h-3.5 mr-1.5" /> {etiquetaDe(user.rol)}
                       </span>
                     </td>
 
@@ -252,7 +370,7 @@ export default function UsuariosPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => {setEditando(user);setForm((f)=>({...f,rol:user.rol}));setModal('ROL')}}
+                          onClick={() => {setEditando(user);setForm((f)=>({...f,rol:user.rol,departamentoId:user.departamentoId ?? ''}));setModal('ROL')}}
                           disabled={procesandoId === user.id}
                           title="Cambiar Rol"
                           className="p-2 bg-slate-100 hover:bg-indigo-100 text-slate-600 hover:text-indigo-700 rounded-xl transition-colors"
@@ -293,10 +411,55 @@ export default function UsuariosPage() {
           {busqueda && <span>Filtrado por: "{busqueda}"</span>}
         </div>
       </div>
-      <Modal abierto={modal==='CREAR'} onCerrar={()=>setModal(null)} titulo="Nuevo usuario del sistema" descripcion="Crea el acceso inicial; después podrás ajustar permisos específicos." pie={<><Boton onClick={()=>setModal(null)}>Cancelar</Boton><Boton variante="primario" onClick={()=>void handleCrearUsuario()}>Registrar usuario</Boton></>}><div className="space-y-4"><Campo etiqueta="Nombre completo" requerido><Entrada value={form.nombreCompleto} onChange={(e)=>setForm({...form,nombreCompleto:e.target.value})}/></Campo><Campo etiqueta="Correo electrónico" requerido><Entrada type="email" value={form.email} onChange={(e)=>setForm({...form,email:e.target.value.toLowerCase()})}/></Campo><Campo etiqueta="Contraseña temporal" requerido ayuda="Mínimo 8 caracteres."><Entrada type="password" value={form.password} onChange={(e)=>setForm({...form,password:e.target.value})}/></Campo><Campo etiqueta="Rol"><Seleccion value={form.rol} onChange={(e)=>setForm({...form,rol:e.target.value})}><Roles/></Seleccion></Campo></div></Modal>
-      <Modal abierto={modal==='ROL'} onCerrar={()=>setModal(null)} titulo="Ajustar nivel de acceso" descripcion={editando?`Usuario: ${editando.nombreCompleto}`:undefined} pie={<><Boton onClick={()=>setModal(null)}>Cancelar</Boton><Boton variante="primario" onClick={()=>void handleEditarRol(editando)}>Guardar cambio</Boton></>}><Campo etiqueta="Nuevo rol"><Seleccion value={form.rol} onChange={(e)=>setForm({...form,rol:e.target.value})}><Roles/></Seleccion></Campo></Modal>
+      <Modal abierto={modal==='CREAR'} onCerrar={()=>setModal(null)} titulo="Nuevo usuario del sistema" descripcion="Crea el acceso inicial; después podrás ajustar permisos específicos." pie={<><Boton onClick={()=>setModal(null)}>Cancelar</Boton><Boton variante="primario" onClick={()=>void handleCrearUsuario()}>Registrar usuario</Boton></>}><div className="space-y-4"><Campo etiqueta="Nombre completo" requerido><Entrada value={form.nombreCompleto} onChange={(e)=>setForm({...form,nombreCompleto:e.target.value})}/></Campo><Campo etiqueta="Correo electrónico" requerido><Entrada type="email" value={form.email} onChange={(e)=>setForm({...form,email:e.target.value.toLowerCase()})}/></Campo>{(directorio ? !directorio.identidadEnDirectorio : true) ? (
+        <Campo etiqueta="Contraseña inicial" requerido ayuda="Mínimo 8 caracteres."><Entrada type="password" value={form.password} onChange={(e)=>setForm({...form,password:e.target.value})}/></Campo>
+      ) : directorio?.configurado ? (
+        <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 leading-relaxed">
+          No se captura contraseña: se crea su identidad en SUMA y el directorio le manda el
+          enlace para que la fije él mismo.
+          {directorio.dominios.length > 0 && <> Solo se aceptan correos de <b>{directorio.dominios.join(', ')}</b>.</>}
+        </p>
+      ) : (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+          El ERP no puede crear identidades todavía: se dará de alta aquí, pero alguien tendrá
+          que crearlo a mano en SUMA para que pueda entrar.
+          {directorio?.motivo && <span className="block mt-1 text-amber-700">{directorio.motivo}</span>}
+        </p>
+      )}<Campo etiqueta="Rol" ayuda="Lo que puede hacer cada rol se define en Roles y permisos."><Seleccion value={form.rol} onChange={(e)=>setForm({...form,rol:e.target.value})}><Roles opciones={catalogoRoles} actual={form.rol}/></Seleccion></Campo></div></Modal>
+      <Modal abierto={modal==='ROL'} onCerrar={()=>setModal(null)} titulo="Ajustar acceso y área" descripcion={editando?`Usuario: ${editando.nombreCompleto}`:undefined} pie={<><Boton onClick={()=>setModal(null)}>Cancelar</Boton><Boton variante="primario" onClick={()=>void handleEditarRol(editando)}>Guardar cambio</Boton></>}>
+        <div className="space-y-4">
+          <Campo etiqueta="Nivel de acceso" ayuda="Qué puede hacer cada rol se define en Roles y permisos.">
+            <Seleccion value={form.rol} onChange={(e)=>setForm({...form,rol:e.target.value})}><Roles opciones={catalogoRoles} actual={form.rol}/></Seleccion>
+          </Campo>
+          {/*
+            * El área decide por qué ruta de aprobación pasa lo que esta persona
+            * solicite. Sin ella, el ERP no deja crear requisiciones de compra.
+            */}
+          <Campo etiqueta="Área organizacional" ayuda="Determina la ruta de aprobación de sus requisiciones de compra.">
+            <Seleccion value={form.departamentoId} onChange={(e)=>setForm({...form,departamentoId:e.target.value})}>
+              <option value="">Sin área asignada</option>
+              {departamentos.map((d)=><option key={d.id} value={d.id}>{d.nombre}</option>)}
+            </Seleccion>
+          </Campo>
+          {departamentos.length===0 && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              No hay áreas dadas de alta todavía. Se solicitan en <Link href="/dashboard/departamentos" className="font-semibold underline">Departamentos</Link> y las autorizan Gerencia y Finanzas. Sin área, esta persona no podrá levantar requisiciones de compra.
+            </p>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function Roles(){return <><option value="empleado">Empleado</option><option value="admin">Administrador</option><option value="gerencia">Gerencia</option><option value="rrhh">Recursos Humanos</option><option value="comprador">Comprador</option><option value="almacenista">Almacenista</option><option value="finanzas">Finanzas</option></>}
+/**
+ * El selector de roles. Recibe el catalogo del servidor; si por lo que sea
+ * llegara vacio, deja al menos el rol que el usuario ya trae, para no
+ * ofrecer una lista falsa ni borrarle el rol a nadie al guardar.
+ */
+function Roles({ opciones, actual }: { opciones: Array<{ rol: string; etiqueta: string }>; actual?: string }) {
+  const lista = opciones.length > 0
+    ? opciones
+    : (actual ? [{ rol: actual, etiqueta: actual }] : []);
+  return <>{lista.map((r) => <option key={r.rol} value={r.rol}>{r.etiqueta}</option>)}</>;
+}

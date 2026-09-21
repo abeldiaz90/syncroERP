@@ -9,7 +9,16 @@ import {
 } from 'lucide-react';
 import { PuedeCrear, ProtectedElement } from "@/app/components/ProtectedElement"; // ← NUEVO
 
-export interface IProveedor { id: string; nombre: string; }
+/** Dos decimales: lo que se cotiza es lo que se paga. */
+const redondear2 = (v: number) => Math.round(v * 100) / 100;
+
+export interface IProveedor {
+  id: string;
+  nombre: string;
+  activo?: boolean;
+  bloqueado?: boolean;
+  estadoHomologacion?: string;
+}
 export interface IRequisicion {
   id: string; fechaSolicitud: string; estado: string;
   usuarioSolicitante?: { nombreCompleto?: string; nombre?: string };
@@ -21,6 +30,8 @@ export interface IDetalleCotizacion {
 }
 export interface ICotizacionFormData {
   proveedorId: string; subtotal: number; impuestoTotal: number;
+  /* La tasa de IVA de la compra. Estaba fija en 16% dentro del cálculo. */
+  tasaIva: number;
   total: number; notas: string; detalles: IDetalleCotizacion[];
 }
 
@@ -33,8 +44,21 @@ export default function CotizacionesPage() {
   const [guardando, setGuardando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [formData, setFormData] = useState<ICotizacionFormData>({
-    proveedorId: '', subtotal: 0, impuestoTotal: 0, total: 0, notas: '', detalles: [],
+    proveedorId: '', subtotal: 0, impuestoTotal: 0, tasaIva: 0.16, total: 0, notas: '', detalles: [],
   });
+
+  /*
+   * El backend rechaza cotizar con un proveedor inactivo, bloqueado o sin
+   * homologacion vigente. El selector los ofrecia igual y el comprador se
+   * enteraba tras capturar precios y condiciones, con un 400 al guardar.
+   */
+  const proveedoresHabilitados = proveedores.filter(
+    (prov) =>
+      prov.activo !== false &&
+      prov.bloqueado !== true &&
+      (prov.estadoHomologacion ?? 'APROBADO') === 'APROBADO',
+  );
+  const proveedoresBloqueados = proveedores.length - proveedoresHabilitados.length;
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
 
@@ -75,7 +99,7 @@ export default function CotizacionesPage() {
   const abrirModalCotizacion = (req: IRequisicion) => {
     setSelectedReq(req);
     setFormData({
-      proveedorId: '', subtotal: 0, impuestoTotal: 0, total: 0, notas: '',
+      proveedorId: '', subtotal: 0, impuestoTotal: 0, tasaIva: 0.16, total: 0, notas: '',
       detalles: req.detalles.map((det: any) => ({
         productoId: det.productoId,
         nombre: det.producto?.nombre || 'Producto Desconocido',
@@ -97,8 +121,23 @@ export default function CotizacionesPage() {
       nuevos[index].subtotal = nuevos[index].cantidad * nuevos[index].precioUnitario;
     }
     const subtotal = nuevos.reduce((sum, det) => sum + det.subtotal, 0);
-    const impuestoTotal = subtotal * 0.16;
-    setFormData({ ...formData, detalles: nuevos, subtotal, impuestoTotal, total: subtotal + impuestoTotal });
+    /*
+     * La tasa ya no está escrita en el cálculo.
+     *
+     * Decía `subtotal * 0.16` y ese número viajaba al servidor como
+     * `impuestoTotal`. En una compra de productos exentos —o con tasa de
+     * frontera— la cotización nacía con un IVA inventado y un total que no
+     * cuadraba con la orden de compra que saliera de ella. El resto del sistema
+     * sí lee la tasa del dato (el punto de venta usa `impuesto.porcentaje`).
+     */
+    const impuestoTotal = redondear2(subtotal * formData.tasaIva);
+    setFormData({ ...formData, detalles: nuevos, subtotal: redondear2(subtotal), impuestoTotal, total: redondear2(subtotal + impuestoTotal) });
+  };
+
+  /** Cambiar la tasa recalcula, sin tener que volver a tocar los renglones. */
+  const cambiarTasaIva = (tasa: number) => {
+    const impuestoTotal = redondear2(formData.subtotal * tasa);
+    setFormData({ ...formData, tasaIva: tasa, impuestoTotal, total: redondear2(formData.subtotal + impuestoTotal) });
   };
 
   const handleGuardarCotizacion = async (e: React.FormEvent) => {
@@ -117,6 +156,13 @@ export default function CotizacionesPage() {
           impuestoTotal: formData.impuestoTotal,
           total: formData.total,
           notas: formData.notas,
+          /*
+           * La tasa que el comprador elige en el modal SI viaja al servidor.
+           * Antes no se enviaba: el backend caia en la tasa del catalogo del
+           * producto y una cotizacion pactada al 8% o exenta se guardaba al
+           * 16% sin avisar a nadie.
+           */
+          tasaIva: formData.tasaIva,
           detalles: formData.detalles.map(det => ({
             productoId: det.productoId, cantidad: det.cantidad,
             precioUnitario: det.precioUnitario, subtotal: det.subtotal,
@@ -263,8 +309,21 @@ export default function CotizacionesPage() {
                     </label>
                     <select required name="proveedorId" value={formData.proveedorId} onChange={handleChange} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all font-medium text-slate-700">
                       <option value="">Buscar en el catálogo...</option>
-                      {proveedores.map(prov => <option key={prov.id} value={prov.id}>{prov.nombre}</option>)}
+                      {proveedoresHabilitados.map(prov => <option key={prov.id} value={prov.id}>{prov.nombre}</option>)}
                     </select>
+                    {proveedoresHabilitados.length === 0 ? (
+                      <p className="mt-2 text-xs font-semibold text-amber-700">
+                        Ningún proveedor está habilitado para cotizar. Concluye la
+                        homologación en Catálogos → Proveedores.
+                      </p>
+                    ) : proveedoresBloqueados > 0 ? (
+                      <p className="mt-2 text-xs text-slate-500">
+                        {proveedoresBloqueados} proveedor
+                        {proveedoresBloqueados === 1 ? '' : 'es'} no aparece
+                        {proveedoresBloqueados === 1 ? '' : 'n'} por estar inactivo,
+                        bloqueado o sin homologación vigente.
+                      </p>
+                    ) : null}
                   </div>
                   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <label className="block text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
@@ -311,7 +370,19 @@ export default function CotizacionesPage() {
                         <span>Subtotal</span><span className="font-mono text-lg">${formData.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex justify-between items-center text-slate-300 font-medium">
-                        <span>I.V.A. (16%)</span><span className="font-mono text-lg">${formData.impuestoTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                        <span className="flex items-center gap-2">
+                          I.V.A.
+                          <select
+                            value={formData.tasaIva}
+                            onChange={(e) => cambiarTasaIva(Number(e.target.value))}
+                            className="border border-slate-200 rounded-md px-1.5 py-0.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            title="Tasa de la compra. Hay productos exentos y tasa de frontera."
+                          >
+                            <option value={0.16}>16%</option>
+                            <option value={0.08}>8%</option>
+                            <option value={0}>Exento (0%)</option>
+                          </select>
+                        </span><span className="font-mono text-lg">${formData.impuestoTotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </div>
                       <div className="pt-4 border-t border-slate-700/50 flex justify-between items-end mt-2">
                         <span className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Total a Pagar</span>

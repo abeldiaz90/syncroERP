@@ -32,27 +32,93 @@ export default function ReporteInventarioPage() {
   const tok = () => localStorage.getItem('syncro_token') ?? '';
   const h   = () => ({ Authorization: `Bearer ${tok()}` });
 
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * El reporte reventaba en blanco y la consola decía «productos.filter is not
+   * a function»
+   * --------------------------------------------------------------------------
+   * `/catalogo/inventario/valorizado` no devuelve una lista: devuelve un
+   * resumen —`{ valorTotal, productos, sinCosto, detalle }`— y el detalle va
+   * dentro. Aquí se hacía `setProductos(await r.json())`, así que el estado
+   * acababa siendo ese objeto y la primera línea que intentaba filtrarlo
+   * tumbaba la página entera. La rama de respaldo, la única que mapeaba bien,
+   * sólo corría cuando el endpoint fallaba: mientras respondiera 200 —es
+   * decir, siempre— el reporte estaba roto. Es el único reporte que ve el
+   * almacenista.
+   *
+   * Además el resumen no trae SKU, mínimo ni categoría, que es justo con lo
+   * que se busca y con lo que se decide si algo está por debajo del mínimo. Se
+   * arma con las dos fuentes: el valorizado manda en el dinero —trae el costo
+   * promedio real de los lotes, no el de reposición del catálogo— y la ficha
+   * del producto pone el resto.
+   *
+   * Y se listan también los productos en cero. Un reporte de inventario que
+   * esconde lo agotado es el que menos sirve: lo agotado es lo que hay que
+   * comprar.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
   const cargar = async () => {
     setCargando(true);
-    const r = await fetch(`${api}/catalogo/inventario/valorizado`, { headers: h() });
-    if (r.ok) setProductos(await r.json());
-    else {
-      // Fallback: cargar productos y calcular valor
-      const r2 = await fetch(`${api}/catalogo/productos?limite=500`, { headers: h() });
-      if (r2.ok) {
-        const d = await r2.json();
-        const prods = Array.isArray(d) ? d : d.productos ?? [];
-        setProductos(prods.map((p: any) => ({
-          id: p.id, nombre: p.nombre, sku: p.sku,
-          stockActual:  Number(p.stock ?? p.stockActual ?? 0),
-          costoUnitario: Number(p.precioCompra ?? 0),
-          valorTotal:   Number(p.stock ?? 0) * Number(p.precioCompra ?? 0),
-          stockMinimo:  p.stockMinimo,
-          categoria:    p.categoria?.nombre,
-          enBajoStock:  Number(p.stock ?? 0) <= Number(p.stockMinimo ?? 0),
-        })));
-      }
+    const [rVal, rProd] = await Promise.all([
+      fetch(`${api}/catalogo/inventario/valorizado`, { headers: h() }),
+      fetch(`${api}/catalogo/productos?limite=500`, { headers: h() }),
+    ]);
+
+    const valorizado = rVal.ok ? await rVal.json().catch(() => null) : null;
+    const detalle: any[] = Array.isArray(valorizado)
+      ? valorizado
+      : Array.isArray(valorizado?.detalle)
+        ? valorizado.detalle
+        : [];
+
+    const catalogoCrudo = rProd.ok ? await rProd.json().catch(() => null) : null;
+    const catalogo: any[] = Array.isArray(catalogoCrudo)
+      ? catalogoCrudo
+      : (catalogoCrudo?.productos ?? catalogoCrudo?.data ?? catalogoCrudo?.items ?? []);
+    const ficha = new Map<string, any>(catalogo.map((p: any) => [p.id, p]));
+
+    const porId = new Map<string, IProductoStock>();
+
+    for (const d of detalle) {
+      const id = d.productoId ?? d.id;
+      const f = ficha.get(id) ?? {};
+      const existencia = Number(d.existencia ?? d.stockActual ?? 0);
+      const minimo = Number(f.stockMinimo ?? 0);
+      porId.set(id, {
+        id,
+        nombre: d.producto ?? d.nombre ?? f.nombre ?? '—',
+        sku: f.sku ?? d.sku ?? '',
+        stockActual: existencia,
+        costoUnitario: Number(d.costoPromedio ?? d.costoUnitario ?? f.precioCompra ?? 0),
+        valorTotal: Number(
+          d.valor ?? d.valorTotal ?? existencia * Number(f.precioCompra ?? 0),
+        ),
+        stockMinimo: f.stockMinimo,
+        categoria: f.categoria?.nombre,
+        enBajoStock: minimo > 0 && existencia <= minimo,
+      });
     }
+
+    // Lo que el valorizado no menciona está en cero: también es inventario.
+    for (const f of catalogo) {
+      if (porId.has(f.id)) continue;
+      if (f.tipo === 'SERVICIO') continue; // un servicio no tiene existencia
+      const existencia = Number(f.stock ?? f.stockActual ?? 0);
+      const minimo = Number(f.stockMinimo ?? 0);
+      porId.set(f.id, {
+        id: f.id,
+        nombre: f.nombre,
+        sku: f.sku ?? '',
+        stockActual: existencia,
+        costoUnitario: Number(f.precioCompra ?? 0),
+        valorTotal: existencia * Number(f.precioCompra ?? 0),
+        stockMinimo: f.stockMinimo,
+        categoria: f.categoria?.nombre,
+        enBajoStock: minimo > 0 && existencia <= minimo,
+      });
+    }
+
+    setProductos([...porId.values()].sort((a, b) => b.valorTotal - a.valorTotal));
     setCargando(false);
   };
 
@@ -60,7 +126,10 @@ export default function ReporteInventarioPage() {
 
   const filtrados = productos.filter(p => {
     if (soloStockBajo && !p.enBajoStock) return false;
-    if (busqueda) return p.nombre.toLowerCase().includes(busqueda.toLowerCase()) || p.sku.toLowerCase().includes(busqueda.toLowerCase());
+    if (busqueda) {
+      const q = busqueda.toLowerCase();
+      return (p.nombre ?? '').toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q);
+    }
     return true;
   });
 

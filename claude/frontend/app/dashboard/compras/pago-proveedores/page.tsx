@@ -8,20 +8,62 @@ import {
 interface IProveedor { id: string; nombre: string; rfc?: string; }
 interface IOrden {
   id: string; estado: string; total: number; fechaCreacion: string;
+  /** Los dos ejes reales del documento. `estado` es sólo su resumen. */
+  estadoRecepcion?: 'PENDIENTE' | 'PARCIAL' | 'COMPLETA';
+  estadoPago?: 'PENDIENTE' | 'PARCIAL' | 'PAGADA';
+  totalPagado?: number;
   proveedor?: IProveedor;
-  detalles?: Array<{ cantidad: number; cantidadRecibidaOk: number; precioUnitario: number; producto?: { nombre: string } }>;
+  detalles?: Array<{
+    cantidad: number; cantidadRecibidaOk: number; precioUnitario: number;
+    impuestoImporte?: number; subtotal?: number;
+    producto?: { nombre: string };
+  }>;
 }
+
+/**
+ * Lo que se le puede pagar HOY al proveedor: el valor de lo que ya llegó, con
+ * su impuesto proporcional, menos lo ya pagado.
+ *
+ * Se calcula igual que en el servidor. La pantalla ofrecía «Registrar pago»
+ * con el total de la orden precargado incluso en órdenes entregadas a medias:
+ * el servidor lo rechazaba y el usuario veía un error sin saber qué cifra
+ * poner.
+ */
+const valorRecibido = (o: IOrden): number => {
+  if (!o.detalles?.length) return o.total;
+  let recibido = 0;
+  for (const d of o.detalles) {
+    const ordenada = Number(d.cantidad ?? 0);
+    if (ordenada <= 0) continue;
+    const aceptada = Math.min(Number(d.cantidadRecibidaOk ?? 0), ordenada);
+    const linea = Number(d.subtotal ?? d.cantidad * d.precioUnitario) + Number(d.impuestoImporte ?? 0);
+    recibido += linea * (aceptada / ordenada);
+  }
+  return Math.round(recibido * 100) / 100;
+};
+
+const saldoPagable = (o: IOrden): number =>
+  Math.max(0, Math.round((valorRecibido(o) - Number(o.totalPagado ?? 0)) * 100) / 100);
+
+/** ¿Admite un pago ahora mismo? Mismas condiciones que el servidor. */
+const admitePago = (o: IOrden): boolean =>
+  o.estado !== 'CANCELADA' &&
+  (o.estadoRecepcion ?? 'PENDIENTE') !== 'PENDIENTE' &&
+  (o.estadoPago ?? 'PENDIENTE') !== 'PAGADA' &&
+  saldoPagable(o) > 0;
 interface ICuentaBancaria { id: string; nombre: string; tipo: string; esPorDefecto: boolean; activo: boolean; }
 
 const fmt$ = (n: number) => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(n);
 const fmtFecha = (s: string) => new Date(s).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
 
 const ESTADO_STYLE: Record<string,string> = {
-  RECIBIDA:        'bg-blue-50 text-blue-700 border-blue-200',
-  CON_INCIDENCIAS: 'bg-amber-50 text-amber-700 border-amber-200',
-  PAGADA:          'bg-emerald-50 text-emerald-700 border-emerald-200',
-  PENDIENTE:       'bg-slate-100 text-slate-600 border-slate-200',
-  ENVIADA:         'bg-purple-50 text-purple-700 border-purple-200',
+  RECIBIDA:             'bg-blue-50 text-blue-700 border-blue-200',
+  CON_INCIDENCIAS:      'bg-amber-50 text-amber-700 border-amber-200',
+  PARCIALMENTE_PAGADA:  'bg-indigo-50 text-indigo-700 border-indigo-200',
+  PAGADA:               'bg-emerald-50 text-emerald-700 border-emerald-200',
+  PENDIENTE:            'bg-slate-100 text-slate-600 border-slate-200',
+  ENVIADA:              'bg-purple-50 text-purple-700 border-purple-200',
+  CANCELADA:            'bg-rose-50 text-rose-700 border-rose-200',
 };
 
 export default function PagoProveedoresPage() {
@@ -29,7 +71,7 @@ export default function PagoProveedoresPage() {
   const [cuentasBancarias, setCuentasBancarias] = useState<ICuentaBancaria[]>([]);
   const [cargando, setCargando]             = useState(true);
   const [busqueda, setBusqueda]             = useState('');
-  const [filtroEstado, setFiltroEstado]     = useState('RECIBIDA');
+  const [filtroEstado, setFiltroEstado]     = useState('POR_PAGAR');
   const [ordenSeleccionada, setOrdenSeleccionada] = useState<IOrden|null>(null);
   const [modal, setModal]                   = useState(false);
   const [guardando, setGuardando]           = useState(false);
@@ -67,7 +109,8 @@ export default function PagoProveedoresPage() {
 
   const abrirModal = (orden: IOrden) => {
     setOrdenSeleccionada(orden);
-    setMontoPago(String(orden.total));
+    // Se precarga lo pagable, no el total: es lo que el servidor va a aceptar.
+    setMontoPago(String(saldoPagable(orden)));
     setFechaPago(new Date().toISOString().split('T')[0]);
     setReferencia('');
     const storageKey = `syncro_pago_proveedor_idempotencia_${orden.id}`;
@@ -111,8 +154,10 @@ export default function PagoProveedoresPage() {
   };
 
   const filtradas = ordenes.filter(o => {
-    const estadoOk = filtroEstado ? o.estado === filtroEstado
-      : ['RECIBIDA','CON_INCIDENCIAS','PAGADA'].includes(o.estado);
+    const estadoOk =
+      filtroEstado === 'POR_PAGAR' ? admitePago(o)
+      : filtroEstado ? o.estado === filtroEstado
+      : ['RECIBIDA','CON_INCIDENCIAS','PARCIALMENTE_PAGADA','PAGADA'].includes(o.estado);
     if (!estadoOk) return false;
     if (!busqueda) return true;
     const q = busqueda.toLowerCase();
@@ -120,9 +165,10 @@ export default function PagoProveedoresPage() {
       (o.proveedor?.nombre ?? '').toLowerCase().includes(q);
   });
 
+  // Lo que de verdad se debe hoy: recibido y no pagado.
   const totalPendiente = ordenes
-    .filter(o => ['RECIBIDA','CON_INCIDENCIAS'].includes(o.estado))
-    .reduce((s,o) => s + o.total, 0);
+    .filter(admitePago)
+    .reduce((s,o) => s + saldoPagable(o), 0);
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
@@ -166,10 +212,11 @@ export default function PagoProveedoresPage() {
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400"/>
           {[
-            { v:'RECIBIDA',        l:'Por pagar' },
-            { v:'CON_INCIDENCIAS', l:'Con incidencias' },
-            { v:'PAGADA',          l:'Pagadas' },
-            { v:'',                l:'Todas' },
+            { v:'POR_PAGAR',            l:'Por pagar' },
+            { v:'CON_INCIDENCIAS',      l:'Entrega incompleta' },
+            { v:'PARCIALMENTE_PAGADA',  l:'Pago parcial' },
+            { v:'PAGADA',               l:'Pagadas' },
+            { v:'',                     l:'Todas' },
           ].map(({v,l}) => (
             <button key={v} onClick={()=>setFiltroEstado(v)}
               className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
@@ -236,12 +283,12 @@ export default function PagoProveedoresPage() {
                       {fmt$(o.total)}
                     </td>
                     <td className="px-5 py-4 text-center">
-                      {['RECIBIDA','CON_INCIDENCIAS'].includes(o.estado) ? (
+                      {admitePago(o) ? (
                         <button onClick={() => abrirModal(o)}
                           className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 shadow-sm">
                           <DollarSign className="w-3.5 h-3.5"/> Registrar Pago
                         </button>
-                      ) : o.estado === 'PAGADA' ? (
+                      ) : (o.estadoPago ?? '') === 'PAGADA' || o.estado === 'PAGADA' ? (
                         <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1 justify-center">
                           <CheckCircle2 className="w-4 h-4"/> Pagada
                         </span>
@@ -281,6 +328,16 @@ export default function PagoProveedoresPage() {
                   <div className="text-right">
                     <p className="text-xs text-slate-400">Total OC</p>
                     <p className="font-black text-slate-900">{fmt$(ordenSeleccionada.total)}</p>
+                    {ordenSeleccionada.estadoRecepcion !== 'COMPLETA' && (
+                      /*
+                       * Con entrega incompleta, el total de la orden no es lo
+                       * que se debe. Decirlo aquí evita que alguien teclee el
+                       * total y se lleve un rechazo sin entender por qué.
+                       */
+                      <p className="text-[11px] text-amber-600 mt-1 font-semibold">
+                        Recibido {fmt$(valorRecibido(ordenSeleccionada))}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -290,10 +347,17 @@ export default function PagoProveedoresPage() {
                 <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Monto a pagar *</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
-                  <input type="number" min="0.01" step="0.01" value={montoPago}
+                  <input type="number" min="0.01" step="0.01"
+                    max={saldoPagable(ordenSeleccionada)} value={montoPago}
                     onChange={e=>setMontoPago(e.target.value)}
                     className="w-full pl-7 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
                 </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Máximo a pagar ahora: <span className="font-mono font-semibold">{fmt$(saldoPagable(ordenSeleccionada))}</span>
+                  {Number(ordenSeleccionada.totalPagado ?? 0) > 0 && (
+                    <> · ya pagado <span className="font-mono">{fmt$(Number(ordenSeleccionada.totalPagado))}</span></>
+                  )}
+                </p>
               </div>
 
               {/* Cuenta bancaria */}

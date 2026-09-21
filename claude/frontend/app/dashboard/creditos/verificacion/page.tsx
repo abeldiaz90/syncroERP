@@ -27,11 +27,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ShieldCheck, Plus, X, Play, Power, PauseCircle, Loader2, AlertCircle,
-  CheckCircle2, GripVertical, FlaskConical, ChevronDown, ChevronRight,
+  CheckCircle2, GripVertical, FlaskConical, ChevronDown, ChevronRight, Pencil, Save,
 } from 'lucide-react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
+import { TableroVerificaciones } from '@/components/verificaciones/tablero-verificaciones';
 
 type TipoPaso =
   | 'IDENTIDAD_INE' | 'BURO_CREDITO' | 'CIRCULO_CREDITO' | 'HISTORIAL_INTERNO'
@@ -117,6 +118,19 @@ export default function FlujoVerificacionPage() {
   const [editor, setEditor] = useState<{ nombre: string; descripcion: string; topeAutomatico: string; puntajeMinimo: string; pasos: IPaso[] } | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
+  /*
+   * Corregir un flujo ya creado, sin rediseñarlo.
+   *
+   * Un flujo nace con el nombre que alguien teclea de prisa y se queda con él
+   * a la vista de todos, y hasta ahora sólo se podía arreglar en la base de
+   * datos. Se editan su identificación y sus umbrales; los pasos no, porque
+   * los expedientes ya ejecutados apuntan a ellos y cambiarlos reescribiría en
+   * retrospectiva con qué reglas se aprobó un crédito ya otorgado. Para eso
+   * está «Nuevo flujo», que crea otra versión.
+   */
+  const [edicion, setEdicion] = useState<
+    { id: string; nombre: string; descripcion: string; topeAutomatico: string; puntajeMinimo: string } | null
+  >(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -182,6 +196,31 @@ export default function FlujoVerificacionPage() {
     }
   };
 
+  const guardarEdicion = async () => {
+    if (!edicion) return;
+    const nombre = edicion.nombre.trim();
+    if (!nombre) {
+      setError('El nombre del flujo no puede quedar vacío.');
+      return;
+    }
+    setGuardando(true);
+    setError(null);
+    try {
+      await api.patch(`/integracion/validacion/flujos/${edicion.id}`, {
+        nombre,
+        descripcion: edicion.descripcion.trim(),
+        topeAutomatico: Number(edicion.topeAutomatico || 0),
+        puntajeMinimo: Number(edicion.puntajeMinimo || 0),
+      });
+      setEdicion(null);
+      await cargar();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'No se pudo guardar el cambio.');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const cambiarEstado = async (f: IFlujo) => {
     const activar = !f.activo;
     const mensaje = activar
@@ -199,15 +238,16 @@ export default function FlujoVerificacionPage() {
   const activo = flujos.find((f) => f.activo);
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 lg:p-8 max-w-[1280px] mx-auto">
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-emerald-600" />
-            Flujo de verificación
+          <h1 className="text-[22px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <ShieldCheck className="w-[20px] h-[20px] text-emerald-600" />
+            Verificación de clientes
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Qué se comprueba antes de otorgar un crédito, y qué pasa cuando algo no sale bien.
+          <p className="text-[12.5px] text-slate-500 mt-0.5">
+            Qué se comprueba antes de otorgar un crédito, cuánto se ha comprobado y qué pasa
+            cuando algo no sale bien.
           </p>
         </div>
         {!editor && (
@@ -229,6 +269,21 @@ export default function FlujoVerificacionPage() {
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-start gap-2">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
+        </div>
+      )}
+
+      {/*
+        * El registro de lo que se ha verificado va ANTES del diseño del flujo.
+        *
+        * Esta pantalla enseñaba sólo la configuración —los pasos, el tope, el
+        * puntaje— y eso es lo que se toca una vez al año. Lo que se consulta a
+        * diario, y lo que pregunta cualquiera que audite, es cuánto se está
+        * verificando de verdad y con qué resultado. El diseño del flujo queda
+        * abajo, que es donde vive lo que casi nunca se cambia.
+        */}
+      {!editor && (
+        <div className="mb-7">
+          <TableroVerificaciones />
         </div>
       )}
 
@@ -450,14 +505,100 @@ export default function FlujoVerificacionPage() {
                     </ol>
                   )}
 
-                  <div className="flex gap-2 mt-3">
-                    <button onClick={() => void cambiarEstado(f)}
-                      className={`px-3 py-1.5 text-sm rounded-lg flex items-center gap-1.5 ${
-                        f.activo ? 'border hover:bg-gray-50' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}>
-                      {f.activo ? <PauseCircle className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
-                      {f.activo ? 'Desactivar' : 'Activar'}
-                    </button>
-                  </div>
+                  {edicion?.id === f.id ? (
+                    <div className="mt-3 rounded-lg border bg-gray-50 p-3 space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
+                        <input
+                          value={edicion.nombre}
+                          onChange={(e) => setEdicion({ ...edicion, nombre: e.target.value })}
+                          maxLength={120}
+                          className="w-full px-2.5 py-1.5 text-sm border rounded-lg"
+                          placeholder="Originación de crédito"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Descripción <span className="font-normal text-gray-400">(opcional)</span>
+                        </label>
+                        <input
+                          value={edicion.descripcion}
+                          onChange={(e) => setEdicion({ ...edicion, descripcion: e.target.value })}
+                          maxLength={500}
+                          className="w-full px-2.5 py-1.5 text-sm border rounded-lg"
+                          placeholder="Qué comprueba este flujo y para quién"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Aprobación automática hasta
+                          </label>
+                          <input
+                            type="number" min={0} step="0.01"
+                            value={edicion.topeAutomatico}
+                            onChange={(e) => setEdicion({ ...edicion, topeAutomatico: e.target.value })}
+                            className="w-full px-2.5 py-1.5 text-sm border rounded-lg text-right"
+                          />
+                          <p className="text-[11px] text-gray-500 mt-1">
+                            El techo de la instalación manda: si aquí se pone más, se recorta.
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Puntaje mínimo</label>
+                          <input
+                            type="number" min={0} max={100}
+                            value={edicion.puntajeMinimo}
+                            onChange={(e) => setEdicion({ ...edicion, puntajeMinimo: e.target.value })}
+                            className="w-full px-2.5 py-1.5 text-sm border rounded-lg text-right"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-gray-500">
+                        Los pasos no se editan aquí: los expedientes ya ejecutados apuntan a ellos.
+                        Para cambiarlos, crea un flujo nuevo y actívalo.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => void guardarEdicion()}
+                          disabled={guardando}
+                          className="px-3 py-1.5 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                          {guardando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                          Guardar
+                        </button>
+                        <button
+                          onClick={() => setEdicion(null)}
+                          className="px-3 py-1.5 text-sm rounded-lg border hover:bg-white flex items-center gap-1.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => void cambiarEstado(f)}
+                        className={`px-3 py-1.5 text-sm rounded-lg flex items-center gap-1.5 ${
+                          f.activo ? 'border hover:bg-gray-50' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}>
+                        {f.activo ? <PauseCircle className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
+                        {f.activo ? 'Desactivar' : 'Activar'}
+                      </button>
+                      <button
+                        onClick={() => setEdicion({
+                          id: f.id,
+                          nombre: f.nombre ?? '',
+                          descripcion: f.descripcion ?? '',
+                          topeAutomatico: String(f.topeAutomatico ?? 0),
+                          puntajeMinimo: String(f.puntajeMinimo ?? 0),
+                        })}
+                        className="px-3 py-1.5 text-sm rounded-lg border hover:bg-gray-50 flex items-center gap-1.5"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        Editar
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

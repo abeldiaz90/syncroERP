@@ -45,6 +45,7 @@ import {
   Wallet,
   Briefcase,
   Building,
+  CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -64,6 +65,25 @@ export interface ModuleAction {
   href: string;
   descripcion?: string;
   principal?: boolean;
+  /**
+   * La acción de servidor que este botón dispara, si dispara alguna.
+   *
+   * Sin esto, los botones de la barra sólo se filtraban por «¿puede abrir esa
+   * pantalla?», y abrir no es poder. Al almacenista —que consulta compras pero
+   * no compra— la barra le ofrecía «Nueva requisición» en verde, primario, y
+   * el vacío de la pantalla le decía «crea tu primera requisición». Llena el
+   * formulario y al guardar, 403. Un botón que lleva a una negativa es peor
+   * que no tener el botón: hace perder el trabajo ya hecho.
+   *
+   * Declarado aquí, el botón sólo aparece si el perfil puede ejecutarlo.
+   */
+  accion?: { metodo: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; ruta: string };
+  /**
+   * Se abre en su propia ventana, no navegando dentro del área de trabajo.
+   * Hoy solo la caja: es una terminal que se abre al empezar el turno y se
+   * cierra al terminarlo, no una pantalla más del ERP.
+   */
+  ventana?: boolean;
 }
 
 export interface ModuleConfig {
@@ -117,7 +137,7 @@ export const MODULOS: ModuleConfig[] = [
     href: "/dashboard/centros/ventas",
     prefixes: ["/dashboard/centros/ventas", "/dashboard/ventas"],
     acciones: [
-      { label: "Nueva venta", href: "/dashboard/ventas/pos", principal: true },
+      { label: "Abrir caja", href: "/pos", principal: true, ventana: true },
       { label: "Historial", href: "/dashboard/ventas/historial" },
       { label: "Devoluciones", href: "/dashboard/ventas/devoluciones" },
     ],
@@ -127,10 +147,17 @@ export const MODULOS: ModuleConfig[] = [
       { label: "Existencias", href: "/dashboard/almacenes/existencias" },
     ],
     items: [
+      /*
+       * La caja NO se lista en el menú: vive en su propia ventana (`/pos`) y se
+       * abre desde la acción «Abrir caja». Se deja oculta para que la dirección
+       * vieja siga resolviendo al módulo de Ventas y quien la tenga guardada no
+       * acabe en una pantalla sin navegación.
+       */
       {
         label: "Punto de venta",
         href: "/dashboard/ventas/pos",
         grupo: "Operación",
+        oculto: true,
       },
       {
         label: "Historial de ventas",
@@ -156,17 +183,36 @@ export const MODULOS: ModuleConfig[] = [
     bg: "#eff6ff",
     border: "#bae6fd",
     href: "/dashboard/centros/compras",
-    prefixes: ["/dashboard/centros/compras", "/dashboard/compras"],
+    prefixes: ["/dashboard/centros/compras", "/dashboard/compras", "/dashboard/proveedores"],
     acciones: [
-      { label: "Nueva requisición", href: "/dashboard/compras/requisiciones", principal: true },
-      { label: "Comparar cotizaciones", href: "/dashboard/compras/cotizaciones" },
+      {
+        label: "Nueva requisición",
+        href: "/dashboard/compras/requisiciones",
+        principal: true,
+        accion: { metodo: "POST", ruta: "/api/compras/requisiciones" },
+      },
+      {
+        label: "Comparar cotizaciones",
+        href: "/dashboard/compras/cotizaciones",
+        accion: { metodo: "POST", ruta: "/api/compras/cotizaciones" },
+      },
       { label: "Órdenes pendientes", href: "/dashboard/compras/ordenes" },
-      { label: "Recibir compra", href: "/dashboard/inventario/recepciones" },
+      /*
+       * Recibir es trabajo de almacén y su pantalla vive en Almacenes. Aquí se
+       * queda como acción —el comprador va a ella desde su orden— pero no como
+       * renglón del menú: cuando lo era, encendía el cuadro de «Compras» a
+       * cualquiera que pudiera consultar recepciones, el vendedor incluido.
+       */
+      {
+        label: "Recibir compra",
+        href: "/dashboard/inventario/recepciones",
+        accion: { metodo: "PATCH", ruta: "/api/compras/ordenes/:id/recibir" },
+      },
     ],
     relacionados: [
-      { label: "Proveedores", href: "/dashboard/proveedores" },
       { label: "Almacenes", href: "/dashboard/almacenes/centro" },
-      { label: "Pago a proveedores", href: "/dashboard/compras/pago-proveedores" },
+      { label: "Bandeja de aprobaciones", href: "/dashboard/aprobaciones" },
+      { label: "Flujos de aprobación", href: "/dashboard/configuraciones-aprobacion" },
     ],
     items: [
       {
@@ -190,11 +236,6 @@ export const MODULOS: ModuleConfig[] = [
         grupo: "Ciclo de compra",
       },
       {
-        label: "Recepciones",
-        href: "/dashboard/inventario/recepciones",
-        grupo: "Ciclo de compra",
-      },
-      {
         label: "Pago a proveedores",
         href: "/dashboard/compras/pago-proveedores",
         grupo: "Cuentas por pagar",
@@ -202,13 +243,41 @@ export const MODULOS: ModuleConfig[] = [
       {
         label: "Proveedores",
         href: "/dashboard/proveedores",
-        grupo: "Cuentas por pagar",
+        grupo: "Padrón",
       },
-      {
-        label: "Flujos de aprobación",
-        href: "/dashboard/configuraciones-aprobacion",
-        grupo: "Configuración",
-      },
+    ],
+  },
+
+  /* ── APROBACIONES ───────────────────────────────────────────────────
+   * La bandeja y los flujos vivían repartidos: la bandeja estaba metida
+   * dentro de Hotelería («Aprobaciones de crédito») y dentro de
+   * Administración, y los flujos dentro de Compras y dentro de Administración.
+   * Como el panel pinta un módulo en cuanto el usuario puede abrir UNA de sus
+   * pantallas, cualquiera con la bandeja —recursos humanos, crédito,
+   * gerencia— veía encenderse el cuadro de «Hotelería» y el de
+   * «Administración». No era un permiso de más: era el mapa mintiendo sobre
+   * dónde vive la pantalla.
+   *
+   * Aprobar es un trabajo propio y transversal, así que tiene su módulo, igual
+   * que ya lo tenía del lado del servidor.
+   * ─────────────────────────────────────────────────────────────────────── */
+  {
+    id: "aprobaciones",
+    nombre: "Aprobaciones",
+    desc: "Lo que espera tu firma y las reglas que deciden a quién le toca",
+    Icono: CheckCircle2,
+    color: "#16a34a",
+    bg: "#f0fdf4",
+    border: "#bbf7d0",
+    href: "/dashboard/aprobaciones",
+    prefixes: ["/dashboard/aprobaciones", "/dashboard/configuraciones-aprobacion"],
+    relacionados: [
+      { label: "Aprobaciones de compra", href: "/dashboard/compras/aprobaciones" },
+      { label: "Aprobaciones de estructura", href: "/dashboard/rrhh/aprobaciones-estructura" },
+    ],
+    items: [
+      { label: "Bandeja de aprobaciones", href: "/dashboard/aprobaciones", grupo: "Pendientes" },
+      { label: "Flujos de aprobación", href: "/dashboard/configuraciones-aprobacion", grupo: "Reglas" },
     ],
   },
 
@@ -216,7 +285,7 @@ export const MODULOS: ModuleConfig[] = [
   {
     id: "productos",
     nombre: "Productos",
-    desc: "Catálogo, variantes, precios y configuración logística",
+    desc: "Catálogo, variantes, precios y logística",
     Icono: Package,
     color: "#0f766e",
     bg: "#f0fdfa",
@@ -231,7 +300,7 @@ export const MODULOS: ModuleConfig[] = [
       "/dashboard/listas-precio",
     ],
     acciones: [
-      { label: "Nuevo producto", href: "/dashboard/productos", descripcion: "Alta y edición del catálogo", principal: true },
+      { label: "Nuevo producto", href: "/dashboard/productos", descripcion: "Alta y edición del catálogo", principal: true, accion: { metodo: "POST", ruta: "/api/catalogo/productos" } },
       { label: "Listas de precio", href: "/dashboard/listas-precio", descripcion: "Precios y vigencias" },
       { label: "Importar productos", href: "/dashboard/inventario/importar", descripcion: "Carga inicial desde Excel" },
     ],
@@ -272,11 +341,11 @@ export const MODULOS: ModuleConfig[] = [
       "/dashboard/inventario/ajustes",
     ],
     acciones: [
-      { label: "Recibir mercancía", href: "/dashboard/inventario/recepciones", descripcion: "Órdenes pendientes", principal: true },
-      { label: "Crear transferencia", href: "/dashboard/inventario/transferencias", descripcion: "Entre almacenes" },
-      { label: "Reubicar", href: "/dashboard/inventario/reubicaciones", descripcion: "Mover dentro del almacén" },
-      { label: "Abrir conteo", href: "/dashboard/inventario/conteos", descripcion: "Conteo físico" },
-      { label: "Registrar ajuste", href: "/dashboard/inventario/ajustes", descripcion: "Merma o regularización" },
+      { label: "Recibir mercancía", href: "/dashboard/inventario/recepciones", descripcion: "Órdenes pendientes", principal: true, accion: { metodo: "PATCH", ruta: "/api/compras/ordenes/:id/recibir" } },
+      { label: "Crear transferencia", href: "/dashboard/inventario/transferencias", descripcion: "Entre almacenes", accion: { metodo: "POST", ruta: "/api/catalogo/inventario/productos/transferir" } },
+      { label: "Reubicar", href: "/dashboard/inventario/reubicaciones", descripcion: "Mover dentro del almacén", accion: { metodo: "POST", ruta: "/api/catalogo/wms/reubicaciones" } },
+      { label: "Abrir conteo", href: "/dashboard/inventario/conteos", descripcion: "Conteo físico", accion: { metodo: "POST", ruta: "/api/catalogo/wms/conteos" } },
+      { label: "Registrar ajuste", href: "/dashboard/inventario/ajustes", descripcion: "Merma o regularización", accion: { metodo: "POST", ruta: "/api/catalogo/inventario/productos/ajuste" } },
     ],
     relacionados: [
       { label: "Productos", href: "/dashboard/productos", descripcion: "Datos maestros" },
@@ -397,11 +466,10 @@ export const MODULOS: ModuleConfig[] = [
         grupo: "Análisis",
         etiqueta: "Nuevo",
       },
-      {
-        label: "Cuentas bancarias",
-        href: "/dashboard/creditos/cuentas-bancarias",
-        grupo: "Configuración",
-      },
+    ],
+    relacionados: [
+      { label: "Cuentas bancarias", href: "/dashboard/creditos/cuentas-bancarias" },
+      { label: "Corte de caja", href: "/dashboard/reportes/corte-caja" },
     ],
   },
 
@@ -417,7 +485,7 @@ export const MODULOS: ModuleConfig[] = [
     href: "/dashboard/centros/finanzas",
     prefixes: ["/dashboard/centros/finanzas", "/dashboard/finanzas"],
     acciones: [
-      { label: "Nueva póliza", href: "/dashboard/finanzas/polizas/nueva", principal: true },
+      { label: "Nueva póliza", href: "/dashboard/finanzas/polizas/nueva", principal: true, accion: { metodo: "POST", ruta: "/api/finanzas/polizas" } },
       { label: "Balanza", href: "/dashboard/finanzas/balanza" },
       { label: "Cierre mensual", href: "/dashboard/finanzas/cierre-contable" },
       { label: "Asientos pendientes", href: "/dashboard/finanzas/asientos-pendientes" },
@@ -495,6 +563,11 @@ export const MODULOS: ModuleConfig[] = [
         etiqueta: "Crítico",
       },
       {
+        label: "Espejo contable",
+        href: "/dashboard/finanzas/espejo-contable",
+        grupo: "Control",
+      },
+      {
         label: "Catálogo de cuentas",
         href: "/dashboard/finanzas/cuentas-contables",
         grupo: "Configuración",
@@ -504,11 +577,10 @@ export const MODULOS: ModuleConfig[] = [
         href: "/dashboard/finanzas/categorias-contables",
         grupo: "Configuración",
       },
-      {
-        label: "Impuestos",
-        href: "/dashboard/impuestos",
-        grupo: "Configuración",
-      },
+    ],
+    relacionados: [
+      { label: "Impuestos", href: "/dashboard/impuestos" },
+      { label: "Categorías de producto", href: "/dashboard/categorias" },
     ],
   },
 
@@ -563,7 +635,7 @@ export const MODULOS: ModuleConfig[] = [
     href: "/dashboard/centros/rrhh",
     prefixes: ["/dashboard/centros/rrhh", "/dashboard/rrhh", "/dashboard/departamentos"],
     acciones: [
-      { label: "Nuevo empleado", href: "/dashboard/rrhh/empleados", principal: true },
+      { label: "Nuevo empleado", href: "/dashboard/rrhh/empleados", principal: true, accion: { metodo: "POST", ruta: "/api/rrhh/empleados" } },
       { label: "Registrar incidencia", href: "/dashboard/rrhh/incidencias" },
       { label: "Revisar asistencia", href: "/dashboard/rrhh/asistencia" },
       { label: "Centro integral de nómina", href: "/dashboard/rrhh/centro-nomina" },
@@ -722,8 +794,8 @@ export const MODULOS: ModuleConfig[] = [
         grupo: "Seguimiento",
         etiqueta: "Nuevo",
       },
-      { label: "Clientes", href: "/dashboard/clientes", grupo: "Cartera" },
     ],
+    relacionados: [{ label: "Clientes", href: "/dashboard/clientes" }],
   },
 
   /* ── REPORTES ───────────────────────────────────────────────────────── */
@@ -764,11 +836,6 @@ export const MODULOS: ModuleConfig[] = [
         grupo: "Operación",
       },
       {
-        label: "Estado de cuenta",
-        href: "/dashboard/reportes/estado-cuenta",
-        grupo: "Cartera",
-      },
-      {
         label: "Índice de reportes",
         href: "/dashboard/reportes",
         grupo: "Operación",
@@ -781,7 +848,7 @@ export const MODULOS: ModuleConfig[] = [
   {
     id: "catalogos",
     nombre: "Catálogos",
-    desc: "Clientes, proveedores y datos maestros",
+    desc: "Clientes, impuestos y datos maestros",
     Icono: Database,
     color: "#e11d48",
     bg: "#fff1f2",
@@ -790,23 +857,15 @@ export const MODULOS: ModuleConfig[] = [
     prefixes: [
       "/dashboard/centros/catalogos",
       "/dashboard/clientes",
-      "/dashboard/proveedores",
       "/dashboard/impuestos",
-      "/dashboard/listas-precio",
       "/dashboard/catalogos",
+    ],
+    relacionados: [
+      { label: "Proveedores", href: "/dashboard/proveedores" },
+      { label: "Listas de precio", href: "/dashboard/listas-precio" },
     ],
     items: [
       { label: "Clientes", href: "/dashboard/clientes", grupo: "Terceros" },
-      {
-        label: "Proveedores",
-        href: "/dashboard/proveedores",
-        grupo: "Terceros",
-      },
-      {
-        label: "Listas de precio",
-        href: "/dashboard/listas-precio",
-        grupo: "Comercial",
-      },
       { label: "Impuestos", href: "/dashboard/impuestos", grupo: "Comercial" },
       {
         label: "Formas de pago",
@@ -835,13 +894,14 @@ export const MODULOS: ModuleConfig[] = [
   {
     id: "hoteleria",
     nombre: "Hotelería",
-    desc: "Rack, reservas, housekeeping y recetas",
+    desc: "Rack, reservas, housekeeping, city ledger y recetas",
     Icono: BedDouble,
     color: "#0f766e",
     bg: "#f0fdfa",
     border: "#99f6e4",
     href: "/dashboard/centros/hoteleria",
     prefixes: ["/dashboard/centros/hoteleria", "/dashboard/hoteleria"],
+    relacionados: [{ label: "Bandeja de aprobaciones", href: "/dashboard/aprobaciones" }],
     items: [
       {
         label: "Rack de habitaciones",
@@ -875,11 +935,14 @@ export const MODULOS: ModuleConfig[] = [
         grupo: "Crédito hotelero",
         etiqueta: "Convenios",
       },
-      {
-        label: "Aprobaciones de crédito",
-        href: "/dashboard/aprobaciones",
-        grupo: "Crédito hotelero",
-      },
+      /*
+       * Los escandallos son del restaurante del hotel: de qué se compone una
+       * margarita o una hamburguesa, y cuánto cuesta servirla. Estuvieron un
+       * rato bajo Productos porque el módulo «recetas» del servidor lo tenía el
+       * almacenista, pero eso era el error de fondo, no la ubicación: quien
+       * surte el almacén no prepara hamburguesas. Se le retiró el módulo y las
+       * pantallas vuelven a su casa, con Alimentos y bebidas.
+       */
       {
         label: "Recetas y escandallos",
         href: "/dashboard/hoteleria/recetas",
@@ -889,7 +952,6 @@ export const MODULOS: ModuleConfig[] = [
         label: "Control de costos",
         href: "/dashboard/hoteleria/costos-recetas",
         grupo: "Alimentos y bebidas",
-        etiqueta: "Nuevo",
       },
       {
         label: "Configuración",
@@ -912,10 +974,7 @@ export const MODULOS: ModuleConfig[] = [
     prefixes: [
       "/dashboard/centros/admin",
       "/dashboard/usuarios",
-      "/dashboard/departamentos",
       "/dashboard/permisos",
-      "/dashboard/configuraciones-aprobacion",
-      "/dashboard/aprobaciones",
       "/dashboard/auditoria",
       "/dashboard/rpa",
     ],
@@ -925,21 +984,6 @@ export const MODULOS: ModuleConfig[] = [
         label: "Roles y permisos",
         href: "/dashboard/permisos",
         grupo: "Accesos",
-      },
-      {
-        label: "Departamentos",
-        href: "/dashboard/departamentos",
-        grupo: "Organización",
-      },
-      {
-        label: "Bandeja de aprobaciones",
-        href: "/dashboard/aprobaciones",
-        grupo: "Organización",
-      },
-      {
-        label: "Flujos de aprobación",
-        href: "/dashboard/configuraciones-aprobacion",
-        grupo: "Organización",
       },
       {
         label: "Bitácora de auditoría",
@@ -954,6 +998,27 @@ export const MODULOS: ModuleConfig[] = [
     ],
   },
 ];
+
+/* ── Contenedores ────────────────────────────────────────────────────────── */
+
+/**
+ * Pantallas que no son una pantalla, sino la portada de un módulo: no tienen
+ * datos propios, sólo enlaces a las de dentro.
+ *
+ * Importan para el control de acceso. El permiso de pantalla cubre la ruta y
+ * SUS DESCENDIENTES —así `/dashboard/compras/ordenes` abre también el detalle
+ * de una orden—, de modo que conceder una portada concede todo lo que cuelga
+ * de ella. `/dashboard/reportes` lo hacía: quien tuviera el índice entraba
+ * además al panel ejecutivo, al corte de caja y al estado de cuenta de los
+ * clientes, que son de otros módulos.
+ *
+ * Por eso ninguna acción concede ya una portada. Se entra a ella si se puede
+ * abrir al menos una pantalla de dentro, que es lo que el layout comprueba.
+ */
+export const RUTAS_CONTENEDOR = new Set<string>([
+  "/dashboard/reportes",
+  "/dashboard/almacenes/centro",
+]);
 
 /* ── Resolución de módulo ────────────────────────────────────────────────── */
 

@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { abrirPuntoDeVenta } from '@/lib/pos';
 import { useParams } from 'next/navigation';
-import { ArrowRight, Layers3, Link2, Sparkles } from 'lucide-react';
+import { ArrowRight, Layers3, Link2, Sparkles, ExternalLink } from 'lucide-react';
 import { MODULOS, agruparItems } from '../../module-config';
 import { api, intentar, token } from '@/lib/api';
 import { esRolAdministrador } from '@/lib/roles';
@@ -31,7 +32,13 @@ export default function CentroModuloPage() {
   if (!modulo) return <div className="p-8">Módulo no encontrado.</div>;
   const items = modulo.items.filter((i) => !i.oculto && puedeVerEnlace(permisos, i.href));
   const grupos = agruparItems(items);
-  const acciones = (modulo.acciones ?? []).filter((a) => puedeVerEnlace(permisos, a.href));
+  // Las acciones de ventana (la caja) no pasan por el filtro de rutas del
+  // menú: no son una pantalla del área de trabajo y no tienen permiso de
+  // navegación asociado. Lo que se puede hacer dentro lo sigue decidiendo el
+  // servidor, acción por acción.
+  const acciones = (modulo.acciones ?? []).filter(
+    (a) => a.ventana || puedeVerEnlace(permisos, a.href),
+  );
   const relacionados = (modulo.relacionados ?? []).filter((a) => puedeVerEnlace(permisos, a.href));
 
   return (
@@ -50,12 +57,29 @@ export default function CentroModuloPage() {
 
         {acciones.length > 0 && (
           <div className="mt-5 flex flex-wrap gap-2">
-            {acciones.map((a, index) => (
-              <Link key={a.href} href={a.href} className={`rounded-xl px-4 py-3 min-w-[170px] border transition-shadow hover:shadow-sm ${index === 0 || a.principal ? 'text-white border-transparent' : 'bg-white text-slate-800 border-slate-200'}`} style={index === 0 || a.principal ? { background: modulo.color } : undefined}>
-                <span className="flex items-center justify-between gap-3 text-[12.5px] font-bold">{a.label}<ArrowRight className="w-3.5 h-3.5" /></span>
-                {a.descripcion && <span className={`block text-[11px] mt-1 ${index === 0 || a.principal ? 'text-white/75' : 'text-slate-500'}`}>{a.descripcion}</span>}
-              </Link>
-            ))}
+            {acciones.map((a, index) => {
+              const destacada = index === 0 || a.principal;
+              const clases = `rounded-xl px-4 py-3 min-w-[170px] border transition-shadow hover:shadow-sm text-left ${destacada ? 'text-white border-transparent' : 'bg-white text-slate-800 border-slate-200'}`;
+              const estilo = destacada ? { background: modulo.color } : undefined;
+              const cuerpo = (
+                <>
+                  <span className="flex items-center justify-between gap-3 text-[12.5px] font-bold">
+                    {a.label}
+                    {a.ventana ? <ExternalLink className="w-3.5 h-3.5" /> : <ArrowRight className="w-3.5 h-3.5" />}
+                  </span>
+                  {a.descripcion && <span className={`block text-[11px] mt-1 ${destacada ? 'text-white/75' : 'text-slate-500'}`}>{a.descripcion}</span>}
+                </>
+              );
+              return a.ventana ? (
+                <button key={a.href} type="button" onClick={abrirPuntoDeVenta} className={clases} style={estilo} title="Se abre en su propia ventana">
+                  {cuerpo}
+                </button>
+              ) : (
+                <Link key={a.href} href={a.href} className={clases} style={estilo}>
+                  {cuerpo}
+                </Link>
+              );
+            })}
           </div>
         )}
       </header>

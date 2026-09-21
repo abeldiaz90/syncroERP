@@ -6,13 +6,31 @@ import { confirmarElegante } from '@/components/ui/dialogos';
 import { Layers, Plus, Edit2, Trash2, CheckCircle2, AlertCircle, Loader2, DollarSign } from 'lucide-react';
 import { PuedeCrear, PuedeEditar, PuedeEliminar } from "@/app/components/ProtectedElement"; // ← NUEVO
 
-interface IListaPrecio { id: string; nombre: string; esPorDefecto: boolean; }
+interface IListaPrecio {
+  id: string;
+  nombre: string;
+  esPorDefecto: boolean;
+  modo?: 'MANUAL' | 'MARGEN';
+  margenPorcentaje?: number;
+  redondeo?: number;
+}
 
 export default function ListasPrecioPage() {
   const [listas, setListas] = useState<IListaPrecio[]>([]);
   const [cargando, setCargando] = useState(true);
   const [nombre, setNombre] = useState('');
   const [esPorDefecto, setEsPorDefecto] = useState(false);
+  /*
+   * De dónde sale el precio de esta lista. El precio de venta ya no tiene por
+   * qué teclearse artículo por artículo: puede salir del costo de reposición,
+   * que cada recepción de compra actualiza sola. Así una subida del proveedor
+   * llega al precio de venta en la siguiente entrada, en vez de esperar a que
+   * alguien se acuerde de retocar la lista —que es como se acaba vendiendo por
+   * debajo del costo sin que nadie lo note.
+   */
+  const [modo, setModo] = useState<'MANUAL' | 'MARGEN'>('MANUAL');
+  const [margen, setMargen] = useState('');
+  const [redondeo, setRedondeo] = useState('');
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [nombreTocado, setNombreTocado] = useState(false);
@@ -49,7 +67,13 @@ export default function ListasPrecioPage() {
       const res = await fetch(url, {
         method: editandoId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ nombre: nombre.trim(), esPorDefecto })
+        body: JSON.stringify({
+          nombre: nombre.trim(),
+          esPorDefecto,
+          modo,
+          margenPorcentaje: modo === 'MARGEN' ? Number(margen || 0) : 0,
+          redondeo: modo === 'MARGEN' ? Number(redondeo || 0) : 0,
+        })
       });
       if (res.ok) {
         mostrarToast(editandoId ? 'Lista actualizada' : 'Lista creada', 'exito');
@@ -59,7 +83,15 @@ export default function ListasPrecioPage() {
     } finally { setGuardando(false); }
   };
 
-  const handleEditar = (lista: IListaPrecio) => { setEditandoId(lista.id); setNombre(lista.nombre); setEsPorDefecto(lista.esPorDefecto); setNombreTocado(false); };
+  const handleEditar = (lista: IListaPrecio) => {
+    setEditandoId(lista.id);
+    setNombre(lista.nombre);
+    setEsPorDefecto(lista.esPorDefecto);
+    setModo(lista.modo ?? 'MANUAL');
+    setMargen(lista.margenPorcentaje ? String(lista.margenPorcentaje) : '');
+    setRedondeo(lista.redondeo ? String(lista.redondeo) : '');
+    setNombreTocado(false);
+  };
 
   const handleEliminar = async (id: string) => {
     if (!await confirmarElegante('¿Seguro que deseas eliminar esta lista? Los productos perderán este precio.', { peligroso: true })) return;
@@ -70,7 +102,7 @@ export default function ListasPrecioPage() {
     } catch { mostrarToast('Error al eliminar', 'error'); }
   };
 
-  const cancelarEdicion = () => { setEditandoId(null); setNombre(''); setEsPorDefecto(false); setNombreTocado(false); };
+  const cancelarEdicion = () => { setEditandoId(null); setNombre(''); setEsPorDefecto(false); setModo('MANUAL'); setMargen(''); setRedondeo(''); setNombreTocado(false); };
 
   return (
     <div className="flex flex-col h-full bg-slate-50 text-slate-800 animate-in fade-in duration-500">
@@ -114,6 +146,61 @@ export default function ListasPrecioPage() {
                   />
                   {nombreTocado && errorNombre && <p className="mt-1 text-xs font-semibold text-rose-600">{errorNombre}</p>}
                 </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    De dónde sale el precio
+                  </label>
+                  <div className="space-y-2">
+                    <label className={`flex items-start gap-3 p-3 border rounded-md cursor-pointer transition-colors ${modo === 'MANUAL' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}`}>
+                      <input type="radio" name="modo" checked={modo === 'MANUAL'} onChange={() => setModo('MANUAL')} className="mt-0.5 w-4 h-4 text-emerald-600 focus:ring-emerald-500" />
+                      <div>
+                        <span className="block text-sm font-semibold text-slate-800">Lo captura Ventas</span>
+                        <span className="block text-xs text-slate-500">Un precio tecleado para cada artículo.</span>
+                      </div>
+                    </label>
+                    <label className={`flex items-start gap-3 p-3 border rounded-md cursor-pointer transition-colors ${modo === 'MARGEN' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}`}>
+                      <input type="radio" name="modo" checked={modo === 'MARGEN'} onChange={() => setModo('MARGEN')} className="mt-0.5 w-4 h-4 text-emerald-600 focus:ring-emerald-500" />
+                      <div>
+                        <span className="block text-sm font-semibold text-slate-800">Se calcula desde el costo</span>
+                        <span className="block text-xs text-slate-500">
+                          Costo de la última compra más el margen. Se actualiza solo con cada recepción.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {modo === 'MARGEN' && (
+                  <div className="grid grid-cols-2 gap-3 rounded-md border border-emerald-200 bg-emerald-50/50 p-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Margen %</label>
+                      <input type="number" min="0" step="0.01" value={margen} onChange={(e) => setMargen(e.target.value)}
+                        placeholder="35"
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-slate-800" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Redondear a</label>
+                      <input type="number" min="0" step="0.01" value={redondeo} onChange={(e) => setRedondeo(e.target.value)}
+                        placeholder="0.50"
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-slate-800" />
+                    </div>
+                    <p className="col-span-2 text-[11px] leading-relaxed text-slate-600">
+                      {Number(margen) > 0 ? (
+                        <>Un artículo que costó $100 se venderá en{' '}
+                          <strong>
+                            ${(() => {
+                              const bruto = 100 * (1 + Number(margen) / 100);
+                              const paso = Number(redondeo || 0);
+                              return (paso > 0 ? Math.ceil(bruto / paso) * paso : bruto).toFixed(2);
+                            })()}
+                          </strong>. Un precio tecleado a mano para un artículo concreto gana sobre esta regla.</>
+                      ) : (
+                        <>Captura el margen. Con margen cero venderías exactamente a lo que te costó.</>
+                      )}
+                    </p>
+                  </div>
+                )}
 
                 <label className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-md cursor-pointer hover:bg-emerald-50 transition-colors">
                   <input type="checkbox" checked={esPorDefecto} onChange={(e) => setEsPorDefecto(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
@@ -168,6 +255,7 @@ export default function ListasPrecioPage() {
                   <thead>
                     <tr className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black border-b border-slate-200">
                       <th className="px-5 py-3">Nombre del Tabulador</th>
+                      <th className="px-5 py-3">Precio</th>
                       <th className="px-5 py-3 text-center">Estado</th>
                       <th className="px-5 py-3 text-right">Acciones</th>
                     </tr>
@@ -176,6 +264,16 @@ export default function ListasPrecioPage() {
                     {listas.map((lista) => (
                       <tr key={lista.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-5 py-3 font-bold text-slate-800">{lista.nombre}</td>
+                        <td className="px-5 py-3 text-xs text-slate-500">
+                          {lista.modo === 'MARGEN' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-sky-100 text-sky-700 font-bold">
+                              costo + {Number(lista.margenPorcentaje ?? 0)}%
+                              {Number(lista.redondeo) > 0 && <> · a {Number(lista.redondeo)}</>}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">capturado</span>
+                          )}
+                        </td>
                         <td className="px-5 py-3 text-center">
                           {lista.esPorDefecto ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700">

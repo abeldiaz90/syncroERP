@@ -16,7 +16,7 @@ import { ArrowRight, Banknote, Receipt, TrendingUp, Users2 } from 'lucide-react'
 
 import { MODULOS } from './module-config';
 import { api, intentar, token } from '@/lib/api';
-import { leerSesion, puedeVerEnlace } from '@/lib/session';
+import { leerSesion, puedeEntrar, puedeVerEnlace } from '@/lib/session';
 import { Indicador } from '@/components/ui';
 import { dinero } from '@/lib/format';
 import { esRolAdministrador } from '@/lib/roles';
@@ -68,15 +68,35 @@ export default function PanelPrincipal() {
         if (vivo) setPermisos(r.rutas ?? []);
       }
 
+      /*
+       * ──────────────────────────────────────────────────────────────────────
+       * Un indicador que no se pudo leer NO vale cero
+       * ----------------------------------------------------------------------
+       * Estas dos llamadas responden 403 a quien no tiene ventas ni finanzas
+       * —un almacenista, por ejemplo—, `intentar` se traga el error y lo que
+       * quedaba en pantalla era «Ventas de hoy $0.00 · 0 transacciones».
+       *
+       * Eso no es un hueco: es un dato del negocio, y falso. Se vio en la
+       * primera sesión de un usuario real: el almacenista entraba y su panel le
+       * decía que hoy no se había vendido nada. Si lo repite en voz alta, se
+       * toman decisiones con eso.
+       *
+       * `null` significa «no lo sé» y los indicadores que no se saben no se
+       * pintan. Se distingue de «cero de verdad», que sí se pinta.
+       * ──────────────────────────────────────────────────────────────────────
+       */
       const [m, balanza] = await Promise.all([
         intentar(api.get<Metricas>('/ventas/dashboard/metricas'), null as unknown as Metricas),
-        intentar(api.get<Array<{ numeroCuenta?: string; saldoFinal?: number }>>('/finanzas/polizas/balanza'), []),
+        intentar(
+          api.get<Array<{ numeroCuenta?: string; saldoFinal?: number }>>('/finanzas/polizas/balanza'),
+          null as unknown as Array<{ numeroCuenta?: string; saldoFinal?: number }>,
+        ),
       ]);
 
       if (!vivo) return;
-      setMetricas(m);
+      setMetricas(m ?? null);
       const cxc = Array.isArray(balanza) ? balanza.find((b) => b.numeroCuenta?.startsWith('14')) : null;
-      setPorCobrar(cxc ? Number(cxc.saldoFinal ?? 0) : null);
+      setPorCobrar(Array.isArray(balanza) ? Number(cxc?.saldoFinal ?? 0) : null);
       setCargandoKpis(false);
     })();
 
@@ -91,7 +111,17 @@ export default function PanelPrincipal() {
     accesibles: m.items.filter((i) => !i.oculto && puedeVerEnlace(permisos, i.href)),
   })).filter((m) => m.accesibles.length > 0);
 
-  const rapidos = ACCESOS_RAPIDOS.filter((a) => puedeVerEnlace(permisos, a.href));
+  /*
+   * Los accesos rápidos son destinos concretos, no secciones: se filtran con
+   * `puedeEntrar` y no con `puedeVerEnlace`.
+   *
+   * La diferencia importa. `puedeVerEnlace` también acepta que el permiso sea
+   * DESCENDIENTE del enlace —lo correcto para una sección, que debe verse si
+   * algo de dentro es accesible— y por eso al almacenista le aparecían «Corte
+   * de caja» y «Reporte de ventas», que no puede abrir. Un botón que lleva a
+   * una negativa es peor que no tener el botón.
+   */
+  const rapidos = ACCESOS_RAPIDOS.filter((a) => puedeEntrar(permisos, a.href));
 
   return (
     <div className="p-6 lg:p-8 max-w-[1280px] mx-auto">
@@ -103,33 +133,41 @@ export default function PanelPrincipal() {
         <p className="text-[12.5px] text-slate-500 mt-0.5">{fechaLarga()}</p>
       </header>
 
-      {/* Indicadores del día */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        <Indicador
-          etiqueta="Ventas de hoy" color="#4f46e5" cargando={cargandoKpis}
-          icono={<Receipt className="w-4 h-4" />}
-          valor={dinero(metricas?.totalHoy ?? 0)}
-          detalle={`${metricas?.ventasHoy ?? 0} transacciones`}
-        />
-        <Indicador
-          etiqueta="Ticket promedio" color="#059669" cargando={cargandoKpis}
-          icono={<TrendingUp className="w-4 h-4" />}
-          valor={dinero(metricas?.ticketPromedio ?? 0)}
-          detalle="promedio del día"
-        />
-        <Indicador
-          etiqueta="Últimos 7 días" color="#0284c7" cargando={cargandoKpis}
-          icono={<Banknote className="w-4 h-4" />}
-          valor={dinero(metricas?.totalSemana ?? 0)}
-          detalle="ventas acumuladas"
-        />
-        <Indicador
-          etiqueta="Por cobrar" color="#d97706" cargando={cargandoKpis}
-          icono={<Users2 className="w-4 h-4" />}
-          valor={porCobrar !== null ? dinero(porCobrar) : '—'}
-          detalle="saldo de clientes"
-        />
-      </div>
+      {/* Indicadores del día — sólo los que este perfil puede leer */}
+      {(cargandoKpis || metricas || porCobrar !== null) && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+          {(cargandoKpis || metricas) && (
+            <>
+              <Indicador
+                etiqueta="Ventas de hoy" color="#4f46e5" cargando={cargandoKpis}
+                icono={<Receipt className="w-4 h-4" />}
+                valor={dinero(metricas?.totalHoy ?? 0)}
+                detalle={`${metricas?.ventasHoy ?? 0} transacciones`}
+              />
+              <Indicador
+                etiqueta="Ticket promedio" color="#059669" cargando={cargandoKpis}
+                icono={<TrendingUp className="w-4 h-4" />}
+                valor={dinero(metricas?.ticketPromedio ?? 0)}
+                detalle="promedio del día"
+              />
+              <Indicador
+                etiqueta="Últimos 7 días" color="#0284c7" cargando={cargandoKpis}
+                icono={<Banknote className="w-4 h-4" />}
+                valor={dinero(metricas?.totalSemana ?? 0)}
+                detalle="ventas acumuladas"
+              />
+            </>
+          )}
+          {(cargandoKpis || porCobrar !== null) && (
+            <Indicador
+              etiqueta="Por cobrar" color="#d97706" cargando={cargandoKpis}
+              icono={<Users2 className="w-4 h-4" />}
+              valor={dinero(porCobrar ?? 0)}
+              detalle="saldo de clientes"
+            />
+          )}
+        </div>
+      )}
 
       {/* Módulos */}
       <div className="flex items-baseline justify-between mb-3">

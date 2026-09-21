@@ -40,8 +40,10 @@ interface IAviso {
   idExterno: string | null;
   entidadId: string | null;
   tipoVinculo: string | null;
-  cuerpo: Record<string, unknown> | null;
-  cuerpoTexto: string | null;
+  cuerpo?: Record<string, unknown> | null;
+  cuerpoTexto?: string | null;
+  /** Sólo en los huérfanos: por qué no se muestra su contenido. */
+  detalle?: string | null;
   estado: Estado;
   diagnostico: string | null;
   error: string | null;
@@ -249,14 +251,18 @@ export default function AvisosDelCorePage() {
                 {a.diagnostico && (
                   <p className="text-sm text-gray-700 mt-1.5">{a.diagnostico}</p>
                 )}
-                <details className="mt-2">
-                  <summary className="text-xs text-gray-500 cursor-pointer">
-                    Detalle del aviso
-                  </summary>
-                  <pre className="text-xs bg-gray-50 border rounded p-2 overflow-x-auto max-h-64 mt-1">
-{JSON.stringify(a.cuerpo ?? a.cuerpoTexto ?? null, null, 2)}
-                  </pre>
-                </details>
+                {/*
+                  * Aquí NO se muestra el cuerpo del aviso, y no es un olvido.
+                  * Un aviso queda huérfano precisamente cuando su
+                  * identificador externo no se pudo atribuir a una empresa —o
+                  * apunta a más de una—, es decir cuando lo que trae dentro
+                  * probablemente describe a un cliente, un crédito o un pago de
+                  * OTRO cliente de SUMA. El servidor manda la ficha y se queda
+                  * el contenido.
+                  */}
+                {a.detalle && (
+                  <p className="text-xs text-gray-500 mt-2 italic">{a.detalle}</p>
+                )}
               </div>
             ))}
           </div>

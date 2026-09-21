@@ -1,5 +1,16 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
+
+/** Las secciones del modal, para poder nombrarlas en los avisos. */
+type TabId = 'general' | 'precios' | 'logistica' | 'sectorial' | 'empaques' | 'multimedia';
+const NOMBRE_SECCION: Record<TabId, string> = {
+  general: 'Datos generales',
+  precios: 'Costos y precios',
+  logistica: 'Logística',
+  sectorial: 'Atributos sector',
+  empaques: 'Empaques',
+  multimedia: 'Imágenes',
+};
 import {
   Package, CheckCircle2, Info, Image as ImageIcon, Star, Trash2,
   Plus, Tags, DollarSign, Box, PackagePlus, AlertCircle,
@@ -8,6 +19,7 @@ import {
 } from 'lucide-react';
 import { IFormData, ICatalogoBasico, IImpuesto, IListaPrecio } from '../types/producto.types';
 import SelectConCrear from './SelectConCrear';
+import { usePermiso } from '@/hooks/use-permisos';
 
 // ─── Tipos internos ───────────────────────────────────────────────
 interface IAtributo {
@@ -245,6 +257,24 @@ export default function ModalFichaProducto({
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const token = typeof window !== 'undefined' ? (localStorage.getItem('syncro_token') ?? '') : '';
 
+  /*
+   * Si este perfil no consulta precios ni impuestos, la ficha no puede decir
+   * «no hay listas configuradas»: sí las hay, no son suyas. La diferencia entre
+   * «está vacío» y «no es tuyo» es la que hace que alguien salga a configurar
+   * lo que ya estaba configurado.
+   */
+  const { tienePermiso } = usePermiso();
+  const verPrecios = tienePermiso('GET', '/api/catalogo/listas-precio');
+  /*
+   * El costo de reposición es una cifra de compras, no de almacén: cuánto
+   * costaría reponer hoy esta pieza. El costo REAL de lo que hay en piso no se
+   * teclea aquí —lo arma cada recepción, lote por lote, con el precio de la
+   * orden de compra—, así que este campo sólo sirve de referencia y de red
+   * cuando una entrada llega sin costo. Tecleado por quien no compra, esa red
+   * se vuelve una cifra inventada que acaba valuando inventario.
+   */
+  const editarCosto = tienePermiso('POST', '/api/compras/ordenes');
+
   const [modalUnidad, setModalUnidad] = useState(false);
   const [nuevaUnidad, setNuevaUnidad] = useState({ nombre: '', abreviatura: '', claveSAT: '' });
   const [guardandoUnidad, setGuardandoUnidad] = useState(false);
@@ -273,7 +303,7 @@ export default function ModalFichaProducto({
     setGuardandoUnidad(false);
   };
 
-  const [activeTab, setActiveTab] = useState<'general'|'precios'|'logistica'|'sectorial'|'empaques'|'multimedia'>('general');
+  const [activeTab, setActiveTab] = useState<TabId>('general');
   const [sectorSeleccionado, setSectorSeleccionado] = useState('');
   const [atributos, setAtributos] = useState<IAtributo[]>([]);
   const [cargandoPreset, setCargandoPreset] = useState(false);
@@ -294,6 +324,16 @@ export default function ModalFichaProducto({
   const atributosOriginalesRef = useRef<IAtributo[]>([]);
   const sectorOriginalRef = useRef<string>('');
 
+
+  /*
+   * Si el perfil no decide costos ni precios, esa pestaña no existe para él.
+   * Va aquí arriba y no junto a `TABS`, porque después del `return null` de
+   * `isOpen` los hooks ya no se ejecutan en todos los renders y React cambia
+   * el orden de llamada —lo avisa y deja de funcionar la ficha entera—.
+   */
+  useEffect(() => {
+    if (activeTab === 'precios' && !editarCosto && !verPrecios) setActiveTab('general');
+  }, [activeTab, editarCosto, verPrecios]);
 
   // Sincronizar atributos cuando se abre el modal
   useEffect(() => {
@@ -336,6 +376,18 @@ export default function ModalFichaProducto({
   type ErrorProducto = Partial<Record<'nombre'|'sku'|'categoriaId'|'unidadMedida'|'impuestoId'|'precioCompra'|'precios'|'stockActual'|'almacenId'|'stockMinimo'|'stockMaximo'|'puntoReorden'|'temperaturaMinC'|'temperaturaMaxC'|'equivalencias'|'requiereLote', string>>;
   const [errores, setErrores] = useState<ErrorProducto>({});
   const [intentoGuardar, setIntentoGuardar] = useState(false);
+  const [seccionesConError, setSeccionesConError] = useState<TabId[]>([]);
+  /*
+   * Aquí vivía un cálculo de «qué le falta para venderse» —impuesto, precio de
+   * lista, claves del SAT— que pintaba un aviso ámbar en la ficha. Se quitó: a
+   * quien da de alta la mercancía no le toca ninguno de esos tres datos, así
+   * que el aviso le señalaba pendientes ajenos cada vez que abría un artículo,
+   * en una pestaña que ya ni siquiera ve. Lo que de verdad importa —que un
+   * artículo sin impuesto ni claves no se puede facturar— se dice en el
+   * catálogo, con la etiqueta «No facturable», que es donde se ve de un golpe
+   * y sin abrir nada.
+   */
+  const contenedorRef = useRef<HTMLDivElement>(null);
 
   const validarFormulario = (): ErrorProducto => {
     const e: ErrorProducto = {};
@@ -344,9 +396,32 @@ export default function ModalFichaProducto({
     if (!formData.sku?.trim()) e.sku = 'Captura un SKU único.';
     if (!formData.categoriaId) e.categoriaId = 'Selecciona una categoría.';
     if (!formData.unidadMedida?.trim()) e.unidadMedida = 'Selecciona la unidad base.';
-    if (!formData.impuestoId) e.impuestoId = 'Selecciona el impuesto aplicable.';
-    if (Number(formData.precioCompra) < 0) e.precioCompra = 'El costo no puede ser negativo.';
-    if (listasPrecio.length > 0 && !formData.precios.some(p => Number(p.precio) > 0)) e.precios = 'Captura al menos un precio de venta mayor que cero.';
+    /*
+     * ══════════════════════════════════════════════════════════════════════
+     * Existir y estar listo para vender no son lo mismo
+     * ----------------------------------------------------------------------
+     * El impuesto y el precio de venta eran obligatorios para GUARDAR, y el
+     * único rol que puede dar de alta productos es el almacenista. Resultado:
+     * para registrar un artículo había que inventarse un precio de venta y
+     * elegir un impuesto —dos datos que no son del almacén— y ese precio
+     * inventado quedaba en el sistema como si alguien lo hubiera decidido.
+     *
+     * Un artículo puede nacer con lo mínimo y comprarse y almacenarse desde el
+     * primer día. Lo que no puede es venderse sin precio ni facturarse sin
+     * claves SAT, y de eso avisa la ficha —y lo impide el timbrado— en vez de
+     * bloquear el alta.
+     * ══════════════════════════════════════════════════════════════════════
+     */
+    /*
+     * Las reglas de costo y precio sólo se comprueban si este perfil los
+     * captura. Si no, sus campos ni siquiera se dibujan, y una regla sobre un
+     * campo invisible produce lo peor que puede hacer un formulario: se niega
+     * a guardar, anuncia «hay errores en Costos y precios» y manda a una
+     * pestaña que para este usuario no existe. Queda encerrado sin manera de
+     * ver qué está mal.
+     */
+    if (editarCosto && Number(formData.precioCompra) < 0) e.precioCompra = 'El costo no puede ser negativo.';
+    if (verPrecios && (formData.precios ?? []).some(p => Number(p.precio) < 0)) e.precios = 'Un precio de venta no puede ser negativo.';
     if (Number(formData.stockActual) < 0) e.stockActual = 'El stock inicial no puede ser negativo.';
     if (!productoEditandoId && Number(formData.stockActual) > 0 && !formData.almacenId) e.almacenId = 'Selecciona el almacén del stock inicial.';
     if (Number(formData.stockMinimo) < 0) e.stockMinimo = 'El mínimo no puede ser negativo.';
@@ -359,7 +434,7 @@ export default function ModalFichaProducto({
   };
 
   useEffect(() => {
-    if (!isOpen) { setErrores({}); setIntentoGuardar(false); return; }
+    if (!isOpen) { setErrores({}); setIntentoGuardar(false); setSeccionesConError([]); return; }
     if (intentoGuardar) setErrores(validarFormulario());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData, isOpen, intentoGuardar]);
@@ -370,15 +445,41 @@ export default function ModalFichaProducto({
     const encontrados = validarFormulario();
     setErrores(encontrados);
     if (Object.keys(encontrados).length > 0) {
-      const generales = ['nombre','sku','categoriaId','unidadMedida','impuestoId'];
-      const precios = ['precioCompra','precios'];
-      const logistica = ['stockActual','almacenId','stockMinimo','stockMaximo','puntoReorden','temperaturaMinC','temperaturaMaxC','requiereLote'];
-      if (Object.keys(encontrados).some(k => generales.includes(k))) setActiveTab('general');
-      else if (Object.keys(encontrados).some(k => precios.includes(k))) setActiveTab('precios');
-      else if (Object.keys(encontrados).some(k => logistica.includes(k))) setActiveTab('logistica');
-      else setActiveTab('empaques');
+      /*
+       * ══════════════════════════════════════════════════════════════════
+       * Cada error vive donde vive su campo
+       * ------------------------------------------------------------------
+       * `impuestoId` estaba clasificado como «general» y su selector vive
+       * en Costos y precios. Al faltar el impuesto, la pantalla saltaba a
+       * Datos generales —donde no hay nada marcado en rojo—, y el botón de
+       * guardar dejaba de responder sin decir por qué. Con el aviso arriba
+       * del todo y el formulario desplazado hacia abajo, ni siquiera se veía
+       * el mensaje: el producto simplemente no se guardaba y no había manera
+       * de saber qué faltaba.
+       * ══════════════════════════════════════════════════════════════════
+       */
+      const SECCION_DEL_CAMPO: Record<string, TabId> = {
+        nombre: 'general', sku: 'general', categoriaId: 'general', unidadMedida: 'general',
+        impuestoId: 'precios', precioCompra: 'precios', precios: 'precios',
+        stockActual: 'logistica', almacenId: 'logistica', stockMinimo: 'logistica',
+        stockMaximo: 'logistica', puntoReorden: 'logistica',
+        temperaturaMinC: 'logistica', temperaturaMaxC: 'logistica', requiereLote: 'logistica',
+        equivalencias: 'empaques',
+      };
+      const ORDEN: TabId[] = ['general', 'precios', 'logistica', 'sectorial', 'empaques', 'multimedia'];
+      const conError = new Set(
+        Object.keys(encontrados).map((k) => SECCION_DEL_CAMPO[k] ?? 'general'),
+      );
+      setSeccionesConError(ORDEN.filter((s) => conError.has(s)));
+      const primera = ORDEN.find((s) => conError.has(s)) ?? 'general';
+      setActiveTab(primera);
+      // Y se sube al principio: el aviso está arriba y el formulario suele
+      // estar desplazado, así que el usuario se quedaba mirando una sección
+      // sin errores visibles.
+      contenedorRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+    setSeccionesConError([]);
     (formData as unknown as Record<string, unknown>).atributos = atributos;
     onSubmit(e, atributos);
   };
@@ -411,9 +512,27 @@ export default function ModalFichaProducto({
   const sec  = "bg-white p-5 rounded-lg border border-slate-200 shadow-sm mb-6";
   const stit = "text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2";
 
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * «Costos y Precios» no es de todos
+   * --------------------------------------------------------------------------
+   * La pestaña reúne tres cosas que decide gente distinta: el costo de
+   * reposición (compras, y desde la última recepción se mantiene solo), el
+   * impuesto aplicable (contabilidad) y el precio de venta por lista (ventas).
+   * Ninguna es del almacén, y a quien da de alta la mercancía le aparecía
+   * entera, con un campo de costo obligatorio y un aviso de que al artículo le
+   * faltaban cosas para venderse.
+   *
+   * Ahora sólo la ve quien decide alguna de las tres. El control de inventario
+   * —mínimos y punto de reorden—, que estaba aquí dentro sin venir a cuento, se
+   * mudó a Logística, que es donde lo busca quien surte.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
   const TABS = [
     { id: 'general',    label: 'Datos Generales',  icon: <FileText className="w-4 h-4" /> },
-    { id: 'precios',    label: 'Costos y Precios', icon: <DollarSign className="w-4 h-4" /> },
+    ...(editarCosto || verPrecios
+      ? [{ id: 'precios', label: 'Costos y Precios', icon: <DollarSign className="w-4 h-4" /> }]
+      : []),
     { id: 'logistica',  label: 'Logística',        icon: <Box className="w-4 h-4" /> },
     { id: 'sectorial',  label: 'Atributos Sector', icon: <FlaskConical className="w-4 h-4" /> },
     { id: 'empaques',   label: 'Empaques',         icon: <Layers className="w-4 h-4" /> },
@@ -462,12 +581,18 @@ export default function ModalFichaProducto({
           </div>
 
           {/* Contenido */}
-          <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+          <div ref={contenedorRef} className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
             <form id="producto-form" onSubmit={handleSubmitConAtributos} className="max-w-3xl mx-auto" noValidate>
               {intentoGuardar && Object.keys(errores).length > 0 && (
                 <div className="mb-5 rounded-lg border border-rose-200 bg-rose-50 p-4" role="alert">
                   <p className="font-bold text-rose-800">No se puede guardar el producto</p>
-                  <p className="mt-1 text-sm text-rose-700">Corrige {Object.keys(errores).length} campo(s) marcado(s). Te llevamos a la primera sección con errores.</p>
+                  <p className="mt-1 text-sm text-rose-700">
+                    Corrige {Object.keys(errores).length} campo(s) marcado(s)
+                    {seccionesConError.length > 0 && (
+                      <> en {seccionesConError.map((s) => NOMBRE_SECCION[s]).join(', ')}</>
+                    )}
+                    .
+                  </p>
                 </div>
               )}
 
@@ -543,8 +668,35 @@ export default function ModalFichaProducto({
                       />
                     </div>
                     <div><label className={lbl}>Unidad de Medida Base</label>
+                      {/*
+                        * ══════════════════════════════════════════════════════
+                        * La unidad se guarda como TEXTO y se desincroniza
+                        * ------------------------------------------------------
+                        * Unos productos la tienen como «Pieza» y otros como
+                        * «PIEZA». Las opciones de este desplegable salen del
+                        * catálogo, que dice «Pieza», así que un producto
+                        * guardado en mayúsculas no coincide con ninguna opción
+                        * y el campo se pinta vacío —y encima deshabilitado,
+                        * porque la unidad base no se puede cambiar—. Si el
+                        * usuario guardaba, el servidor respondía «La unidad de
+                        * medida es obligatoria» sobre un campo que no le deja
+                        * tocar: el producto quedaba imposible de editar.
+                        *
+                        * Aquí se busca la opción sin distinguir mayúsculas y se
+                        * usa el nombre del catálogo como valor. El servidor
+                        * además normaliza al guardar, para que la deriva no se
+                        * siga acumulando.
+                        * ══════════════════════════════════════════════════════
+                        */}
                       <div className="flex gap-2">
-                        <select name="unidadMedida" value={formData.unidadMedida || ''}
+                        <select name="unidadMedida"
+                          value={
+                            unidades.find(
+                              (x: any) =>
+                                String(x.nombre).toLowerCase() ===
+                                String(formData.unidadMedida ?? '').toLowerCase(),
+                            )?.nombre ?? formData.unidadMedida ?? ''
+                          }
                           disabled={!!productoEditandoId}
                           onChange={(e) => {
                             handleChange(e);
@@ -556,6 +708,21 @@ export default function ModalFichaProducto({
                           {unidades.map((u: any) => (
                             <option key={u.id} value={u.nombre}>{u.nombre}{u.abreviatura ? ` (${u.abreviatura})` : ''}</option>
                           ))}
+                          {/*
+                            * Una unidad que el producto trae y el catálogo ya no
+                            * tiene no se borra en silencio: se muestra tal cual,
+                            * marcada, para que quien edite sepa qué había.
+                            */}
+                          {formData.unidadMedida &&
+                            !unidades.some(
+                              (x: any) =>
+                                String(x.nombre).toLowerCase() ===
+                                String(formData.unidadMedida).toLowerCase(),
+                            ) && (
+                              <option value={formData.unidadMedida}>
+                                {formData.unidadMedida} (fuera del catálogo)
+                              </option>
+                            )}
                         </select>
                         {!productoEditandoId && (
                           <button type="button" title="Crear unidad" onClick={() => setModalUnidad(true)}
@@ -577,6 +744,21 @@ export default function ModalFichaProducto({
                       <input name="claveUnidadSAT" value={(fd.claveUnidadSAT as string) || ''} onChange={handleChange} className={`${inp} font-mono`} placeholder="Ej. H87" />
                       <p className="text-[10px] text-slate-400 mt-1">H87=Pieza · KGM=Kilo · LTR=Litro</p></div>
                   </div>
+                  {/*
+                    * Sin estas dos claves el producto se da de alta igual —hay
+                    * insumos que nunca se facturan— pero no se puede timbrar.
+                    * El error salía en caja, con el cliente enfrente y al
+                    * cajero, que no es quien mantiene el catálogo. Aquí se
+                    * avisa a quien sí puede arreglarlo, en el momento en que
+                    * lo está capturando.
+                    */}
+                  {(!fd.claveSAT || !fd.claveUnidadSAT) && (
+                    <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+                      Sin estas claves el producto se guarda, pero <strong>no se
+                      podrá facturar</strong>: al timbrar, el SAT las exige. Déjalas
+                      vacías sólo si este artículo nunca se vende al cliente.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -585,45 +767,84 @@ export default function ModalFichaProducto({
                 <div className={sec}>
                   <h3 className={stit}><Layers className="w-4 h-4 text-blue-500" /> Costo de Adquisición</h3>
                   <div className="grid grid-cols-3 gap-4">
-                    <div><label className={lbl}>Costo de Compra *</label>
+                    <div><label className={lbl}>Costo de reposición</label>
                       <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
-                        <input type="number" step="0.0001" name="precioCompra" value={formData.precioCompra} onChange={handleChange} className={`${claseCampo('precioCompra')} pl-8`} aria-invalid={Boolean(errores.precioCompra)} /></div>
+                        <input
+                          type="number" step="0.0001" name="precioCompra"
+                          value={formData.precioCompra}
+                          onChange={handleChange}
+                          readOnly={!editarCosto}
+                          disabled={!editarCosto}
+                          title={editarCosto ? undefined : 'Lo mantiene cada recepción de compra'}
+                          className={`${claseCampo('precioCompra')} pl-8 ${editarCosto ? '' : 'bg-slate-100 text-slate-500 cursor-not-allowed'}`}
+                          aria-invalid={Boolean(errores.precioCompra)} /></div>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        {editarCosto
+                          ? 'Referencia de compra. Cada recepción lo actualiza con el precio de la orden.'
+                          : 'Lo actualiza solo, con el precio de cada orden de compra recibida.'}
+                      </p>
                       <MensajeError campo="precioCompra" /></div>
                     <div><label className={lbl}>Moneda</label>
-                      <select name="monedaCosto" value={(fd.monedaCosto as string) || 'MXN'} onChange={handleChange} className={inp}>
+                      <select name="monedaCosto" value={(fd.monedaCosto as string) || 'MXN'} onChange={handleChange} disabled={!editarCosto}
+                        className={`${inp} ${editarCosto ? '' : 'bg-slate-100 text-slate-500 cursor-not-allowed'}`}>
                         {MONEDAS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
                     <div><label className={lbl}>Método de Costeo</label>
-                      <select name="tipoCosto" value={(fd.tipoCosto as string) || 'PROMEDIO'} onChange={handleChange} className={inp}>
+                      {/*
+                        * Cambiar de promedio ponderado a costo estándar cambia
+                        * el valor del inventario y el costo de cada venta
+                        * posterior. Es una decisión de política contable, no un
+                        * dato de la ficha: no se toca desde el almacén.
+                        */}
+                      <select name="tipoCosto" value={(fd.tipoCosto as string) || 'PROMEDIO'} onChange={handleChange} disabled={!editarCosto}
+                        className={`${inp} ${editarCosto ? '' : 'bg-slate-100 text-slate-500 cursor-not-allowed'}`}>
                         {TIPOS_COSTO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
-                  </div>
-                </div>
-                <div className={sec}>
-                  <h3 className={stit}><Settings2 className="w-4 h-4 text-blue-500" /> Control de Inventario</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className={lbl}>Stock Mínimo</label>
-                      <input type="number" min="0" name="stockMinimo" value={(fd.stockMinimo as number) ?? 5} onChange={handleChange} className={claseCampo('stockMinimo')} />
-                      <MensajeError campo="stockMinimo" /></div>
-                    <div><label className={lbl}>Stock Máximo</label>
-                      <input type="number" min="0" name="stockMaximo" value={(fd.stockMaximo as string) || ''} onChange={handleChange} className={claseCampo('stockMaximo')} />
-                      <MensajeError campo="stockMaximo" /></div>
-                    <div><label className={lbl}>Punto de Reorden</label>
-                      <input type="number" min="0" name="puntoReorden" value={(fd.puntoReorden as string) || ''} onChange={handleChange} className={claseCampo('puntoReorden')} />
-                      <MensajeError campo="puntoReorden" /></div>
-                    <div><label className={lbl}>Cant. Mínima de Compra</label>
-                      <input type="number" min="0" step="0.001" name="cantidadMinimaPedido" value={(fd.cantidadMinimaPedido as string) || ''} onChange={handleChange} className={inp} /></div>
                   </div>
                 </div>
                 <div className={sec}>
                   <h3 className={stit}><DollarSign className="w-4 h-4 text-emerald-600" /> Precios de Venta por Lista</h3>
                   <div className="mb-4 max-w-xs">
                     <label className={lbl}>Impuesto</label>
+                    {/*
+                      * Si la lista viene vacía no es que no haya impuestos: es
+                      * que este perfil no los consulta. El impuesto aplicable
+                      * lo decide quien lleva la contabilidad, no quien da de
+                      * alta la mercancía. Un desplegable vacío y sin
+                      * explicación se lee como un sistema roto.
+                      */}
+                    {!verPrecios && (
+                      <p className="text-[11px] text-slate-500 mb-1.5">
+                        Lo define Contabilidad. Puedes guardar el producto sin esto; no podrá facturarse
+                        hasta que lo asignen.
+                      </p>
+                    )}
                     <select name="impuestoId" value={formData.impuestoId || ''} onChange={handleChange} className={claseCampo('impuestoId')} aria-invalid={Boolean(errores.impuestoId)}>
-                      <option value="">Exento (0%)</option>
+                      {/*
+                        * La opción vacía decía «Exento (0%)», igual que el
+                        * impuesto real de ese nombre. Un producto sin impuesto
+                        * asignado se veía idéntico a uno configurado como
+                        * exento, y no lo es: sin impuesto, la cotización de
+                        * compra sale con IVA cero y la póliza de la recepción
+                        * también.
+                        */}
+                      <option value="">Sin impuesto asignado</option>
                       {impuestos.map(i => <option key={i.id} value={i.id}>{i.nombre} ({i.porcentaje}%)</option>)}
                     </select>
                     <MensajeError campo="impuestoId" />
                   </div>
-                  {listasPrecio.length === 0 ? (
+                  {!verPrecios ? (
+                    /*
+                      * Antes decía «No hay listas de precio configuradas», que
+                      * es falso: sí las hay, este perfil no las consulta. Un
+                      * aviso que afirma un hecho equivocado manda a alguien a
+                      * configurar lo que ya estaba configurado.
+                      */
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
+                      <AlertCircle className="w-4 h-4 text-slate-400 shrink-0" />
+                      <p className="text-xs font-medium text-slate-600">
+                        El precio de venta lo fija Ventas. No forma parte de tu ficha.
+                      </p>
+                    </div>
+                  ) : listasPrecio.length === 0 ? (
                     <div className="flex items-center gap-3 p-3 bg-amber-50 rounded border border-amber-200">
                       <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                       <p className="text-xs font-medium text-amber-800">No hay listas de precio configuradas.</p>
@@ -655,6 +876,30 @@ export default function ModalFichaProducto({
 
               {/* ══ LOGÍSTICA ══ */}
               <div className={activeTab === 'logistica' ? 'block' : 'hidden'}>
+                {/*
+                  * El control de inventario —mínimo, máximo, punto de reorden,
+                  * compra mínima— vivía en «Costos y Precios», junto al precio
+                  * de venta y al impuesto. No tienen nada que ver: esto es lo
+                  * que decide cuándo hay que reponer, y lo lleva quien surte.
+                  * Al ocultarle esa pestaña a quien no fija precios, estos
+                  * cuatro campos se iban con ella. Su casa es Logística.
+                  */}
+                <div className={sec}>
+                  <h3 className={stit}><Settings2 className="w-4 h-4 text-blue-500" /> Control de Inventario</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className={lbl}>Stock Mínimo</label>
+                      <input type="number" min="0" name="stockMinimo" value={(fd.stockMinimo as number) ?? 5} onChange={handleChange} className={claseCampo('stockMinimo')} />
+                      <MensajeError campo="stockMinimo" /></div>
+                    <div><label className={lbl}>Stock Máximo</label>
+                      <input type="number" min="0" name="stockMaximo" value={(fd.stockMaximo as string) || ''} onChange={handleChange} className={claseCampo('stockMaximo')} />
+                      <MensajeError campo="stockMaximo" /></div>
+                    <div><label className={lbl}>Punto de Reorden</label>
+                      <input type="number" min="0" name="puntoReorden" value={(fd.puntoReorden as string) || ''} onChange={handleChange} className={claseCampo('puntoReorden')} />
+                      <MensajeError campo="puntoReorden" /></div>
+                    <div><label className={lbl}>Cant. Mínima de Compra</label>
+                      <input type="number" min="0" step="0.001" name="cantidadMinimaPedido" value={(fd.cantidadMinimaPedido as string) || ''} onChange={handleChange} className={inp} /></div>
+                  </div>
+                </div>
                 <div className={sec}>
                   <h3 className={stit}><Box className="w-4 h-4 text-blue-500" /> Dimensiones Físicas</h3>
                   <div className="grid grid-cols-3 gap-4">

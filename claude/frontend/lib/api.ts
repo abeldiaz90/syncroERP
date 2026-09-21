@@ -69,12 +69,42 @@ export { token } from './sesion';
 /** Evita 20 redirecciones simultáneas cuando expira el token con varias
  *  peticiones en vuelo. */
 let redirigiendo = false;
+
+/**
+ * Rutas a las que no tiene sentido «volver» después de entrar.
+ *
+ * Si el 401 llega mientras el usuario ya está en la pantalla de acceso —pasa:
+ * la pantalla consulta la sesión al montar— el destino capturado sería
+ * `/login`, y el sistema mandaba a la gente de vuelta al formulario de acceso
+ * justo después de haber entrado. Se veía como si la contraseña no hubiera
+ * funcionado.
+ */
+const RUTAS_DE_ACCESO = ['/login', '/logout', '/auth'];
+
+function destinoDeRegreso(): string | null {
+  const ruta = window.location.pathname;
+  if (RUTAS_DE_ACCESO.some((acceso) => ruta === acceso || ruta.startsWith(`${acceso}/`))) {
+    return null;
+  }
+  /*
+   * Se conserva la query pero se descarta un `next` heredado: encadenarlos
+   * produce `/login?next=/login?next=…` y basta un rebote para que la URL
+   * crezca sin fin.
+   */
+  const parametros = new URLSearchParams(window.location.search);
+  parametros.delete('next');
+  const cola = parametros.toString();
+  return cola ? `${ruta}?${cola}` : ruta;
+}
+
 function sesionExpirada() {
   sesionToken.clear();
   if (typeof window === 'undefined' || redirigiendo) return;
   redirigiendo = true;
-  const destino = window.location.pathname + window.location.search;
-  window.location.href = `/login?next=${encodeURIComponent(destino)}`;
+  const destino = destinoDeRegreso();
+  window.location.href = destino
+    ? `/login?next=${encodeURIComponent(destino)}`
+    : '/login';
 }
 
 /* ── Núcleo ──────────────────────────────────────────────────────────────── */

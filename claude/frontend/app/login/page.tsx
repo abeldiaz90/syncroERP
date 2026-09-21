@@ -20,8 +20,18 @@ export default function LoginPage() {
     setCargando(true);
     setError('');
     try {
-      const siguiente = new URLSearchParams(window.location.search).get('next');
-      await iniciarSesionKeycloak(siguiente ?? '/dashboard');
+      /*
+       * Segundo cinturón: aunque `next` llegue apuntando a la propia pantalla
+       * de acceso —por una URL vieja guardada en favoritos, o por un rebote— se
+       * ignora. Devolver al usuario al formulario después de que entró se lee
+       * como un acceso fallido.
+       */
+      const crudo = new URLSearchParams(window.location.search).get('next');
+      const siguiente =
+        crudo && crudo.startsWith('/') && !crudo.startsWith('//') && !/^\/(login|logout|auth)(\/|$|\?)/.test(crudo)
+          ? crudo
+          : '/dashboard';
+      await iniciarSesionKeycloak(siguiente);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : 'No se pudo conectar con SUMA.',

@@ -1,17 +1,48 @@
 "use client";
 
 import Link from 'next/link';
-import { ArrowRight, Grid2X2, Sparkles } from 'lucide-react';
+import { ArrowRight, ExternalLink, Grid2X2, Sparkles } from 'lucide-react';
+import { abrirPuntoDeVenta } from '@/lib/pos';
+import { puedeEntrar } from '@/lib/session';
+import { usePermiso } from '@/hooks/use-permisos';
 import type { ModuleAction, ModuleConfig, ModuleItem } from '@/app/dashboard/module-config';
 
 interface Props {
   modulo: ModuleConfig;
   items: ModuleItem[];
   activo?: ModuleItem | null;
+  /** Rutas que este perfil puede abrir. `null` mientras se resuelven. */
+  permisos: string[] | null;
 }
 
-export function BarraContextualModulo({ modulo, items, activo }: Props) {
-  const acciones: ModuleAction[] = modulo.acciones?.slice(0, 5) ?? items.slice(0, 4).map((i) => ({ label: i.label, href: i.href }));
+export function BarraContextualModulo({ modulo, items, activo, permisos }: Props) {
+  /*
+   * Las acciones también se filtran por permisos.
+   *
+   * Se tomaban de `modulo.acciones` tal cual, mientras la pantalla del centro
+   * del módulo sí las filtraba: la misma barra, dos comportamientos. Con un
+   * usuario real se vio el efecto — al almacenista, en Finanzas, la barra le
+   * ofrecía «Nueva póliza», «Balanza» y «Cierre mensual» en botones
+   * destacados, y las tres terminan en «esta sección no está en tu perfil».
+   *
+   * Las acciones de ventana (la caja) no pasan por aquí: no son una pantalla
+   * del área de trabajo y lo que se puede hacer dentro lo decide el servidor.
+   */
+  const { tienePermiso } = usePermiso();
+  /*
+   * Y además por lo que la acción HACE, no sólo por la pantalla que abre.
+   * Poder abrir «Requisiciones» en consulta no es poder crear una: ese botón
+   * llevaba al almacenista a llenar un formulario que terminaba en 403.
+   */
+  const accionesDelModulo = (modulo.acciones ?? []).filter(
+    (a) =>
+      a.ventana ||
+      (puedeEntrar(permisos, a.href) &&
+        (!a.accion || tienePermiso(a.accion.metodo, a.accion.ruta))),
+  );
+  const acciones: ModuleAction[] = accionesDelModulo.length
+    ? accionesDelModulo.slice(0, 5)
+    : items.slice(0, 4).map((i) => ({ label: i.label, href: i.href }));
   const grupoActivo = activo?.grupo ?? 'General';
   const vecinos = items.filter((i) => (i.grupo ?? 'General') === grupoActivo).slice(0, 7);
 
@@ -45,21 +76,39 @@ export function BarraContextualModulo({ modulo, items, activo }: Props) {
             <span className="hidden lg:flex items-center gap-1 text-[10.5px] font-semibold text-slate-400 mr-1 shrink-0">
               <Sparkles className="w-3 h-3" /> Acciones
             </span>
-            {acciones.map((a, index) => (
-              <Link
-                key={`${a.href}-${a.label}`}
-                href={a.href}
-                className={`h-8 px-3 rounded-lg text-[11.5px] font-semibold whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
-                  a.principal || index === 0
-                    ? 'text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-                style={a.principal || index === 0 ? { background: modulo.color } : undefined}
-              >
-                {a.label}
-                {(a.principal || index === 0) && <ArrowRight className="w-3 h-3" />}
-              </Link>
-            ))}
+            {acciones.map((a, index) => {
+              const destacada = a.principal || index === 0;
+              const clases = `h-8 px-3 rounded-lg text-[11.5px] font-semibold whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
+                destacada ? 'text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`;
+              const estilo = destacada ? { background: modulo.color } : undefined;
+
+              // Una acción de ventana no navega: abre. Si fuera un <Link>, el
+              // área de trabajo cargaría la caja dentro de sí misma, que es
+              // justo lo que se quiso evitar.
+              if (a.ventana) {
+                return (
+                  <button
+                    key={`${a.href}-${a.label}`}
+                    type="button"
+                    onClick={abrirPuntoDeVenta}
+                    className={clases}
+                    style={estilo}
+                    title="Se abre en su propia ventana"
+                  >
+                    {a.label}
+                    <ExternalLink className="w-3 h-3" />
+                  </button>
+                );
+              }
+
+              return (
+                <Link key={`${a.href}-${a.label}`} href={a.href} className={clases} style={estilo}>
+                  {a.label}
+                  {destacada && <ArrowRight className="w-3 h-3" />}
+                </Link>
+              );
+            })}
           </div>
         </div>
 

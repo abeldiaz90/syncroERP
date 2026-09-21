@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePermiso } from '@/hooks/use-permisos';
 import {
   Sparkles, CheckCircle2, Circle, ChevronRight, ChevronDown,
   ChevronUp, X, Loader2, Rocket, ArrowRight,
@@ -22,6 +23,18 @@ interface PasoDef {
   ruta: string;
   textoBoton: string;
   opcional?: boolean;
+  /**
+   * Paso de puesta en marcha de la EMPRESA, no del puesto de nadie.
+   *
+   * Los dos que lo llevan —la identidad fiscal y la activación de Finanzas— se
+   * corren una vez, al abrir la empresa. No se retiraban por el 403 de su
+   * comprobación porque `/finanzas/activacion/acceso` responde 200 a cualquiera
+   * (es una sonda de «¿ya está activo?», no un dato reservado), así que al
+   * almacenista le seguía apareciendo «Activar Finanzas de forma segura» como
+   * pendiente suyo, con un botón que lo lleva a una pantalla que le niega el
+   * paso.
+   */
+  soloAdministracion?: boolean;
 }
 
 const PASOS: PasoDef[] = [
@@ -42,6 +55,7 @@ const PASOS: PasoDef[] = [
     completoSi: (d) => d?.configuracionBaseCompleta === true,
     ruta: '/configuracion-inicial',
     textoBoton: 'Abrir asistente',
+    soloAdministracion: true,
   },
   {
     clave: 'activarFinanzas',
@@ -51,6 +65,7 @@ const PASOS: PasoDef[] = [
     completoSi: (d) => d?.activa === true,
     ruta: '/configuracion-financiera',
     textoBoton: 'Configurar Finanzas',
+    soloAdministracion: true,
   },
   {
     clave: 'categorias',
@@ -108,15 +123,39 @@ export default function AsistenteConfiguracion({
   const [cargando, setCargando] = useState(true);
   const [colapsado, setColapsado] = useState(false);
   const [oculto, setOculto] = useState(false);
+  const { tienePermiso } = usePermiso();
+  const puedeAdministrar = tienePermiso('GET', '/api/configuracion/empresa');
 
+  /*
+   * ══════════════════════════════════════════════════════════════════════
+   * Cada quien ve sólo los pasos que son suyos
+   * ----------------------------------------------------------------------
+   * La lista era la misma para todos, y eso le ponía al almacenista dos
+   * renglones que no le tocan —«Completar configuración fiscal México» y
+   * «Activar Finanzas»— con sus botones. Los endpoints que los verifican le
+   * responden 403, así que se quedaban marcados como pendientes para siempre,
+   * el contador de progreso nunca llegaba a 100 y el paso «Dar de alta tu
+   * primer producto» aparecía condicionado a «con lo anterior listo». Quien
+   * acomoda mercancía no tiene por qué saber qué es un régimen fiscal, ni
+   * puede capturarlo: los botones lo llevaban a una pantalla que le decía «no
+   * tienes permisos».
+   *
+   * Un 403 en la comprobación no significa «falta»: significa «no es tuyo».
+   * Esos pasos se retiran de la lista, no se marcan pendientes. Si al final no
+   * queda ninguno que sea suyo, el asistente no se pinta.
+   * ══════════════════════════════════════════════════════════════════════
+   */
   const revisarEstado = async () => {
     setCargando(true);
     const h = { Authorization: `Bearer ${tok()}` };
 
     const resultados = await Promise.all(
       PASOS.map(async (paso) => {
+        // Los pasos de puesta en marcha de la empresa son del administrador.
+        if (paso.soloAdministracion && !puedeAdministrar) return null;
         try {
           const r = await fetch(`${api}${paso.endpoint}`, { headers: h });
+          if (r.status === 401 || r.status === 403) return null;
           const d = r.ok ? await r.json().catch(() => null) : null;
           return { ...paso, completo: paso.completoSi(d) };
         } catch {
@@ -124,11 +163,17 @@ export default function AsistenteConfiguracion({
         }
       }),
     );
-    setPasos(resultados);
+    setPasos(resultados.filter((p): p is EstadoPaso => p !== null));
     setCargando(false);
   };
 
-  useEffect(() => { revisarEstado(); }, []);
+  /*
+   * Depende de `puedeAdministrar`: los permisos llegan en una segunda vuelta y
+   * al primer render `tienePermiso` todavía dice que no. Sin esta dependencia,
+   * al administrador le faltarían para siempre los dos pasos de puesta en
+   * marcha de la empresa, que son justamente los suyos.
+   */
+  useEffect(() => { revisarEstado(); }, [puedeAdministrar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Recalcular cuando la ventana recupera foco (el usuario volvió de crear algo)
   useEffect(() => {
@@ -154,6 +199,9 @@ export default function AsistenteConfiguracion({
   // Si el usuario lo ocultó manualmente en esta sesión, no molestar
   if (oculto) return null;
 
+  // Ningún paso de esta lista es suyo: el asistente no tiene nada que decirle.
+  if (!cargando && pasos.length === 0) return null;
+
   // Si ya está TODO listo, mostrar una versión mínima de felicitación (una vez)
   if (!cargando && todoListo) {
     return (
@@ -162,8 +210,16 @@ export default function AsistenteConfiguracion({
           <CheckCircle2 className="w-6 h-6 text-white" />
         </div>
         <div className="flex-1">
-          <p className="font-bold text-emerald-900">¡Configuración completa! 🎉</p>
-          <p className="text-sm text-emerald-700">Tu sistema está listo para operar. Ya puedes vender.</p>
+          <p className="font-bold text-emerald-900">Tu parte ya está lista</p>
+          {/*
+            * Antes decía «ya puedes vender», y la lista es ahora por perfil:
+            * al almacenista le quedan sus pasos, no los de la empresa entera.
+            * Decirle que ya puede vender es prometerle algo que ni le toca ni
+            * puede hacer.
+            */}
+          <p className="text-sm text-emerald-700">
+            Completaste los pasos que te corresponden en la puesta en marcha.
+          </p>
         </div>
         <button onClick={() => setOculto(true)} className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full">
           <X className="w-4 h-4" />

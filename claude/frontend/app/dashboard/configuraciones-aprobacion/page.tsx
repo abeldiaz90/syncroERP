@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from 'next/link';
 import {
   ArrowDown,
   ArrowUp,
@@ -82,6 +83,7 @@ const nuevoNivel = (orden: number): Nivel => ({
 export default function ConfiguracionAprobacionesPage() {
   const { avisar } = useAvisos();
   const [cargando, setCargando] = useState(true);
+  const [sinAcceso, setSinAcceso] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [procesos, setProcesos] = useState<Proceso[]>([]);
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
@@ -94,8 +96,12 @@ export default function ConfiguracionAprobacionesPage() {
   async function cargar() {
     setCargando(true);
     try {
-      const [procesosApi, departamentosApi, usuariosApi, matrizApi] =
-        await Promise.all([
+      // Esta pantalla solo es utilizable por quien puede leer el padrón de
+      // áreas y usuarios: sin esos dos catalogos no hay a quien asignar. Se
+      // usa allSettled para distinguir "sin permiso" (403) de "fallo real" y
+      // no disparar un toast de error por cada catálogo negado.
+      const [procesosRes, departamentosRes, usuariosRes, matrizRes] =
+        await Promise.allSettled([
           api.get<Proceso[]>("/configuraciones-aprobacion/catalogo/procesos"),
           api.get<Departamento[]>("/departamentos"),
           api.get<Usuario[]>("/usuarios"),
@@ -103,12 +109,36 @@ export default function ConfiguracionAprobacionesPage() {
             "/configuraciones-aprobacion/matriz/todos",
           ),
         ]);
-      setProcesos(procesosApi ?? []);
-      setDepartamentos(
-        (departamentosApi ?? []).filter((item) => item.activo !== false),
+
+      const negado = (resultado: PromiseSettledResult<unknown>) =>
+        resultado.status === "rejected" &&
+        resultado.reason instanceof ApiError &&
+        (resultado.reason.esNoAutorizado || resultado.reason.esSinPermisos);
+
+      if (negado(departamentosRes) || negado(usuariosRes)) {
+        setSinAcceso(true);
+        return;
+      }
+
+      const fallo = [procesosRes, departamentosRes, usuariosRes, matrizRes].find(
+        (resultado) => resultado.status === "rejected",
       );
-      setUsuarios((usuariosApi ?? []).filter((item) => item.activo !== false));
-      setMatriz(matrizApi ?? []);
+      if (fallo && fallo.status === "rejected") {
+        throw fallo.reason;
+      }
+
+      const valor = <T,>(resultado: PromiseSettledResult<T>): T | undefined =>
+        resultado.status === "fulfilled" ? resultado.value : undefined;
+
+      setSinAcceso(false);
+      setProcesos(valor(procesosRes) ?? []);
+      setDepartamentos(
+        (valor(departamentosRes) ?? []).filter((item) => item.activo !== false),
+      );
+      setUsuarios(
+        (valor(usuariosRes) ?? []).filter((item) => item.activo !== false),
+      );
+      setMatriz(valor(matrizRes) ?? []);
     } catch (error) {
       avisar(
         error instanceof ApiError
@@ -292,6 +322,35 @@ export default function ConfiguracionAprobacionesPage() {
 
   if (cargando) return <Cargando />;
 
+  if (sinAcceso) {
+    return (
+      <div className="mx-auto max-w-[1450px] p-6">
+        <EncabezadoPantalla
+          titulo="Gobierno de aprobaciones"
+          descripcion="Define quién autoriza cada proceso y en qué orden."
+        />
+        <Panel>
+          <div className="py-10 text-center">
+            <p className="text-base font-semibold text-slate-700">
+              Tu perfil no administra los flujos de aprobación
+            </p>
+            <p className="mt-2 text-sm text-slate-500">
+              Para editar esta matriz se necesita acceso al padrón de áreas y
+              de usuarios. Pide a un administrador que te lo otorgue, o revisa
+              tus pendientes en la bandeja de aprobaciones.
+            </p>
+            <Link
+              href="/dashboard/aprobaciones"
+              className="mt-4 inline-block text-sm font-semibold text-indigo-600 underline"
+            >
+              Ir a la bandeja de aprobaciones
+            </Link>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[1450px] p-6">
       <EncabezadoPantalla
@@ -392,6 +451,22 @@ export default function ConfiguracionAprobacionesPage() {
                       ))}
                     </Seleccion>
                   </Campo>
+                  {/*
+                    * Un desplegable vacío no explica nada. Sin áreas dadas de
+                    * alta este proceso no se puede configurar, y sin él nadie
+                    * puede levantar una requisición: conviene decir dónde se
+                    * crean, no dejar a la persona mirando un «Seleccionar…»
+                    * que nunca abre.
+                    */}
+                  {departamentos.length === 0 && (
+                    <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      No hay áreas organizacionales dadas de alta. Se solicitan en{' '}
+                      <Link href="/dashboard/departamentos" className="font-semibold underline">
+                        Departamentos
+                      </Link>{' '}
+                      y las autorizan Gerencia y Finanzas. Sin un área, este proceso no se puede configurar.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

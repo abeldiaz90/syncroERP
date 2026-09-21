@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef} from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, RotateCcw, Search } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
@@ -68,6 +68,28 @@ export default function NuevaDevolucionPage() {
   }, 0);
   const requiereReembolso = destino === "REEMBOLSO" && (!datos?.credito || estimado > Number(datos.credito.saldoPendiente));
 
+  /*
+   * La clave de idempotencia identifica LA DEVOLUCIÓN, no el intento.
+   *
+   * Estaba dentro de `guardar()` como `crypto.randomUUID()`, así que cada
+   * reintento llevaba una clave nueva y el backend no tenía cómo reconocerla.
+   * El escenario era concreto: se procesa una devolución de $8,000, la petición
+   * expira por red, el usuario ve el error y pulsa otra vez — y si la primera
+   * había llegado, quedan dos devoluciones y dos reembolsos de caja.
+   *
+   * Se arma una sola vez por formulario (`useRef`, no `useState`: no debe
+   * provocar repintado ni regenerarse en uno). Es el mismo patrón que ya usan
+   * el punto de venta y la pantalla de cobranza.
+   */
+  const refClave = useRef<string>('');
+  if (!refClave.current) {
+    refClave.current =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `dev-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+  const claveOperacion = refClave.current;
+
   async function guardar() {
     setError("");
     if (!datos || elegidos.length === 0) return setError("Selecciona al menos una cantidad para devolver.");
@@ -82,7 +104,7 @@ export default function NuevaDevolucionPage() {
         metodoReembolso: destino === "REEMBOLSO" ? metodo : undefined,
         cuentaBancariaId: destino === "REEMBOLSO" ? cuentaId : undefined,
         referenciaReembolso: referencia.trim() || undefined,
-        claveIdempotencia: crypto.randomUUID(),
+        claveIdempotencia: claveOperacion,
         detalles: elegidos.map((d) => ({
           detalleVentaId: d.id,
           cantidad: Number(seleccion[d.id].cantidad),

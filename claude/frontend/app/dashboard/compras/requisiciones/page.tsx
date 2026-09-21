@@ -73,6 +73,28 @@ export default function RequisicionesPage() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * El departamento se comprueba ANTES de capturar, no al guardar
+   * --------------------------------------------------------------------------
+   * De él salen los aprobadores de la requisición, y sin él el servidor
+   * rechaza el alta. Eso sólo se descubría al final: el almacenista buscaba el
+   * producto, ponía la cantidad, escribía la justificación, daba Guardar, y un
+   * aviso de cuatro segundos le decía que le falta un departamento —algo que
+   * él no puede asignarse—. El trabajo se perdía y la causa desaparecía de la
+   * pantalla antes de poder leerla.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  const [sinDepartamento, setSinDepartamento] = useState(false);
+  useEffect(() => {
+    (async () => {
+      const r = await fetch(`${api}/usuarios/me`, { headers: h() });
+      if (!r.ok) return;
+      const yo = await r.json().catch(() => null);
+      setSinDepartamento(!!yo && !yo.departamentoId);
+    })();
+  }, []);
+
   // Buscador de productos
   useEffect(() => {
     if (busqueda.length < 2) { setSugerencias([]); return; }
@@ -156,13 +178,30 @@ export default function RequisicionesPage() {
             <RefreshCw className="w-4 h-4"/>
           </button>
           <PuedeCrear ruta="/api/compras/requisiciones">
-            <button onClick={() => { setDetalles([]); setNotas(''); setPrioridad('NORMAL'); setFechaRequerida(''); setModalOpen(true); }}
-              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-md">
+            <button
+              onClick={() => { setDetalles([]); setNotas(''); setPrioridad('NORMAL'); setFechaRequerida(''); setModalOpen(true); }}
+              disabled={sinDepartamento}
+              title={sinDepartamento ? 'Tu usuario aún no tiene departamento asignado' : undefined}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-indigo-600">
               <Plus className="w-4 h-4"/> Nueva Requisición
             </button>
           </PuedeCrear>
         </div>
       </div>
+
+      {sinDepartamento && (
+        <div className="mb-6 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <div className="text-sm text-amber-900">
+            <p className="font-bold">Te falta un departamento para poder solicitar.</p>
+            <p className="mt-0.5 text-amber-800">
+              De tu departamento salen los aprobadores de la requisición, así que el sistema no puede
+              enrutarla sin él. Pídele al administrador que te asigne uno en Usuarios; no tienes que
+              hacer nada más y esta pantalla funcionará sola.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -339,6 +378,17 @@ export default function RequisicionesPage() {
                     onChange={e => { setBusqueda(e.target.value); setProdSeleccionado(null); }}
                     placeholder="Busca por nombre o SKU..."
                     className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+                  {/*
+                    * Sin resultados hay que DECIRLO. Antes el desplegable
+                    * simplemente no aparecía, y no había forma de distinguir
+                    * un catálogo vacío de un buscador roto: se teclea, no pasa
+                    * nada, y uno se queda mirando la pantalla.
+                    */}
+                  {sugerencias.length === 0 && busqueda.length >= 2 && !prodSeleccionado && (
+                    <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 px-4 py-3 text-sm text-slate-500">
+                      Ningún producto activo coincide con «{busqueda}».
+                    </div>
+                  )}
                   {sugerencias.length > 0 && busqueda.length >= 2 && (
                     <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-48 overflow-auto">
                       {sugerencias.map(p => (
@@ -419,7 +469,7 @@ export default function RequisicionesPage() {
 
             <div className="flex gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
               <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 text-slate-700 font-medium hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
-              <button onClick={guardar} disabled={guardando || !detalles.length}
+              <button onClick={guardar} disabled={guardando || !detalles.length || sinDepartamento}
                 className="flex-1 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">
                 {guardando ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <Plus className="w-4 h-4"/>}
                 {guardando ? 'Guardando...' : 'Crear Requisición'}

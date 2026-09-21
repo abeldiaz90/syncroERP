@@ -216,9 +216,28 @@ export default function ProveedoresPage() {
   };
 
   const abrirModalCrear = () => { setEditandoId(null); setFormData(FORM_VACIO); setErrores({}); setErrorGeneral(null); setIsModalOpen(true); };
+  /**
+   * Al editar se toman SÓLO los campos del formulario.
+   *
+   * Antes se hacía `{ ...prov }`, que metía en el estado todo lo que devuelve
+   * el servidor —`id`, `empresaId`, `activo`, el bloque de homologación, las
+   * fechas— y al guardar se reenviaba tal cual. El `ValidationPipe` del
+   * backend rechaza propiedades desconocidas, así que **ninguna edición de
+   * proveedor se podía guardar**: el error decía «property id should not
+   * exist», que no le dice nada a quien sólo quería corregir un teléfono.
+   *
+   * Las llaves de `FORM_VACIO` son la lista blanca, y se mantienen solas: si
+   * mañana se agrega un campo al formulario, entra aquí sin tocar nada.
+   */
   const abrirModalEditar = (prov: IProveedor) => {
     setEditandoId(prov.id);
-    setFormData({ ...prov, nombre: prov.nombre || '', tipoPersona: prov.tipoPersona || 'MORAL', tipoProveedor: prov.tipoProveedor || 'MERCANCIA', metodoPago: prov.metodoPago || 'PUE', moneda: prov.moneda || 'MXN', paisId: prov.paisId || '', estadoId: prov.estadoId || '', bancoId: prov.bancoId || '', formaPagoId: prov.formaPagoId || '' });
+    const editables = Object.fromEntries(
+      (Object.keys(FORM_VACIO) as (keyof IProveedorFormData)[]).map((k) => [
+        k,
+        (prov as unknown as Record<string, unknown>)[k] ?? FORM_VACIO[k],
+      ]),
+    ) as IProveedorFormData;
+    setFormData({ ...editables, nombre: prov.nombre || '', tipoPersona: prov.tipoPersona || 'MORAL', tipoProveedor: prov.tipoProveedor || 'MERCANCIA', metodoPago: prov.metodoPago || 'PUE', moneda: prov.moneda || 'MXN', paisId: prov.paisId || '', estadoId: prov.estadoId || '', bancoId: prov.bancoId || '', formaPagoId: prov.formaPagoId || '' });
     setErrores({});
     setErrorGeneral(null);
     setIsModalOpen(true);

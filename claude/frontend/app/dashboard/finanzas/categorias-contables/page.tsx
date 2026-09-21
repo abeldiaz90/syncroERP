@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Tags, Edit2, CheckCircle2, AlertCircle, X, Save, Info, Plus } from 'lucide-react';
+import { Tags, Edit2, CheckCircle2, AlertCircle, X, Save, Info, Plus, Sparkles, Wand2 } from 'lucide-react';
 import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement";
+import ConfirmDialog from '@/app/components/ConfirmDialog';
 
 interface ICuenta { id: string; numeroCuenta: string; nombre: string; tipo: string; }
 interface ICategoria {
@@ -32,17 +33,37 @@ const colorMap: Record<string, string> = {
 
 const FORM_NUEVA_VACIO = { nombre: '', descripcion: '', categoriaPadreId: '' };
 
+function autoMapearCuentas(cuentas: ICuenta[]): Record<string, string> {
+  const sinGuion = (n: string) => n.replace(/-/g, '');
+  const porExacto  = (num: string) => cuentas.find(c => c.numeroCuenta === num);
+  const porPrefijo = (pref: string) => cuentas.find(c => sinGuion(c.numeroCuenta).startsWith(pref));
+
+  const ventas       = porExacto('401-01') || porPrefijo('401') || porPrefijo('4');
+  const costo        = porExacto('501-01') || porPrefijo('501') || porPrefijo('5');
+  const inventario   = porExacto('130-01') || porPrefijo('130') || porPrefijo('13');
+  const devoluciones = porExacto('402.01') || porExacto('401-02') || ventas;
+  const mermas       = porExacto('601-01') || porPrefijo('601') || porPrefijo('6');
+
+  return {
+    cuentaVentasId:       ventas?.id       ?? '',
+    cuentaCostoVentasId:  costo?.id        ?? '',
+    cuentaInventarioId:   inventario?.id   ?? '',
+    cuentaDevolucionesId: devoluciones?.id ?? '',
+    cuentaMermasId:       mermas?.id       ?? '',
+  };
+}
+
 export default function CategoriasContablesPage() {
   const [categorias, setCategorias] = useState<ICategoria[]>([]);
   const [cuentas, setCuentas]       = useState<ICuenta[]>([]);
   const [cargando, setCargando]     = useState(true);
   const [guardando, setGuardando]   = useState(false);
+  const [autoTodas, setAutoTodas]   = useState(false);
+  const [confirmAuto, setConfirmAuto] = useState(false);
 
-  // Modal editar cuentas
   const [modal, setModal]   = useState<ICategoria | null>(null);
   const [form, setForm]     = useState<Record<string, string>>({});
 
-  // Modal nueva categoría
   const [modalNueva, setModalNueva]   = useState(false);
   const [formNueva, setFormNueva]     = useState(FORM_NUEVA_VACIO);
   const [guardandoNueva, setGuardandoNueva] = useState(false);
@@ -69,7 +90,6 @@ export default function CategoriasContablesPage() {
 
   useEffect(() => { cargarTodo(); }, []);
 
-  // ── Abrir modal editar ──────────────────────────────────────────
   const abrirModal = (cat: ICategoria) => {
     setModal(cat);
     setForm({
@@ -81,13 +101,23 @@ export default function CategoriasContablesPage() {
     });
   };
 
-  // ── Guardar cuentas de categoría ────────────────────────────────
+  const aplicarAutoEnModal = () => {
+    const sugerido = autoMapearCuentas(cuentas);
+    const faltantes = Object.values(sugerido).filter(v => !v).length;
+    setForm(sugerido);
+    if (faltantes === 0) {
+      mostrarToast('Cuentas asignadas automáticamente. Revisa y guarda.');
+    } else {
+      mostrarToast(`Se asignaron ${5 - faltantes} de 5. Faltan cuentas en tu catálogo.`, false);
+    }
+  };
+
   const guardar = async () => {
     if (!modal) return;
     setGuardando(true);
     const payload: Record<string, string | null> = {};
     CAMPOS_CUENTAS.forEach(c => { payload[c.key] = form[c.key] || null; });
-    const res = await fetch(`${api}/catalogo/categorias/${modal.id}`, {
+    const res = await fetch(`${api}/catalogo/categorias/${modal.id}/cuentas`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
       body: JSON.stringify(payload),
@@ -97,7 +127,43 @@ export default function CategoriasContablesPage() {
     else { const e = await res.json().catch(() => ({})); mostrarToast(e.message ?? 'Error al guardar', false); }
   };
 
-  // ── Crear nueva categoría ───────────────────────────────────────
+  // Abre el modal de confirmación (o avisa si no hay cuentas)
+  const pedirConfirmacionAuto = () => {
+    if (!hayCuentas) {
+      mostrarToast('No hay cuentas en tu catálogo. Créalas primero en Finanzas.', false);
+      return;
+    }
+    setConfirmAuto(true);
+  };
+
+  // Ejecuta al confirmar en el modal
+  const configurarTodasAuto = async () => {
+    setAutoTodas(true);
+    try {
+      const res = await fetch(`${api}/catalogo/categorias/auto-configurar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
+        body: JSON.stringify({ soloVacias: true }),
+      });
+      const d = await res.json().catch(() => null);
+
+      if (res.ok) {
+        mostrarToast(
+          d.configuradas > 0
+            ? `${d.configuradas} ${d.configuradas === 1 ? 'categoría configurada' : 'categorías configuradas'} automáticamente.`
+            : 'Todas tus categorías ya estaban configuradas.',
+        );
+        cargarTodo();
+      } else {
+        mostrarToast(d?.message || 'No se pudo configurar automáticamente.', false);
+      }
+    } catch {
+      mostrarToast('Error de conexión con el servidor.', false);
+    }
+    setAutoTodas(false);
+    setConfirmAuto(false);
+  };
+
   const crearCategoria = async () => {
     if (!formNueva.nombre.trim()) { mostrarToast('El nombre es obligatorio', false); return; }
     setGuardandoNueva(true);
@@ -130,6 +196,9 @@ export default function CategoriasContablesPage() {
     return c ? `${c.numeroCuenta} – ${c.nombre}` : '—';
   };
 
+  const sinConfigurar = categorias.filter(c => contarAsignadas(c) < 5).length;
+  const hayCuentas = cuentas.length > 0;
+
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto text-slate-800">
       {toast && (
@@ -139,14 +208,15 @@ export default function CategoriasContablesPage() {
         </div>
       )}
 
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
             <Tags className="w-8 h-8 text-indigo-500" /> Categorías — Cuentas Contables
           </h1>
           <p className="text-slate-500 mt-1.5 max-w-2xl">
-            Crea y configura las categorías de productos con sus cuentas contables para que el sistema genere asientos automáticamente.
+            A qué cuenta va cada familia de productos. De esto depende que una venta, una compra o una merma
+            generen su asiento —y que lo generen en la cuenta correcta—. El catálogo de categorías se administra
+            en Productos → Categorías; aquí se decide su contabilidad.
           </p>
         </div>
         <PuedeCrear ruta="/api/catalogo/categorias">
@@ -157,15 +227,46 @@ export default function CategoriasContablesPage() {
         </PuedeCrear>
       </div>
 
-      {/* Banner */}
+      {!cargando && sinConfigurar > 0 && hayCuentas && (
+        <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl p-5 mb-6 flex flex-col sm:flex-row sm:items-center gap-4 shadow-lg">
+          <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+            <Wand2 className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-white">¿No sabes de contabilidad? Deja que lo hagamos por ti</p>
+            <p className="text-indigo-100 text-sm mt-0.5">
+              Tienes {sinConfigurar} {sinConfigurar === 1 ? 'categoría' : 'categorías'} sin configurar.
+              Asignamos las cuentas correctas a todas con un clic. Podrás ajustarlas después.
+            </p>
+          </div>
+          <button onClick={pedirConfirmacionAuto} disabled={autoTodas}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-indigo-700 font-bold rounded-xl hover:bg-indigo-50 shadow-md transition-colors shrink-0 disabled:opacity-70">
+            {autoTodas
+              ? <><div className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-700 rounded-full animate-spin" /> Configurando…</>
+              : <><Sparkles className="w-4 h-4" /> Configurar todas automáticamente</>}
+          </button>
+        </div>
+      )}
+
+      {!cargando && !hayCuentas && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800">
+            <span className="font-bold">Aún no tienes cuentas contables.</span> Créalas primero en
+            Finanzas → Catálogo de Cuentas (o usa la configuración automática de cuentas) y luego vuelve aquí.
+          </p>
+        </div>
+      )}
+
       <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6 flex gap-3">
         <Info className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
         <p className="text-sm text-indigo-800">
-          <span className="font-bold">¿Por qué aquí?</span> Cada categoría puede usar cuentas diferentes. Si una categoría no tiene cuentas asignadas, las ventas de esa categoría no generan asiento contable.
+          <span className="font-bold">¿Por qué aquí y no en Productos?</span> Quien administra el catálogo crea y
+          renombra categorías; quién responde por los estados financieros decide a qué cuenta van. Una categoría
+          sin cuentas asignadas no genera asiento: sus ventas y sus salidas de almacén no llegan a la contabilidad.
         </p>
       </div>
 
-      {/* Tabla */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {cargando ? (
           <div className="p-16 text-center text-slate-400">
@@ -225,7 +326,7 @@ export default function CategoriasContablesPage() {
                       </span>
                     </td>
                     <td className="px-5 py-4 text-center">
-                      <PuedeEditar ruta="/api/catalogo/categorias/:id">
+                      <PuedeEditar ruta="/api/catalogo/categorias/:id/cuentas">
                         <button onClick={() => abrirModal(cat)}
                           className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
                           <Edit2 className="w-3.5 h-3.5" /> Configurar
@@ -240,7 +341,7 @@ export default function CategoriasContablesPage() {
         )}
       </div>
 
-      {/* ══ MODAL NUEVA CATEGORÍA ══════════════════════════════════ */}
+      {/* ══ MODAL NUEVA CATEGORÍA ══ */}
       {modalNueva && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col">
@@ -288,7 +389,7 @@ export default function CategoriasContablesPage() {
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                 <p className="text-xs text-blue-800">
-                  <span className="font-bold">Tip:</span> Después de crear la categoría, haz clic en "Configurar" para asignarle las cuentas contables.
+                  <span className="font-bold">Tip:</span> Después de crear la categoría, haz clic en "Configurar" para asignarle las cuentas contables (o usa la configuración automática).
                 </p>
               </div>
             </div>
@@ -306,7 +407,7 @@ export default function CategoriasContablesPage() {
         </div>
       )}
 
-      {/* ══ MODAL CONFIGURAR CUENTAS ═══════════════════════════════ */}
+      {/* ══ MODAL CONFIGURAR CUENTAS ══ */}
       {modal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
@@ -321,6 +422,17 @@ export default function CategoriasContablesPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            <div className="px-6 pt-4 shrink-0">
+              <button onClick={aplicarAutoEnModal} disabled={!hayCuentas}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-xl hover:opacity-95 shadow-md transition-all disabled:opacity-50">
+                <Wand2 className="w-4 h-4" /> Asignar cuentas automáticamente
+              </button>
+              <p className="text-center text-[11px] text-slate-400 mt-1.5">
+                Rellena los campos de abajo con las cuentas sugeridas. Puedes ajustar cualquiera antes de guardar.
+              </p>
+            </div>
+
             <div className="overflow-y-auto p-6 space-y-4">
               {CAMPOS_CUENTAS.map(campo => (
                 <div key={campo.key} className={`p-4 rounded-xl border ${colorMap[campo.color]}`}>
@@ -363,6 +475,19 @@ export default function CategoriasContablesPage() {
           </div>
         </div>
       )}
+
+      {/* ══ MODAL DE CONFIRMACIÓN (reemplaza al confirm nativo) ══ */}
+      <ConfirmDialog
+        abierto={confirmAuto}
+        titulo="Configurar cuentas automáticamente"
+        mensaje="Se asignarán las cuentas contables sugeridas a las categorías que aún no están configuradas. Podrás ajustar cualquiera después."
+        textoConfirmar="Sí, configurar"
+        textoCancelar="Cancelar"
+        variante="indigo"
+        procesando={autoTodas}
+        onConfirmar={configurarTodasAuto}
+        onCancelar={() => setConfirmAuto(false)}
+      />
     </div>
   );
 }

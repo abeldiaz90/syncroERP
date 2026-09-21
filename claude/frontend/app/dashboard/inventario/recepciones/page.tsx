@@ -20,9 +20,30 @@ export interface IOrdenCompra {
   id: string;
   fechaCreacion: string;
   estado: string;
+  /** Eje logístico: PENDIENTE | PARCIAL | COMPLETA. Es el que manda aquí. */
+  estadoRecepcion?: 'PENDIENTE' | 'PARCIAL' | 'COMPLETA' | string;
   proveedor?: { nombre: string };
   detalles: IDetalleOC[];
 }
+
+/*
+ * ════════════════════════════════════════════════════════════════════════
+ * Qué es «por recibir»
+ * ------------------------------------------------------------------------
+ * Esta pantalla filtraba por `estado`, el eje COMERCIAL de la orden, y sólo
+ * aceptaba ENVIADA o RECIBIDA. Una entrega parcial deja la orden en
+ * CON_INCIDENCIAS, así que al recibir 8 de 10 piezas la orden DESAPARECÍA de
+ * la bandeja: no quedaba ninguna forma de dar entrada a las 2 restantes
+ * cuando el proveedor las mandaba.
+ *
+ * Lo que decide si algo está por recibir es el eje LOGÍSTICO. Mientras
+ * `estadoRecepcion` no sea COMPLETA, la orden sigue esperando mercancía.
+ * ════════════════════════════════════════════════════════════════════════
+ */
+const RECEPCION_COMPLETA = (oc: IOrdenCompra) =>
+  (oc.estadoRecepcion ?? (oc.estado === 'RECIBIDA' ? 'COMPLETA' : 'PENDIENTE')) === 'COMPLETA';
+
+const ESTADOS_LOGISTICOS = ['ENVIADA', 'RECIBIDA', 'CON_INCIDENCIAS', 'PARCIALMENTE_PAGADA', 'PAGADA'];
 
 export default function ListaRecepcionesPage() {
   const [recepciones, setRecepciones] = useState<IOrdenCompra[]>([]);
@@ -47,8 +68,10 @@ export default function ListaRecepcionesPage() {
 
         if (res.ok) {
           const data = await res.json();
-          // Filtramos para que almacén solo vea lo que ya fue enviado o ya se recibió
-          const logisticaData = data.filter((oc: IOrdenCompra) => oc.estado === 'ENVIADA' || oc.estado === 'RECIBIDA');
+          // Almacén ve lo que ya salió del proveedor, esté completo o a medias.
+          const logisticaData = data.filter((oc: IOrdenCompra) =>
+            ESTADOS_LOGISTICOS.includes(oc.estado),
+          );
           setRecepciones(logisticaData);
         } else {
           setToast({ mensaje: 'Error al cargar los documentos de tránsito', tipo: 'error' });
@@ -65,7 +88,8 @@ export default function ListaRecepcionesPage() {
 
   // Filtrado local
   const recepcionesFiltradas = recepciones.filter(oc => {
-    const coincideEstado = oc.estado === filtroEstado;
+    const coincideEstado =
+      filtroEstado === 'ENVIADA' ? !RECEPCION_COMPLETA(oc) : RECEPCION_COMPLETA(oc);
     const coincideBusqueda = 
       oc.id.toLowerCase().includes(busqueda.toLowerCase()) || 
       (oc.proveedor?.nombre?.toLowerCase().includes(busqueda.toLowerCase()));
@@ -73,8 +97,8 @@ export default function ListaRecepcionesPage() {
     return coincideEstado && coincideBusqueda;
   });
 
-  const conteoEnTransito = recepciones.filter(oc => oc.estado === 'ENVIADA').length;
-  const conteoRecibidas = recepciones.filter(oc => oc.estado === 'RECIBIDA').length;
+  const conteoEnTransito = recepciones.filter(oc => !RECEPCION_COMPLETA(oc)).length;
+  const conteoRecibidas = recepciones.filter(oc => RECEPCION_COMPLETA(oc)).length;
 
   return (
     <div className="p-4 md:p-8 max-w-[1400px] mx-auto text-slate-800 animate-in fade-in duration-500">
@@ -205,21 +229,29 @@ export default function ListaRecepcionesPage() {
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span className={`inline-flex px-3 py-1.5 rounded-xl text-xs font-black tracking-widest uppercase border ${
-                          oc.estado === 'ENVIADA' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                          !RECEPCION_COMPLETA(oc) ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
                         }`}>
-                          {oc.estado === 'ENVIADA' ? 'En Tránsito' : 'Recibida'}
+                          {RECEPCION_COMPLETA(oc)
+                            ? 'Recibida'
+                            : oc.estadoRecepcion === 'PARCIAL'
+                            ? 'Entrega incompleta'
+                            : 'En Tránsito'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <Link 
                           href={`/dashboard/inventario/recepciones/${oc.id}`}
                           className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm active:scale-95 ${
-                            oc.estado === 'ENVIADA' 
+                            !RECEPCION_COMPLETA(oc) 
                               ? 'bg-slate-900 text-white hover:bg-emerald-600' 
                               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
                           }`}
                         >
-                          {oc.estado === 'ENVIADA' ? 'Procesar Entrada' : 'Ver Detalle'}
+                          {RECEPCION_COMPLETA(oc)
+                            ? 'Ver Detalle'
+                            : oc.estadoRecepcion === 'PARCIAL'
+                            ? 'Recibir pendiente'
+                            : 'Procesar Entrada'}
                           <ChevronRight className="w-4 h-4" />
                         </Link>
                       </td>

@@ -57,7 +57,7 @@ export interface IEjecucionExp {
   simulacion: boolean; fechaCreacion?: string;
 }
 
-const CONTROLES: { tipo: TipoPaso; nombre: string; que: string; Icono: typeof ShieldCheck }[] = [
+export const CONTROLES: { tipo: TipoPaso; nombre: string; que: string; Icono: typeof ShieldCheck }[] = [
   { tipo: 'IDENTIDAD_INE',     nombre: 'Identidad',          que: 'Que la persona es quien dice ser.',           Icono: Fingerprint },
   { tipo: 'LISTA_BLOQUEO',     nombre: 'Listas de bloqueo',  que: 'Listas que impiden operar con la persona.',   Icono: ListX },
   { tipo: 'BURO_CREDITO',      nombre: 'Buró de Crédito',    que: 'Historial en el sistema financiero.',         Icono: Landmark },

@@ -14,6 +14,7 @@ import ModalInventarioRapido from './components/ModalInventarioRapido';
 import ModalFichaProducto from './components/ModalFichaProducto';
 import { PuedeCrear, PuedeEditar, ProtectedElement } from "@/app/components/ProtectedElement";
 import AsistenteConfiguracion from "@/app/components/AsistenteConfiguracion";
+import { usePermiso } from '@/hooks/use-permisos';
 
 // ─── Formulario vacío con TODOS los campos tipados ───────────────
 const FORM_VACIO: IFormData = {
@@ -43,6 +44,10 @@ const FORM_VACIO: IFormData = {
 };
 
 export default function ProductosPage() {
+  const { tienePermiso } = usePermiso();
+  /** ¿Este perfil lleva precios de venta? De eso depende qué avisos ve. */
+  const llevaPrecios = tienePermiso('GET', '/api/catalogo/listas-precio');
+
   const [productos, setProductos] = useState<IProducto[]>([]);
   const [categorias, setCategorias] = useState<ICatalogoBasico[]>([]);
   const [almacenes, setAlmacenes] = useState<ICatalogoBasico[]>([]);
@@ -50,6 +55,35 @@ export default function ProductosPage() {
   const [impuestos, setImpuestos] = useState<IImpuesto[]>([]);
   const [listasPrecio, setListasPrecio] = useState<IListaPrecio[]>([]);
   const [unidades, setUnidades] = useState<any[]>([]);
+
+  /*
+   * ══════════════════════════════════════════════════════════════════════
+   * Qué le falta a un artículo para poder venderse
+   * ----------------------------------------------------------------------
+   * Sin claves SAT no se puede timbrar, y ese error aparecía en caja con el
+   * cliente enfrente. Sin precio no se puede cobrar. Ambas cosas se ven aquí,
+   * en el catálogo, antes de que alguien lo intente vender.
+   *
+   * Un servicio no tiene existencias: mostrarle «0 PIEZA» en rojo lo hace
+   * parecer agotado, y algún día alguien intentará «reponerlo».
+   * ══════════════════════════════════════════════════════════════════════
+   */
+  const controlaStock = (prod: any) => prod?.tipo !== 'SERVICIO';
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * «No facturable» y «Sin precio» son pendientes de otro
+   * --------------------------------------------------------------------------
+   * Las dos etiquetas avisan de lo mismo: al artículo le faltan datos para
+   * venderse —las claves del SAT, un precio de lista—. Son útiles para quien
+   * puede resolverlos, y ruido para quien no: a quien surte el almacén le
+   * pintaban el catálogo entero de avisos rojos sobre cosas que no le tocan y
+   * que no puede arreglar. Un aviso que el que lo lee no puede atender no es
+   * un aviso, es un reproche.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  const noFacturable = (prod: any) =>
+    llevaPrecios && (!prod?.claveSAT || !prod?.claveUnidadSAT);
+  const sinPrecio = (prod: any) => llevaPrecios && !(obtenerPrecioPublico(prod) > 0);
 
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -528,14 +562,35 @@ export default function ProductosPage() {
                         <div className="p-4 flex-1 flex flex-col">
                           <p className="text-xs font-bold text-slate-400 mb-1">{prod.sku}</p>
                           <h3 className="font-bold text-slate-900 leading-tight mb-3 line-clamp-2">{prod.nombre}</h3>
+                          {(noFacturable(prod) || sinPrecio(prod)) && (
+                            <div className="mb-2 flex flex-wrap gap-1">
+                              {sinPrecio(prod) && (
+                                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                  Sin precio
+                                </span>
+                              )}
+                              {noFacturable(prod) && (
+                                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200"
+                                  title="Le faltan claves del catálogo SAT: no se puede timbrar.">
+                                  No facturable
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <div className="mt-auto flex items-center justify-between">
-                            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-md ${(prod.stockActual ?? 0) > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                              {prod.stockActual ?? 0} {prod.unidadMedida}
-                            </span>
+                            {controlaStock(prod) ? (
+                              <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-md ${(prod.stockActual ?? 0) > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                {prod.stockActual ?? 0} {prod.unidadMedida}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-black uppercase px-2 py-1 rounded-md bg-slate-100 text-slate-500">
+                                Servicio
+                              </span>
+                            )}
                             <div className="flex gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                              <PuedeEditar ruta="/api/catalogo/productos/:id">
+                              <ProtectedElement metodo="PUT" ruta="/api/catalogo/productos/:id">
                                 <button onClick={() => abrirModalEditar(prod)} className="p-1.5 hover:bg-slate-100 rounded text-slate-600"><Edit2 className="w-4 h-4" /></button>
-                              </PuedeEditar>
+                              </ProtectedElement>
                               <Link href={`/dashboard/productos/${prod.id}`} className="p-1.5 hover:bg-slate-100 rounded text-slate-600"><History className="w-4 h-4" /></Link>
                             </div>
                           </div>
@@ -577,15 +632,27 @@ export default function ProductosPage() {
                             ${obtenerPrecioPublico(prod).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                           </td>
                           <td className="px-6 py-3 text-center">
-                            <span className={`inline-flex px-2.5 py-1 rounded-lg text-[11px] font-bold border ${(prod.stockActual ?? 0) > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
-                              {prod.stockActual ?? 0} {prod.unidadMedida}
-                            </span>
+                            {controlaStock(prod) ? (
+                              <span className={`inline-flex px-2.5 py-1 rounded-lg text-[11px] font-bold border ${(prod.stockActual ?? 0) > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                                {prod.stockActual ?? 0} {prod.unidadMedida}
+                              </span>
+                            ) : (
+                              <span className="inline-flex px-2.5 py-1 rounded-lg text-[11px] font-bold border bg-slate-100 text-slate-500 border-slate-200">
+                                Servicio
+                              </span>
+                            )}
+                            {noFacturable(prod) && (
+                              <span className="ml-1.5 inline-flex px-2 py-1 rounded-lg text-[10px] font-bold border bg-amber-50 text-amber-700 border-amber-200"
+                                title="Le faltan claves del catálogo SAT: no se puede timbrar.">
+                                No facturable
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-3 text-right">
                             <div className="flex justify-end gap-1">
-                              <PuedeEditar ruta="/api/catalogo/productos/:id">
+                              <ProtectedElement metodo="PUT" ruta="/api/catalogo/productos/:id">
                                 <button onClick={() => abrirModalEditar(prod)} className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors"><Edit2 className="w-4 h-4" /></button>
-                              </PuedeEditar>
+                              </ProtectedElement>
                               <Link href={`/dashboard/productos/${prod.id}`} className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-800 rounded transition-colors"><History className="w-4 h-4" /></Link>
                               <div className="w-px h-4 bg-slate-200 mx-1 self-center" />
                               <ProtectedElement metodo="POST" ruta="/api/catalogo/inventario/productos/:id/compra">
