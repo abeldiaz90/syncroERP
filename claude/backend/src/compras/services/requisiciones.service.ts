@@ -140,7 +140,7 @@ export class RequisicionesService {
       );
     }
 
-    const configuraciones = await this.configAprobacionRepo.find({
+    const todasLasConfiguraciones = await this.configAprobacionRepo.find({
       where: {
         empresaId,
         proceso: 'REQUISICION',
@@ -149,52 +149,147 @@ export class RequisicionesService {
       },
       order: { orden: 'ASC' },
     });
-    if (configuraciones.length === 0) {
+    if (todasLasConfiguraciones.length === 0) {
       throw new BadRequestException(
         'No existe una ruta de aprobación activa para requisiciones de este departamento.',
       );
     }
-    if (configuraciones.some((configuracion) => !configuracion.usuarioId)) {
-      throw new BadRequestException(
-        'La ruta de aprobación contiene niveles sin un aprobador asignado.',
-      );
-    }
-    if (
-      configuraciones.some(
-        (configuracion) => configuracion.usuarioId === usuarioSolicitanteId,
-      )
-    ) {
-      throw new BadRequestException(
-        'El solicitante no puede formar parte de su propia ruta de aprobación.',
-      );
-    }
-    const aprobadoresIds = configuraciones.map(
-      (configuracion) => configuracion.usuarioId!,
+
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * UMBRAL POR MONTO
+     * --------------------------------------------------------------------------
+     * `montoDesde` y `montoHasta` existian en la entidad y no los usaba nadie:
+     * TODA requisicion subia al mando, sin importar que fueran diez cajas de
+     * guantes. Ningun ERP opera asi. Business Central le pone a cada aprobador
+     * un «Amount Approval Limit» y escala al siguiente cuando se excede; SAP
+     * Business One arma las etapas por total del documento; Odoo pide doble
+     * validacion solo por encima de un monto.
+     *
+     * El problema aqui era que una requisicion no trae precios: se pide
+     * cantidad, no dinero. Por eso se valua con el COSTO DE REPOSICION de cada
+     * producto —`precioCompra`, que la recepcion mantiene al dia—, que es
+     * exactamente lo que hace SAP B1 con su «Last Purchase Price» para valuar
+     * una solicitud antes de cotizarla. No es el precio final, y no pretende
+     * serlo: es el orden de magnitud, que es lo unico que el umbral necesita.
+     *
+     * Un producto sin costo conocido vale 0 para este calculo. Eso empuja la
+     * requisicion HACIA ABAJO, asi que el umbral se elige sabiendo que lo
+     * desconocido no escala solo.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    const costos = await this.productoRepo
+      .createQueryBuilder('p')
+      .select(['p.id AS id', 'p.precioCompra AS costo'])
+      .where('p.empresaId = :empresaId', { empresaId })
+      .andWhere('p.id IN (:...ids)', { ids })
+      .getRawMany<{ id: string; costo: string | number }>();
+    const costoPorProducto = new Map(
+      costos.map((c) => [c.id, Number(c.costo ?? 0)]),
     );
-    const aprobadoresActivos = await this.usuarioRepo
-      .createQueryBuilder('usuario')
-      .where('usuario.empresaId = :empresaId', { empresaId })
-      .andWhere('usuario.activo = :activo', { activo: true })
-      .andWhere('usuario.id IN (:...aprobadoresIds)', { aprobadoresIds })
-      .getCount();
-    if (aprobadoresActivos !== new Set(aprobadoresIds).size) {
-      throw new BadRequestException(
-        'La ruta contiene aprobadores inactivos o ajenos a la empresa. Actualízala antes de continuar.',
+    const importeEstimado = dto.detalles.reduce(
+      (suma, d) =>
+        suma +
+        Number(d.cantidadSolicitada ?? 0) *
+          (costoPorProducto.get(d.productoId) ?? 0),
+      0,
+    );
+
+    const configuraciones = todasLasConfiguraciones.filter((c) => {
+      const desde = Number(c.montoDesde ?? 0);
+      const hasta = c.montoHasta === null || c.montoHasta === undefined
+        ? null
+        : Number(c.montoHasta);
+      if (importeEstimado < desde) return false;
+      if (hasta !== null && importeEstimado > hasta) return false;
+      return true;
+    });
+
+    /*
+     * Ningun nivel aplica: el monto quedo por debajo de lo que exige firma.
+     * La requisicion nace lista para cotizar. Que no requiera autorizacion no
+     * la hace invisible: queda en el expediente con su importe estimado, y si
+     * manana alguien baja el umbral, las siguientes si la piden.
+     */
+    const requiereAutorizacion = configuraciones.length > 0;
+
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * QUIEN FIRMA: persona → rol → suplente → administracion
+     * --------------------------------------------------------------------------
+     * Antes la ruta EXIGIA `usuarioId` en cada nivel y rechazaba la requisicion
+     * entera si alguno estaba inactivo. Dos consecuencias:
+     *
+     *   - Las rutas por ROL, que la entidad ya soportaba y que el credito de
+     *     clientes si usa, se rechazaban de plano.
+     *   - Dar de baja a una persona no dejaba documentos trabados: detenia al
+     *     area COMPLETA. Nadie de Compras podia levantar una requisicion
+     *     porque su aprobador ya no estaba.
+     *
+     * Business Central resuelve esto con una cadena: Approver ID → Substitute
+     * → administrador de aprobaciones. Aqui es la misma idea: el nivel dice a
+     * quien le toca, y si esa persona ya no puede, lo toma alguien con su misma
+     * autoridad. Lo que NUNCA cambia es que el solicitante no se firma a si
+     * mismo.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    const candidatos = await this.usuarioRepo.find({
+      where: { empresaId, activo: true },
+    });
+    const activoPorId = new Map(candidatos.map((u) => [u.id, u]));
+
+    const resolverFirmante = (
+      config: (typeof configuraciones)[number],
+    ): Usuario | null => {
+      const noEsElSolicitante = (u: Usuario) => u.id !== usuarioSolicitanteId;
+
+      // 1. La persona que la ruta nombra, si sigue activa.
+      const nombrado = config.usuarioId ? activoPorId.get(config.usuarioId) : null;
+      if (nombrado && noEsElSolicitante(nombrado)) return nombrado;
+
+      // 2. El rol que la ruta nombra.
+      const rolPedido = config.rolAprobador ?? nombrado?.rol ?? null;
+      if (rolPedido) {
+        const porRol = candidatos.find(
+          (u) => normalizarRol(u.rol) === normalizarRol(rolPedido) && noEsElSolicitante(u),
+        );
+        if (porRol) return porRol;
+      }
+
+      // 3. El rol que tenia la persona nombrada, aunque ella ya no este.
+      if (config.usuarioId && !nombrado) {
+        const original = candidatos.find((u) => u.id === config.usuarioId);
+        if (original) {
+          const suplente = candidatos.find(
+            (u) => normalizarRol(u.rol) === normalizarRol(original.rol) && noEsElSolicitante(u),
+          );
+          if (suplente) return suplente;
+        }
+      }
+
+      // 4. Administracion, que es el ultimo responsable de que esto no se pare.
+      return (
+        candidatos.find((u) => esRolAdministrador(u.rol) && noEsElSolicitante(u)) ??
+        candidatos.find((u) => u.esPropietario && noEsElSolicitante(u)) ??
+        null
       );
+    };
+
+    const firmantes = new Map<number, Usuario>();
+    for (const config of configuraciones) {
+      const firmante = resolverFirmante(config);
+      if (!firmante) {
+        throw new BadRequestException(
+          `El nivel ${config.orden} de la ruta se quedó sin nadie que pueda firmarlo. ` +
+            'Asigna un aprobador en Flujos de aprobación antes de continuar.',
+        );
+      }
+      firmantes.set(config.orden, firmante);
     }
 
-    const primerAprobador = await this.usuarioRepo.findOne({
-      where: {
-        id: configuraciones[0].usuarioId!,
-        empresaId,
-        activo: true,
-      },
-    });
-    if (!primerAprobador) {
-      throw new BadRequestException(
-        'El primer aprobador configurado ya no está activo en la empresa.',
-      );
-    }
+    const primerAprobador = requiereAutorizacion
+      ? firmantes.get(configuraciones[0].orden)!
+      : null;
     const requisicionId = await this.dataSource.transaction(async (em) => {
       const requisiciones = em.getRepository(Requisicion);
       const detallesRepo = em.getRepository(DetalleRequisicion);
@@ -205,6 +300,13 @@ export class RequisicionesService {
           usuarioSolicitanteId,
           notas: dto.notas,
           prioridad: dto.prioridad ?? 'NORMAL',
+          /*
+           * Sin niveles que apliquen, la requisicion nace lista para cotizar.
+           * Es el equivalente al «below limit, no approval required» de
+           * Business Central: el control existe para lo que lo amerita, no
+           * para que el mando firme cajas de guantes.
+           */
+          estado: requiereAutorizacion ? 'PENDIENTE' : 'COTIZANDO',
           fechaRequerida: dto.fechaRequerida
             ? new Date(`${dto.fechaRequerida.slice(0, 10)}T12:00:00`)
             : null,
@@ -220,32 +322,37 @@ export class RequisicionesService {
           }),
         ),
       );
-      await aprobacionesRepo.save(
-        configuraciones.map((configuracion) =>
-          aprobacionesRepo.create({
-            requisicionId: guardada.id,
-            usuarioId: configuracion.usuarioId!,
-            orden: configuracion.orden,
-          }),
-        ),
-      );
+      if (requiereAutorizacion) {
+        await aprobacionesRepo.save(
+          configuraciones.map((configuracion) =>
+            aprobacionesRepo.create({
+              requisicionId: guardada.id,
+              // Quien la ruta dijo, o quien lo sustituye: resuelto arriba.
+              usuarioId: firmantes.get(configuracion.orden)!.id,
+              orden: configuracion.orden,
+            }),
+          ),
+        );
+      }
       return guardada.id;
     });
     const reqCompleta = await this.reqRepo.findOne({
       where: { id: requisicionId, empresaId },
       relations: ['detalles', 'detalles.producto'],
     });
-    void this.mailService
-      .enviarCorreo({
-        destinatario: primerAprobador.email,
-        asunto: 'Nueva requisición pendiente de aprobación',
-        cuerpo: `Hola ${primerAprobador.nombreCompleto}, tienes una nueva requisición (ID: ${requisicionId}) pendiente de aprobación.`,
-        cuerpoHtml: htmlNuevaRequisicion(
-          reqCompleta,
-          primerAprobador.nombreCompleto,
-        ),
-      })
-      .catch(() => undefined);
+    if (primerAprobador) {
+      void this.mailService
+        .enviarCorreo({
+          destinatario: primerAprobador.email,
+          asunto: 'Nueva requisición pendiente de aprobación',
+          cuerpo: `Hola ${primerAprobador.nombreCompleto}, tienes una nueva requisición (ID: ${requisicionId}) pendiente de aprobación.`,
+          cuerpoHtml: htmlNuevaRequisicion(
+            reqCompleta,
+            primerAprobador.nombreCompleto,
+          ),
+        })
+        .catch(() => undefined);
+    }
 
     return this.reqRepo.findOne({
       where: { id: requisicionId, empresaId },

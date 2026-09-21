@@ -112,6 +112,53 @@ export class ProductosService {
         'El precio de compra no puede ser negativo.',
       );
     }
+
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * Lo que mueve existencias necesita categoria
+     * --------------------------------------------------------------------------
+     * De la categoria cuelgan las cuentas contables del producto. Sin ella, el
+     * motor contable no puede armar la poliza de la compra: la recepcion ENTRA
+     * igual y la poliza se encola para siempre, porque lo que falta no es un
+     * dato de la operacion sino configuracion. Verificado el 21-sep-2026
+     * corriendo el ciclo completo: dos recepciones dentro, dos polizas fuera, y
+     * ni una linea roja en la pantalla del almacenista.
+     *
+     * Asi lo hacen los ERP grandes: en SAP Business One el grupo de articulos
+     * es obligatorio y de el cuelga la determinacion de cuentas; en Business
+     * Central el Inventory Posting Group es lo que permite registrar, y sin el
+     * el asiento falla.
+     *
+     * Un SERVICIO no lleva inventario, asi que la regla no lo toca. Un KIT
+     * tampoco: su costo lo ponen sus componentes.
+     *
+     * El arranque siembra la categoria «General» y acomoda ahi lo que ya
+     * existia sin clasificar, para que esta regla no vuelva ineditable el
+     * catalogo de nadie.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    const TIPOS_CON_INVENTARIO = ['FISICO', 'CONSUMIBLE', 'MATERIA_PRIMA'];
+    const llevaInventario =
+      dto.tipo === undefined
+        ? undefined
+        : TIPOS_CON_INVENTARIO.includes(String(dto.tipo));
+    const categoriaVacia =
+      dto.categoriaId !== undefined &&
+      (dto.categoriaId === null || String(dto.categoriaId).trim() === '');
+
+    if (llevaInventario === true && (dto.categoriaId === undefined || categoriaVacia)) {
+      throw new BadRequestException(
+        'Un producto que lleva inventario necesita categoría: de ella cuelgan sus ' +
+          'cuentas contables, y sin ellas la compra entra al almacén pero no a los libros. ' +
+          'Si todavía no sabes cuál, usa «General».',
+      );
+    }
+    if (llevaInventario !== false && categoriaVacia) {
+      throw new BadRequestException(
+        'No puedes dejar sin categoría un producto que lleva inventario: ' +
+          'sus compras dejarían de contabilizarse. Si no sabes cuál, usa «General».',
+      );
+    }
     if (
       dto.stockMinimo !== undefined &&
       dto.stockMaximo != null &&

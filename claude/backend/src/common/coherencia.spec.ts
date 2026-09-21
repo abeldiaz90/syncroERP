@@ -1582,3 +1582,66 @@ describe('Coherencia · el acomodo dirigido no deja a nadie sin salida', () => {
     expect(pantalla).toContain('/catalogo/wms/productos/:id/ubicaciones');
   });
 });
+
+describe('Coherencia · las tres reglas de gobierno de compras', () => {
+  /*
+   * ==========================================================================
+   * Implementadas como las resuelven los ERP grandes, 21-sep-2026.
+   * Cada una nacio de un hallazgo de la corrida del ciclo completo.
+   * ==========================================================================
+   */
+  const requisiciones = leer(join(SRC, 'compras/services/requisiciones.service.ts'));
+
+  it('el umbral por monto se aplica, y valua con el costo de reposicion', () => {
+    /*
+     * `montoDesde`/`montoHasta` existian en la entidad y no los usaba nadie:
+     * TODA requisicion subia al mando. Una requisicion no trae precios, asi que
+     * se valua con `precioCompra` —el costo que la recepcion mantiene al dia—,
+     * que es lo que hace SAP B1 con su «Last Purchase Price».
+     */
+    expect(requisiciones).toContain('importeEstimado');
+    expect(requisiciones).toMatch(/montoDesde[\s\S]{0,400}montoHasta/);
+    expect(requisiciones).toContain('precioCompra');
+    // Y por debajo del umbral la requisicion nace lista para cotizar.
+    expect(requisiciones).toMatch(/requiereAutorizacion \? 'PENDIENTE' : 'COTIZANDO'/);
+  });
+
+  it('la ruta no se rompe porque una persona deje la empresa', () => {
+    /*
+     * Antes la ruta EXIGIA usuarioId en cada nivel y rechazaba la requisicion
+     * entera si alguno estaba inactivo: dar de baja al aprobador no dejaba
+     * documentos trabados, detenia al area completa. Business Central lo
+     * resuelve con Approver → Substitute → administrador de aprobaciones.
+     */
+    expect(requisiciones).toContain('resolverFirmante');
+    expect(sinComentarios(requisiciones)).not.toContain(
+      'La ruta contiene aprobadores inactivos',
+    );
+    expect(sinComentarios(requisiciones)).not.toContain(
+      'La ruta de aprobación contiene niveles sin un aprobador asignado',
+    );
+    // La cadena completa, y el solicitante fuera de ella siempre.
+    expect(requisiciones).toContain('rolAprobador');
+    expect(requisiciones).toContain('esRolAdministrador');
+    expect(requisiciones).toContain('noEsElSolicitante');
+  });
+
+  it('lo que mueve existencias exige categoria, y el servicio no', () => {
+    /*
+     * De la categoria cuelgan las cuentas del producto. Sin ella la recepcion
+     * entra y la poliza se encola para siempre. SAP B1 exige grupo de
+     * articulos; Business Central exige Inventory Posting Group para registrar.
+     */
+    const productos = leer(join(SRC, 'catalogo/services/productos.service.ts'));
+    expect(productos).toContain('TIPOS_CON_INVENTARIO');
+    expect(productos).toMatch(/FISICO[\s\S]{0,80}CONSUMIBLE[\s\S]{0,80}MATERIA_PRIMA/);
+    // El servicio no lleva inventario: la regla no lo toca.
+    expect(productos).not.toMatch(/TIPOS_CON_INVENTARIO\s*=\s*\[[^\]]*SERVICIO/);
+
+    // Y el arranque deja el catalogo en condiciones de cumplirla.
+    const arranque = leer(join(SRC, 'catalogo/services/catalogos-iniciales.service.ts'));
+    expect(arranque).toContain('asegurarCategoriaPorDefecto');
+    expect(arranque).toContain('acomodarProductosSinCategoria');
+    expect(arranque).toContain('asegurarCuentasDeCategorias');
+  });
+});

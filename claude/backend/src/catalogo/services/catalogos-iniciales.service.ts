@@ -1,9 +1,11 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import { CuentasContablesService } from '../../finanzas/services/cuentas-contables.service';
 import { CatalogosSatService } from '../../finanzas/services/catalogos-sat.service';
 import { CategoriasService } from './categorias.service';
 import { FormaPago } from '../entities/forma-pago.entity';
+import { Categoria } from '../entities/categoria.entity';
+import { Producto, TipoProducto } from '../entities/producto.entity';
 
 /**
  * Garantiza que una instalación recién creada y las empresas existentes
@@ -35,7 +37,9 @@ export class CatalogosInicialesService implements OnApplicationBootstrap {
           `Plan mexicano inicial: ${resultado.creadas} cuentas creadas para ${empresa.id}.`,
         );
       }
+      await this.asegurarCategoriaPorDefecto(String(empresa.id));
       await this.asegurarCuentasDeCategorias(String(empresa.id));
+      await this.acomodarProductosSinCategoria(String(empresa.id));
     }
   }
 
@@ -133,6 +137,91 @@ export class CatalogosInicialesService implements OnApplicationBootstrap {
           `${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+
+  /** Nombre de la categoria que recoge lo que nadie clasifico todavia. */
+  private static readonly CATEGORIA_POR_DEFECTO = 'General';
+
+  /**
+   * Toda empresa tiene una categoria donde cae lo que aun no se clasifica.
+   *
+   * La categoria es lo que le da cuenta contable a un producto. Sin ella, cada
+   * compra encola una poliza que jamas va a poder generarse. Los ERP grandes lo
+   * resuelven igual: SAP Business One trae un grupo de articulos de fabrica y
+   * la determinacion de cuentas cuelga de el; Business Central exige el
+   * Inventory Posting Group para poder registrar y ofrece crear uno provisional
+   * cuando falta.
+   *
+   * Aqui se siembra «General» por empresa. No pretende ser una buena
+   * clasificacion —para eso estan las categorias de verdad—: pretende que
+   * ningun producto quede sin cuenta.
+   */
+  private async asegurarCategoriaPorDefecto(empresaId: string) {
+    const repo = this.dataSource.getRepository(Categoria);
+    const nombre = CatalogosInicialesService.CATEGORIA_POR_DEFECTO;
+    const existente = await repo.findOne({ where: { empresaId, nombre } });
+    if (existente) {
+      if (!existente.activo) await repo.update({ id: existente.id }, { activo: true });
+      return;
+    }
+    await repo.save(
+      repo.create({
+        empresaId,
+        nombre,
+        descripcion:
+          'Categoría inicial: recoge los productos que todavía no tienen una propia. ' +
+          'De la categoría cuelgan las cuentas contables del producto.',
+        activo: true,
+      } as Partial<Categoria>),
+    );
+    this.logger.log(`Categoría «${nombre}» creada para ${empresaId}.`);
+  }
+
+  /**
+   * Ningun producto con inventario se queda sin categoria.
+   *
+   * Un producto FISICO, CONSUMIBLE o MATERIA_PRIMA mueve existencias, y mover
+   * existencias tiene consecuencia contable. Sin categoria no hay cuenta de
+   * inventario, y la recepcion entra mientras la poliza se encola para siempre
+   * —verificado el 21-sep-2026 corriendo el ciclo completo—.
+   *
+   * Los servicios no llevan inventario y por eso no necesitan categoria: la
+   * regla no los toca.
+   *
+   * Esto acomoda lo que ya existe. Que no vuelva a entrar uno sin categoria lo
+   * impide `ProductosService`.
+   */
+  private async acomodarProductosSinCategoria(empresaId: string) {
+    const categorias = this.dataSource.getRepository(Categoria);
+    const productos = this.dataSource.getRepository(Producto);
+    const porDefecto = await categorias.findOne({
+      where: { empresaId, nombre: CatalogosInicialesService.CATEGORIA_POR_DEFECTO },
+    });
+    if (!porDefecto) return;
+
+    const conInventario = [
+      TipoProducto.FISICO,
+      TipoProducto.CONSUMIBLE,
+      TipoProducto.MATERIA_PRIMA,
+    ];
+    const huerfanos = await productos
+      .createQueryBuilder('p')
+      .where('p.empresaId = :empresaId', { empresaId })
+      .andWhere('p.categoriaId IS NULL')
+      .andWhere('p.tipo IN (:...tipos)', { tipos: conInventario })
+      .getMany();
+    if (!huerfanos.length) return;
+
+    await productos.update(
+      { empresaId, id: In(huerfanos.map((p) => p.id)) },
+      { categoriaId: porDefecto.id },
+    );
+    this.logger.warn(
+      `${huerfanos.length} producto(s) con inventario no tenían categoría y por tanto ` +
+        `ninguna cuenta contable: quedaron en «${porDefecto.nombre}». ` +
+        'Reclasifícalos cuando puedas; mientras tanto, sus compras ya pueden contabilizarse.',
+    );
   }
 
 }
