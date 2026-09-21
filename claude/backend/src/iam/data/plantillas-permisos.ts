@@ -206,10 +206,31 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * autorizársela, adjudicar, generar la orden y pagarla. Comprar, autorizar
      * y pagar en una sola persona es el hallazgo que cualquier auditoría
      * marca primero, y no se arregla con disciplina sino quitando el permiso.
+     *
+     * Falta la cuarta: RECIBIR. Quien ordena no da por recibida su propia
+     * compra. Es el fraude de compras más sencillo que existe —ordenar de más,
+     * declararlo recibido y que nadie cuente la caja— y por eso ningún ERP
+     * serio deja comprar y recepcionar en el mismo usuario. En SUMA recibe el
+     * almacenista, que es quien tiene la mercancía enfrente: para él
+     * `PATCH /compras/ordenes/:id/recibir` es irrenunciable, y aquí es vedada.
+     *
+     * El comprador conserva la CONSULTA de recepciones
+     * (`GET /compras/ordenes/recepciones`): necesita saber qué llegó y qué no
+     * para dar seguimiento al proveedor. Ver no es dar por recibido.
      */
     accionesVedadas: [
       'PATCH /compras/ordenes/:id/pagar',
       'PATCH /compras/requisiciones/aprobaciones/:id',
+      'PATCH /compras/ordenes/:id/recibir',
+      /*
+       * Sin facultad de resolver, la bandeja sobra. La pantalla dice "Revisa y
+       * autoriza las requisiciones de compra de tu equipo" y para el comprador
+       * estaba condenada a salir siempre vacia, porque solo lista lo asignado a
+       * uno y el que no puede firmar nunca tiene nada asignado. Un renglon de
+       * menu que promete autoridad que no se tiene ensucia el area de trabajo y
+       * hace dudar del resto.
+       */
+      'GET /compras/requisiciones/aprobaciones/pendientes',
     ],
   },
   {

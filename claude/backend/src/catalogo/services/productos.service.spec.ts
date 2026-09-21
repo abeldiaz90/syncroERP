@@ -29,10 +29,27 @@ describe('ProductosService · separación maestro/inventario', () => {
    * la pantalla no dejaba elegir. El producto quedaba imposible de editar.
    */
   describe('normaliza la unidad contra el catálogo', () => {
+    /*
+     * El repositorio de unidades es el SEXTO parametro del constructor, no el
+     * octavo. El mock se pasaba en la ultima posicion y caia sobre
+     * `asientos`, asi que `unidadRepository` quedaba en `{}` y las dos pruebas
+     * fallaban con "this.unidadRepository.findOne is not a function" sin que
+     * hubiera nada malo en el servicio.
+     *
+     * Las dependencias posicionales se desacomodan solas en cuanto alguien
+     * agrega un parametro en medio. El orden aqui se mantiene igual al del
+     * constructor y por eso va anotado.
+     */
     const conCatalogo = (nombre: string | null) =>
       new ProductosService(
-        {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
-        { findOne: async () => (nombre ? { nombre } : null) } as any,
+        {} as any, // producto
+        {} as any, // imagenProducto
+        {} as any, // atributo
+        {} as any, // inventarioService
+        {} as any, // categoria
+        { findOne: async () => (nombre ? { nombre } : null) } as any, // unidadMedida
+        {} as any, // dataSource
+        {} as any, // asientos
       );
 
     it('devuelve la grafía del catálogo aunque llegue en otra', async () => {

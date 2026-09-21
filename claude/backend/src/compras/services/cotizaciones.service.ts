@@ -279,10 +279,7 @@ export class CotizacionesService {
     const cot = await this.obtenerPorId(id, empresaId);
     if (cot.estado !== 'PENDIENTE_APROBACION') throw new BadRequestException('La cotización no está pendiente de aprobación.');
     const paso = await this.siguientePaso(id, empresaId);
-    if (cot.solicitadoAprobacionPorId === usuarioId) {
-      throw new BadRequestException('Quien solicita la adjudicación no puede aprobarla.');
-    }
-    this.exigirFacultadDeResolver(paso, usuarioId, rol);
+    this.exigirFacultadDeResolver(paso, usuarioId, rol, cot.solicitadoAprobacionPorId);
     paso.estado = 'APROBADA'; paso.resueltoPorId = usuarioId; paso.fechaResolucion = new Date(); paso.comentario = comentario?.trim();
     await this.aprobacionRepo.save(paso);
     const pendientes = await this.aprobacionRepo.count({ where: { empresaId, proceso: 'COTIZACION', documentoId: id, estado: 'PENDIENTE' } });
@@ -320,7 +317,7 @@ export class CotizacionesService {
     const cot = await this.obtenerPorId(id, empresaId);
     if (cot.estado !== 'PENDIENTE_APROBACION') throw new BadRequestException('La cotización no está pendiente de aprobación.');
     const paso = await this.siguientePaso(id, empresaId);
-    this.exigirFacultadDeResolver(paso, usuarioId, rol);
+    this.exigirFacultadDeResolver(paso, usuarioId, rol, cot.solicitadoAprobacionPorId);
     paso.estado = 'RECHAZADA'; paso.resueltoPorId = usuarioId; paso.fechaResolucion = new Date(); paso.comentario = comentario?.trim();
     await this.aprobacionRepo.save(paso);
     await this.aprobacionRepo.createQueryBuilder().update().set({ estado: 'CANCELADA' })
@@ -365,11 +362,31 @@ export class CotizacionesService {
    * Eso ya se impide al crear la ruta; aquí se vuelve a comprobar, porque una
    * ruta puede haberse configurado antes de esa regla.
    */
+  /**
+   * Quien puede resolver este nivel de adjudicación.
+   *
+   * La regla «quien solicita no resuelve» estaba escrita a mano dentro de
+   * `aprobar()` y NO estaba en `rechazar()`. La asimetría dejaba que el mismo
+   * comprador que pidió la adjudicación la rechazara —sin autoridad para
+   * aprobarla, pero con poder de tumbarla antes de que otro la viera—. Tener
+   * la regla en un solo lugar es lo que impide que la proxima ruta de salida
+   * vuelva a olvidarla.
+   *
+   * Rechazar no es menos grave que aprobar: las dos cierran el ciclo y las dos
+   * quedan en la pista de auditoría a nombre de quien las resuelve.
+   */
   private exigirFacultadDeResolver(
     paso: AprobacionDocumento,
     usuarioId: string,
     rol?: string,
+    solicitanteId?: string | null,
   ): void {
+    if (solicitanteId && solicitanteId === usuarioId) {
+      throw new BadRequestException(
+        'Quien solicita la adjudicación no puede resolverla.',
+      );
+    }
+
     if (!paso.usuarioAprobadorId && !paso.rolAprobador) {
       throw new BadRequestException(
         'Este nivel de aprobación no tiene usuario ni rol asignado. Corrige la ruta antes de resolverlo.',
