@@ -4,8 +4,10 @@ import {
   derivarEscalaFinanciera,
   diagnosticarEscalaFinanciera,
   existeAsignacionSegregada,
+  resolverFirmante,
   seleccionarRutaAprobacion,
 } from './rutas-aprobacion.util';
+import { Usuario } from '../../iam/entities/usuario.entity';
 
 const nivel = (orden: number, montoHasta?: number) =>
   ({ orden, montoDesde: 0, montoHasta }) as ConfiguracionAprobacion;
@@ -110,6 +112,82 @@ describe('asignarRutaSegregada', () => {
         { orden: 1, candidatos: ['usuario-a'] },
         { orden: 2, candidatos: ['usuario-a'] },
       ]),
+    ).toBeNull();
+  });
+});
+
+
+/**
+ * La cadena de firma. Las pruebas fijan sobre todo los dos modos de fallar que
+ * ya costaron caro: que la ruta nombre a alguien que ya no esta y el area
+ * entera se pare, y que el solicitante acabe firmandose a si mismo.
+ */
+describe('quien firma: persona -> rol -> suplente -> administracion', () => {
+  const persona = (
+    id: string,
+    rol: string,
+    activo = true,
+    esPropietario = false,
+  ) => ({ id, rol, activo, esPropietario }) as Usuario;
+
+  const PADRON = [
+    persona('ana', 'gerencia'),
+    persona('beto', 'gerencia'),
+    persona('caro', 'contador'),
+    persona('dir', 'admin'),
+    persona('viejo', 'gerencia', false),
+  ];
+
+  it('respeta a la persona que la ruta nombra', () => {
+    expect(
+      resolverFirmante({ usuarioId: 'caro' }, PADRON, 'quien-pide')?.id,
+    ).toBe('caro');
+  });
+
+  it('con ruta por rol toma a alguien de ese rol', () => {
+    expect(
+      resolverFirmante({ rolAprobador: 'gerencia' }, PADRON, 'quien-pide')?.id,
+    ).toBe('ana');
+  });
+
+  /*
+   * El escalon que estaba muerto. Buscaba al original dentro de la lista de
+   * ACTIVOS, y el original esta inactivo por definicion —si estuviera activo
+   * habriamos salido en el primer escalon—, asi que no lo encontraba nunca y
+   * se caia directo a administracion. Con el padron completo encuentra su rol
+   * y busca un suplente con la misma autoridad.
+   */
+  it('si la persona nombrada esta de baja, firma alguien de su mismo rol', () => {
+    const firmante = resolverFirmante({ usuarioId: 'viejo' }, PADRON, 'quien-pide');
+    expect(firmante?.id).toBe('ana');
+    expect(firmante?.rol).toBe('gerencia');
+  });
+
+  it('cae en administracion cuando no queda nadie con esa autoridad', () => {
+    expect(
+      resolverFirmante({ rolAprobador: 'tesoreria' }, PADRON, 'quien-pide')?.id,
+    ).toBe('dir');
+  });
+
+  /*
+   * Invariante que no cede en ningun escalon. Si `noEsElSolicitante` se
+   * aplicara solo al final, este caso devolveria null en vez de pasar al
+   * siguiente de su mismo rol.
+   */
+  it('el solicitante no se firma a si mismo, ni nombrado ni por rol', () => {
+    expect(resolverFirmante({ usuarioId: 'ana' }, PADRON, 'ana')?.id).toBe('beto');
+    expect(resolverFirmante({ rolAprobador: 'gerencia' }, PADRON, 'ana')?.id).toBe('beto');
+  });
+
+  it('devuelve null cuando el unico candidato posible es quien pide', () => {
+    const solos = [persona('ana', 'gerencia')];
+    expect(resolverFirmante({ rolAprobador: 'gerencia' }, solos, 'ana')).toBeNull();
+  });
+
+  it('nunca propone a alguien inactivo', () => {
+    const soloInactivos = [persona('viejo', 'gerencia', false)];
+    expect(
+      resolverFirmante({ usuarioId: 'viejo' }, soloInactivos, 'quien-pide'),
     ).toBeNull();
   });
 });

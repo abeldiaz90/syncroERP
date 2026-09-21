@@ -10,6 +10,9 @@ export class ConfiguracionesAprobacionController {
   @Get('catalogo/procesos')
   procesos() { return this.service.catalogoProcesos(); }
 
+  @Get('catalogo/roles')
+  roles() { return this.service.catalogoRoles(); }
+
   @Get('matriz/todos')
   matriz(@ActiveUser('empresaId') empresaId: string) {
     return this.service.obtenerMatriz(empresaId);

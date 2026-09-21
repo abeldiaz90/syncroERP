@@ -1,4 +1,6 @@
 import { ConfiguracionAprobacion } from '../entities/configuracion-aprobacion.entity';
+import { Usuario } from '../../iam/entities/usuario.entity';
+import { esRolAdministrador, normalizarRol } from '../../iam/utils/roles.util';
 
 export const PROCESOS_FINANCIEROS_CENTRALES = [
   'CREDITO_CLIENTE',
@@ -177,4 +179,87 @@ export function derivarEscalaFinanciera(
     }
     return resultado;
   });
+}
+
+
+/** Lo único que la cadena de firma necesita saber de un nivel de la ruta. */
+export type NivelDeRuta = {
+  usuarioId?: string | null;
+  rolAprobador?: string | null;
+};
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * QUIÉN FIRMA: persona → rol → suplente → administración
+ * ----------------------------------------------------------------------------
+ * Esta cadena vivía como función anidada dentro de `requisiciones.service.ts`,
+ * y la adjudicación de cotizaciones —el otro punto de compras donde se reparte
+ * autoridad— copiaba el `usuarioId` de la ruta tal cual. Dos consecuencias:
+ *
+ *   · Una ruta por ROL no servía en cotizaciones: si nadie tenía ese rol, el
+ *     nivel nacía sin nadie que pudiera resolverlo. Y enrutar por rol es lo
+ *     que hace falta para que la adjudicación deje de firmarla quien después
+ *     la contabiliza.
+ *   · Dar de baja a la persona nombrada dejaba las adjudicaciones trabadas,
+ *     que es exactamente el problema que la cadena resuelve en requisiciones.
+ *
+ * Business Central lo resuelve con Approver ID → Substitute → administrador de
+ * aprobaciones. Aquí es la misma idea: el nivel dice a quién le toca, y si esa
+ * persona ya no puede, lo toma alguien con su misma autoridad.
+ *
+ * Recibe el padrón COMPLETO, no sólo los activos, y por un motivo concreto: el
+ * escalón 3 busca a alguien con el rol que tenía la persona nombrada, y esa
+ * persona está inactiva por definición —si estuviera activa habríamos salido
+ * en el escalón 1—. Con una lista de sólo activos ese escalón no encontraba
+ * nunca al original y era código muerto. Firmar, firman sólo los activos.
+ *
+ * Lo que NUNCA cambia, en ningún escalón, es que el solicitante no se firma a
+ * sí mismo. Por eso `noEsElSolicitante` se aplica en los cuatro y no como
+ * filtro final: al final devolvería null donde la cadena todavía tenía a quién
+ * recurrir.
+ * ════════════════════════════════════════════════════════════════════════════
+ */
+export function resolverFirmante(
+  nivel: NivelDeRuta,
+  padron: Usuario[],
+  solicitanteId: string,
+): Usuario | null {
+  const noEsElSolicitante = (u: Usuario) => u.id !== solicitanteId;
+  const activos = padron.filter((u) => u.activo !== false);
+  const activoPorId = new Map(activos.map((u) => [u.id, u]));
+
+  // 1. La persona que la ruta nombra, si sigue activa.
+  const nombrado = nivel.usuarioId ? activoPorId.get(nivel.usuarioId) : null;
+  if (nombrado && noEsElSolicitante(nombrado)) return nombrado;
+
+  // 2. El rol que la ruta nombra.
+  const rolPedido = nivel.rolAprobador ?? nombrado?.rol ?? null;
+  if (rolPedido) {
+    const porRol = activos.find(
+      (u) =>
+        normalizarRol(u.rol) === normalizarRol(rolPedido) &&
+        noEsElSolicitante(u),
+    );
+    if (porRol) return porRol;
+  }
+
+  // 3. El rol que tenía la persona nombrada, aunque ella ya no esté.
+  if (nivel.usuarioId && !nombrado) {
+    const original = padron.find((u) => u.id === nivel.usuarioId);
+    if (original) {
+      const suplente = activos.find(
+        (u) =>
+          normalizarRol(u.rol) === normalizarRol(original.rol) &&
+          noEsElSolicitante(u),
+      );
+      if (suplente) return suplente;
+    }
+  }
+
+  // 4. Administración, que es el último responsable de que esto no se pare.
+  return (
+    activos.find((u) => esRolAdministrador(u.rol) && noEsElSolicitante(u)) ??
+    activos.find((u) => u.esPropietario && noEsElSolicitante(u)) ??
+    null
+  );
 }

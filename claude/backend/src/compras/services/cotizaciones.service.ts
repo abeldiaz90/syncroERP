@@ -9,6 +9,8 @@ import { Requisicion } from '../entities/requisicion.entity';
 import { OrdenCompra } from '../entities/orden-compra.entity';
 import { CrearCotizacionDto } from '../dto/crear-cotizacion.dto';
 import { ConfiguracionAprobacion } from '../entities/configuracion-aprobacion.entity';
+import { resolverFirmante } from '../utils/rutas-aprobacion.util';
+import { Usuario } from '../../iam/entities/usuario.entity';
 import { AprobacionDocumento } from '../entities/aprobacion-documento.entity';
 import { Proveedor } from '../../proveedores/entities/proveedor.entity';
 import { Producto } from '../../catalogo/entities/producto.entity';
@@ -225,6 +227,37 @@ export class CotizacionesService {
       );
     }
 
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * A quien le toca firmar, resuelto ANTES de crear los niveles
+     * ------------------------------------------------------------------------
+     * Aqui se copiaba `c.usuarioId` tal cual. Con una ruta por ROL —que es la
+     * que separa a quien adjudica de quien contabiliza— el nivel nacia sin
+     * usuario asignado, y si nadie tenia ese rol no habia quien lo resolviera.
+     * Y si la persona nombrada estaba de baja, la adjudicacion quedaba
+     * trabada: el mismo problema que las requisiciones ya tenian resuelto con
+     * la cadena persona -> rol -> suplente -> administracion, que esta ahora
+     * compartida.
+     *
+     * Se resuelve antes de abrir la transaccion para no dejar la cotizacion en
+     * PENDIENTE_APROBACION si la ruta no tiene a nadie: o hay firmante para
+     * todos los niveles, o no se mueve nada.
+     */
+    const padron = await this.dataSource
+      .getRepository(Usuario)
+      .find({ where: { empresaId } });
+    const firmantes = new Map<number, Usuario>();
+    for (const c of configuracion) {
+      const firmante = resolverFirmante(c, padron, usuarioId);
+      if (!firmante) {
+        throw new BadRequestException(
+          `El nivel ${c.orden} de la ruta de adjudicacion se quedo sin nadie que pueda firmarlo. ` +
+            'Asigna un aprobador en Gobierno de aprobaciones antes de continuar.',
+        );
+      }
+      firmantes.set(c.orden, firmante);
+    }
+
     await this.dataSource.transaction(async em => {
       const aprobaciones = em.getRepository(AprobacionDocumento);
       await em.getRepository(Cotizacion).save(cot);
@@ -263,7 +296,8 @@ export class CotizacionesService {
 
       await aprobaciones.save(configuracion.map(c => aprobaciones.create({
         empresaId, proceso: 'COTIZACION', documentoId: id, ciclo, nivel: c.orden,
-        usuarioAprobadorId: c.usuarioId, rolAprobador: c.rolAprobador,
+        usuarioAprobadorId: firmantes.get(c.orden)!.id,
+        rolAprobador: c.rolAprobador,
         solicitadoPorId: usuarioId, tiempoLimiteHoras: c.tiempoLimiteHoras,
         obligatorio: c.obligatorio,
         permiteAutoaprobacion: c.permiteAutoaprobacion,

@@ -56,18 +56,20 @@ type ConfigGuardada = Nivel & {
 
 const PROCESOS_FINANCIEROS = new Set(["CREDITO_CLIENTE", "HOTEL_CONVENIO"]);
 
-const rolesBase: Array<[string, string]> = [
-  ["gerencia", "Gerencia"],
-  ["direccion", "Dirección"],
-  ["finanzas", "Finanzas"],
-  ["credito", "Crédito"],
-  ["cobranza", "Cobranza"],
-  ["hoteleria", "Hotelería"],
-  ["rrhh", "Recursos Humanos"],
-  ["tesoreria", "Tesorería"],
-  ["comprador", "Compras"],
-  ["admin", "Administrador"],
-];
+/*
+ * AQUÍ HABÍA UNA LISTA FIJA DE DIEZ ROLES. Se eliminó el 21-sep-2026.
+ *
+ * Era la cuarta lista de roles del sistema y no coincidía con ninguna. Se
+ * ampliaba sola con los roles que YA tuviera algún usuario, lo que dejaba
+ * fuera justo el caso que hay que poder configurar: un rol recién creado, al
+ * que todavía no pertenece nadie, no se podía elegir como aprobador. Le pasó
+ * a `gobierno` el día que nació. Y `almacenista`, `contador` y `empleado`
+ * salían en crudo, sin etiqueta, porque entraban por esa puerta de atrás.
+ *
+ * La lista buena es la de las plantillas de permisos, y la sirve el backend en
+ * `/configuraciones-aprobacion/catalogo/roles`.
+ */
+type RolAsignable = { clave: string; etiqueta: string };
 
 const nuevoNivel = (orden: number): Nivel => ({
   id: crypto.randomUUID(),
@@ -101,6 +103,7 @@ export default function ConfiguracionAprobacionesPage() {
   const [procesos, setProcesos] = useState<Proceso[]>([]);
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [rolesApi, setRolesApi] = useState<RolAsignable[]>([]);
   const [matriz, setMatriz] = useState<ConfigGuardada[]>([]);
   const [proceso, setProceso] = useState("NOMINA");
   const [departamentoId, setDepartamentoId] = useState("");
@@ -113,9 +116,10 @@ export default function ConfiguracionAprobacionesPage() {
       // áreas y usuarios: sin esos dos catalogos no hay a quien asignar. Se
       // usa allSettled para distinguir "sin permiso" (403) de "fallo real" y
       // no disparar un toast de error por cada catálogo negado.
-      const [procesosRes, departamentosRes, usuariosRes, matrizRes] =
+      const [procesosRes, rolesRes, departamentosRes, usuariosRes, matrizRes] =
         await Promise.allSettled([
           api.get<Proceso[]>("/configuraciones-aprobacion/catalogo/procesos"),
+          api.get<RolAsignable[]>("/configuraciones-aprobacion/catalogo/roles"),
           api.get<Departamento[]>("/departamentos"),
           api.get<Usuario[]>("/usuarios"),
           api.get<ConfigGuardada[]>(
@@ -145,6 +149,7 @@ export default function ConfiguracionAprobacionesPage() {
 
       setSinAcceso(false);
       setProcesos(valor(procesosRes) ?? []);
+      setRolesApi(valor(rolesRes) ?? []);
       setDepartamentos(
         (valor(departamentosRes) ?? []).filter((item) => item.activo !== false),
       );
@@ -205,7 +210,13 @@ export default function ConfiguracionAprobacionesPage() {
     [matriz],
   );
   const roles = useMemo(() => {
-    const opciones = new Map<string, string>(rolesBase);
+    const opciones = new Map<string, string>(
+      rolesApi.map((rol) => [rol.clave, rol.etiqueta]),
+    );
+    /*
+     * Un rol que ya está en uso se sigue ofreciendo aunque desaparezca del
+     * contrato: si no, editar un nivel existente lo borraría sin avisar.
+     */
     for (const usuario of usuarios) {
       const original = String(usuario.rol ?? "").trim();
       if (!original) continue;
@@ -215,7 +226,7 @@ export default function ConfiguracionAprobacionesPage() {
     return [...opciones.entries()].sort((a, b) =>
       a[1].localeCompare(b[1], "es", { sensitivity: "base" }),
     );
-  }, [usuarios]);
+  }, [rolesApi, usuarios]);
 
   function cambiar(id: string, datos: Partial<Nivel>) {
     setNiveles((actuales) =>

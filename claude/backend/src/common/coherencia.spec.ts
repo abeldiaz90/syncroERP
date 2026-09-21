@@ -1622,10 +1622,32 @@ describe('Coherencia · las tres reglas de gobierno de compras', () => {
     expect(sinComentarios(requisiciones)).not.toContain(
       'La ruta de aprobación contiene niveles sin un aprobador asignado',
     );
-    // La cadena completa, y el solicitante fuera de ella siempre.
-    expect(requisiciones).toContain('rolAprobador');
-    expect(requisiciones).toContain('esRolAdministrador');
-    expect(requisiciones).toContain('noEsElSolicitante');
+    /*
+     * La cadena vive ahora en `rutas-aprobacion.util` y la usan LAS DOS rutas
+     * de compras. Estaba anidada dentro de requisiciones, y la adjudicacion de
+     * cotizaciones copiaba el `usuarioId` de la ruta tal cual: por eso alli no
+     * servian las rutas por rol —que son las que separan a quien adjudica de
+     * quien contabiliza— y una baja dejaba la adjudicacion trabada.
+     */
+    const util = leer(join(SRC, 'compras/utils/rutas-aprobacion.util.ts'));
+    const cotizaciones = leer(join(SRC, 'compras/services/cotizaciones.service.ts'));
+    expect(util).toContain('export function resolverFirmante');
+    expect(util).toContain('rolAprobador');
+    expect(util).toContain('esRolAdministrador');
+    expect(util).toContain('noEsElSolicitante');
+    expect(cotizaciones).toContain('resolverFirmante');
+
+    /*
+     * El escalon del suplente busca el rol que TENIA la persona dada de baja.
+     * Con una lista de solo activos no la encontraba nunca y era codigo
+     * muerto: por eso las dos rutas pasan el padron completo.
+     */
+    expect(sinComentarios(requisiciones)).toContain(
+      'this.usuarioRepo.find({ where: { empresaId } })',
+    );
+    expect(sinComentarios(util)).not.toMatch(
+      /const activos = padron;/,
+    );
   });
 
   it('lo que mueve existencias exige categoria, y el servicio no', () => {
@@ -1914,6 +1936,31 @@ describe('Coherencia · quien aprueba no escribe la regla que lo obliga', () => 
    * les pinta «Guardar flujo» y el servidor contesta 403 al pulsar, que es
    * exactamente el patrón que se cerró en crédito.
    */
+  /*
+   * La cuarta lista de roles. El catálogo del backend dice que «quien agregue
+   * un rol nuevo agrega su plantilla y aparece solo»; la pantalla de la matriz
+   * tenía la suya, fija, de diez, ampliada con los roles que YA tuviera algún
+   * usuario. Eso deja fuera exactamente el caso que hay que poder configurar:
+   * un rol recién creado, al que todavía no pertenece nadie. Le pasó a
+   * `gobierno` el día que nació.
+   */
+  it('la pantalla de la matriz no tiene su propia lista de roles', () => {
+    if (!FRONTEND) return;
+    const texto = sinComentarios(
+      leer(join(FRONTEND, 'app/dashboard/configuraciones-aprobacion/page.tsx')),
+    );
+    expect(texto).not.toContain('rolesBase');
+    expect(texto).toContain('/configuraciones-aprobacion/catalogo/roles');
+  });
+
+  it('el catálogo de roles lo sirve el contrato, no una lista escrita a mano', () => {
+    const servicio = leer(
+      join(SRC, 'compras/services/configuraciones-aprobacion.service.ts'),
+    );
+    expect(servicio).toContain('catalogoRoles()');
+    expect(servicio).toContain('PLANTILLAS_PERMISOS.map');
+  });
+
   it('la pantalla de la matriz esconde la escritura a quien sólo consulta', () => {
     if (!FRONTEND) return;
     const texto = leer(

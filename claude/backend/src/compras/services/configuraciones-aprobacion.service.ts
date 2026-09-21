@@ -14,6 +14,8 @@ import {
   esProcesoFinancieroCentral,
   existeAsignacionSegregada,
 } from '../utils/rutas-aprobacion.util';
+import { PLANTILLAS_PERMISOS } from '../../iam/data/plantillas-permisos';
+import { ROL_ADMINISTRADOR } from '../../iam/utils/roles-catalogo';
 
 /**
  * ============================================================================
@@ -89,6 +91,31 @@ export class ConfiguracionesAprobacionService {
       modulo,
       estadoIntegracion,
     }));
+  }
+
+  /**
+   * Los roles a los que se puede enrutar un nivel.
+   *
+   * La pantalla los tenía en una lista fija de diez, ampliada con los roles
+   * que YA tuviera algún usuario. Es la cuarta lista de roles del sistema y no
+   * coincidía con ninguna: `gobierno` no aparecía porque acababa de nacer y
+   * nadie lo tenía todavía —exactamente el caso que hay que poder configurar—,
+   * y `almacenista`, `contador` y `empleado` salían en crudo, sin su etiqueta,
+   * porque entraban por la puerta de atrás.
+   *
+   * La lista buena es la de las plantillas, que son las que siembran los
+   * permisos. Se sirve desde aquí y no desde administración a propósito: quien
+   * gobierna la matriz tiene que poder elegir un rol sin que le hagan falta
+   * los permisos de administrar usuarios.
+   */
+  catalogoRoles() {
+    return [
+      { clave: ROL_ADMINISTRADOR, etiqueta: 'Administrador' },
+      ...PLANTILLAS_PERMISOS.map((p) => ({
+        clave: p.rol,
+        etiqueta: p.etiqueta,
+      })),
+    ].sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, 'es'));
   }
 
   private procesoOperativo(proceso: string) {

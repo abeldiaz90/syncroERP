@@ -24,6 +24,7 @@ import {
   htmlAprobadaRequisicion,
 } from '../utils/email-templates';
 import { esRolAdministrador, normalizarRol } from '../../iam/utils/roles.util';
+import { resolverFirmante } from '../utils/rutas-aprobacion.util';
 
 
 /**
@@ -214,70 +215,20 @@ export class RequisicionesService {
     const requiereAutorizacion = configuraciones.length > 0;
 
     /*
-     * ════════════════════════════════════════════════════════════════════════
-     * QUIEN FIRMA: persona → rol → suplente → administracion
-     * --------------------------------------------------------------------------
-     * Antes la ruta EXIGIA `usuarioId` en cada nivel y rechazaba la requisicion
-     * entera si alguno estaba inactivo. Dos consecuencias:
+     * Quien firma cada nivel: persona → rol → suplente → administracion. La
+     * cadena vive en `rutas-aprobacion.util` porque la comparte con la
+     * adjudicacion de cotizaciones; antes estaba aqui dentro y alli no, que es
+     * como la adjudicacion se quedo sin rutas por rol.
      *
-     *   - Las rutas por ROL, que la entidad ya soportaba y que el credito de
-     *     clientes si usa, se rechazaban de plano.
-     *   - Dar de baja a una persona no dejaba documentos trabados: detenia al
-     *     area COMPLETA. Nadie de Compras podia levantar una requisicion
-     *     porque su aprobador ya no estaba.
-     *
-     * Business Central resuelve esto con una cadena: Approver ID → Substitute
-     * → administrador de aprobaciones. Aqui es la misma idea: el nivel dice a
-     * quien le toca, y si esa persona ya no puede, lo toma alguien con su misma
-     * autoridad. Lo que NUNCA cambia es que el solicitante no se firma a si
-     * mismo.
-     * ════════════════════════════════════════════════════════════════════════
+     * Se trae el padron COMPLETO a proposito: el escalon del suplente busca el
+     * rol que tenia la persona dada de baja, y con solo los activos no la
+     * encontraba nunca.
      */
-    const candidatos = await this.usuarioRepo.find({
-      where: { empresaId, activo: true },
-    });
-    const activoPorId = new Map(candidatos.map((u) => [u.id, u]));
-
-    const resolverFirmante = (
-      config: (typeof configuraciones)[number],
-    ): Usuario | null => {
-      const noEsElSolicitante = (u: Usuario) => u.id !== usuarioSolicitanteId;
-
-      // 1. La persona que la ruta nombra, si sigue activa.
-      const nombrado = config.usuarioId ? activoPorId.get(config.usuarioId) : null;
-      if (nombrado && noEsElSolicitante(nombrado)) return nombrado;
-
-      // 2. El rol que la ruta nombra.
-      const rolPedido = config.rolAprobador ?? nombrado?.rol ?? null;
-      if (rolPedido) {
-        const porRol = candidatos.find(
-          (u) => normalizarRol(u.rol) === normalizarRol(rolPedido) && noEsElSolicitante(u),
-        );
-        if (porRol) return porRol;
-      }
-
-      // 3. El rol que tenia la persona nombrada, aunque ella ya no este.
-      if (config.usuarioId && !nombrado) {
-        const original = candidatos.find((u) => u.id === config.usuarioId);
-        if (original) {
-          const suplente = candidatos.find(
-            (u) => normalizarRol(u.rol) === normalizarRol(original.rol) && noEsElSolicitante(u),
-          );
-          if (suplente) return suplente;
-        }
-      }
-
-      // 4. Administracion, que es el ultimo responsable de que esto no se pare.
-      return (
-        candidatos.find((u) => esRolAdministrador(u.rol) && noEsElSolicitante(u)) ??
-        candidatos.find((u) => u.esPropietario && noEsElSolicitante(u)) ??
-        null
-      );
-    };
+    const padron = await this.usuarioRepo.find({ where: { empresaId } });
 
     const firmantes = new Map<number, Usuario>();
     for (const config of configuraciones) {
-      const firmante = resolverFirmante(config);
+      const firmante = resolverFirmante(config, padron, usuarioSolicitanteId);
       if (!firmante) {
         throw new BadRequestException(
           `El nivel ${config.orden} de la ruta se quedó sin nadie que pueda firmarlo. ` +
