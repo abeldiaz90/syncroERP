@@ -1,0 +1,31 @@
+# ============================================================================
+#  Normalizacion de fin de linea
+# ----------------------------------------------------------------------------
+#  El repositorio se edita en Windows y se commitea desde herramientas Unix.
+#  Sin esto, cada guardado en Windows reescribe el archivo completo con CRLF y
+#  git reporta como "modificados" cientos de archivos que nadie toco: el 20 de
+#  septiembre de 2026 eran 1,159 archivos y 265,000 lineas de ruido sobre 175
+#  archivos de cambio real. `text=auto eol=lf` guarda siempre LF en el
+#  historial, que es lo que esperan prettier, eslint y los scripts .sh.
+# ============================================================================
+* text=auto eol=lf
+
+# Binarios: nunca tocar el contenido
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.xlsx binary
+*.xls  binary
+*.docx binary
+*.zip  binary
+*.jar  binary
+*.woff  binary
+*.woff2 binary
+
+# Scripts de Windows: estos SI necesitan CRLF o cmd.exe no los interpreta
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

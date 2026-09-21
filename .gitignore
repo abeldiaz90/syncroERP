@@ -1,0 +1,23 @@
+# Dependencias y compilados
+node_modules/
+dist/
+build/
+.next/
+out/
+
+# Entorno: las credenciales nunca entran al historial
+.env
+.env.local
+.env.*.local
+*.bak-*
+
+# Artefactos de trabajo que no son codigo
+*.bak
+*.tmp
+claude/backend/pe*.py
+claude/backend/uploads/
+
+# Sistema operativo / editores
+Thumbs.db
+desktop.ini
+.DS_Store
