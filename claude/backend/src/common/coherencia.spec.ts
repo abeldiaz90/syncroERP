@@ -1243,3 +1243,169 @@ describe('Coherencia · los secretos del usuario no salen por la API', () => {
     }
   });
 });
+
+/*
+ * ============================================================================
+ * Hallazgos de la corrida del rol Comprador (21-sep-2026)
+ * ----------------------------------------------------------------------------
+ * Los cuatro se encontraron probando por pantalla con un usuario real, no
+ * leyendo codigo, y ninguno lo habria detectado una prueba de modulo: los
+ * cuatro viven en la costura entre el contrato de roles y lo que cada consulta
+ * devuelve o cada pantalla ofrece.
+ * ============================================================================
+ */
+describe('Coherencia · lo que un endpoint devuelve, no solo a quien deja entrar', () => {
+  it('el historial de aprobaciones se recorta por persona, no solo por empresa', () => {
+    /*
+     * GET /aprobaciones/historial recibia unicamente empresaId y devolvia las
+     * aprobaciones de TODOS los modulos a cualquiera que alcanzara la pantalla.
+     * El comprador -que llega ahi legitimamente- leia una solicitud de credito
+     * de cliente con nombre, RFC, limite y nivel de riesgo.
+     *
+     * El permiso de ruta no puede arreglar esto: la ruta si le corresponde, los
+     * renglones no. El recorte tiene que estar en la consulta.
+     */
+    const controlador = leer(
+      join(SRC, 'aprobaciones/controllers/aprobaciones-documentos.controller.ts'),
+    );
+    const historial = controlador.slice(controlador.indexOf("@Get('historial')"));
+    const cuerpo = historial.slice(0, historial.indexOf('@Patch'));
+    expect(cuerpo).toContain("@ActiveUser('id')");
+    expect(cuerpo).toContain("@ActiveUser('rol')");
+    expect(cuerpo).toMatch(/listarHistorial\([^)]*usuarioId[^)]*rol/s);
+  });
+
+  it('la requisicion no publica el expediente de quien la firma', () => {
+    /*
+     * La relacion aprobaciones.usuario devolvia el registro completo de
+     * Usuario: correo, keycloakSubject, esPropietario, intentosFallidos y los
+     * vencimientos de token del administrador de la empresa. `select: false`
+     * cubrio la credencial; el resto salia arrastrado por la relacion.
+     */
+    const servicio = leer(join(SRC, 'compras/services/requisiciones.service.ts'));
+    const publicadas = servicio
+      .slice(
+        servicio.indexOf('const PERSONA_EN_REQUISICION'),
+        servicio.indexOf('const SELECCION_REQUISICION'),
+      )
+      .match(/^\s*(\w+):\s*true,/gm)
+      ?.map((linea) => linea.trim().split(':')[0]);
+    expect(publicadas?.sort()).toEqual(['id', 'nombreCompleto', 'rol']);
+    // Y el recorte se aplica en las DOS consultas: listado y detalle.
+    expect(servicio.split('select: SELECCION_REQUISICION').length - 1).toBe(2);
+  });
+
+  it('los catalogos de referencia se leen sin pedir permiso de rol', () => {
+    /*
+     * Paises, estados, bancos, formas de pago y codigos postales son la lista
+     * contra la que se llena cualquier formulario con domicilio o datos de
+     * pago. Mientras se resolvian por el contrato de roles, el comprador
+     * -que es quien mantiene el padron de proveedores- abria el alta con los
+     * combos Pais, Estado y Forma de Pago VACIOS estando marcados como
+     * obligatorios: el proveedor no se podia dar de alta.
+     *
+     * Que se leen sin permiso es una regla del sistema. Concederlos rol por rol
+     * garantiza que el proximo rol nazca roto.
+     */
+    const sinSkip: string[] = [];
+    for (const archivo of [
+      'paises',
+      'estados',
+      'bancos',
+      'formas-pago',
+      'codigos-postales',
+    ]) {
+      const ruta = join(SRC, `catalogo/controllers/${archivo}.controller.ts`);
+      if (!existsSync(ruta)) continue;
+      const texto = leer(ruta);
+      // Cada @Get de lectura debe ir precedido por @SkipPermisos(), salvo los
+      // que exigen administrador de plataforma dentro del metodo.
+      const bloques = texto.split('@Get');
+      for (const b of bloques.slice(1)) {
+        const cuerpo = b.slice(0, 400);
+        if (cuerpo.includes('exigirAdministradorDePlataforma')) continue;
+        const antes = texto.slice(0, texto.indexOf('@Get' + b.slice(0, 20)));
+        if (!antes.trimEnd().endsWith('@SkipPermisos()')) {
+          sinSkip.push(`${archivo}: @Get${b.slice(0, 20).split('\n')[0]}`);
+        }
+      }
+    }
+    expect(sinSkip).toEqual([]);
+  });
+
+  it('quien solicita una adjudicacion no la resuelve, ni aprobando ni rechazando', () => {
+    /*
+     * La regla estaba escrita a mano dentro de aprobar() y NO estaba en
+     * rechazar(). El mismo comprador que pedia la adjudicacion podia tumbarla
+     * antes de que otro la viera. Rechazar no es menos grave que aprobar: las
+     * dos cierran el ciclo y las dos quedan en la pista de auditoria.
+     *
+     * La regla vive en el guardia comun; tenerla en dos lugares es como se
+     * perdio la primera vez.
+     */
+    const servicio = leer(join(SRC, 'compras/services/cotizaciones.service.ts'));
+    const guardia = servicio.slice(
+      servicio.indexOf('private exigirFacultadDeResolver'),
+    );
+    expect(guardia.slice(0, 900)).toContain('solicitanteId === usuarioId');
+
+    for (const metodo of ['async aprobar(', 'async rechazar(']) {
+      const inicio = servicio.indexOf(metodo);
+      expect(inicio).toBeGreaterThan(0);
+      const cuerpo = servicio.slice(inicio, inicio + 1200);
+      expect(cuerpo).toMatch(
+        /exigirFacultadDeResolver\([^)]*solicitadoAprobacionPorId/s,
+      );
+    }
+  });
+
+  it('el comprador no da por recibida la mercancia que el mismo ordena', () => {
+    /*
+     * Comprar, autorizar y pagar ya estaban separados. Faltaba recibir, que es
+     * el fraude de compras mas sencillo que existe: ordenar de mas, declararlo
+     * recibido y que nadie cuente la caja. En SUMA recibe el almacenista.
+     */
+    const comprador = PLANTILLAS_PERMISOS.find((p) => p.rol === 'comprador');
+    expect(comprador?.accionesVedadas).toContain(
+      'PATCH /compras/ordenes/:id/recibir',
+    );
+    // Pero conserva la CONSULTA: necesita saber que llego para dar seguimiento.
+    expect(comprador?.accionesVedadas ?? []).not.toContain(
+      'GET /compras/ordenes/recepciones',
+    );
+  });
+});
+
+describe('Coherencia · un boton que lleva a un 403 es peor que no tenerlo', () => {
+  const CENTRO = FRONTEND
+    ? join(FRONTEND, 'app/dashboard/centros/[modulo]/page.tsx')
+    : null;
+
+  it('el centro de trabajo respeta la accion declarada de cada boton', () => {
+    /*
+     * `ModuleAction.accion` declara la accion de servidor que dispara cada
+     * boton, y existe justamente para no ofrecer el camino a una negativa.
+     * Estaba declarado, documentado... y ningun componente lo leia: el filtro
+     * miraba solo la ruta de pantalla. Un campo muerto es peor que no tenerlo,
+     * porque hace creer que el control existe.
+     */
+    if (!CENTRO || !existsSync(CENTRO)) return;
+    const texto = leer(CENTRO);
+    expect(texto).toContain('a.accion');
+    expect(texto).toMatch(/tienePermiso\(\s*a\.accion\.metodo,\s*a\.accion\.ruta\s*\)/);
+  });
+
+  it('toda accion declarada en el menu apunta a un endpoint real', () => {
+    if (!FRONTEND) return;
+    const config = leer(join(FRONTEND, 'app/dashboard/module-config.ts'));
+    const rutas = rutasDelBackend();
+    const huerfanas: string[] = [];
+    const re = /accion:\s*\{\s*metodo:\s*"(\w+)",\s*ruta:\s*"([^"]+)"\s*\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(config))) {
+      const clave = `${m[1]} ${m[2].replace(/^\/api/, '')}`;
+      if (!rutas.has(clave)) huerfanas.push(clave);
+    }
+    expect(huerfanas).toEqual([]);
+  });
+});

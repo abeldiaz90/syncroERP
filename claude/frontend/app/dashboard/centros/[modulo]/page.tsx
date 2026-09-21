@@ -9,11 +9,13 @@ import { MODULOS, agruparItems } from '../../module-config';
 import { api, intentar, token } from '@/lib/api';
 import { esRolAdministrador } from '@/lib/roles';
 import { leerSesion, puedeVerEnlace } from '@/lib/session';
+import { usePermiso } from '@/hooks/use-permisos';
 
 export default function CentroModuloPage() {
   const params = useParams<{ modulo: string }>();
   const modulo = useMemo(() => MODULOS.find((m) => m.id === params.modulo), [params.modulo]);
   const [permisos, setPermisos] = useState<string[] | null>(null);
+  const { tienePermiso } = usePermiso();
 
   useEffect(() => {
     let vivo = true;
@@ -32,13 +34,28 @@ export default function CentroModuloPage() {
   if (!modulo) return <div className="p-8">Módulo no encontrado.</div>;
   const items = modulo.items.filter((i) => !i.oculto && puedeVerEnlace(permisos, i.href));
   const grupos = agruparItems(items);
-  // Las acciones de ventana (la caja) no pasan por el filtro de rutas del
-  // menú: no son una pantalla del área de trabajo y no tienen permiso de
-  // navegación asociado. Lo que se puede hacer dentro lo sigue decidiendo el
-  // servidor, acción por acción.
-  const acciones = (modulo.acciones ?? []).filter(
-    (a) => a.ventana || puedeVerEnlace(permisos, a.href),
-  );
+  /*
+   * Un botón de la barra se ofrece solo si la persona puede EJECUTARLO.
+   *
+   * `ModuleAction.accion` declara la acción de servidor que dispara cada
+   * botón, y existe justamente para esto —"abrir no es poder"—, pero hasta
+   * hoy ningún componente lo lea: el campo estaba declarado, documentado y
+   * muerto. El filtro miraba solo la ruta de pantalla.
+   *
+   * Se vio el 21-sep-2026 con el comprador: al vedarle recibir la mercancía
+   * que él mismo ordena, el permiso quedó en false y el botón "Recibir compra"
+   * siguió apareciendo, porque la pantalla de recepciones sí la puede abrir
+   * para consultar. Habría llegado hasta el 403 al confirmar la recepción.
+   *
+   * Las acciones de ventana (la caja) no pasan por el filtro de rutas: no son
+   * una pantalla del área de trabajo. Lo que se puede hacer DENTRO lo sigue
+   * decidiendo el servidor, acción por acción; esto solo evita ofrecer el
+   * camino a una negativa.
+   */
+  const acciones = (modulo.acciones ?? []).filter((a) => {
+    if (a.accion && !tienePermiso(a.accion.metodo, a.accion.ruta)) return false;
+    return a.ventana || puedeVerEnlace(permisos, a.href);
+  });
   const relacionados = (modulo.relacionados ?? []).filter((a) => puedeVerEnlace(permisos, a.href));
 
   return (

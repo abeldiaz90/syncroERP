@@ -20,14 +20,22 @@ export interface IDetalle {
   producto: { nombre: string; sku?: string } 
 }
 
-export interface IAprobacion { 
-  id: string; 
-  orden: number; 
-  estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO'; 
-  comentario?: string; 
-  fechaAprobacion?: string;
-  usuario?: { nombreCompleto: string }; 
-  usuarioId: string 
+export interface IAprobacion {
+  id: string;
+  orden: number;
+  estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO';
+  comentario?: string;
+  /*
+   * La entidad Aprobacion guarda `fechaResolucion`. Aqui se declaraba
+   * `fechaAprobacion`, que el API nunca manda: la expresion
+   * `ap.fechaAprobacion || requisicion.fechaSolicitud` caia SIEMPRE al
+   * respaldo, asi que cada firma aparecia en la trazabilidad con la fecha en
+   * que se levanto la requisicion, no con la fecha en que se firmo. Una pista
+   * de auditoria que dice algo, y dice algo falso, es peor que no tenerla.
+   */
+  fechaResolucion?: string | null;
+  usuario?: { nombreCompleto?: string };
+  usuarioId: string;
 }
 
 export interface ICotizacion { 
@@ -169,10 +177,18 @@ export default function DetalleRequisicionPage() {
       color: 'bg-indigo-100 border-indigo-200',
       detalle: `Generada por ${requisicion.usuarioSolicitante?.nombreCompleto || 'N/A'}` 
     },
-    ...requisicion.aprobaciones
+    /*
+     * `?? []` no es defensa de adorno: sin ella, una requisicion que llegue
+     * sin la cadena de aprobaciones tumba el expediente COMPLETO con
+     * "Cannot read properties of undefined (reading 'filter')" y el usuario ve
+     * una pantalla en blanco, no un dato faltante. Dos lineas mas abajo,
+     * `cotizaciones` ya se protegia asi; esta no, y es la unica diferencia
+     * entre un hueco visual y una pagina muerta.
+     */
+    ...(requisicion.aprobaciones ?? [])
       .filter(ap => ap.estado !== 'PENDIENTE')
       .map(ap => ({
-        fecha: ap.fechaAprobacion || requisicion.fechaSolicitud,
+        fecha: ap.fechaResolucion || requisicion.fechaSolicitud,
         titulo: ap.estado === 'APROBADO' ? 'Revisión Aprobada' : 'Revisión Rechazada',
         icono: ap.estado === 'APROBADO' ? <ThumbsUp className="w-4 h-4 text-emerald-600" /> : <ThumbsDown className="w-4 h-4 text-rose-600" />,
         color: ap.estado === 'APROBADO' ? 'bg-emerald-100 border-emerald-200' : 'bg-rose-100 border-rose-200',

@@ -37,6 +37,16 @@ export interface ICotizacionFormData {
 
 export default function CotizacionesPage() {
   const [requisiciones, setRequisiciones] = useState<IRequisicion[]>([]);
+  /*
+   * Cuantas requisiciones hay detenidas ANTES de llegar a cotizacion.
+   *
+   * Sin este dato la pantalla vacia afirmaba "El area de compras esta al dia",
+   * y eso puede ser falso: el 21-sep-2026 habia una requisicion de almacen
+   * esperando firma de autorizacion y la pantalla aseguraba que no habia nada
+   * pendiente. Una pantalla que declara calma cuando hay trabajo detenido es
+   * peor que una vacia: el comprador deja de venir a mirarla.
+   */
+  const [esperandoAutorizacion, setEsperandoAutorizacion] = useState(0);
   const [proveedores, setProveedores] = useState<IProveedor[]>([]);
   const [cargando, setCargando] = useState(true);
   const [selectedReq, setSelectedReq] = useState<IRequisicion | null>(null);
@@ -75,6 +85,9 @@ export default function CotizacionesPage() {
       if (res.ok) {
         const data = await res.json();
         setRequisiciones(data.filter((r: IRequisicion) => r.estado === 'COTIZANDO'));
+        setEsperandoAutorizacion(
+          data.filter((r: IRequisicion) => r.estado === 'PENDIENTE').length,
+        );
       }
     } catch { mostrarToast('Error al cargar requisiciones', 'error'); }
   };
@@ -224,8 +237,18 @@ export default function CotizacionesPage() {
             <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
               <Calculator className="w-10 h-10 text-slate-300" />
             </div>
-            <p className="text-lg font-bold text-slate-700">No hay requisiciones pendientes</p>
-            <p className="text-sm mt-1">El área de compras está al día.</p>
+            <p className="text-lg font-bold text-slate-700">
+              {esperandoAutorizacion > 0
+                ? 'Nada por cotizar todavía'
+                : 'No hay requisiciones pendientes'}
+            </p>
+            <p className="text-sm mt-1">
+              {esperandoAutorizacion > 0
+                ? esperandoAutorizacion === 1
+                  ? '1 requisición espera autorización. Baja aquí en cuanto se firme.'
+                  : `${esperandoAutorizacion} requisiciones esperan autorización. Bajan aquí en cuanto se firmen.`
+                : 'El área de compras está al día.'}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
