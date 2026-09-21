@@ -374,6 +374,22 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'GET /integracion/cuentas/externas',
       'GET /integracion/cuentas/mapeo',
     ],
+    /*
+     * Correr la verificación sobre un cliente real.
+     *
+     * La descripción de este rol dice «verificación del cliente» desde el
+     * primer día, pero del módulo `integracion` sólo tenía consulta, así que
+     * podía leer expedientes y no producirlos. Y la puerta que autoriza la
+     * línea exige un expediente que cubra el importe. El resultado era un
+     * callejón: la única persona a la que la matriz manda la solicitud era la
+     * única que no podía cumplir el requisito para resolverla.
+     *
+     * Va como acción irrenunciable y no como módulo completo: lo que necesita
+     * es ejecutar el flujo, no diseñarlo. Crear, activar o simular flujos
+     * siguen siendo de administración, y `simular` además marca el expediente
+     * como simulación, que la puerta no acepta.
+     */
+    accionesIrrenunciables: ['POST /integracion/validacion/ejecutar'],
   },
   {
     rol: 'cobranza',

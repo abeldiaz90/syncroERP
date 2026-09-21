@@ -722,7 +722,17 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Productos de crédito',
     ordenMenu: 30,
   },
-  'GET /integracion/validacion/flujos': {
+  /*
+   * La llave es el TABLERO, no `flujos`.
+   *
+   * La pantalla es el control de verificaciones —cuántas se han corrido, qué
+   * dijeron, y el botón para correr una más—, no el diseñador del flujo.
+   * Colgarla de `GET /integracion/validacion/flujos`, que es administración
+   * pura, se la ofrecía al rol equivocado y se la negaba al que la usa: a
+   * `credito` le aparecía en el menú, entraba, y la pantalla contestaba «esta
+   * operación es de administración» con los contadores en cero.
+   */
+  'GET /integracion/validacion/tablero': {
     rutaFrontend: '/dashboard/creditos/verificacion',
     titulo: 'Verificación de crédito',
     ordenMenu: 31,

@@ -142,9 +142,20 @@ export class ValidacionController {
   /**
    * Corre el flujo sobre un cliente real. Produce un expediente y un veredicto;
    * no otorga nada. Quien autoriza sigue siendo el flujo de aprobaciones.
+   *
+   * `credito` está en la lista porque la puerta de autorización exige un
+   * expediente que cubra el importe, y el rol al que la matriz manda las
+   * solicitudes de línea es precisamente `credito`. Sin esto, la única persona
+   * que puede aprobar es la única que no puede producir lo que se le exige: la
+   * línea de María Fernanda Robles se quedó tres días parada por eso, con un
+   * 409 que sólo aparecía después de pulsar «Aprobar».
+   *
+   * No abre nada que pueda falsearse: el veredicto lo decide el motor, y
+   * `simular` —el único que deja forzar respuestas— sigue fuera de su alcance
+   * y además marca el expediente como simulación, que la puerta no acepta.
    */
   @Post('ejecutar')
-  @Roles('administrador', 'direccion', 'gerencia', 'cobranza')
+  @Roles('administrador', 'direccion', 'gerencia', 'cobranza', 'credito')
   ejecutar(
     @Body() dto: EjecutarValidacionDto,
     @ActiveUser('empresaId') empresaId: string,
@@ -188,7 +199,7 @@ export class ValidacionController {
    * fija tiene que declararse antes que una con parámetro.
    */
   @Get('tablero')
-  @Roles('administrador', 'direccion', 'gerencia', 'cobranza')
+  @Roles('administrador', 'direccion', 'gerencia', 'cobranza', 'credito')
   tablero(
     @ActiveUser('empresaId') empresaId: string,
     @Query('dias') dias?: string,
@@ -197,7 +208,7 @@ export class ValidacionController {
   }
 
   @Get('expedientes/:id')
-  @Roles('administrador', 'direccion', 'gerencia', 'cobranza')
+  @Roles('administrador', 'direccion', 'gerencia', 'cobranza', 'credito')
   expediente(
     @Param('id') id: string,
     @ActiveUser('empresaId') empresaId: string,
@@ -206,7 +217,7 @@ export class ValidacionController {
   }
 
   @Get('expedientes')
-  @Roles('administrador', 'direccion', 'gerencia', 'cobranza')
+  @Roles('administrador', 'direccion', 'gerencia', 'cobranza', 'credito')
   historial(
     @ActiveUser('empresaId') empresaId: string,
     @Query('clienteId') clienteId: string,

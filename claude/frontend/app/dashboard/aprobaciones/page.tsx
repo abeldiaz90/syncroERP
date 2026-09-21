@@ -13,11 +13,13 @@ import {
   ShieldCheck,
   XCircle,
 } from "lucide-react";
+import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import { confirmarElegante, solicitarTexto } from "@/components/ui/dialogos";
 import { useAvisos } from "@/components/ui";
 
 type DatosSolicitud = {
+  clienteId?: string;
   limiteCredito?: number;
   diasCredito?: number;
   nivelRiesgo?: string;
@@ -35,6 +37,22 @@ type DatosSolicitud = {
   versionCreditoCliente?: number;
   versionConvenio?: number;
   condicionesActualesCoinciden?: boolean;
+  validacion?: {
+    exigida: boolean;
+    flujo: string | null;
+    estado:
+      | "SIN_FLUJO"
+      | "SIN_EXPEDIENTE"
+      | "RECHAZADA"
+      | "IMPORTE_INSUFICIENTE"
+      | "FAVORABLE";
+    estadoExpediente: string | null;
+    limiteValidado: number | null;
+    limiteSolicitado: number;
+    motivos: string[];
+    bloquea: boolean;
+    mensaje: string | null;
+  } | null;
   exposicionActual?: {
     saldoVentas: number;
     saldoHotel: number;
@@ -238,6 +256,8 @@ export default function BandejaAprobacionesPage() {
                 new Date(item.fechaVencimiento).getTime() < Date.now(),
             );
             const coincide = item.datos?.condicionesActualesCoinciden !== false;
+            const validacion = item.datos?.validacion ?? null;
+            const bloqueaValidacion = validacion?.bloquea === true;
             const exposicion = item.datos?.exposicionActual;
             const excedente = Number(exposicion?.excedenteSobreLimite ?? 0);
 
@@ -377,6 +397,55 @@ export default function BandejaAprobacionesPage() {
                   </div>
                 )}
 
+                {!coincide && (
+                  <div className="mt-3 flex gap-2 rounded-xl border border-slate-300 bg-slate-50 p-3 text-xs font-semibold text-slate-700">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    Las condiciones del cliente cambiaron después de pedir esta
+                    autorización, así que lo que aquí se muestra ya no es lo que
+                    se aprobaría. No se puede resolver: hay que volver a
+                    solicitarla con las condiciones vigentes.
+                  </div>
+                )}
+
+                {bloqueaValidacion && (
+                  <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-900">
+                    <p className="flex gap-2">
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{validacion?.mensaje}</span>
+                    </p>
+                    {validacion?.estado === "IMPORTE_INSUFICIENTE" && (
+                      <p className="mt-2 pl-6 font-normal">
+                        Expediente vigente por{" "}
+                        <strong>{dinero(validacion.limiteValidado ?? 0)}</strong>{" "}
+                        · línea solicitada{" "}
+                        <strong>{dinero(validacion.limiteSolicitado)}</strong>.
+                      </p>
+                    )}
+                    <p className="mt-2 pl-6 font-normal">
+                      Rechazar sí está disponible: una línea sin respaldo puede
+                      devolverse ahora mismo.{" "}
+                      <Link
+                        href={`/dashboard/creditos/verificacion/ejecutar?cliente=${
+                          item.datos?.clienteId ?? item.documentoId
+                        }&limite=${validacion?.limiteSolicitado ?? item.importe}`}
+                        className="font-bold underline"
+                      >
+                        Verificar a este cliente por {dinero(item.importe)}
+                      </Link>{" "}
+                      y vuelve aquí: el botón se enciende solo.
+                    </p>
+                  </div>
+                )}
+
+                {validacion?.estado === "FAVORABLE" && (
+                  <div className="mt-3 flex gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-900">
+                    <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                    Expediente de «{validacion.flujo}»:{" "}
+                    {validacion.estadoExpediente ?? "registrado"} por{" "}
+                    {dinero(validacion.limiteValidado ?? 0)}.
+                  </div>
+                )}
+
                 {item.fechaVencimiento && (
                   <div
                     className={`mt-4 flex items-center gap-2 text-xs font-semibold ${
@@ -398,7 +467,14 @@ export default function BandejaAprobacionesPage() {
                     <XCircle className="h-4 w-4" /> Rechazar
                   </button>
                   <button
-                    disabled={procesando === item.id || !coincide}
+                    disabled={
+                      procesando === item.id || !coincide || bloqueaValidacion
+                    }
+                    title={
+                      bloqueaValidacion
+                        ? (validacion?.mensaje ?? undefined)
+                        : undefined
+                    }
                     onClick={() => void resolver(item, "APROBADA")}
                     className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
                   >

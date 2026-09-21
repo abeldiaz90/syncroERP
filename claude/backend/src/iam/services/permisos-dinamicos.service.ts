@@ -5,7 +5,7 @@ import {
   OnApplicationBootstrap,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
 import { ModulesContainer, Reflector } from '@nestjs/core';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import {
@@ -26,6 +26,7 @@ import {
 } from '../data/modulos-catalogo';
 import { ENDPOINTS_NAVEGABLES } from '../data/endpoints-navegables';
 import { esRolAdministrador, normalizarRol } from '../utils/roles.util';
+import { ROLES_KEY } from '../decorators/roles.decorator';
 import { SKIP_PERMISOS_KEY } from '../decorators/skip-permisos.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
@@ -253,6 +254,14 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
   private readonly cacheMaxEntradas = 5_000;
   private cache = new Map<string, { permitido: boolean; expiraEn: number }>();
 
+  /**
+   * Lo que cada endpoint exige por `@Roles(...)`, recogido en la misma pasada
+   * que descubre las rutas. Clave: «METODO /ruta». Sin anotación no hay
+   * entrada: eso significa «manda la tabla de permisos» y no hay nada que
+   * reconciliar.
+   */
+  private rolesEstaticosPorRuta = new Map<string, string[]>();
+
   constructor(
     @InjectRepository(Controlador)
     private controladorRepo: Repository<Controlador>,
@@ -347,6 +356,15 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
               NAVEGABLE_KEY,
               prototype[key],
             );
+            const rolesEstaticos = this.reflector.getAllAndOverride<
+              string[] | undefined
+            >(ROLES_KEY, [prototype[key], metatype]);
+            if (rolesEstaticos?.length) {
+              this.rolesEstaticosPorRuta.set(
+                `${metodoStr} ${rutaNormalizada}`,
+                rolesEstaticos.map(normalizarRol),
+              );
+            }
             entrada.endpoints.push({
               metodo: metodoStr,
               ruta: rutaNormalizada,
@@ -551,6 +569,7 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     await this.sincronizarPermisoHistorialAprobaciones();
     await this.aplicarContratoDeRoles();
     await this.reconciliarModulosRecienSeparados();
+    await this.apagarPermisosQueElGuardiaDeRolesVeta();
     await this.migrarPermisosDeMetodosIntercambiados();
     this.cache.clear();
     this.logger.log(
@@ -696,6 +715,7 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
          */
         const piso = await this.pisoDeAccionesDeRol(plantilla.rol);
         for (const id of await this.techoDeModulosVedados(plantilla.rol)) piso.delete(id);
+        for (const id of await this.vetadosPorGuardiaDeRoles(rol)) piso.delete(id);
         if (piso.size) {
           const yaTiene = new Map(
             (
@@ -1855,6 +1875,95 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
    * anteriores a su separacion.
    */
   private static readonly MODULOS_RECIEN_SEPARADOS = ['almacenes'];
+
+  /**
+   * ──────────────────────────────────────────────────────────────────────────
+   * Que el permiso concedido y el permiso ejercido sean el mismo
+   * --------------------------------------------------------------------------
+   * Hay dos autorizaciones y las dos tienen que decir que sí: la tabla de
+   * permisos por módulo y el `@Roles(...)` del controlador. Son preguntas
+   * distintas —«¿este rol tiene este módulo?» y «¿este endpoint es de
+   * administración?»— y por eso conviven.
+   *
+   * Lo que no puede pasar es que la primera conceda lo que la segunda veta.
+   * Esa fila no da acceso a nada: sólo aparece en `GET /auth/mis-permisos`,
+   * que es de donde el frontend saca qué botones pintar y qué enlaces del menú
+   * mostrar. El resultado es una pantalla ofrecida que contesta 403 al
+   * abrirse.
+   *
+   * Pasó entero con `credito` y el módulo `integracion`: el menú le ofrecía
+   * «Verificación de clientes», la pantalla dibujaba sus botones, los KPI
+   * salían en cero —no porque no hubiera nada, sino porque la llamada moría— y
+   * arriba un letrero rojo decía que la operación era de administración. Y
+   * detrás de eso, la línea de crédito que sólo él podía aprobar exigía un
+   * expediente que sólo él no podía producir.
+   *
+   * Apagar estas filas no quita capacidad a nadie: el guardia ya las estaba
+   * negando una por una. Lo único que cambia es que ahora se nota antes de
+   * pulsar.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  private async vetadosPorGuardiaDeRoles(rol: string): Promise<Set<string>> {
+    const vetados = new Set<string>();
+    const mio = normalizarRol(rol);
+    if (esRolAdministrador(mio) || !this.rolesEstaticosPorRuta.size) {
+      return vetados;
+    }
+    const endpoints = await this.endpointRepo.find({ where: { activo: true } });
+    for (const ep of endpoints) {
+      const exigidos = this.rolesEstaticosPorRuta.get(`${ep.metodo} ${ep.ruta}`);
+      if (exigidos?.length && !exigidos.includes(mio)) vetados.add(ep.id);
+    }
+    return vetados;
+  }
+
+  /**
+   * Cura lo que el filtro del piso ya previene: las filas concedidas antes de
+   * que el guardia de roles existiera. Tras la primera pasada no encuentra
+   * nada, porque el contrato deja de reponerlas.
+   */
+  private async apagarPermisosQueElGuardiaDeRolesVeta(): Promise<number> {
+    if (!this.rolesEstaticosPorRuta.size) return 0;
+
+    const endpoints = await this.endpointRepo.find({ where: { activo: true } });
+    const exigenciaPorEndpoint = new Map<string, string[]>();
+    for (const ep of endpoints) {
+      const exigidos = this.rolesEstaticosPorRuta.get(`${ep.metodo} ${ep.ruta}`);
+      if (exigidos?.length) exigenciaPorEndpoint.set(ep.id, exigidos);
+    }
+    if (!exigenciaPorEndpoint.size) return 0;
+
+    const filas = await this.permisoRepo.find({
+      where: {
+        permitido: true,
+        endpointId: In([...exigenciaPorEndpoint.keys()]),
+      },
+    });
+
+    const apagar: RolEndpointPermiso[] = [];
+    const porRol = new Map<string, number>();
+    for (const fila of filas) {
+      const mio = normalizarRol(fila.rol);
+      if (esRolAdministrador(mio)) continue;
+      if ((exigenciaPorEndpoint.get(fila.endpointId) ?? []).includes(mio)) {
+        continue;
+      }
+      fila.permitido = false;
+      apagar.push(fila);
+      porRol.set(mio, (porRol.get(mio) ?? 0) + 1);
+    }
+    if (!apagar.length) return 0;
+
+    await this.permisoRepo.save(apagar, { chunk: 200 });
+    this.cache.clear();
+    const detalle = [...porRol.entries()]
+      .map(([r, n]) => `${r}: ${n}`)
+      .join(', ');
+    this.logger.warn(
+      `Se apagaron ${apagar.length} permisos que el guardia de roles ya negaba (${detalle}). Eran botones y enlaces que el frontend pintaba y el servidor rechazaba.`,
+    );
+    return apagar.length;
+  }
 
   private async reconciliarModulosRecienSeparados(): Promise<number> {
     const porModulo = await this.endpointsPorModulo();

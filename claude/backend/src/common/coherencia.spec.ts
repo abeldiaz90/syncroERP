@@ -1645,3 +1645,143 @@ describe('Coherencia · las tres reglas de gobierno de compras', () => {
     expect(arranque).toContain('asegurarCuentasDeCategorias');
   });
 });
+
+describe('Coherencia · las dos autorizaciones no pueden contradecirse', () => {
+  const SERVICIO = join(SRC, 'iam/services/permisos-dinamicos.service.ts');
+  const GUARDIA = join(SRC, 'common/guards/roles.guard.ts');
+
+  /*
+   * En este sistema autorizan dos cosas y las dos tienen que decir que sí: la
+   * tabla de permisos por módulo y el `@Roles(...)` del controlador. Son
+   * preguntas distintas y por eso conviven.
+   *
+   * Lo que no puede existir es una fila concedida sobre un endpoint que el
+   * guardia de roles veta. Esa fila no abre nada: sólo sale en
+   * `GET /auth/mis-permisos`, que es de donde el frontend saca qué pintar. El
+   * resultado es un menú que ofrece una pantalla que contesta 403 al abrirse
+   * —le pasó entero a `credito` con el módulo `integracion`—, y detrás de eso
+   * una línea de crédito que sólo él podía aprobar exigiendo un expediente que
+   * sólo él no podía producir.
+   */
+  it('el contrato recoge lo que cada endpoint exige por @Roles', () => {
+    const texto = leer(SERVICIO);
+    expect(texto).toContain('ROLES_KEY');
+    expect(texto).toMatch(/rolesEstaticosPorRuta\.set\(/);
+  });
+
+  it('el piso de un rol no incluye lo que el guardia de roles le veta', () => {
+    const texto = sinComentarios(leer(SERVICIO));
+    expect(texto).toMatch(
+      /vetadosPorGuardiaDeRoles\(rol\)\)\s*piso\.delete\(id\)/,
+    );
+  });
+
+  it('la sincronización apaga las filas concedidas de más', () => {
+    const texto = sinComentarios(leer(SERVICIO));
+    expect(texto).toContain('await this.apagarPermisosQueElGuardiaDeRolesVeta();');
+  });
+
+  /*
+   * El administrador no pasa por la tabla de permisos, así que apagarle filas
+   * no significaría nada y borrar las suyas sería un cambio real de alcance.
+   */
+  it('la limpieza deja fuera al administrador', () => {
+    const texto = leer(SERVICIO);
+    const metodo = texto.slice(
+      texto.indexOf('private async apagarPermisosQueElGuardiaDeRolesVeta'),
+    );
+    expect(metodo.slice(0, 2000)).toContain('esRolAdministrador');
+  });
+
+  it('el guardia sigue comparando con normalizarRol, no por igualdad de cadenas', () => {
+    const texto = leer(GUARDIA);
+    expect(texto).toMatch(/exigidos\.map\(normalizarRol\)/);
+  });
+});
+
+describe('Coherencia · quien debe aprobar puede producir lo que se le exige', () => {
+  const CONTROLADOR = join(
+    SRC,
+    'integracion/validacion/validacion.controller.ts',
+  );
+  const SERVICIO_APROBACIONES = join(
+    SRC,
+    'aprobaciones/services/aprobaciones-documentos.service.ts',
+  );
+
+  /*
+   * La puerta que autoriza una línea exige un expediente de validación que
+   * cubra el importe. La matriz manda esas solicitudes al rol `credito`. Si
+   * `credito` no puede correr la verificación, el requisito es imposible de
+   * cumplir para la única persona a la que se le pide: la línea de María
+   * Fernanda Robles se quedó tres días parada y reventó su SLA por esto, con
+   * un 409 que sólo aparecía después de pulsar «Aprobar».
+   */
+  it('credito puede ejecutar el flujo de validación', () => {
+    const texto = leer(CONTROLADOR);
+    const i = texto.indexOf("@Post('ejecutar')");
+    expect(i).toBeGreaterThan(-1);
+    expect(texto.slice(i, i + 200)).toContain("'credito'");
+  });
+
+  it('simular sigue fuera de su alcance', () => {
+    const texto = leer(CONTROLADOR);
+    const i = texto.indexOf("@Post('simular')");
+    expect(i).toBeGreaterThan(-1);
+    expect(texto.slice(i, i + 200)).not.toContain("'credito'");
+  });
+
+  it('el contrato le concede la acción, no el módulo entero', () => {
+    const plantilla = PLANTILLAS_PERMISOS.find((p) => p.rol === 'credito');
+    expect(plantilla?.accionesIrrenunciables ?? []).toContain(
+      'POST /integracion/validacion/ejecutar',
+    );
+    expect(plantilla?.modulos ?? []).not.toContain('integracion');
+  });
+
+  /*
+   * La pantalla es el control de verificaciones, no el diseñador del flujo.
+   * Colgarla de `flujos` —administración pura— se la ofrecía a quien no la
+   * usa y se la negaba a quien sí.
+   */
+  it('la pantalla de verificación cuelga del tablero, no del diseño del flujo', () => {
+    expect(
+      ENDPOINTS_NAVEGABLES['GET /integracion/validacion/tablero']?.rutaFrontend,
+    ).toBe('/dashboard/creditos/verificacion');
+    expect(
+      ENDPOINTS_NAVEGABLES['GET /integracion/validacion/flujos'],
+    ).toBeUndefined();
+  });
+
+  /*
+   * Y la bandeja tiene que poder decirlo ANTES del clic: una sola cuenta
+   * decide lo que se pinta y lo que la puerta deja pasar.
+   */
+  it('la tarjeta apaga Aprobar y deja Rechazar cuando el expediente no cubre', () => {
+    /*
+     * Rechazar tiene que seguir encendido a propósito: una línea sin respaldo
+     * se puede devolver ahora mismo, y la puerta sólo mira el expediente
+     * cuando se aprueba. Apagar los dos botones dejaría el documento inmóvil,
+     * que es justo de donde venimos.
+     */
+    if (!FRONTEND) return;
+    const texto = leer(join(FRONTEND, 'app/dashboard/aprobaciones/page.tsx'));
+    expect(texto).toContain('bloqueaValidacion');
+    const aprobar = texto.slice(texto.indexOf('resolver(item, "APROBADA")') - 400);
+    expect(aprobar.slice(0, 400)).toContain('bloqueaValidacion');
+    const rechazar = texto.slice(
+      texto.indexOf('resolver(item, "RECHAZADA")') - 400,
+      texto.indexOf('resolver(item, "RECHAZADA")'),
+    );
+    expect(rechazar).not.toContain('bloqueaValidacion');
+  });
+
+  it('la bandeja publica el veredicto de la puerta', () => {
+    const texto = leer(SERVICIO_APROBACIONES);
+    expect(texto).toContain('validacion: veredictos.get(aprobacion.id) ?? null');
+    const puerta = texto.slice(
+      texto.indexOf('private async exigirValidacionFavorable'),
+    );
+    expect(puerta.slice(0, 600)).toContain('this.evaluarValidacion(');
+  });
+});

@@ -46,6 +46,31 @@ type PrepararAprobacionInput = {
   datosSolicitud?: Record<string, unknown>;
 };
 
+/**
+ * Lo que la puerta de validación sabe de un cliente, en forma de dato.
+ *
+ * `bloquea` es la única pregunta que importa en los dos consumidores: la
+ * bandeja apaga el botón, el resolutor lanza el conflicto. `mensaje` es el
+ * texto que ve la persona en ambos sitios, de modo que la razón por la que no
+ * se puede aprobar se lee antes y después de intentarlo, y es la misma.
+ */
+export type VeredictoValidacion = {
+  exigida: boolean;
+  flujo: string | null;
+  estado:
+    | 'SIN_FLUJO'
+    | 'SIN_EXPEDIENTE'
+    | 'RECHAZADA'
+    | 'IMPORTE_INSUFICIENTE'
+    | 'FAVORABLE';
+  estadoExpediente: string | null;
+  limiteValidado: number | null;
+  limiteSolicitado: number;
+  motivos: string[];
+  bloquea: boolean;
+  mensaje: string | null;
+};
+
 type UsuarioResolutor = {
   id: string;
   rol: string;
@@ -387,6 +412,31 @@ export class AprobacionesDocumentosService {
       }),
     );
     const exposicionPorCliente = new Map(exposiciones);
+    /*
+     * El mismo veredicto que aplicará el resolutor, calculado aquí para que la
+     * tarjeta pueda decirlo antes de que nadie pulse nada.
+     */
+    const veredictos = new Map(
+      await Promise.all(
+        visibles
+          .filter((item) => item.proceso === 'CREDITO_CLIENTE')
+          .map(async (item) => {
+            const snapshot = leerSnapshot(item.datosSolicitud);
+            const limite = Number(
+              snapshot.limiteCredito ?? item.importeSolicitado ?? 0,
+            );
+            try {
+              return [
+                item.id,
+                await this.evaluarValidacion(empresaId, item.documentoId, limite),
+              ] as const;
+            } catch {
+              return [item.id, null] as const;
+            }
+          }),
+      ),
+    );
+
 
     return visibles.map((aprobacion) => {
       const snapshot = leerSnapshot(aprobacion.datosSolicitud);
@@ -426,6 +476,7 @@ export class AprobacionesDocumentosService {
                   cliente.clasificacionHoteleraSolicitada ??
                   null,
                 versionSolicitudCredito: versionSolicitud,
+                validacion: veredictos.get(aprobacion.id) ?? null,
                 condicionesVigentes: {
                   estadoCredito: cliente.estadoCredito,
                   limiteCredito: Number(cliente.limiteCredito ?? 0),
@@ -1280,7 +1331,7 @@ export class AprobacionesDocumentosService {
     await manager.save(convenio);
   }
   /**
-   * Exige un expediente de validación favorable antes de autorizar la línea.
+   * El veredicto de la puerta de validación, como dato y no sólo como excepción.
    *
    * RECHAZADA cierra la puerta: si el flujo dijo que no, no hay línea.
    * REVISION_MANUAL la deja pasar a propósito —significa «que lo mire una
@@ -1290,39 +1341,106 @@ export class AprobacionesDocumentosService {
    * El expediente también tiene que cubrir el importe: uno hecho para 5.000
    * no justifica una línea de 500.000. Sin esa comprobación bastaría con
    * validar barato una vez para autorizar cualquier cosa después.
+   *
+   * Devolverlo como dato es lo que permite que la bandeja lo enseñe ANTES de
+   * pulsar «Aprobar». Un botón que el servidor va a rechazar siempre es peor
+   * que un botón apagado con el motivo escrito al lado: el expediente de
+   * María Fernanda llevaba tres días parado y nadie podía saber por qué.
+   */
+  private async evaluarValidacion(
+    empresaId: string,
+    clienteId: string,
+    limiteSolicitado: number,
+  ): Promise<VeredictoValidacion> {
+    const flujo = await this.validacion.flujoActivo(empresaId);
+    if (!flujo) {
+      return {
+        exigida: false,
+        flujo: null,
+        estado: 'SIN_FLUJO',
+        estadoExpediente: null,
+        limiteValidado: null,
+        limiteSolicitado,
+        motivos: [],
+        bloquea: false,
+        mensaje: null,
+      };
+    }
+
+    const historial = await this.validacion.historial(empresaId, clienteId);
+    const expediente = (historial ?? []).find((e) => !e.simulacion);
+
+    if (!expediente) {
+      return {
+        exigida: true,
+        flujo: flujo.nombre,
+        estado: 'SIN_EXPEDIENTE',
+        estadoExpediente: null,
+        limiteValidado: null,
+        limiteSolicitado,
+        motivos: [],
+        bloquea: true,
+        mensaje: `La empresa tiene activo el flujo «${flujo.nombre}» y este cliente no tiene expediente de validación. Ejecuta la verificación antes de autorizar la línea.`,
+      };
+    }
+
+    const limiteValidado = Number(expediente.limiteSolicitado ?? 0);
+    const motivos = expediente.motivos ?? [];
+    const comun = {
+      exigida: true as const,
+      flujo: flujo.nombre,
+      estadoExpediente: expediente.estado ?? null,
+      limiteValidado,
+      limiteSolicitado,
+      motivos,
+    };
+
+    if (expediente.estado === EstadoEjecucion.RECHAZADA) {
+      return {
+        ...comun,
+        estado: 'RECHAZADA',
+        bloquea: true,
+        mensaje: `El expediente de validación de este cliente quedó RECHAZADA: ${
+          motivos.join(' ') || 'sin motivo registrado'
+        }`,
+      };
+    }
+
+    if (limiteValidado + 0.005 < limiteSolicitado) {
+      return {
+        ...comun,
+        estado: 'IMPORTE_INSUFICIENTE',
+        bloquea: true,
+        mensaje: `El expediente de validación se hizo por ${limiteValidado.toFixed(
+          2,
+        )} y se está autorizando ${limiteSolicitado.toFixed(
+          2,
+        )}. Vuelve a verificar por el importe que se va a autorizar.`,
+      };
+    }
+
+    return { ...comun, estado: 'FAVORABLE', bloquea: false, mensaje: null };
+  }
+
+  /**
+   * Exige un expediente de validación favorable antes de autorizar la línea.
+   *
+   * Una sola cuenta —`evaluarValidacion`— decide lo que la bandeja pinta y lo
+   * que esta puerta deja pasar. Si se separaran, volverían a divergir.
    */
   private async exigirValidacionFavorable(
     empresaId: string,
     clienteId: string,
     limiteSolicitado: number,
   ): Promise<void> {
-    const flujo = await this.validacion.flujoActivo(empresaId);
-    if (!flujo) return;
-
-    const historial = await this.validacion.historial(empresaId, clienteId);
-    const expediente = (historial ?? []).find(e => !e.simulacion);
-
-    if (!expediente) {
+    const veredicto = await this.evaluarValidacion(
+      empresaId,
+      clienteId,
+      limiteSolicitado,
+    );
+    if (veredicto.bloquea) {
       throw new ConflictException(
-        `La empresa tiene activo el flujo «${flujo.nombre}» y este cliente no tiene expediente de validación. Ejecuta la verificación antes de autorizar la línea.`,
-      );
-    }
-
-    if (expediente.estado === EstadoEjecucion.RECHAZADA) {
-      throw new ConflictException(
-        `El expediente de validación de este cliente quedó RECHAZADA: ${
-          (expediente.motivos ?? []).join(' ') || 'sin motivo registrado'
-        }`,
-      );
-    }
-
-    if (Number(expediente.limiteSolicitado ?? 0) + 0.005 < limiteSolicitado) {
-      throw new ConflictException(
-        `El expediente de validación se hizo por ${Number(
-          expediente.limiteSolicitado ?? 0,
-        ).toFixed(2)} y se está autorizando ${limiteSolicitado.toFixed(
-          2,
-        )}. Vuelve a verificar por el importe que se va a autorizar.`,
+        veredicto.mensaje ?? 'El expediente de validación no cubre esta línea.',
       );
     }
   }

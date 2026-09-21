@@ -37,6 +37,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ShieldCheck, Play, FlaskConical, Loader2, AlertCircle, CheckCircle2,
@@ -149,6 +150,7 @@ const dinero = (n: unknown) =>
   `$${Number(n ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function EjecutarVerificacionPage() {
+  const parametros = useSearchParams();
   const [flujo, setFlujo] = useState<IFlujo | null>(null);
   const [clientes, setClientes] = useState<ICliente[]>([]);
   const [busqueda, setBusqueda] = useState('');
@@ -190,6 +192,29 @@ export default function EjecutarVerificacionPage() {
       api.get<IEjecucion[]>(`/integracion/validacion/expedientes?clienteId=${clienteId}`), []);
     setHistorial(Array.isArray(h) ? h : []);
   }, []);
+
+  /*
+   * Llegar aquí desde la bandeja de aprobaciones con el cliente y el importe
+   * puestos.
+   *
+   * El importe importa tanto como el cliente: el expediente vale sólo hasta la
+   * cifra por la que se hizo, y el valor por omisión de esta pantalla son
+   * 5.000. Traer a alguien a verificar una línea de 20.000 y dejarle el campo
+   * en 5.000 es fabricar el mismo bloqueo otra vez, un paso más adelante.
+   */
+  useEffect(() => {
+    const clienteId = parametros.get('cliente');
+    const importe = parametros.get('limite');
+    if (importe && Number(importe) > 0) setLimite(String(Number(importe)));
+    if (!clienteId) return;
+    void (async () => {
+      const encontrado = await intentar<ICliente | null>(
+        api.get<ICliente>(`/clientes/${clienteId}`), null);
+      if (!encontrado) return;
+      setCliente(encontrado);
+      void cargarHistorial(encontrado.id);
+    })();
+  }, [parametros, cargarHistorial]);
 
   const elegir = (c: ICliente) => {
     setCliente(c);
