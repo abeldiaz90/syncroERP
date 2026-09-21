@@ -25,8 +25,13 @@ export class AprobacionesDocumentosController {
   historial(
     @Query() query: ConsultarHistorialAprobacionesDto,
     @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('id') usuarioId: string,
+    @ActiveUser('rol') rol: string,
   ) {
-    return this.service.listarHistorial(empresaId, query.limite);
+    // El historial se recorta por persona igual que la bandeja de pendientes:
+    // pasaba solo la empresa y devolvia las aprobaciones de todos los modulos
+    // a cualquier rol que llegara a esta pantalla.
+    return this.service.listarHistorial(empresaId, query.limite, usuarioId, rol);
   }
 
   @Patch(':id/resolver')

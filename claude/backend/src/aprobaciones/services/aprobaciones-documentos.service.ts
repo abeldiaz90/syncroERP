@@ -16,7 +16,7 @@ import {
 } from '../../hoteleria/entities/city-ledger.entity';
 import { Hotel } from '../../hoteleria/entities/hotel.entity';
 import { Usuario } from '../../iam/entities/usuario.entity';
-import { normalizarRol } from '../../iam/utils/roles.util';
+import { esRolAdministrador, normalizarRol } from '../../iam/utils/roles.util';
 import { ResolverAprobacionDocumentoDto } from '../dto/resolver-aprobacion-documento.dto';
 import {
   PROCESOS_FINANCIEROS_CENTRALES,
@@ -536,9 +536,37 @@ export class AprobacionesDocumentosService {
     });
   }
 
-  async listarHistorial(empresaId: string, limite = 100) {
+  /**
+   * Historial de decisiones, recortado a lo que la persona puede ver.
+   *
+   * Antes recibia SOLO empresaId: devolvia TODAS las aprobaciones de la
+   * empresa a cualquiera que alcanzara el endpoint. Verificado en vivo el
+   * 21-sep-2026 con el usuario de Compras: leia una solicitud de credito de
+   * cliente con nombre, RFC, limite de $20,000, dias de credito y nivel de
+   * riesgo. Comprar no da derecho a leer el expediente crediticio de nadie.
+   *
+   * `listarPendientes` ya filtraba correctamente por asignado o por rol
+   * aprobador; el historial simplemente no lo hacia. La regla es la misma,
+   * mas lo propio: uno ve lo que le toca firmar, lo que pidio y lo que
+   * resolvio. La administracion ve todo, porque la trazabilidad completa es
+   * justamente su trabajo.
+   *
+   * El filtro se aplica en memoria y no en SQL a proposito: la autoridad la
+   * decide normalizarRol(), y reimplementar esa normalizacion en SQL es
+   * exactamente como se abren estos huecos. Por eso se trae una ventana
+   * acotada y se recorta despues.
+   */
+  async listarHistorial(
+    empresaId: string,
+    limite = 100,
+    usuarioId?: string,
+    rol?: string,
+  ) {
     const tope = Math.min(500, Math.max(1, Number(limite || 100)));
-    const registros = await this.aprobaciones
+    const esAdministrador = esRolAdministrador(rol);
+    const rolNormalizado = normalizarRol(rol);
+
+    const ventana = await this.aprobaciones
       .createQueryBuilder('aprobacion')
       .where('aprobacion.empresaId=:empresaId', { empresaId })
       .andWhere('aprobacion.proceso IN (:...procesos)', {
@@ -547,8 +575,22 @@ export class AprobacionesDocumentosService {
       .orderBy('aprobacion.fechaCreacion', 'DESC')
       .addOrderBy('aprobacion.ciclo', 'DESC')
       .addOrderBy('aprobacion.nivel', 'ASC')
-      .take(tope)
+      .take(esAdministrador ? tope : Math.max(tope, 2000))
       .getMany();
+
+    const registros = (
+      esAdministrador
+        ? ventana
+        : ventana.filter(
+            (aprobacion) =>
+              (usuarioId !== undefined &&
+                (aprobacion.usuarioAprobadorId === usuarioId ||
+                  aprobacion.solicitadoPorId === usuarioId ||
+                  aprobacion.resueltoPorId === usuarioId)) ||
+              (rolNormalizado !== '' &&
+                normalizarRol(aprobacion.rolAprobador) === rolNormalizado),
+          )
+    ).slice(0, tope);
 
     if (!registros.length) return [];
 

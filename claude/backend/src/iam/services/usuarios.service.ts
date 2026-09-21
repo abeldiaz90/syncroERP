@@ -103,12 +103,25 @@ export class UsuariosService {
    * es. Ahora sí, y sin permisos de por medio, porque nadie necesita permiso
    * para saber su propio departamento.
    */
+  /**
+   * Contexto propio: quien soy, con que rol, en que area y en que empresa.
+   *
+   * El nombre comercial viene aqui, y no de /configuracion/empresa, porque el
+   * encabezado lo pinta para TODOS los roles y ese endpoint es de
+   * administracion. Resultado: cada carga de cada pantalla de un almacenista o
+   * un comprador disparaba un 403 que la aplicacion se tragaba —verificado el
+   * 21-sep-2026: seis por sesion, y el encabezado quedaba sin nombre igual.
+   *
+   * El nombre de la empresa no es un dato reservado frente a su propia gente;
+   * lo reservado es la configuracion fiscal, y eso se queda donde estaba.
+   */
   async obtenerMiContexto(id: string, empresaId: string) {
     const usuario = await this.usuarioRepo.findOne({
       where: { id, empresaId },
-      relations: ['departamento'],
+      relations: ['departamento', 'empresa'],
     });
     if (!usuario) throw new NotFoundException('Usuario no encontrado.');
+    const empresa = (usuario as any).empresa;
     return {
       id: usuario.id,
       email: usuario.email,
@@ -116,6 +129,13 @@ export class UsuariosService {
       rol: usuario.rol,
       departamentoId: usuario.departamentoId ?? null,
       departamento: (usuario as any).departamento?.nombre ?? null,
+      empresaId,
+      empresa: empresa
+        ? {
+            id: empresa.id,
+            nombre: empresa.nombreComercial ?? empresa.razonSocial ?? null,
+          }
+        : null,
     };
   }
 

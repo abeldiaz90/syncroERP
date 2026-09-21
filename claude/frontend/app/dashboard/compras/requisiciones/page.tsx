@@ -4,7 +4,7 @@ import { confirmarElegante } from '@/components/ui/dialogos';
 import Link from 'next/link';
 import {
   Plus, Edit2, X, AlertCircle, CheckCircle2, ClipboardList,
-  Search, Trash2, Send, Eye, FileText, ShoppingCart, Info,
+  Search, Trash2, Eye, FileText, ShoppingCart, Info,
   Clock, XCircle, ChevronDown, Filter, RefreshCw,
   Calendar, Flag, Package
 } from 'lucide-react';
@@ -12,11 +12,31 @@ import { PuedeCrear, ProtectedElement } from '@/app/components/ProtectedElement'
 
 interface IProducto { id: string; nombre: string; sku: string; }
 interface IDetalle { productoId: string; nombre: string; cantidadSolicitada: number; notas?: string; }
+interface IAprobacion {
+  id: string; orden: number; estado: string;
+  usuario?: { id: string; nombreCompleto?: string; rol?: string };
+}
 interface IRequisicion {
   id: string; fechaSolicitud: string; estado: string; prioridad?: string;
   notas?: string;
   usuarioSolicitante?: { nombre?: string; nombreCompleto?: string };
   detalles?: any[];
+  aprobaciones?: IAprobacion[];
+}
+
+/**
+ * Quien tiene la requisicion detenida, si es que alguien la tiene.
+ *
+ * Una requisicion PENDIENTE no espera a Compras: espera la firma del nivel de
+ * aprobacion mas bajo que siga sin resolver. Mostrarlo evita la pregunta que
+ * el comprador no podia contestar mirando la pantalla —"¿y esto por que no
+ * avanza?"— y evita que intente empujarla con un boton.
+ */
+function firmaPendiente(req: IRequisicion): IAprobacion | null {
+  const pendientes = (req.aprobaciones ?? [])
+    .filter((a) => a.estado === 'PENDIENTE')
+    .sort((a, b) => a.orden - b.orden);
+  return pendientes[0] ?? null;
 }
 
 const ESTADO_CONFIG: Record<string, { label: string; cls: string; icon: any }> = {
@@ -143,7 +163,12 @@ export default function RequisicionesPage() {
     if (!await confirmarElegante('¿Cancelar esta requisición?', { peligroso: true })) return;
     const res = await fetch(`${api}/compras/requisiciones/${id}/cancelar`, { method: 'PATCH', headers: h() });
     if (res.ok) { cargar(); toast$('Requisición cancelada'); }
-    else toast$('Error al cancelar', false);
+    else {
+      // El backend explica por que no se puede (estado, rol, solicitante).
+      // Sustituirlo por "Error al cancelar" borraba la unica pista util.
+      const e = await res.json().catch(() => ({}));
+      toast$(e.message ?? 'No se pudo cancelar la requisición', false);
+    }
   };
 
   const filtradas = filtroEstado ? requisiciones.filter(r => r.estado === filtroEstado) : requisiciones;
@@ -295,19 +320,34 @@ export default function RequisicionesPage() {
                           </ProtectedElement>
                           {req.estado === 'PENDIENTE' && (
                             <>
-                              <ProtectedElement metodo="PATCH" ruta="/api/compras/requisiciones/:id/estado">
-                                <button onClick={async () => {
-                                  if (!await confirmarElegante('¿Enviar a cotizar?')) return;
-                                  const r = await fetch(`${api}/compras/requisiciones/${req.id}/estado`, {
-                                    method:'PATCH', headers:{...h(),'Content-Type':'application/json'},
-                                    body: JSON.stringify({ estado: 'COTIZANDO' }),
-                                  });
-                                  if (r.ok) { cargar(); toast$('Enviada a cotización'); }
-                                }}
-                                  className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Enviar a cotizar">
-                                  <Send className="w-4 h-4"/>
-                                </button>
-                              </ProtectedElement>
+                              {/*
+                                Aqui habia un boton "Enviar a cotizar" que hacia
+                                PATCH /requisiciones/:id/estado con COTIZANDO. Esa
+                                transicion no existe: la tabla del servicio solo
+                                admite PENDIENTE -> CANCELADA, y a COTIZANDO se
+                                llega UNICAMENTE cuando se firma el ultimo nivel de
+                                aprobacion. El boton devolvia 400 siempre, para
+                                todos los roles, y la pantalla se comia el error
+                                (`if (r.ok)` sin else): el comprador confirmaba y no
+                                pasaba absolutamente nada, sin explicacion.
+                                Se sustituye por decir quien tiene la firma.
+                              */}
+                              {(() => {
+                                const firma = firmaPendiente(req);
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-xs font-medium"
+                                    title={firma?.usuario?.nombreCompleto
+                                      ? `Esta requisicion avanza cuando la firme ${firma.usuario.nombreCompleto}`
+                                      : 'Esta requisicion espera una firma de autorizacion'}
+                                  >
+                                    <Clock className="w-3.5 h-3.5" />
+                                    {firma?.usuario?.nombreCompleto
+                                      ? `Espera firma de ${firma.usuario.nombreCompleto}`
+                                      : 'Espera autorizacion'}
+                                  </span>
+                                );
+                              })()}
                               <ProtectedElement metodo="PATCH" ruta="/api/compras/requisiciones/:id/cancelar">
                                 <button onClick={() => cancelarReq(req.id)}
                                   className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition-colors" title="Cancelar">

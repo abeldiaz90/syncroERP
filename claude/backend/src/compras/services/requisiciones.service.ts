@@ -25,6 +25,55 @@ import {
 } from '../utils/email-templates';
 import { esRolAdministrador, normalizarRol } from '../../iam/utils/roles.util';
 
+
+/**
+ * Columnas que se publican de una persona dentro de una requisicion.
+ *
+ * La relacion `aprobaciones.usuario` devolvia el registro COMPLETO de Usuario:
+ * correo, keycloakSubject, empresaId, departamentoId, esPropietario,
+ * intentosFallidos, bloqueadoHasta y los vencimientos de token. Cualquier
+ * comprador que abriera su lista de requisiciones leia el expediente de
+ * seguridad de quien las autoriza —en la corrida del 21-sep-2026, el del
+ * administrador de la empresa.
+ *
+ * Poner `select: false` en las columnas sensibles cubrio la credencial, pero
+ * no esto: el resto del renglon seguia saliendo arrastrado por la relacion.
+ * Una requisicion solo necesita saber quien es esa persona y con que autoridad
+ * firma.
+ */
+const PERSONA_EN_REQUISICION = {
+  id: true,
+  nombreCompleto: true,
+  rol: true,
+} as const;
+
+/**
+ * Recorte de columnas comun al listado y al detalle.
+ *
+ * Las columnas de `aprobaciones` van enumeradas a proposito: en TypeORM, un
+ * `select` anidado que solo nombra una sub-relacion deja de seleccionar las
+ * columnas escalares de ese nivel, y la cadena de aprobaciones llegaba al
+ * navegador como objetos vacios. Verificado contra el sistema en vivo el
+ * 21-sep-2026, no deducido: la primera version de este recorte rompio la
+ * pantalla de requisiciones sin que tsc dijera una palabra.
+ *
+ * Si se agrega una columna a la entidad Aprobacion, hay que agregarla aqui.
+ */
+const SELECCION_REQUISICION = {
+  aprobaciones: {
+    id: true,
+    requisicionId: true,
+    usuarioId: true,
+    orden: true,
+    estado: true,
+    comentario: true,
+    fechaCreacion: true,
+    fechaResolucion: true,
+    usuario: PERSONA_EN_REQUISICION,
+  },
+  usuarioSolicitante: PERSONA_EN_REQUISICION,
+} as const;
+
 @Injectable()
 export class RequisicionesService {
   constructor(
@@ -237,6 +286,7 @@ export class RequisicionesService {
         'cotizaciones.proveedor',
         'cotizaciones.ordenesCompra', // ← CORREGIDO
       ],
+      select: SELECCION_REQUISICION,
       order: { fechaSolicitud: 'DESC' },
     });
   }
@@ -260,6 +310,7 @@ export class RequisicionesService {
         'cotizaciones.proveedor',
         'cotizaciones.ordenesCompra', // ← CORREGIDO
       ],
+      select: SELECCION_REQUISICION,
     });
     if (!req) throw new NotFoundException('Requisición no encontrada');
     const puedeConsultar =

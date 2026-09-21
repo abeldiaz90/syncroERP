@@ -99,13 +99,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (vivo) { setPermisos(Array.isArray(r?.rutas) ? r.rutas : []); setCargando(false); }
       }
 
-      // Dato secundario: si falla, la aplicación sigue funcionando.
+      /*
+       * El nombre de la empresa sale del contexto propio, no de
+       * /configuracion/empresa.
+       *
+       * Ese endpoint es de administracion: a un almacenista o un comprador le
+       * respondia 403 en CADA carga de pantalla —seis por sesion en la corrida
+       * del 21-sep-2026—, `intentar` se lo tragaba y el encabezado se quedaba
+       * sin nombre de todas formas. Un rechazo de rutina en la bitacora es
+       * peor que inutil: entierra los 403 que si significan algo.
+       *
+       * /usuarios/me lo responde para cualquier sesion valida, que es lo que
+       * corresponde a un dato que la propia gente de la empresa ve en su
+       * encabezado.
+       */
       if (s!.empresaId) {
-        const e = await intentar(
-          api.get<{ nombre?: string }>('/configuracion/empresa'),
-          { nombre: '' },
+        const yo = await intentar(
+          api.get<{ empresa?: { nombre?: string | null } }>('/usuarios/me'),
+          null as unknown as { empresa?: { nombre?: string | null } },
         );
-        if (vivo && e?.nombre) setEmpresa(e.nombre);
+        if (vivo && yo?.empresa?.nombre) setEmpresa(yo.empresa.nombre);
       }
     })();
 

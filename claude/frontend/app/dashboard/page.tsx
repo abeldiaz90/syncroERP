@@ -61,12 +61,14 @@ export default function PanelPrincipal() {
       if (!s) return;
       if (vivo) setNombre(s.nombreCompleto || s.email);
 
+      let rutas: string[];
       if (esRolAdministrador(s.rol)) {
-        if (vivo) setPermisos(['*']);
+        rutas = ['*'];
       } else {
         const r = await intentar(api.get<{ rutas?: string[] }>('/admin/permisos/mis-rutas'), { rutas: [] });
-        if (vivo) setPermisos(r.rutas ?? []);
+        rutas = r.rutas ?? [];
       }
+      if (vivo) setPermisos(rutas);
 
       /*
        * ──────────────────────────────────────────────────────────────────────
@@ -85,12 +87,34 @@ export default function PanelPrincipal() {
        * pintan. Se distingue de «cero de verdad», que sí se pinta.
        * ──────────────────────────────────────────────────────────────────────
        */
+      /*
+       * No se pregunta lo que ya sabemos que va a responder 403.
+       *
+       * Estas dos llamadas salian SIEMPRE, para todos los roles. El panel de
+       * un comprador o un almacenista abria cada carga con dos peticiones
+       * condenadas al 403, tragadas en silencio. No rompia nada, pero llenaba
+       * la bitacora del servidor de rechazos legitimos y dejaba sin valor el
+       * unico lugar donde se detecta un permiso mal puesto: cuando todo el
+       * mundo genera 403 de rutina, el 403 que importa no se ve.
+       *
+       * Los permisos ya se cargaron arriba, asi que la pregunta se hace solo
+       * cuando tiene sentido hacerla. `intentar` se queda igualmente como red:
+       * el permiso de pantalla y el del endpoint pueden diferir, y en ese caso
+       * el indicador debe quedar en «no lo se», nunca en cero.
+       */
+      const puedeVerVentas = puedeVerEnlace(rutas, '/dashboard/ventas');
+      const puedeVerBalanza = puedeVerEnlace(rutas, '/dashboard/finanzas/balanza');
+
       const [m, balanza] = await Promise.all([
-        intentar(api.get<Metricas>('/ventas/dashboard/metricas'), null as unknown as Metricas),
-        intentar(
-          api.get<Array<{ numeroCuenta?: string; saldoFinal?: number }>>('/finanzas/polizas/balanza'),
-          null as unknown as Array<{ numeroCuenta?: string; saldoFinal?: number }>,
-        ),
+        puedeVerVentas
+          ? intentar(api.get<Metricas>('/ventas/dashboard/metricas'), null as unknown as Metricas)
+          : Promise.resolve(null as unknown as Metricas),
+        puedeVerBalanza
+          ? intentar(
+              api.get<Array<{ numeroCuenta?: string; saldoFinal?: number }>>('/finanzas/polizas/balanza'),
+              null as unknown as Array<{ numeroCuenta?: string; saldoFinal?: number }>,
+            )
+          : Promise.resolve(null as unknown as Array<{ numeroCuenta?: string; saldoFinal?: number }>),
       ]);
 
       if (!vivo) return;
