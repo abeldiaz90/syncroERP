@@ -302,7 +302,7 @@ export const MODULOS: ModuleConfig[] = [
     acciones: [
       { label: "Nuevo producto", href: "/dashboard/productos", descripcion: "Alta y edición del catálogo", principal: true, accion: { metodo: "POST", ruta: "/api/catalogo/productos" } },
       { label: "Listas de precio", href: "/dashboard/listas-precio", descripcion: "Precios y vigencias" },
-      { label: "Importar productos", href: "/dashboard/inventario/importar", descripcion: "Carga inicial desde Excel" },
+      { label: "Importar productos", href: "/dashboard/inventario/importar", accion: { metodo: "POST", ruta: "/api/catalogo/importacion/productos" }, descripcion: "Carga inicial desde Excel" },
     ],
     relacionados: [
       { label: "Ver existencias", href: "/dashboard/almacenes/centro", descripcion: "Stock y ubicación física" },
@@ -378,7 +378,7 @@ export const MODULOS: ModuleConfig[] = [
     prefixes: ["/dashboard/centros/credito", "/dashboard/creditos"],
     acciones: [
       { label: "Consultar cartera", href: "/dashboard/creditos/creditos", principal: true },
-      { label: "Registrar cobranza", href: "/dashboard/creditos/cobranza" },
+      { label: "Registrar cobranza", href: "/dashboard/creditos/cobranza", accion: { metodo: "POST", ruta: "/api/credito/cobranza/pago" } },
       { label: "Cartera vencida", href: "/dashboard/creditos/cartera-vencida" },
     ],
     items: [
@@ -487,7 +487,7 @@ export const MODULOS: ModuleConfig[] = [
     acciones: [
       { label: "Nueva póliza", href: "/dashboard/finanzas/polizas/nueva", principal: true, accion: { metodo: "POST", ruta: "/api/finanzas/polizas" } },
       { label: "Balanza", href: "/dashboard/finanzas/balanza" },
-      { label: "Cierre mensual", href: "/dashboard/finanzas/cierre-contable" },
+      { label: "Cierre mensual", href: "/dashboard/finanzas/cierre-contable", accion: { metodo: "POST", ruta: "/api/finanzas/cierres/cerrar" } },
       { label: "Asientos pendientes", href: "/dashboard/finanzas/asientos-pendientes" },
     ],
     items: [
@@ -636,8 +636,8 @@ export const MODULOS: ModuleConfig[] = [
     prefixes: ["/dashboard/centros/rrhh", "/dashboard/rrhh", "/dashboard/departamentos"],
     acciones: [
       { label: "Nuevo empleado", href: "/dashboard/rrhh/empleados", principal: true, accion: { metodo: "POST", ruta: "/api/rrhh/empleados" } },
-      { label: "Registrar incidencia", href: "/dashboard/rrhh/incidencias" },
-      { label: "Revisar asistencia", href: "/dashboard/rrhh/asistencia" },
+      { label: "Registrar incidencia", href: "/dashboard/rrhh/incidencias", accion: { metodo: "POST", ruta: "/api/rrhh/incidencias" } },
+      { label: "Revisar asistencia", href: "/dashboard/rrhh/asistencia", accion: { metodo: "POST", ruta: "/api/rrhh/asistencia" } },
       { label: "Centro integral de nómina", href: "/dashboard/rrhh/centro-nomina" },
     ],
     relacionados: [

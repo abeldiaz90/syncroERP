@@ -118,7 +118,13 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * quien surte el almacén no prepara hamburguesas: el consumo se lo reporta
      * la cocina, no lo define él. Es de Hotelería, que ya lo tiene.
      */
-    modulos: ['inventario'],
+    /*
+     * «almacenes» se separo de «inventario» el 21-sep-2026: el primero es el
+     * trabajo fisico —recibir, ubicar, mover, contar, mermar— y el segundo el
+     * maestro de productos. El almacenista es el unico rol operativo que
+     * necesita los dos completos.
+     */
+    modulos: ['inventario', 'almacenes'],
     /*
      * Sin «precios». El módulo trae las listas de precio y el catálogo de
      * impuestos, y ninguna de las dos cosas es del almacén: quien acomoda
@@ -198,6 +204,16 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     etiqueta: 'Comprador',
     descripcion: 'Requisiciones, cotizaciones, órdenes de compra y padrón de proveedores.',
     modulos: ['compras', 'proveedores'],
+    /*
+     * Consulta de inventario SIN el almacen. Necesita saber que hay en
+     * existencia para comprar con criterio; no necesita conteos fisicos,
+     * ubicaciones, reubicaciones ni la integridad de posiciones, que son la
+     * operacion interna de otra area. Antes recibia las 14 lecturas del WMS
+     * porque «almacenes» no existia como modulo y todo caia en «inventario».
+     *
+     * Lo que si conserva del almacen va por accion, no por modulo:
+     * GET /compras/ordenes/recepciones, para dar seguimiento al proveedor.
+     */
     modulosConsulta: ['inventario', 'precios', 'aprobaciones'],
     /*
      * Separación de funciones. El módulo «Compras» completo le entregaba
@@ -218,6 +234,13 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * (`GET /compras/ordenes/recepciones`): necesita saber qué llegó y qué no
      * para dar seguimiento al proveedor. Ver no es dar por recibido.
      */
+    /*
+     * Al mudarse la recepcion al modulo «almacenes», esta lectura dejo de
+     * llegarle por modulo. Se declara por accion porque no es opcional: sin
+     * ella el comprador no sabe que llego y que no, y el seguimiento al
+     * proveedor se hace por telefono.
+     */
+    accionesIrrenunciables: ['GET /compras/ordenes/recepciones'],
     accionesVedadas: [
       'PATCH /compras/ordenes/:id/pagar',
       'PATCH /compras/requisiciones/aprobaciones/:id',
@@ -386,6 +409,7 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'proveedores',
       'credito',
       'inventario',
+      'almacenes',
       'precios',
       'finanzas',
       'tesoreria',
@@ -409,6 +433,7 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'proveedores',
       'credito',
       'inventario',
+      'almacenes',
       'precios',
       'catalogos',
       'recetas',

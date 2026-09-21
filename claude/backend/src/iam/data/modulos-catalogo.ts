@@ -163,18 +163,52 @@ export const MODULOS_NEGOCIO: ModuloNegocio[] = [
        *
        * Estos dos prefijos son más largos que `/compras`, así que ganan.
        */
-      '/compras/ordenes/:id/recibir',
-      '/compras/ordenes/recepciones',
       '/catalogo/productos',
       '/catalogo/categorias',
       '/catalogo/marcas',
       '/catalogo/unidades-medida',
-      '/catalogo/almacenes',
       '/catalogo/inventario',
-      '/catalogo/wms',
       '/catalogo/importacion',
       '/catalogo/atributos-personalizados',
       '/catalogo',
+    ],
+  },
+  {
+    /*
+     * ======================================================================
+     * Almacen es un modulo, no un cajon del menu
+     * ----------------------------------------------------------------------
+     * Existia como agrupacion en el menu (`module-config.ts`) y como etiqueta
+     * en el mapa navegable (`modulo: 'almacenes'`), pero NO en este catalogo,
+     * que es el unico lugar donde un modulo significa algo para los permisos.
+     * Resultado: `/catalogo/wms/*` y `/catalogo/almacenes` caian en
+     * «Inventario», y conceder inventario en consulta entregaba el almacen
+     * COMPLETO.
+     *
+     * Se vio el 21-sep-2026: el comprador, que solo necesita saber que hay en
+     * existencia para comprar con criterio, recibia ademas conteos fisicos,
+     * ubicaciones, reubicaciones, transferencias e integridad de posiciones
+     * —14 lecturas donde le corresponden 4—. Y el vendedor igual, por la misma
+     * via. Peor todavia: `modulosVedados: ['almacenes']` no hacia NADA en
+     * ninguna plantilla, porque el techo opera sobre modulos de este catalogo
+     * y este modulo no existia. Una veda que no veda es peor que ninguna.
+     *
+     * La recepcion de mercancia se muda aqui con el, que es donde siempre
+     * pertenecio: es trabajo de almacen aunque la ruta cuelgue de compras.
+     * ======================================================================
+     */
+    id: 'almacenes',
+    nombre: 'Almacenes y WMS',
+    descripcion:
+      'Recepcion, ubicaciones, existencias por posicion, transferencias, conteos y mermas.',
+    icono: 'Warehouse',
+    grupo: 'Operación',
+    orden: 21,
+    prefijos: [
+      '/compras/ordenes/:id/recibir',
+      '/compras/ordenes/recepciones',
+      '/catalogo/almacenes',
+      '/catalogo/wms',
     ],
   },
   {

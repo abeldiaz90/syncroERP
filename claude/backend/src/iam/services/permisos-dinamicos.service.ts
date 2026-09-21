@@ -550,6 +550,7 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
 
     await this.sincronizarPermisoHistorialAprobaciones();
     await this.aplicarContratoDeRoles();
+    await this.reconciliarModulosRecienSeparados();
     await this.migrarPermisosDeMetodosIntercambiados();
     this.cache.clear();
     this.logger.log(
@@ -1823,6 +1824,92 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
    * su contrato le veda. Simétrico de `pisoDeAccionesDeRol`: aquél es el suelo
    * y éste el techo.
    */
+
+  /*
+   * ==========================================================================
+   * MODULOS RECIEN SEPARADOS: una reconciliacion, una sola vez
+   * --------------------------------------------------------------------------
+   * El contrato de roles solo ENCIENDE. El piso repone lo que falta y el techo
+   * apaga lo que esta vedado, pero nada retira un permiso que la plantilla
+   * simplemente dejo de conceder. Y esta bien que asi sea: los permisos se
+   * administran POR MODULO, de modo que un rol con mas modulos de los que su
+   * plantilla exige puede ser una decision deliberada del administrador
+   * —ampliar si, recortar por debajo de su trabajo no— y el arranque no tiene
+   * por que deshacerla cada lunes.
+   *
+   * Eso deja un hueco cuando lo que cambia no es la plantilla sino la FRONTERA
+   * entre modulos. El 21-sep-2026 «almacenes» se separo de «inventario»:
+   * hasta ese dia `/catalogo/wms/*` y `/catalogo/almacenes` caian en
+   * inventario, y cualquier rol con inventario en consulta —el comprador, el
+   * vendedor, hoteleria— tenia el almacen COMPLETO en lectura: conteos
+   * fisicos, ubicaciones, reubicaciones, transferencias e integridad de
+   * posiciones. Al separarlo, esas filas quedaron huerfanas: encendidas, y
+   * pertenecientes a un modulo que ninguna plantilla concede.
+   *
+   * Aqui se corrigen, y la correccion es segura de demostrar: un modulo que no
+   * existia hasta hoy no pudo ser concedido por nadie, asi que toda fila suya
+   * viene del reparto viejo y ninguna expresa intencion de un administrador.
+   *
+   * Es idempotente: en cuanto las filas se apagan, las vueltas siguientes no
+   * encuentran nada. Un modulo se quita de esta lista cuando ya no haya bases
+   * anteriores a su separacion.
+   */
+  private static readonly MODULOS_RECIEN_SEPARADOS = ['almacenes'];
+
+  private async reconciliarModulosRecienSeparados(): Promise<number> {
+    const porModulo = await this.endpointsPorModulo();
+    const empresas = await this.permisoRepo
+      .createQueryBuilder('p')
+      .select('DISTINCT p.empresaId', 'empresaId')
+      .getRawMany<{ empresaId: string }>();
+
+    let apagadas = 0;
+    for (const moduloId of PermisosDinamicosService.MODULOS_RECIEN_SEPARADOS) {
+      const endpoints = porModulo.get(moduloId) ?? [];
+      if (!endpoints.length) continue;
+      const idsDelModulo = new Set(endpoints.map((ep) => ep.id));
+
+      for (const plantilla of PLANTILLAS_PERMISOS) {
+        const rol = normalizarRol(plantilla.rol);
+        if (esRolAdministrador(rol)) continue;
+
+        const concedido =
+          (plantilla.modulos ?? []).includes(moduloId) ||
+          (plantilla.modulosConsulta ?? []).includes(moduloId);
+        if (concedido) continue;
+
+        // Lo que el contrato concede por ACCION se respeta aunque su modulo no
+        // este concedido: para eso existe «irrenunciable».
+        const salvadas = new Set<string>();
+        for (const accion of plantilla.accionesIrrenunciables ?? []) {
+          const ep = endpoints.find((e) => `${e.metodo} ${e.ruta}` === accion);
+          if (ep) salvadas.add(ep.id);
+        }
+
+        for (const { empresaId } of empresas) {
+          const filas = await this.permisoRepo.find({
+            where: { empresaId, rol },
+            select: ['id', 'endpointId', 'permitido'],
+          });
+          for (const fila of filas) {
+            if (!fila.permitido) continue;
+            if (!idsDelModulo.has(fila.endpointId)) continue;
+            if (salvadas.has(fila.endpointId)) continue;
+            fila.permitido = false;
+            await this.permisoRepo.save(fila);
+            apagadas += 1;
+          }
+        }
+      }
+    }
+    if (apagadas) {
+      this.logger.warn(
+        `Modulos recien separados: ${apagadas} permiso(s) retirado(s) de roles que ya no los tienen en su contrato.`,
+      );
+    }
+    return apagadas;
+  }
+
   private async techoDeModulosVedados(rol: string): Promise<Set<string>> {
     const vedados = new Set<string>();
     if (esRolAdministrador(rol)) return vedados;

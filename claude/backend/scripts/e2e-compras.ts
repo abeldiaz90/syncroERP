@@ -46,6 +46,11 @@ import { OrdenesCompraService } from '../src/compras/services/ordenes-compra.ser
 import { Aprobacion } from '../src/compras/entities/aprobacion.entity';
 import { OrdenCompra } from '../src/compras/entities/orden-compra.entity';
 import { DetalleOrdenCompra } from '../src/compras/entities/detalle-orden-compra.entity';
+import { ListaPrecio, ModoListaPrecio } from '../src/catalogo/entities/lista-precio.entity';
+import { PreciosService } from '../src/catalogo/services/precios.service';
+import { AprobacionesDocumentosService } from '../src/aprobaciones/services/aprobaciones-documentos.service';
+import { PermisosDinamicosService } from '../src/iam/services/permisos-dinamicos.service';
+import { FormaPago } from '../src/catalogo/entities/forma-pago.entity';
 import { randomUUID } from 'node:crypto';
 
 const APLICAR = process.argv.includes('--aplicar');
@@ -345,6 +350,172 @@ async function main() {
       mal('Dejó recibir de más.');
     } catch (e) {
       ok(`Niega recibir de más: "${(e as Error).message.slice(0, 80)}…"`);
+    }
+
+
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * G11 · Lo que se corrigio en la corrida del rol Comprador (21-sep-2026)
+     * ------------------------------------------------------------------------
+     * Los cuatro primeros son la cadena que da sentido al ciclo: la recepcion
+     * es el unico momento en que el sistema conoce el costo real, y de ahi
+     * cuelga el precio de venta. Nunca se habia corrido completa.
+     *
+     * Los demas son controles que se encontraron rotos probando por pantalla y
+     * que no se pueden comprobar desde la interfaz sin cuatro sesiones.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    paso('G11 · La recepcion alimenta el costo, y el precio va detras');
+
+    const productoTrasRecepcion = await prodRepo.findOne({ where: { id: producto.id } });
+    comparar(
+      'Costo del producto despues de recibir',
+      Number(productoTrasRecepcion!.precioCompra),
+      PRECIO,
+    );
+    dato('El costo lo escribe la recepcion, no la captura de nadie.');
+
+    // ── La lista MARGEN se mueve detras del costo ───────────────────────────
+    const MARGEN = 35;
+    const REDONDEO = 0.5;
+    const listaRepo = ds.getRepository(ListaPrecio);
+    let listaMargen = await listaRepo.findOne({
+      where: { empresaId, nombre: `${MARCA} · Lista margen` },
+    });
+    if (!listaMargen) {
+      listaMargen = await listaRepo.save(listaRepo.create({
+        empresaId, nombre: `${MARCA} · Lista margen`,
+        modo: ModoListaPrecio.MARGEN,
+        margenPorcentaje: MARGEN, redondeo: REDONDEO,
+      } as Partial<ListaPrecio>));
+    } else {
+      await listaRepo.update({ id: listaMargen.id }, {
+        modo: ModoListaPrecio.MARGEN, margenPorcentaje: MARGEN, redondeo: REDONDEO,
+      });
+    }
+    ok(`Lista en modo MARGEN al ${MARGEN}%, redondeo a ${REDONDEO}`);
+
+    const precios = app.get(PreciosService);
+    const esperado = Math.ceil((PRECIO * (1 + MARGEN / 100)) / REDONDEO) * REDONDEO;
+    const consulta = await precios.consultarPrecio(producto.id, empresaId, listaMargen.id);
+    comparar('Precio derivado del costo', Number(consulta.precioUnitario), esperado);
+    dato(`${$(PRECIO)} de costo × 1.${MARGEN} → ${$(esperado)} redondeado hacia arriba`);
+
+    // ── Y se mueve OTRA VEZ cuando cambia el costo ──────────────────────────
+    const COSTO_NUEVO = 137;
+    await prodRepo.update({ id: producto.id }, { precioCompra: COSTO_NUEVO });
+    const esperado2 = Math.ceil((COSTO_NUEVO * (1 + MARGEN / 100)) / REDONDEO) * REDONDEO;
+    const consulta2 = await precios.consultarPrecio(producto.id, empresaId, listaMargen.id);
+    comparar('El precio sigue al costo sin recapturar nada', Number(consulta2.precioUnitario), esperado2);
+    await prodRepo.update({ id: producto.id }, { precioCompra: PRECIO });
+
+    // ── Sin costo no se inventa un precio ───────────────────────────────────
+    await prodRepo.update({ id: producto.id }, { precioCompra: 0 });
+    const sinCosto = await precios.consultarPrecio(producto.id, empresaId, listaMargen.id);
+    comparar('Sin costo devuelve 0, no un numero inventado', Number(sinCosto.precioUnitario), 0);
+    await prodRepo.update({ id: producto.id }, { precioCompra: PRECIO });
+
+    paso('G11b · Separacion de funciones del comprador');
+
+    const permisos = app.get(PermisosDinamicosService);
+    const mapaComprador = await permisos.obtenerPermisosPorRolParaFrontend(
+      'comprador', empresaId,
+    ) as Record<string, boolean>;
+    for (const [accion, debe] of [
+      ['PATCH /compras/ordenes/:id/recibir', false],
+      ['PATCH /compras/ordenes/:id/pagar', false],
+      ['PATCH /compras/requisiciones/aprobaciones/:id', false],
+      ['GET /compras/ordenes/recepciones', true],
+      ['POST /compras/ordenes', true],
+    ] as const) {
+      const tiene = mapaComprador[accion] === true;
+      if (tiene === debe) {
+        ok(`${debe ? 'Conserva' : 'No puede'} ${accion}`);
+      } else {
+        mal(`${accion}: ${tiene ? 'concedido' : 'negado'} — se esperaba lo contrario`);
+      }
+    }
+    dato('Comprar, autorizar, recibir y pagar quedan en cuatro manos distintas.');
+
+    paso('G11c · El historial de aprobaciones se recorta por persona');
+
+    const bandeja = app.get(AprobacionesDocumentosService);
+    const comoAdmin = await bandeja.listarHistorial(empresaId, 100, aprobador.id, 'admin');
+    const comoComprador = await bandeja.listarHistorial(empresaId, 100, solicitante.id, 'comprador');
+
+    if (comoAdmin.length >= comoComprador.length) {
+      ok(`Administracion ve ${comoAdmin.length}; el comprador ve ${comoComprador.length}`);
+    } else {
+      mal(`El comprador ve MAS que administracion (${comoComprador.length} vs ${comoAdmin.length})`);
+    }
+    const creditoFiltrado = comoComprador.filter(
+      (a: { proceso?: string }) => a.proceso === 'CREDITO_CLIENTE',
+    );
+    comparar('Expedientes de credito visibles al comprador', creditoFiltrado.length, 0);
+
+    // La trazabilidad de administracion NO se rompio al cerrar la fuga.
+    const totalReal = await ds.getRepository(Aprobacion).manager.query<Array<{ n: string }>>(
+      `SELECT COUNT(*)::text AS n FROM aprobaciones_documentos WHERE empresaid = $1`,
+      [empresaId],
+    ).catch(() => null);
+    if (totalReal) {
+      dato(`Aprobaciones centrales en la base: ${totalReal[0]?.n ?? '?'}`);
+    }
+
+    paso('G11d · Quien solicita una adjudicacion no la resuelve');
+
+    /*
+     * La regla estaba en aprobar() y NO en rechazar(): el mismo comprador que
+     * pedia la adjudicacion podia tumbarla antes de que otro la viera.
+     */
+    /*
+     * Se levanta una cotizacion NUEVA y se deja pendiente de adjudicacion a
+     * proposito: la del ciclo principal ya cerro, y probar sobre ella habria
+     * dado un rechazo por estado en vez de por autoridad.
+     */
+    const cotPrueba = await cotizaciones.crear({
+      requisicionId: req!.id, proveedorId: proveedores[0].id,
+      detalles: [{ productoId: producto.id, cantidad: 1, precioUnitario: PRECIO }],
+    } as never, empresaId);
+    await cotizaciones.solicitarAprobacion(
+      cotPrueba.id, empresaId, solicitante.id, 'Prueba de separacion de funciones',
+    );
+    const cotParaProbar = await cotizaciones.obtenerPorId(cotPrueba.id, empresaId);
+    comparar('Cotizacion de prueba pendiente', cotParaProbar.estado, 'PENDIENTE_APROBACION');
+    if (cotParaProbar.solicitadoAprobacionPorId) {
+      for (const [verbo, fn] of [
+        ['aprobar', () => cotizaciones.aprobar(cotPrueba.id, empresaId, cotParaProbar.solicitadoAprobacionPorId!, 'comprador')],
+        ['rechazar', () => cotizaciones.rechazar(cotPrueba.id, empresaId, cotParaProbar.solicitadoAprobacionPorId!, 'comprador')],
+      ] as const) {
+        try {
+          await fn();
+          mal(`Dejo ${verbo} su propia adjudicacion.`);
+        } catch (e) {
+          const msg = (e as Error).message;
+          if (/no puede resolverla/i.test(msg)) {
+            ok(`Niega ${verbo} lo propio: "${msg.slice(0, 60)}…"`);
+          } else {
+            /*
+             * Rechazo por OTRO motivo -lo mas probable, que la cotizacion ya
+             * cerro su ciclo y no esta pendiente de aprobacion-. NO cuenta como
+             * prueba superada: una prueba que pasa por el motivo equivocado es
+             * peor que una que falla, porque deja de mirarse.
+             */
+            dato(`${verbo}: no concluyente, fallo por otra razon — "${msg.slice(0, 70)}…"`);
+          }
+        }
+      }
+    } else {
+      dato('La cotizacion ya cerro su ciclo; la regla se cubre en coherencia.');
+    }
+
+    paso('G11e · Los catalogos que el alta de proveedor necesita');
+
+    const formasPago = await ds.getRepository(FormaPago).count();
+    if (formasPago > 0) {
+      ok(`Formas de pago del SAT sembradas: ${formasPago}`);
+    } else {
+      mal('El catalogo de formas de pago esta vacio y el campo es obligatorio.');
     }
 
     // ── Cierre ──────────────────────────────────────────────────────────────
