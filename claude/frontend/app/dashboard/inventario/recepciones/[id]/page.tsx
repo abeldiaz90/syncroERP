@@ -6,8 +6,9 @@ import Link from 'next/link';
 import {
   ChevronLeft, CheckCircle2, Building2, PackageCheck,
   Loader2, Calendar, Warehouse, Truck,
-  AlertTriangle, ShieldAlert, Hash, Layers
+  AlertTriangle, ShieldAlert, Hash, Layers, MapPinPlus
 } from 'lucide-react';
+import { usePermiso } from '@/hooks/use-permisos';
 import { ProtectedElement } from "@/app/components/ProtectedElement"; // ← NUEVO
 import { useAvisos } from '@/components/ui';
 import { confirmarElegante } from '@/components/ui/dialogos';
@@ -37,6 +38,29 @@ export default function RecepcionDetallePage() {
   const [procesando, setProcesando] = useState(false);
   const [claveIdempotencia, setClaveIdempotencia] = useState('');
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'info' } | null>(null);
+
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * Acomodo dirigido: se resuelve AQUI, sin salir de la recepcion
+   * --------------------------------------------------------------------------
+   * Esta pantalla obliga a elegir ubicacion en cada partida, y el servidor
+   * exige que el producto YA este asignado a esa ubicacion. Las dos reglas por
+   * separado tienen sentido; juntas significaban que la PRIMERA recepcion de
+   * cualquier producto nuevo terminara en 400 —«primero asigna el producto a
+   * la ubicacion A-01-01»— y mandara al almacenista a otra pantalla con la
+   * caja en la mano. Verificado el 21-sep-2026 en la corrida del ciclo.
+   *
+   * El control no sobra: existe para que el arroz no acabe junto a los
+   * quimicos, y quitarlo lo desperdicia. Lo que sobraba era el callejon. Quien
+   * recibe tiene la mercancia enfrente y tiene el permiso, asi que decide aqui
+   * y sigue.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  const { tienePermiso } = usePermiso();
+  /** productoId → ubicaciones donde ese producto ya tiene casa. */
+  const [asignaciones, setAsignaciones] = useState<Record<string, string[]>>({});
+  const [asignando, setAsignando] = useState<string | null>(null);
+  const puedeAsignarUbicacion = tienePermiso('POST', '/api/catalogo/wms/productos/:id/ubicaciones');
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000/api';
 
@@ -76,6 +100,68 @@ export default function RecepcionDetallePage() {
     setCapturas(prev => Object.fromEntries(Object.entries(prev).map(([k,v]) => [k, { ...v, ubicacionId: '' }])));
   }, [almacenSeleccionado, apiUrl]);
 
+  /* Donde tiene casa cada producto de esta orden, para no descubrirlo al guardar. */
+  useEffect(() => {
+    if (!oc?.detalles?.length) return;
+    const token = localStorage.getItem('syncro_token');
+    const productos: string[] = [
+      ...new Set(oc.detalles.map((d: any) => d.productoId).filter(Boolean) as string[]),
+    ];
+    let vivo = true;
+    Promise.all(
+      productos.map(async (productoId) => {
+        try {
+          const r = await fetch(`${apiUrl}/catalogo/wms/productos/${productoId}/ubicaciones`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!r.ok) return [productoId, [] as string[]] as const;
+          const filas = await r.json();
+          const activas = (Array.isArray(filas) ? filas : [])
+            .filter((f: any) => f.activo !== false)
+            .map((f: any) => f.ubicacionId);
+          return [productoId, activas as string[]] as const;
+        } catch {
+          return [productoId, [] as string[]] as const;
+        }
+      }),
+    ).then((pares) => {
+      if (vivo) setAsignaciones(Object.fromEntries(pares));
+    });
+    return () => { vivo = false; };
+  }, [oc, apiUrl]);
+
+  const tieneCasaEn = (productoId?: string, ubicacionId?: string) =>
+    Boolean(productoId && ubicacionId && (asignaciones[productoId] ?? []).includes(ubicacionId));
+
+  /** Le da casa al producto en esa posicion, sin salir de la recepcion. */
+  const asignarAqui = async (productoId: string, ubicacionId: string, codigo: string) => {
+    const token = localStorage.getItem('syncro_token');
+    setAsignando(`${productoId}:${ubicacionId}`);
+    try {
+      const r = await fetch(`${apiUrl}/catalogo/wms/productos/${productoId}/ubicaciones`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ubicacionId }),
+      });
+      if (r.ok) {
+        setAsignaciones((prev) => ({
+          ...prev,
+          [productoId]: [...(prev[productoId] ?? []), ubicacionId],
+        }));
+        setToast({ mensaje: `Producto asignado a ${codigo}`, tipo: 'exito' });
+      } else {
+        // El servidor sabe por que no se puede —ubicacion bloqueada, es un
+        // servicio, esta inactiva—. Repetirlo es mas util que un «error».
+        const e = await r.json().catch(() => ({}));
+        setToast({ mensaje: e.message ?? `No se pudo asignar a ${codigo}`, tipo: 'error' });
+      }
+    } catch {
+      setToast({ mensaje: 'Error de conexión al asignar la ubicación', tipo: 'error' });
+    } finally {
+      setAsignando(null);
+    }
+  };
+
   const handleCapturaChange = (detalleId: string, campo: keyof ICaptura, valor: string | number) => {
     setCapturas(prev => ({
       ...prev,
@@ -89,6 +175,34 @@ export default function RecepcionDetallePage() {
   const handleRecibir = async () => {
     if (!almacenSeleccionado) return setToast({ mensaje: 'Selecciona la rampa o almacén de ingreso', tipo: 'error' });
     if (Object.values(capturas).some(c => c.cantidadRecibidaOk > 0 && !c.ubicacionId)) return setToast({ mensaje: 'Selecciona una ubicación física para cada partida recibida', tipo: 'error' });
+
+    /*
+     * El acomodo se verifica ANTES de mandar, no despues del 400.
+     *
+     * El servidor rechaza recibir en una posicion que no sea casa del
+     * producto, y hace bien. Pero descubrirlo al guardar significa perder la
+     * captura completa de la entrega —lotes, caducidades, cantidades— por un
+     * dato que se sabia desde que se eligio la posicion.
+     */
+    const sinCasa = Object.entries(capturas)
+      .filter(([detalleId, c]) => {
+        if (c.cantidadRecibidaOk <= 0 || !c.ubicacionId) return false;
+        const det = oc?.detalles?.find((x: any) => x.id === detalleId);
+        return !tieneCasaEn(det?.productoId, c.ubicacionId);
+      })
+      .map(([detalleId, c]) => {
+        const det = oc?.detalles?.find((x: any) => x.id === detalleId);
+        const ubi = ubicaciones.find((u: any) => u.id === c.ubicacionId);
+        return `${det?.producto?.nombre ?? 'producto'} → ${ubi?.codigo ?? 'posición'}`;
+      });
+    if (sinCasa.length) {
+      return setToast({
+        mensaje: puedeAsignarUbicacion
+          ? `Asigna la posición antes de guardar: ${sinCasa.join(', ')}. Usa el botón «Asignar» de cada partida.`
+          : `Estas partidas van a una posición que no es casa del producto: ${sinCasa.join(', ')}. Pide al responsable del almacén que las asigne.`,
+        tipo: 'error',
+      });
+    }
 
     const detallesProcesados = Object.keys(capturas).map(key => ({ id: key, ...capturas[key] }));
 
@@ -265,9 +379,62 @@ export default function RecepcionDetallePage() {
                               <Warehouse className="w-4 h-4 text-emerald-500 shrink-0" />
                               <select value={estadoCaptura?.ubicacionId} onChange={(e) => handleCapturaChange(det.id, 'ubicacionId', e.target.value)} className={`w-full text-xs font-bold p-1.5 border rounded bg-white outline-none ${!estadoCaptura?.ubicacionId ? 'border-rose-300 text-rose-700' : 'border-emerald-200 text-emerald-700'}`}>
                                 <option value="">Ubicación obligatoria...</option>
-                                {ubicaciones.filter(u => u.activo && !['BLOQUEADA','EMBARQUE'].includes(u.estado)).map((u:any) => <option key={u.id} value={u.id}>{u.codigo} · {u.zona || 'Sin zona'}</option>)}
+                                {/*
+                                  Las posiciones donde el producto YA tiene casa van
+                                  primero y marcadas. Antes todas se veían iguales y
+                                  la diferencia sólo aparecía al guardar, en forma de
+                                  400.
+                                */}
+                                {ubicaciones
+                                  .filter(u => u.activo && !['BLOQUEADA','EMBARQUE'].includes(u.estado))
+                                  .slice()
+                                  .sort((a: any, b: any) => {
+                                    const ca = tieneCasaEn(det.productoId, a.id) ? 0 : 1;
+                                    const cb = tieneCasaEn(det.productoId, b.id) ? 0 : 1;
+                                    return ca - cb || String(a.codigo).localeCompare(String(b.codigo));
+                                  })
+                                  .map((u:any) => (
+                                    <option key={u.id} value={u.id}>
+                                      {tieneCasaEn(det.productoId, u.id) ? '★ ' : ''}{u.codigo} · {u.zona || 'Sin zona'}
+                                      {tieneCasaEn(det.productoId, u.id) ? '' : ' — sin asignar'}
+                                    </option>
+                                  ))}
                               </select>
                             </div>
+
+                            {/*
+                              Posición elegida donde el producto todavía no tiene
+                              casa. En vez de dejar que el guardado falle y mandar
+                              al almacenista a otra pantalla, se resuelve aquí.
+                            */}
+                            {estadoCaptura?.ubicacionId && !tieneCasaEn(det.productoId, estadoCaptura.ubicacionId) && (() => {
+                              const ubi = ubicaciones.find((u: any) => u.id === estadoCaptura.ubicacionId);
+                              const codigo = ubi?.codigo ?? 'esta posición';
+                              const clave = `${det.productoId}:${estadoCaptura.ubicacionId}`;
+                              return (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 space-y-1.5">
+                                  <p className="text-[10px] leading-snug text-amber-800">
+                                    <strong>{codigo}</strong> todavía no es casa de este producto.
+                                    {puedeAsignarUbicacion
+                                      ? ' Asígnala para poder guardar la entrada.'
+                                      : ' Pide al responsable del almacén que la asigne: sin eso, la recepción no se puede guardar.'}
+                                  </p>
+                                  {puedeAsignarUbicacion && (
+                                    <button
+                                      type="button"
+                                      disabled={asignando === clave}
+                                      onClick={() => asignarAqui(det.productoId, estadoCaptura.ubicacionId, codigo)}
+                                      className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-amber-700 disabled:opacity-60"
+                                    >
+                                      {asignando === clave
+                                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                                        : <MapPinPlus className="w-3 h-3" />}
+                                      Asignar a {codigo}
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             {producto?.equivalencias?.length > 0 && (
                               <div className="flex items-center gap-2">
                                 <Layers className="w-4 h-4 text-blue-500 shrink-0" />

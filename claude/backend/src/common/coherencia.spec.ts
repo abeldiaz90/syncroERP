@@ -1543,3 +1543,42 @@ describe('Coherencia · un modulo nombrado existe, o no es un modulo', () => {
     }
   });
 });
+
+describe('Coherencia · el acomodo dirigido no deja a nadie sin salida', () => {
+  /*
+   * ==========================================================================
+   * La pantalla de recepcion exige ubicacion en cada partida y el servidor
+   * exige que el producto YA sea de esa ubicacion. Las dos reglas por separado
+   * tienen sentido; juntas hacian que la PRIMERA recepcion de cualquier
+   * producto nuevo terminara en 400 y mandara al almacenista a otra pantalla
+   * con la caja en la mano. Verificado el 21-sep-2026 corriendo el ciclo
+   * completo contra la base real.
+   *
+   * La salida elegida fue resolverlo en la misma pantalla. Eso solo se
+   * sostiene si quien recibe puede asignar, asi que esa es la prueba.
+   * ==========================================================================
+   */
+
+  it('quien recibe mercancia puede darle casa al producto', () => {
+    const almacenista = PLANTILLAS_PERMISOS.find((p) => p.rol === 'almacenista');
+    expect(almacenista?.modulos).toContain('almacenes');
+    expect(almacenista?.accionesVedadas ?? []).not.toContain(
+      'POST /catalogo/wms/productos/:id/ubicaciones',
+    );
+    expect(moduloDeRuta('/catalogo/wms/productos/:id/ubicaciones')).toBe('almacenes');
+  });
+
+  it('la recepcion comprueba el acomodo antes de mandar, no despues del 400', () => {
+    if (!FRONTEND) return;
+    const pantalla = leer(
+      join(FRONTEND, 'app/dashboard/inventario/recepciones/[id]/page.tsx'),
+    );
+    // Sabe donde tiene casa cada producto…
+    expect(pantalla).toContain('tieneCasaEn');
+    // …lo valida antes de enviar…
+    expect(pantalla).toMatch(/sinCasa[\s\S]{0,400}return setToast/);
+    // …y ofrece resolverlo sin salir.
+    expect(pantalla).toContain('asignarAqui');
+    expect(pantalla).toContain('/catalogo/wms/productos/:id/ubicaciones');
+  });
+});
