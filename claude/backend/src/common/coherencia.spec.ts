@@ -23,7 +23,7 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'fs';
 import { join, relative, sep} from 'path';
 import { PLANTILLAS_PERMISOS } from '../iam/data/plantillas-permisos';
 import { ENDPOINTS_NAVEGABLES } from '../iam/data/endpoints-navegables';
-import { moduloDeRuta } from '../iam/data/modulos-catalogo';
+import { moduloDeRuta, MODULOS_ASIGNABLES, MODULOS_POR_ID } from '../iam/data/modulos-catalogo';
 
 const SRC = join(__dirname, '..');
 const RAIZ = join(SRC, '..', '..');
@@ -1407,5 +1407,139 @@ describe('Coherencia · un boton que lleva a un 403 es peor que no tenerlo', () 
       if (!rutas.has(clave)) huerfanas.push(clave);
     }
     expect(huerfanas).toEqual([]);
+  });
+});
+
+describe('Coherencia · un modulo nombrado existe, o no es un modulo', () => {
+  /*
+   * ==========================================================================
+   * El defecto que hizo falta para escribir esto
+   * --------------------------------------------------------------------------
+   * «Almacenes» existia como agrupacion en el menu del frontend y como
+   * etiqueta en el mapa navegable, pero NO en `modulos-catalogo.ts`, que es el
+   * unico lugar donde un modulo significa algo para los permisos. Las rutas
+   * del WMS caian por prefijo en «Inventario», asi que conceder inventario en
+   * consulta —al comprador, al vendedor, a hoteleria— entregaba el almacen
+   * completo: 14 lecturas donde correspondian 4.
+   *
+   * Y lo silencioso: `modulosVedados: ['almacenes']` no habria hecho NADA,
+   * porque el techo recorre modulos de ese catalogo. Una veda que no veda es
+   * peor que ninguna, porque se confia en ella y nadie la vuelve a mirar.
+   *
+   * Nada fallaba. Ni el compilador, ni una prueba, ni la pantalla. Por eso
+   * estas tres comprobaciones existen: un nombre de modulo que no existe tiene
+   * que romper algo, y tiene que romperlo aqui.
+   * ==========================================================================
+   */
+
+  it('todo modulo nombrado en una plantilla existe en el catalogo', () => {
+    const validos = new Set(MODULOS_ASIGNABLES);
+    const inventados: string[] = [];
+    for (const p of PLANTILLAS_PERMISOS) {
+      for (const [campo, lista] of [
+        ['modulos', p.modulos],
+        ['modulosConsulta', p.modulosConsulta ?? []],
+        ['modulosVedados', p.modulosVedados ?? []],
+      ] as const) {
+        for (const m of lista) {
+          if (!validos.has(m)) inventados.push(`${p.rol}.${campo}: "${m}"`);
+        }
+      }
+    }
+    expect(inventados).toEqual([]);
+  });
+
+  it('todo modulo del menu del frontend existe como modulo de permisos', () => {
+    /*
+     * El menu agrupa pantallas; los permisos agrupan rutas. Son dos preguntas
+     * distintas y pueden agrupar distinto —«Reportes» junta pantallas de
+     * ventas, caja y credito, y eso es correcto—. Lo que NO puede pasar es que
+     * el menu presente como modulo algo que no se puede conceder ni vedar:
+     * el usuario lo ve como una unidad y la administracion no puede tratarlo
+     * como tal.
+     *
+     * Los contenedores declarados quedan fuera: no son modulos, son cajones.
+     */
+    if (!FRONTEND) return;
+    const config = leer(join(FRONTEND, 'app/dashboard/module-config.ts'));
+
+    /*
+     * Cada cajon del menu, con lo que declara junto a su `id`: el bloque va
+     * desde su `id:` hasta el `id:` siguiente.
+     */
+    const marcas = [...config.matchAll(/^\s{4}id:\s*"([^"]+)",/gm)];
+    expect(marcas.length).toBeGreaterThan(5); // si el regex deja de casar, que se note
+
+    const validos = new Set(MODULOS_ASIGNABLES);
+    const sinDeclarar: string[] = [];
+    const mapeoInvalido: string[] = [];
+
+    for (let i = 0; i < marcas.length; i += 1) {
+      const id = marcas[i][1];
+      const desde = marcas[i].index ?? 0;
+      const hasta = i + 1 < marcas.length ? (marcas[i + 1].index ?? config.length) : config.length;
+      const bloque = config.slice(desde, hasta);
+
+      const mapea = /moduloPermisos:\s*"([^"]+)"/.exec(bloque);
+      const agrupa = /agrupacion:\s*true/.test(bloque);
+
+      if (mapea) {
+        if (!validos.has(mapea[1])) mapeoInvalido.push(`${id} → "${mapea[1]}"`);
+        continue;
+      }
+      if (agrupa) continue;
+      if (validos.has(id)) continue;
+      sinDeclarar.push(id);
+    }
+
+    // Un cajon que no es un modulo tiene que DECIRLO, no parecerse a uno.
+    expect(sinDeclarar).toEqual([]);
+    // Y si dice a que modulo corresponde, ese modulo tiene que existir.
+    expect(mapeoInvalido).toEqual([]);
+  });
+
+  it('el mapa navegable no vuelve a guardar de que modulo es una ruta', () => {
+    /*
+     * `EndpointNavMeta` tenia un campo `modulo: string` que nadie leia y que
+     * contradecia a `moduloDeRuta()` en 29 de 115 entradas. Un dato duplicado
+     * que nadie consulta solo puede divergir, y este divergio hasta inventar
+     * modulos que no existian.
+     *
+     * De que modulo es una ruta lo responde `moduloDeRuta()`. Punto.
+     */
+    const mapa = leer(join(SRC, 'iam/data/endpoints-navegables.ts'));
+    expect(sinComentarios(mapa)).not.toMatch(/^\s*modulo:/m);
+  });
+
+  it('cada modulo del catalogo se queda con las rutas que le tocan', () => {
+    /*
+     * Almacen y Inventario se separaron el 21-sep-2026. Esta prueba fija la
+     * frontera: si alguien devuelve `/catalogo/wms` a Inventario, el comprador
+     * y el vendedor vuelven a tener el almacen completo sin que nada lo diga.
+     */
+    expect(moduloDeRuta('/catalogo/wms/conteos')).toBe('almacenes');
+    expect(moduloDeRuta('/catalogo/wms/ubicaciones')).toBe('almacenes');
+    expect(moduloDeRuta('/catalogo/almacenes')).toBe('almacenes');
+    expect(moduloDeRuta('/compras/ordenes/:id/recibir')).toBe('almacenes');
+    expect(moduloDeRuta('/compras/ordenes/recepciones')).toBe('almacenes');
+
+    expect(moduloDeRuta('/catalogo/productos')).toBe('inventario');
+    expect(moduloDeRuta('/catalogo/inventario/stock')).toBe('inventario');
+
+    // Y el almacen es concedible y vedable de verdad, no una etiqueta.
+    expect(MODULOS_POR_ID.has('almacenes')).toBe(true);
+    expect(MODULOS_ASIGNABLES).toContain('almacenes');
+  });
+
+  it('quien hace el trabajo de almacen tiene el modulo de almacen', () => {
+    const almacenista = PLANTILLAS_PERMISOS.find((p) => p.rol === 'almacenista');
+    expect(almacenista?.modulos).toContain('almacenes');
+
+    // Y quien solo necesita saber que hay en existencia, no.
+    for (const rol of ['comprador', 'empleado', 'hoteleria']) {
+      const p = PLANTILLAS_PERMISOS.find((x) => x.rol === rol);
+      if (!p) continue;
+      expect([...p.modulos, ...(p.modulosConsulta ?? [])]).not.toContain('almacenes');
+    }
   });
 });

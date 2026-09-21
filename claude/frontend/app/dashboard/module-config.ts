@@ -89,6 +89,31 @@ export interface ModuleAction {
 export interface ModuleConfig {
   id: string;
   nombre: string;
+  /**
+   * El modulo de PERMISOS al que corresponde este cajon del menu.
+   *
+   * El menu agrupa pantallas y los permisos agrupan rutas: son dos preguntas
+   * distintas y pueden agrupar distinto. «Reportes» junta pantallas de ventas,
+   * caja, credito e inventario, y eso es correcto.
+   *
+   * Lo que NO puede pasar es que el menu presente como modulo algo que la
+   * administracion no puede conceder ni vedar. Eso fue «Almacenes» hasta el
+   * 21-sep-2026: el usuario lo veia como una unidad, las rutas del WMS caian
+   * en «Inventario», y conceder inventario en consulta entregaba el almacen
+   * entero. Peor: `modulosVedados: ['almacenes']` no hacia nada, porque el
+   * techo recorre modulos del catalogo de permisos y ese modulo no existia
+   * alli. Nada fallaba —ni el compilador, ni una prueba, ni la pantalla.
+   *
+   * Por eso cada cajon declara ahora que es:
+   *   - `moduloPermisos: "inventario"`  el cajon ES ese modulo, con otro nombre
+   *   - `agrupacion: true`              junta pantallas de varios modulos
+   *   - ninguno de los dos              el `id` ya coincide con el modulo
+   *
+   * Una prueba de coherencia exige que se cumpla una de las tres.
+   */
+  moduloPermisos?: string;
+  /** Junta pantallas de varios modulos; no es un modulo de permisos. */
+  agrupacion?: boolean;
   desc: string;
   Icono: LucideIcon;
   /** Color de acento del módulo (texto, borde activo, espina lateral). */
@@ -108,7 +133,7 @@ export interface ModuleConfig {
 
 export const MODULOS: ModuleConfig[] = [
   {
-    id: "configuracion", nombre: "Configuración", desc: "Preparación y diagnóstico empresarial", Icono: Settings,
+    id: "configuracion", moduloPermisos: "administracion", nombre: "Configuración", desc: "Preparación y diagnóstico empresarial", Icono: Settings,
     color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", href: "/dashboard/configuracion/centro",
     prefixes: ["/dashboard/configuracion", "/dashboard/operaciones/pendientes"],
     items: [
@@ -284,6 +309,7 @@ export const MODULOS: ModuleConfig[] = [
   /* ── PRODUCTOS ─────────────────────────────────────────────────────── */
   {
     id: "productos",
+    moduloPermisos: "inventario",
     nombre: "Productos",
     desc: "Catálogo, variantes, precios y logística",
     Icono: Package,
@@ -801,6 +827,7 @@ export const MODULOS: ModuleConfig[] = [
   /* ── REPORTES ───────────────────────────────────────────────────────── */
   {
     id: "reportes",
+    agrupacion: true, // junta ventas, caja, credito e inventario
     nombre: "Reportes",
     desc: "Indicadores gerenciales y operativos",
     Icono: BarChart3,
@@ -964,6 +991,7 @@ export const MODULOS: ModuleConfig[] = [
   /* ── ADMINISTRACIÓN ─────────────────────────────────────────────────── */
   {
     id: "admin",
+    moduloPermisos: "administracion",
     nombre: "Administración",
     desc: "Usuarios, permisos, auditoría y herramientas",
     Icono: Settings,
