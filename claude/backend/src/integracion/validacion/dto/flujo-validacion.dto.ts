@@ -7,12 +7,12 @@ import {
   IsObject,
   IsOptional,
   IsString,
-  IsUUID,
   Max,
   MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
+import { IsSqlServerGuid } from '../../../common/validators/sql-server-guid.validator';
 import {
   PoliticaPaso,
   ResultadoPaso,
@@ -50,8 +50,30 @@ export class CrearFlujoDto {
   pasos!: PasoFlujoDto[];
 }
 
+/**
+ * Qué se puede corregir de un flujo ya creado.
+ *
+ * Su identificación y sus umbrales, no sus pasos. La razón no es técnica: los
+ * pasos son la promesa de qué se comprueba antes de dar crédito, y los
+ * expedientes ya ejecutados apuntan a ellos. Cambiarlos en el sitio reescribiría
+ * en retrospectiva bajo qué reglas se aprobó un crédito que ya se otorgó. Para
+ * eso está la versión: se crea un flujo nuevo y se activa.
+ *
+ * El nombre sí se corrige en el sitio, y hace falta: un flujo nace con el
+ * nombre que alguien teclea de prisa y se queda con él a la vista de todos.
+ */
+export class EditarFlujoDto {
+  @IsOptional() @IsString() @MaxLength(120) nombre?: string;
+
+  @IsOptional() @IsString() @MaxLength(500) descripcion?: string;
+
+  @IsOptional() @IsNumber() @Min(0) topeAutomatico?: number;
+
+  @IsOptional() @IsInt() @Min(0) @Max(100) puntajeMinimo?: number;
+}
+
 export class EjecutarValidacionDto {
-  @IsUUID() clienteId!: string;
+  @IsSqlServerGuid() clienteId!: string;
 
   @IsNumber() @Min(0) limiteSolicitado!: number;
 

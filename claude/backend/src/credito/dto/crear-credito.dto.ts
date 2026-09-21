@@ -11,7 +11,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 import { TipoCredito } from '../entities/credito-cliente.entity';
 import { UnidadPlazo } from '../entities/producto-credito.entity';
 
@@ -65,8 +65,7 @@ export class CrearCreditoDto {
   @IsSqlServerGuid()
   clienteId!: string;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   ventaId?: string;
 
   /**
@@ -74,8 +73,7 @@ export class CrearCreditoDto {
    * crédito: el plazo, la tasa y los límites salen de la fila, no de la
    * captura.
    */
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   productoCreditoId?: string;
 
   /**
@@ -120,8 +118,7 @@ export class CrearCreditoDto {
   @MaxLength(30)
   metodoPagoEnganche?: string;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   cuentaBancariaEngancheId?: string;
 
   @IsOptional()

@@ -1,4 +1,11 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Usuario } from '../../iam/entities/usuario.entity';
@@ -10,17 +17,50 @@ import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integ
 import { MapeoRolExterno } from '../entities/mapeo-rol-externo.entity';
 import { PuertoUsuariosExternos } from '../ports/usuarios-externos.port';
 import { IntegracionVinculosService } from './integracion-vinculos.service';
+import { IntegracionModoService } from './integracion-modo.service';
+import { DirectorioIdentidadService } from '../../iam/services/directorio-identidad.service';
 
 export interface EstadoUsuarioExterno {
   usuarioId: string;
   email: string;
   rolErp: string;
   mapeado: boolean;
-  existeEnExterno: boolean;
+  /**
+   * Si existe en el core. `null` es «no se pudo preguntar»: el core no
+   * contestó, o contestó que quien pregunta no tiene autoridad para mirar.
+   * Tratarlo como «no existe» invita a darlo de alta otra vez, que es la peor
+   * reacción posible ante un core que no responde.
+   */
+  existeEnExterno: boolean | null;
   idExterno: string | null;
   rolesExternos: string[];
-  /** Qué habría que hacer para que este usuario opere en los dos sistemas. */
-  accion: 'NINGUNA' | 'MAPEAR_ROL' | 'DAR_DE_ALTA' | 'CORREGIR_ROLES';
+  /**
+   * Si existe en el directorio (Keycloak). `null` significa «no se pudo
+   * preguntar», que no es lo mismo que «no existe».
+   */
+  enDirectorio?: boolean | null;
+  /** Si el directorio lo tiene deshabilitado aunque exista. */
+  habilitadoEnDirectorio?: boolean | null;
+  /** La oficina en la que vive ese operador del otro lado, si existe. */
+  oficinaExterna?: string | null;
+  /** La oficina que le toca a esta empresa. Null si nadie la ha configurado. */
+  oficinaEsperada?: string | null;
+  /**
+   * Qué habría que hacer para que este usuario opere en los dos sistemas.
+   *
+   * `SIN_OFICINA` y `OTRA_OFICINA` no son estados de trámite, son avisos: en el
+   * core la oficina es lo que separa a una empresa de otra, así que un operador
+   * en la oficina equivocada ve una cartera que no es la suya.
+   */
+  accion:
+    | 'NINGUNA'
+    | 'MAPEAR_ROL'
+    | 'DAR_DE_ALTA'
+    | 'CORREGIR_ROLES'
+    | 'SIN_OFICINA'
+    | 'OTRA_OFICINA'
+    | 'NO_EXISTE_EN_DIRECTORIO'
+    | 'CORE_NO_DISPONIBLE';
 }
 
 /**
@@ -47,6 +87,8 @@ export class RolesExternosService {
     @InjectRepository(ConfiguracionIntegracionEmpresa)
     private readonly configEmpresa: Repository<ConfiguracionIntegracionEmpresa>,
     private readonly vinculos: IntegracionVinculosService,
+    private readonly directorio: DirectorioIdentidadService,
+    private readonly modos: IntegracionModoService,
     @Inject(PUERTO_USUARIOS_EXTERNOS)
     private readonly externos: PuertoUsuariosExternos,
   ) {}
@@ -97,6 +139,7 @@ export class RolesExternosService {
    * No pisa lo que ya existe: si allá ya hay un rol con ese nombre, se reutiliza.
    */
   async crearRolesEspejo(empresaId: string, simular = false) {
+    await this.exigirContratado(empresaId);
     const existentes = await this.externos.rolesDisponibles();
     const porNombre = new Map(
       existentes.map((r) => [normalizarRol(r.nombre), r]),
@@ -184,12 +227,35 @@ export class RolesExternosService {
    * registro externo y qué le falta a cada uno. Es la pantalla que evita
    * descubrir el problema el día que alguien no puede trabajar.
    */
+  /**
+   * Corta en seco lo que no debería existir para esta empresa.
+   *
+   * La correspondencia de roles solo tiene sentido cuando hay dos sistemas que
+   * corresponder. Para una empresa que solo usa el ERP, aprovisionar operadores
+   * en el core no es un error de configuración: es una operación que no le
+   * pertenece, y hacerla crearía usuarios en un registro que no contrató.
+   */
+  private async exigirContratado(empresaId: string) {
+    if (!(await this.modos.usaRegistroExterno(empresaId))) {
+      throw new ForbiddenException(
+        'Esta empresa no tiene contratado el registro financiero externo. ' +
+          'La correspondencia de roles y usuarios solo aplica a las que operan con el core.',
+      );
+    }
+  }
+
   async diagnostico(empresaId: string): Promise<EstadoUsuarioExterno[]> {
+    // Sin core contratado no hay nada que diagnosticar, y una lista vacía dice
+    // eso mejor que un error: la pantalla ni siquiera debería estar abierta.
+    if (!(await this.modos.usaRegistroExterno(empresaId))) return [];
+
     const usuarios = await this.usuarios.find({
       where: { empresaId, activo: true },
     });
     const mapeos = await this.listarMapeo(empresaId);
     const porRol = new Map(mapeos.map((m) => [m.rolErp, m]));
+    const cfg = await this.configEmpresa.findOne({ where: { empresaId } });
+    const oficinaEsperada = cfg?.oficinaContableExterna ?? null;
 
     const salida: EstadoUsuarioExterno[] = [];
 
@@ -202,14 +268,29 @@ export class RolesExternosService {
         u.id,
       );
 
-      let existe = false;
+      /*
+       * Los tres sistemas en una sola fila. El orden de las preguntas no es
+       * casual: si la persona no existe en el directorio, no puede entrar ni al
+       * ERP, así que da igual lo bien mapeada que esté del otro lado.
+       */
+      const identidad = await this.directorio.buscarPorCorreo(u.email);
+      const enDirectorio = identidad === undefined ? null : identidad !== null;
+      const habilitadoEnDirectorio =
+        identidad === undefined || identidad === null ? null : identidad.habilitado;
+
+      let existe: boolean | null = null;
       let rolesActuales: string[] = [];
-      if (this.externos.proveedor !== 'ninguno') {
+      let oficinaExterna: string | null = null;
+      if (this.externos.proveedor === 'ninguno') {
+        existe = false;
+      } else {
         try {
           const remoto = await this.externos.buscarUsuario(u.email);
           existe = remoto !== null;
           rolesActuales = remoto?.roles.map((r) => r.id) ?? [];
+          oficinaExterna = remoto?.oficinaIdExterna ?? null;
         } catch (error) {
+          // Se queda en null a propósito: no sabemos si existe.
           this.logger.warn(
             `No se pudo consultar a ${u.email} en el registro externo: ${
               error instanceof Error ? error.message : String(error)
@@ -231,13 +312,30 @@ export class RolesExternosService {
         existeEnExterno: existe,
         idExterno,
         rolesExternos: rolesActuales,
-        accion: !mapeo
-          ? 'MAPEAR_ROL'
-          : !existe
-            ? 'DAR_DE_ALTA'
-            : rolesCoinciden
-              ? 'NINGUNA'
-              : 'CORREGIR_ROLES',
+        enDirectorio,
+        habilitadoEnDirectorio,
+        oficinaExterna,
+        oficinaEsperada,
+        /*
+         * El orden importa: primero lo que impide operar bien, después lo que
+         * impide operar. Un operador que existe pero en otra oficina es peor
+         * que uno que no existe, porque parece que todo está en orden.
+         */
+        accion: enDirectorio === false
+          ? 'NO_EXISTE_EN_DIRECTORIO'
+          : existe === null
+            ? 'CORE_NO_DISPONIBLE'
+            : !oficinaEsperada
+              ? 'SIN_OFICINA'
+              : existe && oficinaExterna && oficinaExterna !== oficinaEsperada
+                ? 'OTRA_OFICINA'
+                : !mapeo
+                  ? 'MAPEAR_ROL'
+                  : !existe
+                    ? 'DAR_DE_ALTA'
+                    : rolesCoinciden
+                      ? 'NINGUNA'
+                      : 'CORREGIR_ROLES',
       });
     }
 
@@ -259,6 +357,13 @@ export class RolesExternosService {
     empresaId: string,
     rolesExternos: string[],
   ) {
+    /*
+     * Faltaba aquí y estaba en las tres hermanas (`crearRolesEspejo`,
+     * `aprovisionar`, `diagnostico`). Sin esto, una empresa con los dos ejes en
+     * APAGADO —que no contrató el core— creaba o modificaba el usuario de
+     * servicio en el registro externo: escritura en un sistema que no es suyo.
+     */
+    await this.exigirContratado(empresaId);
     if (rolesExternos.length === 0) {
       throw new NotFoundException(
         'Hay que indicar con qué roles del registro externo opera la cuenta de servicio.',
@@ -283,6 +388,17 @@ export class RolesExternosService {
     }
 
     const cfg = await this.configEmpresa.findOne({ where: { empresaId } });
+    /*
+     * La oficina no se inventa. Decía `?? '1'` —la Head Office—, el mismo
+     * atajo que ya se quitó de `aprovisionar` unas líneas más arriba: un valor
+     * por omisión que mezcla empresas no es un valor por omisión.
+     */
+    if (!cfg?.oficinaContableExterna) {
+      throw new NotFoundException(
+        'La empresa no tiene oficina asignada en el registro externo. ' +
+          'Configúrala antes de crear la cuenta de servicio.',
+      );
+    }
     const idExterno = await this.externos.crearUsuario({
       usuario,
       // El correo no se usa para nada: la autenticación va por el emisor de
@@ -290,7 +406,7 @@ export class RolesExternosService {
       email: `${usuario}@integracion.local`,
       nombre: 'SyncroERP',
       apellido: 'Integracion',
-      oficinaIdExterna: cfg?.oficinaContableExterna ?? '1',
+      oficinaIdExterna: cfg.oficinaContableExterna,
       rolesExternos,
     });
 
@@ -302,6 +418,7 @@ export class RolesExternosService {
    * si ya existe. Lo dispara una persona desde la pantalla de administración.
    */
   async aprovisionar(empresaId: string, usuarioId: string) {
+    await this.exigirContratado(empresaId);
     const usuario = await this.usuarios.findOne({
       where: { id: usuarioId, empresaId, activo: true },
     });
@@ -317,13 +434,94 @@ export class RolesExternosService {
       );
     }
 
+    /*
+     * La oficina no se adivina.
+     *
+     * Aquí decía `cfg?.oficinaContableExterna ?? '1'`, y el 1 de Fineract es la
+     * Head Office. Con una sola empresa no se nota; con dos, los operadores de
+     * la empresa que nadie configuró aterrizan en la misma oficina que los de
+     * la otra, y en el core la oficina es justamente lo que separa una cartera
+     * de otra. Un valor por omisión que mezcla empresas no es un valor por
+     * omisión: es un error silencioso.
+     */
     const cfg = await this.configEmpresa.findOne({ where: { empresaId } });
-    const oficina = cfg?.oficinaContableExterna ?? '1';
+    const oficina = cfg?.oficinaContableExterna ?? null;
+    if (!oficina) {
+      throw new ConflictException(
+        'Esta empresa no tiene configurada su oficina del registro externo. ' +
+          'Configúrala antes de dar de alta operadores: sin ella acabarían en la oficina de otra empresa.',
+      );
+    }
 
     const existente = await this.externos.buscarUsuario(usuario.email);
 
     if (existente) {
-      await this.externos.asignarRoles(existente.id, mapeo.rolesExternos);
+      /*
+       * Existe allá — pero ¿es de esta empresa? El padrón del core es único y
+       * la búsqueda es por nombre de usuario, así que sin esta comprobación una
+       * empresa podía adoptar al operador de otra: le reasignaba SUS roles y lo
+       * vinculaba a SU empresa, sobre la misma cuenta.
+       */
+      if (
+        existente.oficinaIdExterna &&
+        existente.oficinaIdExterna !== oficina
+      ) {
+        throw new ConflictException(
+          `Ya existe un operador "${usuario.email}" en el registro externo, pero en la oficina ` +
+            `${existente.oficinaIdExterna} y esta empresa opera en la ${oficina}. ` +
+            'No se toca: sería el operador de otra empresa.',
+        );
+      }
+
+      const otrasEmpresas = (
+        await this.vinculos.empresasConIdExterno(
+          TipoVinculo.USUARIO,
+          existente.id,
+        )
+      ).filter((id) => id !== empresaId);
+      if (otrasEmpresas.length > 0) {
+        throw new ConflictException(
+          'Ese operador del registro externo ya está vinculado a otra empresa del ERP.',
+        );
+      }
+
+      /*
+       * «Corregir roles» SUMA, no reemplaza. Y esto se escribe con una cicatriz.
+       *
+       * Antes se mandaba `asignarRoles(id, rolesDelMapeo)` y el PUT de Fineract
+       * REEMPLAZA la lista entera. Al pulsar el botón sobre un administrador
+       * que ya operaba bien, el core se quedó contestando «User has no
+       * authority to READ roles»: la corrección le quitó la autoridad que tenía.
+       *
+       * El ERP no sabe, ni puede saber, qué autoridad bancaria necesita alguien
+       * dentro del core —es el mismo motivo por el que los roles espejo nacen
+       * sin permisos—. Así que aquí solo se garantiza que estén los roles que el
+       * mapa promete; lo que alguien haya concedido allá se respeta. Quitar un
+       * rol en el core es una decisión de quien administra el core, y se hace
+       * allá, a propósito y a la vista.
+       */
+      const actuales = existente.roles.map((r) => String(r.id));
+      const union = Array.from(
+        new Set([...actuales, ...mapeo.rolesExternos.map(String)]),
+      );
+      const faltantes = union.filter((r) => !actuales.includes(r));
+
+      if (faltantes.length > 0) {
+        await this.externos.asignarRoles(existente.id, union);
+
+        // Comprobar que quedó como se pidió. Un PUT que responde 200 y deja al
+        // usuario sin roles es exactamente lo que pasó una vez.
+        const despues = await this.externos.buscarUsuario(usuario.email);
+        const quedaron = (despues?.roles ?? []).map((r) => String(r.id));
+        const perdidos = actuales.filter((r) => !quedaron.includes(r));
+        if (perdidos.length > 0) {
+          this.logger.error(
+            `El registro externo se quedó sin los roles ${perdidos.join(', ')} ` +
+              `de ${usuario.email} después de corregirlos. Revísalo allá.`,
+          );
+        }
+      }
+
       await this.vinculos.vincular({
         empresaId,
         tipo: TipoVinculo.USUARIO,
@@ -332,7 +530,11 @@ export class RolesExternosService {
         proveedor: this.externos.proveedor,
         estadoRemoto: 'ACTIVO',
       });
-      return { accion: 'ROLES_ACTUALIZADOS', idExterno: existente.id };
+      return {
+        accion: faltantes.length > 0 ? 'ROLES_ACTUALIZADOS' : 'YA_ESTABA',
+        idExterno: existente.id,
+        rolesAgregados: faltantes,
+      };
     }
 
     const partes = (usuario.nombreCompleto ?? usuario.email).trim().split(/\s+/);

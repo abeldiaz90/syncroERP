@@ -1,7 +1,8 @@
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
 
 export class MapearCuentaDto {
-  @IsUUID() cuentaContableId!: string;
+  @IsSqlServerGuid() cuentaContableId!: string;
 
   /** Identificador de la cuenta en el mayor externo. */
   @IsString() @MaxLength(120) idExterno!: string;

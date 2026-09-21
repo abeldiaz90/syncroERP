@@ -34,6 +34,11 @@ export class EstadoCuentaService {
     // 2. Cargos de crédito en el período. Se usa `montoTotal` del crédito y
     // no `ventas.total`: así no se vuelve a cobrar el enganche y también se
     // incluyen créditos independientes de una venta.
+    /*
+     * Los parámetros van con `$N`, no con `@N`: lo segundo es de SQL Server y en
+     * PostgreSQL `@` es valor absoluto. Con `hasta` puesto, el estado de cuenta
+     * de un cliente reventaba — y es el documento que se le manda al cliente.
+     */
     const ventasCredito = await this.dataSource.query(
       `
       -- Alias entrecomillados: sin comillas Postgres los pliega a minúsculas
@@ -44,7 +49,7 @@ export class EstadoCuentaService {
       WHERE cc.clienteId = $1 AND cc.empresaId = $2
         AND cc.estado != 'CANCELADO'
         ${desde ? 'AND cc.fechaInicio >= $3' : ''}
-        ${hasta ? `AND cc.fechaInicio <= @${desde ? 3 : 2}` : ''}
+        ${hasta ? `AND cc.fechaInicio <= $${desde ? 4 : 3}` : ''}
       ORDER BY cc.fechaInicio ASC
     `,
       [
@@ -59,12 +64,16 @@ export class EstadoCuentaService {
     const pagos = await this.dataSource.query(
       `
       SELECT pc.id, pc.fechaPago, pc.montoPagado, pc.metodoPago,
-             cc.folio AS creditoFolio
+             cc.folio AS "creditoFolio"
       FROM pagos_cobranza pc
       JOIN creditos_clientes cc ON cc.id = pc.creditoId
-      WHERE cc.clienteId = $1 AND cc.empresaId = $2
+      -- Un pago cancelado no es un abono. Al cancelarlo, el saldo del crédito
+      -- vuelve a subir, pero este documento —el que se le manda al cliente—
+      -- seguía mostrando el abono y un saldo menor, y cobranza dejaba de
+      -- perseguir esa deuda.
+      WHERE cc.clienteId = $1 AND cc.empresaId = $2 AND pc.cancelado = false
         ${desde ? 'AND pc.fechaPago >= $3' : ''}
-        ${hasta ? `AND pc.fechaPago <= @${desde ? 3 : 2}` : ''}
+        ${hasta ? `AND pc.fechaPago <= $${desde ? 4 : 3}` : ''}
       ORDER BY pc.fechaPago ASC
     `,
       [
@@ -88,13 +97,21 @@ export class EstadoCuentaService {
         COALESCE((
           SELECT SUM(pc2.montoPagado) FROM pagos_cobranza pc2
           JOIN creditos_clientes cc2 ON cc2.id = pc2.creditoId
-          WHERE cc2.clienteId = $1 AND cc2.empresaId = $2
+          -- Misma razón: el saldo anterior no descuenta pagos cancelados.
+          WHERE cc2.clienteId = $1 AND cc2.empresaId = $2 AND pc2.cancelado = false
             ${desde ? 'AND pc2.fechaPago < $3' : ''}
-        ), 0) AS saldoAnterior
+        ), 0) AS "saldoAnterior"
     `,
       [clienteId, empresaId, ...(desde ? [desde] : [])],
     );
 
+    /*
+     * El alias va entrecomillado en la consulta. Sin comillas, PostgreSQL lo
+     * pliega a `saldoanterior`, la lectura da undefined, `Number(undefined)`
+     * es NaN y `Math.max(0, NaN)` también: el saldo anterior y TODO el saldo
+     * corrido del estado de cuenta salían NaN. Un NaN se imprime como «NaN»
+     * en la pantalla, pero en una suma contamina en silencio.
+     */
     const saldoAnterior = Math.max(0, Number(saldoAnt?.saldoAnterior ?? 0));
 
     // 5. Construir movimientos y saldo corriente

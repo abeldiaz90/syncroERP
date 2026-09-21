@@ -1,17 +1,27 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import {
   CuentaContable,
   TipoCuenta,
 } from '../../finanzas/entities/cuenta-contable.entity';
-import { PUERTO_CONTABILIDAD_EXTERNA } from '../integracion.constants';
+import {
+  ModoContabilidad,
+  PUERTO_CONTABILIDAD_EXTERNA,
+} from '../integracion.constants';
 import {
   ClaseCuenta,
   PuertoContabilidadExterna,
 } from '../ports/contabilidad-externa.port';
 import { MapeoCuentaExterna } from '../entities/mapeo-cuenta-externa.entity';
 import { ErrorIntegracionExterna } from '../ports/cartera-externa.port';
+import { IntegracionModoService } from './integracion-modo.service';
 
 /**
  * Resuelve el catálogo del ERP contra el del mayor externo.
@@ -32,6 +42,7 @@ export class MapeoCuentasService {
     private readonly cuentas: Repository<CuentaContable>,
     @Inject(PUERTO_CONTABILIDAD_EXTERNA)
     private readonly externa: PuertoContabilidadExterna,
+    private readonly modos: IntegracionModoService,
   ) {}
 
   /**
@@ -72,9 +83,33 @@ export class MapeoCuentasService {
    * Lo dispara una persona. Crear cuentas en un mayor contable no es algo que
    * deba pasar solo.
    */
+  /** El catálogo de cuentas del mayor externo, tal como está hoy. */
+  async disponiblesEnElMayorExterno() {
+    if (!this.externa.configurado() || !this.externa.disponible()) {
+      throw new NotFoundException('El mayor contable externo no está disponible.');
+    }
+    return this.externa.cuentasDisponibles();
+  }
+
   async aprovisionar(
     empresaId: string,
-    opciones: { soloUsadas?: boolean; simular?: boolean } = {},
+    opciones: {
+      soloUsadas?: boolean;
+      simular?: boolean;
+      /*
+       * `usadas`    — las que ya detuvieron una póliza. Es el arreglo urgente.
+       * `previstas` — además, las que tienen un rol de sistema asignado y
+       *               fallarán la primera vez que se usen: bancos, IVA
+       *               trasladado, hospedaje. Esperar a que fallen es
+       *               descubrirlo el día del cobro.
+       * `todas`     — el catálogo ENTERO. Son decenas de cuentas y el mayor
+       *               externo es compartido entre inquilinos; crear allá un
+       *               catálogo completo que nadie va a usar lo ensucia para
+       *               todos y no hay operación inversa. Se conserva porque
+       *               existía, pero no es lo que casi nadie quiere.
+       */
+      alcance?: 'usadas' | 'previstas' | 'todas';
+    } = {},
   ) {
     if (!this.externa.configurado() || !this.externa.disponible()) {
       throw new NotFoundException(
@@ -82,7 +117,36 @@ export class MapeoCuentasService {
       );
     }
 
-    const faltantes = await this.pendientes(empresaId, opciones.soloUsadas !== false);
+    /*
+     * Que el proveedor esté disponible dice que SUMA lo tiene levantado, no que
+     * ESTA empresa lo haya contratado. Sin esta comprobación, una empresa con
+     * el eje contable en APAGADO creaba decenas de cuentas en el mayor
+     * compartido del core: no rompe nada visible, ensucia el catálogo de todos
+     * los inquilinos y no hay operación inversa.
+     */
+    if ((await this.modos.modoContabilidadDe(empresaId)) === ModoContabilidad.APAGADO) {
+      throw new ForbiddenException(
+        'Esta empresa no tiene contratado el espejo contable. ' +
+          'No se crean cuentas en el mayor externo de una empresa que no lo usa.',
+      );
+    }
+
+    const alcance =
+      opciones.alcance ?? (opciones.soloUsadas === false ? 'todas' : 'usadas');
+
+    let faltantes = await this.pendientes(empresaId, alcance !== 'todas');
+    if (alcance === 'previstas') {
+      const previstas = await this.previstas(empresaId);
+      const yaListadas = new Set(faltantes.map((c) => c.id));
+      const porId = new Map(
+        (await this.cuentas.find({ where: { empresaId } })).map((c) => [c.id, c]),
+      );
+      for (const p of previstas) {
+        if (yaListadas.has(p.id)) continue;
+        const cuenta = porId.get(p.id);
+        if (cuenta) faltantes = [...faltantes, cuenta];
+      }
+    }
     const creadas: Record<string, string>[] = [];
     const reutilizadas: Record<string, string>[] = [];
     const problemas: Record<string, string>[] = [];

@@ -11,9 +11,11 @@ import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { Roles } from '../../iam/decorators/roles.decorator';
 import {
   CrearFlujoDto,
+  EditarFlujoDto,
   EjecutarValidacionDto,
   SimularValidacionDto,
 } from './dto/flujo-validacion.dto';
+import { ConfigService } from '@nestjs/config';
 import { FlujosValidacionService } from './services/flujos-validacion.service';
 import { MotorValidacionService } from './services/motor-validacion.service';
 import { TIPOS_PASO_CONTRATABLES } from './validacion.constants';
@@ -27,6 +29,7 @@ import { TIPOS_PASO_CONTRATABLES } from './validacion.constants';
 @Controller('integracion/validacion')
 export class ValidacionController {
   constructor(
+    private readonly cfg: ConfigService,
     private readonly flujos: FlujosValidacionService,
     private readonly motor: MotorValidacionService,
   ) {}
@@ -96,7 +99,24 @@ export class ValidacionController {
     @ActiveUser('empresaId') empresaId: string,
     @ActiveUser('id') usuarioId: string,
   ) {
-    return this.flujos.crear(empresaId, { ...dto, usuarioId });
+    return this.flujos.crear(empresaId, {
+      ...dto,
+      usuarioId,
+      topeInstalacion: Number(this.cfg.get('CREDITO_TOPE_AUTOMATICO') ?? 0),
+    });
+  }
+
+  @Patch('flujos/:id')
+  @Roles('administrador', 'direccion')
+  editar(
+    @Param('id') id: string,
+    @Body() dto: EditarFlujoDto,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
+    return this.flujos.editar(id, empresaId, {
+      ...dto,
+      topeInstalacion: Number(this.cfg.get('CREDITO_TOPE_AUTOMATICO') ?? 0),
+    });
   }
 
   @Patch('flujos/:id/activar')
@@ -160,6 +180,20 @@ export class ValidacionController {
       simulacion: true,
       simulado: dto.simulado,
     });
+  }
+
+  /**
+   * El agregado de la empresa: cuánto se verifica, de qué y con qué resultado.
+   * Va antes que `expedientes/:id` porque Nest resuelve por orden y una ruta
+   * fija tiene que declararse antes que una con parámetro.
+   */
+  @Get('tablero')
+  @Roles('administrador', 'direccion', 'gerencia', 'cobranza')
+  tablero(
+    @ActiveUser('empresaId') empresaId: string,
+    @Query('dias') dias?: string,
+  ) {
+    return this.motor.tablero(empresaId, Number(dias ?? 90));
   }
 
   @Get('expedientes/:id')

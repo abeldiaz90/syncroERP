@@ -14,7 +14,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 import { OrigenMovimiento, TipoMovimiento } from '../entities/tesoreria.entity';
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
 
@@ -27,16 +27,16 @@ export class CrearMovimientoTesoreriaDto {
   @IsOptional() @IsEnum(OrigenMovimiento) origen?: OrigenMovimiento;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(100) referencia?: string;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(30) numeroCheque?: string;
-  @IsOptional() @IsSqlServerGuid() documentoId?: string;
+  @IsSqlServerGuidOpcional() documentoId?: string;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(50) tipoDocumento?: string;
-  @IsOptional() @IsSqlServerGuid() terceroId?: string;
+  @IsSqlServerGuidOpcional() terceroId?: string;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(200) nombreTercero?: string;
   /**
    * Cuenta contra la que se registra el movimiento en el mayor. Obligatoria
    * para altas manuales: el sistema no puede adivinar si un ingreso es una
    * aportación de capital, un préstamo o un cobro extraordinario.
    */
-  @IsOptional() @IsSqlServerGuid() cuentaContrapartidaId?: string;
+  @IsSqlServerGuidOpcional() cuentaContrapartidaId?: string;
 }
 export class CancelarMovimientoTesoreriaDto { @Transform(trim) @IsString() @MinLength(5) @MaxLength(500) motivo!: string; }
 export class TraspasoTesoreriaDto {

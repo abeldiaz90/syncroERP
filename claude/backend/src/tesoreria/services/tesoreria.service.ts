@@ -42,6 +42,7 @@ import { CuentaBancaria } from '../../credito/entities/cuenta-bancaria.entity';
 import { CrearMovimientoTesoreriaDto } from '../dto/tesoreria.dto';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
+import { exigirRangoDeFechas } from '../../common/utils/business-time.util';
 
 const aCent = (v: number | string) => Math.round(Number(v ?? 0) * 100);
 const aPesos = (c: number) => Math.round(c) / 100;
@@ -873,10 +874,11 @@ export class TesoreriaService {
     hasta: string,
     cuentaBancariaId?: string,
   ) {
+    const rango = exigirRangoDeFechas(desde, hasta);
     const movimientos = await this.movimientos.find({
       where: {
         empresaId,
-        fecha: Between(new Date(desde), new Date(hasta)),
+        fecha: Between(rango.desde, rango.hasta),
         cancelado: false,
         ...(cuentaBancariaId ? { cuentaBancariaId } : {}),
       },

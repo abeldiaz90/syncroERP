@@ -49,6 +49,32 @@ export class CarteraPublicadorService {
     );
   }
 
+  /**
+   * Corrección de los datos de identidad de un cliente ya dado de alta.
+   *
+   * La clave de idempotencia lleva la marca de tiempo a propósito: dos
+   * correcciones distintas del mismo cliente son dos hechos distintos, y con
+   * una clave fija la segunda se tomaría por repetición de la primera y se
+   * perdería en silencio. Es lo contrario del alta, donde repetir es el riesgo.
+   */
+  async clienteActualizado(
+    empresaId: string,
+    clienteId: string,
+    marca: string,
+    em?: EntityManager,
+  ): Promise<void> {
+    await this.emitir(
+      empresaId,
+      {
+        tipo: TipoEventoIntegracion.CLIENTE_ACTUALIZACION,
+        entidadId: clienteId,
+        claveIdempotencia: `cliente-actualizacion:${clienteId}:${marca}`,
+        carga: { clienteId },
+      },
+      em,
+    );
+  }
+
   /** Línea de crédito autorizada tras el flujo de aprobaciones. */
   async lineaAutorizada(
     empresaId: string,
@@ -210,10 +236,18 @@ export class CarteraPublicadorService {
           pagoId: datos.pagoId,
           creditoId: datos.creditoId,
           monto: datos.monto,
-          fechaPago:
-            datos.fechaPago instanceof Date
-              ? datos.fechaPago.toISOString().slice(0, 10)
-              : datos.fechaPago,
+          /*
+           * El día de negocio, no el de UTC.
+           *
+           * Este era el único de los seis eventos que publicaba la fecha con
+           * `toISOString()`, teniendo al lado el `dia()` que existe justamente
+           * para esto y que usan los otros cinco. El efecto: un cobro de las
+           * 19:30 del 30 de septiembre en México viajaba al core como
+           * 1 de octubre. Los saldos cuadraban y las fechas no, así que el
+           * corte de septiembre del ERP y el del core no coincidían — y en una
+           * conciliación por ventana de fechas ese pago aparece donde no es.
+           */
+          fechaPago: this.dia(datos.fechaPago),
           referencia: datos.referencia ?? null,
         },
       },

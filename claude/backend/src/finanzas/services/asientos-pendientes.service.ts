@@ -9,6 +9,7 @@ import {
   TipoAsiento,
 } from '../entities/asiento-pendiente.entity';
 import { MotorContableService } from './motor-contable.service';
+import { omitirTareaProgramada } from '../../common/utils/tareas-programadas.util';
 
 /**
  * ============================================================================
@@ -306,6 +307,16 @@ export class AsientosPendientesService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async procesarPendientes(): Promise<void> {
+    /*
+     * Respeta `CRONS_HABILITADOS` como todas las demás tareas programadas.
+     * Era la única sin el interruptor, y es la que más pesa: cada minuto
+     * escribe pólizas. Sin esto, levantar una segunda instancia o dejar
+     * corriendo una copia de desarrollo contra la misma base significa dos
+     * procesos generando asientos a la vez; y durante una ventana de
+     * mantenimiento no había forma de callarla.
+     */
+    if (omitirTareaProgramada('asientos-pendientes')) return;
+
     await this.liberarReclamosHuerfanos();
 
     const listos = await this.repo.find({

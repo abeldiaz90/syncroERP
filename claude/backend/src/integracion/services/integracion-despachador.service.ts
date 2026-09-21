@@ -28,6 +28,7 @@ import {
 import { IntegracionModoService } from './integracion-modo.service';
 import { IntegracionOutboxService } from './integracion-outbox.service';
 import { IntegracionVinculosService } from './integracion-vinculos.service';
+import { ContextoInquilinoService } from './contexto-inquilino.service';
 
 /*
  * Día de calendario, no instante. `toISOString()` sobre una fecha leída de una
@@ -51,12 +52,32 @@ const num = (valor: unknown): number => Number(valor ?? 0) || 0;
  * Este servicio es lo que se saca a un proceso aparte el día que convenga: sólo
  * necesita la tabla `integracion_eventos` y el puerto. El resto del ERP no cambia.
  */
+
+/**
+ * Una columna `date` de PostgreSQL llega como `Date` o como texto según el
+ * driver y la configuración. El core la quiere como `aaaa-mm-dd` y nada más.
+ *
+ * Se formatea con los componentes UTC a propósito: `toLocaleDateString` o los
+ * getters locales restarían un día para quien corra el servidor al oeste del
+ * meridiano, y una fecha de nacimiento corrida un día es un dato falso que
+ * nadie va a notar hasta que no cuadre con una identificación oficial.
+ */
+function fechaIso(valor: Date | string | null | undefined): string | null {
+  if (!valor) return null;
+  if (typeof valor === 'string') {
+    return /^\d{4}-\d{2}-\d{2}/.test(valor) ? valor.slice(0, 10) : null;
+  }
+  if (Number.isNaN(valor.getTime())) return null;
+  return valor.toISOString().slice(0, 10);
+}
+
 @Injectable()
 export class IntegracionDespachadorService {
   private readonly logger = new Logger(IntegracionDespachadorService.name);
   private despachando = false;
 
   constructor(
+    private readonly inquilinos: ContextoInquilinoService,
     private readonly outbox: IntegracionOutboxService,
     private readonly modos: IntegracionModoService,
     private readonly vinculos: IntegracionVinculosService,
@@ -91,6 +112,7 @@ export class IntegracionDespachadorService {
    */
   async despacharLote(
     limite = 50,
+    empresaId?: string,
   ): Promise<{ procesados: number; fallidos: number }> {
     const hayEnlace =
       (this.externa.configurado() && this.externa.disponible()) ||
@@ -105,7 +127,7 @@ export class IntegracionDespachadorService {
     let fallidos = 0;
 
     try {
-      for (const evento of await this.outbox.pendientes(limite)) {
+      for (const evento of await this.outbox.pendientes(limite, empresaId)) {
         try {
           if (!(await this.empresaAceptaEvento(evento))) {
             await this.outbox.marcarFallo(
@@ -116,7 +138,16 @@ export class IntegracionDespachadorService {
             );
             continue;
           }
-          const respuesta = await this.aplicar(evento);
+          /*
+           * El despachador no nace de una petición, así que aquí se abre el
+           * contexto: cada evento se aplica declarando de qué empresa es. Sin
+           * esto, el envío al core de una cola con eventos de varias empresas
+           * iría todo al inquilino global.
+           */
+          const respuesta = await this.inquilinos.ejecutarCon(
+            evento.empresaId,
+            () => this.aplicar(evento),
+          );
           await this.outbox.marcarEnviado(evento, respuesta);
           procesados += 1;
         } catch (error) {
@@ -444,9 +475,16 @@ export class IntegracionDespachadorService {
   ): Promise<Record<string, unknown> | null> {
     switch (evento.tipo) {
       case TipoEventoIntegracion.CLIENTE_ALTA:
-      case TipoEventoIntegracion.CLIENTE_ACTUALIZACION:
       case TipoEventoIntegracion.LINEA_AUTORIZADA:
         return { clienteIdExterno: await this.asegurarCliente(evento) };
+
+      /*
+       * La actualización iba al mismo sitio que el alta, y `asegurarCliente`
+       * devuelve el identificador sin tocar nada cuando el cliente ya existe:
+       * el evento se marcaba enviado y en el core no cambiaba una letra.
+       */
+      case TipoEventoIntegracion.CLIENTE_ACTUALIZACION:
+        return { clienteIdExterno: await this.actualizarCliente(evento) };
 
       case TipoEventoIntegracion.CREDITO_ORIGINADO:
       case TipoEventoIntegracion.CREDITO_DESEMBOLSADO:
@@ -484,9 +522,201 @@ export class IntegracionDespachadorService {
     }
   }
 
+  private async actualizarCliente(
+    evento: EventoIntegracion,
+  ): Promise<string | null> {
+    const clienteId = String(evento.carga.clienteId ?? evento.entidadId ?? '');
+    const cliente = await this.clientesRepo.findOne({
+      where: { id: clienteId, empresaId: evento.empresaId },
+    });
+    if (!cliente) {
+      throw new ErrorIntegracionExterna(
+        `El cliente ${clienteId} ya no existe en el ERP.`,
+        false,
+      );
+    }
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * Un cliente sin vínculo no se ignora: se replica
+     * ------------------------------------------------------------------------
+     * Antes esto llamaba directo a `actualizarCliente`, que devuelve `null`
+     * cuando no encuentra al cliente del otro lado. El evento se marcaba
+     * ENVIADO, no quedaba aviso, y la corrección simplemente no llegaba nunca.
+     * Desde fuera se veía exactamente como se ve un sistema que funciona, que
+     * es la forma más cara de fallar.
+     *
+     * Un cliente que el ERP editó y que allá no existe no es un caso raro que
+     * haya que tolerar: es un cliente que se quedó sin replicar. Se replica
+     * ahora —`replicarCliente` es idempotente y deja el vínculo— y así la
+     * siguiente corrección ya encuentra a quién aplicarse.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const vinculado = await this.vinculos.idExterno(
+      evento.empresaId,
+      TipoVinculo.CLIENTE,
+      cliente.id,
+    );
+
+    const aplicado = await this.externa.actualizarCliente({
+      empresaId: evento.empresaId,
+      clienteId: cliente.id,
+      nombre: cliente.razonSocial || cliente.nombre,
+      esPersonaMoral: cliente.tipoPersona === 'MORAL',
+      rfc: cliente.rfc,
+      email: cliente.email,
+      telefono: cliente.telefono,
+      fechaNacimiento: fechaIso(cliente.fechaNacimiento),
+      genero: cliente.genero,
+      idExterno: vinculado,
+    });
+
+    if (aplicado) {
+      this.logger.log(
+        `Cliente ${cliente.id} actualizado en el registro externo (${aplicado}).`,
+      );
+      await this.sincronizarExpediente(evento.empresaId, cliente.id, aplicado);
+      return aplicado;
+    }
+
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * Una corrección nunca crea
+     * ------------------------------------------------------------------------
+     * Aquí se llamaba a `replicarCliente` cuando no se encontraba a quién
+     * corregir, con el razonamiento de que un cliente sin replicar debía
+     * replicarse. Estaba mal, y el daño se vio de inmediato: un cliente que sí
+     * existía en el core pero sin vínculo —dado de alta a mano, o replicado
+     * antes de la convención de referencias— no se encontraba, y en lugar de
+     * corregir su nombre se creaba un segundo cliente con el nombre corregido.
+     * El expediente quedaba partido en dos, y en un core de cartera eso no se
+     * deshace: un cliente con historia no se borra.
+     *
+     * «Actualizar» y «dar de alta» son hechos distintos y el evento dice cuál
+     * es. Un CLIENTE_ACTUALIZACION que no encuentra destino no es un alta
+     * pendiente: es una discrepancia entre los dos sistemas, y la resuelve una
+     * persona vinculando al cliente correcto. Crear es la única salida que no
+     * tiene vuelta atrás, así que es la única que no se toma sola.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    throw new ErrorIntegracionExterna(
+      `El cliente ${cliente.nombre} (${cliente.id}) no está vinculado con ningún ` +
+        `cliente del registro externo, así que no hay a quién aplicarle la corrección. ` +
+        `No se da de alta automáticamente: si allá ya existe con otro nombre, se ` +
+        `crearía un duplicado imposible de deshacer. Vincúlalo con el cliente ` +
+        `correcto del core y vuelve a despachar este evento.`,
+      false,
+    );
+  }
+
+  /**
+   * ==========================================================================
+   * El expediente viaja con el cliente
+   * --------------------------------------------------------------------------
+   * RFC, CURP y domicilio se capturan en el ERP y hasta hoy no salían de ahí.
+   * Quien abría la ficha en el core para ir a cobrar no sabía dónde vive el
+   * cliente, aunque el ERP lo tuviera validado contra el catálogo de códigos postales.
+   *
+   * Se hace después de asegurar la ficha y nunca antes: los identificadores y
+   * el domicilio cuelgan del cliente, así que sin cliente no hay dónde ponerlos.
+   *
+   * No propaga excepciones. El alta del cliente es el hecho que el evento
+   * promete; que el catálogo de tipos de documento del core esté incompleto es
+   * un problema de configuración, y tumbar por eso una replicación que sí
+   * funcionó dejaría al cliente sin ficha por un dato accesorio. Lo que no se
+   * pudo aplicar queda en la bitácora con su razón.
+   * ==========================================================================
+   */
+  /**
+   * Traduce las identificaciones del ERP al vocabulario del catálogo del core.
+   *
+   * Se lee por SQL y no por el servicio de clientes a propósito: el despachador
+   * no debe depender del módulo de clientes, que a su vez depende de la
+   * integración. Ese ciclo de módulos ya existió una vez aquí.
+   */
+  private async identificacionesDe(
+    empresaId: string,
+    clienteId: string,
+  ): Promise<Array<{ etiqueta: string; folio: string }>> {
+    const ETIQUETAS: Record<string, string> = {
+      INE: 'Credencial para votar (INE)',
+      PASAPORTE: 'Pasaporte',
+      CEDULA_PROFESIONAL: 'Cédula profesional',
+      LICENCIA_CONDUCIR: 'Licencia de conducir',
+      COMPROBANTE_DOMICILIO: 'Comprobante de domicilio',
+    };
+    try {
+      const filas: Array<{ tipo: string; folio: string }> =
+        await this.clientesRepo.manager.query(
+          `SELECT tipo, folio FROM cliente_identificaciones
+            WHERE empresaid = $1 AND clienteid = $2 AND activo = true`,
+          [empresaId, clienteId],
+        );
+      return filas
+        .map((f) => ({ etiqueta: ETIQUETAS[f.tipo] ?? 'Otro documento', folio: f.folio }))
+        .filter((f) => Boolean(f.folio));
+    } catch {
+      // La tabla puede no existir todavía en una instalación sin migrar.
+      return [];
+    }
+  }
+
+  private async sincronizarExpediente(
+    empresaId: string,
+    clienteId: string,
+    idExterno: string | null,
+  ): Promise<void> {
+    try {
+      const cliente = await this.clientesRepo.findOne({
+        where: { id: clienteId, empresaId },
+      });
+      if (!cliente) return;
+
+      const resultado = await this.externa.sincronizarExpediente({
+        empresaId,
+        clienteId: cliente.id,
+        nombre: cliente.razonSocial || cliente.nombre,
+        esPersonaMoral: cliente.tipoPersona === 'MORAL',
+        rfc: cliente.rfc,
+        curp: cliente.curp,
+        email: cliente.email,
+        telefono: cliente.telefono,
+        fechaNacimiento: fechaIso(cliente.fechaNacimiento),
+        genero: cliente.genero,
+        identificaciones: await this.identificacionesDe(empresaId, cliente.id),
+        idExterno,
+        domicilio: {
+          calle: cliente.direccion,
+          colonia: cliente.colonia,
+          ciudad: cliente.ciudad,
+          estado: cliente.estado,
+          codigoPostal: cliente.codigoPostal,
+          pais: cliente.pais,
+        },
+      });
+
+      if (resultado.aplicados.length) {
+        this.logger.log(
+          `Expediente de ${cliente.nombre} sincronizado: ${resultado.aplicados.join(', ')}.`,
+        );
+      }
+      if (resultado.omitidos.length) {
+        this.logger.warn(
+          `Expediente de ${cliente.nombre}, sin aplicar: ${resultado.omitidos.join(' · ')}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo sincronizar el expediente del cliente ${clienteId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
   private async asegurarCliente(evento: EventoIntegracion): Promise<string> {
     const clienteId = String(evento.carga.clienteId ?? evento.entidadId ?? '');
     const idExterno = await this.replicarCliente(evento.empresaId, clienteId);
+    await this.sincronizarExpediente(evento.empresaId, clienteId, idExterno);
     return idExterno;
   }
 
@@ -517,8 +747,11 @@ export class IntegracionDespachadorService {
       nombre: cliente.razonSocial || cliente.nombre,
       esPersonaMoral: cliente.tipoPersona === 'MORAL',
       rfc: cliente.rfc ?? null,
+      curp: cliente.curp ?? null,
       email: cliente.email ?? null,
       telefono: cliente.telefono ?? null,
+      fechaNacimiento: fechaIso(cliente.fechaNacimiento),
+      genero: cliente.genero ?? null,
     });
 
     await this.vinculos.vincular({

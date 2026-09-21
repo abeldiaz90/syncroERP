@@ -11,6 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Public } from '../../common/decorators/public.decorator';
 import { AltaEmpresasService } from '../services/alta-empresas.service';
+import { IdentidadEmpresaService } from '../../iam/services/identidad-empresa.service';
 
 /**
  * ============================================================================
@@ -39,6 +40,7 @@ export class AltaEmpresasController {
   constructor(
     private readonly alta: AltaEmpresasService,
     private readonly cfg: ConfigService,
+    private readonly identidades: IdentidadEmpresaService,
   ) {}
 
   /**
@@ -165,6 +167,104 @@ export class AltaEmpresasController {
   ) {
     this.exigirServicio(clave);
     return this.alta.registrarEnReserva(cuerpo?.identificadores ?? []);
+  }
+
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * La identidad de la empresa · realm propio
+   * --------------------------------------------------------------------------
+   * Aquí la consola anota en qué directorio vive un cliente después de crearle
+   * su realm. Es lo que hace que el ERP pueda recibir a alguien de un realm que
+   * no conocía al arrancar, sin reiniciar y sin tocar ningún `.env`.
+   *
+   * Son DOS rutas y no una a propósito. Registrar deja la identidad en
+   * APROVISIONANDO —existe, pero no abre ninguna puerta—; activar es el paso que
+   * la enciende. Así un realm a medio armar no autentica a nadie, y quien
+   * enciende sabe que lo está encendiendo.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  @Public()
+  @Post(':empresaId/identidad')
+  async registrarIdentidad(
+    @Headers('x-aprovisionamiento') clave: string | undefined,
+    @Param('empresaId') empresaId: string,
+    @Body()
+    cuerpo: {
+      emisor?: string;
+      realm?: string;
+      clientIdPublico?: string;
+      clientIdServicio?: string;
+      secretoServicio?: string;
+      clientIdProvisionador?: string;
+      secretoProvisionador?: string;
+      dominiosPermitidos?: string;
+      solicitadoPor?: string;
+    },
+  ) {
+    this.exigirServicio(clave);
+    if (!cuerpo?.solicitadoPor?.trim()) {
+      throw new ForbiddenException(
+        'Falta indicar quién autoriza el registro de identidad (solicitadoPor).',
+      );
+    }
+    // Que la empresa exista se comprueba antes de escribir: una identidad
+    // huérfana no la reclama nadie y no se ve en ninguna pantalla.
+    await this.alta.estado(empresaId);
+    return this.identidades.registrar({
+      empresaId,
+      emisor: String(cuerpo?.emisor ?? ''),
+      realm: String(cuerpo?.realm ?? ''),
+      clientIdPublico: String(cuerpo?.clientIdPublico ?? ''),
+      clientIdServicio: cuerpo?.clientIdServicio ?? null,
+      secretoServicio: cuerpo?.secretoServicio ?? null,
+      clientIdProvisionador: cuerpo?.clientIdProvisionador ?? null,
+      secretoProvisionador: cuerpo?.secretoProvisionador ?? null,
+      dominiosPermitidos: cuerpo?.dominiosPermitidos ?? null,
+      aprovisionadoPor: cuerpo.solicitadoPor.trim(),
+    });
+  }
+
+  @Public()
+  @Post(':empresaId/identidad/activar')
+  async activarIdentidad(
+    @Headers('x-aprovisionamiento') clave: string | undefined,
+    @Param('empresaId') empresaId: string,
+    @Body() cuerpo: { solicitadoPor?: string },
+  ) {
+    this.exigirServicio(clave);
+    if (!cuerpo?.solicitadoPor?.trim()) {
+      throw new ForbiddenException(
+        'Falta indicar quién autoriza la activación (solicitadoPor).',
+      );
+    }
+    return this.identidades.activar(empresaId, cuerpo.solicitadoPor.trim());
+  }
+
+  @Public()
+  @Post(':empresaId/identidad/suspender')
+  async suspenderIdentidad(
+    @Headers('x-aprovisionamiento') clave: string | undefined,
+    @Param('empresaId') empresaId: string,
+    @Body() cuerpo: { solicitadoPor?: string },
+  ) {
+    this.exigirServicio(clave);
+    if (!cuerpo?.solicitadoPor?.trim()) {
+      throw new ForbiddenException(
+        'Falta indicar quién autoriza la suspensión (solicitadoPor).',
+      );
+    }
+    return this.identidades.suspender(empresaId, cuerpo.solicitadoPor.trim());
+  }
+
+  /** Qué identidad tiene una empresa. Nunca devuelve secretos. */
+  @Public()
+  @Get(':empresaId/identidad')
+  async verIdentidad(
+    @Headers('x-aprovisionamiento') clave: string | undefined,
+    @Param('empresaId') empresaId: string,
+  ) {
+    this.exigirServicio(clave);
+    return this.identidades.resumen(empresaId);
   }
 
   @Public()

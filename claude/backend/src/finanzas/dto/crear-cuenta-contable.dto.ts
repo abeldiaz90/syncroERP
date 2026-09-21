@@ -10,6 +10,7 @@ import {
   RolCuentaSistema,
   TipoCuenta,
 } from '../entities/cuenta-contable.entity';
+import { IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 
 export class CrearCuentaContableDto {
   @IsString()
@@ -30,8 +31,7 @@ export class CrearCuentaContableDto {
   @IsEnum(TipoCuenta)
   tipo!: TipoCuenta;
 
-  @IsString()
-  @IsOptional()
+  @IsSqlServerGuidOpcional()
   cuentaPadreId?: string;
 
   @IsBoolean()

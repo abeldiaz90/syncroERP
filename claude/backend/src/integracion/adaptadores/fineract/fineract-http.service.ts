@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { Agent } from 'node:https';
 import { FineractConfig } from './fineract.config';
 import { FineractAuthService } from './fineract-auth.service';
+import { ContextoInquilinoService } from '../../services/contexto-inquilino.service';
 
 export class ErrorFineract extends Error {
   constructor(
@@ -88,8 +89,50 @@ export class FineractHttpService {
   constructor(
     private readonly cfg: FineractConfig,
     private readonly auth: FineractAuthService,
+    private readonly inquilinos: ContextoInquilinoService,
   ) {
     this.agente = this.construirAgente();
+  }
+
+  /**
+   * De quién es esta llamada.
+   *
+   * Orden: lo que se pase explícitamente —tareas de mantenimiento que ya saben
+   * a qué inquilino van—, después la empresa del contexto, y al final el
+   * global. Con el interruptor encendido, el global deja de ser un destino
+   * posible para una operación de empresa.
+   */
+  private async inquilinoDeLaOperacion(explicito?: string): Promise<string> {
+    if (explicito) return explicito;
+
+    const empresaId = this.inquilinos.empresaActual;
+    const porEmpresa = this.inquilinos.porEmpresa;
+
+    if (!empresaId) {
+      if (porEmpresa) {
+        // Un proceso del sistema que no declaró empresa no puede escribir en
+        // ningún inquilino de cliente: no se sabe en cuál.
+        throw new Error(
+          'Esta operación no declaró a qué empresa pertenece, y con el inquilino ' +
+            'por empresa activo no se puede elegir uno. Es un defecto de programación: ' +
+            'falta abrir el contexto de empresa antes de llamar al core.',
+        );
+      }
+      return this.cfg.tenant;
+    }
+
+    const suyo = await this.inquilinos.inquilinoDe(empresaId);
+    if (suyo) return suyo;
+
+    if (porEmpresa) {
+      throw new Error(
+        `La empresa ${empresaId} no tiene inquilino asignado en el core. ` +
+          'Asígnale uno desde la consola de SUMA antes de operar: sin él, sus datos ' +
+          'acabarían mezclados con los de otro cliente.',
+      );
+    }
+
+    return this.cfg.tenant;
   }
 
   /**
@@ -188,6 +231,25 @@ export class FineractHttpService {
           ? cabeceraUsuario
           : await this.auth.cabeceraAutorizacion();
 
+      /*
+       * ────────────────────────────────────────────────────────────────────
+       * El inquilino: la frontera de verdad del core
+       * --------------------------------------------------------------------
+       * Éste es el único sitio por donde sale una llamada a Fineract, y por eso
+       * es donde se decide de quién es. Antes decía `opciones.tenant ??
+       * this.cfg.tenant`, y como casi nadie pasaba `tenant`, TODO iba al
+       * inquilino global: los créditos, los clientes y los asientos de todas
+       * las empresas en la misma base, separados sólo por oficina — que es
+       * justo lo que ya se vio fallar.
+       *
+       * Con `FINERACT_TENANT_POR_EMPRESA=true`, cada empresa opera en el suyo y
+       * la que no tenga asignado **no opera**: se detiene con un mensaje que
+       * dice qué falta. Detenerse es recuperable; escribir en la base de otro
+       * cliente no, porque un crédito con historia contable no se borra.
+       * ────────────────────────────────────────────────────────────────────
+       */
+      const inquilino = await this.inquilinoDeLaOperacion(opciones.tenant);
+
       const config: AxiosRequestConfig = {
         method: metodo,
         url: `${this.cfg.url}${ruta}`,
@@ -196,7 +258,7 @@ export class FineractHttpService {
         params: opciones.params,
         data: opciones.datos,
         headers: {
-          'Fineract-Platform-TenantId': opciones.tenant ?? this.cfg.tenant,
+          'Fineract-Platform-TenantId': inquilino,
           'Content-Type': 'application/json',
           Authorization: autorizacion,
         },

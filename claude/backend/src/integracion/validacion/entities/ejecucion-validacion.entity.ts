@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { EstadoEjecucion } from '../validacion.constants';
+import { decimalNumberTransformer } from '../../../common/database/decimal-number.transformer';
 
 /**
  * Una corrida del flujo sobre un cliente concreto.
@@ -27,11 +28,17 @@ export class EjecucionValidacion {
   @Column({ type: 'int' }) flujoVersion!: number;
   @Column({ type: 'varchar', length: 120 }) flujoNombre!: string;
 
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
-  limiteSolicitado!: string;
+  /*
+   * Decimal con transformador: sin él, PostgreSQL entrega la columna como
+   * CADENA y una suma se convierte en una concatenación silenciosa. Es la
+   * regla que vigila `coherencia.spec.ts`, y estas tres entidades eran las
+   * únicas que se habían quedado fuera.
+   */
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 , transformer: decimalNumberTransformer })
+  limiteSolicitado!: number;
 
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
-  limiteSugerido!: string;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 , transformer: decimalNumberTransformer })
+  limiteSugerido!: number;
 
   @Column({ type: 'int', default: 0 }) puntaje!: number;
 

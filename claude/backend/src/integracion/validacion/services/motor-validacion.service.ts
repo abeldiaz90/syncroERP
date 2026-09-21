@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Cliente } from '../../../clientes/entities/cliente.entity';
 import { TipoVinculo } from '../../integracion.constants';
 import { IntegracionVinculosService } from '../../services/integracion-vinculos.service';
@@ -304,8 +304,8 @@ export class MotorValidacionService {
         flujoId: flujo.id,
         flujoVersion: flujo.version,
         flujoNombre: flujo.nombre,
-        limiteSolicitado: String(entrada.limiteSolicitado),
-        limiteSugerido: String(veredicto.limiteSugerido),
+        limiteSolicitado: Number(entrada.limiteSolicitado),
+        limiteSugerido: Number(veredicto.limiteSugerido),
         puntaje: veredicto.puntaje,
         estado: veredicto.estado,
         motivos: veredicto.motivos,
@@ -345,6 +345,181 @@ export class MotorValidacionService {
       order: { orden: 'ASC' },
     });
     return { ejecucion, pasos };
+  }
+
+  /**
+   * ==========================================================================
+   * El expediente de la empresa, no el de un cliente
+   * --------------------------------------------------------------------------
+   * Hasta ahora las verificaciones sólo se podían mirar de una en una: abrir un
+   * cliente y ver sus corridas. Eso responde «¿a éste lo revisaron?» y no
+   * responde la pregunta que hace un comité de crédito o un auditor: **cuánto
+   * se está verificando, de qué, y con qué resultado**. Sin ese agregado, un
+   * control que lleva dos meses devolviendo NO_DISPONIBLE —porque nadie
+   * contrató al proveedor— no se nota hasta que alguien revisa cliente por
+   * cliente.
+   *
+   * Se cuenta por CONTROL y por RESULTADO, y se separan las simulaciones de las
+   * corridas reales. Mezclarlas inflaría la cifra con ensayos que no habilitan
+   * ninguna autorización, que es justo la confusión que este tablero existe
+   * para evitar.
+   * ==========================================================================
+   */
+  async tablero(empresaId: string, dias = 90) {
+    const ventana = Math.min(Math.max(Number(dias) || 90, 1), 730);
+    const desde = new Date(Date.now() - ventana * 24 * 60 * 60 * 1000);
+
+    const porEstado = await this.ejecuciones
+      .createQueryBuilder('e')
+      .select('e.estado', 'estado')
+      .addSelect('e.simulacion', 'simulacion')
+      .addSelect('COUNT(*)', 'total')
+      .where('e.empresaId = :empresaId', { empresaId })
+      .andWhere('e.fechaCreacion >= :desde', { desde })
+      .groupBy('e.estado')
+      .addGroupBy('e.simulacion')
+      .getRawMany<{ estado: string; simulacion: boolean; total: string }>();
+
+    /*
+     * Los pasos se filtran por la corrida a la que pertenecen, no por su propia
+     * fecha: un paso sin su corrida no se puede atribuir a una empresa, y
+     * `resultado_paso` no guarda `empresaId`.
+     */
+    const porControl = await this.resultados
+      .createQueryBuilder('r')
+      .innerJoin(EjecucionValidacion, 'e', 'e.id = r.ejecucionId')
+      .select('r.tipo', 'tipo')
+      .addSelect('r.resultado', 'resultado')
+      .addSelect('e.simulacion', 'simulacion')
+      .addSelect('COUNT(*)', 'total')
+      .addSelect('MAX(r.fechaCreacion)', 'ultima')
+      .where('e.empresaId = :empresaId', { empresaId })
+      .andWhere('e.fechaCreacion >= :desde', { desde })
+      .groupBy('r.tipo')
+      .addGroupBy('r.resultado')
+      .addGroupBy('e.simulacion')
+      .getRawMany<{
+        tipo: string;
+        resultado: string;
+        simulacion: boolean;
+        total: string;
+        ultima: Date | null;
+      }>();
+
+    const proveedores = await this.resultados
+      .createQueryBuilder('r')
+      .innerJoin(EjecucionValidacion, 'e', 'e.id = r.ejecucionId')
+      .select('r.tipo', 'tipo')
+      .addSelect('r.proveedor', 'proveedor')
+      .where('e.empresaId = :empresaId', { empresaId })
+      .andWhere('e.fechaCreacion >= :desde', { desde })
+      .andWhere('r.proveedor IS NOT NULL')
+      .groupBy('r.tipo')
+      .addGroupBy('r.proveedor')
+      .getRawMany<{ tipo: string; proveedor: string }>();
+
+    const recientes = await this.ejecuciones.find({
+      where: { empresaId },
+      order: { fechaCreacion: 'DESC' },
+      take: 12,
+    });
+    const nombres = new Map<string, string>();
+    if (recientes.length) {
+      const clientes = await this.clientes.find({
+        where: { empresaId, id: In([...new Set(recientes.map((r) => r.clienteId))]) },
+      });
+      for (const c of clientes) nombres.set(c.id, c.razonSocial || c.nombre);
+    }
+
+    const cubiertos = await this.ejecuciones
+      .createQueryBuilder('e')
+      .select('COUNT(DISTINCT e.clienteId)', 'total')
+      .where('e.empresaId = :empresaId', { empresaId })
+      .andWhere('e.simulacion = false')
+      .getRawOne<{ total: string }>();
+
+    const clientesTotales = await this.clientes.count({ where: { empresaId, activo: true } });
+
+    const numero = (v: unknown) => Number(v ?? 0);
+    const agregado = { reales: 0, simulaciones: 0 };
+    const estados: Record<string, number> = {};
+    for (const fila of porEstado) {
+      const total = numero(fila.total);
+      if (fila.simulacion) agregado.simulaciones += total;
+      else {
+        agregado.reales += total;
+        estados[fila.estado] = (estados[fila.estado] ?? 0) + total;
+      }
+    }
+
+    const controles = new Map<
+      string,
+      {
+        tipo: string;
+        corridasReales: number;
+        simulaciones: number;
+        porResultado: Record<string, number>;
+        ultima: string | null;
+        proveedores: string[];
+      }
+    >();
+    const asegurar = (tipo: string) => {
+      if (!controles.has(tipo)) {
+        controles.set(tipo, {
+          tipo,
+          corridasReales: 0,
+          simulaciones: 0,
+          porResultado: {},
+          ultima: null,
+          proveedores: [],
+        });
+      }
+      return controles.get(tipo)!;
+    };
+    for (const fila of porControl) {
+      const c = asegurar(fila.tipo);
+      const total = numero(fila.total);
+      if (fila.simulacion) c.simulaciones += total;
+      else {
+        c.corridasReales += total;
+        c.porResultado[fila.resultado] = (c.porResultado[fila.resultado] ?? 0) + total;
+      }
+      const cuando = fila.ultima ? new Date(fila.ultima).toISOString() : null;
+      if (cuando && (!c.ultima || cuando > c.ultima)) c.ultima = cuando;
+    }
+    for (const fila of proveedores) {
+      const c = asegurar(fila.tipo);
+      if (fila.proveedor && fila.proveedor !== 'ninguno' && !c.proveedores.includes(fila.proveedor)) {
+        c.proveedores.push(fila.proveedor);
+      }
+    }
+
+    return {
+      ventanaDias: ventana,
+      desde: desde.toISOString(),
+      corridas: {
+        reales: agregado.reales,
+        simulaciones: agregado.simulaciones,
+        porEstado: estados,
+      },
+      controles: [...controles.values()].sort((a, b) => b.corridasReales - a.corridasReales),
+      cobertura: {
+        clientesActivos: clientesTotales,
+        conVerificacionReal: numero(cubiertos?.total),
+        sinVerificacion: Math.max(0, clientesTotales - numero(cubiertos?.total)),
+      },
+      recientes: recientes.map((r) => ({
+        id: r.id,
+        fecha: r.fechaCreacion,
+        clienteId: r.clienteId,
+        cliente: nombres.get(r.clienteId) ?? 'Cliente dado de baja',
+        flujoNombre: r.flujoNombre,
+        estado: r.estado,
+        puntaje: r.puntaje,
+        limiteSolicitado: r.limiteSolicitado,
+        simulacion: r.simulacion,
+      })),
+    };
   }
 
   async historial(empresaId: string, clienteId: string) {

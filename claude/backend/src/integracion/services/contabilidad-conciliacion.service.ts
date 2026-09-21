@@ -57,6 +57,17 @@ export class ContabilidadConciliacionService {
     const mappings = await this.mapeos.find({ where: { empresaId, proveedor: this.externa.proveedor, activo: true } });
     const cuentas = new Map(mappings.map(m => [m.cuentaContableId, m.idExterno]));
     const hallazgos: HallazgoContable[] = [];
+    /*
+     * Los asientos que esta corrida SÍ alcanzó a leer.
+     *
+     * «No se pudo leer» casi siempre es transitorio —el core reiniciándose, el
+     * circuito abierto tras unos timeouts— y el aviso que deja describe ese
+     * instante, no un problema de la póliza. Sin nadie que los cierre, cada
+     * caída deja su sedimento: ayer había diecinueve de éstos, todos de fallas
+     * ya resueltas, y entre ellos se perdía el único aviso real. La bandeja
+     * deja de leerse cuando la mayoría de lo que hay en ella ya no es cierto.
+     */
+    const leidos: { polizaId: string; asientoId: string }[] = [];
     let revisados = 0;
     for (const link of links) {
       const poliza = await this.polizas.findOne({ where: { id: link.entidadId, empresaId }, relations: ['partidas'] });
@@ -67,6 +78,8 @@ export class ContabilidadConciliacionService {
       revisados++;
       try {
         const remoto = await this.externa.consultarAsiento(link.idExterno, cfg.oficinaContableExterna);
+        // Se respondió: la lectura funcionó, diga lo que diga el contenido.
+        leidos.push({ polizaId: link.entidadId, asientoId: link.idExterno });
         if (!remoto) { agregar('ASIENTO_AUSENTE', 'El mayor externo no devuelve el asiento vinculado.'); continue; }
         if (remoto.reversado) agregar('REVERSA_EXTERNA', 'El asiento vinculado fue reversado directamente en el mayor externo. Revisar contra las pólizas ERP; no se aplicó ninguna corrección automática.');
         if (remoto.referencia !== `SYNCRO-${poliza.folio}` || remoto.moneda !== 'MXN') agregar('CABECERA_DIFERENTE', 'La referencia o moneda del asiento externo no coincide con la póliza enviada.');
@@ -92,11 +105,58 @@ export class ContabilidadConciliacionService {
           return a.cargo !== b.cargo || a.abono !== b.abono;
         });
         if (distintas) agregar('PARTIDAS_DIFERENTES', 'Las cuentas, cargos o abonos no coinciden con la póliza ERP al centavo.');
-      } catch {
-        agregar('CONSULTA_FALLIDA', 'No se pudo leer íntegramente el asiento externo. No se supone saldo cero ni coincidencia.');
+      } catch (error) {
+        /*
+         * La causa va en el aviso.
+         *
+         * Antes este `catch` no recibía el error: el aviso decía «no se pudo
+         * leer» y nada más, y con veinte pólizas en ese estado no había por
+         * dónde empezar —¿el asiento no existe, la oficina está mal, el core
+         * no contesta, la respuesta viene incompleta?—. Cada una de esas
+         * causas se atiende distinto, y ninguna se adivina desde la pantalla.
+         */
+        const causa = error instanceof Error ? error.message : String(error);
+        agregar(
+          'CONSULTA_FALLIDA',
+          `No se pudo leer íntegramente el asiento externo (${causa}). No se supone saldo cero ni coincidencia.`,
+        );
       }
     }
     if (guardarAvisos) {
+      /*
+       * Primero se cierra, después se abre.
+       *
+       * Un aviso de lectura fallida sobre un asiento que esta corrida acaba de
+       * leer bien es un hecho que dejó de ser cierto, y dejarlo abierto es
+       * pedirle a una persona que revise algo que el sistema ya sabe resuelto.
+       * Sólo se cierran los de ESE código: un `PARTIDAS_DIFERENTES` o una
+       * `REVERSA_EXTERNA` siguen siendo verdad aunque la consulta funcione, y
+       * ésos no se tocan.
+       */
+      for (const leido of leidos) {
+        const huella = createHash('sha256')
+          .update(
+            JSON.stringify([
+              'conciliacion-contable',
+              empresaId,
+              this.externa.proveedor,
+              leido.polizaId,
+              leido.asientoId,
+              'CONSULTA_FALLIDA',
+            ]),
+          )
+          .digest('hex');
+        await this.avisos.update(
+          { huella, estado: EstadoAviso.PENDIENTE },
+          {
+            estado: EstadoAviso.PROCESADO,
+            resueltoEn: new Date(),
+            // Sin `resueltoPor`: no lo resolvió una persona.
+            resueltoPor: null,
+          },
+        );
+      }
+
       for (const h of hallazgos) {
         const huella = createHash('sha256').update(JSON.stringify(['conciliacion-contable', empresaId, this.externa.proveedor, h.polizaId, h.asientoId, h.codigo])).digest('hex');
         // Índice único existente: el cron y una ejecución manual no duplican el aviso.

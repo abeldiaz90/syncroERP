@@ -55,6 +55,18 @@ export class FineractUsuariosAdapter implements PuertoUsuariosExternos {
         id: String(r.id),
         nombre: r.name,
         descripcion: r.description ?? null,
+        /*
+         * Se reconoce por la descripción que les deja `crearRolesEspejo`:
+         * «… · Espejo del rol X de SyncroERP. Sin permisos: asignalos aqui.».
+         * La marca va al final, no al principio, porque delante se copia la
+         * descripción del rol del ERP — por eso no sirve `startsWith`.
+         *
+         * Preguntar por los permisos reales de cada rol costaría una llamada
+         * por rol y cientos de filas cada vez que alguien abre la pantalla.
+         */
+        creadoDesdeErp: /Espejo del rol .+ de SyncroERP|Creado desde SyncroERP/i.test(
+          String(r.description ?? ''),
+        ),
       }));
     } catch (error) {
       throw this.traducir(error);

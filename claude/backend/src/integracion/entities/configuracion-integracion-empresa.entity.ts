@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { ModoCartera, ModoContabilidad } from '../integracion.constants';
+import { decimalNumberTransformer } from '../../common/database/decimal-number.transformer';
 
 /**
  * Perfil de integración de cada empresa.
@@ -55,8 +56,14 @@ export class ConfiguracionIntegracionEmpresa {
    * registro externo no se considera discrepancia. El redondeo de cuotas
    * produce centavos de diferencia legítimos.
    */
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 1 })
-  toleranciaConciliacion!: string;
+  /*
+   * Decimal con transformador: sin él, PostgreSQL entrega la columna como
+   * CADENA y una suma se convierte en una concatenación silenciosa. Es la
+   * regla que vigila `coherencia.spec.ts`, y estas tres entidades eran las
+   * únicas que se habían quedado fuera.
+   */
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 1 , transformer: decimalNumberTransformer })
+  toleranciaConciliacion!: number;
 
   @CreateDateColumn() fechaCreacion!: Date;
   @UpdateDateColumn() fechaActualizacion!: Date;

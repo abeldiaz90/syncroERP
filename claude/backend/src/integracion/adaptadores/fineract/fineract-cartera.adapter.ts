@@ -20,12 +20,29 @@ import {
   ProyectarAmortizacionExterna,
   PuertoCarteraExterna,
   RegistrarPagoExterno,
+  ResultadoExpediente,
   ResumenCarteraCliente,
   SaldoCreditoExterno,
   RevertirPagoExterno,
   TransaccionCreditoExterna,
 } from '../../ports/cartera-externa.port';
 import { FineractConfig } from './fineract.config';
+
+/**
+ * Compara nombres de catálogo sin que un acento decida el resultado.
+ *
+ * Los valores del core los captura una persona —«Nuevo León», «NUEVO LEON»— y
+ * el estado del ERP viene de otra fuente. Comparar literalmente dejaría sin
+ * estado a la mitad de los domicilios por una tilde.
+ */
+function normalizar(valor: string): string {
+  return valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
 import { ErrorFineract, FineractHttpService } from './fineract-http.service';
 
 /** Códigos de Fineract que el adaptador necesita nombrar. */
@@ -179,9 +196,37 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     if (existente) return existente;
 
     const activacion = this.fecha(cliente.fechaAlta);
-    const oficina =
-      (await this.parametros(cliente.empresaId)).oficinaId ??
-      this.cfg.oficinaPorDefecto;
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * La oficina no tiene valor por omisión
+     * ------------------------------------------------------------------------
+     * Aquí decía `?? this.cfg.oficinaPorDefecto`, que es `FINERACT_OFICINA_ID
+     * ?? 1` — la Head Office. En Fineract la oficina es lo que separa las
+     * carteras, así que dos empresas sin oficina configurada replicaban TODOS
+     * sus clientes a la oficina 1, y sus operadores acababan viendo los
+     * clientes y los créditos de la otra. No se nota al replicar: se nota
+     * cuando alguien abre la lista de clientes del core y encuentra los de
+     * otro cliente de SUMA.
+     *
+     * Es la misma regla que ya se corrigió en el alta de usuarios
+     * (`roles-externos.service.ts`, «un valor por omisión que mezcla empresas
+     * no es un valor por omisión»). La replicación de clientes había conservado
+     * el atajo: una misma regla con dos comportamientos.
+     *
+     * Ahora se detiene. Un cliente que no se replicó deja un evento en rojo con
+     * este mensaje y se resuelve configurando la oficina; un cliente replicado
+     * a la oficina de otra empresa no se puede deshacer —Fineract no borra
+     * clientes con historia—.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const oficina = (await this.parametros(cliente.empresaId)).oficinaId;
+    if (!oficina) {
+      throw new Error(
+        'La empresa no tiene oficina asignada en el registro externo. ' +
+          'Configúrala antes de replicar clientes: sin oficina, la cartera de esta ' +
+          'empresa se mezclaría con la de otra en la misma oficina del core.',
+      );
+    }
 
     // legalFormId: 1 = persona física, 2 = persona moral.
     const cuerpo: Record<string, unknown> = {
@@ -205,6 +250,7 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     }
     if (cliente.email) cuerpo.emailAddress = cliente.email;
     if (cliente.telefono) cuerpo.mobileNo = cliente.telefono.slice(0, 50);
+    await this.agregarIdentidad(cuerpo, cliente);
 
     try {
       const respuesta = await this.http.post<{ clientId: number }>(
@@ -222,6 +268,340 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
       if (recuperado) return recuperado;
       throw this.traducir(error);
     }
+  }
+
+  /**
+   * Actualiza en el core los datos de identidad de un cliente ya replicado.
+   *
+   * Se mandan sólo los campos de identidad, nunca la oficina ni las fechas: la
+   * oficina es la frontera de la cartera y moverla desde aquí arrastraría al
+   * cliente —y su historia— a otra. Lo que este camino corrige es cómo se
+   * llama y cómo se le contacta, que es lo que el ERP considera suyo.
+   */
+  async actualizarCliente(cliente: ClienteExterno): Promise<string | null> {
+    const referencia = referenciaDe(TipoVinculo.CLIENTE, cliente.clienteId);
+    /*
+     * El vínculo que guardó el ERP manda sobre la búsqueda por `externalId`.
+     *
+     * La búsqueda sola dejaba fuera a todo cliente del core sin referencia
+     * —los dados de alta a mano, los replicados antes de la convención— y el
+     * resultado era el peor posible: la corrección se daba por hecha, el evento
+     * quedaba en verde y el nombre seguía distinto en cada sistema. Ahora la
+     * búsqueda es el respaldo, no la única vía.
+     */
+    const idExterno =
+      cliente.idExterno ??
+      (await this.buscarPorReferencia('clients', referencia));
+    if (!idExterno) return null;
+
+    const cuerpo: Record<string, unknown> = {
+      locale: this.cfg.localePorDefecto,
+      dateFormat: this.cfg.formatoFecha,
+    };
+    if (cliente.esPersonaMoral) {
+      cuerpo.fullname = cliente.nombre.slice(0, 100);
+    } else {
+      const partes = cliente.nombre.trim().split(/\s+/);
+      cuerpo.firstname = (partes.shift() ?? cliente.nombre).slice(0, 50);
+      cuerpo.lastname = (partes.join(' ') || '.').slice(0, 50);
+    }
+    if (cliente.email) cuerpo.emailAddress = cliente.email;
+    if (cliente.telefono) cuerpo.mobileNo = cliente.telefono.slice(0, 50);
+    await this.agregarIdentidad(cuerpo, cliente);
+
+    try {
+      await this.http.put(`/v1/clients/${encodeURIComponent(idExterno)}`, cuerpo);
+      return idExterno;
+    } catch (error) {
+      throw this.traducir(error);
+    }
+  }
+
+  /**
+   * ==========================================================================
+   * Identificadores y domicilio: lo que no cabe en la ficha del cliente
+   * --------------------------------------------------------------------------
+   * El ERP capturaba RFC, CURP y un domicilio completo —con colonia, municipio
+   * y código postal validados contra el catálogo de códigos postales— y nada de eso
+   * llegaba al core. Quien abría la ficha del cliente allá para ir a cobrar no
+   * sabía dónde vive. Los datos existían de un lado y no del otro, que es la
+   * forma más cara de tener dos sistemas.
+   *
+   * Tres decisiones de esta implementación:
+   *
+   *  · **Se resuelven los catálogos por nombre, no por id.** Los ids de los
+   *    valores de catálogo son de cada instalación; escribirlos en el código
+   *    haría que funcione aquí y falle en la siguiente institución.
+   *
+   *  · **Cada pieza se aplica o se omite por separado.** Que falte el tipo de
+   *    documento «CURP» en el catálogo no es razón para dejar al cliente sin
+   *    domicilio. Se devuelve qué se aplicó y qué no, y el despachador lo
+   *    registra: una omisión explicada se resuelve, una silenciosa no.
+   *
+   *  · **El domicilio se manda completo o no se manda.** Medio domicilio en un
+   *    core de cartera es peor que ninguno, porque la visita de cobranza sale
+   *    igual y llega a una dirección incompleta.
+   * ==========================================================================
+   */
+  async sincronizarExpediente(cliente: ClienteExterno): Promise<ResultadoExpediente> {
+    const aplicados: string[] = [];
+    const omitidos: string[] = [];
+
+    const referencia = referenciaDe(TipoVinculo.CLIENTE, cliente.clienteId);
+    const idExterno =
+      cliente.idExterno ??
+      (await this.buscarPorReferencia('clients', referencia));
+    if (!idExterno) {
+      return {
+        aplicados,
+        omitidos: ['El cliente todavía no está replicado en el registro externo.'],
+      };
+    }
+
+    // ── Identificadores oficiales ──────────────────────────────────────────
+    const documentos: Array<[string, string | null | undefined]> = [
+      ['RFC', cliente.rfc],
+      ['CURP', cliente.curp],
+      ...(cliente.identificaciones ?? []).map(
+        (i) => [i.etiqueta, i.folio] as [string, string],
+      ),
+    ];
+    const conValor = documentos.filter(([, valor]) => Boolean(valor?.trim()));
+    /*
+     * Todo lo que el ERP sabe mandar, tenga valor o no. Es el universo sobre el
+     * que puede decidir un retiro: fuera de él, el core manda.
+     */
+    const documentosAdministrados = [
+      'RFC',
+      'CURP',
+      'Credencial para votar (INE)',
+      'Pasaporte',
+      'Cédula profesional',
+      'Licencia de conducir',
+      'Comprobante de domicilio',
+    ];
+
+    if (conValor.length) {
+      const tipos = await this.tiposDeDocumento(idExterno);
+      const existentes = await this.http
+        .get<any[]>(`/v1/clients/${encodeURIComponent(idExterno)}/identifiers`)
+        .catch(() => [] as any[]);
+
+      for (const [etiqueta, valor] of conValor) {
+        const tipoId = tipos.get(etiqueta.toUpperCase());
+        if (!tipoId) {
+          omitidos.push(
+            `${etiqueta}: el catálogo «Customer Identifier» del core no tiene ese tipo de documento.`,
+          );
+          continue;
+        }
+        const clave = String(valor).trim().toUpperCase();
+        const ya = (existentes ?? []).find(
+          (i) => Number(i?.documentType?.id) === tipoId,
+        );
+        if (ya) {
+          if (String(ya.documentKey ?? '').toUpperCase() === clave) continue;
+          try {
+            await this.http.put(
+              `/v1/clients/${encodeURIComponent(idExterno)}/identifiers/${ya.id}`,
+              { documentTypeId: tipoId, documentKey: clave, status: 'Active' },
+            );
+            aplicados.push(`${etiqueta} corregido`);
+          } catch (error) {
+            omitidos.push(`${etiqueta}: ${this.traducir(error).message}`);
+          }
+          continue;
+        }
+        try {
+          await this.http.post(
+            `/v1/clients/${encodeURIComponent(idExterno)}/identifiers`,
+            { documentTypeId: tipoId, documentKey: clave, status: 'Active' },
+          );
+          aplicados.push(etiqueta);
+        } catch (error) {
+          omitidos.push(`${etiqueta}: ${this.traducir(error).message}`);
+        }
+      }
+    }
+
+    /*
+     * ── Lo retirado también se retira allá ─────────────────────────────────
+     * Sin esto, `sincronizarExpediente` sólo sabía agregar y corregir: un
+     * documento retirado del expediente en el ERP seguía vivo en el core, y los
+     * dos sistemas se separaban justo donde «espejo» tenía que sostenerse. Se
+     * comprobó en vivo: la INE retirada aquí seguía apareciendo allá.
+     *
+     * Se borran únicamente los tipos que el ERP administra y que ya no tiene
+     * activos. Queda fuera «Otro documento» a propósito: varios tipos del ERP
+     * —acta constitutiva, poder notarial, otro— caen en esa misma etiqueta del
+     * core, y ahí puede haber además algo capturado a mano. Borrar por una
+     * etiqueta ambigua es cómo se pierde el documento de alguien más.
+     */
+    const ADMINISTRADOS = new Set(
+      documentosAdministrados.filter((e) => e !== 'Otro documento'),
+    );
+    if (ADMINISTRADOS.size) {
+      const deseados = new Set(
+        conValor.map(([etiqueta, valor]) =>
+          `${etiqueta}|${String(valor).trim().toUpperCase()}`,
+        ),
+      );
+      const actuales = await this.http
+        .get<any[]>(`/v1/clients/${encodeURIComponent(idExterno)}/identifiers`)
+        .catch(() => [] as any[]);
+      for (const i of actuales ?? []) {
+        const etiqueta = String(i?.documentType?.name ?? '');
+        if (!ADMINISTRADOS.has(etiqueta)) continue;
+        const clave = `${etiqueta}|${String(i?.documentKey ?? '').toUpperCase()}`;
+        if (deseados.has(clave)) continue;
+        try {
+          await this.http.delete(
+            `/v1/clients/${encodeURIComponent(idExterno)}/identifiers/${i.id}`,
+          );
+          aplicados.push(`${etiqueta} retirado`);
+        } catch (error) {
+          omitidos.push(`${etiqueta} (retiro): ${this.traducir(error).message}`);
+        }
+      }
+    }
+
+    // ── Domicilio ──────────────────────────────────────────────────────────
+    const d = cliente.domicilio;
+    const tieneDomicilio = Boolean(
+      d && (d.calle || d.colonia) && d.ciudad && d.estado && d.codigoPostal,
+    );
+    if (d && !tieneDomicilio) {
+      omitidos.push(
+        'Domicilio: incompleto en el ERP (faltan calle o colonia, ciudad, estado o código postal). No se envía a medias.',
+      );
+    } else if (tieneDomicilio) {
+      const plantilla = await this.http
+        .get<any>(`/v1/client/addresses/template`)
+        .catch(() => null);
+      const buscar = (lista: any[] | undefined, texto: string | null | undefined) => {
+        if (!texto) return undefined;
+        const objetivo = normalizar(texto);
+        return (lista ?? []).find((o) => normalizar(String(o?.name ?? '')) === objetivo);
+      };
+      const tipo =
+        buscar(plantilla?.addressTypeIdOptions, 'Domicilio particular') ??
+        (plantilla?.addressTypeIdOptions ?? [])[0];
+      const pais = buscar(plantilla?.countryIdOptions, d!.pais ?? 'México');
+      const estado = buscar(plantilla?.stateProvinceIdOptions, d!.estado);
+
+      if (!tipo) {
+        omitidos.push('Domicilio: el catálogo ADDRESS_TYPE del core está vacío.');
+      } else if (!pais) {
+        omitidos.push(
+          `Domicilio: el país «${d!.pais ?? 'México'}» no está en el catálogo COUNTRY del core.`,
+        );
+      } else {
+        /*
+         * ── Dos detalles del contrato que cuestan un 400 cada uno ───────────
+         * El tipo de domicilio viaja SÓLO en el query (`?type=`). Mandarlo
+         * además en el cuerpo hace que Fineract responda «400: addressTypeId»,
+         * que es su manera de decir «ese parámetro no va aquí» y se lee como si
+         * faltara.
+         *
+         * Y `postalCode` es TEXTO. Convertirlo a número pierde los ceros a la
+         * izquierda, y la mitad de los códigos postales de la Ciudad de México
+         * empiezan con cero.
+         */
+        const cuerpo: Record<string, unknown> = {
+          countryId: pais.id,
+          ...(estado ? { stateProvinceId: estado.id } : {}),
+          addressLine1: (d!.calle ?? '').slice(0, 100) || undefined,
+          addressLine2: (d!.colonia ?? '').slice(0, 100) || undefined,
+          city: (d!.ciudad ?? '').slice(0, 100) || undefined,
+          postalCode: String(d!.codigoPostal ?? '').trim() || undefined,
+          isActive: true,
+        };
+
+        /*
+         * Un POST repetido crea un segundo domicilio, no reemplaza el primero.
+         * Se busca el que ya existe del mismo tipo y se corrige; sin esto,
+         * correr la carga dos veces dejaría al cliente con la misma dirección
+         * duplicada y nadie sabría cuál es la buena.
+         */
+        const existentes = await this.http
+          .get<any[]>(`/v1/client/${encodeURIComponent(idExterno)}/addresses`)
+          .catch(() => [] as any[]);
+        const mismoTipo = (existentes ?? []).find(
+          (a) =>
+            Number(a?.addressTypeId ?? a?.addressType?.id) === Number(tipo.id) ||
+            normalizar(String(a?.addressType ?? '')) === normalizar(String(tipo.name ?? '')),
+        );
+
+        try {
+          if (mismoTipo?.addressId ?? mismoTipo?.id) {
+            await this.http.put(
+              `/v1/client/${encodeURIComponent(idExterno)}/addresses?type=${tipo.id}`,
+              { ...cuerpo, addressId: Number(mismoTipo.addressId ?? mismoTipo.id) },
+            );
+            aplicados.push('Domicilio corregido');
+          } else {
+            await this.http.post(
+              `/v1/client/${encodeURIComponent(idExterno)}/addresses?type=${tipo.id}`,
+              cuerpo,
+            );
+            aplicados.push(
+              estado ? 'Domicilio' : 'Domicilio (sin estado: no está en el catálogo del core)',
+            );
+          }
+        } catch (error) {
+          omitidos.push(`Domicilio: ${this.traducir(error).message}`);
+        }
+      }
+    }
+
+    return { aplicados, omitidos };
+  }
+
+  /**
+   * Fecha de nacimiento y género, cuando el ERP los tiene.
+   *
+   * El género se resuelve contra el catálogo `Gender` del core por NOMBRE, no
+   * por id: los ids de valores de catálogo son de cada instalación. Si el
+   * catálogo está vacío —como estaba aquí hasta que se sembró— simplemente no
+   * se manda; el alta del cliente no puede depender de una tabla de apoyo.
+   */
+  private async agregarIdentidad(
+    cuerpo: Record<string, unknown>,
+    cliente: ClienteExterno,
+  ): Promise<void> {
+    if (cliente.fechaNacimiento && /^\d{4}-\d{2}-\d{2}$/.test(cliente.fechaNacimiento)) {
+      cuerpo.dateOfBirth = cliente.fechaNacimiento;
+    }
+    if (!cliente.genero) return;
+    const etiquetas: Record<string, string> = {
+      FEMENINO: 'Femenino',
+      MASCULINO: 'Masculino',
+      NO_ESPECIFICADO: 'No especificado',
+    };
+    const buscado = etiquetas[cliente.genero];
+    if (!buscado) return;
+    try {
+      const plantilla = await this.http.get<any>('/v1/clients/template');
+      const opcion = (plantilla?.genderOptions ?? []).find(
+        (o: any) => normalizar(String(o?.name ?? '')) === normalizar(buscado),
+      );
+      if (opcion?.id) cuerpo.genderId = Number(opcion.id);
+    } catch {
+      // El catálogo no respondió: el cliente se replica sin género.
+    }
+  }
+
+  /** Tipos de documento activos del core, indexados por nombre en mayúsculas. */
+  private async tiposDeDocumento(idExterno: string): Promise<Map<string, number>> {
+    const plantilla = await this.http
+      .get<any>(`/v1/clients/${encodeURIComponent(idExterno)}/identifiers/template`)
+      .catch(() => null);
+    const lista: any[] = plantilla?.allowedDocumentTypes ?? [];
+    return new Map(
+      lista
+        .filter((o) => o?.id != null && o?.name)
+        .map((o) => [String(o.name).toUpperCase(), Number(o.id)]),
+    );
   }
 
   // ── Créditos ─────────────────────────────────────────────────────────────

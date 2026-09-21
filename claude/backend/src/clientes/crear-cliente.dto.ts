@@ -6,9 +6,11 @@ import {
   IsIn,
   IsNumber,
   IsBoolean,
+  Matches,
   Min,
 } from 'class-validator';
-import { IsSqlServerGuid } from '../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuidOpcional } from '../common/validators/sql-server-guid.validator';
+import { IsEmailOpcional } from '../common/validators/email-opcional.validator';
 
 export class CrearClienteDto {
   @IsString()
@@ -31,8 +33,7 @@ export class CrearClienteDto {
   @IsString()
   razonSocial?: string;
 
-  @IsOptional()
-  @IsEmail()
+  @IsEmailOpcional()
   email?: string;
 
   @IsOptional()
@@ -42,6 +43,27 @@ export class CrearClienteDto {
   @IsOptional()
   @IsString()
   direccion?: string;
+
+  /*
+   * La fecha viaja como texto `aaaa-mm-dd`: es lo que manda un `<input
+   * type="date">` y lo que PostgreSQL guarda en una columna `date` sin
+   * interpretar husos horarios. Convertirla a `Date` aquí la movería un día
+   * para quien capture de noche al oeste del meridiano, que en México es todo
+   * el país.
+   */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'fechaNacimiento debe tener el formato aaaa-mm-dd',
+  })
+  fechaNacimiento?: string;
+
+  @IsOptional()
+  @IsIn(['FEMENINO', 'MASCULINO', 'NO_ESPECIFICADO'])
+  genero?: 'FEMENINO' | 'MASCULINO' | 'NO_ESPECIFICADO';
+
+  @IsOptional()
+  @IsString()
+  colonia?: string;
 
   @IsOptional()
   @IsString()
@@ -59,12 +81,10 @@ export class CrearClienteDto {
   @IsString()
   pais?: string;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   paisId?: string;
 
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   estadoId?: string;
 
   @IsOptional()

@@ -58,6 +58,23 @@ export class IntegracionVinculosService {
     return this.acceso(em).findOne({ where: { empresaId, tipo, idExterno } });
   }
 
+  /**
+   * Qué empresas tienen vinculada ya esa identidad externa.
+   *
+   * A diferencia de `porIdExterno`, esta NO filtra por empresa, y ése es el
+   * punto: sirve para detectar que dos empresas del ERP están apuntando a la
+   * misma entidad del core. Cuando eso pasa con un operador, las dos empresas
+   * están escribiendo en la misma cuenta del otro lado.
+   */
+  async empresasConIdExterno(
+    tipo: TipoVinculo,
+    idExterno: string,
+    em?: EntityManager,
+  ): Promise<string[]> {
+    const filas = await this.acceso(em).find({ where: { tipo, idExterno } });
+    return Array.from(new Set(filas.map((v) => v.empresaId)));
+  }
+
   /** Registra o actualiza la correspondencia. Idempotente. */
   async vincular(
     datos: {

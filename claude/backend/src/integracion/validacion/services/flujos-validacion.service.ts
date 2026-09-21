@@ -81,6 +81,14 @@ export class FlujosValidacionService {
       puntajeMinimo?: number;
       pasos: PasoEntrada[];
       usuarioId?: string | null;
+      /*
+       * El techo llegaba sólo en la edición. El comentario de `editar` decía
+       * «por la misma razón que al crearlo» y era falso: crear no lo aplicaba,
+       * así que el límite de la instalación se saltaba creando un flujo nuevo
+       * en lugar de corregir el existente. Un límite con esa puerta no es un
+       * límite.
+       */
+      topeInstalacion?: number;
     },
   ) {
     this.validarPasos(datos.pasos);
@@ -103,7 +111,10 @@ export class FlujosValidacionService {
           proposito: PropositoFlujo.ORIGINACION_CREDITO,
           activo: false,
           version: Number(ultima?.max ?? 0) + 1,
-          topeAutomatico: String(datos.topeAutomatico ?? 0),
+          topeAutomatico: this.topeValidado(
+            Number(datos.topeAutomatico ?? 0),
+            Number(datos.topeInstalacion ?? 0),
+          ),
           puntajeMinimo: datos.puntajeMinimo ?? 60,
           creadoPorId: datos.usuarioId ?? null,
         }),
@@ -129,7 +140,86 @@ export class FlujosValidacionService {
     });
   }
 
+  /**
+   * ==========================================================================
+   * El techo de la instalación se dice, no se aplica a escondidas
+   * --------------------------------------------------------------------------
+   * `CREDITO_TOPE_AUTOMATICO` limita cuánto puede autorizarse sin intervención
+   * humana. Antes esto se resolvía con `Math.min(solicitado, techo)` y producía
+   * el peor resultado posible con el valor por omisión (`0`): quien capturaba
+   * un tope de $10,000 lo veía guardarse como $0, sin mensaje. El flujo quedaba
+   * exigiendo autorización manual para todo y nadie sabía por qué.
+   *
+   * Recortar en silencio es aceptable cuando el usuario no puede saber el
+   * límite. Aquí sí puede, y el sistema lo conoce: entonces se dice. Un error
+   * explícito cuesta un intento; un tope en cero cuesta descubrirlo semanas
+   * después revisando por qué nada se autoriza solo.
+   * ==========================================================================
+   */
+  private topeValidado(solicitado: number, techo: number): number {
+    const valor = Number(solicitado);
+    if (!Number.isFinite(valor) || valor < 0) {
+      throw new BadRequestException('El tope de autorización automática debe ser un número no negativo.');
+    }
+    if (valor === 0) return 0;
+    if (techo <= 0) {
+      throw new BadRequestException(
+        'Esta instalación no permite autorización automática: CREDITO_TOPE_AUTOMATICO está en 0. ' +
+          'Deja el tope en 0 o pide que se configure el techo antes de asignar uno.',
+      );
+    }
+    if (valor > techo) {
+      throw new BadRequestException(
+        `El tope solicitado (${valor}) supera el techo de la instalación (${techo}). ` +
+          'Captura un valor igual o menor, o pide que se eleve CREDITO_TOPE_AUTOMATICO.',
+      );
+    }
+    return valor;
+  }
+
   /** Activa un flujo y desactiva el que estuviera vigente. */
+  /**
+   * Corrige la identificación y los umbrales de un flujo, sin tocar sus pasos.
+   *
+   * `topeAutomatico` se recorta contra el techo de la instalación por la misma
+   * razón que al crearlo: el valor de `.env` es un límite, no un valor por
+   * omisión que la empresa pueda superar editando.
+   */
+  async editar(
+    id: string,
+    empresaId: string,
+    datos: {
+      nombre?: string;
+      descripcion?: string;
+      topeAutomatico?: number;
+      puntajeMinimo?: number;
+      topeInstalacion?: number;
+    },
+  ) {
+    const flujo = await this.obtener(id, empresaId);
+
+    if (datos.nombre !== undefined) {
+      const nombre = datos.nombre.trim();
+      if (!nombre) throw new BadRequestException('El nombre del flujo no puede quedar vacío.');
+      flujo.nombre = nombre;
+    }
+    if (datos.descripcion !== undefined) {
+      flujo.descripcion = datos.descripcion.trim() || null;
+    }
+    if (datos.topeAutomatico !== undefined) {
+      flujo.topeAutomatico = this.topeValidado(
+        Number(datos.topeAutomatico),
+        Number(datos.topeInstalacion ?? 0),
+      );
+    }
+    if (datos.puntajeMinimo !== undefined) {
+      flujo.puntajeMinimo = Number(datos.puntajeMinimo);
+    }
+
+    const guardado = await this.flujos.save(flujo);
+    return { ...guardado, pasos: flujo.pasos };
+  }
+
   async activar(id: string, empresaId: string) {
     const flujo = await this.obtener(id, empresaId);
     if (flujo.pasos.length === 0) {

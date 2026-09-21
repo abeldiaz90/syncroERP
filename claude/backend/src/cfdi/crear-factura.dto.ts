@@ -9,11 +9,10 @@ import {
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { IsSqlServerGuid } from '../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../common/validators/sql-server-guid.validator';
 
 export class PartidaDto {
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   productoId?: string;
 
   @IsString()
@@ -62,13 +61,11 @@ export class PartidaDto {
 }
 
 export class CrearFacturaDto {
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   ventaId?: string;
 
   // ── RECEPTOR ──────────────────────────────────────────────────────
-  @IsOptional()
-  @IsSqlServerGuid()
+  @IsSqlServerGuidOpcional()
   clienteId?: string;
 
   @IsString()

@@ -13,6 +13,16 @@ export interface RolExterno {
   id: string;
   nombre: string;
   descripcion?: string | null;
+  /**
+   * Nació aquí, como rol espejo, y por tanto **sin un solo permiso**.
+   *
+   * Importa decirlo en voz alta: mapear un rol del ERP contra uno de éstos
+   * parece una decisión inofensiva y no lo es. Un operador al que se le asigna
+   * un rol vacío queda sin autoridad en el core aunque en la pantalla todo se
+   * vea correspondido. Pasó: una corrección de roles dejó a un administrador
+   * con «User has no authority to READ roles».
+   */
+  creadoDesdeErp?: boolean;
 }
 
 export interface UsuarioExterno {

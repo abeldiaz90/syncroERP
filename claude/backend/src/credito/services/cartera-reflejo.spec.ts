@@ -41,15 +41,17 @@ describe('Reflejo de transacciones externas', () => {
           opciones.cuenta === null ? {} : { cuentaCobranzaExternaId: opciones.cuenta ?? CUENTA },
       }),
     };
+    const avisos = { marcarReflejado: jest.fn().mockResolvedValue(0) };
     const service = new CarteraReflejoService(
       externa as any,
       modos as any,
       vinculos as any,
+      avisos as any,
       cobranza as any,
       creditos as any,
       configuraciones as any,
     );
-    return { service, externa, modos, vinculos, cobranza };
+    return { service, externa, modos, vinculos, cobranza, avisos };
   }
 
   it('aplica el pago externo por el servicio de cobranza y lo vincula', async () => {

@@ -12,7 +12,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 import { UnidadPlazo } from '../entities/producto-credito.entity';
 
 export class CrearProductoCreditoDto {
@@ -54,7 +54,7 @@ export class CrearProductoCreditoDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) orden?: number;
 
   /** Flujo de identidad, buró y política que hay que aprobar antes de otorgar. */
-  @IsOptional() @IsSqlServerGuid() flujoValidacionId?: string;
+  @IsSqlServerGuidOpcional() flujoValidacionId?: string;
 }
 
 export class ActualizarProductoCreditoDto {
@@ -71,5 +71,5 @@ export class ActualizarProductoCreditoDto {
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) montoMaximo?: number;
   @IsOptional() @IsString() @MaxLength(10) moneda?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) orden?: number;
-  @IsOptional() @IsSqlServerGuid() flujoValidacionId?: string;
+  @IsSqlServerGuidOpcional() flujoValidacionId?: string;
 }

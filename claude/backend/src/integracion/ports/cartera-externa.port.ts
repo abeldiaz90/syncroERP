@@ -19,6 +19,55 @@ export interface ClienteExterno {
   email?: string | null;
   telefono?: string | null;
   fechaAlta?: Date | string | null;
+  /**
+   * Identificador del cliente en el registro externo, cuando el ERP ya lo
+   * conoce por su tabla de vínculos.
+   *
+   * Existe porque buscar al cliente por su `externalId` no siempre lo
+   * encuentra: un cliente dado de alta a mano en el core, o replicado antes de
+   * que existiera la convención de referencias, no lo tiene. El vínculo que el
+   * ERP guardó al replicarlo sí es fiable, así que se prefiere y la búsqueda
+   * queda como respaldo.
+   */
+  idExterno?: string | null;
+
+  /** CURP, cuando el expediente la tiene. Viaja como identificador tipado. */
+  curp?: string | null;
+
+  /** `aaaa-mm-dd`. El core la modela desde siempre; el ERP la ganó después. */
+  fechaNacimiento?: string | null;
+
+  /** Se resuelve contra el catálogo `Gender` del core, por nombre. */
+  genero?: 'FEMENINO' | 'MASCULINO' | 'NO_ESPECIFICADO' | null;
+
+  /**
+   * Documentos del expediente: INE, pasaporte, comprobante de domicilio.
+   * Van con la etiqueta que usa el catálogo del core, no con el enum del ERP:
+   * traducir aquí evita que el adaptador conozca el vocabulario interno.
+   */
+  identificaciones?: Array<{ etiqueta: string; folio: string }> | null;
+
+  /**
+   * Domicilio del cliente, tal como lo captura el ERP.
+   *
+   * Viaja aparte del alta porque en Fineract el domicilio no es un campo del
+   * cliente sino un recurso propio, con su tipo y su catálogo de país y estado.
+   * Se manda completo o no se manda: medio domicilio en un core de cartera es
+   * peor que ninguno, porque una visita de cobranza sale igual.
+   */
+  domicilio?: {
+    calle?: string | null;
+    colonia?: string | null;
+    ciudad?: string | null;
+    estado?: string | null;
+    codigoPostal?: string | null;
+    pais?: string | null;
+  } | null;
+}
+
+export interface ResultadoExpediente {
+  aplicados: string[];
+  omitidos: string[];
 }
 
 export interface OriginarCreditoExterno {
@@ -253,6 +302,32 @@ export interface PuertoCarteraExterna {
   /** Crea el cliente si no existe. Idempotente. Devuelve su id externo. */
   asegurarCliente(cliente: ClienteExterno): Promise<string>;
 
+  /**
+   * Lleva al registro externo un cambio de los datos de identidad del cliente.
+   *
+   * `asegurarCliente` es idempotente por diseño: si encuentra al cliente por su
+   * referencia, devuelve su identificador y no toca nada. Eso es correcto para
+   * un alta, y es justo lo que hacía que una corrección de nombre no llegara
+   * nunca: el ERP decía «Jorge Alberto Cantú» y el core seguía mostrando el
+   * nombre con el que nació. Los dos sistemas se separaban en el campo que más
+   * se mira, y sin dejar rastro de la divergencia.
+   *
+   * Devuelve el identificador externo, o `null` si el cliente todavía no está
+   * replicado —en cuyo caso no hay nada que actualizar y tampoco es un error—.
+   */
+  actualizarCliente(cliente: ClienteExterno): Promise<string | null>;
+
+  /**
+   * Lleva al registro externo lo que no cabe en la ficha del cliente:
+   * identificadores oficiales (RFC, CURP) y domicilio.
+   *
+   * Existe como operación aparte porque en Fineract son recursos distintos,
+   * cada uno con su catálogo y su permiso. Devuelve lo que sí pudo escribir y
+   * lo que no, en vez de fallar entero: que falte el catálogo de un tipo de
+   * documento no es razón para dejar al cliente sin domicilio.
+   */
+  sincronizarExpediente(cliente: ClienteExterno): Promise<ResultadoExpediente>;
+
   /** Origina y desembolsa el crédito. Idempotente. Devuelve su id externo. */
   originarCredito(input: OriginarCreditoExterno): Promise<string>;
 
@@ -364,6 +439,14 @@ export class CarteraExternaNoConfigurada implements PuertoCarteraExterna {
       'No hay un registro externo de cartera configurado.',
       false,
     );
+  }
+
+  async sincronizarExpediente(): Promise<ResultadoExpediente> {
+    return { aplicados: [], omitidos: ['La integración no está configurada.'] };
+  }
+
+  async actualizarCliente(): Promise<string | null> {
+    return null;
   }
 
   async asegurarCliente(): Promise<string> {

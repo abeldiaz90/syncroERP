@@ -13,6 +13,7 @@ import { FineractUsuariosAdapter } from './fineract-usuarios.adapter';
 import { FineractAuthService } from './fineract-auth.service';
 import { FineractConfig } from './fineract.config';
 import { FineractHttpService } from './fineract-http.service';
+import { ContextoInquilinoService } from '../../services/contexto-inquilino.service';
 
 /**
  * Adaptador de Apache Fineract.
@@ -30,6 +31,7 @@ import { FineractHttpService } from './fineract-http.service';
     ]),
   ],
   providers: [
+    ContextoInquilinoService,
     FineractConfig,
     FineractAuthService,
     FineractHttpService,
@@ -41,6 +43,7 @@ import { FineractHttpService } from './fineract-http.service';
     { provide: PUERTO_USUARIOS_EXTERNOS, useClass: FineractUsuariosAdapter },
   ],
   exports: [
+    ContextoInquilinoService,
     PUERTO_CARTERA_EXTERNA,
     PUERTO_CONTABILIDAD_EXTERNA,
     PUERTO_USUARIOS_EXTERNOS,

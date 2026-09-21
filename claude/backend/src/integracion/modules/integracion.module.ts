@@ -1,3 +1,4 @@
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ContabilidadConciliacionService } from '../services/contabilidad-conciliacion.service';
 import { ContabilidadConciliacionController } from '../controllers/contabilidad-conciliacion.controller';
 import { Module } from '@nestjs/common';
@@ -44,11 +45,14 @@ import { DecisionCreditoService } from '../services/decision-credito.service';
 import { DisponibilidadCreditoService } from '../services/disponibilidad-credito.service';
 import { IntegracionDespachadorService } from '../services/integracion-despachador.service';
 import { IntegracionModoService } from '../services/integracion-modo.service';
+import { ContextoInquilinoService } from '../services/contexto-inquilino.service';
+import { ContextoInquilinoInterceptor } from '../interceptors/contexto-inquilino.interceptor';
 import { IntegracionOutboxService } from '../services/integracion-outbox.service';
 import { IntegracionVinculosService } from '../services/integracion-vinculos.service';
 import { SincronizacionInicialService } from '../services/sincronizacion-inicial.service';
 import { MapeoCuentasService } from '../services/mapeo-cuentas.service';
 import { RolesExternosService } from '../services/roles-externos.service';
+import { IamModule } from '../../iam/iam.module';
 import { PolizaEspejoSubscriber } from '../services/poliza-espejo.subscriber';
 
 // ── Flujos de validación previos al crédito ─────────────────────────────────
@@ -120,6 +124,9 @@ import { FineractAdapterModule } from '../adaptadores/fineract/fineract.module';
     ]),
     CommonModule,
     FineractAdapterModule,
+    // Por el servicio de directorio: el diagnóstico de identidad necesita
+    // saber si la persona existe también en Keycloak, no solo aquí y en el core.
+    IamModule,
   ],
   controllers: [
     ContabilidadConciliacionController,
@@ -129,6 +136,12 @@ import { FineractAdapterModule } from '../adaptadores/fineract/fineract.module';
     ValidacionController,
   ],
   providers: [
+    /*
+     * Global: abre el contexto de empresa en CADA petición autenticada, para
+     * que toda llamada al core sepa de quién es sin que nadie tenga que
+     * acordarse de pasarlo.
+     */
+    { provide: APP_INTERCEPTOR, useClass: ContextoInquilinoInterceptor },
     ContabilidadConciliacionService,
     AltaEmpresasService,
     AvisosIntegracionService,
@@ -194,6 +207,10 @@ import { FineractAdapterModule } from '../adaptadores/fineract/fineract.module';
     RolesExternosService,
     MotorValidacionService,
     FlujosValidacionService,
+    // El reflejo de cartera cierra el aviso que describe el movimiento que
+    // acaba de aplicar. Vive en el módulo de crédito porque necesita al
+    // servicio de cobranza; por eso el servicio de avisos se exporta.
+    AvisosIntegracionService,
   ],
 })
 export class IntegracionModule {}

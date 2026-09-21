@@ -823,6 +823,12 @@ export class CobranzaService {
       ])
       .where('pago.empresaId = :empresaId', { empresaId })
       .andWhere('pago.fechaPago = :dia', { dia })
+      /*
+       * Los pagos cancelados no entran al corte. Estaban entrando: un cobro
+       * mal capturado y cancelado el mismo día seguía sumando al total del
+       * corte, así que la caja "cuadraba" con dinero que nunca se recibió.
+       */
+      .andWhere('pago.cancelado = :cancelado', { cancelado: false })
       .orderBy('pago.fechaCreacion', 'ASC')
       .getRawMany();
   }

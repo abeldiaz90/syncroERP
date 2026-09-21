@@ -264,6 +264,19 @@ export class AltaEmpresasService {
      */
     const correoAdmin = datos.administrador?.correo.trim().toLowerCase() ?? '';
     if (correoAdmin) {
+      /*
+       * Que parezca un correo. Suena obvio hasta que alguien pega el ejemplo
+       * del instructivo en lugar del correo: en esta base quedó una empresa
+       * cuyo administrador es «el-correo-con-el-que-entras-al-erp», activa y
+       * con rol admin. Nadie puede entrar con eso —el directorio jamás va a
+       * emitir un token con ese correo— pero la fila se ve igual de sana que
+       * cualquier otra, y la empresa cuenta para el aislamiento.
+       */
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correoAdmin)) {
+        throw new BadRequestException(
+          `«${correoAdmin}» no es un correo. El administrador de la empresa se identifica con el mismo correo con el que entra al directorio.`,
+        );
+      }
       const yaEs = await this.usuarios
         .createQueryBuilder('usuario')
         .leftJoinAndSelect('usuario.empresa', 'empresa')
@@ -592,7 +605,10 @@ export class AltaEmpresasService {
     if (!empresa) throw new NotFoundException('Esa empresa no existe en el ERP.');
 
     const correo = datos.correo.trim().toLowerCase();
-    if (!correo.includes('@')) throw new BadRequestException('El correo no es válido.');
+    // La misma vara que en el alta: un «@» suelto no basta.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correo)) {
+      throw new BadRequestException(`«${correo}» no es un correo.`);
+    }
 
     const yaEs = await this.usuarios
       .createQueryBuilder('usuario')

@@ -229,12 +229,29 @@ export class AvisosIntegracionService {
             `El core confirma el pago ${vinculoPago.entidadId} que el ERP ya tiene registrado.`,
         };
       }
+      /*
+       * Un cobro nacido en el core no pide captura manual: lo aplica el
+       * reflejo de cartera, con la cuenta que la empresa designó para eso.
+       *
+       * Este texto decía «hay que capturarlo aquí con su cuenta de caja o
+       * banco», y era verdad cuando se escribió y dejó de serlo cuando entró
+       * el aplicador. El aviso se clasifica al recibirlo —segundos después del
+       * webhook— y el reflejo corre después, así que el operador leía una
+       * tarea que el sistema ya estaba haciendo por él. Pedir trabajo que no
+       * hace falta cuesta más credibilidad que no avisar.
+       *
+       * Queda PENDIENTE a propósito: es lo que hace que el aviso siga visible
+       * si el reflejo NO llega a aplicarlo. Al aplicarlo, el propio reflejo lo
+       * cierra y anota qué registró. Mientras está pendiente dice qué se
+       * espera que pase, no qué tiene que hacer alguien.
+       */
       return {
         estado: EstadoAviso.PENDIENTE,
         diagnostico:
-          `Se registró un cobro en el core sobre el crédito ${idExterno}. Si no salió del ERP, ` +
-          'hay que capturarlo aquí con su cuenta de caja o banco: el aviso no dice cuál, y ' +
-          'elegirla por omisión inventaría un movimiento de efectivo.',
+          `Cobro registrado en el core sobre el crédito ${idExterno}. El reflejo de cartera ` +
+          'lo aplicará en el ERP contra la cuenta designada para la cobranza nacida fuera; ' +
+          'este aviso se cierra solo cuando quede aplicado. Si sigue pendiente, es que no ' +
+          'se pudo: el motivo aparece aquí.',
       };
     }
 
@@ -310,6 +327,46 @@ export class AvisosIntegracionService {
     aviso.resueltoEn = new Date();
     if (nota) aviso.diagnostico = `${aviso.diagnostico ?? ''} · ${nota}`.slice(0, 500);
     return this.avisos.save(aviso);
+  }
+
+  /**
+   * Cierra los avisos que describen un movimiento que el ERP ya reflejó.
+   *
+   * Lo llama el reflejo de cartera al aplicar una transacción nacida fuera. Es
+   * la pieza que convierte la bandeja en bitácora: sin esto, cada cobro del
+   * core deja un pendiente que nadie tiene que atender —el sistema ya lo
+   * atendió— y la bandeja se llena de tareas falsas hasta que deja de leerse.
+   *
+   * Se busca por el identificador de la TRANSACCIÓN, no por el del crédito: un
+   * crédito recibe muchos cobros y cerrarlos todos porque se aplicó uno
+   * borraría de la vista los que sí quedaron sin reflejar.
+   *
+   * Devuelve cuántos cerró. Cero es normal: el cobro pudo nacer en el ERP, y
+   * entonces nunca hubo aviso que cerrar.
+   */
+  async marcarReflejado(
+    empresaId: string,
+    idTransaccionExterna: string,
+    detalle: string,
+  ): Promise<number> {
+    const candidatos = await this.avisos.find({
+      where: { empresaId, estado: EstadoAviso.PENDIENTE },
+      take: 500,
+    });
+    let cerrados = 0;
+    for (const aviso of candidatos) {
+      const cuerpo = this.comoObjeto(aviso.cuerpo);
+      if (this.idTransaccionDe(cuerpo) !== idTransaccionExterna) continue;
+      aviso.estado = EstadoAviso.PROCESADO;
+      aviso.resueltoEn = new Date();
+      // Sin `resueltoPor`: no lo resolvió una persona, y decir que sí
+      // atribuiría a alguien una decisión que no tomó.
+      aviso.resueltoPor = null;
+      aviso.diagnostico = `${aviso.diagnostico ?? ''} · ${detalle}`.slice(0, 500);
+      await this.avisos.save(aviso);
+      cerrados += 1;
+    }
+    return cerrados;
   }
 
   // ── Utilidades ────────────────────────────────────────────────────────────

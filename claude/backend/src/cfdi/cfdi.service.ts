@@ -32,6 +32,28 @@ type OpcionesCreacionCfdi = {
 
 @Injectable()
 export class CfdiService implements OnModuleInit {
+
+  /**
+   * La tasa de impuesto de una partida, tal como está guardada.
+   *
+   * `impuestoPorcentaje` se guarda en porcentaje (16) y el CFDI la quiere en
+   * proporción (0.160000). Si la partida no la trae —datos viejos—, se deduce
+   * de los importes: es el último recurso, no el camino normal.
+   */
+  private tasaDePartida(
+    detalle: { impuestoPorcentaje?: number | null; impuestoMonto?: number | null },
+    subtotal: number,
+  ): number {
+    const porcentaje = Number(detalle.impuestoPorcentaje ?? NaN);
+    if (Number.isFinite(porcentaje) && porcentaje >= 0) {
+      return Number((porcentaje / 100).toFixed(6));
+    }
+    if (subtotal > 0) {
+      return Number((Number(detalle.impuestoMonto ?? 0) / subtotal).toFixed(6));
+    }
+    return 0;
+  }
+
   private readonly logger = new Logger(CfdiService.name);
 
   constructor(
@@ -406,8 +428,23 @@ export class CfdiService implements OnModuleInit {
     const partidas = venta.detalles.map((detalle: DetalleVenta, indice) => {
       const producto = detalle.producto;
       if (!producto?.claveSAT || !producto?.claveUnidadSAT) {
+        /*
+         * Este error sale en caja, con el cliente enfrente, y decía sólo el
+         * número de partida: en un ticket de quince renglones había que
+         * contarlos para saber cuál era. Se nombra el producto y se dice qué
+         * falta y dónde se arregla, porque quien lo lee suele ser el cajero,
+         * no quien mantiene el catálogo.
+         */
+        const falta = [
+          !producto?.claveSAT ? 'la clave de producto' : null,
+          !producto?.claveUnidadSAT ? 'la clave de unidad' : null,
+        ]
+          .filter(Boolean)
+          .join(' y ');
         throw new BadRequestException(
-          `El producto de la partida ${indice + 1} no tiene clave SAT y unidad SAT completas.`,
+          `«${producto?.nombre ?? `Partida ${indice + 1}`}»${
+            producto?.sku ? ` (${producto.sku})` : ''
+          } no se puede facturar: le falta ${falta} del catálogo SAT. Se captura en la ficha del producto, en Costos y precios.`,
         );
       }
       const cantidad = Number(detalle.cantidad);
@@ -415,9 +452,23 @@ export class CfdiService implements OnModuleInit {
       const descuento = Number(detalle.descuento ?? 0);
       const bruto = subtotal + descuento;
       const precioUnitario = cantidad > 0 ? bruto / cantidad : 0;
-      const tasaIVA = subtotal > 0
-        ? Number(detalle.impuestoMonto ?? 0) / subtotal
-        : 0;
+      /*
+       * ──────────────────────────────────────────────────────────────────────
+       * La tasa se lee, no se deduce
+       * ----------------------------------------------------------------------
+       * Decía `impuestoMonto / subtotal`: reconstruía la tasa dividiendo dos
+       * importes YA REDONDEADOS a dos decimales. Sólo daba exactamente
+       * 0.160000 cuando el subtotal era múltiplo de $0.25.
+       *
+       * Una venta de $99.99: el impuesto guardado es 16.00 y la tasa deducida
+       * sale 0.160016. El catálogo `c_TasaOCuota` del CFDI 4.0 sólo admite
+       * 0.160000, así que el PAC rechaza el timbrado, la factura queda en
+       * ERROR_TIMBRADO y el cliente se va sin su factura.
+       *
+       * La tasa está guardada en la partida. Se usa esa.
+       * ──────────────────────────────────────────────────────────────────────
+       */
+      const tasaIVA = this.tasaDePartida(detalle, subtotal);
       return {
         productoId: detalle.productoId,
         claveSAT: producto.claveSAT,
@@ -526,15 +577,18 @@ export class CfdiService implements OnModuleInit {
           partidas: devolucion.detalles.map((detalle, indice) => {
             const producto = detalle.producto;
             if (!producto?.claveSAT || !producto?.claveUnidadSAT) {
+              // Mismo criterio que al facturar: se nombra el producto.
               throw new BadRequestException(
-                `El producto de la devolución, partida ${indice + 1}, no tiene claves SAT completas.`,
+                `«${producto?.nombre ?? `Partida ${indice + 1}`}»${
+                  producto?.sku ? ` (${producto.sku})` : ''
+                } no se puede facturar en la nota de crédito: le faltan claves del catálogo SAT.`,
               );
             }
             const cantidad = Number(detalle.cantidad);
             const subtotal = Number(detalle.subtotal);
-            const tasaIVA = subtotal > 0
-              ? Number(detalle.impuestoMonto ?? 0) / subtotal
-              : 0;
+            // Misma razón que arriba; en las notas de crédito es peor, porque
+            // los subtotales proporcionales traen cuatro decimales.
+            const tasaIVA = this.tasaDePartida(detalle, subtotal);
             return {
               productoId: detalle.productoId,
               claveSAT: producto.claveSAT,

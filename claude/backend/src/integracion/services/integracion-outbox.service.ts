@@ -69,14 +69,27 @@ export class IntegracionOutboxService {
   }
 
   /** Lote listo para despachar, en orden de creación. */
-  async pendientes(limite = 50): Promise<EventoIntegracion[]> {
+  /**
+   * Eventos listos para despachar.
+   *
+   * `empresaId` es opcional porque el despachador automático atiende a todas
+   * —es un proceso del sistema, no de un inquilino—. Pero cuando el despacho lo
+   * fuerza una persona desde una pantalla, hay que pasarlo: si no, el
+   * administrador de una empresa dispara el envío al core de los eventos
+   * pendientes de las demás, que sus responsables podían tener a propósito en
+   * espera (mapeo de cuentas sin terminar, por ejemplo).
+   */
+  async pendientes(limite = 50, empresaId?: string): Promise<EventoIntegracion[]> {
+    const deLaEmpresa = empresaId ? { empresaId } : {};
     return this.repo.find({
       where: [
         {
+          ...deLaEmpresa,
           estado: EstadoEventoIntegracion.PENDIENTE,
           proximoIntento: LessThanOrEqual(new Date()),
         },
         {
+          ...deLaEmpresa,
           estado: EstadoEventoIntegracion.REINTENTABLE,
           proximoIntento: LessThanOrEqual(new Date()),
         },

@@ -97,9 +97,39 @@ export class AvisosIntegracionController {
    * filtrarlos, y por eso quedan sólo para administración.
    */
   @Get('huerfanos')
-  @Roles('ADMIN')
+  @Roles('administrador')
   async huerfanos(@Query('limite') limite?: string) {
-    return { avisos: await this.avisos.listarHuerfanos(Number(limite ?? 100)) };
+    /*
+     * Se devuelve la FICHA, no el cuerpo del aviso.
+     *
+     * Un aviso queda huérfano precisamente cuando su identificador externo no
+     * se pudo atribuir a una empresa, o apunta a más de una. Es decir: cuando
+     * es probable que el cuerpo describa a un cliente, un crédito o un pago de
+     * OTRO inquilino. Entregar ese JSON crudo —nombres, montos, folios— al
+     * administrador de cualquier empresa es una fuga entre clientes, y no hace
+     * falta para lo que esta pantalla sirve: saber que existe algo en el core
+     * que el ERP no creó, y cuándo llegó.
+     *
+     * El contenido completo sigue en la base para SUMA, que es quien opera la
+     * integración y quien puede mirar entre inquilinos.
+     */
+    const avisos = await this.avisos.listarHuerfanos(Number(limite ?? 100));
+    return {
+      avisos: avisos.map((a) => ({
+        id: a.id,
+        proveedor: a.proveedor,
+        entidad: a.entidad,
+        accion: a.accion,
+        tenant: a.tenant,
+        idExterno: a.idExterno,
+        estado: a.estado,
+        recibidoEn: a.recibidoEn,
+        diagnostico: a.diagnostico,
+        error: a.error,
+        detalle:
+          'El contenido del aviso no se muestra aquí: un aviso sin empresa atribuida puede describir a un cliente de otro inquilino.',
+      })),
+    };
   }
 
 
@@ -114,7 +144,9 @@ export class AvisosIntegracionController {
   // ── Consulta y resolución, ya con sesión del ERP ──────────────────────────
 
   @Get()
-  @Roles('ADMIN', 'DIRECCION', 'CONTABILIDAD')
+  // `CONTABILIDAD` no es un rol del catálogo —el rol se llama `contador`—, así
+  // que al encender el guardia habría dejado fuera justo a quien conciliaba.
+  @Roles('administrador', 'direccion', 'contador')
   async listar(
     @ActiveUser('empresaId') empresaId: string,
     @Query('estado') estado?: EstadoAviso,
@@ -127,7 +159,9 @@ export class AvisosIntegracionController {
   }
 
   @Patch(':id/resolver')
-  @Roles('ADMIN', 'DIRECCION', 'CONTABILIDAD')
+  // `CONTABILIDAD` no es un rol del catálogo —el rol se llama `contador`—, así
+  // que al encender el guardia habría dejado fuera justo a quien conciliaba.
+  @Roles('administrador', 'direccion', 'contador')
   async resolver(
     @Param('id') id: string,
     @ActiveUser('empresaId') empresaId: string,

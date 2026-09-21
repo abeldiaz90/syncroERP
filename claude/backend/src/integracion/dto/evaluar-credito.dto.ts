@@ -2,12 +2,12 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
   Min,
 } from 'class-validator';
+import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
 
 export class EvaluarCreditoDto {
-  @IsUUID() clienteId!: string;
+  @IsSqlServerGuid() clienteId!: string;
 
   @IsNumber() @Min(0) limiteSolicitado!: number;
 

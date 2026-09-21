@@ -13,6 +13,13 @@ describe('ConciliacionFinancieraService', () => {
   const dataSource = {
     query: jest.fn(async (sql: string, parametros: unknown[]) => {
       if (sql.includes('OBJECT_ID')) return [{ existe: 1 }];
+      /*
+       * `COUNT_BIG` era de SQL Server; en PostgreSQL el servicio pregunta con
+       * `COUNT(*) registros`. Sin esta rama, las tres áreas que se apoyan en
+       * esa consulta —clientes, proveedores e inventario— se reportaban «sin
+       * evidencia», que es justo lo contrario de lo que esta prueba describe.
+       */
+      if (sql.includes('registros')) return [{ registros: 1 }];
       if (sql.includes('COUNT_BIG')) return [{ registros: 1 }];
       if (sql.includes('FROM partidas_poliza')) {
         return [
@@ -68,6 +75,13 @@ describe('ConciliacionFinancieraService', () => {
           },
         ];
       }
+      /*
+       * `to_regclass` es como el servicio pregunta en PostgreSQL si una tabla
+       * existe —antes era `OBJECT_ID`, de SQL Server— y el simulador no lo
+       * contemplaba, así que la prueba moría en la primera llamada. Se responde
+       * que sí existe, que es el caso que estas pruebas describen.
+       */
+      if (sql.includes('to_regclass')) return [{ existe: 1 }];
       throw new Error(`Consulta no simulada: ${sql} ${parametros}`);
     }),
   };

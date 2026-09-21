@@ -43,6 +43,37 @@ export class Cliente {
   @Column({ type: 'varchar', length: 200, nullable: true })
   direccion?: string;
 
+  /**
+   * ==========================================================================
+   * Fecha de nacimiento y género
+   * --------------------------------------------------------------------------
+   * Se agregaron para homologar con el registro externo, que los modela desde
+   * siempre y los pedía en vano. Pero no son sólo por simetría:
+   *
+   *  · La **fecha de nacimiento** es el segundo dato que cualquier verificación
+   *    de identidad coteja después del nombre. Sin ella, el flujo de validación
+   *    compara contra el proveedor con una mano atada.
+   *  · El **género** alimenta los reportes de inclusión financiera que a una
+   *    institución de este giro le van a pedir tarde o temprano.
+   *
+   * Ambos nullable: ningún expediente existente se invalida por no tenerlos, y
+   * un dato personal que no se capturó vale más vacío que inventado.
+   */
+  @Column({ type: 'date', nullable: true })
+  fechaNacimiento?: Date | string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  genero?: 'FEMENINO' | 'MASCULINO' | 'NO_ESPECIFICADO' | null;
+
+  /**
+   * Colonia o asentamiento. Se agregó junto con el catálogo de códigos
+   * postales: sin ella, el domicilio del cliente no alcanza para el domicilio
+   * fiscal de un CFDI, y la colonia acababa escrita dentro de `direccion`,
+   * donde ningún proceso puede leerla.
+   */
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  colonia?: string;
+
   @Column({ type: 'varchar', length: 100, nullable: true })
   ciudad?: string;
 

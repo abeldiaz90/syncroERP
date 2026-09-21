@@ -144,7 +144,12 @@ function crearArnes(opts?: {
       if (sql.includes('cierres_contables')) {
         return opts?.periodoCerrado ? [{ id: 'cierre-1' }] : [];
       }
-      if (sql.includes('SELECT TOP 1 folio')) return []; // primer folio del año
+      // `SELECT TOP 1` era de SQL Server; hoy es `ORDER BY folio DESC LIMIT 1`.
+      // Con el nombre viejo, esta rama no se tomaba y el simulador devolvía []
+      // por la rama final — funcionaba por casualidad, no por acierto.
+      if (sql.includes('folio FROM polizas') || sql.includes('SELECT TOP 1 folio')) {
+        return []; // primer folio del año
+      }
       if (sql.includes('cuentas_bancarias')) return [];
       if (sql.includes('polizas WHERE concepto')) return []; // anti-duplicado pago
       return [];
@@ -184,7 +189,17 @@ function crearArnes(opts?: {
       rollbackTransaction: jest.fn(),
       release: jest.fn(),
       query: jest.fn(async (sql: string) => {
-        if (sql.includes('sp_getapplock')) return [{ resultado: 0 }];
+        /*
+         * El candado de folio pasó de `sp_getapplock` (SQL Server) a
+         * `pg_advisory_xact_lock`. El simulador se quedó con el nombre viejo,
+         * así que el candado real devolvía `undefined`, el motor lo leía como
+         * -999 y **las doce pruebas del motor contable fallaban** con «no fue
+         * posible reservar el folio» — incluida la que comprueba que un período
+         * cerrado rechace el asiento, que pasaba por el motivo equivocado.
+         */
+        if (sql.includes('pg_advisory_xact_lock') || sql.includes('sp_getapplock')) {
+          return [{ resultado: 0 }];
+        }
         return dataSource.query(sql);
       }),
       manager,

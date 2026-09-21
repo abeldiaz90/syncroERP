@@ -1,5 +1,6 @@
 import { ContabilidadConciliacionService } from './contabilidad-conciliacion.service';
 import { TipoVinculo } from '../integracion.constants';
+import { EstadoAviso } from '../entities/aviso-integracion.entity';
 
 describe('Conciliación de pólizas vinculadas', () => {
   function escenario() {
@@ -10,7 +11,15 @@ describe('Conciliación de pólizas vinculadas', () => {
     const cfg = { findOne: jest.fn().mockResolvedValue({ oficinaContableExterna: '1' }) };
     const builder: any = {}; for (const key of ['insert', 'values', 'orIgnore']) builder[key] = jest.fn().mockReturnValue(builder);
     builder.execute = jest.fn().mockResolvedValue({});
-    const avisos = { createQueryBuilder: jest.fn().mockReturnValue(builder) };
+    /*
+     * `update` no estaba en el doble y el servicio sí lo usa para cerrar los
+     * avisos de lectura fallida que dejaron de ser ciertos. Un doble incompleto
+     * no reporta «falta esto»: reporta que el código está roto.
+     */
+    const avisos = {
+      createQueryBuilder: jest.fn().mockReturnValue(builder),
+      update: jest.fn().mockResolvedValue({ affected: 0 }),
+    };
     const service = new ContabilidadConciliacionService(externa as any, {} as any, links as any, polizas as any, mappings as any, cfg as any, avisos as any);
     return { service, externa, links, polizas, mappings, avisos, builder };
   }
@@ -28,6 +37,32 @@ describe('Conciliación de pólizas vinculadas', () => {
     await s.service.conciliarEmpresa('empresa', true);
     expect(s.builder.values.mock.calls[2][0].huella).toBe(primera); expect(s.builder.orIgnore).toHaveBeenCalled();
   });
+  it('cierra el aviso de lectura fallida cuando una corrida posterior sí lee el asiento', async () => {
+    const s = escenario();
+    // Primera corrida: el proveedor no responde y se levanta CONSULTA_FALLIDA.
+    s.externa.consultarAsiento.mockRejectedValue(new Error('timeout'));
+    await s.service.conciliarEmpresa('empresa', true);
+    const huellaDelFallo = s.builder.values.mock.calls[0][0].huella;
+
+    // Segunda corrida: el proveedor responde y el asiento coincide.
+    s.externa.consultarAsiento.mockResolvedValue({
+      referencia: 'SYNCRO-IN-1',
+      moneda: 'MXN',
+      reversado: false,
+      movimientos: [
+        { cuentaIdExterna: '2', cargo: 600, abono: 0 },
+        { cuentaIdExterna: '4', cargo: 0, abono: 600 },
+      ],
+    });
+    const r = await s.service.conciliarEmpresa('empresa', true);
+
+    expect(r.discrepancias).toBe(0);
+    expect(s.avisos.update).toHaveBeenCalledWith(
+      { huella: huellaDelFallo, estado: EstadoAviso.PENDIENTE },
+      expect.objectContaining({ estado: EstadoAviso.PROCESADO, resueltoPor: null }),
+    );
+  });
+
   it('no concilia pólizas históricas sin vínculo', async () => {
     const s = escenario(); s.links.find.mockResolvedValue([]);
     expect((await s.service.conciliarEmpresa('empresa')).revisados).toBe(0); expect(s.polizas.findOne).not.toHaveBeenCalled();

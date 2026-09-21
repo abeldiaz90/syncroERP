@@ -669,9 +669,31 @@ export class PolizasService {
 
     const resultados = await this.dataSource
       .createQueryBuilder()
+      /*
+       * ════════════════════════════════════════════════════════════════════
+       * Se entrecomilla el ALIAS DE SALIDA, nunca la columna
+       * --------------------------------------------------------------------
+       * Las dos mitades de esta línea se ven iguales y no lo son:
+       *
+       *   c.numeroCuenta   → lo traduce TypeORM con la estrategia de nombres,
+       *                      que pasa TODAS las columnas a minúsculas, así que
+       *                      acaba siendo `"c"."numerocuenta"`, que es la
+       *                      columna real.
+       *   AS "numeroCuenta" → es el nombre del resultado. Va entrecomillado
+       *                      porque sin comillas PostgreSQL lo pliega y
+       *                      `fila.numeroCuenta` llegaría undefined.
+       *
+       * Estaba entrecomillada también la columna —`c."numeroCuenta"`—, y eso
+       * le pedía a PostgreSQL una columna en camelCase que no existe: la
+       * consulta reventaba con un error de base de datos. Con ella se caían la
+       * balanza de comprobación, el estado de resultados y el balance general,
+       * los tres, y además el indicador «Por cobrar» del panel, que lee la
+       * misma consulta y se quedaba en blanco sin decir por qué.
+       * ════════════════════════════════════════════════════════════════════
+       */
       .select([
         'c.id AS id',
-        'c.numeroCuenta AS numeroCuenta',
+        'c.numeroCuenta AS "numeroCuenta"',
         'c.nombre AS nombre',
         'COALESCE(SUM(p.cargo), 0) AS cargos',
         'COALESCE(SUM(p.abono), 0) AS abonos',
@@ -711,6 +733,13 @@ export class PolizasService {
     fechaDesde?: string,
     fechaHasta?: string,
   ) {
+    /*
+     * `@N` era de SQL Server. En PostgreSQL el parámetro se escribe `$N` y `@`
+     * es el operador de valor absoluto, así que la consulta reventaba; y el
+     * índice además estaba corrido en uno. Resultado: la pantalla desde la que
+     * se prepara la declaración mensual del IVA fallaba en cuanto se acotaba el
+     * periodo — que es como se usa siempre.
+     */
     const movimientos = await this.dataSource.query(
       `
       SELECT cc.numeroCuenta, cc.nombre, cc.rolSistema,
@@ -725,7 +754,7 @@ export class PolizasService {
           'IVA_TRASLADADO_NO_COBRADO', 'IVA_ACREDITABLE_PENDIENTE'
         )
         ${fechaDesde ? 'AND p.fecha >= $2' : ''}
-        ${fechaHasta ? `AND p.fecha <= @${fechaDesde ? 2 : 1}` : ''}
+        ${fechaHasta ? `AND p.fecha <= $${fechaDesde ? 3 : 2}` : ''}
       ORDER BY p.fecha ASC
     `,
       [

@@ -9,6 +9,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 
 export enum MetodoPagoCobranza {
   EFECTIVO = 'EFECTIVO',
@@ -25,7 +26,7 @@ export class RegistrarPagoCobranzaDto {
   @IsString() @MinLength(1)
   creditoId!: string;
 
-  @IsString() @IsOptional()
+  @IsSqlServerGuidOpcional()
   cuotaId?: string;
 
   @Type(() => Number)
@@ -36,7 +37,7 @@ export class RegistrarPagoCobranzaDto {
   @IsEnum(MetodoPagoCobranza)
   metodoPago!: MetodoPagoCobranza;
 
-  @IsString() @IsOptional()
+  @IsSqlServerGuidOpcional()
   cuentaBancariaId?: string;
 
   @Transform(trim) @IsString() @IsOptional() @MaxLength(200)

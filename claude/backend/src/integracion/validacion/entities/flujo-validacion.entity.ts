@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { PropositoFlujo } from '../validacion.constants';
 import { PasoFlujoValidacion } from './paso-flujo-validacion.entity';
+import { decimalNumberTransformer } from '../../../common/database/decimal-number.transformer';
 
 /**
  * El flujo que diseñó el administrador de una empresa.
@@ -46,8 +47,14 @@ export class FlujoValidacion {
    * Techo que este flujo puede autorizar sin comité. Cero significa que todo
    * pasa por autorización humana, que es el valor seguro por omisión.
    */
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
-  topeAutomatico!: string;
+  /*
+   * Decimal con transformador: sin él, PostgreSQL entrega la columna como
+   * CADENA y una suma se convierte en una concatenación silenciosa. Es la
+   * regla que vigila `coherencia.spec.ts`, y estas tres entidades eran las
+   * únicas que se habían quedado fuera.
+   */
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 , transformer: decimalNumberTransformer })
+  topeAutomatico!: number;
 
   /** Puntaje mínimo para aprobar. Por debajo, revisión o rechazo. */
   @Column({ type: 'int', default: 60 }) puntajeMinimo!: number;

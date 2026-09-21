@@ -11,12 +11,15 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { Roles } from '../../iam/decorators/roles.decorator';
+import { SkipPermisos } from '../../iam/decorators/skip-permisos.decorator';
 import { Cliente } from '../../clientes/entities/cliente.entity';
 import {
+  EstadoEventoIntegracion,
   ModoCartera,
   ModoContabilidad,
   PUERTO_CONTABILIDAD_EXTERNA,
@@ -55,6 +58,7 @@ import { DisponibilidadCreditoService } from '../services/disponibilidad-credito
 @Controller('integracion')
 export class IntegracionController {
   constructor(
+    private readonly cfg: ConfigService,
     private readonly modos: IntegracionModoService,
     private readonly disponibilidad: DisponibilidadCreditoService,
     private readonly decision: DecisionCreditoService,
@@ -116,10 +120,27 @@ export class IntegracionController {
       const resultado = await this.modos.establecerModoCartera(
         empresaId,
         dto.modo,
-        async (id) => (await this.conciliacion.abiertas(id)).length,
+        {
+          discrepanciasAbiertas: async (id) =>
+            (await this.conciliacion.abiertas(id)).length,
+          eventosSinResolver: async (id) => {
+            /*
+             * Sin entregar es PENDIENTE, REINTENTABLE y FALLIDO. ENVIADO ya
+             * llegó y DESCARTADO alguien lo cerró a mano: ésos no estorban.
+             */
+            const resumen = await this.outbox.resumen(id);
+            return (
+              (resumen[EstadoEventoIntegracion.PENDIENTE] ?? 0) +
+              (resumen[EstadoEventoIntegracion.REINTENTABLE] ?? 0) +
+              (resumen[EstadoEventoIntegracion.FALLIDO] ?? 0)
+            );
+          },
+        },
       );
       if (!resultado.aplicado) {
-        throw new ConflictException(`No se puede pasar a AUTORIDAD: ${resultado.motivo}`);
+        throw new ConflictException(
+          `No se puede cambiar a ${dto.modo}: ${resultado.motivo}`,
+        );
       }
     }
 
@@ -150,7 +171,9 @@ export class IntegracionController {
     fila.parametrosProveedor = parametros;
 
     if (dto.toleranciaConciliacion !== undefined) {
-      fila.toleranciaConciliacion = String(dto.toleranciaConciliacion);
+      // La columna ya es numérica (lleva `decimalNumberTransformer`): guardar
+      // la cadena era lo que obligaba a un `Number(...)` en cada lectura.
+      fila.toleranciaConciliacion = Number(dto.toleranciaConciliacion);
     }
 
     const guardado = await this.configEmpresa.save(fila);
@@ -234,11 +257,31 @@ export class IntegracionController {
     @ActiveUser('empresaId') empresaId: string,
     @Query('simular') simular?: string,
     @Query('todas') todas?: string,
+    @Query('alcance') alcance?: string,
   ) {
+    const permitidos = ['usadas', 'previstas', 'todas'] as const;
+    if (alcance && !permitidos.includes(alcance as (typeof permitidos)[number])) {
+      throw new BadRequestException(
+        `alcance debe ser uno de: ${permitidos.join(', ')}.`,
+      );
+    }
     return this.mapeo.aprovisionar(empresaId, {
       simular: simular === '1',
-      soloUsadas: todas !== '1',
+      alcance:
+        (alcance as 'usadas' | 'previstas' | 'todas' | undefined) ??
+        (todas === '1' ? 'todas' : 'usadas'),
     });
+  }
+
+  /**
+   * El catálogo de cuentas del mayor externo, para poder mapear a mano contra
+   * algo concreto. Sin esto, la correspondencia se captura a ciegas: hay que
+   * ir al otro sistema, anotar el identificador y volver a teclearlo aquí.
+   */
+  @Get('cuentas/externas')
+  @Roles('administrador', 'direccion', 'contador')
+  cuentasExternas() {
+    return this.mapeo.disponiblesEnElMayorExterno();
   }
 
   @Post('cuentas/mapeo')
@@ -289,7 +332,23 @@ export class IntegracionController {
       rfc: cliente.rfc ?? null,
       curp: cliente.curp ?? null,
       limiteSolicitado: dto.limiteSolicitado,
-      topeAutomatico: dto.topeAutomatico,
+      /*
+       * El tope lo pone la instalación, no la petición.
+       *
+       * `topeAutomatico` es exactamente lo que decide entre APROBADO y
+       * REVISION_MANUAL. Venía en el cuerpo, así que quien pudiera llamar este
+       * endpoint pedía `limiteSolicitado: 3_000_000, topeAutomatico: 3_000_000`
+       * y obtenía una aprobación automática por ese monto, saltándose el comité.
+       *
+       * Ahora se acota con el techo configurado: lo que llega en el cuerpo sólo
+       * puede BAJARLO —pedir más revisión manual siempre está permitido—, nunca
+       * subirlo. Y sin techo configurado el tope es cero: todo a revisión, que
+       * es el estado seguro para algo que aprueba dinero.
+       */
+      topeAutomatico: Math.min(
+        Number(dto.topeAutomatico ?? 0),
+        Number(this.cfg.get<string>('CREDITO_TOPE_AUTOMATICO') ?? 0),
+      ),
       folioAutorizacionBuro: dto.folioAutorizacionBuro ?? null,
       clienteIdExterno: idExterno,
     });
@@ -329,12 +388,21 @@ export class IntegracionController {
 
   @Post('outbox/despachar')
   @Roles('administrador', 'direccion')
-  despachar(@Query('limite') limite?: string) {
+  despachar(
+    @ActiveUser('empresaId') empresaId: string,
+    @Query('limite') limite?: string,
+  ) {
     const n = Number(limite ?? 50);
     if (!Number.isFinite(n) || n < 1 || n > 500) {
       throw new BadRequestException('limite debe estar entre 1 y 500.');
     }
-    return this.despachador.despacharLote(n);
+    /*
+     * Se pasa la empresa. Era el único handler de este controlador que no la
+     * tomaba del token, y forzar el despacho enviaba al core hasta 500 eventos
+     * pendientes de TODAS las empresas: altas de cliente, originaciones y
+     * asientos de otros inquilinos, disparados por quien pulsó el botón.
+     */
+    return this.despachador.despacharLote(n, empresaId);
   }
 
   @Post('outbox/:id/reencolar')
@@ -349,12 +417,47 @@ export class IntegracionController {
     return { reencolado: true };
   }
 
+  /**
+   * Qué tiene contratado esta empresa. Barato y sin tocar el core.
+   *
+   * La interfaz lo necesita para no enseñar lo que no existe: el enlace al
+   * core, la pestaña de correspondencia de roles. `@SkipPermisos` porque lo
+   * consulta cualquier usuario al pintar el menú —no revela nada que quien
+   * trabaja en la empresa no vea igual— y porque si exigiera permiso, a un
+   * vendedor le daría 403 y la interfaz concluiría «no contratado» por el
+   * motivo equivocado.
+   *
+   * No se cachea en el navegador a propósito: el plan se cambia desde la
+   * consola de SUMA y tiene que notarse al recargar, no al día siguiente.
+   */
+  @SkipPermisos()
+  @Get('contratacion')
+  async contratacion(@ActiveUser('empresaId') empresaId: string) {
+    const perfil = await this.modos.perfilDe(empresaId);
+    return {
+      usaRegistroExterno: await this.modos.usaRegistroExterno(empresaId),
+      cartera: perfil.cartera,
+      contabilidad: perfil.contabilidad,
+    };
+  }
+
   // ── Coherencia de usuarios y roles ───────────────────────────────────────
 
   /** Roles del ERP y del registro externo, para armar el mapeo. */
   @Get('roles/catalogos')
   @Roles('administrador', 'direccion')
-  async catalogosRoles() {
+  async catalogosRoles(@ActiveUser('empresaId') empresaId: string) {
+    /*
+     * Para una empresa que solo usa el ERP esto no es «un catálogo vacío», es
+     * una pantalla que no le toca. Se devuelve `contratado: false` y ni se
+     * pregunta al core: preguntar por roles de un registro que no contrató
+     * sería, además de inútil, una llamada de red por cada visita.
+     */
+    const contratado = await this.modos.usaRegistroExterno(empresaId);
+    if (!contratado) {
+      return { contratado, erp: this.roles.rolesErp(), externos: [], error: null };
+    }
+
     let externos: unknown[] = [];
     let error: string | null = null;
     try {
@@ -362,7 +465,7 @@ export class IntegracionController {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
-    return { erp: this.roles.rolesErp(), externos, error };
+    return { contratado, erp: this.roles.rolesErp(), externos, error };
   }
 
   /**
