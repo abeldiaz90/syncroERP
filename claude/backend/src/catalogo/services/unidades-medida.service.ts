@@ -10,6 +10,7 @@ import { Repository } from 'typeorm';
 import { UnidadMedida } from '../entities/unidad-medida.entity';
 import { CrearUnidadMedidaDto } from '../dto/crear-unidad-medida.dto';
 import { UNIDADES_ESTANDAR } from '../data/unidades-estandar';
+import { esViolacionUnicidad } from '../../common/database/errores-sql';
 
 @Injectable()
 export class UnidadesMedidaService {
@@ -28,9 +29,7 @@ export class UnidadesMedidaService {
       return await this.unidadRepository.save(nueva);
     } catch (error: any) {
       if (
-        error.number === 2627 ||
-        error.number === 2601 ||
-        error.code === '23505'
+        esViolacionUnicidad(error)
       ) {
         throw new ConflictException('Ya existe una unidad con este nombre.');
       }
@@ -60,9 +59,7 @@ export class UnidadesMedidaService {
       return await this.unidadRepository.save(unidad);
     } catch (error: any) {
       if (
-        error.number === 2627 ||
-        error.number === 2601 ||
-        error.code === '23505'
+        esViolacionUnicidad(error)
       ) {
         throw new ConflictException('Ya existe otra unidad con este nombre.');
       }

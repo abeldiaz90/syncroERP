@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not } from 'typeorm';
 import { Marca } from '../entities/marca.entity';
+import { esViolacionUnicidad } from '../../common/database/errores-sql';
 
 @Injectable()
 export class MarcaService {
@@ -28,10 +29,15 @@ export class MarcaService {
     try {
       return await this.marcaRepo.save(marca);
     } catch (error: any) {
-      if (error.number === 2627 || error.number === 2601) {
+      if (esViolacionUnicidad(error)) {
         throw new ConflictException('Ya existe una marca con ese nombre.');
       }
-      throw new InternalServerErrorException('Error al crear la marca.');
+      /*
+       * Cualquier otro error se propaga tal cual. Convertirlo aquí en un 500
+       * genérico borraba la causa —una columna que se quedó corta, una llave
+       * foránea— y dejaba al filtro global sin nada que traducir.
+       */
+      throw error;
     }
   }
 

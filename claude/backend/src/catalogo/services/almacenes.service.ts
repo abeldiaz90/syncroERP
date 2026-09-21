@@ -7,6 +7,7 @@ import { Repository } from 'typeorm';
 import { Almacen } from '../entities/almacen.entity';
 import { StockPorAlmacen } from '../entities/stock-por-almacen.entity';
 import { CrearAlmacenDto } from '../dto/crear-almacen.dto';
+import { esViolacionUnicidad } from '../../common/database/errores-sql';
 
 @Injectable()
 export class AlmacenesService {
@@ -28,7 +29,7 @@ export class AlmacenesService {
     const nuevo = this.almacenRepository.create({ ...dto, nombre: dto.nombre.trim().replace(/\s+/g, ' '), empresaId });
     try { return await this.almacenRepository.save(nuevo); }
     catch (error: any) {
-      if (error.number === 2627 || error.number === 2601 || error.code === '23505')
+      if (esViolacionUnicidad(error))
         throw new ConflictException('Ya existe un almacén con ese nombre.');
       throw new InternalServerErrorException('Error al crear el almacén.');
     }

@@ -7,10 +7,12 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Categoria } from '../entities/categoria.entity';
+import { ActualizarCuentasCategoriaDto } from '../dto/actualizar-cuentas-categoria.dto';
 import { CrearCategoriaDto } from '../dto/crear-categoria.dto';
 // ⚠️ Ajusta la ruta si tu entidad de cuentas está en otra ubicación
 import { CuentaContable } from '../../finanzas/entities/cuenta-contable.entity';
 import { RolCuentaSistema } from '../../finanzas/entities/cuenta-contable.entity';
+import { esViolacionUnicidad } from '../../common/database/errores-sql';
 
 @Injectable()
 export class CategoriasService {
@@ -34,9 +36,7 @@ export class CategoriasService {
     } catch (error: any) {
       // El código 2627/2601 es específico de SQL Server
       if (
-        error.number === 2627 ||
-        error.number === 2601 ||
-        error.code === '23505'
+        esViolacionUnicidad(error)
       ) {
         throw new ConflictException(
           'Ya existe una categoría con este nombre en tu cuenta.',
@@ -82,9 +82,7 @@ export class CategoriasService {
       return await this.categoriaRepository.save(categoria);
     } catch (error: any) {
       if (
-        error.number === 2627 ||
-        error.number === 2601 ||
-        error.code === '23505'
+        esViolacionUnicidad(error)
       ) {
         throw new ConflictException(
           `Ya existe otra categoría con el nombre '${dto.nombre}'.`,
@@ -94,6 +92,44 @@ export class CategoriasService {
         'Error al actualizar la categoría.',
       );
     }
+  }
+
+  /**
+   * Cambia únicamente las cuentas contables de la categoría.
+   *
+   * Se escribe con `update` sobre `{ id, empresaId }` y no con `save` de una
+   * entidad cargada: así no hay forma de que un campo que no venía en el DTO
+   * —el nombre, el padre, el estado— viaje de vuelta a la base por haber
+   * estado en memoria. Lo que se toca es exactamente lo que se mandó.
+   */
+  async actualizarCuentasCategoria(
+    id: string,
+    dto: ActualizarCuentasCategoriaDto,
+    empresaId: string,
+  ) {
+    const categoria = await this.categoriaRepository.findOne({
+      where: { id, empresaId },
+    });
+    if (!categoria)
+      throw new NotFoundException('La categoría no existe o no tienes permisos.');
+
+    const cambios: Record<string, string | null> = {};
+    for (const campo of [
+      'cuentaVentasId',
+      'cuentaCostoVentasId',
+      'cuentaInventarioId',
+      'cuentaDevolucionesId',
+      'cuentaMermasId',
+    ]) {
+      if (campo in dto) {
+        cambios[campo] = (dto as Record<string, string | undefined>)[campo] || null;
+      }
+    }
+    if (Object.keys(cambios).length) {
+      await this.categoriaRepository.update({ id, empresaId }, cambios as any);
+    }
+
+    return this.categoriaRepository.findOne({ where: { id, empresaId } });
   }
 
   async cambiarEstadoCategoria(id: string, empresaId: string) {

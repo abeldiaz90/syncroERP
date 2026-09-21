@@ -23,8 +23,42 @@ export class ListasPrecioService {
     });
   }
 
+  /** Lo que una lista puede declarar además de su nombre. */
+  private reglaDe(dto: {
+    modo?: 'MANUAL' | 'MARGEN';
+    margenPorcentaje?: number;
+    redondeo?: number;
+  }) {
+    const regla: Record<string, unknown> = {};
+    if (dto.modo !== undefined) regla.modo = dto.modo;
+    if (dto.margenPorcentaje !== undefined)
+      regla.margenPorcentaje = Number(dto.margenPorcentaje);
+    if (dto.redondeo !== undefined) regla.redondeo = Number(dto.redondeo);
+    /*
+     * Una lista en MARGEN con margen cero vendería exactamente al costo. Casi
+     * siempre es que alguien cambió el modo y se le olvidó el margen, y el
+     * resultado no se nota hasta cerrar el mes sin utilidad.
+     */
+    if (
+      regla.modo === 'MARGEN' &&
+      !(Number(regla.margenPorcentaje ?? 0) > 0)
+    ) {
+      throw new BadRequestException(
+        'Una lista que calcula el precio desde el costo necesita un margen mayor que cero: ' +
+          'con margen cero venderías exactamente a lo que te costó.',
+      );
+    }
+    return regla;
+  }
+
   async crearLista(
-    dto: { nombre: string; esPorDefecto: boolean },
+    dto: {
+      nombre: string;
+      esPorDefecto: boolean;
+      modo?: 'MANUAL' | 'MARGEN';
+      margenPorcentaje?: number;
+      redondeo?: number;
+    },
     empresaId: string,
   ) {
     const nombre = dto.nombre?.trim();
@@ -44,13 +78,21 @@ export class ListasPrecioService {
       if (esPorDefecto) {
         await repo.update({ empresaId }, { esPorDefecto: false });
       }
-      return repo.save(repo.create({ nombre, empresaId, esPorDefecto }));
+      return repo.save(
+        repo.create({ nombre, empresaId, esPorDefecto, ...this.reglaDe(dto) }),
+      );
     });
   }
 
   async actualizarLista(
     id: string,
-    dto: { nombre?: string; esPorDefecto?: boolean },
+    dto: {
+      nombre?: string;
+      esPorDefecto?: boolean;
+      modo?: 'MANUAL' | 'MARGEN';
+      margenPorcentaje?: number;
+      redondeo?: number;
+    },
     empresaId: string,
   ) {
     const lista = await this.listaPrecioRepository.findOne({
@@ -84,6 +126,21 @@ export class ListasPrecioService {
       );
       lista.esPorDefecto = true;
     }
+    /*
+     * La regla se aplica sobre la entidad ya cargada para que la validación de
+     * «MARGEN sin margen» vea también lo que la lista ya tenía: cambiar sólo el
+     * modo, sin tocar el margen, tiene que seguir siendo válido si el margen ya
+     * estaba puesto.
+     */
+    Object.assign(
+      lista,
+      this.reglaDe({
+        modo: dto.modo ?? lista.modo,
+        margenPorcentaje: dto.margenPorcentaje ?? lista.margenPorcentaje,
+        redondeo: dto.redondeo ?? lista.redondeo,
+      }),
+    );
+
     return this.listaPrecioRepository.save(lista);
   }
 

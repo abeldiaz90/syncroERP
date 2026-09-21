@@ -19,6 +19,7 @@ import {
   TipoCosto,
   MonedaCosto,
 } from '../entities/producto.entity';
+import { IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 
 // ─────────────────────────────────────────────────────────────────
 // SUB-DTOS
@@ -252,16 +253,13 @@ export class CrearProductoDto {
 
   // ── RELACIONES ───────────────────────────────────────────────────
 
-  @IsString()
-  @IsOptional()
+  @IsSqlServerGuidOpcional()
   categoriaId?: string;
 
-  @IsString()
-  @IsOptional()
+  @IsSqlServerGuidOpcional()
   marcaId?: string;
 
-  @IsString()
-  @IsOptional()
+  @IsSqlServerGuidOpcional()
   impuestoId?: string;
 
   // ── STOCK INICIAL ────────────────────────────────────────────────
@@ -271,8 +269,7 @@ export class CrearProductoDto {
   @IsOptional()
   stockActual?: number;
 
-  @IsString()
-  @IsOptional()
+  @IsSqlServerGuidOpcional()
   almacenId?: string;
 
   // ── COLECCIONES ───────────────────────────────────────────────────

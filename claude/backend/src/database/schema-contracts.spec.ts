@@ -104,13 +104,25 @@ const contratosCriticos: ContratoTabla[] = [
 ];
 
 describe('contratos del esquema actual', () => {
+  /*
+   * Este `beforeAll` construye los metadatos de TODAS las entidades leyendo el
+   * disco, y eso tarda más que los 5 s que jest da por omisión a un hook. Venía
+   * rozando el límite —5.5 s en la última corrida verde— y al crecer el modelo
+   * lo pasó: la suite fallaba entera con «Exceeded timeout», que no dice nada
+   * sobre el esquema y manda a buscar donde no es.
+   *
+   * No es un problema de rendimiento que haya que resolver: es una prueba de
+   * modelo, no de velocidad. Se le da el tiempo que necesita.
+   */
+  jest.setTimeout(60_000);
+
   beforeAll(async () => {
     // Construye metadatos sin conectarse a SQL Server. Detecta entidades no
     // registradas, relaciones inválidas y columnas omitidas en el modelo.
     await (
       dataSource as unknown as { buildMetadatas(): Promise<void> }
     ).buildMetadatas();
-  });
+  }, 60_000);
 
   it.each(contratosCriticos)(
     '$tabla contiene las columnas requeridas por sus flujos',

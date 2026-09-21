@@ -15,6 +15,8 @@ import { ListaPrecio } from './entities/lista-precio.entity';
 import { ProductoPrecio } from './entities/producto-precio.entity';
 import { Pais } from './entities/pais.entity';
 import { Estado } from './entities/estado.entity';
+import { CodigoPostal } from './entities/codigo-postal.entity';
+import { CodigosPostalesCarga } from './entities/codigos-postales-carga.entity';
 import { Banco } from './entities/banco.entity';
 import { FormaPago } from './entities/forma-pago.entity';
 import { ProductoEquivalencia } from './entities/producto-equivalencia.entity';
@@ -45,6 +47,7 @@ import { ImpuestoController } from './controllers/impuesto.controller';
 import { ListasPrecioController } from './controllers/listas-precio.controller';
 import { PaisesController } from './controllers/paises.controller';
 import { EstadosController } from './controllers/estados.controller';
+import { CodigosPostalesController } from './controllers/codigos-postales.controller';
 import { BancosController } from './controllers/bancos.controller';
 import { FormasPagoController } from './controllers/formas-pago.controller';
 import { UnidadesMedidaController } from './controllers/unidades-medida.controller';
@@ -64,6 +67,7 @@ import { ImpuestoService } from './services/impuesto.service';
 import { ListasPrecioService } from './services/listas-precio.service';
 import { PaisesService } from './services/paises.service';
 import { EstadosService } from './services/estados.service';
+import { CodigosPostalesService } from './services/codigos-postales.service';
 import { BancosService } from './services/bancos.service';
 import { FormasPagoService } from './services/formas-pago.service';
 import { UnidadesMedidaService } from './services/unidades-medida.service';
@@ -96,6 +100,8 @@ import { FinanzasModule } from '../finanzas/modules/finanzas.module';
       ProductoPrecio,
       Pais,
       Estado,
+      CodigoPostal,
+      CodigosPostalesCarga,
       Banco,
       FormaPago,
       ProductoEquivalencia,
@@ -129,6 +135,7 @@ import { FinanzasModule } from '../finanzas/modules/finanzas.module';
     ListasPrecioController,
     PaisesController,
     EstadosController,
+    CodigosPostalesController,
     BancosController,
     FormasPagoController,
     UnidadesMedidaController,
@@ -148,6 +155,7 @@ import { FinanzasModule } from '../finanzas/modules/finanzas.module';
     ListasPrecioService,
     PaisesService,
     EstadosService,
+    CodigosPostalesService,
     BancosService,
     FormasPagoService,
     UnidadesMedidaService,
@@ -167,6 +175,7 @@ import { FinanzasModule } from '../finanzas/modules/finanzas.module';
     StockService,
     PreciosService, // ← lo necesita VentasModule para resolver precios en el servidor
     ImpuestoService,
+    CodigosPostalesService, // lo consulta cualquier módulo con domicilio
     FinanzasModule, // re-exportar: todo módulo que importe CatalogoModule recibe PolizasService y MotorContableService
   ],
 })

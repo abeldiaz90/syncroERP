@@ -27,8 +27,43 @@ export class CatalogosGeograficosService implements OnApplicationBootstrap {
     }
   }
 
+  /**
+   * Nombres de país en español, sin agregar una dependencia.
+   *
+   * `country-state-city` trae los nombres en inglés —«Mexico», «Germany»,
+   * «Aland Islands»— y así llegaban al desplegable de un ERP mexicano. Las
+   * subdivisiones sí vienen en español, de modo que el formulario mostraba
+   * «Mexico» arriba y «Nuevo León» abajo: se leía como una traducción a medias,
+   * que es peor que no traducir.
+   *
+   * `Intl.DisplayNames` vive en el runtime de Node y traduce a partir del
+   * código ISO, así que no hay una tabla propia que mantener ni un catálogo que
+   * se quede viejo. Si el runtime no trae datos de español —algunas
+   * distribuciones mínimas— devuelve el código y ahí se conserva el nombre
+   * original en vez de dejar «MX» en la pantalla.
+   */
+  private nombresEnEspanol(): (isoCode: string, original: string) => string {
+    let traductor: Intl.DisplayNames | null = null;
+    try {
+      traductor = new Intl.DisplayNames(['es-MX', 'es'], { type: 'region' });
+    } catch {
+      traductor = null;
+    }
+    return (isoCode, original) => {
+      if (!traductor) return original;
+      try {
+        const traducido = traductor.of(isoCode);
+        if (!traducido || traducido === isoCode) return original;
+        return traducido;
+      } catch {
+        return original;
+      }
+    };
+  }
+
   async sincronizar() {
     const countries = Country.getAllCountries();
+    const enEspanol = this.nombresEnEspanol();
     const existentes = await this.paises.find();
     const porCodigo = new Map(
       existentes.map((pais) => [pais.codigoIso2 || pais.codigo, pais]),
@@ -36,7 +71,7 @@ export class CatalogosGeograficosService implements OnApplicationBootstrap {
     const paises = countries.map((country) =>
       this.paises.create({
         ...porCodigo.get(country.isoCode),
-        nombre: country.name,
+        nombre: enEspanol(country.isoCode, country.name),
         codigo: country.isoCode,
         codigoIso2: country.isoCode,
         codigoIso3: null,

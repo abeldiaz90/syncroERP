@@ -11,7 +11,7 @@ import { EntityManager, In, Repository } from 'typeorm';
 import { Producto } from '../entities/producto.entity';
 import { TipoProducto } from '../entities/producto.entity';
 import { ProductoPrecio } from '../entities/producto-precio.entity';
-import { ListaPrecio } from '../entities/lista-precio.entity';
+import { ListaPrecio, ModoListaPrecio } from '../entities/lista-precio.entity';
 import { normalizarRol } from '../../iam/utils/roles.util';
 
 /**
@@ -188,12 +188,10 @@ export class PreciosService {
       empresaId,
       manager,
     );
-    const preciosDeLista = await this.cargarPreciosDeLista(
-      ids,
-      listaId,
-      empresaId,
-      manager,
-    );
+    const [preciosDeLista, lista] = await Promise.all([
+      this.cargarPreciosDeLista(ids, listaId, empresaId, manager),
+      this.cargarLista(listaId, empresaId, manager),
+    ]);
 
     const topeRol = this.topeDescuento(opciones.rolUsuario);
     const resueltos: RenglonResuelto[] = [];
@@ -217,6 +215,7 @@ export class PreciosService {
       const precioUnitario = this.precioDe(
         producto,
         preciosDeLista.get(r.productoId),
+        lista,
       );
 
       if (precioUnitario <= 0) {
@@ -343,12 +342,11 @@ export class PreciosService {
     if (!producto) throw new NotFoundException('El producto no existe.');
 
     const listaId = await this.resolverLista(listaPrecioId, empresaId);
-    const precios = await this.cargarPreciosDeLista(
-      [productoId],
-      listaId,
-      empresaId,
-    );
-    const precioUnitario = this.precioDe(producto, precios.get(productoId));
+    const [precios, lista] = await Promise.all([
+      this.cargarPreciosDeLista([productoId], listaId, empresaId),
+      this.cargarLista(listaId, empresaId),
+    ]);
+    const precioUnitario = this.precioDe(producto, precios.get(productoId), lista);
 
     return {
       productoId,
@@ -400,6 +398,20 @@ export class PreciosService {
     return primera.id;
   }
 
+  /**
+   * La regla de la lista: la necesita `precioDe` para saber si el precio se
+   * teclea o se calcula. Se lee una vez por operación, no una vez por renglón.
+   */
+  private async cargarLista(
+    listaPrecioId: string | undefined,
+    empresaId: string,
+    manager?: EntityManager,
+  ): Promise<ListaPrecio | null> {
+    if (!listaPrecioId) return null;
+    const repo = manager ? manager.getRepository(ListaPrecio) : this.listaRepo;
+    return repo.findOne({ where: { id: listaPrecioId, empresaId } });
+  }
+
   private async cargarPreciosDeLista(
     productoIds: string[],
     listaPrecioId: string | undefined,
@@ -419,19 +431,44 @@ export class PreciosService {
   }
 
   /**
-   * El precio de venta vive ÚNICAMENTE en las listas de precios.
-   *
-   * `Producto` no tiene campo de precio de venta: solo `precioCompra` y
-   * `costoEstandar`. Eso es una decisión de diseño del ERP y aquí se respeta —
-   * no hay precio "de catálogo" al que caer.
-   *
-   * La consecuencia práctica: un producto que no esté en ninguna lista NO se
-   * puede vender. Es lo correcto: vender sin precio configurado produce
+   * ==========================================================================
+   * El precio de venta vive ÚNICAMENTE en las listas de precios
+   * --------------------------------------------------------------------------
+   * `Producto` no tiene campo de precio de venta: sólo `precioCompra` —el costo
+   * de reposición, que cada recepción de compra actualiza— y `costoEstandar`.
+   * Eso es una decisión de diseño del ERP y aquí se respeta: no hay precio «de
+   * catálogo» al que caer. Un producto que no esté en ninguna lista no se
+   * puede vender, y es lo correcto: vender sin precio configurado produce
    * ventas en cero que después nadie sabe explicar.
+   *
+   * Lo que sí puede la lista es CALCULAR su precio en vez de guardarlo. Con
+   * `modo = MARGEN`, el precio sale del costo de reposición más el margen
+   * declarado, redondeado hacia arriba al múltiplo que la lista diga. Así una
+   * subida del proveedor llega al precio de venta sola, en la siguiente
+   * recepción, en vez de esperar a que alguien se acuerde de retocar la lista.
+   *
+   * El orden es el de Odoo —base, margen, redondeo— y el precio tecleado a mano
+   * gana sobre la fórmula, como en SAP: la regla es el piso, no una camisa de
+   * fuerza. Si alguien negoció un precio para un artículo, ese precio manda.
+   * ==========================================================================
    */
-  private precioDe(_producto: Producto, precioDeLista?: number): number {
-    if (precioDeLista === undefined || precioDeLista <= 0) return 0;
-    return redondear2(precioDeLista);
+  private precioDe(
+    producto: Producto,
+    precioDeLista?: number,
+    lista?: ListaPrecio | null,
+  ): number {
+    if (precioDeLista !== undefined && precioDeLista > 0) {
+      return redondear2(precioDeLista);
+    }
+    if (!lista || lista.modo !== ModoListaPrecio.MARGEN) return 0;
+
+    const costo = Number(producto.precioCompra ?? 0);
+    if (!(costo > 0)) return 0; // sin costo no hay fórmula: no se inventa
+
+    const bruto = costo * (1 + Number(lista.margenPorcentaje ?? 0) / 100);
+    const paso = Number(lista.redondeo ?? 0);
+    const redondeado = paso > 0 ? Math.ceil(bruto / paso) * paso : bruto;
+    return redondear2(redondeado);
   }
 
   private topeDescuento(rol?: string): number {

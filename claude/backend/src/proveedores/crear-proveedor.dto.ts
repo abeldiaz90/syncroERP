@@ -8,6 +8,7 @@ import {
   IsEmail,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { IsEmailOpcional } from '../common/validators/email-opcional.validator';
 
 export class CrearProveedorDto {
   @IsString()
@@ -38,8 +39,7 @@ export class CrearProveedorDto {
   @IsString()
   contactoTelefono?: string;
 
-  @IsOptional()
-  @IsEmail()
+  @IsEmailOpcional()
   contactoEmail?: string;
 
   @IsOptional()
@@ -50,8 +50,7 @@ export class CrearProveedorDto {
   @IsString()
   telefono?: string;
 
-  @IsOptional()
-  @IsEmail()
+  @IsEmailOpcional()
   email?: string;
 
   @IsOptional()

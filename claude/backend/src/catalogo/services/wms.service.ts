@@ -511,7 +511,19 @@ export class WmsService {
             d.reconteo = n(x.reconteo);
         else
             d.primerConteo = n(x.cantidad);
-        d.cantidadFinal = d.reconteo !== undefined ? n(d.reconteo) : n(d.primerConteo);
+        /*
+         * `!= null` y no `!== undefined`: la columna `reconteo` es NULLABLE y el
+         * transformador de decimales devuelve `null` tal cual, así que en la
+         * primera captura la condición era verdadera y `cantidadFinal` quedaba
+         * en `Number(null)` = **0**.
+         *
+         * No era un redondeo: el almacenista contaba 500 piezas, el detalle
+         * guardaba `diferencia = -500`, y al cerrar el conteo se registraba una
+         * salida por las 500 y su póliza de merma. El rack quedaba en cero con
+         * la mercancía puesta ahí. Y era el único camino posible, porque la
+         * pantalla nunca manda `reconteo`.
+         */
+        d.cantidadFinal = d.reconteo != null ? n(d.reconteo) : n(d.primerConteo);
         d.diferencia = n(d.cantidadFinal) - n(d.existenciaTeorica);
         d.observaciones = x.observaciones;
         await this.conteoDetalles.save(d);
@@ -520,7 +532,7 @@ export class WmsService {
         const resultado = await this.dataSource.transaction('SERIALIZABLE', async (em) => {
             const c = await em
                 .createQueryBuilder(ConteoInventario, 'conteo')
-                .setLock('pessimistic_write')
+                .setLock('pessimistic_write', undefined, ['conteo'])
                 .leftJoinAndSelect('conteo.detalles', 'detalle')
                 .leftJoinAndSelect('detalle.lote', 'lote')
                 .where('conteo.id = :id AND conteo.empresaId = :empresaId', {

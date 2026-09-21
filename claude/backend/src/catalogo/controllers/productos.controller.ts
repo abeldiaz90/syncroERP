@@ -19,6 +19,7 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { readFileSync, unlinkSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import { SUBIDAS_PRODUCTOS } from '../../common/almacenamiento/rutas-subidas';
 import { extensionImagenReal } from '../../common/utils/file-signature.util';
 import { ProductosService } from '../services/productos.service';
 import { CrearProductoDto } from '../dto/crear-producto.dto';
@@ -114,7 +115,7 @@ export class ProductosController {
   @UseInterceptors(
     FileInterceptor('imagen', {
       storage: diskStorage({
-        destination: join(process.cwd(), 'uploads', 'productos'),
+        destination: SUBIDAS_PRODUCTOS,
         filename: (_req, _file, cb) =>
           cb(null, `${uuidv4()}${extname(_file.originalname).toLowerCase()}`),
       }),

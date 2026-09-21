@@ -19,11 +19,12 @@ import type { Response } from 'express';
 
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { Navegable } from '../../iam/decorators/navegable.decorator';
+import { SUBIDAS_IMPORTACIONES } from '../../common/almacenamiento/rutas-subidas';
 import { esExcelReal } from '../../common/utils/file-signature.util';
 import { PlantillaStockInicialService } from '../services/plantilla-stock-inicial.service';
 import { ImportacionStockInicialMasivaService } from '../services/importacion-stock-inicial-masiva.service';
 
-const directorio = join(process.cwd(), 'uploads', 'importaciones');
+const directorio = SUBIDAS_IMPORTACIONES;
 mkdirSync(directorio, { recursive: true });
 const maxMb = Math.min(
   50,

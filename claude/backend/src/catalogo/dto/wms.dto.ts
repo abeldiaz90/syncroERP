@@ -13,7 +13,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 import { EstadoUbicacionAlmacen } from '../entities/ubicacion-almacen.entity';
 import { EstadoStockUbicacion } from '../entities/stock-ubicacion.entity';
 
@@ -108,9 +108,9 @@ export class ActualizarProductoUbicacionWmsDto {
 }
 
 export class FiltroStockUbicacionWmsDto {
-  @IsOptional() @IsSqlServerGuid() productoId?: string;
-  @IsOptional() @IsSqlServerGuid() almacenId?: string;
-  @IsOptional() @IsSqlServerGuid() ubicacionId?: string;
+  @IsSqlServerGuidOpcional() productoId?: string;
+  @IsSqlServerGuidOpcional() almacenId?: string;
+  @IsSqlServerGuidOpcional() ubicacionId?: string;
   @IsOptional() @IsEnum(EstadoStockUbicacion) estado?: EstadoStockUbicacion;
 }
 
@@ -121,8 +121,8 @@ export class ReubicarStockWmsDto extends CantidadPositivaDto {
 
 export class CrearConteoWmsDto {
   @IsSqlServerGuid() almacenId: string;
-  @IsOptional() @IsSqlServerGuid() ubicacionId?: string;
-  @IsOptional() @IsSqlServerGuid() productoId?: string;
+  @IsSqlServerGuidOpcional() ubicacionId?: string;
+  @IsSqlServerGuidOpcional() productoId?: string;
   @IsOptional() @IsString() @MaxLength(255) motivo?: string;
   @IsOptional() @IsBoolean() conteoCiego?: boolean;
 }

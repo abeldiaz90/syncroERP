@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, Like, Repository } from 'typeorm';
+import { DataSource, EntityManager, ILike, In, Like, Repository } from 'typeorm';
 import { Producto } from '../entities/producto.entity';
 import { ImagenProducto } from '../entities/imagen-producto.entity';
 import { ProductoPrecio } from '../entities/producto-precio.entity';
@@ -15,10 +15,12 @@ import { ProductoAtributo } from '../entities/producto-atributo.entity';
 import { CrearProductoDto } from '../dto/crear-producto.dto';
 import { InventarioService } from './inventario.service';
 import { Categoria } from '../entities/categoria.entity';
+import { UnidadMedida } from '../entities/unidad-medida.entity';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
 import { StockPorAlmacen } from '../entities/stock-por-almacen.entity';
 import { ListaPrecio } from '../entities/lista-precio.entity';
+import { esViolacionUnicidad } from '../../common/database/errores-sql';
 import {
   ATRIBUTOS_FARMACEUTICO,
   ATRIBUTOS_CARNICO,
@@ -46,9 +48,43 @@ export class ProductosService {
     private readonly inventarioService: InventarioService,
     @InjectRepository(Categoria)
     private readonly categoriaRepository: Repository<Categoria>,
+    @InjectRepository(UnidadMedida)
+    private readonly unidadRepository: Repository<UnidadMedida>,
     private readonly dataSource: DataSource,
     private readonly asientos: AsientosPendientesService,
   ) {}
+
+  /**
+   * ==========================================================================
+   * La unidad de medida se guarda con el nombre EXACTO del catálogo
+   * --------------------------------------------------------------------------
+   * `unidadMedida` es texto libre en el producto, no una llave al catálogo, y
+   * eso dejó productos con «Pieza» y otros con «PIEZA». El desplegable de la
+   * ficha arma sus opciones con los nombres del catálogo, así que el producto
+   * en mayúsculas no coincidía con ninguna, el campo se pintaba vacío, y como
+   * la unidad base no se puede cambiar, quedaba deshabilitado. Al guardar, el
+   * servidor respondía «La unidad de medida es obligatoria» sobre un campo que
+   * la pantalla no deja tocar: el producto quedaba imposible de editar.
+   *
+   * La pantalla ya empareja sin distinguir mayúsculas. Esto cierra la puerta
+   * por el otro lado: lo que entre se guarda con la grafía del catálogo, para
+   * que la deriva no vuelva a acumularse. Una unidad que no esté en el catálogo
+   * se respeta tal cual —puede venir de una importación vieja y borrarla sería
+   * peor—, sólo se limpia de espacios.
+   * ==========================================================================
+   */
+  private async normalizarUnidad(
+    unidad: string | undefined,
+    empresaId: string,
+  ): Promise<string | undefined> {
+    if (typeof unidad !== 'string') return unidad;
+    const limpia = unidad.trim();
+    if (!limpia) return limpia;
+    const delCatalogo = await this.unidadRepository.findOne({
+      where: { nombre: ILike(limpia), empresaId },
+    });
+    return delCatalogo?.nombre ?? limpia;
+  }
 
   private validarReglasProducto(
     dto: Partial<CrearProductoDto>,
@@ -157,6 +193,7 @@ export class ProductosService {
     empresaId: string,
   ) {
     this.validarReglasProducto(dto, true);
+    dto.unidadMedida = await this.normalizarUnidad(dto.unidadMedida, empresaId);
     const {
       imagenes,
       precios,
@@ -299,7 +336,7 @@ export class ProductosService {
     } catch (error: any) {
       await queryRunner.rollbackTransaction();
 
-      if (error.number === 2627 || error.number === 2601) {
+      if (esViolacionUnicidad(error)) {
         throw new ConflictException(`El SKU '${dto.sku}' ya está registrado.`);
       }
       throw error;
@@ -418,6 +455,7 @@ export class ProductosService {
     empresaId: string,
   ) {
     this.validarReglasProducto(dto);
+    dto.unidadMedida = await this.normalizarUnidad(dto.unidadMedida, empresaId);
     const {
       imagenes,
       precios,

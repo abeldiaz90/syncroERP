@@ -2,6 +2,7 @@
 import { Controller, Post, Get, Patch, Param, Body } from '@nestjs/common';
 import { CrearCategoriaDto } from '../dto/crear-categoria.dto';
 import { ActualizarCategoriaDto } from '../dto/actualizar-categoria.dto';
+import { ActualizarCuentasCategoriaDto } from '../dto/actualizar-cuentas-categoria.dto';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { CategoriasService } from '../services/categorias.service';
 import { AutoConfigurarCategoriasDto } from '../dto/catalogo-operaciones.dto';
@@ -50,6 +51,22 @@ export class CategoriasController {
     @ActiveUser('empresaId') empresaId: string,
   ) {
     return this.categoriasService.actualizarCategoria(id, dto, empresaId);
+  }
+
+  /**
+   * Las cinco cuentas contables de la categoría.
+   *
+   * Ruta aparte —y módulo aparte— del PATCH de arriba: esto lo cambia quien
+   * responde por la contabilidad, no quien administra el catálogo. El porqué
+   * está en `ActualizarCuentasCategoriaDto`.
+   */
+  @Patch(':id/cuentas')
+  actualizarCuentas(
+    @Param('id') id: string,
+    @Body() dto: ActualizarCuentasCategoriaDto,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
+    return this.categoriasService.actualizarCuentasCategoria(id, dto, empresaId);
   }
 
   @Patch(':id/estado')
