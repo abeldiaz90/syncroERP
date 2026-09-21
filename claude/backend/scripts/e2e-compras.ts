@@ -37,6 +37,7 @@ import { Producto } from '../src/catalogo/entities/producto.entity';
 import { Impuesto } from '../src/catalogo/entities/impuesto.entity';
 import { Almacen } from '../src/catalogo/entities/almacen.entity';
 import { UbicacionAlmacen } from '../src/catalogo/entities/ubicacion-almacen.entity';
+import { ProductoUbicacion } from '../src/catalogo/entities/producto-ubicacion.entity';
 import { Proveedor } from '../src/proveedores/entities/proveedor.entity';
 import { ConfiguracionAprobacion } from '../src/compras/entities/configuracion-aprobacion.entity';
 import { CuentaBancaria } from '../src/credito/entities/cuenta-bancaria.entity';
@@ -231,6 +232,34 @@ async function main() {
       } as Partial<UbicacionAlmacen>));
     }
     ok(`Almacén ${almacen.nombre} · ubicación ${ubicacion.codigo}`);
+
+    /*
+     * Acomodo dirigido: la recepcion exige que el producto YA este asignado a
+     * la ubicacion donde se va a guardar, y la pantalla de recepcion obliga a
+     * elegir ubicacion en cada partida. De ahi que la PRIMERA recepcion de un
+     * producto nuevo termine siempre en 400 —«primero asigna el producto a la
+     * ubicacion»— y el almacenista se quede con la caja en la mano.
+     *
+     * Aqui el script hace esa asignacion porque es preparacion legitima de la
+     * prueba. Que el sistema deje al almacenista sin salida en ese punto es
+     * otra cosa, y esta anotado como hallazgo: no se tapa desde el script.
+     */
+    const pu = ds.getRepository(ProductoUbicacion);
+    const yaAsignado = await pu.findOne({
+      where: { empresaId, productoId: producto.id, almacenId: almacen.id, ubicacionId: ubicacion.id },
+    });
+    if (!yaAsignado) {
+      await pu.save(pu.create({
+        empresaId, productoId: producto.id, almacenId: almacen.id,
+        ubicacionId: ubicacion.id, esPrincipal: true, activo: true,
+      } as Partial<ProductoUbicacion>));
+      ok(`Producto asignado a ${ubicacion.codigo} (acomodo dirigido)`);
+    } else if (!yaAsignado.activo) {
+      await pu.update({ id: yaAsignado.id }, { activo: true });
+      ok(`Asignación a ${ubicacion.codigo} reactivada`);
+    } else {
+      ok(`Producto ya asignado a ${ubicacion.codigo}`);
+    }
 
     const provRepo = ds.getRepository(Proveedor);
     const proveedores: Proveedor[] = [];
