@@ -30,6 +30,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import {
+  sinDatosDeNomina,
+  verDatosDeNomina,
+} from '../utils/datos-de-nomina.util';
 import { Between, DataSource, EntityManager, In, Repository } from 'typeorm';
 
 import {
@@ -144,6 +148,7 @@ export class RrhhService {
       departamentoId?: string;
       busqueda?: string;
     } = {},
+    rol?: string,
   ) {
     const q = this.empleados
       .createQueryBuilder('e')
@@ -162,7 +167,16 @@ export class RrhhService {
     }
 
     const lista = await q.orderBy('e.numeroEmpleado', 'ASC').getMany();
-    return lista.map((e) => this.empleadoParaListado(e));
+    /*
+     * El rol decide si el sueldo sale. Antes no llegaba hasta aqui, asi que el
+     * recorte solo se aplicaba al abrir UNA ficha y no al listar las cien:
+     * `gerencia` leia `salarioDiario` de la plantilla entera de un tiron.
+     */
+    const conNomina = verDatosDeNomina(rol);
+    return lista.map((e) => {
+      const fila = this.empleadoParaListado(e);
+      return conNomina ? fila : sinDatosDeNomina(fila);
+    });
   }
 
   private empleadoParaListado(e: Empleado) {
@@ -248,12 +262,14 @@ export class RrhhService {
         Math.floor(antiguedadDias / 365),
       ),
     } as Record<string, unknown>;
-    const rolNormalizado = String(rol ?? '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[\s_-]+/g, '');
-    if (['admin', 'rrhh', 'recursoshumanos'].includes(rolNormalizado)) {
+    /*
+     * Una sola definicion de quien ve sueldos, en `datos-de-nomina.util`. Aqui
+     * habia una normalizacion propia —en minusculas, mientras `normalizarRol`
+     * devuelve mayusculas— y su propia lista de roles. Dos definiciones del
+     * mismo rol es como se abren estos huecos, y ya paso una vez con la traza
+     * de aprobaciones.
+     */
+    if (verDatosDeNomina(rol)) {
       return completo;
     }
     completo.curp = this.enmascarar(String(e.curp ?? ''), 4);
@@ -266,7 +282,9 @@ export class RrhhService {
     delete completo.contactoEmergencia;
     delete completo.telefonoEmergencia;
     delete completo.notas;
-    return completo;
+    // Lo que faltaba: el sueldo. Se enmascaraba CURP, RFC, NSS y CLABE, y el
+    // dato que mas gente pregunta salia intacto.
+    return sinDatosDeNomina(completo);
   }
 
   /**

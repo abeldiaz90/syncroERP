@@ -460,6 +460,41 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'activos',
       'gobierno-aprobaciones',
     ],
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * La nómina individual no es «mirar lo operativo»
+     * ------------------------------------------------------------------------
+     * Con `rrhh` en consulta este rol recibía TREINTA lecturas de Recursos
+     * Humanos, y entre ellas los recibos de nómina de cada persona, las
+     * cuentas bancarias de los empleados, sus préstamos, los cálculos de
+     * finiquito —o sea quién está por salir— y el archivo de dispersión.
+     * Verificado en vivo el 22-sep con la sesión de Gerencia: 200 en todas.
+     *
+     * Plantilla, asistencia, incidencias, vacaciones y el coste agregado sí
+     * son suyos: aprueba altas de puesto y de área y necesita ver a su gente.
+     * Lo que se retira es la compensación persona por persona y los datos de
+     * pago, que en los ERP grandes viven en RRHH y en Finanzas, no en la
+     * dirección operativa. Aquí además son datos personales en el sentido de
+     * la LFPDPPP: filtrarlos por omisión es el modo de fallo, no por decisión.
+     *
+     * Si SUMA decide que su gerencia debe ver sueldos, se quita este bloque o
+     * se concede desde Administración → Roles y permisos. Que cueste una línea
+     * visible es el punto; que viniera de regalo, no.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    accionesVedadas: [
+      'GET /rrhh/nomina/recibos',
+      'GET /rrhh/nomina/recibos/:id',
+      'GET /rrhh/empleados/:id/finiquito',
+      'GET /rrhh/nomina-avanzada/conceptos-empleado',
+      'GET /rrhh/nomina-avanzada/prestamos',
+      'GET /rrhh/nomina-avanzada/cuentas-bancarias',
+      'GET /rrhh/nomina-avanzada/periodos/:id/prenomina',
+      'GET /rrhh/nomina-avanzada/periodos/:id/cfdi',
+      'GET /rrhh/nomina-avanzada/periodos/:id/dispersion',
+      'GET /rrhh/nomina-avanzada/periodos/:id/pago',
+      'GET /rrhh/nomina-avanzada/periodos/:id/poliza-detallada',
+    ],
   },
   {
     rol: 'direccion',
@@ -487,6 +522,44 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'facturacion',
       'integracion',
       'gobierno-aprobaciones',
+    ],
+    // El mismo recorte que gerencia, y por el mismo motivo. Si en SUMA la
+    // direccion es la propiedad y debe ver la nomina, se concede a mano: es
+    // una decision que merece quedar escrita, no heredarse de un modulo.
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * La nómina individual no es «mirar lo operativo»
+     * ------------------------------------------------------------------------
+     * Con `rrhh` en consulta este rol recibía TREINTA lecturas de Recursos
+     * Humanos, y entre ellas los recibos de nómina de cada persona, las
+     * cuentas bancarias de los empleados, sus préstamos, los cálculos de
+     * finiquito —o sea quién está por salir— y el archivo de dispersión.
+     * Verificado en vivo el 22-sep con la sesión de Gerencia: 200 en todas.
+     *
+     * Plantilla, asistencia, incidencias, vacaciones y el coste agregado sí
+     * son suyos: aprueba altas de puesto y de área y necesita ver a su gente.
+     * Lo que se retira es la compensación persona por persona y los datos de
+     * pago, que en los ERP grandes viven en RRHH y en Finanzas, no en la
+     * dirección operativa. Aquí además son datos personales en el sentido de
+     * la LFPDPPP: filtrarlos por omisión es el modo de fallo, no por decisión.
+     *
+     * Si SUMA decide que su gerencia debe ver sueldos, se quita este bloque o
+     * se concede desde Administración → Roles y permisos. Que cueste una línea
+     * visible es el punto; que viniera de regalo, no.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    accionesVedadas: [
+      'GET /rrhh/nomina/recibos',
+      'GET /rrhh/nomina/recibos/:id',
+      'GET /rrhh/empleados/:id/finiquito',
+      'GET /rrhh/nomina-avanzada/conceptos-empleado',
+      'GET /rrhh/nomina-avanzada/prestamos',
+      'GET /rrhh/nomina-avanzada/cuentas-bancarias',
+      'GET /rrhh/nomina-avanzada/periodos/:id/prenomina',
+      'GET /rrhh/nomina-avanzada/periodos/:id/cfdi',
+      'GET /rrhh/nomina-avanzada/periodos/:id/dispersion',
+      'GET /rrhh/nomina-avanzada/periodos/:id/pago',
+      'GET /rrhh/nomina-avanzada/periodos/:id/poliza-detallada',
     ],
   },
 

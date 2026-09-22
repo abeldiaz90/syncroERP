@@ -53,15 +53,21 @@ export class RrhhController {
   @Get('empleados')
   listarEmpleados(
     @ActiveUser('empresaId') empresaId: string,
+    /*
+     * El rol viaja hasta el servicio porque decide si el sueldo sale en la
+     * lista. `obtenerEmpleado` ya lo recibia; el listado no, y era el que
+     * devolvia la plantilla completa de un tiron.
+     */
+    @ActiveUser('rol') rol: string,
     @Query('estado') estado?: EstadoEmpleado,
     @Query('departamentoId') departamentoId?: string,
     @Query('busqueda') busqueda?: string,
   ) {
-    return this.svc.listarEmpleados(empresaId, {
-      estado,
-      departamentoId,
-      busqueda,
-    });
+    return this.svc.listarEmpleados(
+      empresaId,
+      { estado, departamentoId, busqueda },
+      rol,
+    );
   }
 
   @Post('empleados')
