@@ -98,13 +98,27 @@ export class UsuariosController {
    * llenar el formulario, no después.
    */
   @Get('directorio')
-  estadoDirectorio() {
+  async estadoDirectorio() {
+    /*
+     * `configurado` sólo dice que las variables están puestas, y eso no
+     * distingue el caso que de verdad se da: cuenta de servicio con
+     * `view-users` y sin `manage-users`. El ERP lee el directorio sin
+     * problema y revienta con 403 justo al guardar el alta, con el formulario
+     * lleno y sin decir qué rol falta. El diagnóstico lee los permisos del
+     * propio token, que es lo que Keycloak va a mirar.
+     */
+    const diagnostico = await this.directorio.diagnostico();
     return {
       configurado: this.directorio.configurado,
       motivo: this.directorio.motivoNoConfigurado,
       dominios: this.directorio.dominiosPermitidos,
       identidadEnDirectorio:
         this.config.get<string>('AUTH_MODE', 'keycloak') === 'keycloak',
+      puedeLeer: diagnostico.puedeLeer,
+      puedeCrear: diagnostico.puedeCrear,
+      faltan: diagnostico.faltan,
+      alcanzable: diagnostico.alcanzable,
+      detalle: diagnostico.detalle,
     };
   }
 

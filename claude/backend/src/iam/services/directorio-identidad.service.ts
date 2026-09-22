@@ -228,6 +228,104 @@ export class DirectorioIdentidadService {
   }
 
   /**
+   * ──────────────────────────────────────────────────────────────────────────
+   * Qué puede hacer el ERP en el directorio, dicho antes de chocar
+   * --------------------------------------------------------------------------
+   * `configurado` sólo dice que las tres variables están puestas. Eso no
+   * distingue el caso que de verdad se da: la cuenta de servicio tiene
+   * `view-users` y no `manage-users`, así que el ERP LEE el directorio
+   * perfectamente —el diagnóstico de roles muestra a todo el mundo con
+   * `enDirectorio: true`— y revienta con 403 en el momento exacto de dar a
+   * alguien de alta. El síntoma aparece con el formulario lleno y no dice qué
+   * rol falta.
+   *
+   * Los permisos vienen dentro del propio token de la cuenta de servicio, en
+   * `resource_access['realm-management'].roles`. Se lee de ahí y no
+   * preguntando a Keycloak por otra vía, porque es exactamente lo que el
+   * servidor va a mirar cuando llegue la petición.
+   *
+   * No devuelve el token ni el secreto: sólo los nombres de los roles.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  async diagnostico(): Promise<{
+    configurado: boolean;
+    motivo: string | null;
+    alcanzable: boolean;
+    roles: string[];
+    puedeLeer: boolean;
+    puedeCrear: boolean;
+    faltan: string[];
+    detalle: string | null;
+  }> {
+    const base = {
+      configurado: this.configurado,
+      motivo: this.motivoNoConfigurado,
+      alcanzable: false,
+      roles: [] as string[],
+      puedeLeer: false,
+      puedeCrear: false,
+      faltan: [] as string[],
+      detalle: null as string | null,
+    };
+    if (!this.configurado) return base;
+
+    let token: string;
+    try {
+      token = await this.obtenerToken();
+    } catch (error) {
+      const estado = (error as any)?.response?.status;
+      return {
+        ...base,
+        detalle:
+          estado === 401
+            ? 'El directorio rechazó las credenciales del cliente (401). Revisa DIRECTORIO_CLIENT_ID y DIRECTORIO_CLIENT_SECRET.'
+            : `No se pudo obtener el token del directorio${estado ? ` (${estado})` : ''}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+      };
+    }
+
+    let roles: string[] = [];
+    try {
+      const carga = JSON.parse(
+        Buffer.from(token.split('.')[1], 'base64').toString('utf8'),
+      );
+      roles = carga?.resource_access?.['realm-management']?.roles ?? [];
+    } catch {
+      return {
+        ...base,
+        alcanzable: true,
+        detalle:
+          'El token del directorio llegó, pero no se pudo leer qué permisos trae.',
+      };
+    }
+
+    const tiene = (rol: string) =>
+      roles.includes(rol) || roles.includes('realm-admin');
+    const puedeLeer = tiene('view-users');
+    const puedeCrear = tiene('manage-users');
+    const faltan = [
+      ...(puedeLeer ? [] : ['view-users']),
+      ...(puedeCrear ? [] : ['manage-users']),
+    ];
+
+    return {
+      configurado: true,
+      motivo: null,
+      alcanzable: true,
+      roles,
+      puedeLeer,
+      puedeCrear,
+      faltan,
+      detalle: faltan.length
+        ? `A la cuenta de servicio de «${this.clientId}» le falta ${faltan.join(
+            ' y ',
+          )} de realm-management. Sin manage-users el ERP lee el directorio pero no puede dar de alta a nadie: el alta falla con 403 con el formulario ya lleno.`
+        : null,
+    };
+  }
+
+  /**
    * Da de alta la identidad, o reutiliza la que ya exista.
    *
    * Reutilizar no es un atajo: es el caso «y viceversa» del que hablamos. Si a
