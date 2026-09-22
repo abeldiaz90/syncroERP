@@ -1953,6 +1953,27 @@ describe('Coherencia · quien aprueba no escribe la regla que lo obliga', () => 
     expect(texto).toContain('/configuraciones-aprobacion/catalogo/roles');
   });
 
+  /*
+   * Enrutar por rol es lo correcto —la ruta sobrevive a que la persona cambie
+   * de puesto— pero trae su propio modo de fallo silencioso: el rol se queda
+   * sin nadie, la matriz se sigue viendo perfecta y el documento se para. Al
+   * GUARDAR ya se comprobaba; lo que faltaba era despues, cuando la unica
+   * gerente se da de baja un martes.
+   */
+  it('el arranque avisa de las rutas enrutadas a un rol que nadie tiene', () => {
+    const texto = leer(
+      join(SRC, 'compras/services/rutas-aprobacion-iniciales.service.ts'),
+    );
+    expect(texto).toContain('async avisarRutasSinFirmante');
+    expect(sinComentarios(texto)).toContain('await this.avisarRutasSinFirmante();');
+    // Avisa, no corrige: a quien le toca firmar lo decide la empresa.
+    const desde = texto.indexOf('async avisarRutasSinFirmante');
+    const hasta = texto.indexOf('\n  async ', desde + 10);
+    const metodo = texto.slice(desde, hasta > desde ? hasta : undefined);
+    expect(metodo).toContain('logger.warn');
+    expect(metodo).not.toContain('.save(');
+  });
+
   it('el catálogo de roles lo sirve el contrato, no una lista escrita a mano', () => {
     const servicio = leer(
       join(SRC, 'compras/services/configuraciones-aprobacion.service.ts'),

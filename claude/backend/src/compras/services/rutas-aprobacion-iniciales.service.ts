@@ -63,6 +63,7 @@ export class RutasAprobacionInicialesService implements OnApplicationBootstrap {
           `Rutas de aprobación de requisición creadas para ${creadas} área(s) que no tenían ninguna.`,
         );
       }
+      await this.avisarRutasSinFirmante();
     } catch (error) {
       /*
        * Que esto falle no puede impedir que el ERP arranque: es una comodidad
@@ -74,6 +75,59 @@ export class RutasAprobacionInicialesService implements OnApplicationBootstrap {
         }`,
       );
     }
+  }
+
+  /**
+   * ──────────────────────────────────────────────────────────────────────────
+   * Una ruta que apunta a un rol que nadie tiene
+   * --------------------------------------------------------------------------
+   * Enrutar por ROL es lo que permite separar a quien autoriza de quien
+   * registra, y es lo correcto: la ruta sobrevive a que la persona cambie de
+   * puesto o deje la empresa. Pero tiene un modo de fallo propio —el rol se
+   * queda sin nadie— y ese modo es silencioso: la matriz sigue viéndose
+   * perfecta en pantalla y el documento se para.
+   *
+   * Al guardar sí se comprueba, y bien: «No existe un usuario activo con el
+   * rol gerencia para atender el nivel 1». Lo que no se comprobaba es DESPUÉS:
+   * la única gerente se da de baja un martes y nadie se entera hasta que una
+   * adjudicación lleva tres días esperando. Es exactamente lo que le pasó al
+   * expediente de crédito de María Fernanda por otra vía.
+   *
+   * No corrige nada a propósito —a quién le toca firmar es decisión de la
+   * empresa, no del arranque— pero lo dice por su nombre, con el proceso y el
+   * rol, en cada arranque y mientras siga faltando.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  async avisarRutasSinFirmante(): Promise<string[]> {
+    const rutas = await this.configuraciones.find({ where: { activo: true } });
+    const conRol = rutas.filter((r) => (r.rolAprobador ?? '').trim() !== '');
+    if (!conRol.length) return [];
+
+    const activos = await this.usuarios.find({ where: { activo: true } });
+    const huecos: string[] = [];
+    const yaDicho = new Set<string>();
+
+    for (const ruta of conRol) {
+      const rol = normalizarRol(ruta.rolAprobador as string);
+      const hay = activos.some(
+        (u) => u.empresaId === ruta.empresaId && normalizarRol(u.rol) === rol,
+      );
+      if (hay) continue;
+      const clave = `${ruta.empresaId}:${ruta.proceso}:${rol}`;
+      if (yaDicho.has(clave)) continue;
+      yaDicho.add(clave);
+      huecos.push(
+        `${ruta.proceso} nivel ${ruta.orden} → rol «${ruta.rolAprobador}»`,
+      );
+    }
+
+    if (huecos.length) {
+      this.logger.warn(
+        `Hay ${huecos.length} nivel(es) de aprobación enrutados a un rol que ninguna persona activa tiene: ` +
+          `${huecos.join('; ')}. Esos documentos no van a avanzar hasta que alguien tenga ese rol.`,
+      );
+    }
+    return huecos;
   }
 
   async asegurarRutasDeRequisicion(): Promise<number> {
