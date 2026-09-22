@@ -1,5 +1,7 @@
 import {
   Injectable, NotFoundException, BadRequestException, ConflictException,
+  OnApplicationBootstrap,
+  Logger
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
@@ -18,7 +20,7 @@ import { esViolacionUnicidad } from '../../common/database/errores-sql';
 import { esRolAdministrador, normalizarRol } from '../../iam/utils/roles.util';
 
 @Injectable()
-export class CotizacionesService {
+export class CotizacionesService implements OnApplicationBootstrap {
   constructor(
     @InjectRepository(Cotizacion) private readonly cotizacionRepo: Repository<Cotizacion>,
     @InjectRepository(DetalleCotizacion) private readonly detalleRepo: Repository<DetalleCotizacion>,
@@ -30,6 +32,62 @@ export class CotizacionesService {
     @InjectRepository(Producto) private readonly productoRepo: Repository<Producto>,
     private readonly dataSource: DataSource,
   ) {}
+
+  private readonly logger = new Logger(CotizacionesService.name);
+
+  /**
+   * ──────────────────────────────────────────────────────────────────────────
+   * Las hermanas que quedaron colgando antes de que esto se arreglara
+   * --------------------------------------------------------------------------
+   * `descartarHermanasEnJuego` cierra las propuestas perdedoras en el momento
+   * de adjudicar. No toca las de antes: el 22-sep quedó una de $116.00
+   * esperando la firma del contador cuando la de $110.20 ya estaba adjudicada.
+   *
+   * La corrección es segura de demostrar: si una requisición YA tiene una
+   * cotización APROBADA, ninguna hermana que siga pendiente puede ganar
+   * —`crearDesdeCotizacion` exige APROBADA y la unicidad es por requisición—,
+   * así que no se está decidiendo nada que estuviera en juego.
+   *
+   * Idempotente: en cuanto se cierran, las vueltas siguientes no encuentran
+   * nada y no escriben una línea de log.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  async onApplicationBootstrap() {
+    try {
+      const cerradas = await this.cerrarHermanasHistoricas();
+      if (cerradas > 0) {
+        this.logger.warn(
+          `Se descartaron ${cerradas} cotizacion(es) que seguian esperando firma en requisiciones ya adjudicadas. Eran pendientes que nadie podia resolver ni cerrar.`,
+        );
+      }
+    } catch (error) {
+      // Una limpieza de puesta en marcha no puede impedir que el ERP arranque.
+      this.logger.error(
+        `No se pudieron descartar las cotizaciones huerfanas: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  async cerrarHermanasHistoricas(): Promise<number> {
+    const adjudicadas = await this.cotizacionRepo.find({
+      where: { estado: 'APROBADA' },
+      // `aprobadoPorId` va en el select porque se usa abajo: sin nombrarlo,
+      // TypeORM no lo trae y la limpieza quedaria sin autor.
+      select: ['id', 'empresaId', 'requisicionId', 'aprobadoPorId'],
+    });
+    let cerradas = 0;
+    for (const ganadora of adjudicadas) {
+      if (!ganadora.requisicionId) continue;
+      cerradas += await this.descartarHermanasEnJuego(
+        ganadora.id,
+        ganadora.empresaId,
+        ganadora.aprobadoPorId ?? null,
+      );
+    }
+    return cerradas;
+  }
 
   async crear(dto: CrearCotizacionDto, empresaId: string) {
     const req = await this.requisicionRepo.findOne({
@@ -344,7 +402,157 @@ export class CotizacionesService {
         comentarioAprobacion: comentario?.trim() || null,
       },
     );
+    /*
+     * ──────────────────────────────────────────────────────────────────────
+     * Adjudicada una, las hermanas dejan de estar en juego
+     * ----------------------------------------------------------------------
+     * Una requisición se cotiza con varios proveedores y sólo se adjudica a
+     * uno. Las demás propuestas que estuvieran esperando firma ya no pueden
+     * ganar —`crearDesdeCotizacion` exige APROBADA y sólo hay una— pero se
+     * quedaban en `PENDIENTE_APROBACION` con su nivel PENDIENTE colgando en
+     * la bandeja de alguien, para siempre.
+     *
+     * Se vio en vivo: adjudicada la propuesta de $110.20, la de $116.00
+     * seguía esperando la firma del contador desde un ciclo anterior. Un
+     * pendiente que nadie puede resolver ni cerrar enseña a la gente a
+     * ignorar su bandeja, y una bandeja que se ignora no controla nada.
+     *
+     * Se marcan DESCARTADA y no RECHAZADA a propósito: nadie las rechazó,
+     * perdieron. La diferencia importa cuando alguien pregunta por qué no se
+     * eligió a ese proveedor.
+     * ──────────────────────────────────────────────────────────────────────
+     */
+    await this.descartarHermanasEnJuego(id, empresaId, usuarioId);
     return this.obtenerPorId(id, empresaId);
+  }
+
+  /**
+   * Cierra las demás propuestas de la misma requisición que seguían esperando
+   * firma. Idempotente: si no hay ninguna, no escribe nada.
+   */
+  private async descartarHermanasEnJuego(
+    cotizacionIdGanadora: string,
+    empresaId: string,
+    usuarioId: string | null,
+  ): Promise<number> {
+    const ganadora = await this.cotizacionRepo.findOne({
+      where: { id: cotizacionIdGanadora, empresaId },
+      select: ['id', 'requisicionId'],
+    });
+    if (!ganadora?.requisicionId) return 0;
+
+    const hermanas = await this.cotizacionRepo.find({
+      where: {
+        empresaId,
+        requisicionId: ganadora.requisicionId,
+        estado: 'PENDIENTE_APROBACION',
+      },
+      select: ['id'],
+    });
+    const perdedoras = hermanas
+      .map((c) => c.id)
+      .filter((otro) => otro !== cotizacionIdGanadora);
+    if (!perdedoras.length) return 0;
+
+    await this.aprobacionRepo
+      .createQueryBuilder()
+      .update()
+      .set({ estado: 'CANCELADA', resueltoPorId: usuarioId, fechaResolucion: new Date() })
+      .where(
+        'empresaId=:empresaId AND proceso=:proceso AND documentoId IN (:...ids) AND estado=:estado',
+        { empresaId, proceso: 'COTIZACION', ids: perdedoras, estado: 'PENDIENTE' },
+      )
+      .execute();
+
+    await this.cotizacionRepo
+      .createQueryBuilder()
+      .update()
+      .set({ estado: 'DESCARTADA' })
+      .where('empresaId=:empresaId AND id IN (:...ids)', {
+        empresaId,
+        ids: perdedoras,
+      })
+      .execute();
+
+    return perdedoras.length;
+  }
+
+  /**
+   * ──────────────────────────────────────────────────────────────────────────
+   * Las adjudicaciones que esperan MI firma
+   * --------------------------------------------------------------------------
+   * No existía. `/dashboard/compras/aprobaciones` sólo listaba requisiciones,
+   * así que una adjudicación pendiente no aparecía en ninguna pantalla: quien
+   * tenía que firmarla llegaba sólo si alguien le pasaba la URL de la
+   * requisición a mano. Se comprobó en vivo el 22-sep: Gerencia pudo adjudicar
+   * porque yo escribí la dirección; sin eso, la propuesta se habría quedado
+   * esperando como el expediente de crédito de María Fernanda.
+   *
+   * Devuelve el documento, no la acción. Adjudicar sin ver las ofertas que
+   * compiten es justo lo que no se quiere, así que la pantalla enlaza al
+   * comparativo y la firma se da allí, con los números de los dos proveedores
+   * delante.
+   *
+   * Excluye lo que uno mismo pidió: no se puede resolver y verlo en la propia
+   * bandeja sólo invita a intentarlo.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  async adjudicacionesPendientesDe(
+    usuarioId: string,
+    rol: string,
+    empresaId: string,
+  ) {
+    const rolNormalizado = normalizarRol(rol);
+    const candidatas = await this.aprobacionRepo.find({
+      where: { empresaId, proceso: 'COTIZACION', estado: 'PENDIENTE' },
+      order: { fechaCreacion: 'ASC', ciclo: 'ASC', nivel: 'ASC' },
+    });
+
+    // Sólo el siguiente nivel de cada documento y ciclo: los demás no tocan aún.
+    const primeras = new Map<string, (typeof candidatas)[number]>();
+    for (const paso of candidatas) {
+      const clave = `${paso.documentoId}:${paso.ciclo}`;
+      if (!primeras.has(clave)) primeras.set(clave, paso);
+    }
+
+    const mias = [...primeras.values()].filter((paso) => {
+      if (paso.solicitadoPorId === usuarioId) return false;
+      if (paso.usuarioAprobadorId) return paso.usuarioAprobadorId === usuarioId;
+      return (
+        rolNormalizado !== '' &&
+        normalizarRol(paso.rolAprobador) === rolNormalizado
+      );
+    });
+    if (!mias.length) return [];
+
+    const cotizaciones = await this.cotizacionRepo.find({
+      where: { empresaId, id: In(mias.map((p) => p.documentoId)) },
+      relations: [
+        'proveedor',
+        'detalles',
+        'detalles.producto',
+        'requisicion',
+        'requisicion.usuarioSolicitante',
+      ],
+    });
+    const porId = new Map(cotizaciones.map((c) => [c.id, c]));
+
+    return mias
+      .map((paso) => {
+        const cot = porId.get(paso.documentoId);
+        if (!cot || cot.estado !== 'PENDIENTE_APROBACION') return null;
+        return {
+          aprobacionId: paso.id,
+          ciclo: paso.ciclo,
+          nivel: paso.nivel,
+          fechaCreacion: paso.fechaCreacion,
+          fechaVencimiento: paso.fechaVencimiento,
+          importeSolicitado: Number(paso.importeSolicitado ?? cot.total ?? 0),
+          motivoSeleccion: cot.motivoSeleccion,
+          cotizacion: cot,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
   }
 
   async rechazar(id: string, empresaId: string, usuarioId: string, rol: string, comentario?: string) {

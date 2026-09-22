@@ -14,7 +14,16 @@ export type EstadoCotizacion =
   | 'PENDIENTE_APROBACION'
   | 'APROBADA'
   | 'SELECCIONADA'
-  | 'RECHAZADA';
+  | 'RECHAZADA'
+  /*
+   * Perdió la adjudicación. No es lo mismo que RECHAZADA y la diferencia
+   * importa: a una propuesta rechazada alguien le dijo que no, con motivo y
+   * con nombre; una descartada simplemente no fue la elegida. Confundirlas
+   * deja al proveedor marcado como reprobado cuando sólo cotizó más caro, y
+   * es la primera pregunta que se hace cuando alguien audita por qué se
+   * adjudicó a otro.
+   */
+  | 'DESCARTADA';
 
 @Entity('cotizaciones')
 @Index('UQ_cotizacion_requisicion_proveedor', ['empresaId', 'requisicionId', 'proveedorId'], { unique: true })

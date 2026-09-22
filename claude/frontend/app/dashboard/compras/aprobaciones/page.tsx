@@ -21,6 +21,31 @@ interface IAprobacion {
   usuario?: { nombreCompleto?: string };
 }
 
+/*
+ * Una adjudicación esperando firma no aparecía en NINGUNA pantalla. Esta sólo
+ * listaba requisiciones, así que quien tenía que firmarla llegaba únicamente
+ * si alguien le pasaba la URL de la requisición a mano. Se comprobó en vivo el
+ * 22-sep: Gerencia pudo adjudicar porque yo escribí la dirección.
+ *
+ * Lista el documento y enlaza al comparativo; la firma se da allí. Adjudicar
+ * sin ver las ofertas que compiten es justo lo que no se quiere.
+ */
+interface IAdjudicacion {
+  aprobacionId: string;
+  ciclo: number;
+  nivel: number;
+  fechaVencimiento?: string;
+  importeSolicitado: number;
+  motivoSeleccion?: string | null;
+  cotizacion: {
+    id: string;
+    requisicionId: string;
+    total: number;
+    proveedor?: { razonSocial?: string; nombreComercial?: string };
+    requisicion?: { id: string; usuarioSolicitante?: { nombreCompleto?: string } };
+  };
+}
+
 const PRIORIDAD_CONFIG: Record<string, { label: string; cls: string; dot: string }> = {
   URGENTE: { label: 'URGENTE', cls: 'bg-red-100 text-red-700 border-red-300',     dot: 'bg-red-500' },
   ALTA:    { label: 'Alta',    cls: 'bg-orange-100 text-orange-700 border-orange-200', dot: 'bg-orange-400' },
@@ -33,6 +58,7 @@ const fmtFecha = (s: string) =>
 
 export default function AprobacionesPage() {
   const [aprobaciones, setAprobaciones] = useState<IAprobacion[]>([]);
+  const [adjudicaciones, setAdjudicaciones] = useState<IAdjudicacion[]>([]);
   const [cargando, setCargando]         = useState(true);
   const [comentarios, setComentarios]   = useState<Record<string, string>>({});
   const [expandidos, setExpandidos]     = useState<Record<string, boolean>>({});
@@ -46,8 +72,14 @@ export default function AprobacionesPage() {
 
   const cargar = useCallback(async () => {
     setCargando(true);
-    const r = await fetch(`${api}/compras/requisiciones/aprobaciones/pendientes`, { headers: h() });
+    const [r, ra] = await Promise.all([
+      fetch(`${api}/compras/requisiciones/aprobaciones/pendientes`, { headers: h() }),
+      fetch(`${api}/compras/cotizaciones/aprobaciones/pendientes`, { headers: h() }),
+    ]);
     if (r.ok) setAprobaciones(await r.json());
+    // Un 403 aqui no vacia la pantalla: hay roles que aprueban requisiciones
+    // y no adjudicaciones, y al reves.
+    setAdjudicaciones(ra.ok ? await ra.json() : []);
     setCargando(false);
   }, []);
 
@@ -103,13 +135,13 @@ export default function AprobacionesPage() {
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
             <Bell className="w-8 h-8 text-indigo-500"/>
             Aprobaciones Pendientes
-            {aprobaciones.length > 0 && (
+            {aprobaciones.length + adjudicaciones.length > 0 && (
               <span className="text-sm font-bold bg-rose-500 text-white px-2.5 py-1 rounded-full">
-                {aprobaciones.length}
+                {aprobaciones.length + adjudicaciones.length}
               </span>
             )}
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Revisa y autoriza las requisiciones de compra de tu equipo.</p>
+          <p className="text-slate-500 text-sm mt-1">Lo que espera tu firma en compras: requisiciones y adjudicaciones de cotización.</p>
         </div>
         <button onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm">
           <RefreshCw className="w-4 h-4"/>
@@ -121,14 +153,86 @@ export default function AprobacionesPage() {
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
           <p className="text-slate-400 text-sm">Cargando aprobaciones...</p>
         </div>
-      ) : aprobaciones.length === 0 ? (
+      ) : aprobaciones.length === 0 && adjudicaciones.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <Inbox className="w-16 h-16 text-slate-200 mx-auto mb-4"/>
           <p className="font-bold text-xl text-slate-700">Todo al día</p>
-          <p className="text-slate-400 text-sm mt-1">No tienes requisiciones pendientes de aprobar.</p>
+          <p className="text-slate-400 text-sm mt-1">No tienes requisiciones ni adjudicaciones pendientes de aprobar.</p>
         </div>
       ) : (
         <div className="space-y-4">
+          {adjudicaciones.length > 0 && (
+            <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+              <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-amber-900">
+                <Flag className="h-4 w-4" />
+                Adjudicaciones de cotización · {adjudicaciones.length}
+              </h2>
+              <p className="mt-1 text-xs font-semibold text-amber-800">
+                Elegir proveedor se firma viendo las ofertas que compiten, no
+                desde una lista. El enlace abre el comparativo.
+              </p>
+              <ul className="mt-4 space-y-3">
+                {adjudicaciones.map((item) => {
+                  const vencido = Boolean(
+                    item.fechaVencimiento &&
+                      new Date(item.fechaVencimiento).getTime() < Date.now(),
+                  );
+                  const prov =
+                    item.cotizacion.proveedor?.razonSocial ??
+                    item.cotizacion.proveedor?.nombreComercial ??
+                    'Proveedor no disponible';
+                  return (
+                    <li
+                      key={item.aprobacionId}
+                      className="rounded-xl border border-amber-200 bg-white p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-black text-slate-900">{prov}</p>
+                          <p className="text-xs text-slate-500">
+                            Solicitada por{' '}
+                            {item.cotizacion.requisicion?.usuarioSolicitante
+                              ?.nombreCompleto ?? 'alguien de compras'}{' '}
+                            · Ciclo {item.ciclo} · Nivel {item.nivel}
+                          </p>
+                          {item.motivoSeleccion && (
+                            <p className="mt-2 text-xs italic text-slate-600">
+                              «{item.motivoSeleccion}»
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-black text-slate-900">
+                            {new Intl.NumberFormat('es-MX', {
+                              style: 'currency',
+                              currency: 'MXN',
+                            }).format(Number(item.importeSolicitado || 0))}
+                          </p>
+                          {item.fechaVencimiento && (
+                            <p
+                              className={`text-[11px] font-semibold ${
+                                vencido ? 'text-rose-600' : 'text-slate-500'
+                              }`}
+                            >
+                              {vencido ? 'SLA excedido' : 'Atender antes de'}{' '}
+                              {new Date(item.fechaVencimiento).toLocaleString('es-MX')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <Link
+                        href={`/dashboard/compras/cotizaciones/requisicion/${item.cotizacion.requisicionId}`}
+                        className="mt-3 inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700"
+                      >
+                        <Eye className="h-4 w-4" /> Comparar propuestas y firmar
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
+
           {aprobaciones
             .sort((a, b) => {
               const orden = { URGENTE: 0, ALTA: 1, NORMAL: 2, BAJA: 3 };

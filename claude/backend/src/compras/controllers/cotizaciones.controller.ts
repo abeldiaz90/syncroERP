@@ -13,6 +13,19 @@ export class CotizacionesController {
     return this.service.crear(dto, empresaId);
   }
 
+  /*
+   * Va ANTES de `:id` porque Nest resuelve por orden de declaracion y
+   * `aprobaciones` encajaria como identificador.
+   */
+  @Get('aprobaciones/pendientes')
+  adjudicacionesPendientes(
+    @ActiveUser('id') usuarioId: string,
+    @ActiveUser('rol') rol: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
+    return this.service.adjudicacionesPendientesDe(usuarioId, rol, empresaId);
+  }
+
   @Get('requisicion/:id')
   obtenerPorRequisicion(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
     return this.service.obtenerPorRequisicion(id, empresaId);
