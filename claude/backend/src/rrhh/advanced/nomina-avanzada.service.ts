@@ -81,6 +81,10 @@ import {
 } from './nomina-avanzada.entity';
 import { ConfiguracionAprobacion } from '../../compras/entities/configuracion-aprobacion.entity';
 import { Banco } from '../../catalogo/entities/banco.entity';
+import {
+  esRolAdministrador,
+  rolAutorizado,
+} from '../../iam/utils/roles.util';
 
 const money = (value: number | string | null | undefined): number =>
   Math.round((Number(value ?? 0) + Number.EPSILON) * 100) / 100;
@@ -91,12 +95,21 @@ const dateOnly = (value: string): Date => {
   }
   return result;
 };
-const normalizeRole = (value?: string): string =>
-  String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[\s_-]+/g, '');
+/*
+ * AQUI VIVIA `normalizeRole`, la septima normalizacion de roles del sistema.
+ * Se elimino el 22-sep-2026.
+ *
+ * Pasaba a minusculas y borraba los separadores, asi que su vocabulario decia
+ * `recursoshumanos` donde `normalizarRol` —la del sistema— dice
+ * `RECURSOS_HUMANOS`. Era internamente coherente, y por eso funcionaba casi
+ * siempre; lo que no funcionaba era `normalizeRole(rol) !== 'admin'`, que de
+ * los seis nombres que el sistema reconoce para el administrador aceptaba uno.
+ *
+ * Las listas conservan las tres escrituras de Recursos Humanos a proposito:
+ * `normalizarRol` no las unifica —'rrhh' y 'recursos humanos' son cadenas
+ * distintas— y quitarlas dejaria fuera a quien tenga el rol escrito como venia
+ * de antes.
+ */
 
 interface UsuarioNomina {
   id: string;
@@ -227,7 +240,7 @@ export class NominaAvanzadaService {
     empresaId: string,
     usuario: UsuarioNomina,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursoshumanos'], 'asignar conceptos de nómina');
+    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos'], 'asignar conceptos de nómina');
     const empleado = await this.resolverEmpleado(dto.empleadoId, empresaId);
     const concepto = await this.conceptos.findOne({
       where: { id: dto.conceptoId, empresaId, activo: true },
@@ -265,7 +278,7 @@ export class NominaAvanzadaService {
     empresaId: string,
     usuario: UsuarioNomina,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursoshumanos', 'finanzas'], 'registrar préstamos');
+    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos', 'finanzas'], 'registrar préstamos');
     const empleado = await this.resolverEmpleado(dto.empleadoId, empresaId);
     const inicio = dateOnly(dto.fechaInicio);
     const fin = dto.fechaFin ? dateOnly(dto.fechaFin) : undefined;
@@ -295,7 +308,7 @@ export class NominaAvanzadaService {
     empresaId: string,
     usuario: UsuarioNomina,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursoshumanos', 'finanzas'], 'registrar obligaciones');
+    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos', 'finanzas'], 'registrar obligaciones');
     const empleado = await this.resolverEmpleado(dto.empleadoId, empresaId);
     const desde = dateOnly(dto.vigenciaDesde);
     const hasta = dto.vigenciaHasta ? dateOnly(dto.vigenciaHasta) : undefined;
@@ -400,7 +413,7 @@ export class NominaAvanzadaService {
     aceptarAlertas: boolean,
     usuario: UsuarioNomina,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursoshumanos'], 'preparar la aprobación');
+    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos'], 'preparar la aprobación');
     return this.ds.transaction('SERIALIZABLE', async (em) => {
       const periodo = await em.findOne(PeriodoNomina, { where: { id: periodoId, empresaId } });
       if (!periodo) throw new NotFoundException('Periodo no encontrado.');
@@ -474,7 +487,10 @@ export class NominaAvanzadaService {
         throw new ForbiddenException('Quien preparó la nómina no puede aprobarla.');
       }
       if (aprobacion.usuarioAprobadorId) {
-        if (aprobacion.usuarioAprobadorId !== usuario.id && normalizeRole(usuario.rol) !== 'admin') {
+        if (
+          aprobacion.usuarioAprobadorId !== usuario.id &&
+          !esRolAdministrador(usuario.rol)
+        ) {
           throw new ForbiddenException('Esta aprobación está asignada a otro usuario.');
         }
       } else {
@@ -564,7 +580,7 @@ export class NominaAvanzadaService {
     usuario: UsuarioNomina,
     empresaId: string,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursoshumanos', 'tesoreria'], 'capturar cuentas bancarias');
+    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos', 'tesoreria'], 'capturar cuentas bancarias');
     const usuarioId = usuario.id;
     const empleado = await this.resolverEmpleado(dto.empleadoId, empresaId);
     if (!clabeEsValida(dto.clabe)) throw new BadRequestException('La CLABE no supera la validación del dígito de control.');
@@ -605,7 +621,7 @@ export class NominaAvanzadaService {
     usuario: UsuarioNomina,
     empresaId: string,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursoshumanos', 'tesoreria'], 'modificar cuentas bancarias');
+    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos', 'tesoreria'], 'modificar cuentas bancarias');
     const usuarioId = usuario.id;
     return this.ds.transaction('SERIALIZABLE', async (em) => {
       const cuenta = await em.findOne(CuentaBancariaEmpleado, { where: { id, empresaId } });
@@ -700,7 +716,7 @@ export class NominaAvanzadaService {
     enviarPac: boolean,
     usuario: UsuarioNomina,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursoshumanos'], 'preparar CFDI de nómina');
+    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos'], 'preparar CFDI de nómina');
     const periodo = await this.obtenerPeriodo(periodoId, empresaId);
     if (![EstadoPeriodo.APROBADO, EstadoPeriodo.CFDI_PREPARADO].includes(periodo.estado)) {
       throw new ConflictException('La nómina debe estar aprobada antes de preparar CFDI.');
@@ -1605,15 +1621,16 @@ export class NominaAvanzadaService {
 
 
   private exigirRol(rol: string, permitidos: string[], accion: string) {
-    const normal = normalizeRole(rol);
-    if (!permitidos.map(normalizeRole).includes(normal)) {
+    // `rolAutorizado` ya deja pasar al administrador con cualquiera de sus
+    // seis nombres, que es justo lo que la version anterior no hacia.
+    if (!rolAutorizado(rol, permitidos)) {
       throw new ForbiddenException(`Tu rol no tiene permiso para ${accion}.`);
     }
   }
 
   private validarRolAprobacion(requerido: string, rolUsuario: string) {
     const mapa: Record<string, string[]> = {
-      RRHH: ['admin', 'rrhh', 'recursoshumanos'],
+      RRHH: ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos'],
       FINANZAS: ['admin', 'finanzas', 'contador'],
       TESORERIA: ['admin', 'tesoreria'],
     };

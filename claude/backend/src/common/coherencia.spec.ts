@@ -380,8 +380,21 @@ describe('Coherencia · segregación de funciones', () => {
     }
     expect(exigidos.size).toBeGreaterThan(0);
 
-    // Alias históricos que el normalizador resuelve al mismo rol.
-    const ALIAS = new Set(['recursoshumanos', 'administrador']);
+    /*
+     * Alias historicos del mismo rol. Se conservan a proposito: `normalizarRol`
+     * NO los unifica —'rrhh', 'recursos humanos' y 'recursoshumanos' son tres
+     * cadenas distintas para el— asi que la lista tiene que nombrarlos para no
+     * dejar fuera a quien tenga el rol escrito como venia de antes.
+     *
+     * 'recursos humanos' aparece desde el 22-sep, al sustituir la septima
+     * normalizacion del sistema —`normalizeRole`, que borraba los separadores—
+     * por la unica que debe haber.
+     */
+    const ALIAS = new Set([
+      'recursoshumanos',
+      'recursos humanos',
+      'administrador',
+    ]);
     const sinPlantilla = [...exigidos].filter(
       (rol) => !declarados.has(rol) && !ALIAS.has(rol),
     );
@@ -1995,5 +2008,87 @@ describe('Coherencia · quien aprueba no escribe la regla que lo obliga', () => 
       texto.indexOf('Guardar flujo'),
     );
     expect(guardar).toContain('puedeGobernar');
+  });
+});
+
+
+describe('Coherencia · una sola forma de comparar roles', () => {
+  /*
+   * ==========================================================================
+   * Esto no es estilo: es la tercera vez que el mismo error decide mal quien
+   * entra.
+   *
+   *   · La lista de roles con traza completa, en minusculas contra el rol
+   *     normalizado —que sale en MAYUSCULAS—: `gobierno` abria su bandeja y el
+   *     historial salia vacio.
+   *   · `obtenerEmpleado`, con su propia normalizacion y su propia lista de
+   *     roles, dejando pasar el sueldo de toda la plantilla.
+   *   · Seis sitios en RRHH y estructura comparando
+   *     `String(usuario.rol).toLowerCase()` contra literales, donde
+   *     `rol !== 'admin'` no reconocia ninguno de los otros cinco nombres del
+   *     administrador.
+   *
+   * Arreglar las instancias no basta cuando el patron vuelve solo. Aqui se
+   * prohibe.
+   * ==========================================================================
+   */
+  const EXENTOS = ['iam/utils/roles.util.ts'];
+
+  const archivosDeProduccion = TODOS.filter(
+    (ruta) =>
+      !ruta.endsWith('.spec.ts') &&
+      !EXENTOS.some((exento) =>
+        relative(SRC, ruta).split(sep).join('/').endsWith(exento),
+      ),
+  );
+
+  it('nadie compara contra el literal «admin»', () => {
+    const culpables: string[] = [];
+    for (const ruta of archivosDeProduccion) {
+      const texto = sinComentarios(leer(ruta));
+      if (/[!=]==\s*['"`]admin['"`]/.test(texto)) {
+        culpables.push(relative(SRC, ruta));
+      }
+    }
+    /*
+     * El sistema reconoce seis escrituras de administrador —ADMIN,
+     * ADMINISTRADOR, ADMINISTRATOR, SUPER_ADMIN, SUPERADMIN,
+     * SUPER_ADMINISTRADOR—. Comparar con una sola deja fuera a las otras
+     * cinco, y siempre en la direccion de negar acceso a quien lo tiene.
+     * Se pregunta con `esRolAdministrador`.
+     */
+    expect(culpables).toEqual([]);
+  });
+
+  it('nadie normaliza roles a mano para compararlos', () => {
+    const culpables: string[] = [];
+    for (const ruta of archivosDeProduccion) {
+      const texto = sinComentarios(leer(ruta));
+      for (const linea of texto.split('\n')) {
+        const tocaUnRol = /\brol\w*\b[^\n]{0,60}\.toLowerCase\(\)/i.test(linea);
+        const compara = /(===|!==|\.includes\()/.test(linea);
+        if (tocaUnRol && compara) culpables.push(`${relative(SRC, ruta)}: ${linea.trim().slice(0, 90)}`);
+      }
+    }
+    /*
+     * `normalizarRol` pasa a MAYUSCULAS y ademas quita acentos y separadores.
+     * Un `.toLowerCase()` contra una lista es otra definicion de «el mismo
+     * rol», y dos definiciones es exactamente como se abren estos huecos.
+     * Se pregunta con `rolCoincideCon` o `rolAutorizado`.
+     */
+    expect(culpables).toEqual([]);
+  });
+
+  it('la utilidad de roles ofrece las dos preguntas, y son distintas', () => {
+    const util = leer(join(SRC, 'iam/utils/roles.util.ts'));
+    expect(util).toContain('export function rolCoincideCon');
+    expect(util).toContain('export function rolAutorizado');
+    // `rolCoincideCon` NO puede dejar pasar al administrador por serlo: es lo
+    // que la distingue de la otra, y sin eso sobraria una de las dos.
+    const literal = util.slice(
+      util.indexOf('export function rolCoincideCon'),
+      util.indexOf('export function rolAutorizado'),
+    );
+    expect(literal).not.toContain('esRolAdministrador');
   });
 });

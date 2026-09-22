@@ -34,6 +34,7 @@ import {
   sinDatosDeNomina,
   verDatosDeNomina,
 } from '../utils/datos-de-nomina.util';
+import { rolAutorizado } from '../../iam/utils/roles.util';
 import { Between, DataSource, EntityManager, In, Repository } from 'typeorm';
 
 import {
@@ -1692,8 +1693,10 @@ export class RrhhService {
         where: { empresaId, proceso: 'VACACIONES', documentoId: id, estado: 'PENDIENTE' }, order: { nivel: 'ASC' },
       });
       if (!paso) throw new ConflictException('La solicitud no tiene un nivel de aprobación pendiente.');
-      const rol = String(rolUsuario || '').toLowerCase();
-      if ((paso.usuarioAprobadorId && paso.usuarioAprobadorId !== usuarioId) || (paso.rolAprobador && paso.rolAprobador.toLowerCase() !== rol && rol !== 'admin')) {
+      if (
+        (paso.usuarioAprobadorId && paso.usuarioAprobadorId !== usuarioId) ||
+        (paso.rolAprobador && !rolAutorizado(rolUsuario, [paso.rolAprobador]))
+      ) {
         throw new ForbiddenException('Este nivel de aprobación corresponde a otro usuario o rol.');
       }
       paso.estado = aprobar ? 'APROBADA' : 'RECHAZADA';

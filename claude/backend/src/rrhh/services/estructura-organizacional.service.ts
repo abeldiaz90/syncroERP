@@ -11,6 +11,10 @@ import { ConfiguracionAprobacion } from '../../compras/entities/configuracion-ap
 import { Departamento } from '../../departamentos/entities/departamento.entity';
 import { Puesto } from '../entities/rrhh.entity';
 import {
+  esRolAdministrador,
+  rolAutorizado,
+} from '../../iam/utils/roles.util';
+import {
   EstadoSolicitudEstructura,
   SolicitudEstructura,
   TipoSolicitudEstructura,
@@ -35,7 +39,7 @@ export class EstructuraOrganizacionalService {
   ) {}
 
   async crear(dto: CrearSolicitudEstructuraDto, usuario: UsuarioActivo) {
-    if (!['admin', 'rrhh', 'gerencia'].includes(String(usuario.rol).toLowerCase())) {
+    if (!rolAutorizado(usuario.rol, ['rrhh', 'gerencia'])) {
       throw new ForbiddenException('Sólo Recursos Humanos o Gerencia pueden solicitar cambios de estructura.');
     }
     const nombre = dto.nombre.trim();
@@ -86,7 +90,10 @@ export class EstructuraOrganizacionalService {
     const asignaciones = await this.dataSource.getRepository(ConfiguracionAprobacion).count({
       where: { empresaId: usuario.empresaId, usuarioId: usuario.id, activo: true },
     });
-    if (!['admin', 'rrhh', 'gerencia', 'finanzas'].includes(String(usuario.rol).toLowerCase()) && asignaciones === 0) {
+    if (
+      !rolAutorizado(usuario.rol, ['rrhh', 'gerencia', 'finanzas']) &&
+      asignaciones === 0
+    ) {
       throw new ForbiddenException('No tienes acceso a las solicitudes de estructura.');
     }
     return this.solicitudes.find({
@@ -109,18 +116,20 @@ export class EstructuraOrganizacionalService {
     const configurado = await this.dataSource.getRepository(ConfiguracionAprobacion).findOne({
       where: { empresaId: usuario.empresaId, proceso, orden: nivel, activo: true },
     });
-    const rolUsuario = String(usuario.rol).toLowerCase();
     if (configurado?.usuarioId) {
-      if (configurado.usuarioId !== usuario.id && rolUsuario !== 'admin') {
+      if (
+        configurado.usuarioId !== usuario.id &&
+        !esRolAdministrador(usuario.rol)
+      ) {
         throw new ForbiddenException('Esta etapa está asignada a otro usuario.');
       }
     } else if (configurado?.rolAprobador) {
-      if (![configurado.rolAprobador.toLowerCase(), 'admin'].includes(rolUsuario)) {
+      if (!rolAutorizado(usuario.rol, [configurado.rolAprobador])) {
         throw new ForbiddenException(`Esta etapa requiere el rol ${configurado.rolAprobador}.`);
       }
     } else {
-      const rolesPermitidos = etapa === 'GERENCIA' ? ['admin', 'gerencia'] : ['admin', 'finanzas'];
-      if (!rolesPermitidos.includes(rolUsuario)) {
+      const rolesPermitidos = etapa === 'GERENCIA' ? ['gerencia'] : ['finanzas'];
+      if (!rolAutorizado(usuario.rol, rolesPermitidos)) {
         throw new ForbiddenException(`Esta etapa requiere el rol ${etapa === 'GERENCIA' ? 'Gerencia' : 'Finanzas'}.`);
       }
     }
@@ -130,10 +139,21 @@ export class EstructuraOrganizacionalService {
     if (solicitud.estado !== esperado) {
       throw new ConflictException(`La solicitud no está pendiente de ${etapa.toLowerCase()}.`);
     }
+    /*
+      * OJO: el administrador queda EXENTO de esta segregacion.
+      *
+      * Se conserva el comportamiento que ya habia —alguien tiene que poder
+      * desatascar— pero queda escrito, porque es una puerta de salida a un
+      * control de segregacion de funciones y antes vivia en un `!== 'admin'`
+      * suelto que ni siquiera reconocia los alias del administrador.
+      *
+      * Si SUMA decide que la segregacion no admite excepciones, se quita la
+      * tercera condicion y no hace falta nada mas.
+      */
     if (
       etapa === 'FINANZAS' &&
       solicitud.aprobadoGerenciaPorId === usuario.id &&
-      String(usuario.rol).toLowerCase() !== 'admin'
+      !esRolAdministrador(usuario.rol)
     ) {
       throw new ForbiddenException(
         'La misma persona no puede aprobar Gerencia y Finanzas. Se requiere segregación de funciones.',
