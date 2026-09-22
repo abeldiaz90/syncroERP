@@ -38,8 +38,13 @@ export class RrhhController {
   @ApiOperation({
     summary: 'Plantilla, nómina mensual estimada e incidencias recientes',
   })
-  resumen(@ActiveUser('empresaId') empresaId: string) {
-    return this.svc.resumen(empresaId);
+  resumen(
+    @ActiveUser('empresaId') empresaId: string,
+    // El rol decide si los indicadores de coste salen: con plantilla pequena
+    // el «salario promedio» es el sueldo de una persona.
+    @ActiveUser('rol') rol: string,
+  ) {
+    return this.svc.resumen(empresaId, rol);
   }
 
   @Get('preparacion')

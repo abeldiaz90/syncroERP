@@ -1230,7 +1230,16 @@ export class RrhhService {
 
   /* ══ RESUMEN ═════════════════════════════════════════════════════════════ */
 
-  async resumen(empresaId: string) {
+  /*
+   * `rol` decide si los indicadores de coste salen.
+   *
+   * No es cosmetico: con la plantilla pequena, «salario diario promedio» ES el
+   * sueldo de una persona. Se comprobo el 22-sep con un empleado dado de alta:
+   * a Gerencia se le habia recortado el sueldo de la tabla y el encabezado se
+   * lo devolvia entero —$13,500 al mes, $450 de promedio—. Recortar el detalle
+   * y publicar el agregado que lo reconstruye es recortar de mentira.
+   */
+  async resumen(empresaId: string, rol?: string) {
     const plantilla = await this.empleados.find({ where: { empresaId } });
     const activos = plantilla.filter((e) => e.estado !== EstadoEmpleado.BAJA);
 
@@ -1242,18 +1251,23 @@ export class RrhhService {
     const hoy = new Date();
     const treintaDias = new Date(hoy.getTime() - 30 * 86_400_000);
 
+    const conNomina = verDatosDeNomina(rol);
+
     return {
       totalEmpleados: activos.length,
       bajasHistoricas: plantilla.length - activos.length,
-      nominaMensualEstimada: aPesos(nominaMensualCent),
-      salarioPromedioDiario: activos.length
-        ? aPesos(
-            Math.round(
-              activos.reduce((s, e) => s + aCent(e.salarioDiario), 0) /
-                activos.length,
-            ),
-          )
-        : 0,
+      // `null` y no 0: cero es una cifra, y seria falsa.
+      nominaMensualEstimada: conNomina ? aPesos(nominaMensualCent) : null,
+      salarioPromedioDiario: !conNomina
+        ? null
+        : activos.length
+          ? aPesos(
+              Math.round(
+                activos.reduce((s, e) => s + aCent(e.salarioDiario), 0) /
+                  activos.length,
+              ),
+            )
+          : 0,
       porEstado: Object.values(EstadoEmpleado).map((estado) => ({
         estado,
         cantidad: plantilla.filter((e) => e.estado === estado).length,

@@ -71,6 +71,56 @@ describe('listado de empleados: el sueldo depende del rol', () => {
    * El enmascarado de datos personales ya existia y estaba bien: se comprueba
    * para que el recorte nuevo no lo haya desarmado al copiar el objeto.
    */
+  /*
+   * El agregado que reconstruye el dato recortado.
+   *
+   * Comprobado en vivo el 22-sep con UN empleado dado de alta: a Gerencia se
+   * le recortaba el sueldo de la tabla y el encabezado se lo devolvia entero
+   * —«nomina mensual estimada $13,500», «salario diario promedio $450»—. Con
+   * la plantilla pequena el promedio ES el sueldo de una persona, asi que
+   * recortar el detalle y publicar el agregado es recortar de mentira.
+   *
+   * Y va `null`, no 0: cero es una cifra, y en la pantalla se leia como que a
+   * esa persona le pagan nada.
+   */
+  describe('los indicadores de coste', () => {
+    function servicioResumen() {
+      const empleados = {
+        find: jest.fn(async () => [
+          { ...EMPLEADO, estado: 'ACTIVO' },
+          { ...EMPLEADO, id: 'e2', estado: 'ACTIVO', salarioDiario: 550 },
+        ]),
+      };
+      const incidencias = { count: jest.fn(async () => 0) };
+      const Servicio = RrhhService as unknown as new (...a: unknown[]) => RrhhService;
+      return new Servicio(empleados, {}, {}, incidencias, ...new Array(13).fill({}));
+    }
+
+    it('rrhh ve la nomina mensual y el promedio', async () => {
+      const r = (await servicioResumen().resumen('emp', 'rrhh')) as Record<string, unknown>;
+
+      // 500 + 550 = 1050 diarios; por 30 dias, 31 500 al mes.
+      expect(r.nominaMensualEstimada).toBe(31500);
+      expect(r.salarioPromedioDiario).toBe(525);
+    });
+
+    it('gerencia no los ve, y sigue viendo la plantilla', async () => {
+      const r = (await servicioResumen().resumen('emp', 'gerencia')) as Record<string, unknown>;
+
+      expect(r.nominaMensualEstimada).toBeNull();
+      expect(r.salarioPromedioDiario).toBeNull();
+      // Lo que si es suyo: cuanta gente tiene.
+      expect(r.totalEmpleados).toBe(2);
+    });
+
+    it('nunca devuelve cero en lugar de «sin acceso»', async () => {
+      const r = (await servicioResumen().resumen('emp', 'direccion')) as Record<string, unknown>;
+
+      expect(r.nominaMensualEstimada).not.toBe(0);
+      expect(r.salarioPromedioDiario).not.toBe(0);
+    });
+  });
+
   it('sigue enmascarando CURP, RFC, NSS y CLABE', async () => {
     const [fila] = await servicio().listarEmpleados('emp', {}, 'gerencia');
     const f = fila as unknown as Record<string, string>;

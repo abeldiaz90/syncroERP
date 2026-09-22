@@ -20,7 +20,13 @@ import { AsistenteEmpleado } from '../components/AsistenteEmpleado';
 interface Empleado {
   id: string; numeroEmpleado: string; nombreCompleto: string;
   puesto?: { nombre: string };
-  fechaIngreso: string; salarioDiario: number;
+  fechaIngreso: string;
+  /*
+   * Puede NO venir. El servidor lo recorta para los roles que no ven nomina
+   * —gerencia y direccion tienen RRHH en consulta— y hay que distinguir «no
+   * tengo acceso» de «gana cero», que es una cifra y seria falsa.
+   */
+  salarioDiario?: number | null;
   regimenPago: string; estado: string;
   email?: string; telefono?: string;
 }
@@ -30,8 +36,8 @@ interface Puesto { id: string; clave: string; nombre: string }
 interface Resumen {
   totalEmpleados: number;
   bajasHistoricas: number;
-  nominaMensualEstimada: number;
-  salarioPromedioDiario: number;
+  nominaMensualEstimada: number | null;
+  salarioPromedioDiario: number | null;
   incidenciasRecientes: number;
 }
 
@@ -84,14 +90,21 @@ export default function EmpleadosPage() {
           valor={resumen.datos?.totalEmpleados ?? 0}
           detalle={`${resumen.datos?.bajasHistoricas ?? 0} bajas históricas`}
         />
+        {/*
+          * `null` significa «tu rol no ve nómina»; 0 significa «no hay nadie».
+          * Pintar $0.00 en el primer caso es afirmar algo falso, y con la
+          * plantilla pequeña el promedio ES el sueldo de una persona: por eso
+          * el servidor no lo manda y aquí no se inventa.
+          */}
         <Indicador
           etiqueta="Nómina mensual estimada" color="#0f172a" cargando={resumen.cargando}
-          valor={dinero(resumen.datos?.nominaMensualEstimada)}
-          detalle="sólo sueldo base"
+          valor={resumen.datos?.nominaMensualEstimada == null ? "—" : dinero(resumen.datos.nominaMensualEstimada)}
+          detalle={resumen.datos?.nominaMensualEstimada == null ? "no visible para tu rol" : "sólo sueldo base"}
         />
         <Indicador
           etiqueta="Salario diario promedio" color="#4f46e5" cargando={resumen.cargando}
-          valor={dinero(resumen.datos?.salarioPromedioDiario)}
+          valor={resumen.datos?.salarioPromedioDiario == null ? "—" : dinero(resumen.datos.salarioPromedioDiario)}
+          detalle={resumen.datos?.salarioPromedioDiario == null ? "no visible para tu rol" : undefined}
         />
         <Indicador
           etiqueta="Incidencias del mes" color="#d97706" cargando={resumen.cargando}
@@ -168,7 +181,7 @@ export default function EmpleadosPage() {
                     </td>
                     <td className="text-slate-500">{e.puesto?.nombre ?? '—'}</td>
                     <td className="cifra text-slate-500">{fecha(e.fechaIngreso)}</td>
-                    <td className="text-right cifra">{dinero(e.salarioDiario)}</td>
+                    <td className="text-right cifra">{e.salarioDiario == null ? <span className="text-slate-400" title="Tu rol no tiene acceso a la compensación">—</span> : dinero(e.salarioDiario)}</td>
                     <td className="text-slate-500 text-[12px]">{e.regimenPago}</td>
                     <td>
                       <Distintivo tono={TONO[e.estado] ?? 'neutro'}>
