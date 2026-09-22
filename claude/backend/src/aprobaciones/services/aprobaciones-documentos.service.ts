@@ -51,6 +51,27 @@ export type ProcesoAprobacionCentral = ProcesoFinancieroCentral;
  */
 export const ROLES_CON_TRAZA_COMPLETA = ['gobierno'] as const;
 
+/**
+ * ¿Este rol ve la traza entera?
+ *
+ * Compara con `normalizarRol` en LOS DOS lados. La primera version comparaba
+ * la lista en minusculas contra el rol ya normalizado —que sale en
+ * MAYUSCULAS— asi que no acertaba nunca: `gobierno` entraba a su bandeja y el
+ * historial le salia vacio, con la regla escrita, la prueba en verde y el
+ * comportamiento al reves del disenado.
+ *
+ * Es literalmente el error contra el que avisa el comentario del guardia de
+ * roles —«comparar literalmente haria que encender esto dejara gente fuera por
+ * una mayuscula»— cometido un archivo mas alla. Por eso esto es una funcion
+ * con su prueba y no una comparacion suelta en medio de una consulta.
+ */
+export function veTrazaCompleta(rol?: string): boolean {
+  if (esRolAdministrador(rol)) return true;
+  const mio = normalizarRol(rol);
+  if (!mio) return false;
+  return ROLES_CON_TRAZA_COMPLETA.map(normalizarRol).includes(mio);
+}
+
 type PrepararAprobacionInput = {
   proceso: ProcesoAprobacionCentral;
   documentoId: string;
@@ -630,9 +651,7 @@ export class AprobacionesDocumentosService {
   ) {
     const tope = Math.min(500, Math.max(1, Number(limite || 100)));
     const rolNormalizado = normalizarRol(rol);
-    const veTodo =
-      esRolAdministrador(rol) ||
-      (ROLES_CON_TRAZA_COMPLETA as readonly string[]).includes(rolNormalizado);
+    const veTodo = veTrazaCompleta(rol);
 
     const ventana = await this.aprobaciones
       .createQueryBuilder('aprobacion')
