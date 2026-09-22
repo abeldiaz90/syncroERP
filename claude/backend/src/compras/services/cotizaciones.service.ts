@@ -73,9 +73,14 @@ export class CotizacionesService implements OnApplicationBootstrap {
   async cerrarHermanasHistoricas(): Promise<number> {
     const adjudicadas = await this.cotizacionRepo.find({
       where: { estado: 'APROBADA' },
-      // `aprobadoPorId` va en el select porque se usa abajo: sin nombrarlo,
-      // TypeORM no lo trae y la limpieza quedaria sin autor.
-      select: ['id', 'empresaId', 'requisicionId', 'aprobadoPorId'],
+      // Los campos que se usan abajo: sin nombrarlos, TypeORM no los trae.
+      select: [
+        'id',
+        'empresaId',
+        'requisicionId',
+        'aprobadoPorId',
+        'fechaAprobacion',
+      ],
     });
     let cerradas = 0;
     for (const ganadora of adjudicadas) {
@@ -84,6 +89,7 @@ export class CotizacionesService implements OnApplicationBootstrap {
         ganadora.id,
         ganadora.empresaId,
         ganadora.aprobadoPorId ?? null,
+        ganadora.fechaAprobacion ?? null,
       );
     }
     return cerradas;
@@ -434,6 +440,26 @@ export class CotizacionesService implements OnApplicationBootstrap {
     cotizacionIdGanadora: string,
     empresaId: string,
     usuarioId: string | null,
+    /*
+     * Cuando se adjudicó. Sólo se descarta lo que ya estaba esperando ANTES de
+     * ese momento.
+     *
+     * La primera versión no lo miraba, y el razonamiento era falso: «si la
+     * requisición ya tiene una cotización APROBADA, ninguna hermana pendiente
+     * puede ganar». Sí puede. Llega una propuesta posterior más barata, el
+     * comprador la somete —la pantalla se lo ofrece— y eso es una
+     * RE-ADJUDICACIÓN, una decisión en curso.
+     *
+     * Verificado por accidente el 22-sep: una propuesta de $102.66 contra
+     * $110.20 ya adjudicados, enviada con motivo escrito, aparecio en la
+     * bandeja de Gerencia y el siguiente arranque se la comio en silencio. En
+     * cada reinicio. Un barrido que borra trabajo vivo es peor que el
+     * pendiente huerfano que venia a limpiar.
+     *
+     * `null` significa «ahora»: al adjudicar, todo lo que este pendiente en
+     * ese instante queda superado por definicion.
+     */
+    adjudicadaEn: Date | null = null,
   ): Promise<number> {
     const ganadora = await this.cotizacionRepo.findOne({
       where: { id: cotizacionIdGanadora, empresaId },
@@ -447,11 +473,19 @@ export class CotizacionesService implements OnApplicationBootstrap {
         requisicionId: ganadora.requisicionId,
         estado: 'PENDIENTE_APROBACION',
       },
-      select: ['id'],
+      select: ['id', 'fechaSolicitudAprobacion'],
     });
+    const corte = adjudicadaEn ? new Date(adjudicadaEn).getTime() : Date.now();
     const perdedoras = hermanas
-      .map((c) => c.id)
-      .filter((otro) => otro !== cotizacionIdGanadora);
+      .filter((otra) => {
+        if (otra.id === cotizacionIdGanadora) return false;
+        const pedida = otra.fechaSolicitudAprobacion
+          ? new Date(otra.fechaSolicitudAprobacion).getTime()
+          : 0;
+        // Sometida DESPUES de la adjudicacion: es una decision en curso.
+        return pedida <= corte;
+      })
+      .map((c) => c.id);
     if (!perdedoras.length) return 0;
 
     await this.aprobacionRepo
@@ -537,6 +571,22 @@ export class CotizacionesService implements OnApplicationBootstrap {
     });
     const porId = new Map(cotizaciones.map((c) => [c.id, c]));
 
+    /*
+     * Quien pidio LA ADJUDICACION, que no es quien levanto la requisicion.
+     * La primera version pintaba `requisicion.usuarioSolicitante` y la
+     * pantalla decia «Solicitada por Almacen Prueba» cuando la firma la habia
+     * pedido Compras Prueba. En una pantalla de aprobacion, nombrar a la
+     * persona equivocada es peor que no nombrar a nadie: quien firma cree
+     * saber a quien le esta autorizando algo.
+     */
+    const solicitantes = await this.dataSource.getRepository(Usuario).find({
+      where: { id: In([...new Set(mias.map((p) => p.solicitadoPorId))]) },
+      select: ['id', 'nombreCompleto'],
+    });
+    const nombrePorId = new Map(
+      solicitantes.map((u) => [u.id, u.nombreCompleto]),
+    );
+
     return mias
       .map((paso) => {
         const cot = porId.get(paso.documentoId);
@@ -545,6 +595,8 @@ export class CotizacionesService implements OnApplicationBootstrap {
           aprobacionId: paso.id,
           ciclo: paso.ciclo,
           nivel: paso.nivel,
+          solicitadaPor:
+            nombrePorId.get(paso.solicitadoPorId) ?? 'Alguien de compras',
           fechaCreacion: paso.fechaCreacion,
           fechaVencimiento: paso.fechaVencimiento,
           importeSolicitado: Number(paso.importeSolicitado ?? cot.total ?? 0),

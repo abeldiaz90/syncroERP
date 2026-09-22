@@ -23,6 +23,13 @@ describe('adjudicaciones que esperan mi firma', () => {
   function servicio(pasos: unknown[], cotizaciones: unknown[] = [COT('cot-1')]) {
     const aprobacionRepo = { find: jest.fn(async () => pasos) };
     const cotizacionRepo = { find: jest.fn(async () => cotizaciones) };
+    const dataSource = {
+      getRepository: jest.fn(() => ({
+        find: jest.fn(async () => [
+          { id: 'compras', nombreCompleto: 'Compras Prueba' },
+        ]),
+      })),
+    };
     return new CotizacionesService(
       cotizacionRepo as any,
       {} as any,
@@ -32,7 +39,7 @@ describe('adjudicaciones que esperan mi firma', () => {
       aprobacionRepo as any,
       {} as any,
       {} as any,
-      {} as any,
+      dataSource as any,
     );
   }
 
@@ -56,6 +63,22 @@ describe('adjudicaciones que esperan mi firma', () => {
       expect(r).toHaveLength(1);
       expect(r[0].importeSolicitado).toBe(110.2);
     }
+  });
+
+  /*
+   * Quien PIDIO la adjudicacion, no quien levanto la requisicion. La primera
+   * version pintaba al solicitante de la requisicion y la pantalla decia
+   * «Solicitada por Almacen Prueba» cuando la firma la habia pedido Compras
+   * Prueba. Nombrar a quien no fue, en una pantalla de firma, es peor que no
+   * nombrar a nadie.
+   */
+  it('nombra a quien pidio la adjudicacion', async () => {
+    const [item] = await servicio([paso()]).adjudicacionesPendientesDe(
+      'quien-firma',
+      'gerencia',
+      'emp',
+    );
+    expect(item.solicitadaPor).toBe('Compras Prueba');
   });
 
   it('no llega a un rol distinto', async () => {

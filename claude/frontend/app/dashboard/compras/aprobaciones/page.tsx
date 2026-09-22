@@ -37,6 +37,7 @@ interface IAdjudicacion {
   fechaVencimiento?: string;
   importeSolicitado: number;
   motivoSeleccion?: string | null;
+  solicitadaPor?: string;
   cotizacion: {
     id: string;
     requisicionId: string;
@@ -189,11 +190,23 @@ export default function AprobacionesPage() {
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-black text-slate-900">{prov}</p>
+                          {/*
+                            * Dos personas distintas, y confundirlas en una
+                            * pantalla de firma es nombrar a quien no fue:
+                            * quien PIDIO la adjudicacion y quien levanto la
+                            * requisicion.
+                            */}
                           <p className="text-xs text-slate-500">
-                            Solicitada por{' '}
-                            {item.cotizacion.requisicion?.usuarioSolicitante
-                              ?.nombreCompleto ?? 'alguien de compras'}{' '}
+                            Adjudicación pedida por{' '}
+                            <strong className="font-semibold text-slate-700">
+                              {item.solicitadaPor ?? 'alguien de compras'}
+                            </strong>{' '}
                             · Ciclo {item.ciclo} · Nivel {item.nivel}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Requisición de{' '}
+                            {item.cotizacion.requisicion?.usuarioSolicitante
+                              ?.nombreCompleto ?? 'origen no disponible'}
                           </p>
                           {item.motivoSeleccion && (
                             <p className="mt-2 text-xs italic text-slate-600">
