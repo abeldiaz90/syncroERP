@@ -2092,3 +2092,112 @@ describe('Coherencia · una sola forma de comparar roles', () => {
     expect(literal).not.toContain('esRolAdministrador');
   });
 });
+
+
+describe('Coherencia · una pantalla que nadie puede tener no es una pantalla', () => {
+  /*
+   * ==========================================================================
+   * `@SkipPermisos()` saca al controlador de la tabla de permisos. No lo deja
+   * abierto —el servicio suele comprobar el rol— pero si lo deja INVISIBLE: el
+   * menu se construye con los permisos que uno TIENE, y de un endpoint que no
+   * esta en la tabla no los tiene nadie.
+   *
+   * Asi que mapear ese endpoint a una pantalla en `endpoints-navegables` es
+   * una contradiccion: el mapa promete una pantalla que no aparecera en el
+   * menu de ningun rol salvo el administrador, que salta la tabla entera.
+   *
+   * Paso con la estructura organizacional: RRHH levantaba la solicitud del
+   * puesto, Gerencia debia firmar la primera etapa y Finanzas la segunda, y
+   * NINGUNO podia llegar a la pantalla. La API contestaba 200 y la pantalla
+   * decia «esta seccion no esta en tu perfil». Por eso ese flujo no se habia
+   * ejercido nunca —y sin puestos no se puede dar de alta al primer empleado—.
+   * ==========================================================================
+   */
+  it('ningun controlador entero se salta la tabla de permisos y ofrece pantalla', () => {
+    /*
+     * La distincion importa: `@SkipPermisos()` sobre UN METODO es legitimo y
+     * hay varios —el catalogo de paises, las preferencias propias, los
+     * sectores de producto— endpoints que cualquier usuario autenticado
+     * necesita y que no tiene sentido administrar por rol.
+     *
+     * Sobre el CONTROLADOR ENTERO es otra cosa: saca del catalogo todas sus
+     * rutas a la vez, incluida la que el mapa de navegacion usa para ofrecer
+     * la pantalla. El menu se construye con los permisos que uno TIENE, y de
+     * un endpoint que no esta en la tabla no los tiene nadie.
+     */
+    const controladores = TODOS.filter((ruta) => ruta.endsWith('.controller.ts'));
+    const culpables: string[] = [];
+
+    for (const ruta of controladores) {
+      const texto = sinComentarios(leer(ruta));
+      const iControlador = texto.indexOf('@Controller(');
+      const iClase = texto.indexOf('export class');
+      if (iControlador < 0 || iClase < 0) continue;
+
+      // Entre el @Controller y la clase: eso es a nivel de controlador.
+      const cabecera = texto.slice(iControlador, iClase);
+      if (!/@SkipPermisos\(\)/.test(cabecera)) continue;
+
+      const base = texto.match(/@Controller\(\s*['"`]([^'"`]*)['"`]/)?.[1] ?? '';
+      const raiz = `/${base}`.replace(/\/+/g, '/').replace(/\/$/, '');
+      for (const clave of Object.keys(ENDPOINTS_NAVEGABLES)) {
+        const soloRuta = clave.split(' ')[1] ?? '';
+        if (soloRuta === raiz || soloRuta.startsWith(`${raiz}/`)) {
+          culpables.push(`${relative(SRC, ruta)} → ${clave}`);
+        }
+      }
+    }
+
+    /*
+     * Si algo aparece aqui hay dos salidas, y las dos son deliberadas: quitar
+     * el `@SkipPermisos()` del controlador —y conceder la accion en las
+     * plantillas de quien la use— o quitar la entrada del mapa de navegacion
+     * porque esa pantalla no es de nadie. Dejarlo como esta es prometer una
+     * puerta que no abre.
+     *
+     * Paso con la estructura organizacional: RRHH levantaba la solicitud del
+     * puesto, Gerencia debia firmar la primera etapa y Finanzas la segunda, y
+     * NINGUNO podia llegar a la pantalla. La API contestaba 200 y la pantalla
+     * decia «esta seccion no esta en tu perfil».
+     */
+    expect(culpables).toEqual([]);
+  });
+
+  /*
+   * Quien pide el puesto no lo firma. El modulo `rrhh` cubre todo `/rrhh/*`,
+   * asi que al entrar la estructura en la tabla de permisos este rol quedo con
+   * permiso para resolver las dos etapas de su propia solicitud. El servicio
+   * ya lo negaba, pero `mis-permisos` decia que si y de ahi sale que botones
+   * pinta el frontend: un boton que siempre contesta 403.
+   */
+  it('quien levanta la solicitud de puesto no puede firmarla', () => {
+    const rrhh = PLANTILLAS_PERMISOS.find((p) => p.rol === 'rrhh');
+    const vedadas = rrhh?.accionesVedadas ?? [];
+    expect(vedadas).toContain('POST /rrhh/estructura/solicitudes/:id/gerencia');
+    expect(vedadas).toContain('POST /rrhh/estructura/solicitudes/:id/finanzas');
+  });
+
+  it('las tres etapas del alta de estructura tienen quien las firme', () => {
+    const plantilla = (rol: string) =>
+      PLANTILLAS_PERMISOS.find((p) => p.rol === rol);
+    const tiene = (rol: string, accion: string) =>
+      (plantilla(rol)?.accionesIrrenunciables ?? []).includes(accion) ||
+      (plantilla(rol)?.modulos ?? []).includes('rrhh');
+
+    // RRHH levanta la solicitud: le basta su modulo.
+    expect(plantilla('rrhh')?.modulos ?? []).toContain('rrhh');
+    // Gerencia firma la primera etapa, Finanzas la segunda. Ninguna de las dos
+    // tiene el modulo completo —ni debe tenerlo— asi que va por accion.
+    expect(
+      tiene('gerencia', 'POST /rrhh/estructura/solicitudes/:id/gerencia'),
+    ).toBe(true);
+    expect(
+      tiene('finanzas', 'POST /rrhh/estructura/solicitudes/:id/finanzas'),
+    ).toBe(true);
+    // Y las dos necesitan LEER las solicitudes, o la pantalla abre vacia: es
+    // el error de «podia firmar el pago y no ver que pagar».
+    for (const rol of ['gerencia', 'finanzas']) {
+      expect(tiene(rol, 'GET /rrhh/estructura/solicitudes')).toBe(true);
+    }
+  });
+});

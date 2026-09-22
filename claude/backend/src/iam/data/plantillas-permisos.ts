@@ -287,6 +287,14 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * paga tesorería, contra lo que el almacén dio por recibido.
      */
     accionesIrrenunciables: [
+      /*
+       * La segunda etapa del alta de estructura. Este rol ni siquiera tiene
+       * RRHH en consulta —ni debe tenerlo— pero el control presupuestal de un
+       * puesto nuevo es suyo, y sin estas dos lineas la etapa se queda sin
+       * nadie que pueda firmarla salvo el administrador.
+       */
+      'GET /rrhh/estructura/solicitudes',
+      'POST /rrhh/estructura/solicitudes/:id/finanzas',
       'PATCH /compras/ordenes/:id/pagar',
       // La acción sin la consulta no sirve: la pantalla de pago abre vacía si
       // no puede listar ni abrir la orden. Pasó con el almacenista —podía ver
@@ -435,6 +443,24 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     descripcion: 'Empleados, puestos, asistencia, incidencias, vacaciones, nómina y departamentos.',
     modulos: ['rrhh', 'aprobaciones'],
     modulosConsulta: ['tablero', 'gobierno-aprobaciones'],
+    /*
+     * Quien pide el puesto no lo firma.
+     *
+     * El modulo `rrhh` cubre todo `/rrhh/*`, asi que al entrar la estructura
+     * organizacional en la tabla de permisos —antes se la saltaba entera— este
+     * rol quedo con permiso para resolver LAS DOS etapas de su propia
+     * solicitud. El servicio ya lo negaba —«Esta etapa requiere el rol
+     * Gerencia», comprobado en vivo— pero `mis-permisos` decia que si, y de
+     * ahi saca el frontend que botones pintar: un boton que siempre contesta
+     * 403, que es justo el patron que se cerro en credito.
+     *
+     * RRHH levanta la solicitud y la sigue. Gerencia firma la primera etapa
+     * por control de mando y Finanzas la segunda por control presupuestal.
+     */
+    accionesVedadas: [
+      'POST /rrhh/estructura/solicitudes/:id/gerencia',
+      'POST /rrhh/estructura/solicitudes/:id/finanzas',
+    ],
   },
   {
     rol: 'gerencia',
@@ -482,6 +508,17 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * visible es el punto; que viniera de regalo, no.
      * ────────────────────────────────────────────────────────────────────────
      */
+    /*
+     * Su etapa del alta de estructura. Va por ACCION porque este rol tiene
+     * RRHH solo en consulta —y debe seguir asi: firmar la creacion de un
+     * puesto no es leer la nomina—. Sin estas dos lineas la pantalla de
+     * aprobaciones no le aparece en el menu, que es como estaba: invisible
+     * para los tres roles que la usan.
+     */
+    accionesIrrenunciables: [
+      'GET /rrhh/estructura/solicitudes',
+      'POST /rrhh/estructura/solicitudes/:id/gerencia',
+    ],
     accionesVedadas: [
       'GET /rrhh/nomina/recibos',
       'GET /rrhh/nomina/recibos/:id',
@@ -548,6 +585,17 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * visible es el punto; que viniera de regalo, no.
      * ────────────────────────────────────────────────────────────────────────
      */
+    /*
+     * Su etapa del alta de estructura. Va por ACCION porque este rol tiene
+     * RRHH solo en consulta —y debe seguir asi: firmar la creacion de un
+     * puesto no es leer la nomina—. Sin estas dos lineas la pantalla de
+     * aprobaciones no le aparece en el menu, que es como estaba: invisible
+     * para los tres roles que la usan.
+     */
+    accionesIrrenunciables: [
+      'GET /rrhh/estructura/solicitudes',
+      'POST /rrhh/estructura/solicitudes/:id/gerencia',
+    ],
     accionesVedadas: [
       'GET /rrhh/nomina/recibos',
       'GET /rrhh/nomina/recibos/:id',
