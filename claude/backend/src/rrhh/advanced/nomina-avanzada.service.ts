@@ -26,6 +26,7 @@ import {
   TipoCuentaBancaria,
 } from '../../credito/entities/cuenta-bancaria.entity';
 import { clabeEsValida } from '../utils/clabe.util';
+import { construirCuentaBancaria } from '../utils/cuenta-bancaria-de-alta.util';
 import { cifrarDatoNomina, descifrarDatoNomina, huellaDatoNomina } from '../utils/datos-sensibles.crypto';
 import {
   ConceptoNomina,
@@ -821,19 +822,20 @@ export class NominaAvanzadaService {
           { principal: false },
         );
       }
-      const cuenta = em.create(CuentaBancariaEmpleado, {
-        ...dto,
+      // La misma construccion que usa el alta de empleado: una sola definicion
+      // de que es una cuenta bancaria recien capturada.
+      const cuenta = construirCuentaBancaria(em, {
         empresaId,
         empleadoId: empleado.id,
-        clabe: undefined,
-        clabeCifrada: cifrarDatoNomina(dto.clabe),
-        clabeHash: huellaDatoNomina(dto.clabe),
-        clabeUltimos4: dto.clabe.slice(-4),
+        clabe: dto.clabe,
+        bancoClave: dto.bancoClave,
+        bancoNombre: dto.bancoNombre,
+        titular: dto.titular,
         principal: dto.principal ?? false,
-        estado: EstadoCuentaBancariaEmpleado.ACTIVA,
-        estadoValidacion: EstadoValidacionCuentaBancaria.PENDIENTE,
         creadaPorId: usuarioId,
       });
+      if (dto.numeroCuenta) cuenta.numeroCuenta = dto.numeroCuenta;
+      if (dto.numeroTarjetaUltimos4) cuenta.numeroTarjetaUltimos4 = dto.numeroTarjetaUltimos4;
       return em.save(cuenta);
     });
   }
@@ -915,7 +917,24 @@ export class NominaAvanzadaService {
     });
   }
 
-  async listarCuentasBancarias(empresaId: string, referenciaEmpleado?: string) {
+  /**
+   * Quien captura una cuenta no puede validarla, y la pantalla tiene que
+   * saberlo antes de pintar el boton.
+   *
+   * La regla estaba bien puesta en `validarCuentaBancaria` —es el control de
+   * verdad: si la valida el mismo que la capturo, no hay control— pero vivia
+   * solo alli, asi que la lista mostraba «Validar» en todas las cuentas,
+   * incluidas las propias, y ese boton solo llevaba a un 403.
+   *
+   * Es el mismo arreglo que las firmas de nomina: el veredicto viaja como
+   * dato. Aqui se contesta ademas por que, que es lo que convierte un boton
+   * muerto en una explicacion.
+   */
+  async listarCuentasBancarias(
+    empresaId: string,
+    referenciaEmpleado?: string,
+    usuario?: UsuarioNomina,
+  ) {
     const empleadoId = referenciaEmpleado
       ? (await this.resolverEmpleado(referenciaEmpleado, empresaId)).id
       : undefined;
@@ -923,12 +942,28 @@ export class NominaAvanzadaService {
       where: empleadoId ? { empresaId, empleadoId } : { empresaId },
       order: { principal: 'DESC', fechaCreacion: 'DESC' },
     });
+    const puedeValidarEnGeneral = usuario
+      ? rolAutorizado(usuario.rol, FIRMAS_NOMINA.validarCuentaBancaria.roles)
+      : false;
     return cuentas.map((c) => {
       const { clabeCifrada, clabeHash, clabe, ...publica } = c;
+      const yaResuelta = c.estadoValidacion !== EstadoValidacionCuentaBancaria.PENDIENTE;
+      const laCapturasteTu = !!usuario && c.creadaPorId === usuario.id;
+      const motivo = !usuario
+        ? null
+        : yaResuelta
+          ? `La cuenta ya está ${c.estadoValidacion.toLowerCase()}.`
+          : laCapturasteTu
+            ? 'Quien captura una cuenta no puede validarla; te toca a otra persona.'
+            : !puedeValidarEnGeneral
+              ? `Validar una cuenta es de ${FIRMAS_NOMINA.validarCuentaBancaria.dueño}.`
+              : null;
       return {
         ...publica,
         clabe: `**************${c.clabeUltimos4 ?? String(clabe ?? '').slice(-4)}`,
         numeroCuenta: c.numeroCuenta ? `****${c.numeroCuenta.slice(-4)}` : undefined,
+        puedoValidar: !!usuario && !motivo,
+        motivoValidacionBloqueada: motivo,
       };
     });
   }

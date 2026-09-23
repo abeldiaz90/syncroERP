@@ -79,6 +79,8 @@ import { obtenerTarifas } from '../data/tarifas-fiscales';
 import { Departamento } from '../../departamentos/entities/departamento.entity';
 import { ConfiguracionAprobacion } from '../../compras/entities/configuracion-aprobacion.entity';
 import { AprobacionDocumento } from '../../compras/entities/aprobacion-documento.entity';
+import { construirCuentaBancaria } from '../utils/cuenta-bancaria-de-alta.util';
+import { Banco } from '../../catalogo/entities/banco.entity';
 
 const aCent = (v: number | string) => Math.round(Number(v ?? 0) * 100);
 const aPesos = (c: number) => Math.round(c) / 100;
@@ -298,7 +300,34 @@ export class RrhhService {
     return 22 + Math.floor((anios - 6) / 5) * 2;
   }
 
-  async crearEmpleado(dto: CrearEmpleadoDto, empresaId: string) {
+  /**
+   * El padrón: lo mínimo para nombrar a alguien.
+   *
+   * Se seleccionan las columnas a mano en vez de recortar después, para que
+   * añadir un campo al empleado no lo cuele aquí sin que nadie lo decida.
+   */
+  async listarPadron(empresaId: string, estado?: EstadoEmpleado) {
+    const filas = await this.empleados.find({
+      where: { empresaId, ...(estado ? { estado } : {}) },
+      select: {
+        id: true,
+        numeroEmpleado: true,
+        nombres: true,
+        apellidoPaterno: true,
+        apellidoMaterno: true,
+        estado: true,
+      },
+      order: { numeroEmpleado: 'ASC' },
+    });
+    return filas.map((e) => ({
+      id: e.id,
+      numeroEmpleado: e.numeroEmpleado,
+      nombreCompleto: this.nombreCompleto(e),
+      estado: e.estado,
+    }));
+  }
+
+  async crearEmpleado(dto: CrearEmpleadoDto, empresaId: string, usuarioId?: string) {
     if (Number(dto.salarioDiario) <= 0) {
       throw new BadRequestException('El salario diario debe ser mayor que cero.');
     }
@@ -423,6 +452,42 @@ export class RrhhService {
         observaciones: 'Contrato inicial generado desde el asistente de alta.',
         vigente: true,
       }));
+      /*
+       * La CLABE del asistente se convierte en la cuenta bancaria de verdad.
+       *
+       * Antes se quedaba en la columna `clabe` del empleado, que la nomina no
+       * mira: la dispersion lee `CuentaBancariaEmpleado`. Se contrataba a
+       * alguien capturando su CLABE, todo parecia completo, y al llegar a la
+       * dispersion salia «Hay empleados sin cuenta principal activa y
+       * validada» —habia que teclear la misma CLABE otra vez en otra pantalla.
+       *
+       * Nace PENDIENTE de validacion a proposito: capturar no es validar, y la
+       * dispersion sigue negandose hasta que alguien mas la valide.
+       */
+      if (dto.clabe) {
+        const banco = dto.banco
+          ? await manager.findOne(Banco, { where: { nombre: dto.banco, activo: true } })
+          : null;
+        if (!banco) {
+          throw new BadRequestException(
+            'Para registrar la CLABE hace falta elegir un banco activo del catálogo oficial.',
+          );
+        }
+        await manager.save(
+          construirCuentaBancaria(manager, {
+            empresaId,
+            empleadoId: empleado.id,
+            clabe: dto.clabe,
+            bancoClave: banco.clave ?? undefined,
+            bancoNombre: banco.nombre,
+            titular: this.nombreCompleto(empleado),
+            creadaPorId: usuarioId,
+            // La primera cuenta de alguien es, por fuerza, su principal.
+            principal: true,
+          }),
+        );
+      }
+
       await movimientos.save(movimientos.create({
         empresaId,
         empleadoId: empleado.id,

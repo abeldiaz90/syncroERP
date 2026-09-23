@@ -115,6 +115,14 @@ export interface PlantillaRol {
  * es su decision. La prenomina trabajador por trabajador le sigue vedada, y el
  * recibo tambien, porque el sueldo de cada quien no es asunto de esa firma.
  */
+/*
+ * El padron —numero, nombre y estado, nada mas— es lo minimo para poder
+ * referirse a un empleado en un selector. No es el expediente: ni sueldo, ni
+ * datos fiscales, ni cuenta bancaria. Lo necesita quien captura una cuenta,
+ * registra un prestamo o revisa una dispersion sin tener RRHH.
+ */
+const ACCION_PADRON = 'GET /rrhh/padron';
+
 const ACCIONES_FIRMAR_NOMINA = [
   // Los totales del periodo: lo que se autoriza.
   'GET /rrhh/nomina/periodos',
@@ -123,6 +131,7 @@ const ACCIONES_FIRMAR_NOMINA = [
 ];
 
 const ACCIONES_NOMINA_TESORERIA = [
+  ACCION_PADRON,
   // Sin el listado de periodos no hay de donde elegir que dispersar.
   'GET /rrhh/nomina/periodos',
   'GET /rrhh/nomina-avanzada/tablero',
@@ -157,6 +166,7 @@ const ACCIONES_NOMINA_CONTABILIDAD = [
 
 /** Solo Finanzas: prestamos, obligaciones y la validacion de cuentas. */
 const ACCIONES_NOMINA_FINANZAS = [
+  ACCION_PADRON,
   'GET /rrhh/nomina-avanzada/prestamos',
   'POST /rrhh/nomina-avanzada/prestamos',
   'GET /rrhh/nomina-avanzada/obligaciones',

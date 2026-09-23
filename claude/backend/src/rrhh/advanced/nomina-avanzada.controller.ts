@@ -122,10 +122,12 @@ export class NominaAvanzadaController {
 
   @Get('cuentas-bancarias')
   cuentasBancarias(
-    @ActiveUser('empresaId') empresaId: string,
+    // Se pasa el usuario para que cada cuenta venga con su veredicto: quien
+    // captura no valida, y la pantalla tiene que saberlo antes del botón.
+    @ActiveUser() usuario: UsuarioActivo,
     @Query('empleadoId') empleadoId?: string,
   ) {
-    return this.svc.listarCuentasBancarias(empresaId, empleadoId);
+    return this.svc.listarCuentasBancarias(usuario.empresaId, empleadoId, usuario);
   }
 
   @Post('cuentas-bancarias/migrar-cifrado')

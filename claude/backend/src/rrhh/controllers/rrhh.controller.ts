@@ -55,6 +55,30 @@ export class RrhhController {
 
   /* ── Empleados ─────────────────────────────────────────────────────────── */
 
+  /**
+   * El padrón: quién existe, no cómo es su expediente.
+   *
+   * Media docena de pantallas llaman a `GET /rrhh/empleados` sólo para llenar
+   * un selector —«¿a qué empleado le capturo la cuenta bancaria?», «¿de quién
+   * es esta incidencia?»— y ese endpoint devuelve la plantilla: sueldo,
+   * CURP, RFC, NSS, puesto. Roles que sólo necesitan NOMBRAR a una persona se
+   * topaban con un 403 y la pantalla abría con el selector vacío. Le pasó a
+   * Tesorería, que tiene que capturar cuentas bancarias y no podía elegir a
+   * quién.
+   *
+   * Esto devuelve lo mínimo para referirse a alguien: número, nombre y estado.
+   * Ni sueldo, ni datos fiscales, ni cuenta. Quien necesite el expediente sigue
+   * pidiendo `/rrhh/empleados`, que sigue siendo de Recursos humanos.
+   */
+  @Get('padron')
+  @ApiOperation({ summary: 'Padrón mínimo para selectores: número, nombre y estado' })
+  listarPadron(
+    @ActiveUser('empresaId') empresaId: string,
+    @Query('estado') estado?: EstadoEmpleado,
+  ) {
+    return this.svc.listarPadron(empresaId, estado);
+  }
+
   @Get('empleados')
   listarEmpleados(
     @ActiveUser('empresaId') empresaId: string,
@@ -79,8 +103,11 @@ export class RrhhController {
   crearEmpleado(
     @Body() dto: CrearEmpleadoDto,
     @ActiveUser('empresaId') empresaId: string,
+    // La cuenta bancaria que nace del alta guarda quién la capturó: validarla
+    // es un control de otro, y para eso hay que saber de quién viene.
+    @ActiveUser('id') usuarioId: string,
   ) {
-    return this.svc.crearEmpleado(dto, empresaId);
+    return this.svc.crearEmpleado(dto, empresaId, usuarioId);
   }
 
   @Get('empleados/:id')

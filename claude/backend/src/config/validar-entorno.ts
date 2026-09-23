@@ -74,6 +74,14 @@ class VariablesEntorno {
   @IsString({ message: 'Falta DB_HOST' })
   DB_HOST!: string;
 
+  /**
+   * Cifra la CLABE de los empleados. Opcional aquí porque en desarrollo se
+   * puede levantar el proyecto sin ella; obligatoria en producción, más abajo.
+   */
+  @IsString()
+  @IsOptional()
+  NOMINA_DATA_ENCRYPTION_KEY?: string;
+
   @Type(() => Number)
   @IsInt({ message: 'DB_PORT debe ser un número entero' })
   @Min(1)
@@ -316,6 +324,46 @@ export function validarEntorno(config: Record<string, unknown>) {
   ) {
     throw new Error(
       'Falta CFDI_ENCRYPTION_KEY. En producción es obligatoria para proteger las credenciales del PAC.',
+    );
+  }
+
+  /*
+   * ── Sin llave no hay nómina ───────────────────────────────────────────────
+   * `NOMINA_DATA_ENCRYPTION_KEY` cifra la CLABE de cada empleado. Si falta, el
+   * sistema hace lo correcto —se niega a guardar datos bancarios en claro—
+   * pero lo hace tarde: arranca bien, se contrata gente, se calcula la nómina,
+   * se firma entera, y el día que Tesorería captura la primera cuenta aparece
+   * «Configura NOMINA_DATA_ENCRYPTION_KEY». Pasó exactamente así.
+   *
+   * En producción se detiene el arranque; en desarrollo basta con avisar, para
+   * no estorbar a quien sólo levanta el proyecto a mirar. Se valida también la
+   * forma: 32 bytes en Base64 o 64 caracteres hex, que es lo que el cifrado
+   * espera y lo que haría fallar igual de tarde si estuviera mal escrita.
+   */
+  const llaveNomina = (instancia as { NOMINA_DATA_ENCRYPTION_KEY?: string })
+    .NOMINA_DATA_ENCRYPTION_KEY?.trim();
+  const llaveBienFormada =
+    !!llaveNomina &&
+    ((/^[0-9a-fA-F]{64}$/.test(llaveNomina)) ||
+      (() => {
+        try { return Buffer.from(llaveNomina, 'base64').length === 32; }
+        catch { return false; }
+      })());
+
+  if (instancia.NODE_ENV === Entorno.Produccion && !llaveBienFormada) {
+    throw new Error(
+      llaveNomina
+        ? 'NOMINA_DATA_ENCRYPTION_KEY no representa 32 bytes (Base64) ni 64 caracteres hex. ' +
+          'Con ella mal escrita, la nómina arranca y falla al capturar la primera cuenta bancaria.'
+        : 'Falta NOMINA_DATA_ENCRYPTION_KEY. Sin ella no se pueden guardar cuentas bancarias de ' +
+          'empleados, y eso no se descubre hasta el día de la dispersión.',
+    );
+  }
+  if (instancia.NODE_ENV !== Entorno.Produccion && !llaveBienFormada) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[entorno] NOMINA_DATA_ENCRYPTION_KEY no está configurada o está mal formada: ' +
+        'no se podrán capturar cuentas bancarias de empleados ni generar la dispersión.',
     );
   }
 

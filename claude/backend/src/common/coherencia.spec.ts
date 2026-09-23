@@ -2688,3 +2688,99 @@ describe('Coherencia · una acción sin puerta no es una acción', () => {
     },
   );
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * LA CLABE QUE SE CAPTURA ES LA QUE SE DISPERSA
+ *
+ * El asistente de alta pide banco y CLABE y los guardaba en dos columnas del
+ * empleado. La dispersión no lee eso: lee `CuentaBancariaEmpleado`. Se
+ * contrataba a alguien capturando su CLABE, todo parecía completo, y al llegar
+ * a la dispersión salía «Hay empleados sin cuenta principal activa y validada»
+ * —y había que teclear la misma CLABE otra vez en otra pantalla.
+ *
+ * El dato estaba en dos sitios y el que llenaba el operador no era el que
+ * usaba el sistema.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+describe('Coherencia · la CLABE que se captura es la que se dispersa', () => {
+  const ALTA = join(SRC, 'rrhh/services/rrhh.service.ts');
+  const NOMINA = join(SRC, 'rrhh/advanced/nomina-avanzada.service.ts');
+  const UTIL = join(SRC, 'rrhh/utils/cuenta-bancaria-de-alta.util.ts');
+
+  it('dar de alta con CLABE crea la cuenta que la nómina mira', () => {
+    const alta = sinComentarios(leer(ALTA));
+    expect(alta).toContain('construirCuentaBancaria(');
+    // Y como cuenta principal: la primera de alguien lo es por fuerza.
+    const bloque = /if \(dto\.clabe\)[\s\S]{0,1200}?\n      \}/.exec(alta)?.[0] ?? '';
+    expect(bloque).toContain('principal: true');
+  });
+
+  it('hay una sola forma de construir una cuenta bancaria', () => {
+    // Si alguien vuelve a armarla a mano, la copia se desincroniza: el
+    // cifrado, la huella y el estado de validacion tienen que salir del mismo
+    // sitio en los dos caminos.
+    for (const ruta of [ALTA, NOMINA]) {
+      const texto = sinComentarios(leer(ruta));
+      expect(texto).not.toMatch(/create\(\s*CuentaBancariaEmpleado\s*,/);
+    }
+    expect(leer(UTIL)).toContain('clabeCifrada: cifrarDatoNomina(');
+  });
+
+  it('capturar no es validar', () => {
+    // La cuenta nace PENDIENTE pase por donde pase. Si naciera validada, el
+    // control de que otro la revise desapareceria sin que nadie lo notara.
+    const util = sinComentarios(leer(UTIL));
+    expect(util).toContain('EstadoValidacionCuentaBancaria.PENDIENTE');
+    expect(util).not.toContain('EstadoValidacionCuentaBancaria.VALIDADA');
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * EL PADRON DICE QUIEN EXISTE, NO COMO ES SU EXPEDIENTE
+ *
+ * Media docena de pantallas llamaban a `GET /rrhh/empleados` sólo para llenar
+ * un selector, y ese endpoint devuelve la plantilla entera: sueldo, CURP, RFC,
+ * NSS, puesto. Los roles que sólo necesitan NOMBRAR a alguien —Tesorería
+ * capturando una cuenta bancaria, por ejemplo— se topaban con un 403 y abrían
+ * la pantalla con el selector vacío.
+ *
+ * El padrón devuelve número, nombre y estado. Si algún día se le cuela un
+ * campo más, esta prueba se entera antes que nadie.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+describe('Coherencia · el padrón dice quién existe, no cómo es su expediente', () => {
+  const SERVICIO = join(SRC, 'rrhh/services/rrhh.service.ts');
+
+  it('el padrón no devuelve nada del expediente', () => {
+    const texto = leer(SERVICIO);
+    const metodo = /async listarPadron\([\s\S]*?\n  \}/.exec(texto)?.[0] ?? '';
+    expect(metodo).toBeTruthy();
+
+    // Lo que sí sale.
+    for (const campo of ['numeroEmpleado', 'nombreCompleto', 'estado']) {
+      expect(metodo).toContain(campo);
+    }
+    // Y lo que no puede salir nunca, por mucho que crezca el empleado.
+    for (const prohibido of [
+      'salarioDiario', 'salarioDiarioIntegrado', 'curp', 'rfc', 'nss',
+      'clabe', 'banco', 'fechaNacimiento',
+    ]) {
+      expect(metodo).not.toContain(prohibido);
+    }
+  });
+
+  it('quien puede capturar una cuenta bancaria puede elegir a quién', () => {
+    const plantilla = (rol: string) =>
+      PLANTILLAS_PERMISOS.find((p) => normalizarRol(p.rol) === normalizarRol(rol));
+    const sinPadron: string[] = [];
+    for (const bruto of FIRMAS_NOMINA.capturarCuentaBancaria.roles) {
+      const rol = bruto === 'recursoshumanos' || bruto === 'recursos humanos' ? 'rrhh' : bruto;
+      if (esRolAdministrador(rol)) continue;
+      const p = plantilla(rol);
+      if (!p) continue; // los alias no tienen plantilla propia
+      const alcanza =
+        (p.modulos ?? []).includes('rrhh') ||
+        (p.accionesIrrenunciables ?? []).includes('GET /rrhh/padron');
+      if (!alcanza) sinPadron.push(rol);
+    }
+    expect(sinPadron).toEqual([]);
+  });
+});

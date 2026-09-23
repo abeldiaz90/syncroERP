@@ -26,6 +26,9 @@ type Cuenta = {
   estado: string;
   estadoValidacion: 'PENDIENTE' | 'VALIDADA' | 'RECHAZADA';
   motivoValidacion?: string;
+  /* El veredicto del servidor: quien captura una cuenta no puede validarla. */
+  puedoValidar?: boolean;
+  motivoValidacionBloqueada?: string | null;
 };
 type Banco = { id: string; clave?: string; nombre: string; activo?: boolean };
 
@@ -46,7 +49,8 @@ export default function CuentasBancariasPage() {
 
   const cargar = async () => {
     const [e, c, b] = await Promise.all([
-      api.get<Empleado[]>('/rrhh/empleados'),
+      /* El padrón, no el expediente: aquí sólo hace falta poder nombrar a alguien. */
+      api.get<Empleado[]>('/rrhh/padron'),
       api.get<Cuenta[]>('/rrhh/nomina-avanzada/cuentas-bancarias'),
       api.get<Banco[]>('/catalogos/bancos'),
     ]);
@@ -152,7 +156,9 @@ export default function CuentasBancariasPage() {
       <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
         <div className="flex items-center gap-2 border-b p-4"><Search className="h-4 w-4 text-slate-400"/><input className="entrada flex-1" placeholder="Buscar empleado o banco" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}/></div>
         <div className="overflow-x-auto"><table className="tabla"><thead><tr><th>Empleado</th><th>Banco</th><th>CLABE</th><th>Uso</th><th>Validación</th><th>Acciones</th></tr></thead><tbody>
-          {filtradas.map((c) => <tr key={c.id}><td><b>{empleadosMap.get(c.empleadoId)?.numeroEmpleado ?? '—'}</b><div className="text-xs text-slate-500">{nombreEmpleado(c.empleadoId)}</div></td><td><span className="flex items-center gap-2"><Building2 className="h-4 w-4"/>{c.bancoNombre}</span></td><td className="font-mono">{c.clabe}</td><td>{c.principal ? <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 className="h-4 w-4"/>Principal</span> : 'Alterna'}</td><td><EstadoValidacion estado={c.estadoValidacion}/>{c.motivoValidacion && <div className="mt-1 text-xs text-slate-500">{c.motivoValidacion}</div>}</td><td>{c.estadoValidacion === 'PENDIENTE' && <div className="flex gap-2"><button disabled={ocupado} className="btn btn-primario btn-sm" onClick={() => void validar(c, 'VALIDADA')}><ShieldCheck className="h-4 w-4"/>Validar</button><button disabled={ocupado} className="btn btn-secundario btn-sm" onClick={() => void validar(c, 'RECHAZADA')}><XCircle className="h-4 w-4"/>Rechazar</button></div>}</td></tr>)}
+          {filtradas.map((c) => <tr key={c.id}><td><b>{empleadosMap.get(c.empleadoId)?.numeroEmpleado ?? '—'}</b><div className="text-xs text-slate-500">{nombreEmpleado(c.empleadoId)}</div></td><td><span className="flex items-center gap-2"><Building2 className="h-4 w-4"/>{c.bancoNombre}</span></td><td className="font-mono">{c.clabe}</td><td>{c.principal ? <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 className="h-4 w-4"/>Principal</span> : 'Alterna'}</td><td><EstadoValidacion estado={c.estadoValidacion}/>{c.motivoValidacion && <div className="mt-1 text-xs text-slate-500">{c.motivoValidacion}</div>}</td><td>{c.estadoValidacion === 'PENDIENTE' && (c.puedoValidar
+            ? <div className="flex gap-2"><button disabled={ocupado} className="btn btn-primario btn-sm" onClick={() => void validar(c, 'VALIDADA')}><ShieldCheck className="h-4 w-4"/>Validar</button><button disabled={ocupado} className="btn btn-secundario btn-sm" onClick={() => void validar(c, 'RECHAZADA')}><XCircle className="h-4 w-4"/>Rechazar</button></div>
+            : <span className="text-xs text-slate-500">{c.motivoValidacionBloqueada ?? 'Esta validación no te toca.'}</span>)}</td></tr>)}
           {!filtradas.length && <tr><td colSpan={6} className="py-10 text-center text-slate-500">No hay cuentas registradas.</td></tr>}
         </tbody></table></div>
       </div>
