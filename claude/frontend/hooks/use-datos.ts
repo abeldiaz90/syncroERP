@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '@/lib/api';
+import { useAvisos } from '@/components/ui';
 
 interface Estado<T> {
   datos: T | null;
@@ -62,16 +63,41 @@ export function useDatos<T>(
  * Para acciones (guardar, eliminar, aprobar): expone `ejecutando` para
  * deshabilitar el botón y evitar el doble envío, que en un ERP significa
  * duplicar un documento.
+ *
+ * Sobre el error: antes este hook guardaba el mensaje en `error` y volvía a
+ * lanzar la excepción. Quien llamaba tenía que acordarse de pintar `.error`
+ * *y* de atrapar el rechazo. Casi ningún botón hacía las dos cosas: el patrón
+ * `onClick={() => void accion.ejecutar(id).catch(() => {})}` aparecía en 15
+ * acciones de 10 pantallas, y en todas ellas un fallo del servidor no dejaba
+ * rastro en la pantalla. En asistencia eso significaba pulsar «salida» y no
+ * ver absolutamente nada: ni el registro, ni el motivo.
+ *
+ * Ahora el hook se hace cargo. Si nadie pinta el error, lo anuncia él mismo
+ * como aviso; y ya no relanza, así que un `void ejecutar()` sin `.catch` no
+ * puede producir un rechazo sin atender. Las pantallas que sí muestran el
+ * mensaje en su sitio —dentro del modal, junto al formulario— lo declaran con
+ * `{ errorVisible: true }` para no decir lo mismo dos veces.
+ *
+ * En caso de fallo `ejecutar` devuelve `null`; quien necesite distinguir
+ * «falló» de «no hizo nada» tiene `error` y `ejecutando`.
  */
 export function useAccion<A extends unknown[], R>(
   accion: (...args: A) => Promise<R>,
+  opciones: { errorVisible?: boolean } = {},
 ) {
   const [ejecutando, setEjecutando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { avisar } = useAvisos();
+
+  // El candado va en una referencia, no en el estado: dos clics dentro del
+  // mismo tick de React leen el mismo `ejecutando` viejo y ambos pasarían.
+  const enCurso = useRef(false);
+  const errorVisible = opciones.errorVisible ?? false;
 
   const ejecutar = useCallback(
     async (...args: A): Promise<R | null> => {
-      if (ejecutando) return null;   // el doble clic no pasa
+      if (enCurso.current) return null;   // el doble clic no pasa
+      enCurso.current = true;
       setEjecutando(true);
       setError(null);
       try {
@@ -81,12 +107,14 @@ export function useAccion<A extends unknown[], R>(
           ? e.mensajeParaPantalla()
           : 'No se pudo completar la operación.';
         setError(mensaje);
-        throw e;
+        if (!errorVisible) avisar(mensaje, 'error');
+        return null;
       } finally {
+        enCurso.current = false;
         setEjecutando(false);
       }
     },
-    [accion, ejecutando],
+    [accion, avisar, errorVisible],
   );
 
   return { ejecutar, ejecutando, error, limpiarError: () => setError(null) };

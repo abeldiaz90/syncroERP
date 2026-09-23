@@ -74,12 +74,14 @@ export default function IncidenciasPage() {
     [desde, hasta],
   );
 
+  // `errorVisible`: el fallo se pinta dentro del modal, junto al formulario
+  // que lo provocó. No hace falta además el aviso flotante.
   const crear = useAccion(async (datos: Record<string, unknown>) => {
     await api.post('/rrhh/incidencias', datos);
     avisar('Incidencia registrada.', 'exito');
     setModalAbierto(false);
     void incidencias.recargar();
-  });
+  }, { errorVisible: true });
 
   const aprobar = useAccion(async (id: string) => {
     await api.patch(`/rrhh/incidencias/${id}/aprobar`);
@@ -218,7 +220,7 @@ export default function IncidenciasPage() {
                         <Distintivo tono="exito">Aprobada</Distintivo>
                       ) : (
                         <button
-                          onClick={() => void aprobar.ejecutar(i.id).catch(() => {})}
+                          onClick={() => void aprobar.ejecutar(i.id)}
                           disabled={aprobar.ejecutando}
                           className="btn btn-fantasma btn-sm"
                         >
@@ -240,7 +242,7 @@ export default function IncidenciasPage() {
         guardando={crear.ejecutando}
         error={crear.error}
         onCerrar={() => { setModalAbierto(false); crear.limpiarError(); }}
-        onGuardar={(d) => void crear.ejecutar(d).catch(() => {})}
+        onGuardar={(d) => void crear.ejecutar(d)}
       />
     </div>
   );

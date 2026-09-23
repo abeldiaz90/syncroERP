@@ -295,7 +295,7 @@ export default function AsientosPendientesPage() {
                         <div className="flex items-center gap-1 justify-end">
                           <button
                             onClick={() =>
-                              void reintentar.ejecutar(a.id).catch(() => {})
+                              void reintentar.ejecutar(a.id)
                             }
                             disabled={reintentar.ejecutando}
                             className="btn btn-fantasma btn-sm"
@@ -352,7 +352,7 @@ export default function AsientosPendientesPage() {
               disabled={!nota.trim()}
               cargando={descartar.ejecutando}
               onClick={() =>
-                void descartar.ejecutar(aDescartar!.id, nota).catch(() => {})
+                void descartar.ejecutar(aDescartar!.id, nota)
               }
             >
               Descartar

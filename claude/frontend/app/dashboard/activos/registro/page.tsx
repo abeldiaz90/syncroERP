@@ -252,7 +252,7 @@ export default function RegistroActivosPage() {
         categorias={categorias.datos ?? []}
         guardando={guardar.ejecutando}
         onCerrar={() => setModalAbierto(false)}
-        onGuardar={(d) => void guardar.ejecutar(d).catch(() => {})}
+        onGuardar={(d) => void guardar.ejecutar(d)}
       />
     </div>
   );

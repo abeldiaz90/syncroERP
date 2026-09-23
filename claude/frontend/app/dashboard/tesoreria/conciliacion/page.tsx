@@ -142,7 +142,7 @@ export default function ConciliacionPage() {
               <Boton
                 variante="primario"
                 icono={<CheckCheck className="w-3.5 h-3.5" />}
-                onClick={() => void conciliar.ejecutar().catch(() => {})}
+                onClick={() => void conciliar.ejecutar()}
                 cargando={conciliar.ejecutando}
               >
                 Conciliar automáticamente
@@ -150,7 +150,7 @@ export default function ConciliacionPage() {
               <Boton
                 variante="neutro"
                 icono={<Scale className="w-3.5 h-3.5" />}
-                onClick={() => void verReporte.ejecutar().catch(() => {})}
+                onClick={() => void verReporte.ejecutar()}
                 cargando={verReporte.ejecutando}
               >
                 Ver reporte
@@ -320,7 +320,7 @@ export default function ConciliacionPage() {
         mes={mes}
         guardando={cargar.ejecutando}
         onCerrar={() => setModalCarga(false)}
-        onGuardar={(d) => void cargar.ejecutar(d).catch(() => {})}
+        onGuardar={(d) => void cargar.ejecutar(d)}
       />
     </div>
   );

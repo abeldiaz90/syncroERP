@@ -59,7 +59,8 @@ export default function DepreciacionPage() {
       r.activosProcesados > 0 ? 'exito' : 'info',
     );
     return r;
-  });
+    // `errorVisible`: esta pantalla pinta `correr.error` en su propio bloque.
+  }, { errorVisible: true });
 
   const revertir = useAccion(async () => {
     const r = await api.post<{ revertidos: number }>('/activos/depreciacion/revertir', { ejercicio, mes });
@@ -196,7 +197,7 @@ export default function DepreciacionPage() {
         mensaje={`Se depreciarán todos los activos elegibles de ${MESES[mes - 1]} ${ejercicio}. La operación queda registrada y afecta el valor en libros.`}
         textoConfirmar="Ejecutar"
         procesando={correr.ejecutando}
-        onConfirmar={() => void correr.ejecutar().catch(() => {})}
+        onConfirmar={() => void correr.ejecutar()}
         onCancelar={() => setConfirmarCorrida(false)}
       />
 
@@ -207,7 +208,7 @@ export default function DepreciacionPage() {
         mensaje={`Se eliminarán los registros de ${MESES[mes - 1]} ${ejercicio} y la depreciación acumulada de cada activo volverá a su valor anterior. Sólo se puede revertir el último periodo depreciado.`}
         textoConfirmar="Revertir"
         procesando={revertir.ejecutando}
-        onConfirmar={() => void revertir.ejecutar().catch(() => {})}
+        onConfirmar={() => void revertir.ejecutar()}
         onCancelar={() => setConfirmarReversion(false)}
       />
     </div>

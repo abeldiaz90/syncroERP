@@ -221,7 +221,7 @@ export default function ActividadesPage() {
         oportunidades={oportunidades.datos ?? []}
         guardando={crear.ejecutando}
         onCerrar={() => setModalAbierto(false)}
-        onGuardar={(d) => void crear.ejecutar(d).catch(() => {})}
+        onGuardar={(d) => void crear.ejecutar(d)}
       />
 
       {aCompletar && (
@@ -229,7 +229,7 @@ export default function ActividadesPage() {
           actividad={aCompletar}
           procesando={completar.ejecutando}
           onCerrar={() => setACompletar(null)}
-          onConfirmar={(r) => void completar.ejecutar(aCompletar.id, r).catch(() => {})}
+          onConfirmar={(r) => void completar.ejecutar(aCompletar.id, r)}
         />
       )}
     </div>

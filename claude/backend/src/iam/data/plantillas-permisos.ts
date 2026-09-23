@@ -586,11 +586,15 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * ────────────────────────────────────────────────────────────────────────
      */
     /*
-     * Su etapa del alta de estructura. Va por ACCION porque este rol tiene
-     * RRHH solo en consulta —y debe seguir asi: firmar la creacion de un
-     * puesto no es leer la nomina—. Sin estas dos lineas la pantalla de
-     * aprobaciones no le aparece en el menu, que es como estaba: invisible
-     * para los tres roles que la usan.
+     * La etapa de GERENCIA, a proposito y no por descuido: direccion esta por
+     * encima y la cubre cuando el gerente falta. Sin esa holgura el alta de
+     * puestos se para en cuanto una persona se va de vacaciones, que es el
+     * problema que la cadena de firmantes viene a resolver en todas partes.
+     *
+     * No rompe la segregacion: la SEGUNDA etapa no la tiene, asi que direccion
+     * no puede cubrir las dos. Va por ACCION porque este rol tiene RRHH solo en
+     * consulta —y debe seguir asi: firmar la creacion de un puesto no es leer
+     * la nomina—.
      */
     accionesIrrenunciables: [
       'GET /rrhh/estructura/solicitudes',

@@ -275,7 +275,7 @@ export default function PeriodosNominaPage() {
         siguienteNumero={(periodos.datos?.reduce((m, p) => Math.max(m, p.numero), 0) ?? 0) + 1}
         guardando={crear.ejecutando}
         onCerrar={() => setModalAbierto(false)}
-        onGuardar={(d) => void crear.ejecutar(d).catch(() => {})}
+        onGuardar={(d) => void crear.ejecutar(d)}
       />
 
       <Confirmacion
@@ -288,7 +288,7 @@ export default function PeriodosNominaPage() {
         }
         textoConfirmar={aCalcular?.estado === 'CALCULADO' ? 'Recalcular' : 'Calcular'}
         procesando={calcular.ejecutando}
-        onConfirmar={() => void calcular.ejecutar(aCalcular!.id).catch(() => {})}
+        onConfirmar={() => void calcular.ejecutar(aCalcular!.id)}
         onCancelar={() => setACalcular(null)}
       />
 

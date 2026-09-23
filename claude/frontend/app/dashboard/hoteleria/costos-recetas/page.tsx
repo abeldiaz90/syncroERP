@@ -103,7 +103,7 @@ export default function ControlCostosRecetasPage() {
             variante="neutro"
             icono={<RefreshCw className="w-3.5 h-3.5" />}
             cargando={recalcular.ejecutando}
-            onClick={() => void recalcular.ejecutar().catch(() => {})}
+            onClick={() => void recalcular.ejecutar()}
           >
             Recalcular costos de recetas
           </Boton>

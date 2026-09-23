@@ -247,7 +247,7 @@ export default function MovimientosTesoreriaPage() {
         cuentas={cuentas.datos ?? []}
         guardando={registrar.ejecutando}
         onCerrar={() => setModalAbierto(false)}
-        onGuardar={(d) => void registrar.ejecutar(d).catch(() => {})}
+        onGuardar={(d) => void registrar.ejecutar(d)}
       />
 
       <Modal
@@ -265,7 +265,7 @@ export default function MovimientosTesoreriaPage() {
               variante="peligro"
               disabled={!motivo.trim()}
               cargando={cancelar.ejecutando}
-              onClick={() => void cancelar.ejecutar(aCancelar!.id, motivo).catch(() => {})}
+              onClick={() => void cancelar.ejecutar(aCancelar!.id, motivo)}
             >
               Cancelar movimiento
             </Boton>

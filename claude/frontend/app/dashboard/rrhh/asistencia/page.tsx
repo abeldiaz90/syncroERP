@@ -21,7 +21,7 @@ import { isoCorto } from '@/lib/format';
 import { useAccion, useDatos } from '@/hooks/use-datos';
 import {
   Boton, Cargando, Campo, Distintivo, Entrada, EncabezadoPantalla,
-  ErrorPantalla, Indicador, Panel, SinDatos, useAvisos,
+  ErrorPantalla, Indicador, Panel, SinDatos,
 } from '@/components/ui';
 
 interface Empleado {
@@ -39,6 +39,13 @@ interface Asistencia {
   minutosRetardo: number;
   observaciones?: string;
 }
+
+/*
+ * La jornada de referencia. El pie de la pantalla ya dice «las horas extra se
+ * calculan sobre una jornada de 8 horas», asi que la etiqueta usa la misma
+ * cifra en vez de inventarse otra.
+ */
+const JORNADA_BASE = 8;
 
 /** "2026-07-28T08:15:00" → "08:15" */
 function hora(iso?: string): string {
@@ -64,7 +71,6 @@ function ahoraHHMM(): string {
 }
 
 export default function AsistenciaPage() {
-  const { avisar } = useAvisos();
   const [dia, setDia] = useState(isoCorto());
 
   const empleados = useDatos<Empleado[]>(
@@ -90,6 +96,27 @@ export default function AsistenciaPage() {
     void asistencias.recargar();
   });
 
+  /*
+   * El `.catch(() => {})` que habia aqui se comia el error.
+   *
+   * `useAccion` guarda el mensaje en `registrar.error` y lo relanza, pero esta
+   * pantalla no pintaba ese estado en ningun sitio y `avisar` estaba importado
+   * sin usarse: se marcaba la salida, el servidor contestaba 400 —«La hora de
+   * salida debe ser posterior a la de entrada», que pasa si entrada y salida
+   * caen en el mismo minuto— y en pantalla no ocurria absolutamente nada. La
+   * fila seguia diciendo «Dentro» y quien marcaba no tenia forma de saber que
+   * su clic no habia servido.
+   */
+  const marcar = async (
+    empleadoId: string,
+    campo: 'entrada' | 'salida',
+    hhmm: string,
+  ) => {
+    // El aviso de fallo lo pone `useAccion`: al no pintarse `registrar.error`
+    // en ningun sitio de esta pantalla, el hook lo anuncia por su cuenta.
+    await registrar.ejecutar(empleadoId, campo, hhmm);
+  };
+
   /** Índice por empleado para no recorrer el arreglo en cada fila. */
   const porEmpleado = useMemo(() => {
     const m = new Map<string, Asistencia>();
@@ -104,7 +131,8 @@ export default function AsistenciaPage() {
     for (const e of lista) {
       const a = porEmpleado.get(e.id);
       if (a?.entrada) presentes++;
-      if (a?.entrada && a?.salida) completos++;
+      // Completo es haber cubierto la jornada, no haber marcado salida.
+      if (a?.entrada && a?.salida && Number(a.horasTrabajadas) + 0.001 >= JORNADA_BASE) completos++;
       extra += Number(a?.horasExtra ?? 0);
     }
     return {
@@ -222,7 +250,7 @@ export default function AsistenciaPage() {
                         <CeldaHora
                           valor={hora(a?.entrada)}
                           deshabilitado={registrar.ejecutando}
-                          onFijar={(hhmm) => void registrar.ejecutar(e.id, 'entrada', hhmm).catch(() => {})}
+                          onFijar={(hhmm) => void marcar(e.id, 'entrada', hhmm)}
                         />
                       </td>
 
@@ -231,7 +259,7 @@ export default function AsistenciaPage() {
                           valor={hora(a?.salida)}
                           deshabilitado={registrar.ejecutando || !conEntrada}
                           titulo={!conEntrada ? 'Registra primero la entrada' : undefined}
-                          onFijar={(hhmm) => void registrar.ejecutar(e.id, 'salida', hhmm).catch(() => {})}
+                          onFijar={(hhmm) => void marcar(e.id, 'salida', hhmm)}
                         />
                       </td>
 
@@ -248,8 +276,22 @@ export default function AsistenciaPage() {
                         )}
                       </td>
                       <td>
+                        {/*
+                          * «Jornada completa» era simplemente `conSalida`: no
+                          * miraba las horas. Con una salida marcada un minuto
+                          * despues de la entrada la fila decia «Jornada
+                          * completa» con 0.02 horas trabajadas. La etiqueta
+                          * afirma algo sobre el tiempo, asi que tiene que
+                          * mirarlo.
+                          */}
                         {conSalida ? (
-                          <Distintivo tono="exito">Jornada completa</Distintivo>
+                          Number(a!.horasTrabajadas) + 0.001 >= JORNADA_BASE ? (
+                            <Distintivo tono="exito">Jornada completa</Distintivo>
+                          ) : (
+                            <Distintivo tono="alerta">
+                              Jornada incompleta
+                            </Distintivo>
+                          )
                         ) : conEntrada ? (
                           <Distintivo tono="info">Dentro</Distintivo>
                         ) : (

@@ -209,7 +209,7 @@ export default function BajasPage() {
           activo={aDarDeBaja}
           procesando={darDeBaja.ejecutando}
           onCerrar={() => setADarDeBaja(null)}
-          onConfirmar={(d) => void darDeBaja.ejecutar(aDarDeBaja.id, d).catch(() => {})}
+          onConfirmar={(d) => void darDeBaja.ejecutar(aDarDeBaja.id, d)}
         />
       )}
     </div>

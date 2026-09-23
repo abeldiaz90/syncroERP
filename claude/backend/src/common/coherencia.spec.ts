@@ -2201,3 +2201,86 @@ describe('Coherencia · una pantalla que nadie puede tener no es una pantalla', 
     }
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * UNA ACCIÓN QUE FALLA EN SILENCIO
+ *
+ * En asistencia se pulsaba «salida», el servidor respondía 400 «la hora de
+ * salida debe ser posterior a la de entrada», y la pantalla no decía nada:
+ * ni el registro nuevo, ni el motivo. El botón quedaba igual que antes del
+ * clic. Quien marca aprende a desconfiar de la pantalla, que es lo peor que
+ * le puede pasar a un ERP en producción.
+ *
+ * La causa no estaba en esa pantalla sino en el contrato de `useAccion`:
+ * guardaba el mensaje en `.error` y volvía a lanzar. Quien llamaba tenía que
+ * acordarse de las dos cosas —pintar el error Y atrapar el rechazo— y el
+ * atajo era escribir `.catch(() => {})`, que cumple la segunda y entierra la
+ * primera. El patrón estaba en 20 acciones de 11 pantallas.
+ *
+ * Ahora el hook avisa por su cuenta y no relanza. Estas pruebas cuidan que
+ * nadie vuelva a tapar el mensaje.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+describe('Coherencia · una acción que falla no se calla', () => {
+  const saltar = !FRONTEND;
+  const pantallas = (): string[] => {
+    if (!FRONTEND) return [];
+    const acumulado: string[] = [];
+    const recorrer = (dir: string) => {
+      for (const nombre of readdirSync(dir)) {
+        if (nombre === 'node_modules' || nombre === '.next') continue;
+        const ruta = join(dir, nombre);
+        if (statSync(ruta).isDirectory()) recorrer(ruta);
+        else if (nombre.endsWith('.tsx')) acumulado.push(ruta);
+      }
+    };
+    recorrer(join(FRONTEND, 'app'));
+    return acumulado;
+  };
+
+  (saltar ? it.skip : it)(
+    'nadie tapa el fallo de una acción con un catch vacío',
+    () => {
+      const culpables: string[] = [];
+      for (const ruta of pantallas()) {
+        const texto = sinComentarios(leer(ruta));
+        // `.ejecutar(...)` seguido de un catch que no hace nada: el rechazo
+        // se atiende y el motivo se pierde.
+        if (/\.ejecutar\((?:[^()]|\([^()]*\))*\)\s*\.catch\(\s*\(\s*\)\s*=>\s*\{\s*\}\s*\)/.test(texto)) {
+          culpables.push(ruta.replace(FRONTEND!, ''));
+        }
+      }
+      expect(culpables).toEqual([]);
+    },
+  );
+
+  (saltar ? it.skip : it)(
+    'el hook de acciones anuncia el fallo cuando la pantalla no lo pinta',
+    () => {
+      const hook = leer(join(FRONTEND!, 'hooks/use-datos.ts'));
+      // Dos garantías, no una redacción: avisa, y no relanza.
+      expect(hook).toContain("if (!errorVisible) avisar(mensaje, 'error')");
+      expect(/catch \(e\)[\s\S]*?\bthrow\b/.test(hook)).toBe(false);
+    },
+  );
+
+  (saltar ? it.skip : it)(
+    'quien declara errorVisible de verdad pinta ese error',
+    () => {
+      // Lo contrario del caso anterior: apagar el aviso y tampoco mostrarlo
+      // deja la pantalla muda otra vez. Si un archivo pide `errorVisible`,
+      // tiene que haber un `<algo>.error` suyo en el JSX.
+      const mudos: string[] = [];
+      for (const ruta of pantallas()) {
+        const texto = leer(ruta);
+        if (!texto.includes('errorVisible: true')) continue;
+        const acciones = [...texto.matchAll(/const\s+(\w+)\s*=\s*useAccion\(/g)]
+          .map((m) => m[1]);
+        const pintado = acciones.some((a) =>
+          new RegExp(`\\b${a}\\.error\\b`).test(texto),
+        );
+        if (!pintado) mudos.push(ruta.replace(FRONTEND!, ''));
+      }
+      expect(mudos).toEqual([]);
+    },
+  );
+});

@@ -174,7 +174,7 @@ export default function PipelinePage() {
                         oportunidad={o}
                         etapas={etapas.datos ?? []}
                         etapaActual={col.etapa.id}
-                        onMover={(destino) => { void mover.ejecutar(o.id, destino).catch(() => {}); }}
+                        onMover={(destino) => { void mover.ejecutar(o.id, destino); }}
                       />
                     ))
                   )}
@@ -191,7 +191,7 @@ export default function PipelinePage() {
         etapas={etapas.datos ?? []}
         guardando={crear.ejecutando}
         onCerrar={() => setModalAbierto(false)}
-        onGuardar={(d) => void crear.ejecutar(d).catch(() => {})}
+        onGuardar={(d) => void crear.ejecutar(d)}
       />
     </div>
   );
