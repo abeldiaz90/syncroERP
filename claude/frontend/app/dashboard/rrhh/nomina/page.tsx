@@ -94,6 +94,20 @@ export default function PeriodosNominaPage() {
   const [ejercicio, setEjercicio] = useState(anioActual);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [aCalcular, setACalcular] = useState<Periodo | null>(null);
+
+  /*
+   * Un periodo ya calculado tiene recibos, y volver a calcularlo los reemplaza
+   * por completo. El aviso de eso existia, pero colgaba de
+   * `estado === 'CALCULADO'` y se saltaba CON_ALERTAS —que es el estado en el
+   * que acaba cualquier nomina con un SBC sin validar, o sea el caso normal—.
+   * Ahi el dialogo decia «Se calcularan las percepciones…», como si fuera la
+   * primera vez, y el boton decia «Calcular». Se recalculaba sin saberlo.
+   *
+   * Lo que decide no es un estado concreto sino si ya hay recibos, y eso es
+   * cierto en cuanto el periodo deja de estar ABIERTO.
+   */
+  const yaTieneRecibos = (periodo: Periodo | null) =>
+    Boolean(periodo) && periodo!.estado !== 'ABIERTO';
   const [resultado, setResultado] = useState<ResultadoCalculo | null>(null);
 
   const periodos = useDatos<Periodo[]>(
@@ -240,10 +254,10 @@ export default function PeriodosNominaPage() {
                           <button
                             onClick={() => setACalcular(p)}
                             className="btn btn-fantasma btn-sm"
-                            title={p.estado === 'CALCULADO' ? 'Recalcular' : 'Calcular nómina'}
+                            title={yaTieneRecibos(p) ? 'Recalcular' : 'Calcular nómina'}
                           >
                             <Calculator className="w-3.5 h-3.5" />
-                            {p.estado === 'CALCULADO' ? 'Recalcular' : 'Calcular'}
+                            {yaTieneRecibos(p) ? 'Recalcular' : 'Calcular'}
                           </button>
                         )}
                         {p.empleadosCalculados > 0 && (
@@ -280,13 +294,13 @@ export default function PeriodosNominaPage() {
 
       <Confirmacion
         abierto={!!aCalcular}
-        titulo={aCalcular?.estado === 'CALCULADO' ? 'Recalcular la nómina' : 'Calcular la nómina'}
+        titulo={yaTieneRecibos(aCalcular) ? 'Recalcular la nómina' : 'Calcular la nómina'}
         mensaje={
-          aCalcular?.estado === 'CALCULADO'
-            ? 'Los recibos actuales del periodo se reemplazan por completo. Es seguro: se hace dentro de una transacción, así que no quedan recibos a medias.'
+          yaTieneRecibos(aCalcular)
+            ? `${(aCalcular?.empleadosCalculados ?? 0) === 1 ? 'El recibo' : `Los ${aCalcular?.empleadosCalculados ?? 0} recibos`} del periodo ${aCalcular?.numero} se ${(aCalcular?.empleadosCalculados ?? 0) === 1 ? 'reemplaza' : 'reemplazan'} por completo, incluido cualquier ajuste hecho a mano. Es seguro: se hace dentro de una transacción, así que no quedan recibos a medias.`
             : `Se calcularán las percepciones, el ISR y el IMSS de todos los empleados activos del periodo ${aCalcular?.numero}.`
         }
-        textoConfirmar={aCalcular?.estado === 'CALCULADO' ? 'Recalcular' : 'Calcular'}
+        textoConfirmar={yaTieneRecibos(aCalcular) ? 'Recalcular' : 'Calcular'}
         procesando={calcular.ejecutando}
         onConfirmar={() => void calcular.ejecutar(aCalcular!.id)}
         onCancelar={() => setACalcular(null)}

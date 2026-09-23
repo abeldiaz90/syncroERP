@@ -284,6 +284,7 @@ export class NominaCalculoService {
             empleadoId: resultado.empleado.id,
             nombreEmpleado: this.nombre(resultado.empleado),
             diasPagados: resultado.diasPagados,
+            diasCotizados: resultado.diasCotizados,
             salarioDiario: Number(resultado.empleado.salarioDiario),
             totalPercepciones: resultado.percepciones,
             totalDeducciones: resultado.deducciones,
@@ -1180,10 +1181,40 @@ export class NominaCalculoService {
       Number(empleado.diasAguinaldo) / 365 +
       (vacaciones * (Number(empleado.primaVacacional) / 100)) / 365;
     const calculado = money(Number(empleado.salarioDiario) * factor);
-    alertas.push(
-      `SBC calculado automáticamente en $${calculado.toFixed(2)}; valida el SBC antes de timbrar/SUA.`,
-    );
-    return Math.max(Number(empleado.salarioDiario), calculado);
+    const usado = Math.max(Number(empleado.salarioDiario), calculado);
+
+    /*
+     * El aviso tiene que nombrar los dos numeros.
+     *
+     * Antes decia «SBC calculado automaticamente en $472.19; valida el SBC
+     * antes de timbrar/SUA» y se callaba que el expediente traia $495. Quien
+     * lee eso no tiene por que sospechar que hubo una cifra descartada, asi
+     * que el aviso que existe para que alguien mire omitia justo el dato que
+     * le haria mirar.
+     *
+     * La diferencia no es cosmetica. Si el SBC informado es MAYOR y es el que
+     * esta registrado ante el IMSS, cotizar por el calculado entera cuotas de
+     * menos, y eso se llama diferencia a cargo del patron. Si es menor, se
+     * paga de mas. En los dos casos alguien tiene que decidir, y para decidir
+     * necesita ver las dos cifras.
+     *
+     * El calculo no cambia: un SBC sin validar no se usa. Lo que cambia es
+     * que deja de desaparecer en silencio.
+     */
+    if (informado > 0 && Math.abs(informado - usado) >= 0.01) {
+      const direccion =
+        informado > usado
+          ? 'es MAYOR que el calculado, asi que si es el que está registrado ante el IMSS se estarían enterando cuotas de menos'
+          : 'es menor que el calculado, asi que se estarían enterando cuotas de más si el expediente fuera el correcto';
+      alertas.push(
+        `SBC: el expediente informa $${informado.toFixed(2)} sin validar y la nómina cotiza con $${usado.toFixed(2)} (mínimo de ley). El informado ${direccion}. Valida el SBC en la ficha del empleado antes de timbrar y de enviar el SUA.`,
+      );
+    } else {
+      alertas.push(
+        `SBC calculado automáticamente en $${calculado.toFixed(2)} (mínimo de ley); valida el SBC en la ficha del empleado antes de timbrar/SUA.`,
+      );
+    }
+    return usado;
   }
 
   private calcularImporteObligacion(

@@ -374,6 +374,22 @@ export class ReciboNomina {
   @Column({ type: 'varchar', length: 200 }) nombreEmpleado!: string;
 
   @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 5, scale: 2 }) diasPagados!: number;
+  /**
+   * Los dias por los que se cotiza al IMSS, que NO son los que se pagan.
+   *
+   * Una incapacidad no se paga y tampoco se cotiza —el subsidio lo cubre el
+   * Instituto—, asi que resta en los dos lados. Una falta injustificada si
+   * resta del pago, pero descontarla de la cotizacion es potestativo (LSS
+   * art. 31) y aqui no se descuenta: cotizar de mas nunca genera diferencia a
+   * cargo del patron, cotizar de menos si.
+   *
+   * La cifra se calculaba y se usaba para las cuotas, pero solo sobrevivia
+   * dentro del `snapshotJson`. El SUA y la liquidacion bimestral se arman con
+   * este numero: tenerlo unicamente enterrado en un JSON obliga a recalcular
+   * o a parsear recibo por recibo, y dos calculos del mismo dato terminan
+   * discrepando. Es la cifra por la que cobra el IMSS; se guarda.
+   */
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 5, scale: 2, default: 0 }) diasCotizados!: number;
   @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 2 }) salarioDiario!: number;
 
   @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 2, default: 0 })
