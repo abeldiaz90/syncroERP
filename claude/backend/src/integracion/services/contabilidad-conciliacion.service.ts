@@ -73,7 +73,23 @@ export class ContabilidadConciliacionService {
       const poliza = await this.polizas.findOne({ where: { id: link.entidadId, empresaId }, relations: ['partidas'] });
       const base = { polizaId: link.entidadId, folio: poliza?.folio ?? link.entidadId, asientoId: link.idExterno };
       const agregar = (codigo: string, detalle: string) => hallazgos.push({ ...base, codigo, detalle });
-      if (!link.idExterno) { agregar('VINCULO_INCOMPLETO', 'La póliza tiene vínculo sin identificador externo; revisar el envío.'); continue; }
+      /*
+       * Un vínculo sin identificador tiene dos historias distintas y decirlas
+       * igual convierte el hallazgo en ruido: «se envió y no supimos la
+       * respuesta» pide que alguien mire el otro sistema; «no llegó a salir»
+       * se resuelve reintentando desde el espejo. Decían las dos «revisar el
+       * envío», que no dice cuál de las dos es.
+       */
+      if (!link.idExterno) {
+        const detalle =
+          link.estadoRemoto === 'NO_ENVIADO'
+            ? 'El asiento no llegó a salir: el mayor externo lo rechazó o no hubo enlace. Reintenta desde el espejo contable; el motivo está en la cola.'
+            : link.estadoRemoto === 'EN_VUELO'
+              ? 'Se envió y no se supo la respuesta. El despachador lo resolverá preguntando al mayor externo; si persiste, revísalo allá.'
+              : 'La póliza tiene vínculo sin identificador externo; revisar el envío.';
+        agregar('VINCULO_INCOMPLETO', detalle);
+        continue;
+      }
       if (!poliza) { agregar('POLIZA_AUSENTE', 'El vínculo no tiene póliza en esta empresa.'); continue; }
       revisados++;
       try {

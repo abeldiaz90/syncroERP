@@ -34,6 +34,39 @@ export class ErrorFineract extends Error {
  * conexión que llevarla. Cualquier otro fallo de red es ambiguo —el timeout y
  * el reset ocurren con la petición ya viajando— y se trata como tal.
  */
+/**
+ * ============================================================================
+ * Una respuesta del servidor no es una duda
+ * ----------------------------------------------------------------------------
+ * `pudoAplicarse` existe para las operaciones sin clave de idempotencia —los
+ * asientos contables—, donde reintentar a ciegas puede duplicar. Pero la duda
+ * es sobre si la petición LLEGÓ. Cuando Fineract contesta con un código, llegó
+ * y además dijo qué decidió: un 403 «the journal entry cannot be made for a
+ * future date» es la prueba de que NO se aplicó.
+ *
+ * Tratar eso como ambiguo tuvo consecuencias medidas: el vínculo de esas dos
+ * pólizas se quedó EN_VUELO sin identificador para siempre, la conciliación
+ * contable las denunciaba cada diez minutos como discrepancia —ruido en el
+ * único control que debería estar callado—, y cada reintento empezaba
+ * preguntándole a Fineract si el asiento había llegado, una vuelta de red para
+ * responder algo que el propio Fineract ya había respondido.
+ *
+ * Las excepciones son las que de verdad no dicen nada del desenlace:
+ *
+ *  · 408 y 429 — «ahora no»: la petición pudo estar a medio aplicar.
+ *  · 409 — el conflicto puede ser precisamente que YA existe.
+ *  · 5xx — el servidor falló después de recibirla; puede haber aplicado.
+ * ============================================================================
+ */
+const RESPUESTAS_AMBIGUAS = new Set([408, 409, 429]);
+
+export function pudoAplicarse(estado: number): boolean {
+  if (estado >= 500) return true;
+  if (RESPUESTAS_AMBIGUAS.has(estado)) return true;
+  // El servidor evaluó la petición y la rechazó: no la aplicó.
+  return estado < 400;
+}
+
 const NUNCA_SALIO = new Set([
   'ECONNREFUSED',
   'ENOTFOUND',
@@ -300,6 +333,7 @@ export class FineractHttpService {
         respuesta.status,
         respuesta.data,
         reintentable,
+        pudoAplicarse(respuesta.status),
       );
     };
 
