@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  ForbiddenException,
   Get,
   Inject,
   NotFoundException,
@@ -17,12 +18,16 @@ import { Repository } from 'typeorm';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { Roles } from '../../iam/decorators/roles.decorator';
 import { SkipPermisos } from '../../iam/decorators/skip-permisos.decorator';
+import { esRolAdministrador, normalizarRol } from '../../iam/utils/roles.util';
 import { Cliente } from '../../clientes/entities/cliente.entity';
 import {
   EstadoEventoIntegracion,
+  EVENTOS_DE_CONTABILIDAD,
   ModoCartera,
   ModoContabilidad,
   PUERTO_CONTABILIDAD_EXTERNA,
+  ROLES_ESPEJO_CONTABLE,
+  TipoEventoIntegracion,
   TipoVinculo,
 } from '../integracion.constants';
 import { ConfigurarIntegracionDto } from '../dto/configurar-integracion.dto';
@@ -196,7 +201,7 @@ export class IntegracionController {
    * cada vez que alguien toca los productos de crédito del lado del proveedor.
    */
   @Get('verificacion')
-  @Roles('administrador', 'direccion', 'contador')
+  @Roles(...ROLES_ESPEJO_CONTABLE)
   verificar(@ActiveUser('empresaId') empresaId: string) {
     return this.contabilidad.verificarConfiguracion(empresaId);
   }
@@ -210,7 +215,7 @@ export class IntegracionController {
   // ── Mapeo del catálogo de cuentas ────────────────────────────────────────
 
   @Get('cuentas/mapeo')
-  @Roles('administrador', 'direccion', 'contador')
+  @Roles(...ROLES_ESPEJO_CONTABLE)
   listarMapeo(@ActiveUser('empresaId') empresaId: string) {
     return this.mapeo.listar(empresaId);
   }
@@ -220,7 +225,7 @@ export class IntegracionController {
    * que es la superficie real; `?todas=1` devuelve el catálogo completo.
    */
   @Get('cuentas/pendientes')
-  @Roles('administrador', 'direccion', 'contador')
+  @Roles(...ROLES_ESPEJO_CONTABLE)
   async cuentasPendientes(
     @ActiveUser('empresaId') empresaId: string,
     @Query('todas') todas?: string,
@@ -246,13 +251,13 @@ export class IntegracionController {
    * configurado: avisa antes del primer fallo, no después.
    */
   @Get('cuentas/previstas')
-  @Roles('administrador', 'direccion', 'contador')
+  @Roles(...ROLES_ESPEJO_CONTABLE)
   cuentasPrevistas(@ActiveUser('empresaId') empresaId: string) {
     return this.mapeo.previstas(empresaId);
   }
 
   @Post('cuentas/aprovisionar')
-  @Roles('administrador', 'direccion', 'contador')
+  @Roles(...ROLES_ESPEJO_CONTABLE)
   aprovisionarCuentas(
     @ActiveUser('empresaId') empresaId: string,
     @Query('simular') simular?: string,
@@ -279,13 +284,13 @@ export class IntegracionController {
    * ir al otro sistema, anotar el identificador y volver a teclearlo aquí.
    */
   @Get('cuentas/externas')
-  @Roles('administrador', 'direccion', 'contador')
+  @Roles(...ROLES_ESPEJO_CONTABLE)
   cuentasExternas() {
     return this.mapeo.disponiblesEnElMayorExterno();
   }
 
   @Post('cuentas/mapeo')
-  @Roles('administrador', 'direccion', 'contador')
+  @Roles(...ROLES_ESPEJO_CONTABLE)
   mapearCuenta(
     @Body() dto: MapearCuentaDto,
     @ActiveUser('empresaId') empresaId: string,
@@ -374,7 +379,7 @@ export class IntegracionController {
   }
 
   @Get('outbox')
-  @Roles('administrador', 'direccion', 'contador')
+  @Roles(...ROLES_ESPEJO_CONTABLE)
   listarOutbox(
     @ActiveUser('empresaId') empresaId: string,
     @Query('estado') estado?: string,
@@ -387,9 +392,9 @@ export class IntegracionController {
   }
 
   @Post('outbox/despachar')
-  @Roles('administrador', 'direccion')
+  @Roles(...ROLES_ESPEJO_CONTABLE)
   despachar(
-    @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser() usuario: { empresaId: string; rol?: string },
     @Query('limite') limite?: string,
   ) {
     const n = Number(limite ?? 50);
@@ -402,19 +407,56 @@ export class IntegracionController {
      * pendientes de TODAS las empresas: altas de cliente, originaciones y
      * asientos de otros inquilinos, disparados por quien pulsó el botón.
      */
-    return this.despachador.despacharLote(n, empresaId);
+    return this.despachador.despacharLote(
+      n,
+      usuario.empresaId,
+      this.alcanceDelOutbox(usuario.rol),
+    );
   }
 
   @Post('outbox/:id/reencolar')
-  @Roles('administrador', 'direccion')
+  @Roles(...ROLES_ESPEJO_CONTABLE)
   async reencolar(
     @Param('id') id: string,
-    @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser() usuario: { empresaId: string; rol?: string },
   ) {
-    if (!(await this.outbox.reencolar(id, empresaId))) {
+    const veredicto = await this.outbox.reencolar(
+      id,
+      usuario.empresaId,
+      this.alcanceDelOutbox(usuario.rol),
+    );
+    if (veredicto === 'NO_EXISTE') {
       throw new NotFoundException('Evento no encontrado.');
     }
+    if (veredicto === 'FUERA_DE_ALCANCE') {
+      throw new ForbiddenException(
+        'Ese evento es de la cartera, no del espejo contable. Lo reenvía Administración.',
+      );
+    }
     return { reencolado: true };
+  }
+
+  /**
+   * Qué parte de la cola puede mover quien pulsó el botón.
+   *
+   * El outbox es uno y lleva dentro dos cosas de dueños distintos. Hasta ahora
+   * el reparto se hacía negando la pantalla entera: despachar y reencolar eran
+   * de administración, así que Contabilidad podía corresponder una cuenta y no
+   * podía reenviar la póliza que esperaba por esa cuenta. Se midió con la
+   * nómina: diez cuentas creadas por el contador, dos pólizas detenidas, y el
+   * botón «Despachar la cola» contestando 403.
+   *
+   * Ensanchar el rol a secas habría entregado la cartera de la empresa a quien
+   * lleva los libros. Así que el alcance se acota por tipo de evento: cada uno
+   * mueve lo suyo. Administración y dirección siguen viendo la cola completa,
+   * que es lo que su trabajo pide.
+   */
+  private alcanceDelOutbox(
+    rol?: string,
+  ): readonly TipoEventoIntegracion[] | undefined {
+    const mio = normalizarRol(rol ?? '');
+    if (esRolAdministrador(mio) || mio === 'direccion') return undefined;
+    return EVENTOS_DE_CONTABILIDAD;
   }
 
   /**

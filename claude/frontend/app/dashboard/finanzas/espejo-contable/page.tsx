@@ -30,6 +30,7 @@ import {
 import { api } from "@/lib/api";
 import { fechaHora } from "@/lib/format";
 import { useAccion, useDatos } from "@/hooks/use-datos";
+import { usePermiso } from "@/hooks/use-permisos";
 import {
   Boton,
   Cargando,
@@ -99,6 +100,19 @@ interface Simulacion {
 
 export default function EspejoContablePage() {
   const { avisar } = useAvisos();
+  const { tienePermiso } = usePermiso();
+  /*
+   * Despachar y reencolar no son el mismo permiso que corresponder cuentas, y
+   * hubo un tiempo en que esta pantalla daba por hecho que sí: el contador
+   * creaba la correspondencia de las diez cuentas de la nómina, pulsaba
+   * «Despachar la cola» y recibía un 403 sin más explicación que un aviso que
+   * se desvanecía. Se pregunta antes de pintar el botón.
+   */
+  const puedeDespachar = tienePermiso("POST", "/integracion/outbox/despachar");
+  const puedeReencolar = tienePermiso(
+    "POST",
+    "/integracion/outbox/:id/reencolar",
+  );
   const [simulacion, setSimulacion] = useState<Simulacion | null>(null);
   const [eleccion, setEleccion] = useState<Record<string, string>>({});
   /*
@@ -416,14 +430,20 @@ export default function EspejoContablePage() {
               su reflejo afuera.
             </p>
           </div>
-          <Boton
-            variante="neutro"
-            icono={<Send className="w-3.5 h-3.5" />}
-            cargando={despachar.ejecutando}
-            onClick={() => void despachar.ejecutar()}
-          >
-            Despachar la cola
-          </Boton>
+          {puedeDespachar ? (
+            <Boton
+              variante="neutro"
+              icono={<Send className="w-3.5 h-3.5" />}
+              cargando={despachar.ejecutando}
+              onClick={() => void despachar.ejecutar()}
+            >
+              Despachar la cola
+            </Boton>
+          ) : (
+            <p className="text-[12px] text-slate-500 max-w-[220px] text-right">
+              El reenvío al mayor externo lo hace Administración.
+            </p>
+          )}
         </div>
 
         {fallidos.cargando ? (
@@ -458,12 +478,14 @@ export default function EspejoContablePage() {
                       {fechaHora(e.fechaCreacion)}
                     </td>
                     <td className="text-right">
-                      <Boton
-                        variante="neutro"
-                        onClick={() => void reencolar.ejecutar(e.id)}
-                      >
-                        Reintentar
-                      </Boton>
+                      {puedeReencolar && (
+                        <Boton
+                          variante="neutro"
+                          onClick={() => void reencolar.ejecutar(e.id)}
+                        >
+                          Reintentar
+                        </Boton>
+                      )}
                     </td>
                   </tr>
                 ))}

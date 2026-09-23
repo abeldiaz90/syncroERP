@@ -97,6 +97,44 @@ export enum TipoEventoIntegracion {
   POLIZA_REGISTRADA = 'POLIZA_REGISTRADA',
 }
 
+/**
+ * Los eventos que pertenecen al espejo contable, y no a la cartera.
+ *
+ * Existe porque el outbox es UNO solo y lo que lleva dentro es de dos dueños
+ * distintos: las altas de cliente, las originaciones y la cobranza son de
+ * Administración; los asientos son de Contabilidad. Quien corrige una
+ * correspondencia de cuentas tiene que poder reenviar la póliza que esperaba
+ * por ella, y no tiene por qué poder disparar el envío de la cartera al core.
+ *
+ * Se declara aquí, junto al enum, para que añadir un tipo obligue a mirar esta
+ * lista: un evento contable que se olvide de entrar queda fuera del alcance de
+ * quien lleva la contabilidad, y el síntoma —una póliza que nadie puede
+ * reenviar— aparece lejos de la causa.
+ */
+export const EVENTOS_DE_CONTABILIDAD: readonly TipoEventoIntegracion[] = [
+  TipoEventoIntegracion.POLIZA_REGISTRADA,
+];
+
+/**
+ * Quién trabaja el espejo contable.
+ *
+ * La pantalla `/dashboard/finanzas/espejo-contable` es una sola tarea: ver qué
+ * cuentas no tienen equivalencia del otro lado, corresponderlas, y reenviar
+ * las pólizas que se detuvieron por eso. Partir esa tarea entre dos perfiles
+ * deja el trabajo a medias —se puede crear la correspondencia y no despachar
+ * lo que esperaba por ella—, que es peor que no poder empezarlo.
+ *
+ * La lista vive aquí y no escrita a mano en cada `@Roles` porque la plantilla
+ * de permisos concede las mismas diez acciones por nombre: son dos
+ * declaraciones de la misma decisión y tienen que decir lo mismo.
+ */
+export const ROLES_ESPEJO_CONTABLE = [
+  'administrador',
+  'direccion',
+  'contador',
+  'finanzas',
+] as const;
+
 export enum EstadoEventoIntegracion {
   PENDIENTE = 'PENDIENTE',
   ENVIADO = 'ENVIADO',

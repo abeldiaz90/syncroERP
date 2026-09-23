@@ -122,6 +122,76 @@ function rutasDelBackend(): Set<string> {
   return rutas;
 }
 
+
+/**
+ * Extrae los roles que cada ruta exige por `@Roles(...)`.
+ *
+ * Reproduce lo que hace el guardia: el `@Roles` del metodo MANDA sobre el de
+ * la clase (`getAllAndOverride`), y una ruta sin anotacion no exige nada.
+ *
+ * Se lee del codigo y no de la metadata porque la pregunta es de contrato, no
+ * de ejecucion: dos declaraciones escritas en archivos distintos tienen que
+ * decir lo mismo, y eso se comprueba leyendo las dos.
+ */
+function rolesExigidosPorRuta(): Map<string, string[]> {
+  const exigencias = new Map<string, string[]>();
+  const listaDe = (fuente?: string) =>
+    fuente
+      ? [...fuente.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2])
+      : undefined;
+
+  for (const { texto } of CODIGO) {
+    if (!texto.includes('@Controller')) continue;
+    const controladores = [
+      ...texto.matchAll(/@Controller\(\s*(?:'([^']*)'|"([^"]*)")?\s*\)/g),
+    ];
+    for (let i = 0; i < controladores.length; i++) {
+      const prefijo = controladores[i][1] ?? controladores[i][2] ?? '';
+      const desde = controladores[i].index! + controladores[i][0].length;
+      const hasta =
+        i + 1 < controladores.length ? controladores[i + 1].index! : texto.length;
+      const cuerpo = texto.slice(desde, hasta);
+
+      // Lo que hay entre @Controller y la palabra `class` es de la clase entera.
+      const cabecera = cuerpo.slice(0, cuerpo.search(/\bclass\b/));
+      const rolesDeClase = listaDe(
+        [...cabecera.matchAll(/@Roles\(([^)]*)\)/g)].pop()?.[1],
+      );
+
+      for (const verbo of cuerpo.matchAll(
+        /@(Get|Post|Put|Patch|Delete)\(\s*(?:'([^']*)'|"([^"]*)")?\s*\)/g,
+      )) {
+        const metodo = verbo[1].toUpperCase();
+        const sufijo = verbo[2] ?? verbo[3] ?? '';
+        const ruta =
+          '/' +
+          [prefijo.replace(/^\/|\/$/g, ''), sufijo.replace(/^\/|\/$/g, '')]
+            .filter(Boolean)
+            .join('/');
+
+        /*
+         * Los decoradores del handler van entre su verbo y la firma del
+         * metodo. Cortar ahi evita adjudicarle a una ruta el `@Roles` de la
+         * siguiente.
+         */
+        const tramo = cuerpo.slice(verbo.index!, verbo.index! + 600);
+        const finDeDecoradores = tramo.search(
+          /\n\s*(?:async\s+)?[A-Za-z_$][\w$]*\s*\(/,
+        );
+        const bloque =
+          finDeDecoradores > 0 ? tramo.slice(0, finDeDecoradores) : tramo;
+        const propios = listaDe(
+          [...bloque.matchAll(/@Roles\(([^)]*)\)/g)][0]?.[1],
+        );
+
+        const efectivos = propios ?? rolesDeClase;
+        if (efectivos?.length) exigencias.set(`${metodo} ${ruta}`, efectivos);
+      }
+    }
+  }
+  return exigencias;
+}
+
 const RUTAS = rutasDelBackend();
 
 describe('Coherencia · enums de integración', () => {
@@ -1739,6 +1809,81 @@ describe('Coherencia · las dos autorizaciones no pueden contradecirse', () => {
   it('el guardia sigue comparando con normalizarRol, no por igualdad de cadenas', () => {
     const texto = leer(GUARDIA);
     expect(texto).toMatch(/exigidos\.map\(normalizarRol\)/);
+  });
+
+  /*
+   * ==========================================================================
+   * Una accion concedida POR NOMBRE no puede estar vetada por `@Roles`
+   * --------------------------------------------------------------------------
+   * La prueba anterior cuida que la tabla no conceda lo que el guardia veta.
+   * Esta cuida el otro lado del mismo choque, que es el que no se ve: cuando
+   * la contradiccion existe, la barrida de arranque APAGA la fila y lo deja en
+   * un warning del log. El sistema queda coherente y la intencion del contrato
+   * —escrita a mano, con su comentario al lado— desaparece sin que nadie se
+   * entere.
+   *
+   * Un modulo entero concedido es una aproximacion: que sobre o falte algo es
+   * normal y por eso la barrida lo recorta. Pero una `accionIrrenunciable` se
+   * escribe ruta por ruta, con nombre y apellido, para un rol concreto. Si el
+   * guardia la niega, no hay nada que recortar: hay dos declaraciones que se
+   * contradicen y alguien tiene que decidir cual manda.
+   *
+   * Hallazgo que la estreno: `ACCIONES_ESPEJO_CONTABLE` le da a `contador` y a
+   * `finanzas` las diez acciones de `/dashboard/finanzas/espejo-contable`, con
+   * el comentario «si el contador no puede, nadie lo mira hasta que la balanza
+   * del ERP y la de Fineract dejan de coincidir». El controlador exigia
+   * administracion en once de esas veinte concesiones. Resultado medido en
+   * vivo: `finanzas` no podia abrir la pantalla, y `contador` podia crear la
+   * correspondencia de las diez cuentas de la nomina y NO podia despachar las
+   * dos polizas que esperaban por ella. La pantalla pintaba el boton.
+   * ==========================================================================
+   */
+  it('ninguna accion irrenunciable esta vetada por el @Roles de su endpoint', () => {
+    const exigencias = rolesExigidosPorRuta();
+    const contradicciones: string[] = [];
+
+    for (const plantilla of PLANTILLAS_PERMISOS) {
+      const rol = normalizarRol(plantilla.rol);
+      if (esRolAdministrador(rol)) continue;
+      for (const accion of plantilla.accionesIrrenunciables ?? []) {
+        const exigidos = exigencias.get(accion);
+        if (!exigidos?.length) continue;
+        if (exigidos.map(normalizarRol).includes(rol)) continue;
+        contradicciones.push(
+          `${plantilla.rol}: ${accion} — @Roles(${exigidos.join(', ')})`,
+        );
+      }
+    }
+
+    expect(contradicciones).toEqual([]);
+  });
+
+  /*
+   * El choque anterior se arregla en la direccion correcta: se ensancha el
+   * `@Roles` hasta cubrir a quien hace el trabajo. Pero ensanchar el despacho
+   * del outbox a secas le daria a Contabilidad la cola ENTERA —altas de
+   * cliente, originaciones, cobranza—, que no es suya.
+   *
+   * Por eso el alcance se acota por TIPO de evento, y se acota en el servicio:
+   * una regla puesta en el controlador solo se cumple si la peticion entra por
+   * ahi.
+   */
+  it('quien no es administracion solo despacha los eventos de contabilidad', () => {
+    const despachador = leer(
+      join(SRC, 'integracion/services/integracion-despachador.service.ts'),
+    );
+    const outbox = leer(
+      join(SRC, 'integracion/services/integracion-outbox.service.ts'),
+    );
+    const controlador = leer(
+      join(SRC, 'integracion/controllers/integracion.controller.ts'),
+    );
+
+    // El filtro por tipo existe de punta a punta, no solo en la puerta.
+    expect(despachador).toMatch(/despacharLote\([\s\S]{0,200}tipos\?/);
+    expect(outbox).toMatch(/pendientes\([\s\S]{0,200}tipos\?/);
+    expect(outbox).toContain('EVENTOS_DE_CONTABILIDAD');
+    expect(controlador).toContain('alcanceDelOutbox');
   });
 });
 

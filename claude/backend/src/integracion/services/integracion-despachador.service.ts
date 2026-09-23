@@ -113,6 +113,7 @@ export class IntegracionDespachadorService {
   async despacharLote(
     limite = 50,
     empresaId?: string,
+    tipos?: readonly TipoEventoIntegracion[],
   ): Promise<{ procesados: number; fallidos: number }> {
     const hayEnlace =
       (this.externa.configurado() && this.externa.disponible()) ||
@@ -127,7 +128,11 @@ export class IntegracionDespachadorService {
     let fallidos = 0;
 
     try {
-      for (const evento of await this.outbox.pendientes(limite, empresaId)) {
+      for (const evento of await this.outbox.pendientes(
+        limite,
+        empresaId,
+        tipos,
+      )) {
         try {
           if (!(await this.empresaAceptaEvento(evento))) {
             await this.outbox.marcarFallo(
