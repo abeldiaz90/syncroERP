@@ -25,6 +25,20 @@ import {
   ErrorIntegracionExterna,
   PuertoCarteraExterna,
 } from '../ports/cartera-externa.port';
+/**
+ * Lo que un despacho forzado tiene que poder contar.
+ *
+ * `motivo` sólo viaja cuando no se procesó ni falló nada: es la explicación de
+ * un cero, no un estado del sistema.
+ */
+export interface ResultadoDespacho {
+  procesados: number;
+  fallidos: number;
+  motivo?: 'SIN_ENLACE' | 'YA_EN_CURSO' | 'NADA_PENDIENTE' | 'SOLO_DETENIDOS';
+  /** Eventos en FALLIDO, que ninguna cola vuelve a recoger por su cuenta. */
+  detenidos?: number;
+}
+
 import { IntegracionModoService } from './integracion-modo.service';
 import { IntegracionOutboxService } from './integracion-outbox.service';
 import { IntegracionVinculosService } from './integracion-vinculos.service';
@@ -109,19 +123,29 @@ export class IntegracionDespachadorService {
   /**
    * Procesa un lote. Se expone como método para que la administración pueda
    * forzar el despacho tras corregir una configuración.
+   *
+   * Devuelve POR QUÉ no se movió nada cuando no se movió nada. Antes devolvía
+   * `{0, 0}` en cuatro situaciones muy distintas —no hay enlace, ya hay un
+   * despacho en curso, no había nada, o lo que hay está detenido y esta cola
+   * no lo recoge— y la pantalla las resumía todas en «Cola despachada». Es el
+   * peor mensaje posible: dice que el trabajo se hizo. El contador que acaba
+   * de corresponder diez cuentas lee eso, da por espejada la póliza de la
+   * nómina y se entera semanas después, cuando las dos balanzas no cuadran.
    */
   async despacharLote(
     limite = 50,
     empresaId?: string,
     tipos?: readonly TipoEventoIntegracion[],
-  ): Promise<{ procesados: number; fallidos: number }> {
+  ): Promise<ResultadoDespacho> {
     const hayEnlace =
       (this.externa.configurado() && this.externa.disponible()) ||
       (this.contabilidad.configurado() && this.contabilidad.disponible());
-    if (!hayEnlace) return { procesados: 0, fallidos: 0 };
+    if (!hayEnlace) return { procesados: 0, fallidos: 0, motivo: 'SIN_ENLACE' };
     // Un solo despachador a la vez por proceso: dos concurrentes sobre el mismo
     // evento producirían créditos duplicados si la idempotencia fallara.
-    if (this.despachando) return { procesados: 0, fallidos: 0 };
+    if (this.despachando) {
+      return { procesados: 0, fallidos: 0, motivo: 'YA_EN_CURSO' };
+    }
     this.despachando = true;
 
     let procesados = 0;
@@ -175,8 +199,23 @@ export class IntegracionDespachadorService {
       this.logger.log(
         `Outbox de cartera: ${procesados} aplicado(s), ${fallidos} con error.`,
       );
+      return { procesados, fallidos };
     }
-    return { procesados, fallidos };
+
+    /*
+     * No se movió nada. La cuenta de detenidos sólo se hace aquí —cuesta una
+     * consulta y únicamente importa en este caso— y sólo cuando se pidió por
+     * una empresa: el despacho automático atiende a todas y no le habla a
+     * nadie.
+     */
+    if (!empresaId) return { procesados: 0, fallidos: 0 };
+    const detenidos = await this.outbox.contarDetenidos(empresaId, tipos);
+    return {
+      procesados: 0,
+      fallidos: 0,
+      detenidos,
+      motivo: detenidos > 0 ? 'SOLO_DETENIDOS' : 'NADA_PENDIENTE',
+    };
   }
 
   private get maxIntentos(): number {

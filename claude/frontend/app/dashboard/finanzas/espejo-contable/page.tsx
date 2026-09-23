@@ -90,6 +90,13 @@ interface EventoOutbox {
   fechaCreacion: string;
 }
 
+interface ResultadoDespacho {
+  procesados: number;
+  fallidos: number;
+  motivo?: "SIN_ENLACE" | "YA_EN_CURSO" | "NADA_PENDIENTE" | "SOLO_DETENIDOS";
+  detenidos?: number;
+}
+
 interface Simulacion {
   simulacion?: boolean;
   creadas: { codigo: string; nombre: string; clase: string; accion?: string }[];
@@ -202,9 +209,41 @@ export default function EspejoContablePage() {
     void fallidos.recargar();
   });
 
+  /*
+   * El aviso repite lo que el servidor dice que pasó, y no lo que se le pidió
+   * que hiciera. «Cola despachada» era verdad sólo en uno de los cinco
+   * desenlaces posibles.
+   */
   const despachar = useAccion(async () => {
-    await api.post("/integracion/outbox/despachar");
-    avisar("Cola despachada.", "info");
+    const r = await api.post<ResultadoDespacho>(
+      "/integracion/outbox/despachar",
+    );
+    if (r.procesados > 0) {
+      avisar(
+        `${r.procesados} póliza(s) enviada(s) al mayor externo` +
+          (r.fallidos > 0 ? `; ${r.fallidos} con error.` : "."),
+        r.fallidos > 0 ? "alerta" : "exito",
+      );
+    } else if (r.fallidos > 0) {
+      avisar(
+        `Ninguna pasó: ${r.fallidos} evento(s) con error. El motivo de cada uno está en la tabla.`,
+        "error",
+      );
+    } else if (r.motivo === "SIN_ENLACE") {
+      avisar(
+        "No hay enlace con el mayor externo ahora mismo. La cola no se movió; se despachará sola en cuanto vuelva.",
+        "error",
+      );
+    } else if (r.motivo === "YA_EN_CURSO") {
+      avisar("Ya hay un despacho en curso. Vuelve a intentar en un momento.", "info");
+    } else if (r.motivo === "SOLO_DETENIDOS") {
+      avisar(
+        `No se movió nada: ${r.detenidos} evento(s) están detenidos y no vuelven solos a la cola. Pulsa «Reintentar» en cada uno.`,
+        "alerta",
+      );
+    } else {
+      avisar("No había nada pendiente por despachar.", "info");
+    }
     recargarTodo();
   });
 

@@ -186,6 +186,27 @@ export class IntegracionOutboxService {
     return 'REENCOLADO';
   }
 
+  /**
+   * Eventos en FALLIDO, que es un estado del que no se sale solo.
+   *
+   * Hace falta para poder decir la verdad cuando un despacho forzado no mueve
+   * nada: «no había nada pendiente» y «hay dos detenidos que nadie va a
+   * recoger» son cosas distintas, y de la segunda depende que alguien pulse
+   * «Reintentar» o se vaya a casa creyendo que la póliza ya está afuera.
+   */
+  async contarDetenidos(
+    empresaId: string,
+    tipos?: readonly TipoEventoIntegracion[],
+  ): Promise<number> {
+    return this.repo.count({
+      where: {
+        empresaId,
+        estado: EstadoEventoIntegracion.FALLIDO,
+        ...(tipos?.length ? { tipo: In([...tipos]) } : {}),
+      },
+    });
+  }
+
   /** Atajo legible: el alcance contable, ya nombrado. */
   static get alcanceContable(): readonly TipoEventoIntegracion[] {
     return EVENTOS_DE_CONTABILIDAD;
