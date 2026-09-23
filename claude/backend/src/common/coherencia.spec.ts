@@ -26,7 +26,11 @@ import { ENDPOINTS_NAVEGABLES } from '../iam/data/endpoints-navegables';
 import { moduloDeRuta, MODULOS_ASIGNABLES, MODULOS_POR_ID } from '../iam/data/modulos-catalogo';
 import { MODULOS_NEGOCIO } from '../iam/data/modulos-catalogo';
 import { ROLES_CON_TRAZA_COMPLETA } from '../aprobaciones/services/aprobaciones-documentos.service';
-import { FIRMAS_NOMINA } from '../rrhh/advanced/matriz-de-firmas';
+import {
+  CADENA_FIRMAS_NOMINA,
+  FIRMAS_NOMINA,
+  FIRMAS_POR_ETAPA,
+} from '../rrhh/advanced/matriz-de-firmas';
 import { esRolAdministrador, normalizarRol } from '../iam/utils/roles.util';
 
 const SRC = join(__dirname, '..');
@@ -2470,4 +2474,77 @@ describe('Coherencia · quien pregunta por una firma se entera antes de empujarl
       }
     },
   );
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * QUIEN ABRE LA CADENA NO PUEDE SER QUIEN LA PREPARA
+ *
+ * La cadena por defecto era RRHH → FINANZAS → TESORERIA, y RRHH es el rol que
+ * prepara la nómina. Como quien prepara no puede firmar, el primer nivel no
+ * tenía firmante posible en una empresa con una sola persona de Recursos
+ * humanos: el periodo se enviaba a revisión, se bloqueaba, y ahí se quedaba —
+ * de EN_REVISION sólo se sale firmando o rechazando, y las dos salidas exigen
+ * a otro.
+ *
+ * Y como con la matriz de firmas: a cada etapa hay que darle con qué firmar.
+ * Un aprobador que no puede leer las aprobaciones abre la pantalla vacía.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+describe('Coherencia · la cadena de firmas de nómina se puede recorrer', () => {
+  const ALIAS_DE = new Map([
+    ['recursoshumanos', 'rrhh'],
+    ['recursos humanos', 'rrhh'],
+    ['administrador', 'admin'],
+  ]);
+  const plantilla = (rol: string) =>
+    PLANTILLAS_PERMISOS.find((p) => normalizarRol(p.rol) === normalizarRol(rol));
+
+  it('la primera firma no es del rol que prepara la nómina', () => {
+    const preparan = FIRMAS_NOMINA.prepararAprobacion.roles
+      .filter((r) => !esRolAdministrador(r))
+      .map((r) => normalizarRol(ALIAS_DE.get(r) ?? r));
+    const primeraEtapa = CADENA_FIRMAS_NOMINA[0];
+    const firmanPrimera = (FIRMAS_POR_ETAPA[primeraEtapa] ?? [])
+      .filter((r) => !esRolAdministrador(r))
+      .map((r) => normalizarRol(ALIAS_DE.get(r) ?? r));
+
+    // Tiene que quedar alguien que pueda firmar el primer nivel sin haber
+    // preparado la nómina. Si todos los firmantes son preparadores, la cadena
+    // se traba en cuanto la empresa tenga una sola persona en ese rol.
+    const ajenos = firmanPrimera.filter((r) => !preparan.includes(r));
+    expect(ajenos.length).toBeGreaterThan(0);
+  });
+
+  it('cada etapa de la cadena puede leer y resolver lo que firma', () => {
+    const sinMedios: string[] = [];
+    for (const etapa of CADENA_FIRMAS_NOMINA) {
+      for (const bruto of FIRMAS_POR_ETAPA[etapa] ?? []) {
+        const rol = ALIAS_DE.get(bruto) ?? bruto;
+        if (esRolAdministrador(rol)) continue;
+        const p = plantilla(rol);
+        if (!p) { sinMedios.push(`${etapa}: no existe la plantilla «${rol}»`); continue; }
+        const alcanza = (accion: string) =>
+          (p.modulos ?? []).includes('rrhh') ||
+          (p.accionesIrrenunciables ?? []).includes(accion);
+        for (const accion of [
+          'GET /rrhh/nomina-avanzada/periodos/:id/aprobaciones',
+          'PATCH /rrhh/nomina-avanzada/aprobaciones/:id',
+        ]) {
+          if (!alcanza(accion)) sinMedios.push(`${etapa}/${rol}: no alcanza «${accion}»`);
+        }
+      }
+    }
+    expect(sinMedios).toEqual([]);
+  });
+
+  it('firmar no abre la puerta a la prenómina de cada trabajador', () => {
+    // Gerencia autoriza por totales. Si alguna vez se le concede el detalle,
+    // que sea una decisión escrita y no un efecto secundario de darle la firma.
+    for (const rol of ['gerencia', 'direccion']) {
+      const p = plantilla(rol);
+      expect(p).toBeDefined();
+      const vedadas = p!.accionesVedadas ?? [];
+      expect(vedadas.some((a) => a.includes('prenomina'))).toBe(true);
+      expect(vedadas.some((a) => a.includes('recibos'))).toBe(true);
+    }
+  });
 });

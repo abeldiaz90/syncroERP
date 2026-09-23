@@ -105,6 +105,23 @@ export interface PlantillaRol {
  */
 
 /** Tesoreria: cuentas de los empleados, dispersion y pago. */
+/**
+ * Firmar la nomina: lo minimo para poder decidir, y nada mas.
+ *
+ * Quien firma un nivel de la cadena tiene que ver que firma, o estamos en el
+ * error de siempre —«podia firmar el pago y no ver que pagar»—. Pero «ver que
+ * firma» no es lo mismo para cada etapa. Gerencia autoriza la nomina por sus
+ * TOTALES: cuantos trabajadores, cuanto de percepciones, cuanto de neto. Esa
+ * es su decision. La prenomina trabajador por trabajador le sigue vedada, y el
+ * recibo tambien, porque el sueldo de cada quien no es asunto de esa firma.
+ */
+const ACCIONES_FIRMAR_NOMINA = [
+  // Los totales del periodo: lo que se autoriza.
+  'GET /rrhh/nomina/periodos',
+  'GET /rrhh/nomina-avanzada/periodos/:id/aprobaciones',
+  'PATCH /rrhh/nomina-avanzada/aprobaciones/:id',
+];
+
 const ACCIONES_NOMINA_TESORERIA = [
   // Sin el listado de periodos no hay de donde elegir que dispersar.
   'GET /rrhh/nomina/periodos',
@@ -394,6 +411,8 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     // recibos siguen fuera, como se decidió al separar el alta de estructura.
     ...ACCIONES_NOMINA_CONTABILIDAD,
     ...ACCIONES_NOMINA_FINANZAS,
+    // El segundo nivel de la cadena de firmas.
+    ...ACCIONES_FIRMAR_NOMINA,
     ...ACCIONES_ESPEJO_CONTABLE,
     ],
   },
@@ -432,6 +451,8 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      */
     // La nómina por el lado contable: identidad patronal, póliza y cierre.
     ...ACCIONES_NOMINA_CONTABILIDAD,
+    // Y puede firmar el nivel de Finanzas cuando le toque sustituirla.
+    ...ACCIONES_FIRMAR_NOMINA,
     ...ACCIONES_ESPEJO_CONTABLE,
     ],
   },
@@ -469,6 +490,8 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       // Y la nómina: dispersarla y pagarla es suyo. Sin esto el sistema le
       // encargaba el pago y no la dejaba abrir la pantalla.
       ...ACCIONES_NOMINA_TESORERIA,
+      // El tercer nivel de la cadena de firmas es suyo.
+      ...ACCIONES_FIRMAR_NOMINA,
     ],
   },
   {
@@ -603,6 +626,17 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     accionesIrrenunciables: [
       'GET /rrhh/estructura/solicitudes',
       'POST /rrhh/estructura/solicitudes/:id/gerencia',
+      /*
+       * La primera firma de la nómina. Autoriza por los TOTALES del periodo,
+       * que es la decisión que le toca; la prenómina trabajador por trabajador
+       * y los recibos siguen vedados más abajo, y eso no cambia: el sueldo de
+       * cada quien no es asunto de esta firma.
+       *
+       * Antes esa primera firma era de RRHH, el mismo rol que prepara la
+       * nómina, y como quien prepara no puede firmar, la cadena se trababa
+       * siempre en una empresa con una sola persona de Recursos humanos.
+       */
+      ...ACCIONES_FIRMAR_NOMINA,
     ],
     accionesVedadas: [
       'GET /rrhh/nomina/recibos',
@@ -684,6 +718,17 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     accionesIrrenunciables: [
       'GET /rrhh/estructura/solicitudes',
       'POST /rrhh/estructura/solicitudes/:id/gerencia',
+      /*
+       * La primera firma de la nómina. Autoriza por los TOTALES del periodo,
+       * que es la decisión que le toca; la prenómina trabajador por trabajador
+       * y los recibos siguen vedados más abajo, y eso no cambia: el sueldo de
+       * cada quien no es asunto de esta firma.
+       *
+       * Antes esa primera firma era de RRHH, el mismo rol que prepara la
+       * nómina, y como quien prepara no puede firmar, la cadena se trababa
+       * siempre en una empresa con una sola persona de Recursos humanos.
+       */
+      ...ACCIONES_FIRMAR_NOMINA,
     ],
     accionesVedadas: [
       'GET /rrhh/nomina/recibos',

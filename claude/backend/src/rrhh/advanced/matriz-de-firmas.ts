@@ -134,6 +134,28 @@ export type ClaveFirma = keyof typeof FIRMAS_NOMINA;
  */
 export const FIRMAS_POR_ETAPA: Record<string, readonly string[]> = {
   RRHH: [ADMIN, ...RRHH],
+  /*
+   * Direccion acompana a Gerencia en la misma etapa, como sustitucion cuando
+   * el gerente no esta: es la misma regla que ya rige el alta de estructura.
+   */
+  GERENCIA: [ADMIN, 'gerencia', 'direccion'],
   FINANZAS: [ADMIN, 'finanzas', 'contador'],
   TESORERIA: [ADMIN, 'tesoreria'],
 };
+
+/**
+ * La cadena de firmas cuando la empresa no ha configurado la suya en Gobierno
+ * de flujos.
+ *
+ * Empezaba en RRHH, que es el mismo rol que prepara la nomina, y como quien
+ * prepara no puede firmar, en una empresa con una sola persona de Recursos
+ * humanos la cadena se trababa siempre. Ahora abre Gerencia: autoriza la
+ * nomina por sus totales —trabajadores, percepciones, deducciones y neto—, que
+ * es la decision que le toca, sin ver la prenomina trabajador por trabajador,
+ * que sigue vedada para ese rol.
+ *
+ * Despues Finanzas, que responde del gasto y de la poliza, y Tesoreria, que es
+ * quien finalmente dispersa. Tres duenos distintos y ninguno firma lo que el
+ * mismo preparo.
+ */
+export const CADENA_FIRMAS_NOMINA = ['GERENCIA', 'FINANZAS', 'TESORERIA'] as const;

@@ -80,6 +80,7 @@ import {
   TipoObligacionEmpleado,
 } from './nomina-avanzada.entity';
 import {
+  CADENA_FIRMAS_NOMINA,
   FIRMAS_NOMINA,
   FIRMAS_POR_ETAPA,
   type Firma,
@@ -439,7 +440,7 @@ export class NominaAvanzadaService {
       });
       const definiciones = matriz.length
         ? matriz
-        : ['RRHH', 'FINANZAS', 'TESORERIA'].slice(0, niveles).map((rolAprobador, index) => ({
+        : CADENA_FIRMAS_NOMINA.slice(0, niveles).map((rolAprobador, index) => ({
             orden: index + 1, rolAprobador, usuarioId: undefined, tiempoLimiteHoras: 24,
           }));
       if (!definiciones.length) throw new ConflictException('Configura al menos un aprobador para Nómina.');
