@@ -476,10 +476,31 @@ export class IntegracionController {
   @Get('contratacion')
   async contratacion(@ActiveUser('empresaId') empresaId: string) {
     const perfil = await this.modos.perfilDe(empresaId);
+    /*
+     * La validación de identidad y buró es un TERCER eje, y se descubrió
+     * echándolo de menos: la pantalla de verificación de crédito vive entera
+     * de `/integracion`, así que una empresa sin proveedor no tiene nada que
+     * hacer ahí — pero tampoco se le puede esconder por no mover cartera ni
+     * espejar contabilidad, que son otras dos cosas. Sin este dato la única
+     * forma de decidir era adivinar.
+     *
+     * No es un modo con grados como los otros dos: o hay capacidades
+     * declaradas o no las hay.
+     */
+    const configuracion = await this.configEmpresa.findOne({
+      where: { empresaId },
+    });
+    const capacidades =
+      (configuracion?.parametrosProveedor as
+        | { capacidadesValidacion?: unknown[] }
+        | null
+        | undefined)?.capacidadesValidacion ?? [];
+
     return {
       usaRegistroExterno: await this.modos.usaRegistroExterno(empresaId),
       cartera: perfil.cartera,
       contabilidad: perfil.contabilidad,
+      validacion: Array.isArray(capacidades) && capacidades.length > 0,
     };
   }
 

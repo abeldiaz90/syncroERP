@@ -10,12 +10,19 @@ import { api, intentar, token } from '@/lib/api';
 import { esRolAdministrador } from '@/lib/roles';
 import { leerSesion, puedeVerEnlace } from '@/lib/session';
 import { usePermiso } from '@/hooks/use-permisos';
+import { useContratacion, contratado } from '@/lib/contratacion';
 
 export default function CentroModuloPage() {
   const params = useParams<{ modulo: string }>();
   const modulo = useMemo(() => MODULOS.find((m) => m.id === params.modulo), [params.modulo]);
   const [permisos, setPermisos] = useState<string[] | null>(null);
   const { tienePermiso } = usePermiso();
+  /*
+   * Lo contratado se pregunta aquí igual que en el menú lateral: el centro de
+   * trabajo es la otra puerta al mismo sitio, y filtrar sólo una de las dos
+   * deja la pantalla ofrecida por la que se olvidó.
+   */
+  const plan = useContratacion();
 
   useEffect(() => {
     let vivo = true;
@@ -32,7 +39,10 @@ export default function CentroModuloPage() {
   }, []);
 
   if (!modulo) return <div className="p-8">Módulo no encontrado.</div>;
-  const items = modulo.items.filter((i) => !i.oculto && puedeVerEnlace(permisos, i.href));
+  const items = modulo.items.filter(
+    (i) =>
+      !i.oculto && puedeVerEnlace(permisos, i.href) && contratado(plan, i),
+  );
   const grupos = agruparItems(items);
   /*
    * Un botón de la barra se ofrece solo si la persona puede EJECUTARLO.

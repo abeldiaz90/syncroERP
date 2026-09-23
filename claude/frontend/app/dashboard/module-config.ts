@@ -58,6 +58,19 @@ export interface ModuleItem {
   oculto?: boolean;
   /** Etiqueta corta al lado del ítem: "Nuevo", "Beta". */
   etiqueta?: string;
+  /**
+   * La pantalla no existe sin el registro financiero externo.
+   *
+   * Hay instalaciones que sólo usan el ERP, y a ésas no se les debe enseñar la
+   * puerta: no es que les falte configurar algo, es que no lo contrataron.
+   * «Espejo contable» salía en el centro de trabajo de Finanzas de cualquier
+   * empresa; quien entraba leía «esta empresa no espeja su contabilidad», que
+   * es una respuesta honesta a una pregunta que nunca debió ofrecerse.
+   *
+   * El eje importa: una empresa puede espejar contabilidad y no mover cartera,
+   * o al revés. `cualquiera` vale para lo que sirve con cualquiera de los dos.
+   */
+  requiereCore?: 'cualquiera' | 'cartera' | 'contabilidad' | 'validacion';
 }
 
 export interface ModuleAction {
@@ -441,12 +454,14 @@ export const MODULOS: ModuleConfig[] = [
         label: "Flujo de verificación",
         href: "/dashboard/creditos/verificacion",
         grupo: "Configuración",
+        requiereCore: "validacion",
       },
       {
         // El regreso de la integración: lo que pasó en el core y aquí no está.
         label: "Avisos del core",
         href: "/dashboard/creditos/avisos",
         grupo: "Configuración",
+        requiereCore: "cualquiera",
       },
       {
         label: "Cuentas bancarias",
@@ -592,6 +607,7 @@ export const MODULOS: ModuleConfig[] = [
         label: "Espejo contable",
         href: "/dashboard/finanzas/espejo-contable",
         grupo: "Control",
+        requiereCore: "contabilidad",
       },
       {
         label: "Catálogo de cuentas",

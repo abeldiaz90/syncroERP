@@ -192,6 +192,17 @@ function rolesExigidosPorRuta(): Map<string, string[]> {
   return exigencias;
 }
 
+/** Recorre los .tsx del frontend. Igual que `archivosTs`, pero allá. */
+function archivosDeFrontend(dir: string, acumulado: string[] = []): string[] {
+  for (const nombre of readdirSync(dir)) {
+    if (nombre === 'node_modules' || nombre === '.next') continue;
+    const ruta = join(dir, nombre);
+    if (statSync(ruta).isDirectory()) archivosDeFrontend(ruta, acumulado);
+    else if (nombre.endsWith('.tsx')) acumulado.push(ruta);
+  }
+  return acumulado;
+}
+
 const RUTAS = rutasDelBackend();
 
 describe('Coherencia · enums de integración', () => {
@@ -1936,6 +1947,78 @@ describe('Coherencia · las dos autorizaciones no pueden contradecirse', () => {
       join(FRONTEND, 'app/dashboard/finanzas/espejo-contable/page.tsx'),
     );
     expect(pantalla).toContain('/integracion/contabilidad/conciliacion/ejecutar');
+  });
+
+  /*
+   * ==========================================================================
+   * A quien sólo usa el ERP no se le enseña la puerta del core
+   * --------------------------------------------------------------------------
+   * Hay tres formas de instalar esto: sólo el ERP, sólo el registro financiero
+   * externo, y los dos juntos. La primera es la que se rompe en silencio,
+   * porque el sistema se desarrolla con las tres encendidas.
+   *
+   * `IntegracionModoService.usaRegistroExterno` ya contesta la pregunta, y su
+   * comentario dice para qué existe: «una empresa que solo usa el ERP no debe
+   * ver la correspondencia de roles, ni el enlace al core [...] no es que le
+   * falte configurar algo, es que no lo contrató. Enseñarle la puerta de un
+   * módulo que no compró es prometer lo que no hay».
+   *
+   * El menú lateral lo preguntaba. El CENTRO DE TRABAJO no: «Espejo contable»
+   * salía en Finanzas de cualquier empresa, y quien entraba leía «esta empresa
+   * no espeja su contabilidad» — una respuesta honesta a una pregunta que
+   * nunca debió ofrecerse. Dos puertas al mismo sitio y sólo una con la regla.
+   *
+   * La prueba mira las PANTALLAS: si todo lo que una pantalla llama cuelga de
+   * `/integracion`, esa pantalla no existe sin el core y tiene que declararlo.
+   * ==========================================================================
+   */
+  it('toda pantalla que sólo vive del core declara que lo requiere', () => {
+    if (!FRONTEND) return;
+    const mapa = leer(join(FRONTEND, 'app/dashboard/module-config.ts'));
+
+    const paginas = archivosDeFrontend(join(FRONTEND, 'app/dashboard')).filter(
+      (f) => f.endsWith('page.tsx'),
+    );
+
+    const sinDeclarar: string[] = [];
+    for (const archivo of paginas) {
+      const texto = sinComentarios(leer(archivo));
+      const llamadas = [
+        ...texto.matchAll(/api\.(?:get|post|put|patch|delete)<[^>]*>?\(\s*[`"']([^`"']+)/g),
+      ].map((m) => m[1]);
+      // Sin llamadas, o con alguna que no es del core, la pantalla vive sin él.
+      if (!llamadas.length) continue;
+      if (!llamadas.every((r) => r.startsWith('/integracion/'))) continue;
+
+      const ruta =
+        '/' +
+        relative(FRONTEND, archivo)
+          .split(sep)
+          .join('/')
+          .replace(/^app\//, '')
+          .replace(/\/page\.tsx$/, '');
+
+      const entrada = mapa.indexOf(`href: "${ruta}"`);
+      if (entrada < 0) continue; // No está en el menú: no ofrece ninguna puerta.
+      const bloque = mapa.slice(entrada, mapa.indexOf('}', entrada));
+      if (!bloque.includes('requiereCore')) sinDeclarar.push(ruta);
+    }
+
+    expect(sinDeclarar).toEqual([]);
+  });
+
+  /*
+   * Y que la declaración sirva de algo en las DOS puertas. Una regla aplicada
+   * en una sola es la que dejó «Espejo contable» a la vista.
+   */
+  it('las dos puertas al menú respetan lo contratado', () => {
+    if (!FRONTEND) return;
+    for (const pantalla of [
+      'app/dashboard/layout.tsx',
+      'app/dashboard/centros/[modulo]/page.tsx',
+    ]) {
+      expect(leer(join(FRONTEND, pantalla))).toContain('contratado(plan,');
+    }
   });
 
   it('quien no es administracion solo despacha los eventos de contabilidad', () => {

@@ -28,6 +28,8 @@ export interface Contratacion {
   usaRegistroExterno: boolean;
   cartera: string;
   contabilidad: string;
+  /** Hay proveedor de validación de identidad y buró declarado. */
+  validacion: boolean;
 }
 
 export function useContratacion(): Contratacion | undefined {
@@ -40,7 +42,12 @@ export function useContratacion(): Contratacion | undefined {
       // Si no se pudo preguntar, lo prudente es el plan más pequeño: enseñar de
       // menos molesta; enseñar de más manda a alguien a una pantalla que va a
       // contestarle que no le corresponde.
-      { usaRegistroExterno: false, cartera: 'APAGADO', contabilidad: 'APAGADO' },
+      {
+        usaRegistroExterno: false,
+        cartera: 'APAGADO',
+        contabilidad: 'APAGADO',
+        validacion: false,
+      },
     ).then((p) => {
       if (vivo) setPlan(p);
     });
@@ -48,4 +55,32 @@ export function useContratacion(): Contratacion | undefined {
   }, []);
 
   return plan;
+}
+
+/**
+ * ¿Esta empresa tiene contratado lo que la pantalla necesita?
+ *
+ * Vive aquí y no en cada pantalla porque son dos las puertas que llevan al
+ * mismo sitio —el menú lateral y el centro de trabajo— y una regla escrita dos
+ * veces es una regla que un día dirá dos cosas distintas.
+ *
+ * Mientras el plan no se sabe se oculta, que es la misma postura que ya toma
+ * `useContratacion` cuando la consulta falla: enseñar de menos molesta;
+ * enseñar de más manda a alguien a una pantalla que va a contestarle que no le
+ * corresponde. El servidor sigue siendo quien decide de verdad.
+ */
+export function contratado(
+  plan: Contratacion | undefined | null,
+  item: {
+    requiereCore?: 'cualquiera' | 'cartera' | 'contabilidad' | 'validacion';
+  },
+): boolean {
+  if (!item.requiereCore) return true;
+  if (!plan) return false;
+  if (item.requiereCore === 'cartera') return plan.cartera !== 'APAGADO';
+  if (item.requiereCore === 'contabilidad') {
+    return plan.contabilidad !== 'APAGADO';
+  }
+  if (item.requiereCore === 'validacion') return plan.validacion;
+  return plan.usaRegistroExterno;
 }

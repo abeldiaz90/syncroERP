@@ -46,7 +46,7 @@ import { PermisosProvider } from '@/app/context/PermisosContext';
 import { BarraContextualModulo } from '@/components/navigation/BarraContextualModulo';
 import { useI18n } from '@/components/I18nProvider';
 import { cerrarSesionKeycloak } from '@/lib/keycloak';
-import { useContratacion } from '@/lib/contratacion';
+import { useContratacion, contratado } from '@/lib/contratacion';
 
 /** Rutas accesibles para cualquier usuario autenticado. */
 const RUTAS_LIBRES = new Set(['/dashboard', '/dashboard/']);
@@ -151,24 +151,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // Los centros de trabajo son contenedores de navegación. Se permiten cuando
     // el usuario tiene acceso al menos a una pantalla real del módulo.
     if (pathname.startsWith('/dashboard/centros/') && modulo) {
-      return !modulo.items.some((i) => !i.oculto && puedeVerEnlace(permisos, i.href));
+      return !modulo.items.some((i) => !i.oculto && puedeVerEnlace(permisos, i.href) && contratado(plan, i));
     }
     // Las portadas de módulo —el índice de reportes, el centro de almacenes—
     // se tratan igual que los centros de trabajo: son navegación, no datos.
     if (RUTAS_CONTENEDOR.has(pathname) && modulo) {
-      return !modulo.items.some((i) => !i.oculto && puedeVerEnlace(permisos, i.href));
+      return !modulo.items.some((i) => !i.oculto && puedeVerEnlace(permisos, i.href) && contratado(plan, i));
     }
     return !puedeEntrar(permisos, pathname);
-  }, [permisos, pathname, modulo]);
+  }, [permisos, pathname, modulo, plan]);
 
   const modulosVisibles = useMemo(
-    () => MODULOS.filter((m) => m.items.some((i) => !i.oculto && puedeVerEnlace(permisos, i.href))),
-    [permisos],
+    () => MODULOS.filter((m) => m.items.some((i) => !i.oculto && puedeVerEnlace(permisos, i.href) && contratado(plan, i))),
+    [permisos, plan],
   );
 
   const itemsVisibles = useMemo(
-    () => (modulo?.items ?? []).filter((i) => !i.oculto && puedeVerEnlace(permisos, i.href)),
-    [modulo, permisos],
+    () => (modulo?.items ?? []).filter((i) => !i.oculto && puedeVerEnlace(permisos, i.href) && contratado(plan, i)),
+    [modulo, permisos, plan],
   );
 
   const cerrarSesion = async () => {
