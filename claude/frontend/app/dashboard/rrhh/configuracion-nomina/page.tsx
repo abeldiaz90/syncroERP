@@ -6,7 +6,18 @@ import { ArrowLeft, ArrowRight, BadgeCheck, Building2, Check, Landmark, ShieldCh
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
 import { usePermiso } from '@/hooks/use-permisos';
 
-type Cuenta = { id: string; codigo?: string; nombre?: string };
+/*
+ * El catalogo devuelve `numeroCuenta`; aqui se escribio `codigo`, que no
+ * existe en la respuesta. Como el campo era opcional, TypeScript nunca dijo
+ * nada y la lista salia con el nombre pelado. Con 930 cuentas del catalogo
+ * SAT —y nombres repetidos cinco veces: «Sueldos y salarios» aparece una vez
+ * por agrupador— quien mapea la nomina elegia a ciegas.
+ *
+ * `codigo` se conserva por si alguna respuesta vieja lo trae.
+ */
+type Cuenta = { id: string; numeroCuenta?: string; codigo?: string; nombre?: string };
+
+const claveDe = (c: Cuenta) => c.numeroCuenta ?? c.codigo ?? '';
 type Banco = { id: string; clave?: string; nombre: string; activo?: boolean };
 type Config = {
   razonSocial: string; rfc: string; registroPatronal?: string; claseRiesgo?: string;
@@ -213,10 +224,23 @@ export default function ConfiguracionNominaPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {camposCuenta.map(([key, label, ayuda]) => <label key={String(key)} className="text-sm font-medium text-slate-700">
           {label}<span className="ml-1 font-normal text-slate-400">— {ayuda}</span>
-          <select className="entrada mt-1 w-full" disabled={!puedeEditar} value={String(form[key] ?? '')} onChange={(e) => cambiar(key, (e.target.value || undefined) as never)}>
-            <option value="">Seleccionar cuenta…</option>
-            {cuentas.map((c) => <option key={c.id} value={c.id}>{c.codigo ? `${c.codigo} · ` : ''}{c.nombre ?? c.id}</option>)}
-          </select>
+          {/*
+            * Un `<select>` de 930 opciones no se puede usar: hay que
+            * desplazarlo a mano y los nombres se repiten. El mismo buscador
+            * que ya sirve para el banco, filtrando por numero o por nombre.
+            */}
+          <BuscadorSeleccion
+            className="mt-1"
+            disabled={!puedeEditar}
+            valor={String(form[key] ?? '')}
+            opciones={cuentas.map((c) => ({
+              valor: c.id,
+              etiqueta: `${claveDe(c)} · ${c.nombre ?? c.id}`,
+              busqueda: claveDe(c),
+            }))}
+            onChange={(id) => cambiar(key, (id || undefined) as never)}
+            placeholder="Buscar cuenta por número o nombre…"
+          />
         </label>)}
       </div>
     </section>}
