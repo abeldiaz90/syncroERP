@@ -2548,3 +2548,77 @@ describe('Coherencia · la cadena de firmas de nómina se puede recorrer', () =>
     }
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * UNA NOMINA RECHAZADA TIENE QUE PODER VOLVER A ENVIARSE
+ *
+ * Rechazar es el camino normal: alguien mira la prenómina, ve algo mal, la
+ * rechaza, se corrige y se vuelve a enviar. Pero el índice único de las
+ * aprobaciones era (empresa, periodo, nivel) —un solo flujo en toda la vida
+ * del periodo— y `prepararAprobacion` contestaba «El flujo de aprobación ya
+ * fue preparado». Una nómina rechazada quedaba calculable y jamás aprobable.
+ *
+ * El ciclo entra en el índice. Estas pruebas cuidan que no vuelva a salir.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+describe('Coherencia · una nómina rechazada vuelve a la cola', () => {
+  const ENTIDAD = join(SRC, 'rrhh/advanced/nomina-avanzada.entity.ts');
+  const SERVICIO = join(SRC, 'rrhh/advanced/nomina-avanzada.service.ts');
+
+  it('el ciclo forma parte de la unicidad de la aprobación', () => {
+    const texto = leer(ENTIDAD);
+    const bloque = /@Entity\('rrhh_aprobaciones_nomina'\)[\s\S]*?export class AprobacionNomina/
+      .exec(texto)?.[0] ?? '';
+    expect(bloque).toContain("'ciclo'");
+    // El índice viejo, sin ciclo, es justo el que impedía el segundo envío.
+    expect(bloque).not.toMatch(/@Index\(\['empresaId', 'periodoId', 'nivel'\]/);
+  });
+
+  it('preparar de nuevo abre un ciclo, no se niega', () => {
+    const texto = sinComentarios(leer(SERVICIO));
+    const preparar = /async prepararAprobacion\([\s\S]*?\n  \}/.exec(texto)?.[0] ?? '';
+    expect(preparar).toBeTruthy();
+    // Ya no se niega por el mero hecho de que existan aprobaciones.
+    expect(preparar).not.toContain('El flujo de aprobación ya fue preparado');
+    // Y el ciclo nuevo sale del anterior.
+    expect(preparar).toContain('cicloVigente + 1');
+  });
+
+  it('ninguna decisión del flujo cuenta los envíos viejos', () => {
+    /*
+     * El ciclo anterior lleva una firma RECHAZADA y los niveles que se
+     * quedaron pendientes detrás de ella. Contarlos haría que una nómina
+     * reenviada y firmada entera no llegara nunca a APROBADO, y que el pago
+     * dijera para siempre «todas las aprobaciones deben estar completadas».
+     * Es un fallo que no se ve hasta el final del mes.
+     */
+    const texto = sinComentarios(leer(SERVICIO));
+    const consultas = [...texto.matchAll(
+      /(?:em|this\.aprobaciones)\.(?:find|count)\(\s*(?:AprobacionNomina\s*,\s*)?\{[^}]*periodoId[^}]*\}[^)]*\)/g,
+    )];
+    expect(consultas.length).toBeGreaterThanOrEqual(3);
+    /*
+     * Toda consulta de aprobaciones de un periodo tiene que hacer una de dos
+     * cosas: filtrar por ciclo ella misma, o entregar la lista completa a
+     * `evaluarAprobacion`, que es quien sabe cuál es el envío vigente. Lo que
+     * no puede es decidir contando filas de todos los ciclos.
+     */
+    const sinFiltrar: string[] = [];
+    for (const [consulta] of consultas) {
+      const desde = texto.indexOf(consulta);
+      const ventana = texto.slice(desde, desde + 900);
+      if (!/cicloVigente|ciclo: 'DESC'|evaluarAprobacion\(/.test(ventana)) {
+        sinFiltrar.push(consulta.replace(/\s+/g, ' ').slice(0, 90));
+      }
+    }
+    expect(sinFiltrar).toEqual([]);
+  });
+
+  it('una firma de un envío anterior no se puede resolver', () => {
+    const texto = sinComentarios(leer(SERVICIO));
+    const evaluar = /private evaluarAprobacion\([\s\S]*?\n  \}/.exec(texto)?.[0] ?? '';
+    expect(evaluar).toContain('cicloVigente');
+    // Los niveles que quedaron pendientes cuando alguien rechazó no pueden
+    // revivir al reenviar: se comparan siempre dentro del mismo ciclo.
+    expect(evaluar).toMatch(/ciclo \?\? 1\) !== cicloVigente/);
+  });
+});

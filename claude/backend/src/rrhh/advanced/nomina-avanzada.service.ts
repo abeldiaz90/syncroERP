@@ -431,8 +431,32 @@ export class NominaAvanzadaService {
         throw new ConflictException('La prenómina tiene alertas. Debes reconocerlas expresamente.');
       }
       if (!periodo.hashCalculo) throw new ConflictException('El periodo no tiene snapshot de cálculo.');
-      const existentes = await em.count(AprobacionNomina, { where: { empresaId, periodoId } });
-      if (existentes) throw new ConflictException('El flujo de aprobación ya fue preparado.');
+      /*
+       * Cada envio abre un ciclo. Antes esto era un `count` que se negaba en
+       * cuanto existiera cualquier aprobacion: una nomina rechazada no podia
+       * volver a enviarse nunca, y rechazar es el camino normal.
+       *
+       * Si hay un flujo VIVO —alguna firma pendiente del ciclo vigente— eso si
+       * se niega: dos cadenas abiertas a la vez sobre el mismo periodo no
+       * significan nada. Pero el guardia de estado de arriba ya lo impide, asi
+       * que esto es el cinturon.
+       */
+      const anteriores = await em.find(AprobacionNomina, {
+        where: { empresaId, periodoId },
+        order: { ciclo: 'DESC' },
+      });
+      const cicloVigente = anteriores[0]?.ciclo ?? 0;
+      if (
+        anteriores.some(
+          (a) =>
+            a.ciclo === cicloVigente &&
+            a.estado === EstadoAprobacionNomina.PENDIENTE,
+        ) &&
+        periodo.estado === EstadoPeriodo.EN_REVISION
+      ) {
+        throw new ConflictException('El flujo de aprobación ya está en curso.');
+      }
+      const ciclo = cicloVigente + 1;
 
       const matriz = await em.find(ConfiguracionAprobacion, {
         where: { empresaId, proceso: 'NOMINA', activo: true },
@@ -496,6 +520,7 @@ export class NominaAvanzadaService {
         em.create(AprobacionNomina, {
           empresaId,
           periodoId,
+          ciclo,
           nivel: index + 1,
           rolRequerido: definicion.rolAprobador || 'USUARIO_ASIGNADO',
           usuarioAprobadorId: definicion.usuarioId,
@@ -513,7 +538,7 @@ export class NominaAvanzadaService {
       periodo.enviadoARevisionPorId = usuario.id;
       periodo.fechaEnvioRevision = new Date();
       await em.save(periodo);
-      await this.registrarEvento(em, empresaId, periodoId, 'APROBACION_PREPARADA', EstadoPeriodo.CALCULADO, periodo.estado, usuario.id, { niveles: aprobaciones.length, configurado: matriz.length > 0 });
+      await this.registrarEvento(em, empresaId, periodoId, 'APROBACION_PREPARADA', EstadoPeriodo.CALCULADO, periodo.estado, usuario.id, { niveles: aprobaciones.length, configurado: matriz.length > 0, ciclo });
       return aprobaciones;
     });
   }
@@ -541,10 +566,14 @@ export class NominaAvanzadaService {
     empresaId: string,
     usuario?: UsuarioNomina,
   ) {
-    const lista = await this.aprobaciones.find({
+    const todas = await this.aprobaciones.find({
       where: { periodoId, empresaId },
       order: { nivel: 'ASC' },
     });
+    // Solo el envio vigente. Los anteriores son historia y viven en la
+    // bitacora de eventos; mezclarlos aqui haria la pantalla incomprensible.
+    const cicloVigente = this.cicloVigenteDe(todas);
+    const lista = todas.filter((a) => (a.ciclo ?? 1) === cicloVigente);
     if (!usuario || !lista.length) return lista;
     const periodo = await this.periodos.findOne({
       where: { id: periodoId, empresaId },
@@ -565,6 +594,19 @@ export class NominaAvanzadaService {
   }
 
   /**
+   * El ciclo vigente de una lista de aprobaciones.
+   *
+   * Todo lo que decida sobre el estado del flujo tiene que mirar SOLO el
+   * envio vigente. Los ciclos anteriores llevan una firma rechazada y los
+   * niveles que se quedaron sin resolver detras de ella; contarlos es lo que
+   * haria que una nomina reenviada y firmada entera no llegara nunca a
+   * APROBADO.
+   */
+  private cicloVigenteDe(lista: AprobacionNomina[]): number {
+    return lista.reduce((m, a) => Math.max(m, a.ciclo ?? 1), 0);
+  }
+
+  /**
    * Una sola lectura de «¿puede esta persona resolver esta firma?».
    *
    * El orden importa: se contesta primero lo que es de la firma (ya resuelta,
@@ -579,6 +621,20 @@ export class NominaAvanzadaService {
   ): { puede: boolean; motivo: string | null; tipo?: 'PROHIBIDO' | 'CONFLICTO' | 'NO_ENCONTRADO' } {
     if (aprobacion.estado !== EstadoAprobacionNomina.PENDIENTE) {
       return { puede: false, motivo: 'La aprobación ya fue resuelta.', tipo: 'CONFLICTO' };
+    }
+    /*
+     * Una firma de un envio anterior no se resuelve. Cuando alguien rechaza,
+     * los niveles siguientes de ese ciclo se quedan pendientes para siempre;
+     * sin esto volverian a estar vivos en cuanto el periodo regresara a
+     * revision con la cadena nueva.
+     */
+    const cicloVigente = this.cicloVigenteDe(todas);
+    if ((aprobacion.ciclo ?? 1) !== cicloVigente) {
+      return {
+        puede: false,
+        motivo: 'Esta firma corresponde a un envío anterior de la nómina.',
+        tipo: 'CONFLICTO',
+      };
     }
     if (aprobacion.preparadaPorId === usuario.id) {
       return {
@@ -627,6 +683,7 @@ export class NominaAvanzadaService {
     if (
       todas.some(
         (a) =>
+          (a.ciclo ?? 1) === cicloVigente &&
           a.nivel < aprobacion.nivel &&
           a.estado !== EstadoAprobacionNomina.APROBADA,
       )
@@ -693,8 +750,13 @@ export class NominaAvanzadaService {
         return aprobacion;
       }
 
-      const todas = await em.find(AprobacionNomina, { where: { periodoId: periodo.id, empresaId } });
-      if (todas.every((a) => a.id === aprobacion.id || a.estado === EstadoAprobacionNomina.APROBADA)) {
+      const historia = await em.find(AprobacionNomina, { where: { periodoId: periodo.id, empresaId } });
+      const delEnvio = historia.filter(
+        (a) => (a.ciclo ?? 1) === this.cicloVigenteDe(historia),
+      );
+      // Solo el envio vigente decide. Los ciclos anteriores traen la firma
+      // rechazada y los niveles que quedaron detras de ella.
+      if (delEnvio.every((a) => a.id === aprobacion.id || a.estado === EstadoAprobacionNomina.APROBADA)) {
         periodo.estado = EstadoPeriodo.APROBADO;
         periodo.bloqueado = true;
         periodo.motivoBloqueo = 'Nómina aprobada; el cálculo es inmutable.';
@@ -1183,7 +1245,12 @@ export class NominaAvanzadaService {
       if (![EstadoPeriodo.APROBADO, EstadoPeriodo.CFDI_PREPARADO, EstadoPeriodo.TIMBRADO, EstadoPeriodo.EN_DISPERSION].includes(periodo.estado)) {
         throw new ConflictException('La nómina debe estar aprobada antes de registrar el pago.');
       }
-      const aprobaciones = await em.find(AprobacionNomina, { where: { periodoId, empresaId } });
+      const historiaAprobaciones = await em.find(AprobacionNomina, {
+        where: { periodoId, empresaId },
+      });
+      const aprobaciones = historiaAprobaciones.filter(
+        (a) => (a.ciclo ?? 1) === this.cicloVigenteDe(historiaAprobaciones),
+      );
       if (!aprobaciones.length || aprobaciones.some((a) => a.estado !== EstadoAprobacionNomina.APROBADA)) {
         throw new ConflictException('Todas las aprobaciones deben estar completadas.');
       }

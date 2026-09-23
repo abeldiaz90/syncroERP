@@ -79,12 +79,27 @@ export class PrestamoEmpleado {
   @UpdateDateColumn() fechaActualizacion!: Date;
 }
 
+/**
+ * Una nomina puede enviarse a aprobacion mas de una vez, y por eso hay ciclo.
+ *
+ * Rechazar es el camino normal: alguien mira la prenomina, ve algo mal, la
+ * rechaza, se corrige y se vuelve a enviar. Pero el indice unico era
+ * (empresa, periodo, nivel), asi que en toda la vida del periodo solo cabia un
+ * flujo. `prepararAprobacion` lo comprobaba y devolvia «El flujo de aprobacion
+ * ya fue preparado»: una nomina rechazada no podia volver a enviarse nunca.
+ * Quedaba calculable y jamas aprobable.
+ *
+ * El ciclo entra en el indice. Cada envio abre uno nuevo, los anteriores
+ * quedan como historia —incluidos los niveles que se quedaron pendientes
+ * cuando otro rechazo— y solo el vigente se puede firmar.
+ */
 @Entity('rrhh_aprobaciones_nomina')
-@Index(['empresaId', 'periodoId', 'nivel'], { unique: true })
+@Index(['empresaId', 'periodoId', 'ciclo', 'nivel'], { unique: true })
 export class AprobacionNomina {
   @PrimaryGeneratedColumn('uuid') id!: string;
   @Column({ type: 'uuid' }) empresaId!: string;
   @Column({ type: 'uuid' }) periodoId!: string;
+  @Column({ type: 'int', default: 1 }) ciclo!: number;
   @Column({ type: 'int' }) nivel!: number;
   @Column({ type: 'varchar', length: 80 }) rolRequerido!: string;
   @Column({ type: 'uuid', nullable: true }) usuarioAprobadorId?: string;
