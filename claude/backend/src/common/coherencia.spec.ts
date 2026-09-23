@@ -2622,3 +2622,69 @@ describe('Coherencia · una nómina rechazada vuelve a la cola', () => {
     expect(evaluar).toMatch(/ciclo \?\? 1\) !== cicloVigente/);
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * UNA ACCION SIN PUERTA NO ES UNA ACCION
+ *
+ * Tesorería podía generar la dispersión, confirmar el envío al banco y
+ * conciliar la respuesta —los tres permisos en `true`, comprobado en vivo— y
+ * la única pantalla que hacía eso era «Cumplimiento y cierre», que no está en
+ * su menú. Su pantalla, la que se llama literalmente «Dispersión y pagos»,
+ * sólo pagaba. Lo mismo con «Preparar CFDI»: acción de Recursos humanos en una
+ * pantalla que Recursos humanos no tiene.
+ *
+ * No es un 403 —eso ya lo cuidan otras pruebas—: es lo contrario. El permiso
+ * está y la puerta no. Se nota sólo cuando alguien intenta hacer su trabajo.
+ *
+ * La regla: si una firma de `FIRMAS_NOMINA` la ejerce un rol, la pantalla que
+ * llama a esa acción tiene que ser alcanzable por ese rol.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+describe('Coherencia · una acción sin puerta no es una acción', () => {
+  const saltar = !FRONTEND;
+
+  /** Las acciones de nómina que se operan desde una pantalla, y quién las hace. */
+  const PUERTAS: Array<{ clave: keyof typeof FIRMAS_NOMINA; pantalla: string; llamada: RegExp }> = [
+    { clave: 'generarDispersion', pantalla: 'app/dashboard/rrhh/pagos/page.tsx',
+      llamada: /periodos\/\$\{periodoId\}\/dispersion`/ },
+    { clave: 'marcarDispersionEnviada', pantalla: 'app/dashboard/rrhh/pagos/page.tsx',
+      llamada: /dispersion\/enviada`/ },
+    { clave: 'conciliarDispersion', pantalla: 'app/dashboard/rrhh/pagos/page.tsx',
+      llamada: /dispersion\/conciliar`/ },
+    { clave: 'registrarPago', pantalla: 'app/dashboard/rrhh/pagos/page.tsx',
+      llamada: /\/pago`/ },
+    { clave: 'prepararCfdi', pantalla: 'app/dashboard/rrhh/centro-nomina/page.tsx',
+      llamada: /cfdi\/generar`/ },
+    { clave: 'contabilizar', pantalla: 'app/dashboard/rrhh/cumplimiento/page.tsx',
+      llamada: /poliza-detallada`/ },
+    { clave: 'cerrar', pantalla: 'app/dashboard/rrhh/cumplimiento/page.tsx',
+      llamada: /cierre-financiero`/ },
+  ];
+
+  (saltar ? it.skip : it)(
+    'cada acción se llama desde la pantalla que le toca',
+    () => {
+      const perdidas: string[] = [];
+      for (const { clave, pantalla, llamada } of PUERTAS) {
+        const ruta = join(FRONTEND!, pantalla);
+        if (!existsSync(ruta)) { perdidas.push(`${clave}: no existe ${pantalla}`); continue; }
+        if (!llamada.test(leer(ruta))) perdidas.push(`${clave}: ${pantalla} no la llama`);
+      }
+      expect(perdidas).toEqual([]);
+    },
+  );
+
+  (saltar ? it.skip : it)(
+    'dispersar y pagar viven juntos, que es como se opera',
+    () => {
+      const pagos = leer(join(FRONTEND!, 'app/dashboard/rrhh/pagos/page.tsx'));
+      const cierre = leer(join(FRONTEND!, 'app/dashboard/rrhh/cumplimiento/page.tsx'));
+      // La jornada de Tesorería, entera y en una sola pantalla.
+      for (const paso of ['/dispersion`', 'dispersion/enviada`', 'dispersion/conciliar`', '/pago`']) {
+        expect(pagos).toContain(paso);
+      }
+      // Y fuera de la de contabilidad, que sólo contabiliza y cierra.
+      expect(cierre).not.toContain('dispersion/conciliar`');
+      expect(cierre).not.toContain('cfdi/generar`');
+    },
+  );
+});

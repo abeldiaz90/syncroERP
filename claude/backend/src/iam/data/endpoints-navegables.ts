@@ -655,11 +655,18 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Vacaciones y saldos',
     ordenMenu: 75,
   },
+  /*
+   * El enlace cuelga del pago, que es de Tesoreria, y la pantalla hace ahora
+   * las dos mitades de su jornada: dispersar y pagar. Antes dispersar vivia en
+   * «Cumplimiento y cierre», que no esta en su menu.
+   */
   'POST /rrhh/nomina-avanzada/periodos/:id/pago': {
     rutaFrontend: '/dashboard/rrhh/pagos',
     titulo: 'Dispersión y pagos',
     ordenMenu: 76,
   },
+  // Ya sin dispersion ni CFDI: queda el tablero del periodo y las dos acciones
+  // de contabilidad, la poliza de devengo y el cierre definitivo.
   'GET /rrhh/nomina-avanzada/periodos/:id/cumplimiento': {
     rutaFrontend: '/dashboard/rrhh/cumplimiento',
     titulo: 'Cumplimiento y cierre',

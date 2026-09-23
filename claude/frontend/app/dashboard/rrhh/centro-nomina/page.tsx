@@ -9,6 +9,7 @@ import {
   RefreshCw, Settings2, ShieldCheck, Sparkles, Users, WalletCards,
 } from 'lucide-react';
 import { api, conPermiso } from '@/lib/api';
+import { usePermiso } from '@/hooks/use-permisos';
 import { dinero, fecha } from '@/lib/format';
 
 type Periodo = { id:string; ejercicio:number; numero:number; regimen:string; fechaInicio:string; fechaFin:string; estado:string; totalNeto:number };
@@ -28,6 +29,7 @@ type Aprobacion = { id:string; nivel:number; rolRequerido:string; estado:string;
 const ESTADOS_CALCULADOS = ['CALCULADO', 'CON_ALERTAS', 'EN_REVISION', 'APROBADO', 'CFDI_PREPARADO', 'TIMBRADO', 'DISPERSION_GENERADA', 'EN_DISPERSION', 'PAGADO', 'CONTABILIZADO', 'CERRADO'];
 
 export default function CentroNominaPage() {
+  const { tienePermiso } = usePermiso();
   const [tablero, setTablero] = useState<Tablero | null>(null);
   const [preparacion, setPreparacion] = useState<Preparacion | null>(null);
   const [periodos, setPeriodos] = useState<Periodo[]>([]);
@@ -40,6 +42,7 @@ export default function CentroNominaPage() {
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
   const periodo = useMemo(() => periodos.find((p) => p.id === periodoId), [periodos, periodoId]);
+  const puedePrepararCfdi = tienePermiso('POST', '/rrhh/nomina-avanzada/periodos/:id/cfdi/generar');
 
   async function cargarBase() {
     setCargando(true); setError('');
@@ -107,6 +110,26 @@ export default function CentroNominaPage() {
     const temporizador = window.setTimeout(() => void cargarPeriodo(periodoId), 0);
     return () => window.clearTimeout(temporizador);
   }, [periodoId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /*
+   * Preparar los expedientes fiscales es de Recursos humanos
+   * (`FIRMAS_NOMINA.prepararCfdi`), pero el boton vivia en «Cumplimiento y
+   * cierre», una pantalla que RRHH no tiene en su menu. La accion era suya y
+   * no tenia por donde; desde alli daba 403 a quien si podia abrirla.
+   *
+   * No se timbra aqui: se preparan. El timbrado exige respuesta autenticada
+   * del PAC, y sin ella nada se marca como timbrado.
+   */
+  async function prepararCfdi() {
+    if (!periodoId) return;
+    try {
+      await api.post(`/rrhh/nomina-avanzada/periodos/${periodoId}/cfdi/generar`, { enviarPac: false });
+      setError('');
+      await cargarPeriodo(periodoId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No fue posible preparar los expedientes fiscales.');
+    }
+  }
 
   async function prepararAprobacion() {
     if (!pre) return;
@@ -179,7 +202,7 @@ export default function CentroNominaPage() {
           {!periodo ? <VacioPeriodo /> : <div className="mt-6">
             <FlujoNomina estado={periodo.estado} periodoId={periodo.id} />
             <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold text-slate-900">Periodo #{periodo.numero}</p><p className="text-[11px] text-slate-500">{fecha(periodo.fechaInicio)} al {fecha(periodo.fechaFin)} · Estado: {periodo.estado}</p></div><div className="flex gap-2"><Link className="btn btn-neutro" href="/dashboard/rrhh/incidencias"><CalendarClock className="h-4 w-4" />Incidencias</Link><Link className="btn btn-primario" href="/dashboard/rrhh/nomina"><Calculator className="h-4 w-4" />Calcular o recalcular</Link></div></div>
+              <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold text-slate-900">Periodo #{periodo.numero}</p><p className="text-[11px] text-slate-500">{fecha(periodo.fechaInicio)} al {fecha(periodo.fechaFin)} · Estado: {periodo.estado}</p></div><div className="flex gap-2"><Link className="btn btn-neutro" href="/dashboard/rrhh/incidencias"><CalendarClock className="h-4 w-4" />Incidencias</Link><Link className="btn btn-primario" href="/dashboard/rrhh/nomina"><Calculator className="h-4 w-4" />Calcular o recalcular</Link>{puedePrepararCfdi && <button className="btn btn-neutro" onClick={()=>void prepararCfdi()} title="Prepara los expedientes; el timbrado exige respuesta del PAC"><FileCheck2 className="h-4 w-4" />Preparar CFDI</button>}</div></div>
             </div>
           </div>}
         </section>
@@ -215,7 +238,7 @@ export default function CentroNominaPage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-950">Flujo de aprobación</h2><p className="mb-4 text-xs text-slate-500">Las aprobaciones son secuenciales y dejan trazabilidad.</p>{!aprobaciones.length ? <button disabled={!['CALCULADO','CON_ALERTAS'].includes(periodo?.estado ?? '')} onClick={() => void prepararAprobacion()} className="btn btn-primario w-full"><ShieldCheck className="h-4 w-4" />Enviar a aprobación</button> : <div className="space-y-2">{aprobaciones.map((a) => <div key={a.id} className="rounded-xl border border-slate-200 p-3"><div className="flex items-center justify-between"><b className="text-xs">Nivel {a.nivel}</b><span className="text-[10px] font-bold text-slate-500">{a.estado}</span></div><p className="mt-0.5 text-[11px] text-slate-500">{a.rolRequerido}</p>{a.estado === 'PENDIENTE' && (a.puedoResolver
   ? <div className="mt-3 flex gap-2"><button className="btn btn-primario btn-sm flex-1" onClick={() => void resolver(a.id, 'APROBADA')}>Aprobar</button><button className="btn btn-neutro btn-sm flex-1" onClick={() => void resolver(a.id, 'RECHAZADA')}>Rechazar</button></div>
   : <p className="mt-2 text-[11px] text-slate-500">{a.motivoBloqueo ?? `Esta firma es de ${a.rolRequerido}.`}</p>)}</div>)}</div>}</section>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-950">Siguientes pasos</h2><div className="mt-4 grid gap-2"><Link className="btn btn-neutro w-full justify-start" href={`/dashboard/rrhh/recibos?periodoId=${periodoId}`}><FileCheck2 className="h-4 w-4" />Revisar recibos</Link><Link className="btn btn-neutro w-full justify-start" href={`/dashboard/rrhh/cumplimiento?periodoId=${periodoId}`}><Landmark className="h-4 w-4" />CFDI, dispersión y póliza</Link><Link className="btn btn-primario w-full justify-start" href={`/dashboard/rrhh/pagos?periodoId=${periodoId}`}><WalletCards className="h-4 w-4" />Registrar pago</Link></div></section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-950">Siguientes pasos</h2><div className="mt-4 grid gap-2"><Link className="btn btn-neutro w-full justify-start" href={`/dashboard/rrhh/recibos?periodoId=${periodoId}`}><FileCheck2 className="h-4 w-4" />Revisar recibos</Link><Link className="btn btn-primario w-full justify-start" href={`/dashboard/rrhh/pagos?periodoId=${periodoId}`}><WalletCards className="h-4 w-4" />Dispersión y pago</Link><Link className="btn btn-neutro w-full justify-start" href={`/dashboard/rrhh/cumplimiento?periodoId=${periodoId}`}><Landmark className="h-4 w-4" />Póliza y cierre</Link></div></section>
         </aside>
       </div>}
 
