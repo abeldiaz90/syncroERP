@@ -199,6 +199,13 @@ const ACCIONES_ESPEJO_CONTABLE = [
   'GET /integracion/outbox',
   'POST /integracion/outbox/:id/reencolar',
   'POST /integracion/outbox/despachar',
+  /*
+   * Contrastar los dos mayores. Sin estas dos, la pantalla ensena que la
+   * poliza salio y nadie comprueba nunca que del otro lado haya aterrizado lo
+   * mismo. Es la pregunta que justifica todo el espejo.
+   */
+  'GET /integracion/contabilidad/conciliacion',
+  'POST /integracion/contabilidad/conciliacion/ejecutar',
 ];
 
 export const PLANTILLAS_PERMISOS: PlantillaRol[] = [

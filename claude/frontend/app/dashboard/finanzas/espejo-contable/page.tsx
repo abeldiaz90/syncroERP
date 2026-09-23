@@ -90,6 +90,22 @@ interface EventoOutbox {
   fechaCreacion: string;
 }
 
+interface Hallazgo {
+  polizaId: string;
+  folio: string;
+  asientoId: string | null;
+  codigo: string;
+  detalle: string;
+}
+
+interface Conciliacion {
+  fecha: string;
+  alcance: string;
+  revisados: number;
+  discrepancias: number;
+  hallazgos: Hallazgo[];
+}
+
 interface ResultadoDespacho {
   procesados: number;
   fallidos: number;
@@ -245,6 +261,29 @@ export default function EspejoContablePage() {
       avisar("No había nada pendiente por despachar.", "info");
     }
     recargarTodo();
+  });
+
+  /*
+   * Contrastar los dos mayores. Vive detrás de un botón y no de una carga
+   * automática porque recorre póliza por póliza contra el sistema externo:
+   * abrir la pantalla no tiene por qué costar eso.
+   */
+  const puedeConciliar = tienePermiso(
+    "POST",
+    "/integracion/contabilidad/conciliacion/ejecutar",
+  );
+  const [conciliacion, setConciliacion] = useState<Conciliacion | null>(null);
+  const conciliar = useAccion(async () => {
+    const r = await api.post<Conciliacion>(
+      "/integracion/contabilidad/conciliacion/ejecutar",
+    );
+    setConciliacion(r);
+    avisar(
+      r.discrepancias === 0
+        ? `Los dos mayores coinciden en las ${r.revisados} póliza(s) espejadas.`
+        : `${r.discrepancias} diferencia(s) entre el ERP y el mayor externo.`,
+      r.discrepancias === 0 ? "exito" : "alerta",
+    );
   });
 
   const espejoActivo = estado.datos?.contabilidad.modoEfectivo === "ESPEJO";
@@ -525,6 +564,75 @@ export default function EspejoContablePage() {
                           Reintentar
                         </Boton>
                       )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
+      {/* ── ¿Dicen lo mismo los dos mayores? ─────────────────────────── */}
+      <Panel sinRelleno>
+        <div className="panel-cabecera flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[13px] font-semibold text-slate-900">
+              ¿Las dos contabilidades dicen lo mismo?
+            </p>
+            <p className="text-[12px] text-slate-500 mt-0.5">
+              Que la póliza saliera no quiere decir que del otro lado aterrizara
+              lo mismo. Esto compara, póliza por póliza, la que se registró aquí
+              contra el asiento del mayor externo.
+            </p>
+          </div>
+          {puedeConciliar && (
+            <Boton
+              variante="neutro"
+              icono={<ShieldAlert className="w-3.5 h-3.5" />}
+              cargando={conciliar.ejecutando}
+              onClick={() => void conciliar.ejecutar()}
+            >
+              Comparar ahora
+            </Boton>
+          )}
+        </div>
+
+        {conciliacion === null ? (
+          <SinDatos
+            titulo="Sin comparar en esta sesión"
+            descripcion="La comparación también corre sola cada diez minutos; aquí se puede pedir en el momento."
+            icono={<Link2 className="w-5 h-5" />}
+          />
+        ) : conciliacion.discrepancias === 0 ? (
+          <div className="p-4">
+            <p className="text-[13px] font-semibold text-emerald-700">
+              Coinciden en las {conciliacion.revisados} póliza(s) espejadas
+            </p>
+            <p className="text-[12px] text-slate-500 mt-0.5">
+              Comparación del {fechaHora(conciliacion.fecha)} · alcance{" "}
+              {conciliacion.alcance}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="tabla">
+              <thead>
+                <tr>
+                  <th>Póliza</th>
+                  <th>Asiento externo</th>
+                  <th>Diferencia</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conciliacion.hallazgos.map((h) => (
+                  <tr key={`${h.polizaId}-${h.codigo}`} className="bg-amber-50/50">
+                    <td className="text-slate-900">{h.folio}</td>
+                    <td className="text-[12.5px] text-slate-500">
+                      {h.asientoId ?? "no llegó"}
+                    </td>
+                    <td className="text-[12.5px] text-amber-800">
+                      <span className="font-semibold">{h.codigo}</span> · {h.detalle}
                     </td>
                   </tr>
                 ))}

@@ -1868,6 +1868,76 @@ describe('Coherencia · las dos autorizaciones no pueden contradecirse', () => {
    * una regla puesta en el controlador solo se cumple si la peticion entra por
    * ahi.
    */
+  /*
+   * ==========================================================================
+   * La pantalla no puede llamar a lo que su rol no tiene
+   * --------------------------------------------------------------------------
+   * La prueba anterior compara dos declaraciones entre sí. Ésta compara la
+   * declaración con la PANTALLA, que es de donde salen las llamadas de verdad.
+   *
+   * Lo que la estrenó no fue un permiso mal puesto sino una ausencia:
+   * `/integracion/contabilidad/conciliacion` —lo único del sistema que compara
+   * la balanza del ERP contra la del mayor externo— no estaba en la lista del
+   * espejo, estaba cerrado a administración, y no lo llamaba ninguna pantalla.
+   * La tarea de fondo lo corría cada diez minutos y dejaba avisos que nadie
+   * miraba. Es decir: la cola decía ENVIADO, el asiento llegó, y nadie
+   * comprobaba jamás que lo que aterrizó del otro lado fuera lo mismo que
+   * salió de aquí. Un espejo que nadie contrasta es una promesa, no un
+   * control.
+   *
+   * Leer la pantalla y no una lista escrita a mano es lo que hace que esto no
+   * se pueda volver a olvidar: en cuanto alguien añada una llamada, la
+   * concesión tiene que acompañarla.
+   * ==========================================================================
+   */
+  it('toda ruta de integración que llama el espejo contable está concedida', () => {
+    if (!FRONTEND) return;
+    const pantalla = leer(
+      join(FRONTEND, 'app/dashboard/finanzas/espejo-contable/page.tsx'),
+    );
+    const contrato = leer(join(SRC, 'iam/data/plantillas-permisos.ts'));
+    const concedidas = new Set(
+      [...contrato.matchAll(/'((?:GET|POST|PUT|PATCH|DELETE) \/integracion\/[^']*)'/g)].map(
+        (m) => m[1],
+      ),
+    );
+
+    const sinConceder: string[] = [];
+    for (const llamada of sinComentarios(pantalla).matchAll(
+      /api\.(get|post|put|patch|delete)<[^>]*>?\(\s*[`"']([^`"']*\/integracion\/[^`"']*)/g,
+    )) {
+      const metodo = llamada[1].toUpperCase();
+      const ruta = llamada[2]
+        .split('?')[0]
+        .replace(/\$\{[^}]*\}/g, ':param')
+        .replace(/\/$/, '');
+      /*
+       * El contrato nombra el parámetro (`:id`) y la pantalla lo interpola.
+       * Se comparan por forma, que es lo que el guardia compara también.
+       */
+      const forma = (r: string) => r.replace(/:[^/]+/g, ':param');
+      const existe = [...concedidas].some(
+        (c) => c === `${metodo} ${ruta}` || forma(c) === `${metodo} ${forma(ruta)}`,
+      );
+      if (!existe) sinConceder.push(`${metodo} ${ruta}`);
+    }
+
+    expect(sinConceder).toEqual([]);
+  });
+
+  /*
+   * Y el reverso: una ruta del espejo que ninguna pantalla llama es una
+   * función que existe y nadie puede usar. Se comprueba sobre la que lo
+   * estrenó, porque es la que importa: sin ella el espejo no se contrasta.
+   */
+  it('comparar los dos mayores se puede pedir desde la pantalla', () => {
+    if (!FRONTEND) return;
+    const pantalla = leer(
+      join(FRONTEND, 'app/dashboard/finanzas/espejo-contable/page.tsx'),
+    );
+    expect(pantalla).toContain('/integracion/contabilidad/conciliacion/ejecutar');
+  });
+
   it('quien no es administracion solo despacha los eventos de contabilidad', () => {
     const despachador = leer(
       join(SRC, 'integracion/services/integracion-despachador.service.ts'),
