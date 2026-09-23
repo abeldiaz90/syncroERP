@@ -79,6 +79,11 @@ import {
   PrestamoEmpleado,
   TipoObligacionEmpleado,
 } from './nomina-avanzada.entity';
+import {
+  FIRMAS_NOMINA,
+  FIRMAS_POR_ETAPA,
+  type Firma,
+} from './matriz-de-firmas';
 import { ConfiguracionAprobacion } from '../../compras/entities/configuracion-aprobacion.entity';
 import { Banco } from '../../catalogo/entities/banco.entity';
 import {
@@ -212,7 +217,7 @@ export class NominaAvanzadaService {
     empresaId: string,
     usuario: UsuarioNomina,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'finanzas', 'contador'], 'modificar la configuración patronal');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.configuracionPatronal);
     if (dto.bancoDispersion) {
       const banco = await this.bancos.findOne({ where: { nombre: dto.bancoDispersion, activo: true } });
       if (!banco) throw new BadRequestException('Selecciona un banco activo del catálogo oficial para la dispersión.');
@@ -240,7 +245,7 @@ export class NominaAvanzadaService {
     empresaId: string,
     usuario: UsuarioNomina,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos'], 'asignar conceptos de nómina');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.asignarConceptos);
     const empleado = await this.resolverEmpleado(dto.empleadoId, empresaId);
     const concepto = await this.conceptos.findOne({
       where: { id: dto.conceptoId, empresaId, activo: true },
@@ -278,7 +283,7 @@ export class NominaAvanzadaService {
     empresaId: string,
     usuario: UsuarioNomina,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos', 'finanzas'], 'registrar préstamos');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.registrarPrestamo);
     const empleado = await this.resolverEmpleado(dto.empleadoId, empresaId);
     const inicio = dateOnly(dto.fechaInicio);
     const fin = dto.fechaFin ? dateOnly(dto.fechaFin) : undefined;
@@ -308,7 +313,7 @@ export class NominaAvanzadaService {
     empresaId: string,
     usuario: UsuarioNomina,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos', 'finanzas'], 'registrar obligaciones');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.registrarObligacion);
     const empleado = await this.resolverEmpleado(dto.empleadoId, empresaId);
     const desde = dateOnly(dto.vigenciaDesde);
     const hasta = dto.vigenciaHasta ? dateOnly(dto.vigenciaHasta) : undefined;
@@ -413,7 +418,7 @@ export class NominaAvanzadaService {
     aceptarAlertas: boolean,
     usuario: UsuarioNomina,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos'], 'preparar la aprobación');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.prepararAprobacion);
     return this.ds.transaction('SERIALIZABLE', async (em) => {
       const periodo = await em.findOne(PeriodoNomina, { where: { id: periodoId, empresaId } });
       if (!periodo) throw new NotFoundException('Periodo no encontrado.');
@@ -548,7 +553,7 @@ export class NominaAvanzadaService {
     usuario: UsuarioNomina,
     empresaId: string,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'tesoreria'], 'migrar el cifrado de cuentas bancarias');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.migrarCifradoCuentas);
     return this.ds.transaction('SERIALIZABLE', async (em) => {
       const cuentas = await em.find(CuentaBancariaEmpleado, { where: { empresaId } });
       let migradas = 0;
@@ -580,7 +585,7 @@ export class NominaAvanzadaService {
     usuario: UsuarioNomina,
     empresaId: string,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos', 'tesoreria'], 'capturar cuentas bancarias');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.capturarCuentaBancaria);
     const usuarioId = usuario.id;
     const empleado = await this.resolverEmpleado(dto.empleadoId, empresaId);
     if (!clabeEsValida(dto.clabe)) throw new BadRequestException('La CLABE no supera la validación del dígito de control.');
@@ -621,7 +626,7 @@ export class NominaAvanzadaService {
     usuario: UsuarioNomina,
     empresaId: string,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos', 'tesoreria'], 'modificar cuentas bancarias');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.modificarCuentaBancaria);
     const usuarioId = usuario.id;
     return this.ds.transaction('SERIALIZABLE', async (em) => {
       const cuenta = await em.findOne(CuentaBancariaEmpleado, { where: { id, empresaId } });
@@ -663,7 +668,7 @@ export class NominaAvanzadaService {
     usuario: UsuarioNomina,
     empresaId: string,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'finanzas', 'tesoreria'], 'validar cuentas bancarias');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.validarCuentaBancaria);
     return this.ds.transaction('SERIALIZABLE', async (em) => {
       const cuenta = await em.findOne(CuentaBancariaEmpleado, { where: { id, empresaId } });
       if (!cuenta) throw new NotFoundException('Cuenta bancaria no encontrada.');
@@ -716,7 +721,7 @@ export class NominaAvanzadaService {
     enviarPac: boolean,
     usuario: UsuarioNomina,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos'], 'preparar CFDI de nómina');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.prepararCfdi);
     const periodo = await this.obtenerPeriodo(periodoId, empresaId);
     if (![EstadoPeriodo.APROBADO, EstadoPeriodo.CFDI_PREPARADO].includes(periodo.estado)) {
       throw new ConflictException('La nómina debe estar aprobada antes de preparar CFDI.');
@@ -826,7 +831,7 @@ export class NominaAvanzadaService {
     usuario: UsuarioNomina,
     empresaId: string,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'tesoreria', 'finanzas'], 'generar dispersión');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.generarDispersion);
     const periodo = await this.obtenerPeriodo(periodoId, empresaId);
     if (![EstadoPeriodo.APROBADO, EstadoPeriodo.CFDI_PREPARADO, EstadoPeriodo.TIMBRADO].includes(periodo.estado)) {
       throw new ConflictException('La nómina debe estar aprobada antes de dispersarse.');
@@ -928,7 +933,7 @@ export class NominaAvanzadaService {
     usuario: UsuarioNomina,
     empresaId: string,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'tesoreria'], 'marcar una dispersión como enviada');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.marcarDispersionEnviada);
     const dispersion = await this.dispersiones.findOne({ where: { periodoId, empresaId } });
     if (!dispersion) throw new NotFoundException('Dispersión no encontrada.');
     if (dispersion.estado !== EstadoDispersion.GENERADA) {
@@ -963,7 +968,7 @@ export class NominaAvanzadaService {
     usuario: UsuarioNomina,
     empresaId: string,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'tesoreria'], 'conciliar dispersión');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.conciliarDispersion);
     return this.ds.transaction('SERIALIZABLE', async (em) => {
       const dispersion = await em.findOne(DispersionNomina, { where: { periodoId, empresaId } });
       if (!dispersion) throw new NotFoundException('Dispersión no encontrada.');
@@ -1006,7 +1011,7 @@ export class NominaAvanzadaService {
     usuario: UsuarioNomina,
     empresaId: string,
   ) {
-    this.exigirRol(usuario.rol, ['admin', 'tesoreria'], 'registrar el pago de nómina');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.registrarPago);
     const idempotente = await this.pagos.findOne({ where: { empresaId, idempotencyKey: dto.idempotencyKey } });
     if (idempotente) return this.obtenerPago(idempotente.periodoId, empresaId);
     const pagoPeriodo = await this.pagos.findOne({ where: { empresaId, periodoId } });
@@ -1192,11 +1197,7 @@ export class NominaAvanzadaService {
     usuario: UsuarioNomina,
     empresaId: string,
   ) {
-    this.exigirRol(
-      usuario.rol,
-      ['admin', 'finanzas', 'contador'],
-      'contabilizar la nómina',
-    );
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.contabilizar);
     return this.ds.transaction('SERIALIZABLE', async (em) => {
       const periodo = await em.findOne(PeriodoNomina, {
         where: { id: periodoId, empresaId },
@@ -1445,7 +1446,7 @@ export class NominaAvanzadaService {
   }
 
   async cerrar(periodoId: string, empresaId: string, usuario: UsuarioNomina) {
-    this.exigirRol(usuario.rol, ['admin', 'finanzas', 'contador'], 'cerrar la nómina');
+    this.exigirRol(usuario.rol, FIRMAS_NOMINA.cerrar);
     const existente = await this.cierres.findOne({ where: { empresaId, periodoId } });
     if (existente) return existente;
     return this.ds.transaction('SERIALIZABLE', async (em) => {
@@ -1620,21 +1621,31 @@ export class NominaAvanzadaService {
   }
 
 
-  private exigirRol(rol: string, permitidos: string[], accion: string) {
+  /**
+   * La lista de roles ya no se escribe aqui: llega de `FIRMAS_NOMINA`, que es
+   * la misma que decora el controlador. Asi el guardia de la puerta y esta
+   * comprobacion de la trastienda no pueden decir cosas distintas.
+   *
+   * El mensaje nombra a quien si puede, porque «no tienes permiso» a secas
+   * deja al operador sin saber a quien pedirselo.
+   */
+  private exigirRol(rol: string, firma: Firma) {
     // `rolAutorizado` ya deja pasar al administrador con cualquiera de sus
     // seis nombres, que es justo lo que la version anterior no hacia.
-    if (!rolAutorizado(rol, permitidos)) {
-      throw new ForbiddenException(`Tu rol no tiene permiso para ${accion}.`);
+    if (!rolAutorizado(rol, firma.roles)) {
+      throw new ForbiddenException(
+        `Tu rol no tiene permiso para ${firma.accion}; corresponde a ${firma.dueño}.`,
+      );
     }
   }
 
   private validarRolAprobacion(requerido: string, rolUsuario: string) {
-    const mapa: Record<string, string[]> = {
-      RRHH: ['admin', 'rrhh', 'recursos humanos', 'recursoshumanos'],
-      FINANZAS: ['admin', 'finanzas', 'contador'],
-      TESORERIA: ['admin', 'tesoreria'],
-    };
-    this.exigirRol(rolUsuario, mapa[requerido] ?? [requerido], `aprobar como ${requerido}`);
+    const roles = FIRMAS_POR_ETAPA[requerido] ?? [requerido];
+    this.exigirRol(rolUsuario, {
+      roles,
+      accion: `aprobar como ${requerido}`,
+      dueño: requerido,
+    });
   }
 
   private pacHabilitado(config: ConfiguracionPatronal): boolean {

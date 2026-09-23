@@ -29,6 +29,13 @@ import {
   ValidarCuentaBancariaDto,
 } from './nomina-avanzada.dto';
 import { NominaAvanzadaService } from './nomina-avanzada.service';
+/*
+ * Los roles no se escriben aqui: se referencian. La misma matriz que usa el
+ * servicio decora estas rutas, para que `RolesGuard` las aplique en la puerta
+ * y para que el descubrimiento de permisos las vea. Ver `matriz-de-firmas.ts`.
+ */
+import { Roles } from '../../iam/decorators/roles.decorator';
+import { FIRMAS_NOMINA } from './matriz-de-firmas';
 
 interface UsuarioActivo {
   id: string;
@@ -54,6 +61,7 @@ export class NominaAvanzadaController {
   }
 
   @Post('configuracion')
+  @Roles(...FIRMAS_NOMINA.configuracionPatronal.roles)
   guardarConfig(
     @Body() dto: ConfiguracionPatronalDto,
     @ActiveUser() usuario: UsuarioActivo,
@@ -70,6 +78,7 @@ export class NominaAvanzadaController {
   }
 
   @Post('conceptos-empleado')
+  @Roles(...FIRMAS_NOMINA.asignarConceptos.roles)
   asignar(
     @Body() dto: ConceptoEmpleadoDto,
     @ActiveUser() usuario: UsuarioActivo,
@@ -86,6 +95,7 @@ export class NominaAvanzadaController {
   }
 
   @Post('prestamos')
+  @Roles(...FIRMAS_NOMINA.registrarPrestamo.roles)
   crearPrestamo(
     @Body() dto: PrestamoDto,
     @ActiveUser() usuario: UsuarioActivo,
@@ -102,6 +112,7 @@ export class NominaAvanzadaController {
   }
 
   @Post('obligaciones')
+  @Roles(...FIRMAS_NOMINA.registrarObligacion.roles)
   crearObligacion(
     @Body() dto: ObligacionEmpleadoDto,
     @ActiveUser() usuario: UsuarioActivo,
@@ -118,11 +129,13 @@ export class NominaAvanzadaController {
   }
 
   @Post('cuentas-bancarias/migrar-cifrado')
+  @Roles(...FIRMAS_NOMINA.migrarCifradoCuentas.roles)
   migrarCifradoCuentas(@ActiveUser() usuario: UsuarioActivo) {
     return this.svc.migrarCuentasBancariasLegadas(usuario, usuario.empresaId);
   }
 
   @Post('cuentas-bancarias')
+  @Roles(...FIRMAS_NOMINA.capturarCuentaBancaria.roles)
   crearCuentaBancaria(
     @Body() dto: CuentaBancariaEmpleadoDto,
     @ActiveUser() usuario: UsuarioActivo,
@@ -131,6 +144,7 @@ export class NominaAvanzadaController {
   }
 
   @Patch('cuentas-bancarias/:id')
+  @Roles(...FIRMAS_NOMINA.modificarCuentaBancaria.roles)
   actualizarCuentaBancaria(
     @Param('id', ParseSqlServerGuidPipe) id: string,
     @Body() dto: ActualizarCuentaBancariaEmpleadoDto,
@@ -140,6 +154,7 @@ export class NominaAvanzadaController {
   }
 
   @Patch('cuentas-bancarias/:id/validar')
+  @Roles(...FIRMAS_NOMINA.validarCuentaBancaria.roles)
   validarCuentaBancaria(
     @Param('id', ParseSqlServerGuidPipe) id: string,
     @Body() dto: ValidarCuentaBancariaDto,
@@ -157,6 +172,7 @@ export class NominaAvanzadaController {
   }
 
   @Post('periodos/:id/aprobaciones/preparar')
+  @Roles(...FIRMAS_NOMINA.prepararAprobacion.roles)
   preparar(
     @Param('id', ParseSqlServerGuidPipe) id: string,
     @Body() dto: PrepararAprobacionDto,
@@ -195,6 +211,7 @@ export class NominaAvanzadaController {
   }
 
   @Post('periodos/:id/cfdi/generar')
+  @Roles(...FIRMAS_NOMINA.prepararCfdi.roles)
   generarCfdi(
     @Param('id', ParseSqlServerGuidPipe) id: string,
     @Body() dto: GenerarCfdiDto,
@@ -227,6 +244,7 @@ export class NominaAvanzadaController {
   }
 
   @Post('periodos/:id/dispersion')
+  @Roles(...FIRMAS_NOMINA.generarDispersion.roles)
   generarDispersion(
     @Param('id', ParseSqlServerGuidPipe) id: string,
     @Body() dto: GenerarDispersionDto,
@@ -236,6 +254,7 @@ export class NominaAvanzadaController {
   }
 
   @Patch('periodos/:id/dispersion/enviada')
+  @Roles(...FIRMAS_NOMINA.marcarDispersionEnviada.roles)
   marcarDispersionEnviada(
     @Param('id', ParseSqlServerGuidPipe) id: string,
     @Body() dto: MarcarDispersionEnviadaDto,
@@ -253,6 +272,7 @@ export class NominaAvanzadaController {
   }
 
   @Patch('periodos/:id/dispersion/conciliar')
+  @Roles(...FIRMAS_NOMINA.conciliarDispersion.roles)
   conciliarDispersion(
     @Param('id', ParseSqlServerGuidPipe) id: string,
     @Body() dto: ConciliarDispersionDto,
@@ -262,6 +282,7 @@ export class NominaAvanzadaController {
   }
 
   @Post('periodos/:id/pago')
+  @Roles(...FIRMAS_NOMINA.registrarPago.roles)
   pagar(
     @Param('id', ParseSqlServerGuidPipe) id: string,
     @Body() dto: RegistrarPagoNominaDto,
@@ -279,6 +300,7 @@ export class NominaAvanzadaController {
   }
 
   @Post('periodos/:id/poliza-detallada')
+  @Roles(...FIRMAS_NOMINA.contabilizar.roles)
   generarPoliza(
     @Param('id', ParseSqlServerGuidPipe) id: string,
     @ActiveUser() usuario: UsuarioActivo,
@@ -295,6 +317,7 @@ export class NominaAvanzadaController {
   }
 
   @Post('periodos/:id/cierre-financiero')
+  @Roles(...FIRMAS_NOMINA.cerrar.roles)
   cerrar(
     @Param('id', ParseSqlServerGuidPipe) id: string,
     @ActiveUser() usuario: UsuarioActivo,

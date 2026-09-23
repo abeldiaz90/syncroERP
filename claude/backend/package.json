@@ -164,6 +164,7 @@
     "testEnvironment": "node",
     "transformIgnorePatterns": [
       "/node_modules/(?!jose)"
-    ]
+    ],
+    "globalSetup": "<rootDir>/common/huso-de-pruebas.js"
   }
 }

@@ -78,6 +78,81 @@ export interface PlantillaRol {
  * Lo que necesita la pantalla de espejo contable. Vive aparte porque la
  * comparten contador y finanzas y repetirla a mano es como se desincronizan.
  */
+/*
+ * ============================================================================
+ * La nomina la firman varios, y cada uno necesita con que firmarla
+ * ----------------------------------------------------------------------------
+ * `FIRMAS_NOMINA` (en `rrhh/advanced/matriz-de-firmas.ts`) reparte la cadena
+ * de nomina: Recursos humanos prepara, Tesoreria dispersa y paga, Finanzas y
+ * Contabilidad configuran, contabilizan y cierran. El guardia de roles ya la
+ * aplica en la puerta.
+ *
+ * Pero el guardia solo puede negar. Quien deja pasar es la tabla de permisos,
+ * y `/rrhh/nomina-avanzada` cuelga del modulo `rrhh`, que ni Tesoreria ni
+ * Finanzas ni Contabilidad tienen —ni deben tener: el modulo entero incluye la
+ * plantilla, los sueldos y los recibos.
+ *
+ * El resultado era una cadena rota por los dos extremos: el sistema le
+ * encargaba a Tesoreria dispersar la nomina y no la dejaba abrir la pantalla.
+ * Es el mismo error que ya se corrigio en compras —«podia firmar el pago y no
+ * ver que pagar»— repetido aqui.
+ *
+ * Asi que se conceden las acciones exactas de cada firma, y solo esas. Cada
+ * GET acompana a su accion porque una pantalla que no puede listar abre vacia.
+ * Lo que sigue fuera de alcance para estos tres roles es lo de siempre: la
+ * plantilla, los recibos, la prenomina y el detalle de percepciones.
+ * ============================================================================
+ */
+
+/** Tesoreria: cuentas de los empleados, dispersion y pago. */
+const ACCIONES_NOMINA_TESORERIA = [
+  // Sin el listado de periodos no hay de donde elegir que dispersar.
+  'GET /rrhh/nomina/periodos',
+  'GET /rrhh/nomina-avanzada/tablero',
+  'GET /rrhh/nomina-avanzada/cuentas-bancarias',
+  'POST /rrhh/nomina-avanzada/cuentas-bancarias',
+  'PATCH /rrhh/nomina-avanzada/cuentas-bancarias/:id',
+  'PATCH /rrhh/nomina-avanzada/cuentas-bancarias/:id/validar',
+  'POST /rrhh/nomina-avanzada/cuentas-bancarias/migrar-cifrado',
+  'GET /rrhh/nomina-avanzada/periodos/:id/dispersion',
+  'POST /rrhh/nomina-avanzada/periodos/:id/dispersion',
+  'PATCH /rrhh/nomina-avanzada/periodos/:id/dispersion/enviada',
+  'PATCH /rrhh/nomina-avanzada/periodos/:id/dispersion/conciliar',
+  'GET /rrhh/nomina-avanzada/periodos/:id/pago',
+  'POST /rrhh/nomina-avanzada/periodos/:id/pago',
+];
+
+/** Finanzas y Contabilidad: identidad patronal, poliza y cierre. */
+const ACCIONES_NOMINA_CONTABILIDAD = [
+  'GET /rrhh/nomina/periodos',
+  'GET /rrhh/nomina-avanzada/tablero',
+  // La configuracion patronal: RFC, registro IMSS, prima de riesgo, mapa
+  // contable, PAC. Sin ella la nomina no se puede calcular, y hasta hoy el
+  // unico que podia guardarla era el administrador, porque el rol que tenia
+  // la pantalla en su menu no tenia el permiso.
+  'GET /rrhh/nomina-avanzada/configuracion',
+  'POST /rrhh/nomina-avanzada/configuracion',
+  'GET /rrhh/nomina-avanzada/periodos/:id/poliza-detallada',
+  'POST /rrhh/nomina-avanzada/periodos/:id/poliza-detallada',
+  'POST /rrhh/nomina-avanzada/periodos/:id/cierre-financiero',
+  'GET /rrhh/nomina-avanzada/periodos/:id/cumplimiento',
+];
+
+/** Solo Finanzas: prestamos, obligaciones y la validacion de cuentas. */
+const ACCIONES_NOMINA_FINANZAS = [
+  'GET /rrhh/nomina-avanzada/prestamos',
+  'POST /rrhh/nomina-avanzada/prestamos',
+  'GET /rrhh/nomina-avanzada/obligaciones',
+  'POST /rrhh/nomina-avanzada/obligaciones',
+  /*
+   * Validar la cuenta bancaria de un empleado es un control, y un control que
+   * ejerce quien capturo el dato no controla nada. RRHH y Tesoreria capturan;
+   * Finanzas puede validar. Por eso necesita leer la lista.
+   */
+  'GET /rrhh/nomina-avanzada/cuentas-bancarias',
+  'PATCH /rrhh/nomina-avanzada/cuentas-bancarias/:id/validar',
+];
+
 const ACCIONES_ESPEJO_CONTABLE = [
   'GET /integracion/estado',
   'GET /integracion/cuentas/pendientes',
@@ -314,6 +389,11 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * no llegaron. Si el contador no puede, nadie lo mira hasta que la balanza
      * del ERP y la de Fineract dejan de coincidir.
      */
+    // La nómina: la configuración patronal, la póliza y el cierre son suyos;
+    // los préstamos y la validación de cuentas, también. La plantilla y los
+    // recibos siguen fuera, como se decidió al separar el alta de estructura.
+    ...ACCIONES_NOMINA_CONTABILIDAD,
+    ...ACCIONES_NOMINA_FINANZAS,
     ...ACCIONES_ESPEJO_CONTABLE,
     ],
   },
@@ -350,6 +430,8 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * no llegaron. Si el contador no puede, nadie lo mira hasta que la balanza
      * del ERP y la de Fineract dejan de coincidir.
      */
+    // La nómina por el lado contable: identidad patronal, póliza y cierre.
+    ...ACCIONES_NOMINA_CONTABILIDAD,
     ...ACCIONES_ESPEJO_CONTABLE,
     ],
   },
@@ -384,6 +466,9 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       // no ver qué pagar.
       'GET /compras/ordenes',
       'GET /compras/ordenes/:id',
+      // Y la nómina: dispersarla y pagarla es suyo. Sin esto el sistema le
+      // encargaba el pago y no la dejaba abrir la pantalla.
+      ...ACCIONES_NOMINA_TESORERIA,
     ],
   },
   {

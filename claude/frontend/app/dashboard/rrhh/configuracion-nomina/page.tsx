@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { ArrowLeft, ArrowRight, BadgeCheck, Building2, Check, Landmark, ShieldCheck } from 'lucide-react';
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
+import { usePermiso } from '@/hooks/use-permisos';
 
 type Cuenta = { id: string; codigo?: string; nombre?: string };
 type Banco = { id: string; clave?: string; nombre: string; activo?: boolean };
@@ -61,18 +62,42 @@ export default function ConfiguracionNominaPage() {
   const [paso, setPaso] = useState(0);
   const [mensaje, setMensaje] = useState<{ texto: string; ok: boolean } | null>(null);
 
+  /*
+   * Esta pantalla vive en el menu de Recursos humanos, pero la configuracion
+   * patronal es de Finanzas y Contabilidad: RFC, registro patronal, prima de
+   * riesgo, mapa contable y PAC. `FIRMAS_NOMINA.configuracionPatronal` lo dice
+   * en el servidor; aqui se pregunta por el mismo permiso para no ofrecer un
+   * formulario que va a terminar en 403.
+   */
+  const { tienePermiso } = usePermiso();
+  const puedeEditar = tienePermiso('POST', '/rrhh/nomina-avanzada/configuracion');
+  const [catalogoNegado, setCatalogoNegado] = useState(false);
+
+  /*
+   * Las tres cargas son independientes y antes iban en un `Promise.all`: el
+   * 403 del catalogo de cuentas —que RRHH no puede leer, y no tiene por que—
+   * tiraba tambien la configuracion, que si habia llegado. La pantalla salia
+   * en blanco con un aviso rojo de permisos, como si nada funcionara.
+   */
   useEffect(() => {
+    let vivo = true;
+    const fallo = <T,>(alFallar: () => void) => (error: unknown): T | null => {
+      if (error instanceof ApiError && error.esSinPermisos) alFallar();
+      return null;
+    };
     Promise.all([
-      api.get<Config | null>('/rrhh/nomina-avanzada/configuracion'),
-      api.get<unknown>('/finanzas/cuentas-contables', { query: { soloAfectables: true } }),
-      api.get<Banco[]>('/catalogos/bancos'),
+      api.get<Config | null>('/rrhh/nomina-avanzada/configuracion')
+        .catch(fallo<Config>(() => {})),
+      api.get<unknown>('/finanzas/cuentas-contables', { query: { soloAfectables: true } })
+        .catch(fallo<unknown>(() => { if (vivo) setCatalogoNegado(true); })),
+      api.get<Banco[]>('/catalogos/bancos').catch(fallo<Banco[]>(() => {})),
     ]).then(([config, catalogo, catalogoBancos]) => {
+      if (!vivo) return;
       if (config) setForm({ ...inicial, ...config });
       setCuentas(lista<Cuenta>(catalogo));
       setBancos((catalogoBancos ?? []).filter((b) => b.activo !== false));
-    }).catch((error) => {
-      setMensaje({ texto: error instanceof Error ? error.message : 'No fue posible cargar la configuración.', ok: false });
-    }).finally(() => setCargando(false));
+    }).finally(() => { if (vivo) setCargando(false); });
+    return () => { vivo = false; };
   }, []);
 
   const faltantes = useMemo(() => camposCuenta.filter(([key]) => !form[key]).length, [form]);
@@ -85,7 +110,9 @@ export default function ConfiguracionNominaPage() {
       if (!form.registroPatronal?.trim()) return 'Captura el registro patronal IMSS.';
       if (form.estadoIsn && !/^[A-Z]{2}$/.test(form.estadoIsn)) return 'La entidad del ISN debe ser una abreviatura de dos letras.';
     }
-    if (indice === 1 && faltantes > 0) return `Asigna las ${faltantes} cuentas contables pendientes antes de continuar.`;
+    // Si el catalogo de cuentas no se pudo leer, no se puede exigir mapearlas:
+    // seria pedirle al operador algo que la pantalla no le deja hacer.
+    if (indice === 1 && !catalogoNegado && faltantes > 0) return `Asigna las ${faltantes} cuentas contables pendientes antes de continuar.`;
     if (indice === 2) {
       if (!form.bancoDispersion?.trim()) return 'Captura el banco de dispersión.';
       if (!form.cuentaDispersion?.trim()) return 'Captura la cuenta origen de la dispersión.';
@@ -133,10 +160,34 @@ export default function ConfiguracionNominaPage() {
       <div className="grid gap-px bg-slate-100 md:grid-cols-3">{pasos.map((p, i) => <button key={p.titulo} onClick={() => setPaso(i)} className={`flex items-center gap-3 p-4 text-left transition ${paso === i ? 'bg-indigo-50' : 'bg-white hover:bg-slate-50'}`}><span className={`flex h-9 w-9 items-center justify-center rounded-full ${p.listo ? 'bg-emerald-100 text-emerald-600' : paso === i ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>{p.listo ? <Check className="h-4 w-4" /> : p.icono}</span><span><b className={`block text-xs ${paso === i ? 'text-indigo-800' : 'text-slate-900'}`}>{i + 1}. {p.titulo}</b><span className="text-[11px] text-slate-500">{p.detalle}</span></span></button>)}</div>
     </section>
     {mensaje && <div className={`rounded-lg border p-3 text-sm ${mensaje.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'}`}>{mensaje.texto}</div>}
-    <div className={`rounded-xl border p-4 ${faltantes ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
-      <b>{faltantes ? `${faltantes} cuentas contables pendientes` : 'Configuración contable completa'}</b>
-      <p className="text-sm">Los conceptos también deben tener cuenta propia cuando no correspondan a uno de estos pasivos.</p>
-    </div>
+
+    {/*
+      * Quien no puede guardar ve la configuración, no un formulario que miente.
+      * Antes se podía llenar entera y el guardado devolvía 403 al final, sin
+      * decir de quién era el trabajo.
+      */}
+    {!puedeEditar && <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+      <b>Esta configuración la define Finanzas o Contabilidad.</b>
+      <p className="mt-1">
+        Aquí la puedes consultar: es la que usa el cálculo de la nómina. Para
+        cambiar el RFC, el registro patronal, la prima de riesgo, el mapa
+        contable o el PAC, pídeselo a quien lleva la contabilidad.
+      </p>
+      {!form.registroPatronal && <p className="mt-2 font-semibold">
+        Todavía no tiene registro patronal IMSS, y sin él la nómina no se puede
+        calcular. Es lo primero que hay que pedir.
+      </p>}
+    </div>}
+
+    {catalogoNegado
+      ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          <b>El mapa contable no se muestra con tu perfil.</b>
+          <p className="mt-1">El catálogo de cuentas es del módulo de Finanzas. El paso 2 lo completa quien lleva la contabilidad.</p>
+        </div>
+      : <div className={`rounded-xl border p-4 ${faltantes ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+          <b>{faltantes ? `${faltantes} cuentas contables pendientes` : 'Configuración contable completa'}</b>
+          <p className="text-sm">Los conceptos también deben tener cuenta propia cuando no correspondan a uno de estos pasivos.</p>
+        </div>}
 
     {paso === 0 && <section className="rounded-xl border bg-white p-5 shadow-sm">
       <h2 className="mb-4 font-semibold">Identificación patronal</h2>
@@ -145,13 +196,14 @@ export default function ConfiguracionNominaPage() {
           <label key={key} className="text-sm font-medium text-slate-700">{label}
             <input
               className="entrada mt-1 w-full"
+              disabled={!puedeEditar}
               maxLength={key === 'rfc' ? 13 : key === 'estadoIsn' ? 2 : undefined}
               value={String(form[key as keyof Config] ?? '')}
               onChange={(e) => cambiar(key as keyof Config, (key === 'rfc' || key === 'estadoIsn' ? e.target.value.replace(/\s/g, '').toUpperCase() : e.target.value) as never)}
             />
           </label>)}
-        <label className="text-sm font-medium">Prima de riesgo (%)<input className="entrada mt-1 w-full" type="number" step="0.000001" value={form.primaRiesgo} onChange={(e) => cambiar('primaRiesgo', Number(e.target.value))}/></label>
-        <label className="text-sm font-medium">Tasa ISN (%)<input className="entrada mt-1 w-full" type="number" step="0.0001" value={form.tasaIsn} onChange={(e) => cambiar('tasaIsn', Number(e.target.value))}/></label>
+        <label className="text-sm font-medium">Prima de riesgo (%)<input className="entrada mt-1 w-full" disabled={!puedeEditar} type="number" step="0.000001" value={form.primaRiesgo} onChange={(e) => cambiar('primaRiesgo', Number(e.target.value))}/></label>
+        <label className="text-sm font-medium">Tasa ISN (%)<input className="entrada mt-1 w-full" disabled={!puedeEditar} type="number" step="0.0001" value={form.tasaIsn} onChange={(e) => cambiar('tasaIsn', Number(e.target.value))}/></label>
       </div>
     </section>}
 
@@ -161,7 +213,7 @@ export default function ConfiguracionNominaPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {camposCuenta.map(([key, label, ayuda]) => <label key={String(key)} className="text-sm font-medium text-slate-700">
           {label}<span className="ml-1 font-normal text-slate-400">— {ayuda}</span>
-          <select className="entrada mt-1 w-full" value={String(form[key] ?? '')} onChange={(e) => cambiar(key, (e.target.value || undefined) as never)}>
+          <select className="entrada mt-1 w-full" disabled={!puedeEditar} value={String(form[key] ?? '')} onChange={(e) => cambiar(key, (e.target.value || undefined) as never)}>
             <option value="">Seleccionar cuenta…</option>
             {cuentas.map((c) => <option key={c.id} value={c.id}>{c.codigo ? `${c.codigo} · ` : ''}{c.nombre ?? c.id}</option>)}
           </select>
@@ -172,21 +224,25 @@ export default function ConfiguracionNominaPage() {
     {paso === 2 && <section className="rounded-xl border bg-white p-5 shadow-sm">
       <div className="mb-5 grid gap-4 md:grid-cols-3">
         <label className="text-sm font-medium text-slate-700">Banco de dispersión<BuscadorSeleccion className="mt-1" valor={bancos.find((b) => b.nombre === form.bancoDispersion)?.id ?? ''} opciones={bancos.map((b) => ({ valor: b.id, etiqueta: `${b.clave ?? '—'} · ${b.nombre}`, busqueda: b.clave }))} onChange={(id) => cambiar('bancoDispersion', bancos.find((b) => b.id === id)?.nombre ?? '')} placeholder="Buscar banco oficial…" /></label>
-        <label className="text-sm font-medium text-slate-700">Cuenta origen<input className="entrada mt-1 w-full" value={form.cuentaDispersion ?? ''} onChange={(e) => cambiar('cuentaDispersion', e.target.value)} /></label>
-        <label className="text-sm font-medium text-slate-700">Proveedor PAC<input className="entrada mt-1 w-full" value={form.proveedorPac ?? ''} onChange={(e) => cambiar('proveedorPac', e.target.value)} /></label>
+        <label className="text-sm font-medium text-slate-700">Cuenta origen<input className="entrada mt-1 w-full" disabled={!puedeEditar} value={form.cuentaDispersion ?? ''} onChange={(e) => cambiar('cuentaDispersion', e.target.value)} /></label>
+        <label className="text-sm font-medium text-slate-700">Proveedor PAC<input className="entrada mt-1 w-full" disabled={!puedeEditar} value={form.proveedorPac ?? ''} onChange={(e) => cambiar('proveedorPac', e.target.value)} /></label>
       </div>
       <label className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-        <input type="checkbox" checked={form.permiteCierreSinTimbrar} onChange={(e) => cambiar('permiteCierreSinTimbrar', e.target.checked)} />
+        <input type="checkbox" disabled={!puedeEditar} checked={form.permiteCierreSinTimbrar} onChange={(e) => cambiar('permiteCierreSinTimbrar', e.target.checked)} />
         <span><b>Permitir cierre sin timbrado</b><br/>Úsalo solo para ambientes de prueba. En producción deja esta opción desactivada.</span>
       </label>
-      <label className="mt-4 block text-sm font-medium">Observaciones<textarea className="entrada mt-1 min-h-24 w-full" value={form.observaciones ?? ''} onChange={(e) => cambiar('observaciones', e.target.value)}/></label>
-      <button className="btn btn-primario mt-4" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar configuración'}</button>
+      <label className="mt-4 block text-sm font-medium">Observaciones<textarea className="entrada mt-1 min-h-24 w-full" disabled={!puedeEditar} value={form.observaciones ?? ''} onChange={(e) => cambiar('observaciones', e.target.value)}/></label>
+      {puedeEditar && <button className="btn btn-primario mt-4" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar configuración'}</button>}
     </section>}
 
     <div className="sticky bottom-4 flex items-center justify-between rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
       <button className="btn btn-neutro" disabled={paso === 0} onClick={() => setPaso((p) => p - 1)}><ArrowLeft className="h-4 w-4" />Anterior</button>
       <span className="text-[11px] text-slate-500">Paso {paso + 1} de {pasos.length}</span>
-      {paso < pasos.length - 1 ? <button className="btn btn-primario" onClick={continuar}>Continuar<ArrowRight className="h-4 w-4" /></button> : <button className="btn btn-primario" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar y finalizar'}</button>}
+      {paso < pasos.length - 1
+        ? <button className="btn btn-primario" onClick={continuar}>Continuar<ArrowRight className="h-4 w-4" /></button>
+        : puedeEditar
+          ? <button className="btn btn-primario" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar y finalizar'}</button>
+          : <span className="text-[11px] text-slate-500">Solo lectura</span>}
     </div>
   </div>;
 }

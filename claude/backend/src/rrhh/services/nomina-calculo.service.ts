@@ -45,6 +45,7 @@ import {
   obtenerTarifaIsr,
   obtenerTarifas,
 } from '../data/tarifas-fiscales';
+import { FIRMAS_NOMINA } from '../advanced/matriz-de-firmas';
 
 const MOTOR_VERSION = 'SYNCRO-NOMINA-MX-2.0.0';
 const MS_DIA = 86_400_000;
@@ -155,14 +156,21 @@ export class NominaCalculoService {
         ConfiguracionPatronal,
         { where: { empresaId } },
       );
+      /*
+       * Quien calcula la nomina es Recursos humanos, y quien define la
+       * configuracion patronal es Finanzas o Contabilidad. Decirle «configura»
+       * a quien no puede configurarla lo deja dando vueltas: el mensaje nombra
+       * al dueno de la firma, que es el mismo que declara la matriz.
+       */
+      const duenoConfiguracion = FIRMAS_NOMINA.configuracionPatronal.dueño;
       if (!configuracion) {
         throw new ConflictException(
-          'Configura los datos patronales antes de calcular la nómina.',
+          `Falta la configuración patronal de la empresa, y sin ella no se puede calcular. La define ${duenoConfiguracion}.`,
         );
       }
       if (!configuracion.registroPatronal) {
         throw new ConflictException(
-          'La configuración patronal no tiene registro patronal IMSS.',
+          `La configuración patronal no tiene registro patronal IMSS. Lo captura ${duenoConfiguracion} en «Configuración patronal».`,
         );
       }
 

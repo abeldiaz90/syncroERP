@@ -26,6 +26,8 @@ import { ENDPOINTS_NAVEGABLES } from '../iam/data/endpoints-navegables';
 import { moduloDeRuta, MODULOS_ASIGNABLES, MODULOS_POR_ID } from '../iam/data/modulos-catalogo';
 import { MODULOS_NEGOCIO } from '../iam/data/modulos-catalogo';
 import { ROLES_CON_TRAZA_COMPLETA } from '../aprobaciones/services/aprobaciones-documentos.service';
+import { FIRMAS_NOMINA } from '../rrhh/advanced/matriz-de-firmas';
+import { esRolAdministrador, normalizarRol } from '../iam/utils/roles.util';
 
 const SRC = join(__dirname, '..');
 const RAIZ = join(SRC, '..', '..');
@@ -2283,4 +2285,142 @@ describe('Coherencia · una acción que falla no se calla', () => {
       expect(mudos).toEqual([]);
     },
   );
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * UNA FECHA DE CALENDARIO NO TIENE HUSO
+ *
+ * Se capturó una falta el 17 de septiembre y la tabla la mostró el 16. El
+ * servidor la tenía bien: `"fechaInicio":"2026-09-17"`. Quien la perdía era
+ * la pantalla, porque `new Date('2026-09-17')` es medianoche UTC y en México
+ * (UTC-6) eso cae el día anterior.
+ *
+ * No es un detalle de presentación. `isoCorto` —que rellena los campos
+ * `type="date"`— hacía el mismo viaje, así que abrir un registro y volver a
+ * guardarlo lo corría un día hacia atrás, cada vez. Un día de falta movido
+ * es un día de salario mal descontado y una incapacidad mal reportada.
+ *
+ * Esta prueba EJECUTA los formateadores con el huso de México puesto. Si
+ * alguien vuelve a pasar una fecha de calendario por `new Date` o por
+ * `toISOString`, aquí se ve.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+describe('Coherencia · una fecha de calendario no tiene huso', () => {
+  const saltar = !FRONTEND || !existsSync(join(FRONTEND, 'lib/format.ts'));
+
+  (saltar ? it.skip : it)(
+    'el día que se guarda es el día que se ve, al oeste de Greenwich',
+    () => {
+      // Las pruebas corren en el huso de la empresa (`globalSetup` en
+      // `huso-de-pruebas.js`). Si alguien lo quita, esta comprobación avisa:
+      // en UTC el defecto es invisible y la prueba no probaría nada.
+      expect(new Date('2026-09-17').getDate()).toBe(16);
+
+      /* eslint-disable @typescript-eslint/no-var-requires */
+      const formato = require(join(FRONTEND!, 'lib/format.ts'));
+      /* eslint-enable @typescript-eslint/no-var-requires */
+
+      expect(formato.isoCorto('2026-09-17')).toBe('2026-09-17');
+      expect(formato.fecha('2026-09-17')).toContain('17');
+
+      // Ida y vuelta: abrir un registro y volver a guardarlo no lo mueve.
+      let d = '2026-01-01';
+      for (let i = 0; i < 5; i++) d = formato.isoCorto(d);
+      expect(d).toBe('2026-01-01');
+
+      // Un instante completo sí lleva huso y se respeta: las 00:04 UTC del
+      // día 23 son todavía el 22 en México.
+      expect(formato.fecha('2026-09-23T00:04:09.234Z')).toContain('22');
+    },
+  );
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * LA NÓMINA SE FIRMA ENTRE VARIOS, Y CADA UNO PUEDE FIRMAR LO SUYO
+ *
+ * La cadena de nómina está repartida a propósito: RRHH prepara, Tesorería
+ * dispersa y paga, Finanzas y Contabilidad cierran. Eso está bien. Lo que no
+ * estaba bien es que la regla viviera sólo dentro del servicio, en quince
+ * listas de roles escritas a mano: ningún guardia la veía y la tabla de
+ * permisos concedía rutas que el servicio negaba después. Recursos humanos
+ * llenaba la configuración patronal, pulsaba guardar y recibía un 403 —y sin
+ * esa configuración no se puede calcular la nómina.
+ *
+ * Ahora la regla está en `FIRMAS_NOMINA` y la aplican los dos lados. Estas
+ * pruebas cuidan las dos mitades del trato:
+ *  · que nadie vuelva a escribir la lista de roles a mano;
+ *  · y que a quien la matriz le encarga una firma, las plantillas le den de
+ *    verdad el permiso para producirla. Poder y deber tienen que coincidir.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+describe('Coherencia · la nómina se firma entre varios', () => {
+  const RUTA_SERVICIO = join(
+    SRC, 'rrhh/advanced/nomina-avanzada.service.ts',
+  );
+  const RUTA_CONTROLADOR = join(
+    SRC, 'rrhh/advanced/nomina-avanzada.controller.ts',
+  );
+
+  it('ningún permiso de nómina se escribe con la lista de roles a mano', () => {
+    const texto = sinComentarios(leer(RUTA_SERVICIO));
+    // `exigirRol(rol, ['algo', ...])` es la forma vieja: la que no ve nadie.
+    expect(/exigirRol\([^)]*\[\s*'/.test(texto)).toBe(false);
+    // Y toda llamada nombra una firma de la matriz.
+    const llamadas = [...texto.matchAll(/exigirRol\(\s*\w+(?:\.\w+)*\s*,\s*([^)]+)\)/g)];
+    expect(llamadas.length).toBeGreaterThanOrEqual(15);
+    for (const [, argumento] of llamadas) {
+      const limpio = argumento.trim();
+      const esMatriz = limpio.startsWith('FIRMAS_NOMINA.');
+      // La única excepción prevista: las etapas de aprobación, que arman su
+      // firma desde `FIRMAS_POR_ETAPA`, el mismo vocabulario.
+      const esEtapa = limpio.startsWith('{') && texto.includes('FIRMAS_POR_ETAPA[');
+      expect(esMatriz || esEtapa).toBe(true);
+    }
+  });
+
+  it('cada firma de la matriz custodia su ruta en el controlador', () => {
+    const controlador = sinComentarios(leer(RUTA_CONTROLADOR));
+    const servicio = sinComentarios(leer(RUTA_SERVICIO));
+    for (const clave of Object.keys(FIRMAS_NOMINA)) {
+      // Si el servicio la exige, el controlador la anuncia: si no, la
+      // interfaz no puede saberlo y el botón lleva a un 403.
+      if (!servicio.includes(`FIRMAS_NOMINA.${clave}`)) continue;
+      expect(controlador).toContain(`@Roles(...FIRMAS_NOMINA.${clave}.roles)`);
+    }
+  });
+
+  it('a quien se le encarga una firma, se le da con qué producirla', () => {
+    const plantilla = (rol: string) =>
+      PLANTILLAS_PERMISOS.find((p) => normalizarRol(p.rol) === normalizarRol(rol));
+
+    /*
+     * 'recursoshumanos' y 'recursos humanos' son deletreos historicos del
+     * mismo rol: `normalizarRol` no los unifica, asi que la matriz los nombra
+     * para no dejar fuera a quien tenga el rol escrito como venia de antes.
+     * No son plantillas propias y no se les exige una.
+     */
+    const ALIAS_DE = new Map([
+      ['recursoshumanos', 'rrhh'],
+      ['recursos humanos', 'rrhh'],
+      ['administrador', 'admin'],
+    ]);
+
+    const sinMedios: string[] = [];
+    for (const [clave, firma] of Object.entries(FIRMAS_NOMINA)) {
+      for (const bruto of firma.roles) {
+        const rol = ALIAS_DE.get(bruto) ?? bruto;
+        if (esRolAdministrador(rol)) continue;
+        const p = plantilla(rol);
+        // Un rol nombrado en la matriz que ni siquiera existe como plantilla
+        // es una firma que nadie puede dar.
+        if (!p) { sinMedios.push(`${clave}: no existe la plantilla «${rol}»`); continue; }
+        const tieneModulo = (p.modulos ?? []).includes('rrhh');
+        const porAccion = (p.accionesIrrenunciables ?? []).some((a) =>
+          a.includes('/rrhh/nomina-avanzada'),
+        );
+        if (!tieneModulo && !porAccion) {
+          sinMedios.push(`${clave}: «${rol}» no alcanza /rrhh/nomina-avanzada`);
+        }
+      }
+    }
+    expect(sinMedios).toEqual([]);
+  });
 });
