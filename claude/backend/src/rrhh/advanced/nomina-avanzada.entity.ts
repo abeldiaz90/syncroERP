@@ -263,7 +263,17 @@ export class PolizaNominaDetalle {
   @Column({ type: 'uuid' }) empresaId!: string;
   @Column({ type: 'uuid' }) periodoId!: string;
   @Column({ type:'int' }) numeroLinea!: number;
+  /**
+   * El NUMERO de cuenta, como lo lee una persona: «601.01».
+   *
+   * Aqui se estaba guardando el uuid de la cuenta, que mide 36 caracteres y no
+   * cabe en 30: la poliza de devengo fallaba entera con «Alguno de los valores
+   * excede la longitud permitida», sin decir que campo. Y aunque cupiera, esta
+   * tabla es la traza contable de la nomina: una lista de uuids no la puede
+   * leer nadie. El identificador va aparte, para poder unir.
+   */
   @Column({ type:'varchar', length:30 }) cuenta!: string;
+  @Column({ type:'uuid', nullable:true }) cuentaContableId?: string;
   @Column({ type:'varchar', length:200 }) descripcion!: string;
   @Column({ type:'varchar', length:120, nullable:true }) centroCostos?: string;
   @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision:18, scale:2, default:0 }) cargo!: number;

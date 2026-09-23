@@ -87,6 +87,7 @@ import {
   type Firma,
 } from './matriz-de-firmas';
 import { ConfiguracionAprobacion } from '../../compras/entities/configuracion-aprobacion.entity';
+import { CuentaContable } from '../../finanzas/entities/cuenta-contable.entity';
 import { Banco } from '../../catalogo/entities/banco.entity';
 import { Usuario } from '../../iam/entities/usuario.entity';
 import {
@@ -1653,6 +1654,18 @@ export class NominaAvanzadaService {
       );
 
       await em.delete(PolizaNominaDetalle, { empresaId, periodoId });
+      /*
+       * La traza se escribe con el numero de cuenta, no con su uuid: es lo que
+       * lee quien revisa la contabilidad de la nomina. El id va en su propia
+       * columna para poder unir sin depender del texto.
+       */
+      const cuentasDeLaPoliza = await em.find(CuentaContable, {
+        where: { id: In([...new Set(lineas.map((l) => l.cuentaId))]) },
+        select: { id: true, numeroCuenta: true },
+      });
+      const numeroPorId = new Map(
+        cuentasDeLaPoliza.map((c) => [c.id, c.numeroCuenta]),
+      );
       await em.save(
         PolizaNominaDetalle,
         lineas.map((linea, index) =>
@@ -1660,7 +1673,8 @@ export class NominaAvanzadaService {
             empresaId,
             periodoId,
             numeroLinea: index + 1,
-            cuenta: linea.cuentaId,
+            cuenta: numeroPorId.get(linea.cuentaId) ?? '(sin número)',
+            cuentaContableId: linea.cuentaId,
             descripcion: linea.descripcion,
             conceptoClave: linea.clave,
             cargo: linea.cargo,
