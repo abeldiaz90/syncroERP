@@ -190,9 +190,11 @@ export class NominaAvanzadaController {
   @Get('periodos/:id/aprobaciones')
   aprobaciones(
     @Param('id', ParseSqlServerGuidPipe) id: string,
-    @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser() usuario: UsuarioActivo,
   ) {
-    return this.svc.listarAprobaciones(id, empresaId);
+    // Se pasa el usuario para que cada firma venga con su veredicto: la
+    // pantalla necesita saber cuál puede resolver ANTES de pintar el botón.
+    return this.svc.listarAprobaciones(id, usuario.empresaId, usuario);
   }
 
   @Patch('aprobaciones/:id')

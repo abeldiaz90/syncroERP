@@ -15,7 +15,15 @@ type Periodo = { id:string; ejercicio:number; numero:number; regimen:string; fec
 type Tablero = { empleados:number; periodos:Periodo[]; saldoPrestamos:number; configuracionCompleta:boolean; incidenciasPendientes:number; cuentasPendientes?:number; obligacionesActivas?:number };
 type Preparacion = { puestos:number; empleados:number; conceptos:number; parametros:number; ejercicioFiscal:number; tarifasFiscales:boolean; incidenciasPendientes:number; periodosAbiertos:number; listoParaEmpleados:boolean; listoParaCalculo:boolean };
 type Prenomina = { periodo:Periodo; totales:{empleados:number;percepciones:number;deducciones:number;neto:number;isr:number;imss:number}; incidenciasPendientes:number; alertas:number; filas:Array<{reciboId:string;empleado:string;diasPagados:number;percepciones:number;deducciones:number;neto:number;isr:number;imss:number;alertas:string[]}> };
-type Aprobacion = { id:string; nivel:number; rolRequerido:string; estado:string; comentario?:string };
+/*
+ * `puedoResolver` y `motivoBloqueo` los calcula el servidor con la misma
+ * lectura que aplica al resolver. Antes esta pantalla pintaba «Aprobar» y
+ * «Rechazar» en los tres niveles —RRHH, Finanzas y Tesoreria— para cualquiera
+ * que la abriera, y las tres parejas daban 403: ni siquiera la del propio
+ * nivel servia, porque quien prepara la nomina no puede aprobarla y quien la
+ * prepara es justo quien esta mirando.
+ */
+type Aprobacion = { id:string; nivel:number; rolRequerido:string; estado:string; comentario?:string; puedoResolver?:boolean; motivoBloqueo?:string|null };
 
 const ESTADOS_CALCULADOS = ['CALCULADO', 'CON_ALERTAS', 'EN_REVISION', 'APROBADO', 'CFDI_PREPARADO', 'TIMBRADO', 'DISPERSION_GENERADA', 'EN_DISPERSION', 'PAGADO', 'CONTABILIZADO', 'CERRADO'];
 
@@ -148,7 +156,9 @@ export default function CentroNominaPage() {
         </section>
 
         <aside className="space-y-5">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-950">Flujo de aprobación</h2><p className="mb-4 text-xs text-slate-500">Las aprobaciones son secuenciales y dejan trazabilidad.</p>{!aprobaciones.length ? <button disabled={!['CALCULADO','CON_ALERTAS'].includes(periodo?.estado ?? '')} onClick={() => void prepararAprobacion()} className="btn btn-primario w-full"><ShieldCheck className="h-4 w-4" />Enviar a aprobación</button> : <div className="space-y-2">{aprobaciones.map((a) => <div key={a.id} className="rounded-xl border border-slate-200 p-3"><div className="flex items-center justify-between"><b className="text-xs">Nivel {a.nivel}</b><span className="text-[10px] font-bold text-slate-500">{a.estado}</span></div><p className="mt-0.5 text-[11px] text-slate-500">{a.rolRequerido}</p>{a.estado === 'PENDIENTE' && <div className="mt-3 flex gap-2"><button className="btn btn-primario btn-sm flex-1" onClick={() => void resolver(a.id, 'APROBADA')}>Aprobar</button><button className="btn btn-neutro btn-sm flex-1" onClick={() => void resolver(a.id, 'RECHAZADA')}>Rechazar</button></div>}</div>)}</div>}</section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-950">Flujo de aprobación</h2><p className="mb-4 text-xs text-slate-500">Las aprobaciones son secuenciales y dejan trazabilidad.</p>{!aprobaciones.length ? <button disabled={!['CALCULADO','CON_ALERTAS'].includes(periodo?.estado ?? '')} onClick={() => void prepararAprobacion()} className="btn btn-primario w-full"><ShieldCheck className="h-4 w-4" />Enviar a aprobación</button> : <div className="space-y-2">{aprobaciones.map((a) => <div key={a.id} className="rounded-xl border border-slate-200 p-3"><div className="flex items-center justify-between"><b className="text-xs">Nivel {a.nivel}</b><span className="text-[10px] font-bold text-slate-500">{a.estado}</span></div><p className="mt-0.5 text-[11px] text-slate-500">{a.rolRequerido}</p>{a.estado === 'PENDIENTE' && (a.puedoResolver
+  ? <div className="mt-3 flex gap-2"><button className="btn btn-primario btn-sm flex-1" onClick={() => void resolver(a.id, 'APROBADA')}>Aprobar</button><button className="btn btn-neutro btn-sm flex-1" onClick={() => void resolver(a.id, 'RECHAZADA')}>Rechazar</button></div>
+  : <p className="mt-2 text-[11px] text-slate-500">{a.motivoBloqueo ?? `Esta firma es de ${a.rolRequerido}.`}</p>)}</div>)}</div>}</section>
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-950">Siguientes pasos</h2><div className="mt-4 grid gap-2"><Link className="btn btn-neutro w-full justify-start" href={`/dashboard/rrhh/recibos?periodoId=${periodoId}`}><FileCheck2 className="h-4 w-4" />Revisar recibos</Link><Link className="btn btn-neutro w-full justify-start" href={`/dashboard/rrhh/cumplimiento?periodoId=${periodoId}`}><Landmark className="h-4 w-4" />CFDI, dispersión y póliza</Link><Link className="btn btn-primario w-full justify-start" href={`/dashboard/rrhh/pagos?periodoId=${periodoId}`}><WalletCards className="h-4 w-4" />Registrar pago</Link></div></section>
         </aside>
       </div>}

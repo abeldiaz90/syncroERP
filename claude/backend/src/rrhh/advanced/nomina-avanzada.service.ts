@@ -468,8 +468,126 @@ export class NominaAvanzadaService {
     });
   }
 
-  listarAprobaciones(periodoId: string, empresaId: string) {
-    return this.aprobaciones.find({ where: { periodoId, empresaId }, order: { nivel: 'ASC' } });
+  /**
+   * El veredicto de cada firma, como dato.
+   *
+   * La pantalla del centro de nomina pintaba «Aprobar» y «Rechazar» en los
+   * tres niveles a la vez —RRHH, Finanzas y Tesoreria— para cualquiera que la
+   * abriera. Las tres parejas de botones daban 403. Ni siquiera la del propio
+   * nivel funcionaba, porque quien preparo la nomina no puede aprobarla, y
+   * quien la prepara es justo quien esta mirando esa pantalla.
+   *
+   * Las reglas estaban bien puestas en `resolverAprobacion`; lo que faltaba
+   * era contarlas antes de que alguien empuje la puerta. Un boton que lleva a
+   * un 403 es peor que no tenerlo: el operador no sabe si el sistema falla, si
+   * le falta un permiso o si esa firma no le toca.
+   *
+   * `evaluarAprobacion` es la unica definicion de la regla; la usan los dos
+   * lados. Quien pregunta recibe `puedoResolver` y, si no puede, el motivo con
+   * el que se le negaria.
+   */
+  async listarAprobaciones(
+    periodoId: string,
+    empresaId: string,
+    usuario?: UsuarioNomina,
+  ) {
+    const lista = await this.aprobaciones.find({
+      where: { periodoId, empresaId },
+      order: { nivel: 'ASC' },
+    });
+    if (!usuario || !lista.length) return lista;
+    const periodo = await this.periodos.findOne({
+      where: { id: periodoId, empresaId },
+    });
+    return lista.map((aprobacion) => {
+      const veredicto = this.evaluarAprobacion(
+        aprobacion,
+        periodo ?? null,
+        lista,
+        usuario,
+      );
+      return {
+        ...aprobacion,
+        puedoResolver: veredicto.puede,
+        motivoBloqueo: veredicto.motivo,
+      };
+    });
+  }
+
+  /**
+   * Una sola lectura de «¿puede esta persona resolver esta firma?».
+   *
+   * El orden importa: se contesta primero lo que es de la firma (ya resuelta,
+   * no te toca) y despues lo que es del periodo (cambio el calculo, faltan
+   * niveles), porque eso es lo que el operador necesita oir primero.
+   */
+  private evaluarAprobacion(
+    aprobacion: AprobacionNomina,
+    periodo: PeriodoNomina | null,
+    todas: AprobacionNomina[],
+    usuario: UsuarioNomina,
+  ): { puede: boolean; motivo: string | null; tipo?: 'PROHIBIDO' | 'CONFLICTO' | 'NO_ENCONTRADO' } {
+    if (aprobacion.estado !== EstadoAprobacionNomina.PENDIENTE) {
+      return { puede: false, motivo: 'La aprobación ya fue resuelta.', tipo: 'CONFLICTO' };
+    }
+    if (aprobacion.preparadaPorId === usuario.id) {
+      return {
+        puede: false,
+        motivo: 'Quien preparó la nómina no puede aprobarla.',
+        tipo: 'PROHIBIDO',
+      };
+    }
+    if (aprobacion.usuarioAprobadorId) {
+      if (
+        aprobacion.usuarioAprobadorId !== usuario.id &&
+        !esRolAdministrador(usuario.rol)
+      ) {
+        return {
+          puede: false,
+          motivo: 'Esta aprobación está asignada a otro usuario.',
+          tipo: 'PROHIBIDO',
+        };
+      }
+    } else if (
+      !rolAutorizado(usuario.rol, FIRMAS_POR_ETAPA[aprobacion.rolRequerido] ?? [aprobacion.rolRequerido])
+    ) {
+      return {
+        puede: false,
+        motivo: `Esta firma es de ${aprobacion.rolRequerido}.`,
+        tipo: 'PROHIBIDO',
+      };
+    }
+    if (!periodo) {
+      return { puede: false, motivo: 'Periodo no encontrado.', tipo: 'NO_ENCONTRADO' };
+    }
+    if (periodo.estado !== EstadoPeriodo.EN_REVISION) {
+      return {
+        puede: false,
+        motivo: 'El periodo ya no está en revisión.',
+        tipo: 'CONFLICTO',
+      };
+    }
+    if (periodo.hashCalculo !== aprobacion.hashCalculoEsperado) {
+      return {
+        puede: false,
+        motivo: 'El cálculo cambió después de preparar la aprobación.',
+        tipo: 'CONFLICTO',
+      };
+    }
+    if (
+      todas.some(
+        (a) =>
+          a.nivel < aprobacion.nivel &&
+          a.estado !== EstadoAprobacionNomina.APROBADA,
+      )
+    ) {
+      return {
+        puede: false,
+        motivo: 'Los niveles anteriores aún no han sido aprobados.',
+        tipo: 'CONFLICTO',
+      };
+    }
+    return { puede: true, motivo: null };
   }
 
   async resolverAprobacion(
@@ -485,43 +603,31 @@ export class NominaAvanzadaService {
     return this.ds.transaction('SERIALIZABLE', async (em) => {
       const aprobacion = await em.findOne(AprobacionNomina, { where: { id, empresaId } });
       if (!aprobacion) throw new NotFoundException('Aprobación no encontrada.');
-      if (aprobacion.estado !== EstadoAprobacionNomina.PENDIENTE) {
-        throw new ConflictException('La aprobación ya fue resuelta.');
-      }
-      if (aprobacion.preparadaPorId === usuario.id) {
-        throw new ForbiddenException('Quien preparó la nómina no puede aprobarla.');
-      }
-      if (aprobacion.usuarioAprobadorId) {
-        if (
-          aprobacion.usuarioAprobadorId !== usuario.id &&
-          !esRolAdministrador(usuario.rol)
-        ) {
-          throw new ForbiddenException('Esta aprobación está asignada a otro usuario.');
-        }
-      } else {
-        this.validarRolAprobacion(aprobacion.rolRequerido, usuario.rol);
-      }
       const periodo = await em.findOne(PeriodoNomina, {
         where: { id: aprobacion.periodoId, empresaId },
       });
-      if (!periodo) throw new NotFoundException('Periodo no encontrado.');
-      if (periodo.estado !== EstadoPeriodo.EN_REVISION) {
-        throw new ConflictException('El periodo ya no está en revisión.');
-      }
-      if (periodo.hashCalculo !== aprobacion.hashCalculoEsperado) {
-        throw new ConflictException('El cálculo cambió después de preparar la aprobación.');
-      }
       const anteriores = await em.find(AprobacionNomina, {
-        where: { periodoId: periodo.id, empresaId },
+        where: { periodoId: aprobacion.periodoId, empresaId },
         order: { nivel: 'ASC' },
       });
-      if (
-        anteriores.some(
-          (a) => a.nivel < aprobacion.nivel && a.estado !== EstadoAprobacionNomina.APROBADA,
-        )
-      ) {
-        throw new ConflictException('Los niveles anteriores aún no han sido aprobados.');
+      /*
+       * La misma lectura que ve la pantalla. Antes las reglas vivian solo
+       * aqui, asi que la interfaz no tenia forma de saberlas y pintaba los
+       * botones de los tres niveles a la vez.
+       */
+      const veredicto = this.evaluarAprobacion(
+        aprobacion,
+        periodo ?? null,
+        anteriores,
+        usuario,
+      );
+      if (!veredicto.puede) {
+        const mensaje = veredicto.motivo ?? 'No es posible resolver esta aprobación.';
+        if (veredicto.tipo === 'PROHIBIDO') throw new ForbiddenException(mensaje);
+        if (veredicto.tipo === 'NO_ENCONTRADO') throw new NotFoundException(mensaje);
+        throw new ConflictException(mensaje);
       }
+      if (!periodo) throw new NotFoundException('Periodo no encontrado.');
       aprobacion.estado = estado;
       aprobacion.resueltaPorId = usuario.id;
       aprobacion.fechaResolucion = new Date();

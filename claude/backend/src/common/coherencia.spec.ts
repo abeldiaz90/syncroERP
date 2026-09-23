@@ -2424,3 +2424,50 @@ describe('Coherencia · la nómina se firma entre varios', () => {
     expect(sinMedios).toEqual([]);
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * QUIEN PREGUNTA POR UNA FIRMA SE ENTERA ANTES DE EMPUJARLA
+ *
+ * El centro de nómina pintaba «Aprobar» y «Rechazar» en los tres niveles a la
+ * vez —RRHH, Finanzas y Tesorería— para cualquiera que abriera la pantalla.
+ * Las seis puertas daban 403. Ni siquiera la del propio nivel servía, porque
+ * quien preparó la nómina no puede aprobarla y quien la prepara es justo quien
+ * está mirando esa pantalla.
+ *
+ * Las reglas estaban bien puestas; lo que faltaba era contarlas antes. Es el
+ * mismo arreglo que el veredicto de crédito y el de vacaciones: la puerta
+ * responde, no solo se cierra.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+describe('Coherencia · quien pregunta por una firma se entera antes de empujarla', () => {
+  const SERVICIO = join(SRC, 'rrhh/advanced/nomina-avanzada.service.ts');
+
+  it('la regla de quién puede firmar se escribe una sola vez', () => {
+    const texto = sinComentarios(leer(SERVICIO));
+    // Existe la lectura compartida…
+    expect(texto).toContain('private evaluarAprobacion(');
+    // …y la usan los dos lados: quien lista y quien resuelve.
+    const enListar = /async listarAprobaciones\([\s\S]*?\n  \}/.exec(texto)?.[0] ?? '';
+    const enResolver = /async resolverAprobacion\([\s\S]*?\n  \}/.exec(texto)?.[0] ?? '';
+    expect(enListar).toContain('this.evaluarAprobacion(');
+    expect(enResolver).toContain('this.evaluarAprobacion(');
+
+    // Y la comprobación cara —quién preparó la nómina— ya no se repite suelta
+    // fuera del veredicto, que es como se desincronizan las dos.
+    const evaluar = /private evaluarAprobacion\([\s\S]*?\n  \}/.exec(texto)?.[0] ?? '';
+    const vecesPreparada = (texto.match(/preparadaPorId === usuario\.id/g) ?? []).length;
+    expect(evaluar).toContain('preparadaPorId === usuario.id');
+    expect(vecesPreparada).toBe(1);
+  });
+
+  const saltar = !FRONTEND;
+  (saltar ? it.skip : it)(
+    'la pantalla no ofrece firmar sin mirar el veredicto',
+    () => {
+      const pantalla = leer(join(FRONTEND!, 'app/dashboard/rrhh/centro-nomina/page.tsx'));
+      // Si pinta el botón de aprobar, es porque consultó `puedoResolver`.
+      if (/resolver\(a\.id, 'APROBADA'\)/.test(pantalla)) {
+        expect(pantalla).toContain('a.puedoResolver');
+      }
+    },
+  );
+});
