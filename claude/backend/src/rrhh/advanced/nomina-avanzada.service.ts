@@ -86,6 +86,7 @@ import {
 } from './matriz-de-firmas';
 import { ConfiguracionAprobacion } from '../../compras/entities/configuracion-aprobacion.entity';
 import { Banco } from '../../catalogo/entities/banco.entity';
+import { Usuario } from '../../iam/entities/usuario.entity';
 import {
   esRolAdministrador,
   rolAutorizado,
@@ -442,6 +443,54 @@ export class NominaAvanzadaService {
             orden: index + 1, rolAprobador, usuarioId: undefined, tiempoLimiteHoras: 24,
           }));
       if (!definiciones.length) throw new ConflictException('Configura al menos un aprobador para Nómina.');
+
+      /*
+       * Antes de encerrar el periodo, comprobar que hay quien lo saque.
+       *
+       * Enviar a aprobacion pone el periodo en EN_REVISION y lo bloquea, y de
+       * ahi solo se sale firmando o rechazando: no hay cancelar. Las dos
+       * salidas exigen a alguien que NO sea quien preparo la nomina.
+       *
+       * La cadena por defecto empieza en RRHH, que es el mismo rol que
+       * prepara. En una empresa con una sola persona de Recursos humanos eso
+       * se traba siempre, y se trababa DESPUES de bloquear: el periodo quedaba
+       * encerrado con los tres niveles pendientes y ningun boton que sirviera.
+       *
+       * Se comprueba ahora, mientras todavia se puede no hacer nada.
+       */
+      const sinQuienFirme: string[] = [];
+      for (const [indice, definicion] of definiciones.entries()) {
+        const asignado = (definicion as { usuarioId?: string }).usuarioId;
+        if (asignado) {
+          if (asignado === usuario.id) {
+            sinQuienFirme.push(
+              `nivel ${indice + 1}: está asignado a ti, y quien prepara la nómina no puede aprobarla`,
+            );
+          }
+          continue;
+        }
+        const rolEtapa = definicion.rolAprobador || 'USUARIO_ASIGNADO';
+        const permitidos = FIRMAS_POR_ETAPA[rolEtapa] ?? [rolEtapa];
+        const candidatos = await em.find(Usuario, {
+          where: { empresaId, activo: true },
+          select: { id: true, rol: true },
+        });
+        const hayQuien = candidatos.some(
+          (u) => u.id !== usuario.id && rolAutorizado(u.rol, permitidos),
+        );
+        if (!hayQuien) {
+          sinQuienFirme.push(
+            `nivel ${indice + 1} (${rolEtapa}): no hay ningún usuario activo que pueda firmarlo`,
+          );
+        }
+      }
+      if (sinQuienFirme.length) {
+        throw new ConflictException(
+          `La nómina no se envía a aprobación porque quedaría encerrada: ${sinQuienFirme.join('; ')}. ` +
+            'Ajusta la matriz de aprobación en Gobierno de flujos o da de alta a quien deba firmar, y vuelve a intentarlo.',
+        );
+      }
+
       const aprobaciones = definiciones.map((definicion, index) =>
         em.create(AprobacionNomina, {
           empresaId,

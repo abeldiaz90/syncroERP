@@ -49,6 +49,7 @@ import {
   PolizaNominaDetalle,
   PrestamoEmpleado,
 } from '../advanced/nomina-avanzada.entity';
+import { Usuario } from '../../iam/entities/usuario.entity';
 
 @Module({
   imports: [
@@ -91,7 +92,10 @@ import {
       Banco,
       ConfiguracionAprobacion,
       AprobacionDocumento,
-    ]),
+          // Para comprobar, antes de bloquear el periodo, que la cadena de firmas
+      // tiene quien la firme. Ver `prepararAprobacion`.
+      Usuario,
+]),
   ],
   controllers: [RrhhController, NominaAvanzadaController, EstructuraOrganizacionalController],
   providers: [RrhhService, NominaCalculoService, NominaAvanzadaService, EstructuraOrganizacionalService],
