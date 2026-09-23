@@ -8,7 +8,7 @@ import {
   Check, CheckCircle2, CircleAlert, Clock3, FileCheck2, Landmark,
   RefreshCw, Settings2, ShieldCheck, Sparkles, Users, WalletCards,
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { dinero, fecha } from '@/lib/format';
 
 type Periodo = { id:string; ejercicio:number; numero:number; regimen:string; fechaInicio:string; fechaFin:string; estado:string; totalNeto:number };
@@ -34,6 +34,8 @@ export default function CentroNominaPage() {
   const [periodoId, setPeriodoId] = useState('');
   const [pre, setPre] = useState<Prenomina | null>(null);
   const [aprobaciones, setAprobaciones] = useState<Aprobacion[]>([]);
+  /* Vedada por rol, que no es lo mismo que no haberla podido cargar. */
+  const [prenominaVedada, setPrenominaVedada] = useState(false);
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
   const periodo = useMemo(() => periodos.find((p) => p.id === periodoId), [periodos, periodoId]);
@@ -54,20 +56,53 @@ export default function CentroNominaPage() {
     finally { setCargando(false); }
   }
 
+  /*
+   * La prenomina y el flujo de firmas se cargan por separado a proposito.
+   *
+   * Gerencia abre la cadena de aprobacion de la nomina, pero NO ve la
+   * prenomina trabajador por trabajador: autoriza por los totales del
+   * periodo, y el sueldo de cada quien no es asunto de esa firma. Asi que su
+   * 403 en la prenomina no es un fallo, es la regla funcionando.
+   *
+   * Iban las dos peticiones en un `Promise.all`, de modo que ese 403 esperado
+   * tumbaba tambien el flujo de firmas: gerencia entraba a autorizar la
+   * nomina, veia «No tienes permisos suficientes para esta accion» y ni
+   * rastro de lo que tenia que firmar. Es el mismo error que en la
+   * configuracion patronal, y por la misma causa.
+   */
   async function cargarPeriodo(id: string) {
-    if (!id) { setPre(null); setAprobaciones([]); return; }
+    if (!id) { setPre(null); setAprobaciones([]); setPrenominaVedada(false); return; }
+    const actual = periodos.find((p) => p.id === id);
+    if (!actual || !ESTADOS_CALCULADOS.includes(actual.estado)) {
+      setPre(null); setAprobaciones([]); setPrenominaVedada(false); return;
+    }
     setCargando(true); setError('');
-    try {
-      const actual = periodos.find((p) => p.id === id);
-      if (actual && ESTADOS_CALCULADOS.includes(actual.estado)) {
-        const [x, a] = await Promise.all([
-          api.get<Prenomina>(`/rrhh/nomina-avanzada/periodos/${id}/prenomina`),
-          api.get<Aprobacion[]>(`/rrhh/nomina-avanzada/periodos/${id}/aprobaciones`),
-        ]);
-        setPre(x); setAprobaciones(Array.isArray(a) ? a : []);
-      } else { setPre(null); setAprobaciones([]); }
-    } catch (e) { setPre(null); setError(e instanceof Error ? e.message : 'No fue posible cargar la prenómina.'); }
-    finally { setCargando(false); }
+    const [detalle, firmas] = await Promise.all([
+      api.get<Prenomina>(`/rrhh/nomina-avanzada/periodos/${id}/prenomina`)
+        .then((x) => ({ ok: true as const, x }))
+        .catch((e: unknown) => ({ ok: false as const, e })),
+      api.get<Aprobacion[]>(`/rrhh/nomina-avanzada/periodos/${id}/aprobaciones`)
+        .then((a) => ({ ok: true as const, a }))
+        .catch((e: unknown) => ({ ok: false as const, e })),
+    ]);
+
+    if (detalle.ok) { setPre(detalle.x); setPrenominaVedada(false); }
+    else {
+      setPre(null);
+      const vedada = detalle.e instanceof ApiError && detalle.e.esSinPermisos;
+      setPrenominaVedada(vedada);
+      if (!vedada) setError(detalle.e instanceof Error ? detalle.e.message : 'No fue posible cargar la prenómina.');
+    }
+
+    if (firmas.ok) setAprobaciones(Array.isArray(firmas.a) ? firmas.a : []);
+    else {
+      setAprobaciones([]);
+      // Un fallo aqui si importa: quien viene a firmar no puede firmar.
+      if (!(firmas.e instanceof ApiError && firmas.e.esSinPermisos)) {
+        setError(firmas.e instanceof Error ? firmas.e.message : 'No fue posible cargar el flujo de firmas.');
+      }
+    }
+    setCargando(false);
   }
 
   useEffect(() => {
@@ -148,12 +183,31 @@ export default function CentroNominaPage() {
         </section>
       </div>
 
-      {pre && <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {/*
+        * El bloque entero colgaba de `pre`, asi que quien no puede ver la
+        * prenomina tampoco veia el flujo de firmas —y Gerencia entra aqui
+        * justamente a firmar—. Ahora basta con tener una de las dos cosas.
+        */}
+      {(pre || prenominaVedada) && <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
+        {pre ? <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="font-bold text-slate-950">Revisión de prenómina</h2><p className="text-xs text-slate-500">Importes calculados por trabajador</p></div><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${pre.alertas ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{pre.alertas ? `${pre.alertas} alertas` : 'Sin alertas'}</span></header>
           <div className="grid grid-cols-2 gap-px bg-slate-100 md:grid-cols-6"><MiniTotal etiqueta="Trabajadores" valor={pre.totales.empleados} /><MiniTotal etiqueta="Percepciones" valor={dinero(pre.totales.percepciones)} /><MiniTotal etiqueta="ISR" valor={dinero(pre.totales.isr)} /><MiniTotal etiqueta="IMSS" valor={dinero(pre.totales.imss)} /><MiniTotal etiqueta="Deducciones" valor={dinero(pre.totales.deducciones)} /><MiniTotal etiqueta="Neto" valor={dinero(pre.totales.neto)} destacado /></div>
           <div className="max-h-[420px] overflow-auto"><table className="tabla"><thead><tr><th>Empleado</th><th className="text-right">Días</th><th className="text-right">Percepciones</th><th className="text-right">Deducciones</th><th className="text-right">Neto</th><th>Validación</th></tr></thead><tbody>{pre.filas.map((f) => <tr key={f.reciboId}><td className="font-medium text-slate-900">{f.empleado}</td><td className="text-right cifra">{f.diasPagados}</td><td className="text-right cifra">{dinero(f.percepciones)}</td><td className="text-right cifra">{dinero(f.deducciones)}</td><td className="text-right cifra font-semibold">{dinero(f.neto)}</td><td>{f.alertas.length ? <span className="text-[11px] text-amber-700">{f.alertas.join(', ')}</span> : <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" />Correcto</span>}</td></tr>)}</tbody></table></div>
-        </section>
+        </section> : <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="font-bold text-slate-950">Autorización por totales</h2>
+          <p className="mt-1 text-xs text-slate-500">El detalle por trabajador no forma parte de esta firma.</p>
+          <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-slate-100 md:grid-cols-4">
+            <MiniTotal etiqueta="Trabajadores" valor={tablero?.empleados ?? '—'} />
+            <MiniTotal etiqueta="Periodo" valor={`#${periodo?.numero ?? '—'}`} />
+            <MiniTotal etiqueta="Pago" valor={periodo ? fecha(periodo.fechaFin) : '—'} />
+            <MiniTotal etiqueta="Neto a pagar" valor={periodo ? dinero(periodo.totalNeto) : '—'} destacado />
+          </div>
+          <p className="mt-4 rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-600">
+            Tu rol autoriza la nómina por sus totales. La prenómina trabajador por
+            trabajador —y con ella el sueldo de cada persona— la revisan Recursos
+            humanos y Finanzas, que responden de su exactitud.
+          </p>
+        </section>}
 
         <aside className="space-y-5">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-950">Flujo de aprobación</h2><p className="mb-4 text-xs text-slate-500">Las aprobaciones son secuenciales y dejan trazabilidad.</p>{!aprobaciones.length ? <button disabled={!['CALCULADO','CON_ALERTAS'].includes(periodo?.estado ?? '')} onClick={() => void prepararAprobacion()} className="btn btn-primario w-full"><ShieldCheck className="h-4 w-4" />Enviar a aprobación</button> : <div className="space-y-2">{aprobaciones.map((a) => <div key={a.id} className="rounded-xl border border-slate-200 p-3"><div className="flex items-center justify-between"><b className="text-xs">Nivel {a.nivel}</b><span className="text-[10px] font-bold text-slate-500">{a.estado}</span></div><p className="mt-0.5 text-[11px] text-slate-500">{a.rolRequerido}</p>{a.estado === 'PENDIENTE' && (a.puedoResolver
