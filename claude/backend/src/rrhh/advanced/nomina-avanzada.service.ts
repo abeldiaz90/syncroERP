@@ -94,6 +94,7 @@ import {
   esRolAdministrador,
   rolAutorizado,
 } from '../../iam/utils/roles.util';
+import { diaCalendario } from '../../common/utils/fecha-calendario.util';
 
 const money = (value: number | string | null | undefined): number =>
   Math.round((Number(value ?? 0) + Number.EPSILON) * 100) / 100;
@@ -1333,10 +1334,21 @@ export class NominaAvanzadaService {
         abono: 0,
         referencia: `Pago nómina ${periodo.ejercicio}-${periodo.numero}`,
       });
+      /*
+       * La póliza del pago se fecha el día en que el pago se registra, no el
+       * día que el calendario de nómina tenía previsto. Son cosas distintas y
+       * se separaron porque divergen en cuanto algo se adelanta o se atrasa:
+       * `PagoNomina.fechaPago` ya guardaba `new Date()` —el hecho— mientras la
+       * póliza y el movimiento de tesorería usaban la fecha planeada. El mismo
+       * pago quedaba con dos fechas, y la que llega al banco y al mayor era la
+       * que no ocurrió: la conciliación bancaria buscaba en el estado de cuenta
+       * un movimiento fechado un día que el banco no reconoce.
+       */
+      const diaDelPago = new Date();
       const polizaPago = await this.polizasService.crearPolizaManualEnTransaccion(em, {
         empresaId,
         tipo: 'EGRESO',
-        fecha: periodo.fechaPago,
+        fecha: diaDelPago,
         concepto: `Pago de nómina ${periodo.ejercicio}-${periodo.numero}`,
         origenClave: `NOMINA-PAGO:${periodo.id}:${periodo.hashCalculo}`,
         origenTipo: 'NOMINA_PAGO',
@@ -1350,7 +1362,7 @@ export class NominaAvanzadaService {
         saldo: 0,
         estado: EstadoPagoNomina.PAGADO,
         idempotencyKey: dto.idempotencyKey,
-        fechaPago: new Date(),
+        fechaPago: diaDelPago,
         polizaPagoId: polizaPago.id,
       });
       const guardado = await em.save(pago);
@@ -1377,7 +1389,7 @@ export class NominaAvanzadaService {
         const movimiento = await this.tesoreria.registrarEnTransaccion(
           {
             cuentaBancariaId: aplicacion.cuentaBancariaId,
-            fecha: new Date(periodo.fechaPago).toISOString().slice(0, 10),
+            fecha: diaCalendario(diaDelPago),
             tipo: TipoMovimiento.EGRESO,
             importe,
             concepto: `Pago de nómina ${periodo.ejercicio}-${periodo.numero}`,
@@ -1635,12 +1647,24 @@ export class NominaAvanzadaService {
         );
       }
 
+      /*
+       * El devengo se fecha al CIERRE del periodo devengado, no el día de
+       * pago. Es la diferencia entre reconocer el gasto cuando se trabajó y
+       * reconocerlo cuando se desembolsa, que es justo lo que el devengo
+       * existe para evitar.
+       *
+       * No se notaba porque en el calendario de esta empresa las dos fechas
+       * coinciden. En cuanto una quincena cierre el 30 de septiembre y se
+       * pague el 5 de octubre —lo normal—, todo el gasto de nómina de
+       * septiembre se registraba en octubre: dos meses mal, uno sin el gasto y
+       * otro con el doble.
+       */
       const poliza = await this.polizasService.crearPolizaManualEnTransaccion(
         em,
         {
           empresaId,
           tipo: 'DIARIO',
-          fecha: periodo.fechaPago,
+          fecha: periodo.fechaFin,
           concepto: `Devengo de nómina ${periodo.ejercicio}-${periodo.numero}`,
           origenClave: `NOMINA-DEVENGO:${periodo.id}:${periodo.hashCalculo}`,
           origenTipo: 'NOMINA_DEVENGO',

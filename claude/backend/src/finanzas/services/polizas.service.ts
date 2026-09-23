@@ -12,6 +12,7 @@ import { Poliza } from '../entities/poliza.entity';
 import { PartidaPoliza } from '../entities/partida-poliza.entity';
 import { CrearPolizaDto } from '../dto/crear-poliza.dto';
 import { CuentaContable } from '../entities/cuenta-contable.entity';
+import { diaCalendario } from '../../common/utils/fecha-calendario.util';
 
 @Injectable()
 export class PolizasService {
@@ -124,7 +125,54 @@ export class PolizasService {
     if (Number.isNaN(fecha.getTime())) {
       throw new BadRequestException(`La fecha de la póliza no es válida: ${texto}`);
     }
+    this.exigirQueYaHayaOcurrido(fecha);
     return fecha;
+  }
+
+  /**
+   * ==========================================================================
+   * La contabilidad registra lo que ya pasó
+   * --------------------------------------------------------------------------
+   * No había control de fecha futura, y no es una sutileza: se registró —y se
+   * pagó— la nómina del 1 al 15 de OCTUBRE el 23 de septiembre, con su póliza
+   * de devengo fechada 22 días adelante. Para el ERP no pasó nada. El mayor
+   * externo lo rechazó en cuanto le llegó el asiento: «The journal entry
+   * cannot be made for a future date». Una regla contable que el otro sistema
+   * cumple y éste no significa que las dos balanzas van a divergir, y que la
+   * que está mal es la nuestra.
+   *
+   * Lo que un asiento futuro rompe, en orden de gravedad: la balanza de un mes
+   * ya cerrado puede cambiar después de cerrarlo —basta que alguien fechara
+   * algo adelante—; el gasto se reconoce antes de incurrirse; y la
+   * conciliación bancaria busca en el estado de cuenta un movimiento que el
+   * banco todavía no hizo.
+   *
+   * Vive en `aFecha` y no en cada camino de creación a propósito: las pólizas
+   * nacen desde el motor contable, la captura manual, la captura en
+   * transacción, las reversas y el cierre, y todas pasan por aquí. Una lista
+   * de puntos de enganche es una lista que alguien olvidará ampliar.
+   *
+   * El día se compara con el calendario local de la empresa, no con UTC: en
+   * México, a partir de las 18:00, comparar contra UTC declara futuro lo que
+   * se está capturando hoy mismo.
+   * ==========================================================================
+   */
+  private exigirQueYaHayaOcurrido(fecha: Date): void {
+    const hoy = new Date();
+    const finDeHoy = new Date(
+      hoy.getFullYear(),
+      hoy.getMonth(),
+      hoy.getDate(),
+      23,
+      59,
+      59,
+      999,
+    );
+    if (fecha.getTime() <= finDeHoy.getTime()) return;
+    throw new BadRequestException(
+      `No se puede registrar una póliza con fecha ${diaCalendario(fecha)}, que todavía no llega. ` +
+        'La contabilidad registra lo que ya ocurrió.',
+    );
   }
 
   // ══════════════════════════════════════════════════════════════════════════

@@ -324,14 +324,76 @@ describe('cancelarPoliza — períodos contables', () => {
     expect(estado.reversa).toBeNull();
   });
 
+  /*
+   * La fecha era '2026-09-30', escrita cuando esa fecha ya había pasado. Al
+   * entrar el control de fecha futura la prueba se cayó, y con razón: pedía
+   * que se respetara una fecha que todavía no llega. Se cambia por un día
+   * cualquiera del mismo período abierto, que es lo que la prueba quería
+   * decir; la fecha concreta nunca fue el punto.
+   */
   it('fecha de reverso indicada en período abierto → se respeta', async () => {
     const { servicio, estado } = crearArnes();
     await servicio.cancelarPoliza('emp-1', 'pol-1', {
       motivo: MOTIVO,
-      fechaReverso: '2026-09-30',
+      fechaReverso: '2026-09-10',
     });
     expect(estado.reversa.mes).toBe(9);
     expect(estado.reversa.anio).toBe(2026);
+  });
+});
+
+/**
+ * ============================================================================
+ * La contabilidad registra lo que ya pasó
+ * ----------------------------------------------------------------------------
+ * No había control de fecha futura. Se registró y se pagó la nómina del 1 al
+ * 15 de OCTUBRE el 23 de septiembre, con su póliza de devengo fechada 22 días
+ * adelante, y el ERP no dijo nada. Lo dijo el mayor externo cuando le llegó el
+ * asiento: «The journal entry cannot be made for a future date».
+ * ============================================================================
+ */
+describe('Ninguna póliza se fecha en un día que no ha llegado', () => {
+  const MOTIVO = 'Fecha equivocada en la captura';
+  const enDias = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+      d.getDate(),
+    ).padStart(2, '0')}`;
+  };
+
+  it('rechaza el día de mañana, y lo dice nombrando la fecha', async () => {
+    const { servicio, estado } = crearArnes();
+    await expect(
+      servicio.cancelarPoliza('emp-1', 'pol-1', {
+        motivo: MOTIVO,
+        fechaReverso: enDias(1),
+      }),
+    ).rejects.toThrow(/todavía no llega/i);
+    expect(estado.reversa).toBeNull();
+  });
+
+  /*
+   * Hoy SÍ pasa, y no es un detalle: el control compara contra el final del
+   * día local. Comparando contra el instante actual, capturar a las 9 de la
+   * mañana una póliza fechada hoy la declararía futura por catorce horas.
+   */
+  it('acepta hoy, a cualquier hora del día', async () => {
+    const { servicio, estado } = crearArnes();
+    await servicio.cancelarPoliza('emp-1', 'pol-1', {
+      motivo: MOTIVO,
+      fechaReverso: enDias(0),
+    });
+    expect(estado.reversa).not.toBeNull();
+  });
+
+  it('acepta el pasado: lo que ya ocurrió se registra', async () => {
+    const { servicio, estado } = crearArnes();
+    await servicio.cancelarPoliza('emp-1', 'pol-1', {
+      motivo: MOTIVO,
+      fechaReverso: enDias(-1),
+    });
+    expect(estado.reversa).not.toBeNull();
   });
 });
 
