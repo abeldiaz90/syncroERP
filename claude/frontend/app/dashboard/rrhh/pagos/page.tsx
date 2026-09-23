@@ -55,7 +55,17 @@ export default function PagosNominaPage() {
   async function cargarPeriodo() {
     if (!periodoId) { setPago(null); setDispersion(null); return; }
     const [p,d] = await Promise.all([
-      conPermiso(api.get<Pago>(`/rrhh/nomina-avanzada/periodos/${periodoId}/pago`)).catch(()=>({valor:null,vedado:false})),
+      /*
+       * El GET devuelve `{ pago, aplicaciones }` y el POST devuelve el pago
+       * plano. La pantalla leia siempre lo plano, asi que al recargar —o justo
+       * despues de pagar, que recarga— el recuadro de estado salia en blanco:
+       * ni estado, ni total, ni saldo. El pago estaba bien; lo que no se podia
+       * era comprobarlo.
+       */
+      conPermiso(
+        api.get<Pago | { pago: Pago }>(`/rrhh/nomina-avanzada/periodos/${periodoId}/pago`)
+          .then((r) => (r && typeof r === 'object' && 'pago' in r ? r.pago : r)),
+      ).catch(()=>({valor:null,vedado:false})),
       conPermiso(api.get<RespuestaDispersion>(`/rrhh/nomina-avanzada/periodos/${periodoId}/dispersion`)).catch(()=>({valor:null,vedado:false})),
     ]);
     setPago(p.valor); setDispersion(d.valor);
