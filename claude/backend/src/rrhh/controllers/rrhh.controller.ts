@@ -17,9 +17,12 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { RrhhService } from '../services/rrhh.service';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
+import { Roles } from '../../iam/decorators/roles.decorator';
+import { FIRMAS_NOMINA } from '../advanced/matriz-de-firmas';
 import { ParseSqlServerGuidPipe } from '../../common/pipes/parse-sql-server-guid.pipe';
 import { EstadoEmpleado } from '../entities/rrhh.entity';
 import {
+  AsignarCuentaConceptoDto,
   ActualizarConceptoNominaDto, ActualizarEmpleadoDto, ActualizarPuestoDto,
   CrearConceptoNominaDto, CrearContratoLaboralDto, CrearEmpleadoDto, CrearIncidenciaDto,
   CrearParametroNominaDto, CrearPeriodoNominaDto, RechazarIncidenciaDto,
@@ -334,6 +337,29 @@ export class RrhhController {
     @ActiveUser('empresaId') empresaId: string,
   ) {
     return this.svc.actualizarConcepto(id, dto, empresaId);
+  }
+
+  /**
+   * A qué cuenta va el gasto de un concepto — decisión de Contabilidad.
+   *
+   * El concepto lo define Recursos humanos: qué existe, cómo grava, si integra
+   * al SBC. La cuenta contable la define quien lleva la contabilidad, igual
+   * que el mapa patronal. Por eso es un endpoint aparte y con su propio
+   * guardia, en vez de un campo más del `PATCH /conceptos/:id`, que es de RRHH.
+   *
+   * Sin esto no había forma de ponerla: el campo existía en la base y ninguna
+   * pantalla lo pedía, así que la póliza de devengo era imposible para
+   * cualquier empresa y cualquier mes.
+   */
+  @Patch('conceptos/:id/cuenta-contable')
+  @Roles(...FIRMAS_NOMINA.cuentaDeConcepto.roles)
+  @ApiOperation({ summary: 'Asigna la cuenta contable del concepto (Contabilidad)' })
+  asignarCuentaConcepto(
+    @Param('id', ParseSqlServerGuidPipe) id: string,
+    @Body() dto: AsignarCuentaConceptoDto,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
+    return this.svc.asignarCuentaConcepto(id, dto.cuentaContableId, empresaId);
   }
 
   @Post('conceptos/sembrar')

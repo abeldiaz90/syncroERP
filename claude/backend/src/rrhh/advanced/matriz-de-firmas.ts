@@ -113,6 +113,24 @@ export const FIRMAS_NOMINA = {
   ),
 
   /* ── Lo que define y cierra la contabilidad ───────────────────────────── */
+  /*
+   * La cuenta contable de cada concepto de nomina.
+   *
+   * El concepto —que existe, como grava, si integra al SBC— lo define Recursos
+   * humanos. A que cuenta va el gasto lo define Contabilidad, igual que el
+   * mapa patronal. Son dos decisiones distintas sobre el mismo registro y las
+   * toman dos areas distintas.
+   *
+   * Hasta hoy no habia forma de tomar la segunda: el campo existia en la base
+   * y en el DTO, y ninguna pantalla lo pedia. Sin el, la poliza de devengo es
+   * imposible para cualquier empresa y cualquier mes.
+   */
+  cuentaDeConcepto: firma(
+    ['finanzas', 'contador'],
+    'asignar la cuenta contable de un concepto de nómina',
+    'Finanzas o Contabilidad',
+  ),
+
   configuracionPatronal: firma(
     ['finanzas', 'contador'],
     'modificar la configuración patronal',

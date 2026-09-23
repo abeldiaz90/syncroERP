@@ -1065,6 +1065,21 @@ export class RrhhService {
   }
 
   /** Conceptos mínimos para operar. Se llama desde la configuración inicial. */
+  /**
+   * Sólo toca la cuenta. Nada del concepto —su clave SAT, si grava, si integra
+   * al SBC— se puede cambiar por aquí: eso es de Recursos humanos.
+   */
+  async asignarCuentaConcepto(
+    id: string,
+    cuentaContableId: string | undefined,
+    empresaId: string,
+  ) {
+    const concepto = await this.conceptos.findOne({ where: { id, empresaId } });
+    if (!concepto) throw new NotFoundException('Concepto no encontrado.');
+    concepto.cuentaContableId = cuentaContableId || undefined;
+    return this.conceptos.save(concepto);
+  }
+
   async sembrarConceptos(empresaId: string) {
     const base: Array<Partial<ConceptoNomina>> = [
       {

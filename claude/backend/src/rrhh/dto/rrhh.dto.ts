@@ -159,3 +159,15 @@ export class BajaEmpleadoDto {
   @MaxLength(500)
   motivo!: string;
 }
+
+/**
+ * La cuenta contable de un concepto de nómina, que asigna Contabilidad.
+ *
+ * Va sola, no como un campo más del DTO de actualización del concepto: quien
+ * define el concepto (Recursos humanos) y quien decide a qué cuenta va el
+ * gasto (Contabilidad) son áreas distintas, y mezclarlas en un solo endpoint
+ * obligaría a dar a una los permisos de la otra.
+ */
+export class AsignarCuentaConceptoDto {
+  @IsSqlServerGuidOpcional() cuentaContableId?: string;
+}

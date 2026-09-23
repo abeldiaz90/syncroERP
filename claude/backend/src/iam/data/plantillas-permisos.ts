@@ -162,6 +162,14 @@ const ACCIONES_NOMINA_CONTABILIDAD = [
   'POST /rrhh/nomina-avanzada/periodos/:id/poliza-detallada',
   'POST /rrhh/nomina-avanzada/periodos/:id/cierre-financiero',
   'GET /rrhh/nomina-avanzada/periodos/:id/cumplimiento',
+  /*
+   * La cuenta contable de cada concepto de nomina. El concepto lo define
+   * Recursos humanos; a que cuenta va el gasto lo define quien lleva la
+   * contabilidad, igual que el mapa patronal. Necesita leer la lista para
+   * poder asignarla.
+   */
+  'GET /rrhh/conceptos',
+  'PATCH /rrhh/conceptos/:id/cuenta-contable',
 ];
 
 /** Solo Finanzas: prestamos, obligaciones y la validacion de cuentas. */
