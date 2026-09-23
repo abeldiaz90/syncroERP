@@ -372,6 +372,42 @@ export class NominaCalculoService {
       });
 
       periodo.versionCalculo = versionCalculo;
+      /*
+       * Una nomina que no se va a poder contabilizar se avisa AHORA.
+       *
+       * La cuenta contable de cada percepcion se congela en el recibo en este
+       * momento, copiada del concepto de nomina. Si el concepto no tiene
+       * cuenta, el recibo nace sin ella y la poliza de devengo sera imposible
+       * —y para entonces el periodo puede estar ya aprobado, dispersado y
+       * PAGADO, es decir bloqueado y sin posibilidad de recalcularse—.
+       *
+       * Paso exactamente eso: el periodo 18 llego a PAGADO y al intentar
+       * contabilizarlo contesto «faltan cuentas contables». Dinero fuera y
+       * ningun asiento, sin vuelta atras.
+       *
+       * No se bloquea el calculo: la gente tiene que cobrar aunque a
+       * Contabilidad le falte configurar algo. Se avisa, el periodo queda
+       * CON_ALERTAS, y enviarlo a aprobacion exige reconocer las alertas
+       * expresamente, que es el mecanismo que ya existe para esto.
+       */
+      const sinCuenta = new Set<string>();
+      for (const resultado of resultados) {
+        for (const partida of resultado.partidas) {
+          if (partida.naturaleza !== NaturalezaConcepto.PERCEPCION) continue;
+          const cuenta =
+            partida.cuentaContableId ??
+            conceptoPorClave.get(partida.clave.toUpperCase())?.cuentaContableId;
+          if (!cuenta) sinCuenta.add(`${partida.clave} · ${partida.concepto}`);
+        }
+      }
+      if (sinCuenta.size) {
+        advertencias.push(
+          `No se podrá generar la póliza: estos conceptos no tienen cuenta contable — ${[...sinCuenta].join('; ')}. ` +
+            'Asígnalas en Conceptos de nómina y vuelve a calcular ANTES de aprobar; ' +
+            'una vez pagado el periodo ya no se puede recalcular.',
+        );
+      }
+
       periodo.hashCalculo = hashCalculo;
       periodo.motorVersion = MOTOR_VERSION;
       periodo.fechaCalculo = new Date();

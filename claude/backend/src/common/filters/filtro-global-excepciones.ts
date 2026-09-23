@@ -29,7 +29,41 @@ interface RespuestaError {
   timestamp: string;
   /** Identificador para cruzar el error del usuario con el log del servidor. */
   traza: string;
+  /**
+   * Lo que el servicio adjuntó al negarse, cuando adjuntó algo.
+   *
+   * Un servicio que lanza `ConflictException({ message, conceptos })` está
+   * diciendo dos cosas: que no puede, y qué falta exactamente. Lo segundo se
+   * perdía aquí. La póliza de nómina contestaba «faltan cuentas contables» y
+   * traía la lista de cuáles; la lista no salía nunca del servidor, así que
+   * quien tenía dieciséis cuentas mapeadas se quedaba adivinando.
+   *
+   * Sólo para 4xx. Un 5xx es un problema nuestro y su detalle se queda en el
+   * log, como hasta ahora.
+   */
+  detalle?: Record<string, unknown>;
 }
+
+/**
+ * Nombre estándar del código, para cuando la excepción no trae etiqueta.
+ *
+ * Una `ConflictException` construida con un objeto propio no incluye `error`,
+ * así que la etiqueta se quedaba en su valor inicial —«Internal Server
+ * Error»— y la respuesta salía contradiciéndose: `statusCode: 409` con
+ * `error: "Internal Server Error"`. Quien diagnostica un fallo se va por el
+ * camino equivocado: busca un error del servidor donde hay una regla de
+ * negocio diciendo que no.
+ */
+const ETIQUETA_POR_CODIGO: Record<number, string> = {
+  400: 'Bad Request',
+  401: 'Unauthorized',
+  403: 'Forbidden',
+  404: 'Not Found',
+  409: 'Conflict',
+  410: 'Gone',
+  422: 'Unprocessable Entity',
+  429: 'Too Many Requests',
+};
 
 /** Códigos de SQL Server que sí conviene traducir para el usuario. */
 /**
@@ -124,6 +158,7 @@ export class FiltroGlobalExcepciones implements ExceptionFilter {
     let mensaje: string | string[] =
       'Ocurrió un error inesperado. Intenta de nuevo.';
     let etiqueta = 'Internal Server Error';
+    let detalle: Record<string, unknown> | undefined;
 
     if (excepcion instanceof HttpException) {
       estado = excepcion.getStatus();
@@ -131,9 +166,24 @@ export class FiltroGlobalExcepciones implements ExceptionFilter {
       if (typeof cuerpo === 'string') {
         mensaje = cuerpo;
       } else if (cuerpo && typeof cuerpo === 'object') {
-        const c = cuerpo as { message?: string | string[]; error?: string };
+        const c = cuerpo as {
+          message?: string | string[];
+          error?: string;
+          [clave: string]: unknown;
+        };
         mensaje = c.message ?? excepcion.message;
-        etiqueta = c.error ?? etiqueta;
+        etiqueta = c.error ?? ETIQUETA_POR_CODIGO[estado] ?? etiqueta;
+        // Lo que el servicio adjuntó además del mensaje: la lista de lo que
+        // falta, el veredicto, el importe que no cuadra. Es el dato que
+        // convierte «no se puede» en algo que alguien puede arreglar.
+        if (estado < 500) {
+          const extra = Object.fromEntries(
+            Object.entries(c).filter(
+              ([clave]) => !['message', 'error', 'statusCode'].includes(clave),
+            ),
+          );
+          if (Object.keys(extra).length) detalle = extra;
+        }
       }
     } else if (excepcion instanceof EntityNotFoundError) {
       estado = HttpStatus.NOT_FOUND;
@@ -179,8 +229,10 @@ export class FiltroGlobalExcepciones implements ExceptionFilter {
       etiqueta = 'Database Error';
     }
 
-    if (estado >= 500) {
-      etiqueta = etiqueta === 'Internal Server Error' ? etiqueta : etiqueta;
+    // Sin etiqueta propia y sin ser HttpException —un fallo de SQL, un error
+    // suelto— se usa la del código, que al menos no miente.
+    if (etiqueta === 'Internal Server Error' && estado < 500) {
+      etiqueta = ETIQUETA_POR_CODIGO[estado] ?? etiqueta;
     }
 
     const usuario = (
@@ -212,6 +264,7 @@ export class FiltroGlobalExcepciones implements ExceptionFilter {
       path: req.originalUrl,
       timestamp: new Date().toISOString(),
       traza,
+      ...(detalle ? { detalle } : {}),
     };
 
     res.status(estado).json(cuerpo);

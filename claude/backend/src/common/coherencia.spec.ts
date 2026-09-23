@@ -2784,3 +2784,58 @@ describe('Coherencia · el padrón dice quién existe, no cómo es su expediente
     expect(sinPadron).toEqual([]);
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * UN «NO SE PUEDE» SIN EL «QUE FALTA» OBLIGA A ABRIR EL CODIGO
+ *
+ * La póliza de nómina contestó «No se puede contabilizar porque faltan cuentas
+ * contables» —y el servicio SÍ traía la lista de cuáles, en un campo
+ * `conceptos` del cuerpo de la excepción—. El filtro global se quedaba con el
+ * mensaje y tiraba la lista, así que quien tenía dieciséis cuentas mapeadas no
+ * podía saber cuál era la que faltaba.
+ *
+ * Y de paso etiquetaba ese 409 como «Internal Server Error», mandando a quien
+ * diagnostica a buscar una avería donde había una regla de negocio.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+describe('Coherencia · un «no se puede» dice qué falta', () => {
+  const FILTRO = join(SRC, 'common/filters/filtro-global-excepciones.ts');
+
+  it('el detalle que adjunta el servicio llega al cliente', () => {
+    const texto = leer(FILTRO);
+    // El cuerpo de respuesta lo lleva…
+    expect(texto).toMatch(/detalle\?: Record<string, unknown>/);
+    // …se arma con lo que el servicio adjuntó además del mensaje…
+    expect(texto).toContain("!['message', 'error', 'statusCode'].includes(clave)");
+    // …y sólo para 4xx: un 5xx es problema nuestro y su detalle no sale.
+    expect(texto).toContain('if (estado < 500)');
+  });
+
+  it('un 409 no se etiqueta como error del servidor', () => {
+    const texto = leer(FILTRO);
+    expect(texto).toContain('ETIQUETA_POR_CODIGO');
+    for (const [codigo, nombre] of [[409, 'Conflict'], [403, 'Forbidden'], [404, 'Not Found']]) {
+      expect(texto).toContain(`${codigo}: '${nombre}'`);
+    }
+    // El código muerto que se autoasignaba la etiqueta ya no está.
+    expect(texto).not.toContain(
+      "etiqueta === 'Internal Server Error' ? etiqueta : etiqueta",
+    );
+  });
+
+  it('avisa al calcular que la nómina no se va a poder contabilizar', () => {
+    /*
+     * La cuenta contable se congela en el recibo al calcular. Si el concepto
+     * no la tiene, la póliza será imposible —y para cuando alguien lo note, el
+     * periodo puede estar PAGADO y bloqueado, sin recálculo posible—. Dinero
+     * fuera y ningún asiento.
+     */
+    const calculo = sinComentarios(
+      leer(join(SRC, 'rrhh/services/nomina-calculo.service.ts')),
+    );
+    expect(calculo).toContain('No se podrá generar la póliza');
+    // Avisa, no bloquea: la gente cobra aunque Contabilidad no haya terminado.
+    const bloque = /const sinCuenta = new Set<string>\(\)[\s\S]*?\n      \}/.exec(calculo)?.[0] ?? '';
+    expect(bloque).toBeTruthy();
+    expect(bloque).not.toContain('throw');
+  });
+});

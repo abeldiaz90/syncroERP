@@ -53,7 +53,36 @@ export class ApiError extends Error {
     if (this.esRed) {
       return 'No hay conexión con el servidor. Revisa tu red e inténtalo de nuevo.';
     }
-    return this.message;
+    /*
+     * Cuando el servidor adjunta el detalle de por qué se niega, se enseña.
+     *
+     * La póliza de nómina contestaba «No se puede contabilizar porque faltan
+     * cuentas contables» —y traía la lista de cuáles—. La lista se quedaba en
+     * el cuerpo de la respuesta y quien tenía dieciséis cuentas mapeadas se
+     * quedaba adivinando cuál era. Un «no se puede» sin el «qué falta» obliga
+     * a alguien a abrir el código para operar el sistema.
+     */
+    const lista = this.detalleEnLista();
+    return lista.length ? `${this.message} Falta: ${lista.join(', ')}.` : this.message;
+  }
+
+  /**
+   * El detalle estructurado que el servidor adjuntó, aplanado a una lista de
+   * textos. Devuelve vacío cuando no hay nada que enseñar.
+   */
+  detalleEnLista(): string[] {
+    const cuerpo = this.detalles as { detalle?: Record<string, unknown> } | undefined;
+    const detalle = cuerpo?.detalle;
+    if (!detalle || typeof detalle !== 'object') return [];
+    const textos: string[] = [];
+    for (const valor of Object.values(detalle)) {
+      if (Array.isArray(valor)) {
+        textos.push(...valor.filter((v): v is string => typeof v === 'string'));
+      } else if (typeof valor === 'string') {
+        textos.push(valor);
+      }
+    }
+    return textos;
   }
 }
 
