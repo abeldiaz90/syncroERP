@@ -3,16 +3,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, CheckCircle2, Clock3, Palmtree, XCircle } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
-import { fecha } from '@/lib/format';
+import { fecha, isoCorto } from '@/lib/format';
 import { solicitarTexto } from '@/components/ui/dialogos';
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
 import { Boton, Cargando, Distintivo, EncabezadoPantalla, Panel, SinDatos, useAvisos } from '@/components/ui';
 
 type Empleado = { id: string; numeroEmpleado: string; nombreCompleto?: string; nombres?: string; apellidoPaterno?: string; estado?: string };
 type Solicitud = { id: string; empleadoId: string; fechaInicio: string; fechaFin: string; diasSolicitados: number; estado: string; motivo?: string; motivoResolucion?: string; fechaCreacion: string };
-type Saldo = { diasDevengados: number; diasArrastre: number; diasReservados: number; diasDisfrutados: number; diasCancelados: number; disponible: number; aniversario: number; vigenciaDesde: string; vigenciaHasta: string };
+type Saldo = { diasDevengados: number; diasArrastre: number; diasReservados: number; diasDisfrutados: number; diasCancelados: number; disponible: number; aniversario: number; vigenciaDesde: string; vigenciaHasta: string;
+  /* El veredicto del derecho, que ahora viaja como dato y no como excepcion. */
+  tieneDerecho?: boolean; motivo?: string | null; fechaIngreso?: string; proximoAniversario?: string };
 
-const hoy = () => new Date().toISOString().slice(0, 10);
+/*
+ * En hora local. `new Date().toISOString().slice(0,10)` da el dia siguiente
+ * desde las 18:00 en Mexico, asi que el formulario abria proponiendo manana.
+ */
+const hoy = () => isoCorto();
 const lista = <T,>(valor: unknown): T[] => Array.isArray(valor) ? valor as T[] : valor && typeof valor === 'object' && Array.isArray((valor as { data?: unknown }).data) ? (valor as { data: T[] }).data : [];
 
 export default function VacacionesPage() {
@@ -36,6 +42,14 @@ export default function VacacionesPage() {
   }
   useEffect(() => { void cargar(); }, []);
   useEffect(() => { if (!form.empleadoId) return setSaldo(null); api.get<Saldo>(`/rrhh/vacaciones/saldo/${form.empleadoId}`).then(setSaldo).catch(() => setSaldo(null)); }, [form.empleadoId]);
+
+  /*
+   * Antes se podia elegir al empleado, poner las fechas, escribir el motivo y
+   * pulsar enviar para enterarse de que todavia no tiene derecho a vacaciones.
+   * El saldo ya trae el veredicto: se dice aqui, con la fecha en que nace el
+   * derecho, y el boton no promete lo que el servidor va a negar.
+   */
+  const sinDerecho = saldo?.tieneDerecho === false ? saldo : null;
 
   const diasNaturales = useMemo(() => Math.max(0, Math.floor((new Date(`${form.fechaFin}T00:00:00`).getTime() - new Date(`${form.fechaInicio}T00:00:00`).getTime()) / 86400000) + 1), [form.fechaInicio, form.fechaFin]);
   const visibles = solicitudes.filter((s) => filtro === 'TODAS' || s.estado === filtro);
@@ -66,11 +80,20 @@ export default function VacacionesPage() {
           <div className="grid grid-cols-2 gap-3"><label className="text-sm">Desde<input type="date" className="entrada mt-1 w-full" value={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })}/></label><label className="text-sm">Hasta<input type="date" className="entrada mt-1 w-full" value={form.fechaFin} min={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaFin: e.target.value })}/></label></div>
           <label className="text-sm">Motivo o referencia<textarea className="entrada mt-1 min-h-20 w-full py-2" maxLength={400} value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })}/></label>
           <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><b>{diasNaturales} días naturales seleccionados.</b><br/>El backend descontará exclusivamente los días laborables del calendario de la empresa.</div>
-          <Boton variante="primario" cargando={procesando === 'nueva'} disabled={!form.empleadoId || form.fechaFin < form.fechaInicio} onClick={() => void solicitar()} className="w-full">Enviar a aprobación</Boton>
+          {sinDerecho && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            <b>Todavía no tiene derecho a vacaciones.</b>
+            <p className="mt-1">
+              Las vacaciones nacen al cumplir el primer año de servicios (LFT art. 76).
+              {sinDerecho.proximoAniversario && <> Este empleado lo cumple el <b>{fecha(sinDerecho.proximoAniversario)}</b>.</>}
+            </p>
+            {sinDerecho.fechaIngreso && <p className="mt-1 text-amber-700">Ingresó el {fecha(sinDerecho.fechaIngreso)}.</p>}
+            <p className="mt-1 text-amber-700">Mientras tanto, un permiso con o sin goce se registra en Incidencias.</p>
+          </div>}
+          <Boton variante="primario" cargando={procesando === 'nueva'} disabled={!form.empleadoId || form.fechaFin < form.fechaInicio || Boolean(sinDerecho)} onClick={() => void solicitar()} className="w-full">Enviar a aprobación</Boton>
         </div>
       </Panel>
       <div className="space-y-5">
-        {saldo && <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6"><Metrica titulo="Devengados" valor={saldo.diasDevengados}/><Metrica titulo="Arrastre" valor={saldo.diasArrastre}/><Metrica titulo="Reservados" valor={saldo.diasReservados}/><Metrica titulo="Disfrutados" valor={saldo.diasDisfrutados}/><Metrica titulo="Cancelados" valor={saldo.diasCancelados}/><Metrica titulo="Disponibles" valor={saldo.disponible} destacado/></div>}
+        {saldo && saldo.tieneDerecho !== false && <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6"><Metrica titulo="Devengados" valor={saldo.diasDevengados}/><Metrica titulo="Arrastre" valor={saldo.diasArrastre}/><Metrica titulo="Reservados" valor={saldo.diasReservados}/><Metrica titulo="Disfrutados" valor={saldo.diasDisfrutados}/><Metrica titulo="Cancelados" valor={saldo.diasCancelados}/><Metrica titulo="Disponibles" valor={saldo.disponible} destacado/></div>}
         <Panel sinRelleno titulo="Solicitudes" accion={<select className="campo w-48" value={filtro} onChange={(e) => setFiltro(e.target.value)}><option value="TODAS">Todos los estados</option><option value="EN_REVISION">En revisión</option><option value="APROBADA">Aprobadas</option><option value="RECHAZADA">Rechazadas</option></select>}>
           {!visibles.length ? <SinDatos icono={<Palmtree className="h-5 w-5"/>} titulo="No hay solicitudes" descripcion="Las solicitudes aparecerán aquí con su estado de aprobación."/> : <div className="overflow-x-auto"><table className="tabla"><thead><tr><th>Empleado</th><th>Periodo</th><th>Días laborables</th><th>Estado</th><th>Motivo</th><th>Acciones</th></tr></thead><tbody>{visibles.map((s) => <tr key={s.id}><td className="font-medium">{nombre(s.empleadoId)}</td><td>{fecha(s.fechaInicio)} – {fecha(s.fechaFin)}</td><td>{Number(s.diasSolicitados)}</td><td><Estado estado={s.estado}/></td><td><span>{s.motivo || '—'}</span>{s.motivoResolucion && <p className="text-xs text-slate-400">Resolución: {s.motivoResolucion}</p>}</td><td>{['CAPTURADA','EN_REVISION'].includes(s.estado) && <div className="flex gap-2"><Boton variante="primario" disabled={procesando === s.id} onClick={() => void resolver(s, true)}>Aprobar nivel</Boton><Boton variante="peligro" disabled={procesando === s.id} onClick={() => void resolver(s, false)}>Rechazar</Boton></div>}</td></tr>)}</tbody></table></div>}
         </Panel>

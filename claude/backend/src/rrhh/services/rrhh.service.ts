@@ -1656,6 +1656,13 @@ export class RrhhService {
   ) {
     const empleado = await this.resolverEmpleado(referenciaEmpleado, empresaId);
     const al = fecha ? this.fechaSql(fecha) : new Date();
+    const derecho = this.evaluarDerechoAVacaciones(empleado, al);
+    // Preguntar no es pedir: si todavía no hay derecho, se contesta desde
+    // cuándo lo habrá en vez de tirarle un 409 a quien sólo quería mirar.
+    if (!derecho.tieneDerecho) {
+      return { ...derecho, disponible: 0, diasDevengados: 0, diasArrastre: 0,
+        diasReservados: 0, diasDisfrutados: 0 };
+    }
     return this.dataSource.transaction(async (manager) => {
       const saldo = await this.obtenerOCrearSaldoVacaciones(
         manager,
@@ -1665,6 +1672,7 @@ export class RrhhService {
       );
       return {
         ...saldo,
+        ...derecho,
         disponible: money(
           Number(saldo.diasDevengados) +
             Number(saldo.diasArrastre) -
@@ -1796,12 +1804,23 @@ export class RrhhService {
     });
   }
 
-  private async obtenerOCrearSaldoVacaciones(
-    manager: EntityManager,
-    empleado: Empleado,
-    al: Date,
-    empresaId: string,
-  ): Promise<SaldoVacaciones> {
+  /**
+   * El derecho a vacaciones como DATO, no como excepción.
+   *
+   * El artículo 76 de la LFT lo hace nacer al cumplirse el primer año de
+   * servicios, así que un empleado recién contratado no tiene saldo. Eso está
+   * bien. Lo que estaba mal es cómo se contaba: tanto la consulta como la
+   * solicitud lanzaban un 409, de modo que la pantalla de vacaciones dejaba
+   * elegir al empleado, poner las fechas, escribir el motivo, pulsar enviar
+   * —y sólo entonces decía que no había derecho, sin decir desde cuándo lo
+   * habrá.
+   *
+   * Es el mismo error que la validación de crédito: la puerta daba su
+   * veredicto tirando una excepción, y quien preguntaba no podía enterarse
+   * antes de empujarla. Aquí el veredicto se devuelve; quien escribe (la
+   * solicitud) sigue negándose, quien sólo pregunta (la consulta) contesta.
+   */
+  private evaluarDerechoAVacaciones(empleado: Empleado, al: Date) {
     const ingreso = this.fechaSql(empleado.fechaIngreso);
     const antiguedad = Math.max(
       0,
@@ -1811,11 +1830,35 @@ export class RrhhService {
           ? 1
           : 0),
     );
-    if (antiguedad < 1) {
-      throw new ConflictException(
-        'El empleado aún no ha cumplido el primer aniversario laboral.',
-      );
+    const proximoAniversario = new Date(
+      ingreso.getFullYear() + antiguedad + 1,
+      ingreso.getMonth(),
+      ingreso.getDate(),
+    );
+    return {
+      antiguedad,
+      tieneDerecho: antiguedad >= 1,
+      fechaIngreso: this.fechaIsoLocal(ingreso),
+      proximoAniversario: this.fechaIsoLocal(proximoAniversario),
+      motivo:
+        antiguedad >= 1
+          ? null
+          : `Las vacaciones nacen al cumplir el primer año de servicios (LFT art. 76). Este empleado lo cumple el ${this.fechaIsoLocal(proximoAniversario)}.`,
+    };
+  }
+
+  private async obtenerOCrearSaldoVacaciones(
+    manager: EntityManager,
+    empleado: Empleado,
+    al: Date,
+    empresaId: string,
+  ): Promise<SaldoVacaciones> {
+    const ingreso = this.fechaSql(empleado.fechaIngreso);
+    const derecho = this.evaluarDerechoAVacaciones(empleado, al);
+    if (!derecho.tieneDerecho) {
+      throw new ConflictException(derecho.motivo!);
     }
+    const antiguedad = derecho.antiguedad;
     const aniversario = antiguedad;
     let saldo = await manager.findOne(SaldoVacaciones, {
       where: { empresaId, empleadoId: empleado.id, aniversario },
