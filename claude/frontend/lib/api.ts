@@ -57,6 +57,40 @@ export class ApiError extends Error {
   }
 }
 
+/* ── Lo que un rol no puede ver no es una avería ──────────────────────────── */
+
+/**
+ * Envuelve una petición que PUEDE estar vedada para el rol de quien mira.
+ *
+ * El patrón apareció tres veces en el mismo módulo y siempre igual: una
+ * pantalla carga varias cosas con `Promise.all`, una de ellas devuelve 403
+ * porque ese rol no debe verla —y eso está bien, es la regla funcionando— y
+ * el rechazo se lleva por delante todo lo demás. La pantalla sale en blanco
+ * con «No tienes permisos suficientes para esta acción», como si nada
+ * sirviera.
+ *
+ * Pasó en la configuración patronal (RRHH no lee el catálogo de cuentas) y
+ * dos veces en el centro de nómina (Gerencia no ve la prenómina; Finanzas no
+ * ve la preparación de la empresa). En los tres casos el rol sí podía hacer
+ * justo aquello a lo que venía, y la pantalla no se lo dejó ver.
+ *
+ * Con esto, un 403 se convierte en un dato —`vedado: true`— que la pantalla
+ * puede contar bien: «esto no es de tu rol» en vez de «algo falló». Cualquier
+ * otro error sigue subiendo, porque un 500 sí es una avería.
+ */
+export async function conPermiso<T>(
+  peticion: Promise<T>,
+): Promise<{ valor: T | null; vedado: boolean }> {
+  try {
+    return { valor: await peticion, vedado: false };
+  } catch (error) {
+    if (error instanceof ApiError && error.esSinPermisos) {
+      return { valor: null, vedado: true };
+    }
+    throw error;
+  }
+}
+
 /* ── Token ───────────────────────────────────────────────────────────────── */
 
 /**

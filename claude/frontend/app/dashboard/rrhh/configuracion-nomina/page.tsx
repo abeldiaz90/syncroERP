@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, conPermiso } from '@/lib/api';
 import { ArrowLeft, ArrowRight, BadgeCheck, Building2, Check, Landmark, ShieldCheck } from 'lucide-react';
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
 import { usePermiso } from '@/hooks/use-permisos';
@@ -92,21 +92,18 @@ export default function ConfiguracionNominaPage() {
    */
   useEffect(() => {
     let vivo = true;
-    const fallo = <T,>(alFallar: () => void) => (error: unknown): T | null => {
-      if (error instanceof ApiError && error.esSinPermisos) alFallar();
-      return null;
-    };
     Promise.all([
-      api.get<Config | null>('/rrhh/nomina-avanzada/configuracion')
-        .catch(fallo<Config>(() => {})),
-      api.get<unknown>('/finanzas/cuentas-contables', { query: { soloAfectables: true } })
-        .catch(fallo<unknown>(() => { if (vivo) setCatalogoNegado(true); })),
-      api.get<Banco[]>('/catalogos/bancos').catch(fallo<Banco[]>(() => {})),
+      conPermiso(api.get<Config | null>('/rrhh/nomina-avanzada/configuracion')),
+      conPermiso(api.get<unknown>('/finanzas/cuentas-contables', { query: { soloAfectables: true } })),
+      conPermiso(api.get<Banco[]>('/catalogos/bancos')),
     ]).then(([config, catalogo, catalogoBancos]) => {
       if (!vivo) return;
-      if (config) setForm({ ...inicial, ...config });
-      setCuentas(lista<Cuenta>(catalogo));
-      setBancos((catalogoBancos ?? []).filter((b) => b.activo !== false));
+      if (config.valor) setForm({ ...inicial, ...config.valor });
+      setCatalogoNegado(catalogo.vedado);
+      setCuentas(lista<Cuenta>(catalogo.valor));
+      setBancos((catalogoBancos.valor ?? []).filter((b) => b.activo !== false));
+    }).catch(() => {
+      if (vivo) setMensaje({ texto: 'No fue posible cargar la configuración.', ok: false });
     }).finally(() => { if (vivo) setCargando(false); });
     return () => { vivo = false; };
   }, []);

@@ -8,7 +8,7 @@ import {
   Check, CheckCircle2, CircleAlert, Clock3, FileCheck2, Landmark,
   RefreshCw, Settings2, ShieldCheck, Sparkles, Users, WalletCards,
 } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import { api, conPermiso } from '@/lib/api';
 import { dinero, fecha } from '@/lib/format';
 
 type Periodo = { id:string; ejercicio:number; numero:number; regimen:string; fechaInicio:string; fechaFin:string; estado:string; totalNeto:number };
@@ -34,8 +34,9 @@ export default function CentroNominaPage() {
   const [periodoId, setPeriodoId] = useState('');
   const [pre, setPre] = useState<Prenomina | null>(null);
   const [aprobaciones, setAprobaciones] = useState<Aprobacion[]>([]);
-  /* Vedada por rol, que no es lo mismo que no haberla podido cargar. */
+  /* Vedadas por rol, que no es lo mismo que no haberlas podido cargar. */
   const [prenominaVedada, setPrenominaVedada] = useState(false);
+  const [preparacionVedada, setPreparacionVedada] = useState(false);
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
   const periodo = useMemo(() => periodos.find((p) => p.id === periodoId), [periodos, periodoId]);
@@ -43,12 +44,19 @@ export default function CentroNominaPage() {
   async function cargarBase() {
     setCargando(true); setError('');
     try {
+      /*
+       * La preparacion de la empresa —puestos, plantilla, conceptos— es de
+       * Recursos humanos. Finanzas y Tesoreria entran aqui solo a firmar, y su
+       * 403 en esa llamada no es una averia: es la regla. Antes iba en el
+       * mismo `Promise.all` y dejaba la pantalla entera en blanco, sin
+       * periodos y sin flujo, para el rol que venia a autorizar la nomina.
+       */
       const [t, p, r] = await Promise.all([
         api.get<Tablero>('/rrhh/nomina-avanzada/tablero'),
         api.get<Periodo[]>('/rrhh/nomina/periodos'),
-        api.get<Preparacion>('/rrhh/preparacion'),
+        conPermiso(api.get<Preparacion>('/rrhh/preparacion')),
       ]);
-      setTablero(t); setPeriodos(Array.isArray(p) ? p : []); setPreparacion(r);
+      setTablero(t); setPeriodos(Array.isArray(p) ? p : []); setPreparacion(r.valor); setPreparacionVedada(r.vedado);
       const solicitado = new URLSearchParams(window.location.search).get('periodoId');
       if (!periodoId && solicitado && p.some((periodo) => periodo.id === solicitado)) setPeriodoId(solicitado);
       else if (!periodoId && p[0]) setPeriodoId(p[0].id);
@@ -77,32 +85,18 @@ export default function CentroNominaPage() {
       setPre(null); setAprobaciones([]); setPrenominaVedada(false); return;
     }
     setCargando(true); setError('');
-    const [detalle, firmas] = await Promise.all([
-      api.get<Prenomina>(`/rrhh/nomina-avanzada/periodos/${id}/prenomina`)
-        .then((x) => ({ ok: true as const, x }))
-        .catch((e: unknown) => ({ ok: false as const, e })),
-      api.get<Aprobacion[]>(`/rrhh/nomina-avanzada/periodos/${id}/aprobaciones`)
-        .then((a) => ({ ok: true as const, a }))
-        .catch((e: unknown) => ({ ok: false as const, e })),
-    ]);
-
-    if (detalle.ok) { setPre(detalle.x); setPrenominaVedada(false); }
-    else {
-      setPre(null);
-      const vedada = detalle.e instanceof ApiError && detalle.e.esSinPermisos;
-      setPrenominaVedada(vedada);
-      if (!vedada) setError(detalle.e instanceof Error ? detalle.e.message : 'No fue posible cargar la prenómina.');
-    }
-
-    if (firmas.ok) setAprobaciones(Array.isArray(firmas.a) ? firmas.a : []);
-    else {
-      setAprobaciones([]);
-      // Un fallo aqui si importa: quien viene a firmar no puede firmar.
-      if (!(firmas.e instanceof ApiError && firmas.e.esSinPermisos)) {
-        setError(firmas.e instanceof Error ? firmas.e.message : 'No fue posible cargar el flujo de firmas.');
-      }
-    }
-    setCargando(false);
+    try {
+      const [detalle, firmas] = await Promise.all([
+        conPermiso(api.get<Prenomina>(`/rrhh/nomina-avanzada/periodos/${id}/prenomina`)),
+        conPermiso(api.get<Aprobacion[]>(`/rrhh/nomina-avanzada/periodos/${id}/aprobaciones`)),
+      ]);
+      setPre(detalle.valor);
+      setPrenominaVedada(detalle.vedado);
+      setAprobaciones(Array.isArray(firmas.valor) ? firmas.valor : []);
+    } catch (e) {
+      setPre(null); setAprobaciones([]); setPrenominaVedada(false);
+      setError(e instanceof Error ? e.message : 'No fue posible cargar el periodo.');
+    } finally { setCargando(false); }
   }
 
   useEffect(() => {
@@ -156,20 +150,28 @@ export default function CentroNominaPage() {
           <KpiOscuro icono={<Users />} etiqueta="Plantilla activa" valor={tablero?.empleados ?? 0} />
           <KpiOscuro icono={<CircleAlert />} etiqueta="Incidencias pendientes" valor={tablero?.incidenciasPendientes ?? 0} alerta={(tablero?.incidenciasPendientes ?? 0) > 0} />
           <KpiOscuro icono={<Banknote />} etiqueta="Saldo de préstamos" valor={dinero(tablero?.saldoPrestamos ?? 0)} />
-          <KpiOscuro icono={<BadgeCheck />} etiqueta="Preparación" valor={`${avance}%`} alerta={avance < 100} />
+          {/* El avance sale de un dato que no todos los roles pueden leer; sin
+              el dato diria 20% y seria mentira, no «no disponible». */}
+          {!preparacionVedada && <KpiOscuro icono={<BadgeCheck />} etiqueta="Preparación" valor={`${avance}%`} alerta={avance < 100} />}
         </div>
       </section>
 
       {error && <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
 
       <div className="grid gap-5 xl:grid-cols-[390px_1fr]">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        {/*
+          * La preparación de la empresa —puestos, plantilla, conceptos— es de
+          * Recursos humanos. A Finanzas y Tesorería, que entran solo a firmar,
+          * no se les enseña: sin el dato el panel diría «0 puestos, 0
+          * empleados» y un avance falso sobre algo que además no es suyo.
+          */}
+        {!preparacionVedada && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between"><div><p className="eyebrow">Antes de calcular</p><h2 className="mt-1 text-base font-bold text-slate-950">Preparación de la empresa</h2></div><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${avance === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{avance}%</span></div>
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${avance === 100 ? 'bg-emerald-500' : 'bg-indigo-600'}`} style={{ width: `${avance}%` }} /></div>
           <div className="mt-5 space-y-2">
             {requisitos.map((r) => <Link key={r.titulo} href={r.href} className="group flex items-center gap-3 rounded-xl border border-slate-100 p-3 transition hover:border-indigo-200 hover:bg-indigo-50/40"><span className={`flex h-8 w-8 items-center justify-center rounded-full ${r.listo ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{r.listo ? <Check className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}</span><span className="min-w-0"><b className="block text-xs text-slate-900">{r.titulo}</b><span className="text-[11px] text-slate-500">{r.detalle}</span></span><ArrowRight className="ml-auto h-4 w-4 text-slate-300 group-hover:text-indigo-500" /></Link>)}
           </div>
-        </section>
+        </section>}
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="eyebrow">Asistente de nómina</p><h2 className="mt-1 text-base font-bold text-slate-950">Periodo en operación</h2></div><label className="min-w-80 text-xs font-semibold text-slate-600">Periodo<select className="campo mt-1" value={periodoId} onChange={(e) => setPeriodoId(e.target.value)}><option value="">Selecciona un periodo</option>{periodos.map((p) => <option key={p.id} value={p.id}>#{p.numero} · {p.regimen} · {fecha(p.fechaInicio)} a {fecha(p.fechaFin)} · {p.estado}</option>)}</select></label></div>
@@ -203,9 +205,9 @@ export default function CentroNominaPage() {
             <MiniTotal etiqueta="Neto a pagar" valor={periodo ? dinero(periodo.totalNeto) : '—'} destacado />
           </div>
           <p className="mt-4 rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-600">
-            Tu rol autoriza la nómina por sus totales. La prenómina trabajador por
-            trabajador —y con ella el sueldo de cada persona— la revisan Recursos
-            humanos y Finanzas, que responden de su exactitud.
+            Tu rol autoriza la nómina por sus totales. La prenómina trabajador
+            por trabajador —y con ella el sueldo de cada persona— la revisa
+            Recursos humanos, que responde de su exactitud.
           </p>
         </section>}
 
