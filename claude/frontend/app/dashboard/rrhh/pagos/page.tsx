@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, conPermiso } from '@/lib/api';
 import { dinero } from '@/lib/format';
+import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
 
 type Periodo = { id:string; numero:number; ejercicio:number; totalNeto:number; estado:string };
-type Cuenta = { id:string; codigo?:string; nombre?:string };
+/* El catalogo devuelve `numeroCuenta`; `codigo` no existe en la respuesta. */
+type Cuenta = { id:string; numeroCuenta?:string; codigo?:string; nombre?:string };
+const claveDe = (c: Cuenta) => c.numeroCuenta ?? c.codigo ?? '';
 type Aplicacion = { metodo:string; monto:number; referencia:string; cuentaFinancieraId:string; moneda:string; tipoCambio:number };
 type Pago = { estado:string; totalPeriodo:number; totalAplicado:number; saldo:number; polizaPagoId?:string; aplicaciones?:Aplicacion[] };
 
@@ -26,9 +29,11 @@ export default function PagosNominaPage() {
   useEffect(() => {
     Promise.all([
       api.get<Periodo[]>('/rrhh/nomina/periodos'),
-      api.get<unknown>('/finanzas/cuentas-contables', { query:{ soloAfectables:true } }),
+      // Tesoreria opera esta pantalla y el catalogo de cuentas es de Finanzas:
+      // su 403 no puede llevarse por delante la lista de periodos.
+      conPermiso(api.get<unknown>('/finanzas/cuentas-contables', { query:{ soloAfectables:true } })),
     ]).then(([ps,cs]) => {
-      setPeriodos(lista<Periodo>(ps)); setCuentas(lista<Cuenta>(cs));
+      setPeriodos(lista<Periodo>(ps)); setCuentas(lista<Cuenta>(cs.valor));
       if (!periodoId && lista<Periodo>(ps)[0]) setPeriodoId(lista<Periodo>(ps)[0].id);
     }).catch((e) => setMensaje({texto:e instanceof Error?e.message:'No se pudieron cargar los catálogos.',ok:false}));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -81,7 +86,23 @@ export default function PagosNominaPage() {
         <label className="text-xs font-medium">Método<select className="entrada mt-1 w-full" value={a.metodo} onChange={(e)=>actualizar(i,{metodo:e.target.value})}><option>TRANSFERENCIA</option><option>EFECTIVO</option><option>CHEQUE</option><option>COMPENSACION</option></select></label>
         <label className="text-xs font-medium">Monto<input className="entrada mt-1 w-full" type="number" min="0.01" step="0.01" value={a.monto} onChange={(e)=>actualizar(i,{monto:Number(e.target.value)})}/></label>
         <label className="text-xs font-medium">Referencia<input className="entrada mt-1 w-full" value={a.referencia} onChange={(e)=>actualizar(i,{referencia:e.target.value})}/></label>
-        <label className="text-xs font-medium">Cuenta financiera<select className="entrada mt-1 w-full" value={a.cuentaFinancieraId} onChange={(e)=>actualizar(i,{cuentaFinancieraId:e.target.value})}><option value="">Seleccionar…</option>{cuentas.map((c)=><option key={c.id} value={c.id}>{c.codigo?`${c.codigo} · `:''}{c.nombre??c.id}</option>)}</select></label>
+        <label className="text-xs font-medium">Cuenta financiera
+          {/*
+            * 930 cuentas del catalogo SAT en un `<select>` nativo, sin el
+            * numero de cuenta porque se pintaba `c.codigo` y el catalogo
+            * devuelve `numeroCuenta`. Los nombres se repiten —«Bancos
+            * nacionales» aparece una vez por agrupador— asi que se elegia a
+            * ciegas la cuenta por la que sale el dinero. Mismo arreglo que en
+            * la configuracion patronal.
+            */}
+          <BuscadorSeleccion
+            className="mt-1"
+            valor={a.cuentaFinancieraId}
+            opciones={cuentas.map((c)=>({ valor:c.id, etiqueta:`${claveDe(c)} · ${c.nombre??c.id}`, busqueda:claveDe(c) }))}
+            onChange={(id)=>actualizar(i,{cuentaFinancieraId:id})}
+            placeholder="Buscar cuenta por número o nombre…"
+          />
+        </label>
         <div className="flex items-end"><button className="btn btn-secundario w-full" disabled={aplicaciones.length===1} onClick={()=>setAplicaciones((x)=>x.filter((_,j)=>j!==i))}>Quitar</button></div>
       </div>)}
       <button className="btn btn-secundario" onClick={()=>setAplicaciones((x)=>[...x,nueva()])}>Agregar forma de pago</button>
