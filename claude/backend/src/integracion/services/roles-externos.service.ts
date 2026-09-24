@@ -343,6 +343,56 @@ export class RolesExternosService {
   }
 
   /**
+   * ==========================================================================
+   * Garantizar roles SUMA; nunca reemplaza
+   * --------------------------------------------------------------------------
+   * El PUT de Fineract reemplaza la lista entera de roles. Eso ya costó una
+   * vez: al «corregir roles» sobre un administrador que operaba bien, el core
+   * se quedó contestando «User has no authority to READ roles» —la corrección
+   * le quitó la autoridad que tenía—. La lección se escribió en
+   * `aprovisionar`, y su hermana `aprovisionarCuentaServicio` siguió mandando
+   * el PUT crudo dos años: la misma decision escrita dos veces, y solo una
+   * copia aprendio.
+   *
+   * Importa mas alla de aquel susto. Hay instalaciones donde Fineract es el
+   * sistema de registro y su administrador reparte alli la autoridad: un
+   * boton del ERP que reemplaza la lista se lleva por delante lo que
+   * concedieron en un sistema que no es suyo, y sin dejar constancia.
+   *
+   * El ERP no sabe, ni puede saber, que autoridad bancaria necesita alguien
+   * dentro del core. Solo garantiza que esten los roles que su mapa promete.
+   * Quitar uno es una decision de quien administra el core, y se hace alla, a
+   * proposito y a la vista.
+   * ==========================================================================
+   */
+  private async garantizarRoles(
+    idExterno: string,
+    aQuienBuscar: string,
+    deseados: string[],
+    actualesCrudos: { id: string | number }[],
+  ): Promise<{ agregados: string[] }> {
+    const actuales = actualesCrudos.map((r) => String(r.id));
+    const union = Array.from(new Set([...actuales, ...deseados.map(String)]));
+    const faltantes = union.filter((r) => !actuales.includes(r));
+    if (faltantes.length === 0) return { agregados: [] };
+
+    await this.externos.asignarRoles(idExterno, union);
+
+    // Comprobar que quedó como se pidió. Un PUT que responde 200 y deja al
+    // usuario sin roles es exactamente lo que pasó una vez.
+    const despues = await this.externos.buscarUsuario(aQuienBuscar);
+    const quedaron = (despues?.roles ?? []).map((r) => String(r.id));
+    const perdidos = actuales.filter((r) => !quedaron.includes(r));
+    if (perdidos.length > 0) {
+      this.logger.error(
+        `El registro externo se quedó sin los roles ${perdidos.join(', ')} ` +
+          `de ${aQuienBuscar} después de corregirlos. Revísalo allá.`,
+      );
+    }
+    return { agregados: faltantes };
+  }
+
+  /**
    * Da de alta en el registro externo la CUENTA DE SERVICIO del propio ERP.
    *
    * Resuelve un círculo vicioso: Fineract corre con `AUTO_CREATE_USER=false`,
@@ -379,11 +429,24 @@ export class RolesExternosService {
 
     const existente = await this.externos.buscarUsuario(usuario);
     if (existente) {
-      await this.externos.asignarRoles(existente.id, rolesExternos);
+      /*
+       * Aquí iba el PUT crudo, que reemplaza. La cuenta de servicio es del
+       * ERP, sí, pero el usuario que la representa vive en el core y allá
+       * puede tener autoridad que alguien le concedió a propósito: en una
+       * instalación donde Fineract es el sistema de registro, ese alguien no
+       * es el ERP. Se garantiza lo del mapa y se respeta lo demás.
+       */
+      const { agregados } = await this.garantizarRoles(
+        existente.id,
+        usuario,
+        rolesExternos,
+        existente.roles ?? [],
+      );
       return {
-        accion: 'ROLES_ACTUALIZADOS',
+        accion: agregados.length > 0 ? 'ROLES_ACTUALIZADOS' : 'YA_ESTABA',
         usuario,
         idExterno: existente.id,
+        rolesAgregados: agregados,
       };
     }
 
@@ -500,27 +563,12 @@ export class RolesExternosService {
        * rol en el core es una decisión de quien administra el core, y se hace
        * allá, a propósito y a la vista.
        */
-      const actuales = existente.roles.map((r) => String(r.id));
-      const union = Array.from(
-        new Set([...actuales, ...mapeo.rolesExternos.map(String)]),
+      const { agregados: faltantes } = await this.garantizarRoles(
+        existente.id,
+        usuario.email,
+        mapeo.rolesExternos,
+        existente.roles ?? [],
       );
-      const faltantes = union.filter((r) => !actuales.includes(r));
-
-      if (faltantes.length > 0) {
-        await this.externos.asignarRoles(existente.id, union);
-
-        // Comprobar que quedó como se pidió. Un PUT que responde 200 y deja al
-        // usuario sin roles es exactamente lo que pasó una vez.
-        const despues = await this.externos.buscarUsuario(usuario.email);
-        const quedaron = (despues?.roles ?? []).map((r) => String(r.id));
-        const perdidos = actuales.filter((r) => !quedaron.includes(r));
-        if (perdidos.length > 0) {
-          this.logger.error(
-            `El registro externo se quedó sin los roles ${perdidos.join(', ')} ` +
-              `de ${usuario.email} después de corregirlos. Revísalo allá.`,
-          );
-        }
-      }
 
       await this.vinculos.vincular({
         empresaId,
