@@ -572,8 +572,8 @@ export class CityLedgerService {
 
     const exposiciones = await this.dataSource.query(
       `SELECT base.clienteId,
-              COALESCE(hotel.saldo,0) saldoHotel,
-              COALESCE(venta.saldo,0) saldoVentas
+              COALESCE(hotel.saldo,0) AS "saldoHotel",
+              COALESCE(venta.saldo,0) AS "saldoVentas"
          FROM (SELECT DISTINCT clienteId FROM hoteleria_convenios_credito WHERE empresaId=$1) base
          LEFT JOIN (
            SELECT clienteId, SUM(saldoPendiente) saldo
@@ -1113,13 +1113,13 @@ export class CityLedgerService {
            )
            SELECT proceso,
                   COUNT(*) niveles,
-                  SUM(CASE WHEN departamentoId IS NOT NULL THEN 1 ELSE 0 END) conDepartamento,
-                  SUM(CASE WHEN obligatorio=false OR permiteAutoaprobacion=true THEN 1 ELSE 0 END) controlesInvalidos,
+                  SUM(CASE WHEN departamentoId IS NOT NULL THEN 1 ELSE 0 END) AS "conDepartamento",
+                  SUM(CASE WHEN obligatorio=false OR permiteAutoaprobacion=true THEN 1 ELSE 0 END) AS "controlesInvalidos",
                   SUM(CASE WHEN (usuarioId IS NULL AND rolAprobador IS NULL) OR
                                      (usuarioId IS NOT NULL AND rolAprobador IS NOT NULL)
-                           THEN 1 ELSE 0 END) responsablesInvalidos,
-                  SUM(CASE WHEN orden=ultimoOrden AND montoHasta IS NOT NULL THEN 1 ELSE 0 END) ultimoConTope,
-                  SUM(CASE WHEN orden<ultimoOrden AND montoHasta IS NULL THEN 1 ELSE 0 END) intermediosSinTope
+                           THEN 1 ELSE 0 END) AS "responsablesInvalidos",
+                  SUM(CASE WHEN orden=ultimoOrden AND montoHasta IS NOT NULL THEN 1 ELSE 0 END) AS "ultimoConTope",
+                  SUM(CASE WHEN orden<ultimoOrden AND montoHasta IS NULL THEN 1 ELSE 0 END) AS "intermediosSinTope"
              FROM niveles
             GROUP BY proceso`,
           [empresaId],
@@ -1204,19 +1204,19 @@ export class CityLedgerService {
       Number(esquema.cuentaVersionCreditoAplicada)
         ? await this.dataSource.query(
             `SELECT
-               SUM(CASE WHEN h.vigenciaHasta IS NOT NULL AND h.vigenciaHasta<h.vigenciaDesde THEN 1 ELSE 0 END) vigenciasInvalidas,
-               SUM(CASE WHEN ABS(COALESCE(h.tolerancia,0))>0.009 THEN 1 ELSE 0 END) toleranciasNoCero,
-               SUM(CASE WHEN h.estado='APROBADO' AND h.vigenciaHasta IS NOT NULL AND h.vigenciaHasta<$2 THEN 1 ELSE 0 END) aprobadosVencidos,
-               SUM(CASE WHEN h.estado IN ('PENDIENTE','APROBADO') AND (hotel.id IS NULL OR hotel.activo=false) THEN 1 ELSE 0 END) conveniosSinHotelActivo,
-               SUM(CASE WHEN h.estado='CANCELADO' AND h.activo<>false THEN 1 ELSE 0 END) canceladosActivos,
-               SUM(CASE WHEN h.estado IN ('PENDIENTE','APROBADO','SUSPENDIDO','VENCIDO') AND h.activo=false THEN 1 ELSE 0 END) vigentesInactivos,
+               SUM(CASE WHEN h.vigenciaHasta IS NOT NULL AND h.vigenciaHasta<h.vigenciaDesde THEN 1 ELSE 0 END) AS "vigenciasInvalidas",
+               SUM(CASE WHEN ABS(COALESCE(h.tolerancia,0))>0.009 THEN 1 ELSE 0 END) AS "toleranciasNoCero",
+               SUM(CASE WHEN h.estado='APROBADO' AND h.vigenciaHasta IS NOT NULL AND h.vigenciaHasta<$2 THEN 1 ELSE 0 END) AS "aprobadosVencidos",
+               SUM(CASE WHEN h.estado IN ('PENDIENTE','APROBADO') AND (hotel.id IS NULL OR hotel.activo=false) THEN 1 ELSE 0 END) AS "conveniosSinHotelActivo",
+               SUM(CASE WHEN h.estado='CANCELADO' AND h.activo<>false THEN 1 ELSE 0 END) AS "canceladosActivos",
+               SUM(CASE WHEN h.estado IN ('PENDIENTE','APROBADO','SUSPENDIDO','VENCIDO') AND h.activo=false THEN 1 ELSE 0 END) AS "vigentesInactivos",
                SUM(CASE WHEN h.estado='CANCELADO' AND EXISTS (
                      SELECT 1 FROM aprobaciones_documentos a
                       WHERE a.empresaId=h.empresaId
                         AND a.proceso='HOTEL_CONVENIO'
                         AND a.documentoId=h.id
                         AND a.estado='PENDIENTE'
-                   ) THEN 1 ELSE 0 END) canceladosConAprobacionPendiente,
+                   ) THEN 1 ELSE 0 END) AS "canceladosConAprobacionPendiente",
                (SELECT COUNT(*)
                   FROM clientes c
                  WHERE c.empresaId=$1
@@ -1226,7 +1226,7 @@ export class CityLedgerService {
                      COALESCE(c.limiteCreditoSolicitado,0)<=0 OR
                      COALESCE(c.diasCreditoSolicitados,0)<=0 OR
                      COALESCE(c.versionSolicitudCredito,0)<=0
-                   )) solicitudesCreditoInvalidas,
+                   )) AS "solicitudesCreditoInvalidas",
                (SELECT COUNT(*)
                   FROM aprobaciones_documentos a
                   INNER JOIN clientes c
@@ -1237,7 +1237,7 @@ export class CityLedgerService {
                    AND (
                      c.estadoSolicitudCredito<>'PENDIENTE' OR
                      a.documentoVersion<>c.versionSolicitudCredito
-                   )) aprobacionesCreditoDesfasadas,
+                   )) AS "aprobacionesCreditoDesfasadas",
                (SELECT COUNT(*)
                   FROM hoteleria_convenios_credito hc
                   INNER JOIN clientes c
@@ -1250,13 +1250,13 @@ export class CityLedgerService {
                      (hc.estado='PENDIENTE' AND c.estadoSolicitudCredito='PENDIENTE') OR
                      hc.versionCreditoCliente<>c.versionCredito OR
                      hc.tipo<>c.clasificacionHotelera
-                   )) conveniosCreditoDesfasado,
+                   )) AS "conveniosCreditoDesfasado",
                (SELECT COUNT(*)
                   FROM aprobaciones_documentos a
                  WHERE a.empresaId=$1
                    AND a.proceso IN ('CREDITO_CLIENTE','HOTEL_CONVENIO')
                    AND a.estado='PENDIENTE'
-                   AND a.usuarioAprobadorId IS NULL) nivelesPendientesSinPersona,
+                   AND a.usuarioAprobadorId IS NULL) AS "nivelesPendientesSinPersona",
                (SELECT COUNT(*)
                   FROM hoteleria_city_ledger_cuentas cc
                  WHERE cc.empresaId=$1
@@ -1267,7 +1267,7 @@ export class CityLedgerService {
                      cc.limiteCreditoAplicado IS NULL OR cc.limiteCreditoAplicado<0 OR
                      cc.diasCreditoAplicados IS NULL OR cc.diasCreditoAplicados<=0 OR
                      cc.versionCreditoClienteAplicada IS NULL OR cc.versionCreditoClienteAplicada<=0
-                   )) cuentasSinEvidenciaHistorica,
+                   )) AS "cuentasSinEvidenciaHistorica",
                (SELECT COUNT(*) FROM (
                   SELECT fechaVencimiento,
                          ROW_NUMBER() OVER(
@@ -1280,7 +1280,7 @@ export class CityLedgerService {
                      AND estado='PENDIENTE'
                 ) sla
                 WHERE (sla.posicion=1 AND sla.fechaVencimiento IS NULL)
-                   OR (sla.posicion>1 AND sla.fechaVencimiento IS NOT NULL)) slaNoSecuencial
+                   OR (sla.posicion>1 AND sla.fechaVencimiento IS NOT NULL)) AS "slaNoSecuencial"
               FROM hoteleria_convenios_credito h
               LEFT JOIN hoteles hotel
                 ON hotel.id=h.hotelId AND hotel.empresaId=h.empresaId

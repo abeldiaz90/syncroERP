@@ -254,7 +254,7 @@ export class ConciliacionFinancieraService {
           SUM(CASE
             WHEN l.stockRestante > 0 AND l.costoUnitario = 0 THEN 1
             ELSE 0
-          END) lotesCostoCero
+          END) AS "lotesCostoCero"
         FROM lotes_inventario l
         LEFT JOIN productos p
           ON p.id = l.productoId AND p.empresaId = l.empresaId

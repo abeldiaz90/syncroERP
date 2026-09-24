@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -97,6 +98,8 @@ const MESES = [
 
 @Injectable()
 export class CierreContableService {
+  private readonly logger = new Logger(CierreContableService.name);
+
   constructor(
     @InjectRepository(CierreContable)
     private readonly cierreRepo: Repository<CierreContable>,
@@ -107,6 +110,43 @@ export class CierreContableService {
     private readonly dataSource: DataSource,
     private readonly activacionService: ActivacionFinancieraService,
   ) {}
+
+  /**
+   * ========================================================================
+   * Un dato que no se pudo leer no vale cero
+   * ------------------------------------------------------------------------
+   * `Number(fila?.x ?? 0)` parecia defensivo y era lo contrario: cuando la
+   * columna no existe —porque Postgres devolvio el alias en minusculas—
+   * `fila.x` es `undefined`, el `?? 0` lo convierte en 0, y ese cero viaja
+   * como si fuera un dato medido.
+   *
+   * Lo que costo, medido el 2026-09-24: el diagnostico del cierre de
+   * septiembre informaba «totalPolizas: 0, totalDebe: 0, cuadrada: true»
+   * sobre un mes con la nomina ya contabilizada, y `cuentasActivas` salia
+   * siempre 0, con lo que el control de cobertura bancaria
+   * —`cuentasActivas === 0 || ...`— era SIEMPRE cierto y no podia fallar.
+   *
+   * Asi que se distingue: si la columna falta, se dice en el log y se
+   * devuelve 0 igual —el cierre no puede caerse por esto— pero queda
+   * constancia de que ese cero no se midio. Un cero inventado en un control
+   * contable es peor que un error: el error se corrige, el cero se cree.
+   * ========================================================================
+   */
+  private contarColumna(fila: unknown, columna: string): number {
+    const registro = (fila ?? {}) as Record<string, unknown>;
+    const crudo = registro[columna];
+    if (crudo === undefined) {
+      this.logger.error(
+        `La consulta del cierre no devolvio la columna "${columna}". ` +
+          'Se asume 0, pero ese 0 NO se midio: revisa el alias del SELECT ' +
+          '(Postgres devuelve en minusculas todo alias sin comillas).',
+      );
+      return 0;
+    }
+    if (crudo === null) return 0;
+    const numero = Number(crudo);
+    return Number.isFinite(numero) ? numero : 0;
+  }
 
   private redondear(valor: unknown) {
     return Math.round(Number(valor ?? 0) * 100) / 100;
@@ -197,14 +237,12 @@ export class CierreContableService {
               GROUP BY p.id
             )
             SELECT
-              COUNT(*) totalPolizas,
-              COALESCE(SUM(partidas), 0) totalPartidas,
-              COALESCE(SUM(debe), 0) totalDebe,
-              COALESCE(SUM(haber), 0) totalHaber,
-              COALESCE(SUM(CASE WHEN partidas = 0 THEN 1 ELSE 0 END), 0)
-                polizasSinPartidas,
-              COALESCE(SUM(CASE WHEN ABS(debe - haber) >= 0.01 THEN 1 ELSE 0 END), 0)
-                polizasDescuadradas
+              COUNT(*) AS "totalPolizas",
+              COALESCE(SUM(partidas), 0) AS "totalPartidas",
+              COALESCE(SUM(debe), 0) AS "totalDebe",
+              COALESCE(SUM(haber), 0) AS "totalHaber",
+              COALESCE(SUM(CASE WHEN partidas = 0 THEN 1 ELSE 0 END), 0) AS "polizasSinPartidas",
+              COALESCE(SUM(CASE WHEN ABS(debe - haber) >= 0.01 THEN 1 ELSE 0 END), 0) AS "polizasDescuadradas"
             FROM totales
           `,
         [empresaId, anio, mes],
@@ -240,11 +278,11 @@ export class CierreContableService {
               COALESCE(SUM(CASE
                 WHEN c.rolSistema = 'IVA_TRASLADADO_NO_COBRADO'
                 THEN CAST(pp.abono AS decimal(18,4)) - CAST(pp.cargo AS decimal(18,4))
-                ELSE 0 END), 0) trasladadoNoCobrado,
+                ELSE 0 END), 0) AS "trasladadoNoCobrado",
               COALESCE(SUM(CASE
                 WHEN c.rolSistema = 'IVA_ACREDITABLE_PENDIENTE'
                 THEN CAST(pp.cargo AS decimal(18,4)) - CAST(pp.abono AS decimal(18,4))
-                ELSE 0 END), 0) acreditablePendiente,
+                ELSE 0 END), 0) AS "acreditablePendiente",
               COALESCE(SUM(CASE WHEN c.rolSistema IN
                 ('IVA_TRASLADADO_COBRADO', 'IVA_ACREDITABLE_PAGADO',
                  'IVA_TRASLADADO_NO_COBRADO', 'IVA_ACREDITABLE_PENDIENTE')
@@ -259,7 +297,7 @@ export class CierreContableService {
       ),
       consultar(
         `
-            SELECT COUNT(*) cuentasActivas
+            SELECT COUNT(*) AS "cuentasActivas"
             FROM cuentas_bancarias
             WHERE empresaId = $1 AND activo=true AND tipo <> 'CAJA'
           `,
@@ -267,7 +305,7 @@ export class CierreContableService {
       ).catch(() => [{ cuentasActivas: 0 }]),
       consultar(
         `
-            SELECT COUNT(*) estadosCerrados
+            SELECT COUNT(*) AS "estadosCerrados"
             FROM tesoreria_estados_cuenta
             WHERE empresaId = $1 AND ejercicio = $2 AND mes = $3
               AND estado = 'CERRADA'
@@ -342,11 +380,13 @@ export class CierreContableService {
       ivaFilas?.[0]?.acreditablePendiente,
     );
     const ivaDiferencia = this.redondear(ivaTrasladado - ivaAcreditable);
-    const cuentasActivas = Number(
-      cuentasBancariasFilas?.[0]?.cuentasActivas ?? 0,
+    const cuentasActivas = this.contarColumna(
+      cuentasBancariasFilas?.[0],
+      'cuentasActivas',
     );
-    const estadosCerrados = Number(
-      estadosBancariosFilas?.[0]?.estadosCerrados ?? 0,
+    const estadosCerrados = this.contarColumna(
+      estadosBancariosFilas?.[0],
+      'estadosCerrados',
     );
     const coberturaCompleta =
       cuentasActivas === 0 || estadosCerrados >= cuentasActivas;
@@ -855,7 +895,7 @@ export class CierreContableService {
       this.cierreRepo.find({ where: { empresaId } }),
       this.dataSource.query(
         `
-          SELECT anio, mes, COUNT(*) totalPolizas
+          SELECT anio, mes, COUNT(*) AS "totalPolizas"
           FROM polizas
           WHERE empresaId = $1 AND anio IN ($2, $3)
           GROUP BY anio, mes

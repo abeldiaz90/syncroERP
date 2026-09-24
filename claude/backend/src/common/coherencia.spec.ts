@@ -637,6 +637,84 @@ describe('Coherencia · controles contables', () => {
   });
 });
 
+describe('Coherencia · los alias de SQL vuelven como se escribieron', () => {
+  /*
+   * ==========================================================================
+   * Postgres devuelve en MINUSCULAS todo alias que no vaya entrecomillado
+   * --------------------------------------------------------------------------
+   * `SELECT COUNT(*) totalPolizas` vuelve como `totalpolizas`. Leer
+   * `fila.totalPolizas` da `undefined`, y de ahi salen dos silencios:
+   *
+   *   Number(undefined)            -> NaN, que `?? 0` NO atrapa: NaN no es
+   *                                   null ni undefined, y viaja hasta el JSON
+   *                                   como `null`.
+   *   Number(fila?.x ?? 0)         -> 0, que es peor: parece un dato.
+   *
+   * Lo que costo, medido en vivo el 2026-09-24 sobre el cierre mensual:
+   *
+   *  · El tablero mostraba el conteo de polizas SOLO en los meses que tenian
+   *    cero. Los dos meses con movimientos salian en blanco.
+   *  · El diagnostico de septiembre —un mes con la nomina ya contabilizada—
+   *    informaba «totalPolizas: 0, totalDebe: 0, totalHaber: 0, cuadrada:
+   *    true». Un control contable declarando que todo cuadra porque no leyo
+   *    nada.
+   *  · `cuentasActivas` salia 0 siempre, y con eso
+   *    `coberturaCompleta = cuentasActivas === 0 || ...` era SIEMPRE cierta:
+   *    el control de cobertura bancaria del cierre no podia fallar nunca.
+   *
+   * La regla es simple y no admite excepcion util: un alias con mayusculas va
+   * entre comillas dobles, o se escribe en minusculas y se lee asi.
+   * ==========================================================================
+   */
+  /*
+   * La primera version de esta prueba buscaba `COUNT(...) alias` con
+   * `\([^)]*\)`, y eso se detiene en el primer parentesis: `COALESCE(SUM(x),
+   * 0) totalDebe` no lo casaba, ni un alias escrito en la linea siguiente.
+   * Dio VERDE con dieciocho alias rotos, entre ellos los que dejaban el debe
+   * y el haber del cierre en cero. Una prueba que tranquiliza sin mirar es el
+   * mismo defecto que persigue.
+   *
+   * Ahora se ancla al PARENTESIS DE CIERRE, que es lo que de verdad precede a
+   * un alias, y se mira solo dentro de plantillas con SELECT.
+   *
+   * Y se acota a los alias que se LEEN desde JavaScript: un alias que solo
+   * vive dentro del SQL —`WHERE orden = ultimoOrden`— no molesta a nadie, y
+   * entrecomillarlo romperia la consulta, porque las referencias que lo usan
+   * despues sin comillas dejarian de encontrarlo.
+   */
+  it('ningun alias que se lea desde JS viaja sin comillas', () => {
+    const sospechosos: string[] = [];
+    const alias = /\)\s*(?:AS\s+)?([a-z]+[A-Z][A-Za-z0-9]*)\s*(?=[,\n)])/g;
+    const plantillaSql = /`[^`]*SELECT[^`]*`/gs;
+
+    for (const { ruta, texto } of CODIGO) {
+      const sql = (texto.match(plantillaSql) ?? []).join('\n');
+      if (!sql) continue;
+      const fueraDelSql = texto.split('`').filter((_, i) => i % 2 === 0).join(' ');
+      for (const nombre of new Set([...sql.matchAll(alias)].map((m) => m[1]))) {
+        const seLee =
+          new RegExp(`[.?]\\s*${nombre}\\b`).test(fueraDelSql) ||
+          fueraDelSql.includes(`'${nombre}'`);
+        if (seLee) sospechosos.push(`${ruta}: ${nombre}`);
+      }
+    }
+
+    expect(sospechosos.sort()).toEqual([]);
+  });
+
+  /*
+   * Y el mecanismo que convirtio el error en silencio. `?? 0` parece que
+   * cubre el caso, y no cubre el que importa: cuando la columna no existe, lo
+   * que llega no es null sino `undefined` dentro de un `Number(...)`, y el
+   * resultado es NaN o un cero inventado. El diagnostico del cierre lee sus
+   * numeros con un ayudante que distingue «vale cero» de «no lo lei».
+   */
+  it('el diagnostico del cierre no confunde un cero con un dato ausente', () => {
+    const servicio = leer(join(SRC, 'finanzas/services/cierre-contable.service.ts'));
+    expect(servicio).toContain('contarColumna');
+  });
+});
+
 describe('Coherencia · identificadores de SQL Server', () => {
   /*
    * Hallazgo en producción: dar de alta una cuenta bancaria devolvía
