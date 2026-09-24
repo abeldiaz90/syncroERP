@@ -22,6 +22,7 @@ import { esRolAdministrador, normalizarRol } from '../../iam/utils/roles.util';
 import { Cliente } from '../../clientes/entities/cliente.entity';
 import {
   EstadoEventoIntegracion,
+  EVENTOS_DE_CARTERA,
   EVENTOS_DE_CONTABILIDAD,
   ModoCartera,
   ModoContabilidad,
@@ -38,6 +39,7 @@ import { EvaluarCreditoDto } from '../dto/evaluar-credito.dto';
 import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integracion-empresa.entity';
 import { AccesoExternoService } from '../services/acceso-externo.service';
 import { CarteraConciliacionService } from '../services/cartera-conciliacion.service';
+import { ContabilidadConciliacionService } from '../services/contabilidad-conciliacion.service';
 import { MapeoCuentasService } from '../services/mapeo-cuentas.service';
 import { RolesExternosService } from '../services/roles-externos.service';
 import { PuertoContabilidadExterna } from '../ports/contabilidad-externa.port';
@@ -72,6 +74,7 @@ export class IntegracionController {
     private readonly sincronizacionInicial_: SincronizacionInicialService,
     private readonly despachador: IntegracionDespachadorService,
     private readonly conciliacion: CarteraConciliacionService,
+    private readonly contabilidadConciliacion: ContabilidadConciliacionService,
     private readonly mapeo: MapeoCuentasService,
     private readonly roles: RolesExternosService,
     private readonly acceso: AccesoExternoService,
@@ -128,18 +131,14 @@ export class IntegracionController {
         {
           discrepanciasAbiertas: async (id) =>
             (await this.conciliacion.abiertas(id)).length,
-          eventosSinResolver: async (id) => {
-            /*
-             * Sin entregar es PENDIENTE, REINTENTABLE y FALLIDO. ENVIADO ya
-             * llegó y DESCARTADO alguien lo cerró a mano: ésos no estorban.
-             */
-            const resumen = await this.outbox.resumen(id);
-            return (
-              (resumen[EstadoEventoIntegracion.PENDIENTE] ?? 0) +
-              (resumen[EstadoEventoIntegracion.REINTENTABLE] ?? 0) +
-              (resumen[EstadoEventoIntegracion.FALLIDO] ?? 0)
-            );
-          },
+          /*
+           * Sólo los eventos de LA CARTERA. Contarlos todos hacía que apagarla
+           * se negara por unos asientos de nómina que su propio eje iba a
+           * seguir despachando, y el mensaje señalaba a quien no podía
+           * resolverlos.
+           */
+          eventosSinResolver: (id) =>
+            this.outbox.contarSinEntregar(id, EVENTOS_DE_CARTERA),
         },
       );
       if (!resultado.aplicado) {
@@ -153,9 +152,24 @@ export class IntegracionController {
       (await this.configEmpresa.findOne({ where: { empresaId } })) ??
       this.configEmpresa.create({ empresaId, parametrosProveedor: {} });
 
-    // El modo ya lo aplicó el servicio, con su regla. Aquí no se reasigna.
+    // Los dos modos los aplica el servicio, cada uno con su regla.
     if (dto.modoContabilidad !== undefined) {
-      fila.modoContabilidad = dto.modoContabilidad;
+      const resultado = await this.modos.establecerModoContabilidad(
+        empresaId,
+        dto.modoContabilidad,
+        {
+          discrepanciasAbiertas: async (id) =>
+            (await this.contabilidadConciliacion.conciliarEmpresa(id))
+              .discrepancias,
+          eventosSinResolver: (id) =>
+            this.outbox.contarSinEntregar(id, EVENTOS_DE_CONTABILIDAD),
+        },
+      );
+      if (!resultado.aplicado) {
+        throw new ConflictException(
+          `No se puede cambiar a ${dto.modoContabilidad}: ${resultado.motivo}`,
+        );
+      }
     }
     if (dto.oficinaContableExterna !== undefined) {
       fila.oficinaContableExterna = dto.oficinaContableExterna;

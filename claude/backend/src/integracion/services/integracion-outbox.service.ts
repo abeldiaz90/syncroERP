@@ -207,6 +207,31 @@ export class IntegracionOutboxService {
     });
   }
 
+  /**
+   * Eventos que todavía no llegaron: pendientes, reintentables y fallidos.
+   *
+   * `tipos` acota al eje que pregunta. Sin acotar, apagar la cartera se negaba
+   * por dos pólizas de nómina —que no son suyas y que su eje sí iba a seguir
+   * despachando—, y el mensaje señalaba a eventos que el responsable de la
+   * cartera no puede resolver.
+   */
+  async contarSinEntregar(
+    empresaId: string,
+    tipos?: readonly TipoEventoIntegracion[],
+  ): Promise<number> {
+    return this.repo.count({
+      where: {
+        empresaId,
+        estado: In([
+          EstadoEventoIntegracion.PENDIENTE,
+          EstadoEventoIntegracion.REINTENTABLE,
+          EstadoEventoIntegracion.FALLIDO,
+        ]),
+        ...(tipos?.length ? { tipo: In([...tipos]) } : {}),
+      },
+    });
+  }
+
   /** Atajo legible: el alcance contable, ya nombrado. */
   static get alcanceContable(): readonly TipoEventoIntegracion[] {
     return EVENTOS_DE_CONTABILIDAD;

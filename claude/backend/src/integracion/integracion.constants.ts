@@ -116,6 +116,18 @@ export const EVENTOS_DE_CONTABILIDAD: readonly TipoEventoIntegracion[] = [
 ];
 
 /**
+ * Lo que NO es del espejo contable: la cartera.
+ *
+ * Se deriva en vez de escribirse a mano para que un tipo nuevo caiga
+ * necesariamente en uno de los dos lados. Una lista paralela escrita a mano es
+ * una lista que un día deja fuera un evento, y lo que se pierde no hace ruido.
+ */
+export const EVENTOS_DE_CARTERA: readonly TipoEventoIntegracion[] =
+  Object.values(TipoEventoIntegracion).filter(
+    (tipo) => !EVENTOS_DE_CONTABILIDAD.includes(tipo),
+  );
+
+/**
  * Quién trabaja el espejo contable.
  *
  * La pantalla `/dashboard/finanzas/espejo-contable` es una sola tarea: ver qué

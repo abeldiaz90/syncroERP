@@ -244,6 +244,73 @@ export class IntegracionModoService {
     return { aplicado: true };
   }
 
+  /**
+   * ==========================================================================
+   * Apagar el espejo contable tiene el mismo peligro, y no tenía la regla
+   * --------------------------------------------------------------------------
+   * `establecerModoCartera` razona con cuidado por qué apagar es la dirección
+   * peligrosa: los eventos sin entregar quedan huérfanos —el despachador
+   * ignora los ejes apagados y no avisa— y las discrepancias abiertas se
+   * vuelven irreconciliables, porque ya no hay contra qué compararlas. En los
+   * dos casos el daño es silencioso.
+   *
+   * Todo eso vale igual para la contabilidad, y este eje no comprobaba nada.
+   * Se midió en vivo: con dos pólizas de nómina sin entregar y tres
+   * diferencias abiertas entre los dos mayores, apagar la cartera se negó
+   * —nombrando esas dos pólizas, que ni siquiera son suyas— y apagar el espejo
+   * contable devolvió 200 sin un solo aviso. El eje dueño de esos eventos era
+   * el único que los dejaba tirados.
+   *
+   * De paso cada eje mira SÓLO lo suyo. El outbox es uno y lleva dentro cosas
+   * de dos dueños: negarle a la cartera un cambio por unos asientos que su
+   * propio eje va a seguir despachando es señalar a quien no puede resolverlo.
+   * ==========================================================================
+   */
+  async establecerModoContabilidad(
+    empresaId: string,
+    modo: ModoContabilidad,
+    sondas: {
+      discrepanciasAbiertas: (empresaId: string) => Promise<number>;
+      eventosSinResolver: (empresaId: string) => Promise<number>;
+    },
+  ): Promise<{ aplicado: boolean; motivo?: string }> {
+    const fila =
+      (await this.repo.findOne({ where: { empresaId } })) ??
+      this.repo.create({ empresaId, parametrosProveedor: {} });
+    const anterior = fila.modoContabilidad ?? ModoContabilidad.APAGADO;
+
+    if (modo === ModoContabilidad.APAGADO && anterior !== ModoContabilidad.APAGADO) {
+      const enVuelo = await sondas.eventosSinResolver(empresaId);
+      if (enVuelo > 0) {
+        return {
+          aplicado: false,
+          motivo: `Hay ${enVuelo} asiento(s) sin llegar al mayor externo. Apagar ahora los deja sin despachar para siempre: resuélvelos o descártalos desde el espejo contable primero.`,
+        };
+      }
+      const abiertas = await sondas.discrepanciasAbiertas(empresaId);
+      if (abiertas > 0) {
+        return {
+          aplicado: false,
+          motivo: `Hay ${abiertas} diferencia(s) entre las dos contabilidades sin resolver. Al apagar ya no habrá contra qué compararlas.`,
+        };
+      }
+    }
+
+    fila.modoContabilidad = modo;
+    await this.repo.save(fila);
+    this.cache.delete(empresaId);
+
+    if (anterior !== modo) {
+      const quien = ContextoPeticionAlmacen.actual();
+      this.logger.warn(
+        `Modo de contabilidad de la empresa ${empresaId}: ${anterior} → ${modo}, ` +
+          `por ${quien?.email ?? quien?.usuarioId ?? 'un proceso sin sesión'}.`,
+      );
+    }
+
+    return { aplicado: true };
+  }
+
   async empresasActivas(): Promise<ConfiguracionIntegracionEmpresa[]> {
     const filas = await this.repo.find();
     return filas.filter(
