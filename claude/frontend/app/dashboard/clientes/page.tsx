@@ -812,7 +812,9 @@ export default function ClientesPage() {
 
                             {/* Verificaciones e historia */}
                             <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                                <ExpedienteCliente clienteId={clienteActivo.id} limiteHistoria={4}/>
+                                <ExpedienteCliente clienteId={clienteActivo.id} limiteHistoria={4}
+                                    limitePropuesto={Number(clienteActivo.limiteCreditoSolicitado
+                                        ?? clienteActivo.limiteCredito ?? 0)}/>
                             </div>
                         </div>
                     )}
@@ -1248,8 +1250,17 @@ export default function ClientesPage() {
                                     {flujoVerif && (() => {
                                         const propuesto = Number(formData.limiteCredito || 0);
                                         const verificado = Number(expediente?.limiteSolicitado ?? 0);
+                                        /*
+                                            El enlace lleva consigo a quién y por cuánto. Sin eso,
+                                            quien lo pulsa cae en un buscador vacío con el importe
+                                            por omisión de la pantalla destino —5.000—, y el
+                                            expediente nace corto para la línea que se propuso.
+                                            En el alta no hay cliente todavía: ahí va a secas. */
                                         const enlace = (
-                                            <Link href="/dashboard/creditos/verificacion/ejecutar"
+                                            <Link href={editId
+                                                ? `/dashboard/creditos/verificacion/ejecutar?cliente=${editId}`
+                                                  + (propuesto > 0 ? `&limite=${propuesto}` : '')
+                                                : '/dashboard/creditos/verificacion/ejecutar'}
                                                 className="underline font-semibold whitespace-nowrap">
                                                 Verificar ahora
                                             </Link>

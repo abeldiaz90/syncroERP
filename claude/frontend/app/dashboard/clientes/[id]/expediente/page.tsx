@@ -25,6 +25,7 @@ import {
 interface ICliente {
   id: string; nombre: string; rfc?: string | null; curp?: string | null;
   limiteCredito?: number | string | null; diasCredito?: number | null;
+  limiteCreditoSolicitado?: number | string | null;
   versionCredito?: number | null; estadoCredito?: string | null;
   nivelRiesgo?: string | null;
 }
@@ -109,7 +110,14 @@ export default function ExpedienteClientePage() {
             </div>
           </div>
 
-          {clienteId && <ExpedienteCliente clienteId={clienteId} />}
+          {clienteId && (
+            <ExpedienteCliente
+              clienteId={clienteId}
+              limitePropuesto={Number(
+                cliente?.limiteCreditoSolicitado ?? cliente?.limiteCredito ?? 0,
+              )}
+            />
+          )}
         </>
       )}
     </div>

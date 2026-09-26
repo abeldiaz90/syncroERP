@@ -90,10 +90,17 @@ export const dinero = (n: unknown) =>
 export const fechaLarga = (f?: string) =>
   f ? new Date(f).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
-export function ExpedienteCliente({ clienteId, limiteHistoria }: {
+export function ExpedienteCliente({ clienteId, limiteHistoria, limitePropuesto }: {
   clienteId: string;
   /** Cuántas corridas listar. La pantalla propia las muestra todas. */
   limiteHistoria?: number;
+  /**
+   * El importe por el que se va a verificar, cuando quien pinta el expediente
+   * ya lo sabe. Viaja al verificador para que no arranque en su valor por
+   * omisión: un expediente vale hasta la cifra por la que se hizo, y verificar
+   * 5.000 cuando se pidieron 150.000 es fabricar el bloqueo un paso después.
+   */
+  limitePropuesto?: number;
 }) {
   const [corridas, setCorridas] = useState<IEjecucionExp[]>([]);
   const [detalle, setDetalle] = useState<Record<string, IPasoExp[]>>({});
@@ -146,6 +153,22 @@ export function ExpedienteCliente({ clienteId, limiteHistoria }: {
   const listadas = limiteHistoria ? corridas.slice(0, limiteHistoria) : corridas;
   const reales = corridas.filter((c) => !c.simulacion);
 
+  /*
+   * ── El enlace que se dejaba el cliente en la puerta ──────────────────────
+   * «Verificar» apuntaba a `/creditos/verificacion/ejecutar` a secas, estando
+   * dentro del expediente de UNA persona concreta. Quien lo pulsaba aterrizaba
+   * en un buscador vacío y tenía que encontrar otra vez al cliente que acababa
+   * de abrir. La pantalla destino sí sabe leer `?cliente=` y `?limite=` —la
+   * bandeja de aprobaciones se los manda—; era este enlace el que los perdía.
+   */
+  const importeAVerificar =
+    Number(limitePropuesto ?? 0) > 0
+      ? Number(limitePropuesto)
+      : Number(reales[0]?.limiteSolicitado ?? 0);
+  const irAVerificar =
+    `/dashboard/creditos/verificacion/ejecutar?cliente=${clienteId}` +
+    (importeAVerificar > 0 ? `&limite=${importeAVerificar}` : '');
+
   if (cargando) {
     return (
       <div className="flex items-center gap-2 text-sm text-slate-500 py-4">
@@ -167,7 +190,7 @@ export function ExpedienteCliente({ clienteId, limiteHistoria }: {
               La última respuesta de cada control. Puede venir de corridas distintas.
             </p>
           </div>
-          <Link href="/dashboard/creditos/verificacion/ejecutar"
+          <Link href={irAVerificar}
             className="px-3 py-1.5 text-sm rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 shrink-0">
             <Play className="w-4 h-4" /> Verificar
           </Link>
