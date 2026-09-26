@@ -209,8 +209,26 @@ export class OrdenesCompraService {
     if (nuevoEstado === 'CANCELADA') {
       if (oc.estado === 'CANCELADA') return oc;
       if (oc.estadoRecepcion !== 'PENDIENTE') {
+        /*
+         * El mensaje decía «Registra la devolución al proveedor», y la
+         * devolución al proveedor NO EXISTE en el sistema: no hay endpoint, no
+         * hay pantalla y no hay asiento contra 503 «Devoluciones, descuentos o
+         * bonificaciones sobre compras». Mandar a alguien a hacer algo que no
+         * se puede hacer es peor que no decirle nada: se pasa media hora
+         * buscando el botón y termina dudando de todo el menú.
+         *
+         * Se dice lo que sí hay hoy, y se dice también lo que falta, que es
+         * información útil para quien está decidiendo cómo registrar el caso.
+         */
         throw new BadRequestException(
-          'No se puede cancelar una orden con mercancía ya recibida. Registra la devolución al proveedor.',
+          `La orden OC-${oc.id.slice(0, 8).toUpperCase()} ya tiene mercancía ` +
+            'recibida, así que ' +
+            'cancelarla dejaría existencias sin documento que las respalde. ' +
+            'Para devolver mercancía al proveedor: registra la salida en ' +
+            'Inventario → Ajustes y mermas con el motivo de la devolución, y ' +
+            'pide al proveedor su nota de crédito para afectar la cuenta por ' +
+            'pagar. El circuito de devolución a proveedor con su propio ' +
+            'documento todavía no está en el sistema.',
         );
       }
       if (oc.estadoPago !== 'PENDIENTE') {

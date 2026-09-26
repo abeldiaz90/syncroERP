@@ -52,8 +52,32 @@ export default function DetalleOCPage() {
       .finally(() => setCargando(false));
   }, [id, apiUrl]);
 
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * Una orden equivocada no se podía cancelar desde ninguna pantalla
+   * --------------------------------------------------------------------------
+   * El servicio acepta `CANCELADA` desde siempre —con sus dos candados: nada
+   * recibido y nada pagado— y no había un solo botón en el frontend que la
+   * mandara. Una orden capturada con el proveedor equivocado, o la que el
+   * proveedor rechaza, se quedaba PENDIENTE para siempre, engordando la
+   * bandeja de «Órdenes pendientes» hasta que deja de mirarse.
+   *
+   * Un estado que el backend sabe alcanzar y la pantalla no ofrece es una
+   * función que existe sólo en el código.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
   const handleCambiarEstado = async (nuevoEstado: string) => {
-    if (!await confirmarElegante('Se notificará al proveedor y el documento pasará a estado ENVIADA.', { titulo: 'Confirmar envío a proveedor' })) return;
+    const confirmacion =
+      nuevoEstado === 'CANCELADA'
+        ? await confirmarElegante(
+            'La orden quedará cancelada y no podrá recibirse ni pagarse. No se puede deshacer.',
+            { titulo: '¿Cancelar esta orden de compra?', peligroso: true },
+          )
+        : await confirmarElegante(
+            'Se notificará al proveedor y el documento pasará a estado ENVIADA.',
+            { titulo: 'Confirmar envío a proveedor' },
+          );
+    if (!confirmacion) return;
 
     setProcesando(true);
     const token = localStorage.getItem('syncro_token');
@@ -64,11 +88,31 @@ export default function DetalleOCPage() {
         body: JSON.stringify({ estado: nuevoEstado }),
       });
       if (res.ok) {
-        mostrarToast('Orden actualizada exitosamente', 'exito');
+        mostrarToast(
+          nuevoEstado === 'CANCELADA' ? 'Orden cancelada.' : 'Orden actualizada exitosamente',
+          'exito',
+        );
         const reloadRes = await fetch(`${apiUrl}/compras/ordenes/${id}`, { headers: { Authorization: `Bearer ${token}` } });
         if (reloadRes.ok) setOC(await reloadRes.json());
-      } else throw new Error();
-    } catch { mostrarToast('Error al actualizar el estado', 'error'); }
+      } else {
+        /*
+         * El `throw new Error()` pelado tiraba el motivo real del servidor y
+         * la pantalla enseñaba «Error al actualizar el estado». El servidor
+         * explica POR QUÉ no se puede —mercancía recibida, pagos
+         * registrados—, y eso es justo lo que el comprador necesita leer.
+         */
+        const detalle = await res.json().catch(() => ({} as any));
+        throw new Error(
+          typeof detalle?.message === 'string'
+            ? detalle.message
+            : Array.isArray(detalle?.message)
+              ? detalle.message.join(' ')
+              : 'Error al actualizar el estado',
+        );
+      }
+    } catch (e) {
+      mostrarToast(e instanceof Error ? e.message : 'Error al actualizar el estado', 'error');
+    }
     finally { setProcesando(false); }
   };
 
@@ -196,6 +240,21 @@ export default function DetalleOCPage() {
               >
                 {procesando ? <Loader2 className="animate-spin w-5 h-5" /> : <Send className="w-5 h-5" />}
                 Confirmar Envío a Proveedor
+              </button>
+            </ProtectedElement>
+          </div>
+        )}
+
+        {(oc.estado === 'PENDIENTE' || oc.estado === 'ENVIADA') && (
+          <div className="flex justify-end">
+            <ProtectedElement metodo="PATCH" ruta="/api/compras/ordenes/:id/estado">
+              <button
+                onClick={() => handleCambiarEstado('CANCELADA')}
+                disabled={procesando}
+                className="px-5 py-2.5 rounded-xl border border-rose-200 bg-white text-rose-700 font-bold hover:bg-rose-50 transition-all disabled:opacity-50"
+                title="Sólo se puede cancelar una orden sin mercancía recibida ni pagos registrados"
+              >
+                Cancelar orden
               </button>
             </ProtectedElement>
           </div>
