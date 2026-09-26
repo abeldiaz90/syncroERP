@@ -445,6 +445,18 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'GET /compras/ordenes/recepciones',
       'GET /compras/ordenes/:id',
       /*
+       * Y sacarla cuando se le regresa al proveedor. La devolución es un
+       * documento de compras —cambia lo que se le debe al proveedor— pero la
+       * mercancía sale de SU almacén, igual que la recepción entra en él. El
+       * comprador la tiene por el módulo `compras`; el almacenista, que es
+       * quien la baja del anaquel, por estas tres líneas. Ofrecer la pantalla
+       * a quien no puede ejecutarla es el defecto que este proyecto lleva todo
+       * el día corrigiendo.
+       */
+      'GET /compras/devoluciones',
+      'GET /compras/devoluciones/devolvible',
+      'POST /compras/devoluciones',
+      /*
        * Levantar la requisición ES trabajo del almacén, y es el único rol que
        * se entera a tiempo: el comprador no ve el anaquel vacío, lo ve quien
        * surte. En todo ERP serio el almacén solicita y compras adjudica.

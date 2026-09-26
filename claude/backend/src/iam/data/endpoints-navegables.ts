@@ -114,6 +114,11 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Cotizaciones',
     ordenMenu: 11,
   },
+  'GET /compras/devoluciones': {
+    rutaFrontend: '/dashboard/compras/devoluciones',
+    titulo: 'Devoluciones a proveedor',
+    ordenMenu: 13,
+  },
   'GET /compras/requisiciones/aprobaciones/pendientes': {
     rutaFrontend: '/dashboard/compras/aprobaciones',
     titulo: 'Aprobaciones',

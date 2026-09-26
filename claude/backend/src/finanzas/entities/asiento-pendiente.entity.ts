@@ -65,6 +65,8 @@ export enum TipoAsiento {
   NOMINA = 'NOMINA',
   DEPRECIACION = 'DEPRECIACION',
   BAJA_ACTIVO = 'BAJA_ACTIVO',
+  /** Mercancía que se le regresa al proveedor: la compra al revés. */
+  DEVOLUCION_PROVEEDOR = 'DEVOLUCION_PROVEEDOR',
   TESORERIA = 'TESORERIA',
 }
 

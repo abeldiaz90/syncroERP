@@ -234,6 +234,7 @@ export class AsientosPendientesService {
        */
       [TipoAsiento.DEPRECIACION]: 'generarAsientoDeDepreciacion',
       [TipoAsiento.BAJA_ACTIVO]: 'generarAsientoDeBajaActivo',
+      [TipoAsiento.DEVOLUCION_PROVEEDOR]: 'generarAsientoDeDevolucionProveedor',
       [TipoAsiento.TESORERIA]: 'generarAsientoDeTesoreria',
     };
 

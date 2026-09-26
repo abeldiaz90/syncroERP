@@ -1,0 +1,341 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
+
+import {
+  DevolucionProveedor,
+  DevolucionProveedorDetalle,
+  EstadoDevolucionProveedor,
+} from '../entities/devolucion-proveedor.entity';
+import { OrdenCompra } from '../entities/orden-compra.entity';
+import { DetalleOrdenCompra } from '../entities/detalle-orden-compra.entity';
+import { InventarioService } from '../../catalogo/services/inventario.service';
+import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
+import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
+
+/**
+ * ============================================================================
+ * Devolución a proveedor
+ * ----------------------------------------------------------------------------
+ * El circuito que faltaba. Hasta el 26-sep-2026, cuando alguien intentaba
+ * cancelar una orden ya recibida el sistema contestaba «Registra la devolución
+ * al proveedor» y esa devolución no existía: ni endpoint, ni pantalla, ni
+ * asiento. Quien llegaba ahí con mercancía rota en el andén no tenía dónde
+ * ponerla, y lo único a mano era un ajuste de inventario, que dice algo
+ * distinto: un ajuste es una merma nuestra; una devolución cambia lo que le
+ * debemos al proveedor.
+ *
+ * REGLAS
+ *
+ * · Sólo se devuelve lo que se recibió, y sólo una vez. El tope de cada
+ *   partida es `cantidadRecibidaOk` menos lo ya devuelto.
+ * · Sale del inventario al costo del lote —`registrarSalida` lo calcula— pero
+ *   se le cobra al proveedor al COSTO PACTADO en la orden. Que el promedio del
+ *   almacén haya cambiado por otras compras no es asunto suyo.
+ * · Todo en una transacción: si la salida de inventario no se puede hacer, no
+ *   queda una devolución registrada sin mercancía que la respalde.
+ * · La póliza se intenta en el acto y se dice cómo fue. Si no sale, la
+ *   devolución no se cae —la mercancía ya salió del almacén— pero tampoco se
+ *   calla.
+ * ============================================================================
+ */
+@Injectable()
+export class DevolucionesProveedorService {
+  private readonly logger = new Logger(DevolucionesProveedorService.name);
+
+  constructor(
+    @InjectRepository(DevolucionProveedor)
+    private readonly devoluciones: Repository<DevolucionProveedor>,
+    @InjectRepository(DevolucionProveedorDetalle)
+    private readonly detalles: Repository<DevolucionProveedorDetalle>,
+    private readonly dataSource: DataSource,
+    private readonly inventario: InventarioService,
+    private readonly asientos: AsientosPendientesService,
+  ) {}
+
+  private folioDeOrden(oc: { id: string }) {
+    return `OC-${oc.id.slice(0, 8).toUpperCase()}`;
+  }
+
+  /**
+   * Qué se puede devolver de una orden: lo recibido menos lo ya devuelto.
+   *
+   * Es la pantalla la que necesita esto, y es también el tope que valida el
+   * alta: una pantalla que ofrece más de lo que el servidor acepta termina en
+   * un 400 con el formulario lleno.
+   */
+  async devolvible(ordenCompraId: string, empresaId: string) {
+    const oc = await this.dataSource.getRepository(OrdenCompra).findOne({
+      where: { id: ordenCompraId, empresaId },
+      relations: ['detalles', 'detalles.producto', 'proveedor'],
+    });
+    if (!oc) throw new NotFoundException('La orden de compra no existe.');
+
+    const devueltas = await this.detalles
+      .createQueryBuilder('d')
+      .select('d.detalleOrdenId', 'detalleOrdenId')
+      .addSelect('SUM(d.cantidad)', 'cantidad')
+      .innerJoin(
+        DevolucionProveedor,
+        'dev',
+        'dev.id = d.devolucionId AND dev.estado = :vigente',
+        { vigente: EstadoDevolucionProveedor.REGISTRADA },
+      )
+      .where('d.empresaId = :empresaId', { empresaId })
+      .andWhere('dev.ordenCompraId = :ordenCompraId', { ordenCompraId })
+      .groupBy('d.detalleOrdenId')
+      .getRawMany<{ detalleOrdenId: string; cantidad: string }>();
+
+    /* SUM() en PostgreSQL devuelve numeric, y numeric llega como TEXTO. */
+    const yaDevuelto = new Map(
+      devueltas.map((d) => [d.detalleOrdenId, Number(d.cantidad)]),
+    );
+
+    return {
+      ordenCompraId: oc.id,
+      folio: this.folioDeOrden(oc),
+      proveedorId: oc.proveedorId,
+      proveedor: (oc as any).proveedor?.nombre ?? null,
+      estadoPago: (oc as any).estadoPago ?? 'PENDIENTE',
+      partidas: (oc.detalles ?? []).map((d) => {
+        const recibido = Number((d as any).cantidadRecibidaOk ?? 0);
+        const devuelto = yaDevuelto.get(d.id) ?? 0;
+        return {
+          detalleOrdenId: d.id,
+          productoId: d.productoId,
+          producto: (d as any).producto?.nombre ?? null,
+          sku: (d as any).producto?.sku ?? null,
+          recibido,
+          devuelto,
+          disponible: Math.max(0, Math.round((recibido - devuelto) * 10000) / 10000),
+          costoUnitario: Number(d.precioUnitario),
+          tasaIva: Number((d as any).tasaIva ?? 0),
+        };
+      }),
+    };
+  }
+
+  async listar(empresaId: string) {
+    return this.devoluciones.find({
+      where: { empresaId },
+      relations: ['detalles', 'detalles.producto', 'almacen'],
+      order: { fechaCreacion: 'DESC' },
+    });
+  }
+
+  private async siguienteFolio(empresaId: string): Promise<string> {
+    const fila = await this.devoluciones
+      .createQueryBuilder('d')
+      .select('MAX(CAST(SUBSTRING(d.folio, 4, 10) AS INT))', 'maximo')
+      .where('d.empresaId = :empresaId', { empresaId })
+      .andWhere("d.folio ~ '^DP-[0-9]{1,10}$'")
+      .getRawOne<{ maximo: number | string | null }>();
+    /* `Number()` siempre: ver `un-bigint-llega-como-texto`. */
+    return `DP-${String(Number(fila?.maximo ?? 0) + 1).padStart(6, '0')}`;
+  }
+
+  async crear(
+    datos: {
+      ordenCompraId: string;
+      almacenId: string;
+      fecha: string;
+      motivo: string;
+      notaCreditoProveedor?: string;
+      partidas: Array<{ detalleOrdenId: string; cantidad: number }>;
+    },
+    empresaId: string,
+    usuarioId?: string,
+  ) {
+    const disponible = await this.devolvible(datos.ordenCompraId, empresaId);
+    const porDetalle = new Map(
+      disponible.partidas.map((p) => [p.detalleOrdenId, p]),
+    );
+
+    const lineas = (datos.partidas ?? []).filter((p) => Number(p.cantidad) > 0);
+    if (!lineas.length) {
+      throw new BadRequestException(
+        'Indica al menos una partida con cantidad a devolver.',
+      );
+    }
+
+    for (const linea of lineas) {
+      const partida = porDetalle.get(linea.detalleOrdenId);
+      if (!partida) {
+        throw new BadRequestException(
+          'Una de las partidas no pertenece a esta orden de compra.',
+        );
+      }
+      if (Number(linea.cantidad) > partida.disponible + 0.0001) {
+        throw new BadRequestException(
+          `${partida.producto ?? partida.productoId}: se recibieron ` +
+            `${partida.recibido} y ya se devolvieron ${partida.devuelto}. ` +
+            `Como mucho se pueden devolver ${partida.disponible}.`,
+        );
+      }
+    }
+
+    const salida = await this.dataSource.transaction(async (manager) => {
+      const folio = await this.siguienteFolio(empresaId);
+      const cabecera = manager.create(DevolucionProveedor, {
+        empresaId,
+        folio,
+        ordenCompraId: datos.ordenCompraId,
+        proveedorId: disponible.proveedorId,
+        almacenId: datos.almacenId,
+        fecha: new Date(datos.fecha),
+        motivo: datos.motivo.trim(),
+        notaCreditoProveedor: datos.notaCreditoProveedor?.trim() || null,
+        estado: EstadoDevolucionProveedor.REGISTRADA,
+        usuarioId: usuarioId ?? null,
+        subtotal: 0,
+        impuestos: 0,
+        total: 0,
+      });
+      const guardada = await manager.save(cabecera);
+
+      let subtotal = 0;
+      let impuestos = 0;
+      const paraContabilidad: Array<{
+        productoId: string;
+        cantidad: number;
+        costoUnitario: number;
+        tasaIva: number;
+      }> = [];
+
+      for (const linea of lineas) {
+        const partida = porDetalle.get(linea.detalleOrdenId)!;
+        const cantidad = Number(linea.cantidad);
+        const neto = Math.round(partida.costoUnitario * cantidad * 100) / 100;
+        const iva = Math.round(neto * partida.tasaIva * 100) / 100;
+
+        /*
+         * La mercancía sale del almacén por el circuito normal de inventario:
+         * consume lotes, deja kardex y devuelve el costo real. No se toca
+         * `stock_por_almacen` a mano, que es como se rompe la trazabilidad.
+         */
+        await this.inventario.registrarSalida(
+          partida.productoId,
+          datos.almacenId,
+          cantidad,
+          `Devolución a proveedor ${folio}`,
+          empresaId,
+          undefined,
+          undefined,
+          manager,
+          { id: guardada.id, tipo: 'DEVOLUCION_PROVEEDOR' },
+        );
+
+        await manager.save(
+          manager.create(DevolucionProveedorDetalle, {
+            empresaId,
+            devolucionId: guardada.id,
+            detalleOrdenId: partida.detalleOrdenId,
+            productoId: partida.productoId,
+            cantidad,
+            costoUnitario: partida.costoUnitario,
+            tasaIva: partida.tasaIva,
+            subtotal: neto,
+            impuesto: iva,
+          }),
+        );
+
+        subtotal += neto;
+        impuestos += iva;
+        paraContabilidad.push({
+          productoId: partida.productoId,
+          cantidad,
+          costoUnitario: partida.costoUnitario,
+          tasaIva: partida.tasaIva,
+        });
+      }
+
+      guardada.subtotal = Math.round(subtotal * 100) / 100;
+      guardada.impuestos = Math.round(impuestos * 100) / 100;
+      guardada.total = Math.round((subtotal + impuestos) * 100) / 100;
+      await manager.save(guardada);
+
+      /*
+       * Si la orden ya estaba pagada, el IVA vive en 118 «acreditable pagado»;
+       * si no, en 119 «pendiente de pago». Devolver lo pagado y lo no pagado
+       * no son el mismo asiento.
+       */
+      const evento = await this.asientos.encolarEnTransaccion(
+        manager,
+        TipoAsiento.DEVOLUCION_PROVEEDOR,
+        {
+          devolucionId: guardada.id,
+          empresaId,
+          folio,
+          fecha: new Date(datos.fecha),
+          ivaYaPagado: disponible.estadoPago === 'PAGADA',
+          detalles: paraContabilidad,
+        },
+        empresaId,
+        folio,
+        guardada.id,
+      );
+
+      return { devolucion: guardada, asientoPendienteId: evento?.id };
+    });
+
+    if (!salida.asientoPendienteId) {
+      return { ...salida.devolucion, estadoContable: 'NO_APLICA' as const };
+    }
+    try {
+      const asiento = await this.asientos.reintentarAhora(
+        salida.asientoPendienteId,
+        empresaId,
+      );
+      if (asiento?.polizaId) {
+        await this.devoluciones.update(
+          { id: salida.devolucion.id },
+          { polizaId: asiento.polizaId },
+        );
+      }
+      if (!asiento?.generado) {
+        this.logger.warn(
+          `Devolución ${salida.devolucion.folio} registrada; la póliza quedó ` +
+            `pendiente: ${asiento?.mensaje ?? 'sin detalle'}`,
+        );
+      }
+      return {
+        ...salida.devolucion,
+        polizaId: asiento?.polizaId ?? null,
+        estadoContable: asiento?.generado ? 'GENERADO' : 'PENDIENTE',
+        mensajeContable: asiento?.generado ? undefined : asiento?.mensaje,
+      };
+    } catch (error) {
+      const mensaje = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Devolución ${salida.devolucion.folio} registrada, pero la póliza quedó pendiente: ${mensaje}`,
+      );
+      return {
+        ...salida.devolucion,
+        estadoContable: 'PENDIENTE' as const,
+        mensajeContable: mensaje,
+      };
+    }
+  }
+
+  /**
+   * Cancelar una devolución no devuelve la mercancía al almacén.
+   *
+   * Se deja explícitamente fuera: reingresar mercancía exige decidir a qué
+   * costo entra y a qué lote, y eso es una recepción, no un deshacer. Mientras
+   * ese circuito no exista, permitir «cancelar» sería ofrecer un botón que
+   * deja el inventario mal. Lo honesto es decirlo.
+   */
+  async cancelar(): Promise<never> {
+    throw new ConflictException(
+      'Una devolución registrada no se cancela: la mercancía ya salió del ' +
+        'almacén. Si el proveedor la regresa, regístrala como una recepción ' +
+        'nueva para que entre con su costo y su lote.',
+    );
+  }
+}

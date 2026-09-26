@@ -19,6 +19,10 @@ import { RecepcionCompraDetalle } from '../entities/recepcion-compra-detalle.ent
 import { AprobacionDocumento } from '../entities/aprobacion-documento.entity';
 import { Departamento } from '../../departamentos/entities/departamento.entity';
 import { Producto } from '../../catalogo/entities/producto.entity';
+import {
+  DevolucionProveedor,
+  DevolucionProveedorDetalle,
+} from '../entities/devolucion-proveedor.entity';
 
 import { RequisicionesController } from '../controllers/requisiciones.controller';
 import { RutasAprobacionInicialesService } from '../services/rutas-aprobacion-iniciales.service';
@@ -29,6 +33,8 @@ import { CotizacionesController } from '../controllers/cotizaciones.controller';
 import { CotizacionesService } from '../services/cotizaciones.service';
 import { OrdenesCompraController } from '../controllers/ordenes-compra.controller';
 import { OrdenesCompraService } from '../services/ordenes-compra.service';
+import { DevolucionesProveedorController } from '../controllers/devoluciones-proveedor.controller';
+import { DevolucionesProveedorService } from '../services/devoluciones-proveedor.service';
 
 import { CommonModule } from '../../common/modules/common.module';
 import { CatalogoModule } from '../../catalogo/catalogo.module';
@@ -58,6 +64,8 @@ import { IamModule } from '../../iam/iam.module';
       AprobacionDocumento,
       Departamento,
       Producto,
+      DevolucionProveedor,
+      DevolucionProveedorDetalle,
     ]),
     CommonModule,
     CatalogoModule,
@@ -71,6 +79,7 @@ import { IamModule } from '../../iam/iam.module';
     ConfiguracionesAprobacionController,
     CotizacionesController,
     OrdenesCompraController,
+    DevolucionesProveedorController,
   ],
   providers: [
     RequisicionesService,
@@ -83,6 +92,7 @@ import { IamModule } from '../../iam/iam.module';
     ConfiguracionesAprobacionService,
     CotizacionesService,
     OrdenesCompraService,
+    DevolucionesProveedorService,
   ],
 })
 export class ComprasModule {}

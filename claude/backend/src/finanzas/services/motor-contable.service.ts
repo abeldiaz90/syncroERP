@@ -2915,6 +2915,142 @@ export class MotorContableService {
     );
   }
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * Devolución a proveedor: la compra al revés, partida por partida
+   * --------------------------------------------------------------------------
+   * El inventario de este ERP es PERPETUO —`generarAsientoDeCompra` carga la
+   * mercancía a Inventario y abona a Proveedores—, así que la devolución es
+   * ese mismo asiento invertido:
+   *
+   *   Dr. Proveedores                 (el total, IVA incluido)
+   *       Cr. Inventario              (el costo de lo que sale, por categoría)
+   *       Cr. IVA 119 ó 118           (el impuesto que se deja de acreditar)
+   *
+   * NO se usa la 503 «Devoluciones, descuentos o bonificaciones sobre
+   * compras». Esa cuenta pertenece al sistema PERIÓDICO, donde la compra va a
+   * la 502 y el inventario sólo se ajusta al cierre. Usarla aquí dejaría el
+   * inventario inflado y el costo mal por el mismo importe, y el error no se
+   * vería hasta el primer inventario físico.
+   *
+   * El IVA se abona DONDE ESTÉ. Al comprar se carga a 119 «IVA pendiente de
+   * pago»; al liquidar la factura se traslada a 118 «IVA acreditable pagado».
+   * Devolver algo que todavía no se paga y devolver algo ya pagado no son el
+   * mismo asiento, y acreditarse un IVA que se devolvió es exactamente lo que
+   * una auditoría busca.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  async generarAsientoDeDevolucionProveedor(datos: {
+    devolucionId: string;
+    empresaId: string;
+    folio: string;
+    fecha: Date;
+    /** true cuando la orden ya estaba pagada: el IVA vive en 118, no en 119. */
+    ivaYaPagado: boolean;
+    detalles: Array<{
+      productoId: string;
+      cantidad: number;
+      costoUnitario: number;
+      tasaIva: number;
+    }>;
+  }): Promise<string | undefined> {
+    try {
+      const prodMap = await this.cargarProductosConCategoria(
+        datos.detalles.map((d) => d.productoId),
+        datos.empresaId,
+      );
+      const cuentaProveedores = await this.buscarCuentaPorRol(
+        datos.empresaId,
+        RolCuentaSistema.PROVEEDORES,
+        'PASIVO',
+        '201',
+      );
+      if (!cuentaProveedores) {
+        throw new Error(
+          `Devolución ${datos.folio}: falta la cuenta de proveedores.`,
+        );
+      }
+      const cuentaIva = datos.ivaYaPagado
+        ? await this.buscarCuentaPorRol(
+            datos.empresaId,
+            RolCuentaSistema.IVA_ACREDITABLE_PAGADO,
+            'ACTIVO',
+            '118',
+          )
+        : await this.buscarCuentaPorRol(
+            datos.empresaId,
+            RolCuentaSistema.IVA_ACREDITABLE_PENDIENTE,
+            'ACTIVO',
+            '119',
+          );
+
+      const ref = `DEV-P ${datos.folio}`;
+      const partidas: PartidaInput[] = [];
+      let totalInventario = 0;
+      let totalIva = 0;
+
+      for (const det of datos.detalles) {
+        const producto = prodMap.get(det.productoId);
+        const cat = producto?.categoria as any;
+        if (!cat?.cuentaInventarioId) {
+          throw new Error(
+            `${producto?.nombre ?? det.productoId}: falta la cuenta de inventario.`,
+          );
+        }
+        const neto = this.redondear(det.costoUnitario * det.cantidad);
+        if (neto <= 0) continue;
+        const iva = this.redondear(neto * (det.tasaIva ?? 0));
+        if (iva > 0 && !cuentaIva) {
+          throw new Error(
+            `Devolución ${datos.folio}: falta la cuenta de IVA acreditable ` +
+              `${datos.ivaYaPagado ? 'pagado' : 'pendiente de pago'}.`,
+          );
+        }
+
+        partidas.push({
+          cuentaContableId: cat.cuentaInventarioId,
+          cargo: 0,
+          abono: neto,
+          referencia: ref,
+        });
+        totalInventario += neto;
+
+        if (cuentaIva && iva > 0) {
+          partidas.push({
+            cuentaContableId: cuentaIva.id,
+            cargo: 0,
+            abono: iva,
+            referencia: `IVA-${ref}`,
+          });
+          totalIva += iva;
+        }
+      }
+
+      if (partidas.length === 0) return undefined;
+
+      partidas.push({
+        cuentaContableId: cuentaProveedores.id,
+        cargo: this.redondear(totalInventario + totalIva),
+        abono: 0,
+        referencia: ref,
+      });
+
+      return await this.crearPoliza({
+        empresaId: datos.empresaId,
+        tipo: TipoPoliza.DIARIO,
+        concepto: `Devolución a proveedor ${datos.folio}`,
+        fecha: datos.fecha,
+        partidas,
+        origenClave: `DEVOLUCION_PROVEEDOR:${datos.devolucionId}`,
+        origenTipo: 'DEVOLUCION_PROVEEDOR',
+        origenId: datos.devolucionId,
+      });
+    } catch (err: any) {
+      this.logger.error(`[Devolución proveedor ${datos.folio}] ${err?.message}`);
+      throw err;
+    }
+  }
+
   async generarAsientoDeBajaActivo(datos: {
     activoId: string;
     empresaId: string;

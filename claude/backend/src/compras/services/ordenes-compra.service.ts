@@ -224,11 +224,9 @@ export class OrdenesCompraService {
           `La orden OC-${oc.id.slice(0, 8).toUpperCase()} ya tiene mercancía ` +
             'recibida, así que ' +
             'cancelarla dejaría existencias sin documento que las respalde. ' +
-            'Para devolver mercancía al proveedor: registra la salida en ' +
-            'Inventario → Ajustes y mermas con el motivo de la devolución, y ' +
-            'pide al proveedor su nota de crédito para afectar la cuenta por ' +
-            'pagar. El circuito de devolución a proveedor con su propio ' +
-            'documento todavía no está en el sistema.',
+            'Regístrala en Compras → Devoluciones a proveedor: de ahí sale la ' +
+            'mercancía del almacén y baja lo que se le debe al proveedor. Esa ' +
+            'pantalla sólo deja devolver lo que se recibió y sólo una vez.',
         );
       }
       if (oc.estadoPago !== 'PENDIENTE') {
