@@ -153,6 +153,8 @@ function sinDecoradores(cuerpo: string): string {
 
 interface Dto {
   props: Set<string>;
+  /** Los que el ValidationPipe exige: sin `@IsOptional()` y sin `?`. */
+  obligatorios: Set<string>;
   padre: string | null;
 }
 
@@ -176,8 +178,41 @@ for (const ruta of archivos(SRC, /\.dto\.ts$/)) {
     let c: RegExpExecArray | null;
     const limpio = sinDecoradores(cuerpo);
     while ((c = campos.exec(limpio))) props.add(c[1]);
-    DTOS.set(m[1], { props, padre: m[2] ?? null });
+
+    /*
+     * Obligatorio es lo contrario de opcional, y opcional se declara de dos
+     * maneras que hay que mirar sobre el texto CON decoradores: `@IsOptional()`
+     * delante, o el `?` del propio campo. También se deja fuera lo que ya trae
+     * valor por omisión (`pagina: number = 1`).
+     */
+    const obligatorios = new Set<string>();
+    const declaraciones = /((?:@[\w.]+\s*(?:\([\s\S]*?\))?\s*)*)([a-zA-Z_]\w*)\s*([?!]?)\s*:([^;=]*)(=?)/g;
+    let d: RegExpExecArray | null;
+    while ((d = declaraciones.exec(cuerpo))) {
+      const [, decoradores, nombre, interrogante, , igual] = d;
+      if (!props.has(nombre)) continue;
+      if (interrogante === '?' || igual === '=') continue;
+      if (/@IsOptional\s*\(/.test(decoradores)) continue;
+      if (!decoradores.trim()) continue; // sin validador no lo exige el pipe
+      obligatorios.add(nombre);
+    }
+    DTOS.set(m[1], { props, obligatorios, padre: m[2] ?? null });
   }
+}
+
+/** Los campos obligatorios de un DTO, incluidos los que hereda. */
+function obligatoriosDe(nombre: string, vistos = new Set<string>()): Set<string> | null {
+  if (vistos.has(nombre)) return new Set();
+  vistos.add(nombre);
+  const dto = DTOS.get(nombre);
+  if (!dto) return null;
+  const propios = new Set(dto.obligatorios);
+  if (dto.padre) {
+    const heredados = obligatoriosDe(dto.padre, vistos);
+    if (!heredados) return null;
+    heredados.forEach((p) => propios.add(p));
+  }
+  return propios;
 }
 
 /** Los campos de un DTO, incluidos los que hereda. */
@@ -318,5 +353,31 @@ describe('Formularios · un campo que la pantalla manda y el servidor prohíbe',
     }
 
     expect(rechazados.sort()).toEqual([]);
+  });
+
+  it('ninguna pantalla se deja un campo que su DTO exige', () => {
+    /*
+     * La otra mitad de la misma moneda. Si el DTO declara un campo sin
+     * `@IsOptional()` y sin `?`, el ValidationPipe lo exige: la pantalla que no
+     * lo manda recibe «campo should not be empty» en CADA intento. Igual de
+     * invisible por API —quien llama a mano manda el DTO entero— e igual de
+     * fatal: el formulario no se puede guardar nunca.
+     */
+    const incompletas: string[] = [];
+
+    for (const llamada of todas) {
+      const dto = RUTAS.get(`${llamada.metodo} ${llamada.ruta}`);
+      if (!dto) continue;
+      const exigidos = obligatoriosDe(dto);
+      if (!exigidos) continue;
+      const faltan = [...exigidos].filter((campo) => !llamada.claves.includes(campo));
+      if (faltan.length) {
+        incompletas.push(
+          `${llamada.archivo} → ${llamada.metodo} ${llamada.ruta} (${dto}) no manda ${faltan.sort().join(', ')}`,
+        );
+      }
+    }
+
+    expect(incompletas.sort()).toEqual([]);
   });
 });
