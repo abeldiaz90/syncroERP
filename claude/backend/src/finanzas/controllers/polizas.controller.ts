@@ -88,12 +88,20 @@ export class PolizasController {
     );
   }
 
+  /*
+   * Esta lectura devolvía un recado para el programador —«Usa POST /manual con
+   * concepto …»— y era, además, la puerta de la pantalla de saldos iniciales.
+   * O sea: la única pregunta que la pantalla necesita hacer —«¿esta empresa ya
+   * tiene apertura?»— no se podía hacer, y la pantalla avisaba «no usar si ya
+   * hay transacciones registradas» sin manera de saber si las había.
+   *
+   * Cargar dos veces los saldos de apertura duplica el balance entero. Es un
+   * error que no se nota hasta el primer cierre.
+   */
   @Navegable('/dashboard/finanzas/saldos-iniciales', 'Saldos Iniciales', 58)
   @Get('saldos-iniciales')
-  getSaldosIniciales() {
-    return {
-      mensaje: 'Usa POST /manual con concepto "Saldos iniciales de apertura"',
-    };
+  getSaldosIniciales(@ActiveUser('empresaId') empresaId: string) {
+    return this.polizasService.estadoDeApertura(empresaId);
   }
 
   @Post('manual')

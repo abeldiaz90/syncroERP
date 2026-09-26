@@ -93,10 +93,15 @@ export default function BalanzaComprobacionPage() {
   const totalAbonos = filtradas.reduce((s,c) => s + c.abonos, 0);
   const cuadrada    = Math.abs(totalCargos - totalAbonos) < 0.01;
 
-  // Agrupar por tipo para resumen
-  const grupos = ['1','2','3','4','5','6'].map(d => ({
-    digito: d,
-    cuentas: filtradas.filter(c => c.numeroCuenta.startsWith(d)),
+  /*
+   * Agrupar por TIPO y no por el primer dígito: con los dígitos 1 a 6 el
+   * resumen se dejaba fuera las cuentas 7xx —resultados financieros del
+   * catálogo SAT—, así que la balanza cuadraba arriba y el resumen no sumaba
+   * lo mismo, sin decir de qué renglones se había olvidado.
+   */
+  const grupos = ['ACTIVO','PASIVO','CAPITAL','INGRESO','COSTO','GASTO'].map(t => ({
+    digito: t,
+    cuentas: filtradas.filter(c => ((c as any).tipo ?? '') === t),
   })).filter(g => g.cuentas.length > 0);
 
   const periodoLabel = rangoActivo === 'Histórico' ? 'Histórico completo'

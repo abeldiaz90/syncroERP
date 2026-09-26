@@ -129,7 +129,20 @@ export default function PanelPrincipal() {
 
       if (!vivo) return;
       setMetricas(m ?? null);
-      const cxc = Array.isArray(balanza) ? balanza.find((b) => b.numeroCuenta?.startsWith('14')) : null;
+      /*
+       * «Por cobrar» buscaba la cuenta que empieza por «14». En el catálogo SAT
+       * que usa el sistema, los clientes son la 105; la 14x no existe, así que
+       * el indicador del panel principal enseñaba $0.00 desde el primer día,
+       * con cartera viva. Un cero es una respuesta, y ésta era falsa.
+       *
+       * Ahora se busca por el ROL de la cuenta —que es lo que el motor contable
+       * usa para saber dónde abonar la venta a crédito— y se cae al 105 sólo si
+       * nadie declaró el rol.
+       */
+      const cuentas = Array.isArray(balanza) ? balanza : [];
+      const cxc =
+        cuentas.find((b) => (b as any).rolSistema === 'CLIENTES_CXC') ??
+        cuentas.find((b) => b.numeroCuenta?.startsWith('105'));
       setPorCobrar(Array.isArray(balanza) ? Number(cxc?.saldoFinal ?? 0) : null);
       setCargandoKpis(false);
     })();

@@ -766,6 +766,57 @@ export class PolizasService {
   // ══════════════════════════════════════════════════════════════════════════
   // OBTENER PÓLIZAS
   // ══════════════════════════════════════════════════════════════════════════
+  /**
+   * El concepto con el que se graba la póliza de apertura. Es el mismo texto
+   * que la pantalla de saldos iniciales manda, y el que permite reconocerla
+   * después: una apertura es un acto único y hay que poder verlo.
+   */
+  static readonly CONCEPTO_APERTURA = 'Saldos iniciales de apertura';
+
+  /**
+   * ¿Esta empresa ya cargó sus saldos de apertura, y hay algo contabilizado?
+   *
+   * La pantalla de saldos iniciales lo necesita para dos cosas distintas:
+   * avisar de que la apertura ya existe —cargarla dos veces duplica el balance
+   * entero, y no se nota hasta el primer cierre— y avisar de que ya hay
+   * movimientos, porque entonces una apertura fechada hacia atrás desordena
+   * todo lo que vino después.
+   */
+  async estadoDeApertura(empresaId: string) {
+    const repo = this.dataSource.getRepository(Poliza);
+    const apertura = await repo.findOne({
+      where: {
+        empresaId,
+        concepto: PolizasService.CONCEPTO_APERTURA,
+      },
+      relations: ['partidas'],
+      order: { fechaCreacion: 'ASC' },
+    });
+    const totalPolizas = await repo.count({ where: { empresaId } });
+
+    return {
+      existe: Boolean(apertura),
+      apertura: apertura
+        ? {
+            folio: apertura.folio,
+            fecha: apertura.fecha,
+            partidas: apertura.partidas?.length ?? 0,
+            total:
+              Math.round(
+                (apertura.partidas ?? []).reduce(
+                  (suma, p) => suma + Number(p.cargo ?? 0),
+                  0,
+                ) * 100,
+              ) / 100,
+          }
+        : null,
+      /* Cuántas pólizas hay ya, apertura incluida. */
+      totalPolizas,
+      hayMovimientos: apertura ? totalPolizas > 1 : totalPolizas > 0,
+      concepto: PolizasService.CONCEPTO_APERTURA,
+    };
+  }
+
   async obtenerPolizas(empresaId: string) {
     return this.dataSource.getRepository(Poliza).find({
       where: { empresaId },
@@ -824,6 +875,14 @@ export class PolizasService {
         'c.id AS id',
         'c.numeroCuenta AS "numeroCuenta"',
         'c.nombre AS nombre',
+        /*
+         * El TIPO y la NATURALEZA viajan con cada renglón. Sin ellos, las tres
+         * pantallas financieras clasificaban las cuentas por el primer dígito
+         * del número, y eso no es lo mismo: ver abajo.
+         */
+        'c.tipo AS tipo',
+        'c.naturaleza AS naturaleza',
+        'c.rolSistema AS "rolSistema"',
         'COALESCE(SUM(p.cargo), 0) AS cargos',
         'COALESCE(SUM(p.abono), 0) AS abonos',
       ])
@@ -832,21 +891,53 @@ export class PolizasService {
       .leftJoin(Poliza, 'pol', joinCondicion, joinParams)
       .where('c.empresaId = :empresaId', { empresaId })
       .andWhere('(p.id IS NULL OR pol.id IS NOT NULL)')
-      .groupBy('c.id, c.numeroCuenta, c.nombre')
+      .groupBy('c.id, c.numeroCuenta, c.nombre, c.tipo, c.naturaleza, c.rolSistema')
       .orderBy('c.numeroCuenta', 'ASC')
       .getRawMany();
 
     return resultados.map((r) => {
       const cargos = Number(r.cargos);
       const abonos = Number(r.abonos);
-      const primerDigito = String(r.numeroCuenta).charAt(0);
-      const saldoFinal = ['1', '5', '6'].includes(primerDigito)
-        ? cargos - abonos
-        : abonos - cargos;
+      /*
+       * ══════════════════════════════════════════════════════════════════
+       * El saldo lo decide la NATURALEZA de la cuenta, no su número
+       * ------------------------------------------------------------------
+       * Aquí ponía:
+       *
+       *   const primerDigito = String(r.numeroCuenta).charAt(0);
+       *   const saldoFinal = ['1','5','6'].includes(primerDigito)
+       *     ? cargos - abonos : abonos - cargos;
+       *
+       * o sea: «las cuentas que empiezan por 1, 5 o 6 son deudoras». Dos
+       * familias enteras se salen de esa regla:
+       *
+       *   · Las CONTRA-CUENTAS de activo —171 depreciación acumulada, 108
+       *     estimación de incobrables, 116, 172, 183, 189—. Empiezan por 1 y
+       *     su naturaleza es ACREEDORA. Con la regla vieja, una depreciación
+       *     acumulada de 480 000 en el haber salía como −480 000.
+       *   · Los RESULTADOS FINANCIEROS del catálogo SAT: 701 gastos
+       *     financieros, 702 productos financieros, 703 otros gastos, 704
+       *     otros productos. Empiezan por 7 y la regla los trataba a todos
+       *     como acreedores, así que los gastos salían con el signo al revés.
+       *
+       * Medido el 26-sep-2026: `703.21` tenía un cargo de $15 y la balanza lo
+       * devolvía como −15. El balance general —que además sólo miraba las
+       * cuentas 4, 5 y 6— no lo contaba en ninguna parte, y la empresa vivía
+       * con un «Descuadrado $15.00» permanente y sin explicación.
+       *
+       * La naturaleza está en el catálogo, cuenta por cuenta, y es la que
+       * manda. El número de cuenta es una etiqueta, no una regla.
+       * ══════════════════════════════════════════════════════════════════
+       */
+      const esDeudora = String(r.naturaleza ?? 'DEUDORA') === 'DEUDORA';
+      const saldoFinal = esDeudora ? cargos - abonos : abonos - cargos;
       return {
         id: r.id,
         numeroCuenta: r.numeroCuenta,
         nombre: r.nombre,
+        tipo: r.tipo,
+        naturaleza: r.naturaleza,
+        rolSistema: r.rolSistema ?? null,
         cargos,
         abonos,
         saldoFinal,

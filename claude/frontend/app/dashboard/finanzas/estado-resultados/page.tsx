@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { fechaLarga } from '@/lib/fechas';
 import { Calendar, X, Printer, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
-interface ICuenta { id: string; numeroCuenta: string; nombre: string; saldoFinal: number; }
+interface ICuenta { id: string; numeroCuenta: string; nombre: string; tipo?: string; naturaleza?: string; cargos?: number; abonos?: number; saldoFinal: number; }
 
 const HOY = new Date();
 const fmt  = (d: Date) => d.toISOString().split('T')[0];
@@ -72,13 +72,49 @@ export default function EstadoResultadosPage() {
     fetchDatos(r.desde, r.hasta);
   };
 
-  const ingresos   = cuentas.filter(c => c.numeroCuenta.startsWith('4'));
-  const costos     = cuentas.filter(c => c.numeroCuenta.startsWith('5'));
-  const gastos     = cuentas.filter(c => c.numeroCuenta.startsWith('6'));
-  const totalIng   = ingresos.reduce((s, c) => s + c.saldoFinal, 0);
-  const totalCosto = costos.reduce((s, c) => s + c.saldoFinal, 0);
-  const utilBruta  = totalIng - totalCosto;
-  const totalGasto = gastos.reduce((s, c) => s + c.saldoFinal, 0);
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * Por TIPO de cuenta, no por el primer dígito del número
+   * --------------------------------------------------------------------------
+   * `startsWith('4')`, `('5')` y `('6')` dejaban fuera del estado de resultados
+   * las cuatro familias de resultados financieros del catálogo SAT —701 gastos
+   * financieros, 702 productos financieros, 703 otros gastos, 704 otros
+   * productos—, que empiezan por 7. Un intereses a favor, una pérdida
+   * cambiaria o una utilidad en venta de activo fijo no aparecían por ningún
+   * lado, y la utilidad neta estaba mal sin avisar.
+   *
+   * Y dentro de cada grupo, una cuenta con naturaleza contraria a la del grupo
+   * —una devolución sobre ventas, que es de ingresos pero deudora— resta en
+   * vez de sumar.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  const natural: Record<string, string> = {
+    INGRESO: 'ACREEDORA', COSTO: 'DEUDORA', GASTO: 'DEUDORA',
+    ACTIVO: 'DEUDORA', PASIVO: 'ACREEDORA', CAPITAL: 'ACREEDORA',
+  };
+  const aporte = (c: any) =>
+    (c.naturaleza ?? natural[c.tipo ?? ''] ?? 'DEUDORA') === natural[c.tipo ?? '']
+      ? c.saldoFinal
+      : -c.saldoFinal;
+  const sumar = (lista: any[]) =>
+    Math.round(lista.reduce((s, c) => s + aporte(c), 0) * 100) / 100;
+
+  /*
+   * Y sólo las cuentas CON MOVIMIENTO. El catálogo SAT tiene más de mil
+   * cuentas; el estado de resultados imprimía las ~600 de resultados, una por
+   * renglón, casi todas en $0.00. Un reporte donde hay que buscar los cinco
+   * renglones que dicen algo entre seiscientos que no dicen nada no se lee: se
+   * hojea. El balance general ya filtraba así.
+   */
+  const conMovimiento = (t: string) =>
+    cuentas.filter(c => (c as any).tipo === t && (c.saldoFinal !== 0 || (c.cargos ?? 0) !== 0 || (c.abonos ?? 0) !== 0));
+  const ingresos   = conMovimiento('INGRESO');
+  const costos     = conMovimiento('COSTO');
+  const gastos     = conMovimiento('GASTO');
+  const totalIng   = sumar(ingresos);
+  const totalCosto = sumar(costos);
+  const utilBruta  = Math.round((totalIng - totalCosto) * 100) / 100;
+  const totalGasto = sumar(gastos);
   const utilNeta   = utilBruta - totalGasto;
   const margen     = totalIng > 0 ? (utilNeta / totalIng) * 100 : 0;
 
@@ -180,7 +216,7 @@ export default function EstadoResultadosPage() {
                         <span className="font-mono text-xs text-slate-400 mr-3">{c.numeroCuenta}</span>
                         {c.nombre}
                       </span>
-                      <span className="font-mono text-slate-800">{fmt$(c.saldoFinal)}</span>
+                      <span className="font-mono text-slate-800">{fmt$(aporte(c))}</span>
                     </div>
                   ))}
                   <div className="flex justify-between text-sm font-bold pt-2 border-t border-slate-200 mt-2">
@@ -205,7 +241,7 @@ export default function EstadoResultadosPage() {
                         <span className="font-mono text-xs text-slate-400 mr-3">{c.numeroCuenta}</span>
                         {c.nombre}
                       </span>
-                      <span className="font-mono text-slate-800">({fmt$(c.saldoFinal, true)})</span>
+                      <span className="font-mono text-slate-800">({fmt$(aporte(c), true)})</span>
                     </div>
                   ))}
                   <div className="flex justify-between text-sm font-bold pt-2 border-t border-slate-200 mt-2">
@@ -240,7 +276,7 @@ export default function EstadoResultadosPage() {
                         <span className="font-mono text-xs text-slate-400 mr-3">{c.numeroCuenta}</span>
                         {c.nombre}
                       </span>
-                      <span className="font-mono text-slate-800">({fmt$(c.saldoFinal, true)})</span>
+                      <span className="font-mono text-slate-800">({fmt$(aporte(c), true)})</span>
                     </div>
                   ))}
                   <div className="flex justify-between text-sm font-bold pt-2 border-t border-slate-200 mt-2">
