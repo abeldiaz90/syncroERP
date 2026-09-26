@@ -226,6 +226,38 @@ export class TesoreriaService {
     return repo.findOne({ where: { id: movimiento.id } });
   }
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * Un BIGINT de PostgreSQL llega como TEXTO, y «texto + 1» concatena
+   * --------------------------------------------------------------------------
+   * Aquí ponía:
+   *
+   *   .select('MAX(CAST(SUBSTRING(m.folio, 4, 12) AS BIGINT))', 'maximo')
+   *   return `TM-${String((fila?.maximo ?? 0) + 1).padStart(8, '0')}`;
+   *
+   * `node-postgres` devuelve BIGINT como `string` —no cabe en un `number` de
+   * JavaScript, así que no lo convierte—. Y en JavaScript `'1' + 1` no es 2:
+   * es `'11'`. El resultado no es un folio equivocado de vez en cuando, es una
+   * progresión que se dispara y termina clavada:
+   *
+   *   TM-00000001  →  '1' + 1 = '11'   →  TM-00000011
+   *   TM-00000011  →  '11' + 1 = '111' →  TM-00000111
+   *   …
+   *   TM-1111111111111 → '111111111111' + 1 = '1111111111111' → el MISMO
+   *
+   * A partir de los trece unos el folio ya no crece: `SUBSTRING(...,4,12)`
+   * corta a doce, se le pega un uno y vuelve a salir trece. Un punto fijo.
+   *
+   * Medido el 26-sep-2026 contra la instalación: los DOCE movimientos de
+   * tesorería de la cuenta «Caja mostrador (UAT)» tenían el mismo folio,
+   * `TM-1111111111111`, y el reporte de conciliación los listaba como doce
+   * renglones con el mismo número de documento. Un folio que no identifica
+   * nada no es un folio.
+   *
+   * `Number(...)` antes de sumar. Y el máximo se calcula sobre el número, no
+   * sobre el texto, para que 'TM-00000009' no parezca mayor que 'TM-00000010'.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
   private async siguienteFolio(
     empresaId: string,
     repo: Repository<MovimientoTesoreria>,
@@ -235,9 +267,13 @@ export class TesoreriaService {
       .select('MAX(CAST(SUBSTRING(m.folio, 4, 12) AS BIGINT))', 'maximo')
       .where('m.empresaId = :empresaId', { empresaId })
       .andWhere("m.folio LIKE 'TM-%'")
-      .getRawOne<{ maximo: number | null }>();
+      /* Los folios rotos de antes del arreglo no pueden marcar el siguiente. */
+      .andWhere("m.folio ~ '^TM-[0-9]{1,12}$'")
+      .getRawOne<{ maximo: number | string | null }>();
 
-    return `TM-${String((fila?.maximo ?? 0) + 1).padStart(8, '0')}`;
+    const maximo = Number(fila?.maximo ?? 0);
+    const siguiente = Number.isFinite(maximo) && maximo > 0 ? maximo + 1 : 1;
+    return `TM-${String(siguiente).padStart(8, '0')}`;
   }
 
   /**
@@ -776,6 +812,42 @@ export class TesoreriaService {
   }
 
   /** El reporte que firma el contador: explica la diferencia contra el banco. */
+  /**
+   * El estado de cuenta ya cargado para esa cuenta y periodo, si lo hay.
+   *
+   * Sin esto la conciliación sólo existía mientras durara la pestaña: el id
+   * vivía en el estado de React y al recargar la pantalla no había forma de
+   * volver a encontrarlo. Ver el comentario del controlador.
+   */
+  async estadoCuentaDelPeriodo(
+    empresaId: string,
+    cuentaBancariaId: string,
+    ejercicio: number,
+    mes: number,
+  ) {
+    if (!cuentaBancariaId || !Number.isFinite(ejercicio) || !Number.isFinite(mes)) {
+      return null;
+    }
+    const estado = await this.estados.findOne({
+      where: { empresaId, cuentaBancariaId, ejercicio, mes },
+      order: { fechaCreacion: 'DESC' },
+    });
+    if (!estado) return null;
+    const lineas = await this.lineas.count({
+      where: { estadoCuentaId: estado.id },
+    });
+    return {
+      id: estado.id,
+      ejercicio: estado.ejercicio,
+      mes: estado.mes,
+      estado: estado.estado,
+      saldoInicialBanco: Number(estado.saldoInicialBanco),
+      saldoFinalBanco: Number(estado.saldoFinalBanco),
+      fechaCierre: estado.fechaCierre,
+      lineas,
+    };
+  }
+
   async reporteConciliacion(estadoCuentaId: string, empresaId: string) {
     const estado = await this.estados.findOne({
       where: { id: estadoCuentaId, empresaId },
@@ -847,8 +919,43 @@ export class TesoreriaService {
       saldoConciliado: aPesos(saldoConciliadoCent),
       diferencia: aPesos(diferenciaCent),
       cuadra: Math.abs(diferenciaCent) <= 1,
+      /*
+       * ══════════════════════════════════════════════════════════════════════
+       * Una conciliación que no concilió nada se declaraba cuadrada
+       * ----------------------------------------------------------------------
+       * `diferencia` sale de restar los dos ajustes clásicos: los movimientos
+       * nuestros que el banco aún no refleja y las líneas del banco que
+       * nosotros no tenemos registradas. Cuando NO SE EMPAREJA NADA, cada
+       * operación entra en los dos lados a la vez —está en nuestros libros sin
+       * conciliar y está en el estado de cuenta sin conciliar— y los dos
+       * ajustes se cancelan EXACTAMENTE. La diferencia da cero y el reporte
+       * dice «cuadra».
+       *
+       * Medido el 26-sep-2026: doce movimientos de «Caja mostrador (UAT)»
+       * contra doce líneas del banco por los mismos importes. La conciliación
+       * automática emparejó UNA —las otras once eran ambiguas: cuatro
+       * movimientos distintos de $120 el mismo día— y el reporte contestó
+       * diferencia $0.00 y `cuadra: true`. Con eso aparecía el botón de
+       * cerrar, y cerrar es lo que el cierre mensual cuenta como cobertura
+       * bancaria. Se habría firmado como conciliado un mes en el que no se
+       * concilió nada.
+       *
+       * La regla que faltaba: cada línea del BANCO tiene que quedar explicada
+       * —emparejada con un movimiento o registrada como movimiento nuevo—.
+       * Que un movimiento NUESTRO siga en tránsito es normal a fin de mes: un
+       * depósito que el banco acredita en dos días. Que una línea del banco
+       * siga sin explicación no lo es: el banco ya movió ese dinero.
+       * ══════════════════════════════════════════════════════════════════════
+       */
+      pendientes: {
+        lineasDelBanco: noRegistrados.length,
+        movimientosEnTransito: enTransito.length,
+      },
+      /** Cuadra Y no queda ninguna línea del banco sin explicar. */
+      listoParaCerrar: Math.abs(diferenciaCent) <= 1 && noRegistrados.length === 0,
       detalle: {
         enTransito: enTransito.map((m) => ({
+          id: m.id,
           folio: m.folio,
           fecha: m.fecha,
           concepto: m.concepto,
@@ -856,8 +963,10 @@ export class TesoreriaService {
           tipo: m.tipo,
         })),
         noRegistrados: noRegistrados.map((l) => ({
+          id: l.id,
           fecha: l.fecha,
           descripcion: l.descripcion,
+          referencia: l.referencia,
           cargo: Number(l.cargo),
           abono: Number(l.abono),
         })),
@@ -908,6 +1017,26 @@ export class TesoreriaService {
     }
 
     const reporte = await this.reporteConciliacion(estadoCuentaId, empresaId);
+    /*
+     * Primero lo que la diferencia no ve: líneas del banco sin explicar. Con
+     * cero emparejamientos la diferencia da cero —los dos ajustes se cancelan—
+     * y cerrar así sería firmar como conciliado un mes en el que no se
+     * concilió nada. Ver el comentario largo en `reporteConciliacion`.
+     */
+    if (reporte.pendientes.lineasDelBanco > 0) {
+      throw new BadRequestException(
+        `Quedan ${reporte.pendientes.lineasDelBanco} línea(s) del estado de ` +
+          'cuenta sin explicar. Cada movimiento del banco tiene que quedar ' +
+          'emparejado con uno de tus movimientos o registrado como movimiento ' +
+          'nuevo: el banco ya movió ese dinero. ' +
+          (reporte.pendientes.movimientosEnTransito > 0
+            ? `Tus ${reporte.pendientes.movimientosEnTransito} movimiento(s) en ` +
+              'tránsito sí pueden quedarse así: son los que el banco acreditará ' +
+              'después. '
+            : '') +
+          'Empareja lo que falte desde la conciliación y vuelve a intentarlo.',
+      );
+    }
     if (!reporte.cuadra) {
       throw new BadRequestException(
         `La conciliacion no cuadra: quedan ${reporte.diferencia.toFixed(2)} sin explicar. ` +

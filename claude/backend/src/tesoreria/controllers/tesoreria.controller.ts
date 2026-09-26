@@ -104,6 +104,40 @@ export class TesoreriaController {
 
   /* ── Conciliación ──────────────────────────────────────────────────────── */
 
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * Una conciliación empezada tenía que poder volver a abrirse
+   * --------------------------------------------------------------------------
+   * Había endpoint para CREAR el estado de cuenta, para emparejar, para el
+   * reporte y para cerrar. No había ninguno para ENCONTRAR el del periodo. La
+   * pantalla guardaba el id en memoria, así que al recargar —o al volver al día
+   * siguiente, que es lo normal en una conciliación— la conciliación existente
+   * desaparecía: el tablero decía «Carga el estado de cuenta para empezar» con
+   * las doce líneas ya cargadas en la base, y volver a pulsar «Cargar» sólo
+   * podía duplicarlas.
+   *
+   * Un trabajo de varios días que no se puede retomar es un trabajo que se
+   * hace de una sentada o no se hace.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  @Get('conciliacion')
+  @ApiOperation({
+    summary: 'El estado de cuenta ya cargado para esa cuenta y periodo, si lo hay',
+  })
+  conciliacionDelPeriodo(
+    @ActiveUser('empresaId') empresaId: string,
+    @Query('cuentaBancariaId') cuentaBancariaId: string,
+    @Query('ejercicio') ejercicio: string,
+    @Query('mes') mes: string,
+  ) {
+    return this.svc.estadoCuentaDelPeriodo(
+      empresaId,
+      cuentaBancariaId,
+      Number(ejercicio),
+      Number(mes),
+    );
+  }
+
   @Post('conciliacion/estados-cuenta')
   @ApiOperation({
     summary: 'Carga el estado de cuenta del banco y valida que cuadre',

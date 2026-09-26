@@ -13,10 +13,10 @@
  * ============================================================================
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCheck, ClipboardPaste, FileSpreadsheet, Lock, Scale } from 'lucide-react';
 
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { dinero, fecha, isoCorto } from '@/lib/format';
 import { useAccion, useDatos } from '@/hooks/use-datos';
 import {
@@ -37,9 +37,14 @@ interface Reporte {
   saldoConciliado: number;
   diferencia: number;
   cuadra: boolean;
+  /* Cuadra Y no queda ninguna línea del banco sin explicar. Ver el comentario
+     de `reporteConciliacion` en el backend: con cero emparejamientos los dos
+     ajustes se cancelan y la diferencia da cero sin haber conciliado nada. */
+  listoParaCerrar?: boolean;
+  pendientes?: { lineasDelBanco: number; movimientosEnTransito: number };
   detalle: {
-    enTransito: Array<{ folio: string; fecha: string; concepto: string; importe: number; tipo: string }>;
-    noRegistrados: Array<{ fecha: string; descripcion: string; cargo: number; abono: number }>;
+    enTransito: Array<{ id: string; folio: string; fecha: string; concepto: string; importe: number; tipo: string }>;
+    noRegistrados: Array<{ id: string; fecha: string; descripcion: string; referencia?: string; cargo: number; abono: number }>;
   };
 }
 
@@ -62,6 +67,36 @@ export default function ConciliacionPage() {
   const [cerrada, setCerrada] = useState(false);
 
   const cuentas = useDatos<Cuenta[]>(() => api.get('/tesoreria/saldos'), []);
+
+  /*
+   * Al elegir cuenta y periodo se busca la conciliación que ya exista. Antes el
+   * id sólo vivía en este estado de React: al recargar la pantalla —o al volver
+   * al día siguiente, que es lo normal en una conciliación— el trabajo hecho
+   * desaparecía de la vista, el tablero decía «Carga el estado de cuenta para
+   * empezar» con las líneas ya en la base, y volver a pulsar «Cargar» sólo
+   * podía duplicarlas.
+   */
+  useEffect(() => {
+    let vivo = true;
+    setEstadoCuentaId('');
+    setReporte(null);
+    setCerrada(false);
+    if (!cuentaId) return;
+    void api
+      .get<{ id: string; estado: string } | null>('/tesoreria/conciliacion', {
+        query: { cuentaBancariaId: cuentaId, ejercicio, mes },
+      })
+      .then((e) => {
+        if (!vivo || !e?.id) return;
+        setEstadoCuentaId(e.id);
+        setCerrada(e.estado === 'CERRADA');
+        return api
+          .get<Reporte>(`/tesoreria/conciliacion/${e.id}/reporte`)
+          .then((r) => { if (vivo) setReporte(r); });
+      })
+      .catch(() => undefined);
+    return () => { vivo = false; };
+  }, [cuentaId, ejercicio, mes]);
 
   const cargar = useAccion(async (datos: Record<string, unknown>) => {
     const e = await api.post<{ id: string }>('/tesoreria/conciliacion/estados-cuenta', datos);
@@ -108,6 +143,50 @@ export default function ConciliacionPage() {
     setReporte(r);
     return r;
   });
+
+  /*
+   * Emparejar a mano lo que la conciliación automática no se atreve a decidir.
+   * El endpoint existía desde siempre y no lo llamaba ninguna pantalla: con
+   * cuatro cobros de $120 el mismo día, la automática los declara ambiguos
+   * —y hace bien— y sin esta tabla no había manera de resolverlos. Un
+   * emparejador que se rinde y no deja terminar a mano es un emparejador que
+   * no sirve.
+   */
+  const [emparejando, setEmparejando] = useState('');
+  const [eleccion, setEleccion] = useState<Record<string, string>>({});
+
+  const emparejar = async (lineaId: string) => {
+    const movimientoId = eleccion[lineaId];
+    if (!movimientoId) {
+      avisar('Elige con cuál de tus movimientos corresponde esta línea.', 'alerta');
+      return;
+    }
+    setEmparejando(lineaId);
+    try {
+      await api.post('/tesoreria/conciliacion/manual', { lineaId, movimientoId });
+      avisar('Línea emparejada.', 'exito');
+      await verReporte.ejecutar();
+    } catch (e) {
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo emparejar.', 'error');
+    } finally {
+      setEmparejando('');
+    }
+  };
+
+  /** Los movimientos nuestros que podrían ser esa línea: mismo signo e importe. */
+  const candidatos = (l: { cargo: number; abono: number }) => {
+    const esCargo = Number(l.cargo) > 0;
+    const importe = esCargo ? Number(l.cargo) : Number(l.abono);
+    return (reporte?.detalle.enTransito ?? []).filter((m) => {
+      const salida = m.tipo === 'EGRESO' || m.tipo === 'TRASPASO_SALIDA';
+      return salida === esCargo && Math.abs(Number(m.importe) - importe) < 0.01;
+    });
+  };
+
+  const pendientesBanco =
+    reporte?.pendientes?.lineasDelBanco ?? reporte?.detalle.noRegistrados.length ?? 0;
+  const listoParaCerrar =
+    reporte?.listoParaCerrar ?? (Boolean(reporte?.cuadra) && pendientesBanco === 0);
 
   const anios = Array.from({ length: 4 }, (_, i) => ahora.getFullYear() - 2 + i);
 
@@ -200,26 +279,30 @@ export default function ConciliacionPage() {
           {/* Veredicto */}
           <div
             className="panel p-4 mb-4"
-            style={{ borderLeft: `3px solid ${reporte.cuadra ? '#059669' : '#e11d48'}` }}
+            style={{ borderLeft: `3px solid ${listoParaCerrar ? '#059669' : '#e11d48'}` }}
           >
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <p className="text-[15px] font-bold text-slate-900">
-                  {reporte.cuadra
-                    ? 'La conciliación cuadra'
-                    : `Hay una diferencia de ${dinero(Math.abs(reporte.diferencia))}`}
+                  {!reporte.cuadra
+                    ? `Hay una diferencia de ${dinero(Math.abs(reporte.diferencia))}`
+                    : pendientesBanco > 0
+                      ? `Quedan ${pendientesBanco} movimiento(s) del banco sin explicar`
+                      : 'La conciliación cuadra'}
                 </p>
                 <p className="text-[12.5px] text-slate-500 mt-0.5">
-                  {reporte.cuadra
-                    ? `Periodo ${reporte.periodo}. El saldo conciliado coincide con tus libros.`
-                    : 'Revisa las partidas de abajo: suelen ser movimientos capturados con importe distinto o que faltan por registrar.'}
+                  {!reporte.cuadra
+                    ? 'Revisa las partidas de abajo: suelen ser movimientos capturados con importe distinto o que faltan por registrar.'
+                    : pendientesBanco > 0
+                      ? 'La diferencia da cero porque cada operación está contada en los dos lados a la vez. Empareja abajo cada línea del banco con tu movimiento: mientras queden líneas sin explicar, la conciliación no está hecha.'
+                      : `Periodo ${reporte.periodo}. El saldo conciliado coincide con tus libros.`}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <Distintivo tono={reporte.cuadra ? 'exito' : 'peligro'}>
-                  {reporte.cuadra ? 'Conciliado' : 'Con diferencia'}
+                <Distintivo tono={listoParaCerrar ? 'exito' : 'peligro'}>
+                  {listoParaCerrar ? 'Conciliado' : reporte.cuadra ? 'Sin emparejar' : 'Con diferencia'}
                 </Distintivo>
-                {reporte.cuadra &&
+                {listoParaCerrar &&
                   (cerrada ? (
                     <Distintivo tono="exito">Cerrada</Distintivo>
                   ) : (
@@ -325,11 +408,14 @@ export default function ConciliacionPage() {
                       <th>Descripción</th>
                       <th className="text-right">Cargo</th>
                       <th className="text-right">Abono</th>
+                      <th>Emparejar con</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {reporte.detalle.noRegistrados.map((l, i) => (
-                      <tr key={i}>
+                    {reporte.detalle.noRegistrados.map((l, i) => {
+                      const opciones = candidatos(l);
+                      return (
+                      <tr key={l.id ?? i}>
                         <td className="cifra text-slate-500">{fecha(l.fecha)}</td>
                         <td className="text-slate-700">{l.descripcion}</td>
                         <td className="text-right cifra text-rose-600">
@@ -338,8 +424,38 @@ export default function ConciliacionPage() {
                         <td className="text-right cifra text-emerald-700">
                           {Number(l.abono) > 0 ? dinero(l.abono) : ''}
                         </td>
+                        <td>
+                          {opciones.length === 0 ? (
+                            <span className="text-[11.5px] text-slate-400">
+                              Ninguno de tus movimientos coincide: regístralo en Movimientos bancarios.
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <select
+                                className="text-[12px] border border-slate-200 rounded-lg px-2 py-1"
+                                value={eleccion[l.id] ?? ''}
+                                onChange={(e) => setEleccion((p) => ({ ...p, [l.id]: e.target.value }))}
+                              >
+                                <option value="">Elige…</option>
+                                {opciones.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {fecha(m.fecha)} · {m.concepto}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                disabled={emparejando === l.id}
+                                onClick={() => void emparejar(l.id)}
+                                className="text-[12px] font-semibold px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50"
+                              >
+                                {emparejando === l.id ? '…' : 'Emparejar'}
+                              </button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
-                    ))}
+                    );})}
                   </tbody>
                 </table>
               )}

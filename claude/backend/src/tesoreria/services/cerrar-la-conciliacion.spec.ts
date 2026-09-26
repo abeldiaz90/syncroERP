@@ -40,7 +40,11 @@ type Estado = {
   conciliadoPorId?: string;
 };
 
-function servicioCon(estado: Estado | null, cuadra: boolean) {
+function servicioCon(
+  estado: Estado | null,
+  cuadra: boolean,
+  lineasDelBanco = 0,
+) {
   const guardados: Estado[] = [];
   const svc = Object.create(TesoreriaService.prototype) as TesoreriaService;
   // `estados` es privado: se inyecta el repositorio falso por la puerta de
@@ -58,6 +62,8 @@ function servicioCon(estado: Estado | null, cuadra: boolean) {
     diferencia: cuadra ? 0 : 1234.5,
     saldoSegunBanco: 1000,
     saldoSegunLibros: cuadra ? 1000 : -234.5,
+    pendientes: { lineasDelBanco, movimientosEnTransito: 0 },
+    listoParaCerrar: cuadra && lineasDelBanco === 0,
   } as never);
   return { svc, guardados };
 }
@@ -90,6 +96,40 @@ describe('Tesoreria · cerrar la conciliacion del periodo', () => {
       svc.cerrarConciliacion('ec-1', 'emp-1', 'usuario-7'),
     ).rejects.toBeInstanceOf(BadRequestException);
     // Y sobre todo: no escribio nada.
+    expect(guardados).toHaveLength(0);
+  });
+
+  it('no cierra con líneas del banco sin explicar, aunque la diferencia dé cero', async () => {
+    /*
+     * ══════════════════════════════════════════════════════════════════════
+     * El caso que destapó la regla, medido el 26-sep-2026
+     * ----------------------------------------------------------------------
+     * `diferencia` resta dos ajustes: lo nuestro que el banco no refleja y lo
+     * del banco que no tenemos registrado. Si NO SE EMPAREJA NADA, cada
+     * operación entra en los dos lados a la vez y los ajustes se cancelan
+     * EXACTAMENTE: la diferencia da cero y el reporte decía «cuadra».
+     *
+     * Doce movimientos de «Caja mostrador (UAT)» contra doce líneas del banco
+     * por los mismos importes: la automática emparejó una —las otras once eran
+     * ambiguas, cuatro cobros de $120 el mismo día— y el botón de cerrar
+     * apareció igual. Cerrar es lo que el cierre mensual cuenta como cobertura
+     * bancaria: se habría firmado como conciliado un mes en el que no se
+     * concilió nada.
+     *
+     * Que un movimiento NUESTRO siga en tránsito es normal a fin de mes. Que
+     * una línea del BANCO siga sin explicación no lo es: el banco ya movió ese
+     * dinero.
+     * ══════════════════════════════════════════════════════════════════════
+     */
+    const { svc, guardados } = servicioCon(
+      { id: 'ec-1', empresaId: 'emp-1', estado: EstadoCierre.ABIERTA },
+      true,
+      11,
+    );
+
+    await expect(
+      svc.cerrarConciliacion('ec-1', 'emp-1', 'usuario-7'),
+    ).rejects.toThrow(/11 línea\(s\) del estado de cuenta sin explicar/);
     expect(guardados).toHaveLength(0);
   });
 
