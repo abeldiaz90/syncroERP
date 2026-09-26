@@ -302,6 +302,33 @@ export class ActivosService {
    * Idempotente: si el periodo ya se corrió, los activos ya procesados se
    * omiten en lugar de duplicarse.
    */
+  /**
+   * ¿El mes contable está cerrado? Se pregunta a `cierres_contables`, que es la
+   * misma tabla que consulta el motor de pólizas.
+   *
+   * Si la consulta falla NO se responde «abierto»: entre no poder comprobar y
+   * dejar pasar, un candado elige lo primero.
+   */
+  private async periodoEstaCerrado(
+    empresaId: string,
+    ejercicio: number,
+    mes: number,
+  ): Promise<boolean> {
+    const filas = await this.dataSource
+      .query(
+        'SELECT id FROM cierres_contables WHERE empresaId = $1 AND mes = $2 AND anio = $3',
+        [empresaId, mes, ejercicio],
+      )
+      .catch((error: unknown) => {
+        throw new ConflictException(
+          `No se pudo comprobar si el período ${mes}/${ejercicio} está cerrado, ` +
+            'así que la corrida no se ejecutó. Detalle: ' +
+            `${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+    return (filas?.length ?? 0) > 0;
+  }
+
   async correrDepreciacion(
     ejercicio: number,
     mes: number,
@@ -315,6 +342,33 @@ export class ActivosService {
     if (finDePeriodo > hoy) {
       throw new BadRequestException(
         'No se puede depreciar un periodo que aún no termina.',
+      );
+    }
+
+    /*
+     * ══════════════════════════════════════════════════════════════════════
+     * Un periodo cerrado se rechaza ANTES, no después
+     * ----------------------------------------------------------------------
+     * La corrida comprobaba que el periodo hubiera terminado y nada más. Si
+     * además estaba CERRADO, la depreciación se registraba igual —el activo
+     * sumaba su mes, subía la acumulada, bajaba el valor en libros— y la
+     * póliza reventaba al final con «El período 8/2026 está cerrado».
+     *
+     * Medido el 26-sep-2026: la corrida de agosto dejó la camioneta
+     * AF-000001 con $20,000 de depreciación acumulada y el asiento FALLIDO en
+     * la bandeja. El registro de activos y el mayor dejaron de decir lo mismo,
+     * y para arreglarlo hay que reabrir agosto y reintentar desde la bandeja:
+     * una reparación que el contador no tiene por qué adivinar.
+     *
+     * Mejor no empezar. Y si la consulta al cierre falla, tampoco: un candado
+     * que no pudo preguntar no dice «abierto».
+     * ══════════════════════════════════════════════════════════════════════
+     */
+    if (await this.periodoEstaCerrado(empresaId, ejercicio, mes)) {
+      throw new BadRequestException(
+        `El período ${mes}/${ejercicio} está cerrado. Reábrelo desde el cierre ` +
+          'contable si de verdad falta correr su depreciación: registrarla ' +
+          'ahora dejaría el activo depreciado y la póliza sin poder crearse.',
       );
     }
 
@@ -627,7 +681,7 @@ export class ActivosService {
      * dado de baja y el asiento no queda encolado, el balance y el auxiliar
      * divergen sin que nadie se entere.
      */
-    return this.dataSource.transaction(async (manager) => {
+    const salida = await this.dataSource.transaction(async (manager) => {
     const repoActivos = manager.getRepository(ActivoFijo);
     const activo = await repoActivos.findOne({ where: { id, empresaId } });
     if (!activo) throw new NotFoundException('El activo no existe.');
@@ -708,6 +762,57 @@ export class ActivosService {
         resultado > 0 ? 'UTILIDAD' : resultado < 0 ? 'PERDIDA' : 'SIN_EFECTO',
     };
     });
+
+    /*
+     * ══════════════════════════════════════════════════════════════════════
+     * La póliza de la baja se INTENTA, no sólo se encola
+     * ----------------------------------------------------------------------
+     * La baja dejaba el asiento en la bandeja de pendientes con cero intentos
+     * y devolvía «asientoPendienteId» sin más. Medido el 26-sep-2026: se
+     * vendió la camioneta AF-000001 en $500,000 con $460,000 en libros, la
+     * pantalla dijo que la baja se registró, y el asiento BAJA_ACTIVO se quedó
+     * PENDIENTE · 0 intentos. El activo salió del registro, la utilidad de
+     * $40,000 no se reconoció, el dinero no entró y el balance siguió
+     * enseñando la camioneta a costo histórico. Nadie se entera hasta el
+     * cierre.
+     *
+     * Todos los demás circuitos —venta, compra, depreciación, hospedaje—
+     * llaman a `reintentarAhora` en cuanto la operación queda confirmada y
+     * leen lo que devuelve. Éste no lo hacía.
+     *
+     * Como en la corrida de depreciación: no se lanza si la póliza falla —la
+     * baja ya está confirmada y no debe caerse porque falte una cuenta— pero
+     * se DICE, y el estado contable viaja en la respuesta para que la pantalla
+     * pueda avisar en vez de callar.
+     * ══════════════════════════════════════════════════════════════════════
+     */
+    if (!salida.asientoPendienteId) {
+      return { ...salida, estadoContable: 'NO_APLICA' as const };
+    }
+    try {
+      const asiento = await this.asientos.reintentarAhora(
+        salida.asientoPendienteId,
+        empresaId,
+      );
+      if (!asiento?.generado) {
+        this.logger.warn(
+          `Baja de ${salida.activo.codigo} confirmada; la póliza quedó pendiente: ` +
+            `${asiento?.mensaje ?? 'sin detalle'}`,
+        );
+      }
+      return {
+        ...salida,
+        estadoContable: asiento?.generado ? 'GENERADO' : 'PENDIENTE',
+        polizaId: asiento?.polizaId,
+        mensajeContable: asiento?.generado ? undefined : asiento?.mensaje,
+      };
+    } catch (error) {
+      const mensaje = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Baja de ${salida.activo.codigo} confirmada, pero la póliza quedó pendiente: ${mensaje}`,
+      );
+      return { ...salida, estadoContable: 'PENDIENTE' as const, mensajeContable: mensaje };
+    }
   }
 
   /* ── Cédula ────────────────────────────────────────────────────────────── */

@@ -65,6 +65,13 @@ describe('correrDepreciación · el estado contable dice la verdad', () => {
     };
     const dataSource: any = {
       transaction: jest.fn(async (_nivel: any, fn: any) => fn(manager)),
+      /*
+       * La corrida pregunta a `cierres_contables` antes de empezar: un periodo
+       * cerrado se rechaza ANTES de tocar los activos, no después, cuando la
+       * póliza ya no se puede crear y el registro de activos y el mayor han
+       * dejado de decir lo mismo. Aquí el periodo está abierto.
+       */
+      query: jest.fn(async () => []),
     };
     const asientos: any = {
       encolarEnTransaccion: jest.fn(async () => ({ id: 'pend-1' })),
@@ -77,8 +84,48 @@ describe('correrDepreciación · el estado contable dice la verdad', () => {
       dataSource,
       asientos,
     );
-    return { servicio, asientos };
+    return { servicio, asientos, activo, repoActivos, dataSource };
   }
+
+  it('un periodo CERRADO se rechaza antes de tocar los activos', async () => {
+    /*
+     * Medido el 26-sep-2026: la corrida de agosto sobre un mes ya cerrado
+     * registró la depreciación —el activo sumó su mes, subió la acumulada,
+     * bajó el valor en libros— y la póliza reventó al final con «El período
+     * 8/2026 está cerrado». El registro de activos y el mayor dejaron de decir
+     * lo mismo, y arreglarlo exige reabrir el mes y reintentar desde la
+     * bandeja: una reparación que el contador no tiene por qué adivinar.
+     *
+     * Comprobar antes cuesta una consulta. No comprobar cuesta un descuadre.
+     */
+    const { servicio, dataSource, repoActivos, activo } = crear({
+      generado: true,
+      polizaId: 'POL-1',
+    });
+    dataSource.query = jest.fn(async () => [{ id: 'cierre-8' }]);
+
+    await expect(servicio.correrDepreciacion(2026, 1, 'e1')).rejects.toThrow(
+      /cerrado/i,
+    );
+    expect(repoActivos.save).not.toHaveBeenCalled();
+    expect(activo.mesesDepreciados).toBe(0);
+  });
+
+  it('si no se puede preguntar por el cierre, la corrida no se ejecuta', async () => {
+    // Un candado que no pudo preguntar no dice «abierto».
+    const { servicio, dataSource, repoActivos } = crear({
+      generado: true,
+      polizaId: 'POL-1',
+    });
+    dataSource.query = jest.fn(async () => {
+      throw new Error('conexión perdida');
+    });
+
+    await expect(servicio.correrDepreciacion(2026, 1, 'e1')).rejects.toThrow(
+      /no se pudo comprobar/i,
+    );
+    expect(repoActivos.save).not.toHaveBeenCalled();
+  });
 
   it('cuando la póliza se generó, lo dice', async () => {
     const { servicio } = crear({ generado: true, polizaId: 'POL-1' });
