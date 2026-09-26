@@ -181,6 +181,25 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Transferencias',
     ordenMenu: 26,
   },
+  /*
+   * La MISMA pantalla, abierta por la lectura y no por el alta.
+   *
+   * Hasta el 26-sep-2026 `/dashboard/inventario/transferencias` sólo se
+   * alcanzaba con `POST /catalogo/inventario/productos/transferir`, o sea:
+   * la única puerta era poder CREAR la transferencia. Y una transferencia se
+   * autoriza y se recibe, por regla del servicio, con alguien que no sea quien
+   * la creó ni quien la envió. Resultado: los dos segundos pares de ojos
+   * —gerencia y dirección— tenían concedidas las acciones y recibían «Esta
+   * sección no está en tu perfil» al abrir la pantalla donde se firman.
+   *
+   * Un control de cuatro ojos sin puerta para los segundos dos no es un
+   * control: es una transferencia que se queda en tránsito.
+   */
+  'GET /catalogo/wms/transferencias': {
+    rutaFrontend: '/dashboard/inventario/transferencias',
+    titulo: 'Transferencias',
+    ordenMenu: 26,
+  },
   'POST /catalogo/inventario/productos/ajuste': {
     rutaFrontend: '/dashboard/inventario/ajustes',
     titulo: 'Ajustes de stock',

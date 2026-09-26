@@ -201,8 +201,59 @@ export class InventarioService {
         if ([EstadoUbicacionAlmacen.BLOQUEADA, EstadoUbicacionAlmacen.EMBARQUE].includes(ubicacion.estado)) {
           throw new BadRequestException(`La ubicación ${ubicacion.codigo} no admite recepciones en estado ${ubicacion.estado}.`);
         }
-        const asignacion = await em.findOne(ProductoUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId, activo: true } });
-        if (!asignacion) throw new BadRequestException(`${producto.nombre}: primero asigna el producto a la ubicación ${ubicacion.codigo}.`);
+        /*
+         * ──────────────────────────────────────────────────────────────────
+         * Una mercancía que ya salió tiene que poder entrar
+         * ------------------------------------------------------------------
+         * Aquí había un `throw`: «primero asigna el producto a la ubicación
+         * N-01-01». Y la asignación —`producto_ubicaciones`— no es un permiso
+         * de almacenamiento: es SLOTTING. Guarda cuál es la posición principal
+         * del producto, su capacidad asignada y sus mínimos y máximos. Nada de
+         * lo que hay en esa tabla dice «este producto no puede estar aquí».
+         *
+         * Usarla como reja tuvo dos consecuencias, medidas el 26-sep-2026 con
+         * la transferencia TRF-20260926062652-246EF8:
+         *
+         *   · La pantalla de recepción ofrece TODAS las posiciones DISPONIBLES
+         *     del almacén destino. Ninguna de ellas funciona si el producto no
+         *     estuvo antes allí, así que el almacenista elige de una lista en
+         *     la que cualquier opción es un 400.
+         *   · La salida del origen ya está asentada cuando la transferencia se
+         *     envía. Si la entrada se rechaza, la mercancía se queda en
+         *     tránsito: fuera del almacén que la mandó y sin llegar al que la
+         *     espera. Inventario que no cuadra y que nadie puede cuadrar.
+         *
+         * Lo mismo bloqueaba la recepción de una compra en cualquier posición
+         * nueva: es la misma función.
+         *
+         * En SAP EWM, Business Central y Odoo un putaway a una posición que el
+         * operario elige crea el registro producto-posición si falta; lo que
+         * impide guardar ahí es el ESTADO de la posición —bloqueada, zona de
+         * embarque— y su CAPACIDAD, que se siguen comprobando arriba y abajo
+         * de estas líneas. Así que se crea, no principal, y se sigue.
+         * ──────────────────────────────────────────────────────────────────
+         */
+        let asignacion = await em.findOne(ProductoUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId, activo: true } });
+        if (!asignacion) {
+          const previa = await em.findOne(ProductoUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId } });
+          if (previa) {
+            // Existía desactivada: se reactiva, conservando su slotting.
+            previa.activo = true;
+            asignacion = await em.save(previa);
+          } else {
+            asignacion = await em.save(
+              em.create(ProductoUbicacion, {
+                empresaId,
+                productoId,
+                almacenId,
+                ubicacionId,
+                esPrincipal: false,
+                activo: true,
+                observaciones: 'Creada automáticamente al recibir mercancía en esta posición.',
+              }),
+            );
+          }
+        }
         const actualUb = await em.createQueryBuilder(StockUbicacion, 'su')
           .select('COALESCE(SUM(su.cantidad),0)', 'total')
           .where('su.empresaId=:empresaId AND su.ubicacionId=:ubicacionId', { empresaId, ubicacionId })

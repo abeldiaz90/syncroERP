@@ -125,17 +125,19 @@ const ACCION_PADRON = 'GET /rrhh/padron';
 
 /**
  * ============================================================================
- * Las dos autorizaciones del almacén que nadie podía dar
+ * Las tres firmas del almacén que nadie podía dar
  * ----------------------------------------------------------------------------
- * El inventario tiene dos controles de cuatro ojos, los dos correctos y los dos
- * escritos con todas sus letras en `wms.service.ts`:
+ * El inventario tiene tres controles de cuatro ojos, los tres correctos y los
+ * tres escritos con todas sus letras en `wms.service.ts`:
  *
  *   «La autorización del ajuste debe realizarla una persona distinta de quien
  *    abrió o capturó el conteo.»
  *   «Quien solicita la transferencia no puede autorizarla.»
+ *   «Quien envía la mercancía no puede registrar su recepción.»
  *
- * Y las dos acciones —`PATCH /catalogo/wms/conteos/:id/cerrar` y
- * `PATCH /catalogo/wms/transferencias/:id/autorizar`— cuelgan del módulo
+ * Y las tres acciones —`PATCH /catalogo/wms/conteos/:id/cerrar`,
+ * `PATCH /catalogo/wms/transferencias/:id/autorizar` y
+ * `PATCH /catalogo/wms/transferencias/:id/recibir`— cuelgan del módulo
  * `almacenes`, que sólo tiene el almacenista. O sea: la única persona que puede
  * autorizar es la misma que abrió el conteo y solicitó la transferencia.
  *
@@ -166,6 +168,25 @@ const ACCIONES_AUTORIZAR_ALMACEN = [
   'PATCH /catalogo/wms/conteos/:id/cerrar',
   'GET /catalogo/wms/transferencias',
   'PATCH /catalogo/wms/transferencias/:id/autorizar',
+  /*
+   * Y la recepción, que es el TERCER control de la misma familia y el que se
+   * había quedado fuera. Medido el 26-sep-2026 con la transferencia
+   * TRF-20260926062652-246EF8 en tránsito:
+   *
+   *   almacenista                      → 400 «Quien envía la mercancía no
+   *                                      puede registrar su recepción.»
+   *   gerencia, direccion, contador,
+   *   comprador                        → 403
+   *
+   * La mercancía salía del almacén de origen —el asiento de salida ya estaba
+   * hecho— y no podía entrar en ninguna parte: se quedaba EN_TRANSITO para
+   * siempre, con las existencias descontadas del origen y sin llegar al
+   * destino. Un inventario que no cuadra y nadie puede cuadrar.
+   *
+   * La regla del servicio es buena y se queda: quien envía no recibe. Lo que
+   * estaba mal, otra vez, era la población de firmantes.
+   */
+  'PATCH /catalogo/wms/transferencias/:id/recibir',
 ];
 
 /**
@@ -1020,9 +1041,11 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
        */
       ...ACCIONES_FIRMAR_NOMINA,
       /*
-       * Cerrar un conteo físico y autorizar una transferencia entre almacenes.
-       * Sin esto, en una empresa con un solo almacenista no se puede hacer ni
-       * lo uno ni lo otro: ver `ACCIONES_AUTORIZAR_ALMACEN`.
+       * Cerrar un conteo físico, autorizar una transferencia entre almacenes
+       * y recibirla en el destino. Sin esto, en una empresa con un solo
+       * almacenista no se puede hacer ninguna de las tres, y la tercera deja
+       * además mercancía en tránsito que no llega nunca: ver
+       * `ACCIONES_AUTORIZAR_ALMACEN`.
        */
       ...ACCIONES_AUTORIZAR_ALMACEN,
       ...ACCIONES_AUTORIZAR_OPERACION,

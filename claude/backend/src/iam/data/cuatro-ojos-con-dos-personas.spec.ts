@@ -35,6 +35,7 @@
  * ============================================================================
  */
 
+import { ENDPOINTS_NAVEGABLES } from './endpoints-navegables';
 import { PLANTILLAS_PERMISOS } from './plantillas-permisos';
 
 /**
@@ -48,12 +49,15 @@ const CUATRO_OJOS: Array<{
   accion: string;
   /** La lectura que le enseña al firmante QUÉ está firmando. */
   lee: string;
+  /** La pantalla del ERP donde está el botón que firma. */
+  pantalla: string;
   ejecuta: string;
   autorizan: string[];
 }> = [
   {
     que: 'Cerrar un conteo físico de inventario',
     accion: 'PATCH /catalogo/wms/conteos/:id/cerrar',
+    pantalla: '/dashboard/inventario/conteos',
     lee: 'GET /catalogo/wms/conteos/:id',
     ejecuta: 'almacenista',
     autorizan: ['gerencia', 'direccion'],
@@ -61,7 +65,16 @@ const CUATRO_OJOS: Array<{
   {
     que: 'Autorizar una transferencia entre almacenes',
     accion: 'PATCH /catalogo/wms/transferencias/:id/autorizar',
+    pantalla: '/dashboard/inventario/transferencias',
     // No hay detalle propio: el listado trae las líneas de la transferencia.
+    lee: 'GET /catalogo/wms/transferencias',
+    ejecuta: 'almacenista',
+    autorizan: ['gerencia', 'direccion'],
+  },
+  {
+    que: 'Recibir en el destino una transferencia entre almacenes',
+    accion: 'PATCH /catalogo/wms/transferencias/:id/recibir',
+    pantalla: '/dashboard/inventario/transferencias',
     lee: 'GET /catalogo/wms/transferencias',
     ejecuta: 'almacenista',
     autorizan: ['gerencia', 'direccion'],
@@ -69,6 +82,7 @@ const CUATRO_OJOS: Array<{
   {
     que: 'Autorizar una requisición de compra',
     accion: 'PATCH /compras/requisiciones/aprobaciones/:id',
+    pantalla: '/dashboard/compras/aprobaciones',
     lee: 'GET /compras/requisiciones/:id',
     ejecuta: 'almacenista',
     autorizan: ['gerencia', 'direccion'],
@@ -76,6 +90,7 @@ const CUATRO_OJOS: Array<{
   {
     que: 'Resolver una solicitud de vacaciones',
     accion: 'PATCH /rrhh/vacaciones/solicitudes/:id/resolver',
+    pantalla: '/dashboard/rrhh/vacaciones',
     lee: 'GET /rrhh/vacaciones/solicitudes',
     ejecuta: 'rrhh',
     autorizan: ['gerencia', 'direccion'],
@@ -83,6 +98,7 @@ const CUATRO_OJOS: Array<{
   {
     que: 'Anular una venta',
     accion: 'PATCH /ventas/:id/anular',
+    pantalla: '/dashboard/ventas/historial',
     // La bandeja del mostrador: se anula desde la venta, que ya listan.
     lee: 'GET /ventas',
     ejecuta: 'empleado',
@@ -91,6 +107,7 @@ const CUATRO_OJOS: Array<{
   {
     que: 'Primera firma de la nómina',
     accion: 'PATCH /rrhh/nomina-avanzada/aprobaciones/:id',
+    pantalla: '/dashboard/rrhh/nomina',
     lee: 'GET /rrhh/nomina/periodos',
     ejecuta: 'rrhh',
     autorizan: ['gerencia', 'direccion', 'finanzas'],
@@ -192,5 +209,50 @@ describe('Controles de cuatro ojos · alguien más tiene que poder firmar', () =
     }
 
     expect(aCiegas.sort()).toEqual([]);
+  });
+  it('quien firma tiene puerta a la pantalla donde se firma', () => {
+    /*
+     * Tener la acción y la lectura no basta: al menú y al guardia de rutas del
+     * frontend los alimenta `ENDPOINTS_NAVEGABLES`, que traduce «tengo este
+     * endpoint» a «veo esta pantalla». Si ninguna de las acciones concedidas al
+     * firmante apunta a la pantalla donde está el botón, la pantalla contesta
+     * «Esta sección no está en tu perfil» y la firma es inalcanzable.
+     *
+     * Medido el 26-sep-2026: `/dashboard/inventario/transferencias` sólo se
+     * abría con `POST /catalogo/inventario/productos/transferir` —o sea, con
+     * poder CREAR la transferencia—, y quien crea es justo quien NO puede
+     * autorizarla ni recibirla. La mercancía se quedó en tránsito: fuera del
+     * almacén de origen y sin llegar al destino.
+     */
+    const sinPuerta: string[] = [];
+    for (const control of CUATRO_OJOS) {
+      const puertas = Object.entries(ENDPOINTS_NAVEGABLES)
+        .filter(
+          ([, meta]) =>
+            meta.rutaFrontend === control.pantalla ||
+            (meta.rutasAdicionales ?? []).includes(control.pantalla),
+        )
+        .map(([endpoint]) => endpoint);
+
+      if (!puertas.length) {
+        sinPuerta.push(
+          `«${control.que}» se firma en ${control.pantalla}, que no está en ENDPOINTS_NAVEGABLES`,
+        );
+        continue;
+      }
+
+      for (const rol of control.autorizan) {
+        const abre = puertas.some(
+          (endpoint) => tieneAccion(rol, endpoint) && !laTieneVedada(rol, endpoint),
+        );
+        if (!abre) {
+          sinPuerta.push(
+            `${rol} firma «${control.que}» y no puede abrir ${control.pantalla}`,
+          );
+        }
+      }
+    }
+
+    expect(sinPuerta.sort()).toEqual([]);
   });
 });
