@@ -127,6 +127,43 @@ describe('correrDepreciación · el estado contable dice la verdad', () => {
     expect(repoActivos.save).not.toHaveBeenCalled();
   });
 
+  it('dos corridas del mismo mes no comparten la clave de la póliza', async () => {
+    /*
+     * Medido el 26-sep-2026: se corrió julio con la camioneta ($10,000), se
+     * dio de alta el servidor AF-000002 y se volvió a correr julio ($2,400).
+     * La segunda corrida procesó sólo al recién llegado y, al contabilizarlo,
+     * `crearPoliza` se topó con la clave de la primera —era sólo
+     * `empresa:ejercicio:mes`—, devolvió la póliza vieja y no asentó nada. El
+     * activo quedó depreciado en su auxiliar y el mayor siguió diciendo
+     * $10,000. La respuesta decía «GENERADO», porque una póliza sí había.
+     *
+     * La clave lleva ahora los activos que cada corrida depreció.
+     */
+    const primera = crear({ generado: true, polizaId: 'POL-1' });
+    await primera.servicio.correrDepreciacion(2026, 1, 'e1');
+    const claveA = primera.asientos.encolarEnTransaccion.mock.calls[0][2].corridaId;
+
+    const segunda = crear({ generado: true, polizaId: 'POL-2' });
+    segunda.activo.id = 'af-2';
+    segunda.activo.codigo = 'AF-000002';
+    await segunda.servicio.correrDepreciacion(2026, 1, 'e1');
+    const claveB = segunda.asientos.encolarEnTransaccion.mock.calls[0][2].corridaId;
+
+    expect(claveA).toBeTruthy();
+    expect(claveB).not.toBe(claveA);
+  });
+
+  it('la misma corrida repetida conserva su clave: sigue siendo idempotente', async () => {
+    const a = crear({ generado: true, polizaId: 'POL-1' });
+    await a.servicio.correrDepreciacion(2026, 1, 'e1');
+    const b = crear({ generado: true, polizaId: 'POL-1' });
+    await b.servicio.correrDepreciacion(2026, 1, 'e1');
+
+    expect(b.asientos.encolarEnTransaccion.mock.calls[0][2].corridaId).toBe(
+      a.asientos.encolarEnTransaccion.mock.calls[0][2].corridaId,
+    );
+  });
+
   it('cuando la póliza se generó, lo dice', async () => {
     const { servicio } = crear({ generado: true, polizaId: 'POL-1' });
     const r: any = await servicio.correrDepreciacion(2026, 1, 'e1');

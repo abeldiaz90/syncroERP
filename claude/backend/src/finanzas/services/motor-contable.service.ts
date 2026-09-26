@@ -2826,6 +2826,95 @@ export class MotorContableService {
   // balance a costo histórico con su depreciación acumulada, la utilidad o
   // pérdida no se reconocía, y si fue venta el dinero tampoco entraba.
   // ══════════════════════════════════════════════════════════════════════════
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * La utilidad en venta de un activo fijo no es «Otros ingresos»
+   * --------------------------------------------------------------------------
+   * La utilidad iba a la cuenta de rol OTROS_INGRESOS —403.01— y la pérdida a
+   * OTROS_GASTOS —703.xx—. Funciona y cuadra, pero el catálogo SAT tiene
+   * cuentas propias para esto, y la contabilidad electrónica se presenta por
+   * código agrupador:
+   *
+   *   · 704.01 … 704.18 — «Ganancia en venta y/o baja de …», una por tipo de
+   *     activo: terrenos, edificios, maquinaria, automóviles, mobiliario,
+   *     equipo de cómputo, comunicación…
+   *   · 505.01 «Costo por venta de activo fijo» y 505.02 «Costo por baja de
+   *     activo fijo» para el lado de la pérdida.
+   *
+   * Meter ahí una ganancia por venta de camioneta hace que el XML mensual diga
+   * lo que de verdad pasó; «Otros ingresos» obliga a explicarlo a mano.
+   *
+   * El tipo de activo se deduce de la cuenta de activo de su categoría, que es
+   * la que ya viaja en el asiento. Si el catálogo de la empresa no tiene la
+   * cuenta específica se usa la genérica del SAT, y si tampoco, el rol de
+   * siempre: un activo vendido tiene que poder darse de baja.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  private async cuentaDeResultadoEnBaja(
+    empresaId: string,
+    cuentaActivoId: string,
+    esUtilidad: boolean,
+    esVenta: boolean,
+  ): Promise<{ id: string } | null> {
+    /** Cuenta de activo (agrupador) → ganancia en su venta o baja. */
+    const GANANCIA_POR_ACTIVO: Record<string, string> = {
+      '151.01': '704.01', // Terrenos
+      '152.01': '704.02', // Edificios
+      '153.01': '704.03', // Maquinaria y equipo
+      '154.01': '704.04', // Automóviles, camiones, montacargas…
+      '155.01': '704.05', // Mobiliario y equipo de oficina
+      '156.01': '704.06', // Equipo de cómputo
+      '157.01': '704.07', // Equipo de comunicación
+      '158.01': '704.08', // Activos biológicos
+      '160.01': '704.09', // Otros activos fijos
+      '161.01': '704.10', // Ferrocarriles
+      '162.01': '704.11', // Embarcaciones
+      '163.01': '704.12', // Aviones
+      '164.01': '704.13', // Troqueles, moldes, matrices y herramental
+      '165.01': '704.14', // Comunicaciones telefónicas
+      '166.01': '704.15', // Comunicación satelital
+      '169.01': '704.18', // Otra maquinaria y equipo
+    };
+
+    const repo = this.dataSource.getRepository<any>('CuentaContable');
+    const porAgrupador = async (codigo: string) =>
+      (await repo.findOne({
+        where: {
+          empresaId,
+          codigoAgrupadorSAT: codigo,
+          esAfectable: true,
+          activo: true,
+        },
+      })) ?? null;
+
+    const candidatos: string[] = [];
+    if (esUtilidad) {
+      const cuentaActivo = await repo.findOne({
+        where: { id: cuentaActivoId, empresaId },
+      });
+      const especifica = GANANCIA_POR_ACTIVO[cuentaActivo?.codigoAgrupadorSAT];
+      if (especifica) candidatos.push(especifica);
+      candidatos.push('704.23'); // Otros productos
+    } else {
+      candidatos.push(esVenta ? '505.01' : '505.02');
+    }
+
+    for (const codigo of candidatos) {
+      const cuenta = await porAgrupador(codigo);
+      if (cuenta) return cuenta;
+    }
+
+    /* Ni la específica ni la genérica: el rol de siempre. */
+    return this.buscarCuentaPorRol(
+      empresaId,
+      esUtilidad
+        ? RolCuentaSistema.OTROS_INGRESOS
+        : RolCuentaSistema.OTROS_GASTOS,
+      esUtilidad ? 'INGRESO' : 'GASTO',
+      esUtilidad ? '403' : '703',
+    );
+  }
+
   async generarAsientoDeBajaActivo(datos: {
     activoId: string;
     empresaId: string;
@@ -2900,13 +2989,11 @@ export class MotorContableService {
 
       if (resultado !== 0) {
         const esUtilidad = resultado > 0;
-        const cuentaResultado = await this.buscarCuentaPorRol(
+        const cuentaResultado = await this.cuentaDeResultadoEnBaja(
           datos.empresaId,
-          esUtilidad
-            ? RolCuentaSistema.OTROS_INGRESOS
-            : RolCuentaSistema.OTROS_GASTOS,
-          esUtilidad ? 'INGRESO' : 'GASTO',
-          esUtilidad ? '403' : '703',
+          datos.cuentaActivoId,
+          esUtilidad,
+          String(datos.motivo).toUpperCase() === 'VENTA',
         );
         if (!cuentaResultado) {
           throw new Error(

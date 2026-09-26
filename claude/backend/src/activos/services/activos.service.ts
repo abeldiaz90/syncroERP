@@ -516,8 +516,41 @@ export class ActivosService {
 
       resultado.importeTotal = aPesos(totalCent);
       if (detalleContable.length) {
+        /*
+         * ══════════════════════════════════════════════════════════════════
+         * La corrida se identifica por lo que DEPRECIÓ, no sólo por el mes
+         * ------------------------------------------------------------------
+         * El identificador era `DEPRECIACION:empresa:ejercicio:mes`, y
+         * `crearPoliza` es idempotente por `origenClave`: si ya existe una
+         * póliza con esa clave, la devuelve y no crea ninguna. Sirve para que
+         * un reintento no duplique el gasto.
+         *
+         * Pero la corrida de un mes se ejecuta más de una vez con toda
+         * normalidad: se corre julio, se da de alta un activo que faltaba, y
+         * se vuelve a correr julio. El índice único (activo, ejercicio, mes)
+         * impide cobrarle dos veces al mismo activo, así que la segunda
+         * corrida procesa SÓLO al recién llegado… y al ir a contabilizarlo se
+         * topa con la clave de la primera corrida, recibe la póliza vieja y no
+         * asienta nada. El activo queda depreciado en su auxiliar y el mayor
+         * no se entera. Y la respuesta decía «GENERADO», porque una póliza sí
+         * había: la de la corrida anterior.
+         *
+         * Medido el 26-sep-2026: se corrió julio (camioneta, $10,000), se dio
+         * de alta el servidor AF-000002 y se volvió a correr julio ($2,400).
+         * La póliza DI-2026-00035 siguió diciendo $10,000.
+         *
+         * La clave lleva ahora los activos que esta corrida depreció. Un
+         * reintento idéntico sigue siendo idempotente —mismo conjunto, misma
+         * clave, misma póliza— y una corrida que alcanza a un activo nuevo
+         * genera la suya.
+         * ══════════════════════════════════════════════════════════════════
+         */
+        const activosDeLaCorrida = detalleContable
+          .map((d) => d.activoId)
+          .sort()
+          .join(',');
         const corridaId = guidDeterministico(
-          `DEPRECIACION:${empresaId}:${ejercicio}:${mes}`,
+          `DEPRECIACION:${empresaId}:${ejercicio}:${mes}:${activosDeLaCorrida}`,
         );
         const asiento = await this.asientos.encolarEnTransaccion(
           manager,
@@ -625,19 +658,27 @@ export class ActivosService {
        * Se exige que el periodo esté abierto y se cancela la póliza original
        * antes de tocar el auxiliar.
        */
-      const corridaId = guidDeterministico(
-        `DEPRECIACION:${empresaId}:${ejercicio}:${mes}`,
-      );
-      const polizaOriginal = await manager.getRepository(Poliza).findOne({
-        where: { empresaId, origenClave: `DEPRECIACION:${corridaId}` },
+      /*
+       * Un mes puede tener MÁS DE UNA póliza de depreciación —una por corrida,
+       * desde que la clave incluye los activos que cada corrida alcanzó—, así
+       * que se buscan todas las del periodo y no una sola por identificador.
+       * Buscar una y encontrar ninguna dejaría revertir el auxiliar con el
+       * mayor cargado, que es justo lo que este control impide.
+       */
+      const polizasDelPeriodo = await manager.getRepository(Poliza).find({
+        where: { empresaId, origenTipo: 'DEPRECIACION', mes, anio: ejercicio },
       });
-      if (polizaOriginal && (polizaOriginal.estatus ?? 'VIGENTE') === 'VIGENTE') {
+      const vigentes = polizasDelPeriodo.filter(
+        (p: Poliza) => ((p as any).estatus ?? 'VIGENTE') === 'VIGENTE',
+      );
+      if (vigentes.length) {
         throw new ConflictException(
           `La depreciación de ${ejercicio}-${String(mes).padStart(2, '0')} ya está ` +
-            `contabilizada en la póliza ${polizaOriginal.folio}. Cancélala primero ` +
-            'desde Finanzas → Pólizas y vuelve a intentar: si sólo se borra el ' +
-            'auxiliar, el mayor conserva el cargo y ambos quedan desalineados de ' +
-            'forma permanente. Ninguna depreciación fue revertida.',
+            `contabilizada en ${vigentes.length === 1 ? 'la póliza' : 'las pólizas'} ` +
+            `${vigentes.map((p: Poliza) => p.folio).join(', ')}. ` +
+            'Cancélala primero desde Finanzas → Pólizas y vuelve a intentar: si ' +
+            'sólo se borra el auxiliar, el mayor conserva el cargo y ambos quedan ' +
+            'desalineados de forma permanente. Ninguna depreciación fue revertida.',
         );
       }
 
