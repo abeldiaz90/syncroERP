@@ -422,10 +422,42 @@ export default function ClientesPage() {
         setGuardando(true);
         const url    = editId ? `${api}/clientes/${editId}` : `${api}/clientes`;
         const method = editId ? 'PATCH' : 'POST';
+        /*
+         * ══════════════════════════════════════════════════════════════════
+         * Una persona moral no tiene fecha de nacimiento ni género
+         * ------------------------------------------------------------------
+         * El formulario esconde esos dos campos cuando el cliente es MORAL
+         * —lo correcto: una sociedad no nace ni tiene género— pero el cuerpo
+         * se armaba con `...formData` entero, así que viajaban igual, vacíos:
+         *
+         *   400 «fechaNacimiento debe tener el formato aaaa-mm-dd»
+         *       «genero must be one of FEMENINO, MASCULINO, NO_ESPECIFICADO»
+         *
+         * Resultado medido el 26-sep-2026: NO SE PODÍA REGISTRAR NINGUNA
+         * PERSONA MORAL desde la pantalla. Y eso cerraba de golpe todo el City
+         * Ledger, porque un convenio hotelero sólo se firma con una empresa o
+         * agencia: la pantalla de convenios decía «No hay personas morales
+         * activas registradas. Registra primero la empresa o agencia en
+         * Clientes», y en Clientes no se podía.
+         *
+         * Una cadena de dos pantallas donde la primera manda a la segunda y la
+         * segunda no deja pasar. Los campos que el formulario oculta no se
+         * mandan: lo que no se pregunta no se envía.
+         * ══════════════════════════════════════════════════════════════════
+         */
+        const esMoral = formData.tipoPersona === 'MORAL';
+        const { fechaNacimiento, genero, curp, ...comunes } = formData as any;
         const payload = {
-            ...formData,
+            ...comunes,
+            ...(esMoral
+                ? {}
+                : {
+                      ...(fechaNacimiento ? { fechaNacimiento } : {}),
+                      ...(genero ? { genero } : {}),
+                      ...(curp ? { curp } : {}),
+                  }),
             clasificacionHotelera:
-                formData.tipoPersona === 'MORAL' && formData.clasificacionHotelera
+                esMoral && formData.clasificacionHotelera
                     ? formData.clasificacionHotelera
                     : null,
         };
