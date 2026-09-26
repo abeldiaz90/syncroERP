@@ -11,6 +11,7 @@ import {
   IsString,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
@@ -115,8 +116,33 @@ export class FiltroStockUbicacionWmsDto {
 }
 
 export class ReubicarStockWmsDto extends CantidadPositivaDto {
-  @IsSqlServerGuid() stockUbicacionId: string;
+  /*
+   * Dos orígenes posibles, y por eso los tres son opcionales aquí y el
+   * servicio decide:
+   *
+   *   · `stockUbicacionId` — mercancía que ya está en una posición y se mueve
+   *     a otra.
+   *   · `productoId` + `almacenId` — mercancía que está en el almacén y aún no
+   *     tiene posición (carga inicial, entradas sin ubicar). Antes no había
+   *     manera de colocarla, y era justo la que el verificador de integridad
+   *     denunciaba.
+   */
+  @IsSqlServerGuidOpcional() stockUbicacionId?: string;
+  @IsSqlServerGuidOpcional() productoId?: string;
+  @IsSqlServerGuidOpcional() almacenId?: string;
   @IsSqlServerGuid() ubicacionDestinoId: string;
+  /*
+   * El motivo lo pide la pantalla desde siempre —obligatorio, mínimo cinco
+   * caracteres— y el DTO no lo declaraba, así que la lista blanca de
+   * validación contestaba «motivo: property motivo should not exist» y la
+   * reubicación NUNCA se pudo guardar: 400 en cada intento, con el formulario
+   * lleno y correcto. Un campo obligatorio que el servidor prohíbe.
+   *
+   * Queda declarado. Al aceptarse, el interceptor de auditoría lo guarda con
+   * el resto del cuerpo, que es donde tiene que vivir el porqué de un
+   * movimiento físico.
+   */
+  @IsString() @MinLength(5) @MaxLength(255) motivo: string;
 }
 
 export class CrearConteoWmsDto {

@@ -429,14 +429,157 @@ export class WmsService {
             order: { almacenId: 'ASC', ubicacionId: 'ASC', fechaCreacion: 'ASC' },
         });
     }
+    /**
+     * Devuelve el registro de slotting producto-posición, creándolo si falta.
+     *
+     * `producto_ubicaciones` guarda la posición principal, la capacidad
+     * asignada y los mínimos y máximos de un producto en una posición. Es una
+     * sugerencia de colocación, no una autorización: exigirla antes de mover o
+     * de recibir convierte la tabla en una reja y deja mercancía sin sitio.
+     */
+    private async asegurarSlotting(em: EntityManager, empresaId: string, productoId: string, almacenId: string, ubicacionId: string): Promise<ProductoUbicacion> {
+        const activa = await em.findOne(ProductoUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId, activo: true } });
+        if (activa)
+            return activa;
+        const previa = await em.findOne(ProductoUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId } });
+        if (previa) {
+            previa.activo = true;
+            return em.save(previa);
+        }
+        return em.save(em.create(ProductoUbicacion, {
+            empresaId, productoId, almacenId, ubicacionId,
+            esPrincipal: false, activo: true,
+            observaciones: 'Creada automáticamente al colocar mercancía en esta posición.',
+        }));
+    }
+
+    /**
+     * Ubica existencias que están en el almacén y todavía no tienen posición.
+     *
+     * No es una entrada: el total del almacén no cambia. Lo único que cambia es
+     * que deja de haber mercancía de la que el sistema sabe cuánta hay y no
+     * dónde está. Se reparte por lotes en orden FIFO —caducidad primero, y a
+     * falta de caducidad, antigüedad— para que la trazabilidad siga en pie.
+     */
+    private async ubicarSinPosicion(empresaId: string, usuarioId: string | undefined, dto: any, cantidad: number) {
+        return this.dataSource.transaction(async (em) => {
+            const { productoId, almacenId } = dto;
+            const stock = await em.createQueryBuilder(StockPorAlmacen, 's').setLock('pessimistic_write')
+                .where('s.empresaId=:empresaId AND s.productoId=:productoId AND s.almacenId=:almacenId', { empresaId, productoId, almacenId }).getOne();
+            if (!stock)
+                throw new NotFoundException('Ese producto no tiene existencias en el almacén indicado');
+
+            const ubicado = await em.createQueryBuilder(StockUbicacion, 'su').select('COALESCE(SUM(su.cantidad),0)', 'total')
+                .where('su.empresaId=:empresaId AND su.productoId=:productoId AND su.almacenId=:almacenId', { empresaId, productoId, almacenId }).getRawOne();
+            const sinUbicar = Math.round((n(stock.cantidad) - n(ubicado?.total)) * 10000) / 10000;
+            if (sinUbicar <= 0)
+                throw new BadRequestException('Todas las existencias de ese producto en el almacén ya tienen posición. Para moverlas, elige la existencia de origen.');
+            if (sinUbicar < cantidad)
+                throw new BadRequestException(`Sólo hay ${sinUbicar} sin ubicar en ese almacén.`);
+
+            const destinoUb = await em.findOne(UbicacionAlmacen, { where: { id: dto.ubicacionDestinoId, empresaId, almacenId, activo: true } });
+            if (!destinoUb)
+                throw new BadRequestException('La ubicación destino no existe, está inactiva o pertenece a otro almacén');
+            if (destinoUb.estado !== EstadoUbicacionAlmacen.DISPONIBLE)
+                throw new BadRequestException(`La ubicación destino está en estado ${destinoUb.estado}`);
+
+            const asignacion = await this.asegurarSlotting(em, empresaId, productoId, almacenId, destinoUb.id);
+            const totalDestino = await em.createQueryBuilder(StockUbicacion, 'su').select('COALESCE(SUM(su.cantidad),0)', 'total')
+                .where('su.empresaId=:empresaId AND su.ubicacionId=:ubicacionId', { empresaId, ubicacionId: destinoUb.id }).getRawOne();
+            const capacidad = n(destinoUb.capacidadMaxima || asignacion.capacidadAsignada);
+            if (capacidad > 0 && n(totalDestino?.total) + cantidad > capacidad)
+                throw new BadRequestException(`La ubicación destino excedería su capacidad (${capacidad})`);
+
+            /*
+             * A qué lote pertenece lo que no tenía posición: a lo que le quede
+             * a cada lote después de descontar lo que ya está colocado.
+             */
+            const lotes = (await em.find(LoteInventario, { where: { empresaId, productoId, almacenId, activo: true } }))
+                .filter((l) => n(l.stockRestante) > 0)
+                .sort((a, b) => {
+                    const ca = a.fechaCaducidad ? new Date(a.fechaCaducidad).getTime() : Number.MAX_SAFE_INTEGER;
+                    const cb = b.fechaCaducidad ? new Date(b.fechaCaducidad).getTime() : Number.MAX_SAFE_INTEGER;
+                    if (ca !== cb) return ca - cb;
+                    return new Date(a.fechaIngreso).getTime() - new Date(b.fechaIngreso).getTime();
+                });
+
+            let pendiente = cantidad;
+            const colocado: Array<{ loteId: string | null; numeroLote: string; cantidad: number }> = [];
+            for (const lote of lotes) {
+                if (pendiente <= 0) break;
+                const yaDelLote = await em.createQueryBuilder(StockUbicacion, 'su').select('COALESCE(SUM(su.cantidad),0)', 'total')
+                    .where('su.empresaId=:empresaId AND su.productoId=:productoId AND su.almacenId=:almacenId AND su.loteId=:loteId', { empresaId, productoId, almacenId, loteId: lote.id }).getRawOne();
+                const libre = n(lote.stockRestante) - n(yaDelLote?.total);
+                if (libre <= 0) continue;
+                const parte = Math.min(libre, pendiente);
+                let fila = await em.findOne(StockUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId: destinoUb.id, loteId: lote.id, estado: EstadoStockUbicacion.DISPONIBLE } });
+                if (!fila)
+                    fila = em.create(StockUbicacion, { empresaId, productoId, almacenId, ubicacionId: destinoUb.id, loteId: lote.id, estado: EstadoStockUbicacion.DISPONIBLE, cantidad: 0 });
+                fila.cantidad = n(fila.cantidad) + parte;
+                await em.save(fila);
+                colocado.push({ loteId: lote.id, numeroLote: lote.numeroLote, cantidad: parte });
+                pendiente -= parte;
+            }
+
+            /*
+             * Puede sobrar cantidad sin lote que la respalde: existencias
+             * cargadas directamente sobre `stock_por_almacen`. Se colocan sin
+             * lote, que es exactamente lo que son, en vez de inventarle uno.
+             */
+            if (pendiente > 0) {
+                let fila = await em.findOne(StockUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId: destinoUb.id, loteId: undefined as any, estado: EstadoStockUbicacion.DISPONIBLE } });
+                if (!fila)
+                    fila = em.create(StockUbicacion, { empresaId, productoId, almacenId, ubicacionId: destinoUb.id, loteId: undefined, estado: EstadoStockUbicacion.DISPONIBLE, cantidad: 0 });
+                fila.cantidad = n(fila.cantidad) + pendiente;
+                await em.save(fila);
+                colocado.push({ loteId: null, numeroLote: 'S/L', cantidad: pendiente });
+                pendiente = 0;
+            }
+
+            return {
+                mensaje: `Se ubicaron ${cantidad} en ${destinoUb.codigo} sin modificar el total del almacén.`,
+                usuarioId, productoId, almacenId,
+                ubicacionOrigenId: null, ubicacionDestinoId: destinoUb.id,
+                cantidad, estado: EstadoStockUbicacion.DISPONIBLE, lotes: colocado,
+            };
+        });
+    }
+
     async reubicar(empresaId: string, usuarioId: string | undefined, dto: any) {
         const cantidad = n(dto.cantidad);
         if (cantidad <= 0)
             throw new BadRequestException('La cantidad a reubicar debe ser mayor a cero');
-        if (!dto.stockUbicacionId)
+        /*
+         * ──────────────────────────────────────────────────────────────────
+         * La mercancía sin posición también se mueve
+         * ------------------------------------------------------------------
+         * El origen podía ser SÓLO una fila de `stock_ubicaciones`, o sea
+         * mercancía que ya está en una posición. Pero el almacén tiene, casi
+         * siempre desde el primer día, existencias SIN posición: la carga
+         * inicial de inventario y cualquier entrada registrada sin indicar
+         * ubicación suman en `stock_por_almacen` y no crean fila de posición.
+         *
+         * `GET /catalogo/wms/integridad-ubicaciones` las denunciaba
+         * —«3 productos/almacenes requieren revisión»— y no había ninguna
+         * manera de resolverlas desde el sistema: el desplegable de origen se
+         * alimenta de las existencias YA ubicadas, que son justo las que no
+         * tienen el problema. Un detector sin remedio: la pantalla avisa de
+         * algo que nadie puede arreglar, y el aviso se queda encendido para
+         * siempre hasta que se aprende a ignorarlo.
+         *
+         * Ahora el origen puede ser «sin ubicar»: se manda `productoId` y
+         * `almacenId` en lugar de `stockUbicacionId`, y se ubica lo que aún no
+         * tiene sitio. El total del almacén no se toca —sigue siendo un
+         * movimiento interno—, sólo aparece dónde está.
+         * ──────────────────────────────────────────────────────────────────
+         */
+        const desdeSinUbicar = !dto.stockUbicacionId;
+        if (desdeSinUbicar && !(dto.productoId && dto.almacenId))
             throw new BadRequestException('Selecciona la existencia de origen');
         if (!dto.ubicacionDestinoId)
             throw new BadRequestException('Selecciona la ubicación destino');
+        if (desdeSinUbicar)
+            return this.ubicarSinPosicion(empresaId, usuarioId, dto, cantidad);
         return this.dataSource.transaction(async (em) => {
             const origen = await em.createQueryBuilder(StockUbicacion, 'su').setLock('pessimistic_write')
                 .where('su.id=:id AND su.empresaId=:empresaId', { id: dto.stockUbicacionId, empresaId }).getOne();
@@ -451,9 +594,15 @@ export class WmsService {
                 throw new BadRequestException('La ubicación destino no existe, está inactiva o pertenece a otro almacén');
             if (destinoUb.estado !== EstadoUbicacionAlmacen.DISPONIBLE)
                 throw new BadRequestException(`La ubicación destino está en estado ${destinoUb.estado}`);
-            const asignacion = await em.findOne(ProductoUbicacion, { where: { empresaId, productoId: origen.productoId, almacenId: origen.almacenId, ubicacionId: destinoUb.id, activo: true } });
-            if (!asignacion)
-                throw new BadRequestException('El producto no está asignado a la ubicación destino');
+            /*
+             * Antes aquí había un `throw`: «El producto no está asignado a la
+             * ubicación destino». `producto_ubicaciones` es slotting —posición
+             * principal, capacidad, mínimos y máximos—, no un permiso de
+             * almacenamiento, y usarla como reja dejaba al almacenista sin
+             * poder consolidar dos pallets del mismo producto en una posición
+             * libre. Se crea si falta, igual que en la entrada de mercancía.
+             */
+            const asignacion = await this.asegurarSlotting(em, empresaId, origen.productoId, origen.almacenId, destinoUb.id);
             const totalDestino = await em.createQueryBuilder(StockUbicacion, 'su').select('COALESCE(SUM(su.cantidad),0)', 'total')
                 .where('su.empresaId=:empresaId AND su.ubicacionId=:ubicacionId', { empresaId, ubicacionId: destinoUb.id }).getRawOne();
             const capacidad = n(destinoUb.capacidadMaxima || asignacion.capacidadAsignada);
@@ -473,13 +622,20 @@ export class WmsService {
       -- Alias entrecomillados: sin comillas PostgreSQL los devuelve en
       -- minusculas y la pantalla de diferencias recibe productoid y
       -- stockalmacen, con lo que pinta columnas vacias sobre datos correctos.
-      SELECT s.productoId AS "productoId", s.almacenId AS "almacenId",
+      -- Y con NOMBRES: la pantalla de diferencias enseñaba el uuid del
+      -- producto y el del almacen en dos columnas, que a quien tiene que ir a
+      -- buscar la mercancia al pasillo no le dicen absolutamente nada.
+      SELECT s.productoId AS "productoId", p.sku AS "sku", p.nombre AS "producto",
+             s.almacenId AS "almacenId", a.nombre AS "almacen",
              CAST(s.cantidad AS float) AS "stockAlmacen",
-             CAST(COALESCE(SUM(su.cantidad),0) AS float) AS "stockUbicado"
+             CAST(COALESCE(SUM(su.cantidad),0) AS float) AS "stockUbicado",
+             CAST(s.cantidad AS float) - CAST(COALESCE(SUM(su.cantidad),0) AS float) AS "sinUbicar"
       FROM stock_por_almacen s
+      JOIN productos p ON p.id=s.productoId
+      JOIN almacenes a ON a.id=s.almacenId
       LEFT JOIN stock_ubicaciones su ON su.empresaId=s.empresaId AND su.productoId=s.productoId AND su.almacenId=s.almacenId
       WHERE s.empresaId=$1
-      GROUP BY s.productoId,s.almacenId,s.cantidad
+      GROUP BY s.productoId,p.sku,p.nombre,s.almacenId,a.nombre,s.cantidad
       HAVING ABS(CAST(s.cantidad AS float)-CAST(COALESCE(SUM(su.cantidad),0) AS float))>0.0001
     `, [empresaId]);
         return { ok: resumen.length === 0, totalDiferencias: resumen.length, diferencias: resumen };
