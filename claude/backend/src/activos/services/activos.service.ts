@@ -43,6 +43,7 @@ import {
 import { CrearActivoDto } from '../dto/activos.dto';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { Poliza } from '../../finanzas/entities/poliza.entity';
+import { CuentaContable } from '../../finanzas/entities/cuenta-contable.entity';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
 
 /* ── Utilidades de dinero ─────────────────────────────────────────────────── */
@@ -788,7 +789,40 @@ export class ActivosService {
    * Categorías por omisión con las tasas máximas del artículo 34 de la LISR.
    * Se ejecuta desde la configuración inicial de la empresa.
    */
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * Las siete categorías estándar, CON sus cuentas
+   * --------------------------------------------------------------------------
+   * Este sembrado creaba las siete categorías con su tasa del art. 34 LISR y
+   * las tres cuentas contables en `null`. La pantalla decía «Crear las siete
+   * categorías estándar», el contador lo pulsaba, salía «7 creadas» y todo
+   * parecía configurado: el paso que falta no se ve hasta la primera corrida de
+   * depreciación, cuando la póliza no se puede armar porque nadie sabe contra
+   * qué cuenta cargar el gasto ni cuál acumulada abonar.
+   *
+   * Un asistente que deja a medias justo la parte que no se ve es peor que no
+   * tener asistente: el que no existe se nota.
+   *
+   * Las cuentas se resuelven por `codigoAgrupadorSAT`, que es el único
+   * identificador estable del catálogo —el número de cuenta lo puede cambiar
+   * la empresa—, y sólo se asignan las que existan y admitan movimientos. Si
+   * una categoría ya existía sin cuentas, se le completan: el asistente es
+   * idempotente y además repara.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
   async sembrarCategorias(empresaId: string) {
+    /* clave → [activo, depreciación acumulada, gasto de depreciación] */
+    const CUENTAS_SAT: Record<string, [string, string, string] | null> = {
+      EDIF: ['152.01', '171.01', '504.07'],
+      MOB: ['155.01', '171.04', '504.10'],
+      MAQ: ['153.01', '171.02', '504.08'],
+      TRAN: ['154.01', '171.03', '504.09'],
+      COMP: ['156.01', '171.05', '504.11'],
+      HERR: ['164.01', '171.12', '504.18'],
+      /* Un terreno no se deprecia: tiene cuenta de activo y nada más. */
+      TERR: null,
+    };
+
     const base: Array<Partial<CategoriaActivo>> = [
       { clave: 'EDIF', nombre: 'Edificios y construcciones', tasaAnual: 5 },
       { clave: 'MOB', nombre: 'Mobiliario y equipo de oficina', tasaAnual: 10 },
@@ -804,8 +838,58 @@ export class ActivosService {
       },
     ];
 
+    const repoCuentas = this.dataSource.getRepository(CuentaContable);
+    const porAgrupador = async (codigo: string) =>
+      (
+        await repoCuentas.findOne({
+          where: {
+            empresaId,
+            codigoAgrupadorSAT: codigo,
+            esAfectable: true,
+            activo: true,
+          },
+        })
+      )?.id;
+
+    const cuentasDe = async (clave: string) => {
+      if (clave === 'TERR') {
+        return { cuentaActivoId: await porAgrupador('151.01') };
+      }
+      const codigos = CUENTAS_SAT[clave];
+      if (!codigos) return {};
+      const [activo, acumulada, gasto] = codigos;
+      return {
+        cuentaActivoId: await porAgrupador(activo),
+        cuentaDepreciacionAcumuladaId: await porAgrupador(acumulada),
+        cuentaGastoDepreciacionId: await porAgrupador(gasto),
+      };
+    };
+
+    /** Sólo rellena lo que está vacío: nunca pisa una decisión del contador. */
+    const completar = (destino: any, cuentas: any) => {
+      let cambio = false;
+      for (const campo of [
+        'cuentaActivoId',
+        'cuentaDepreciacionAcumuladaId',
+        'cuentaGastoDepreciacionId',
+      ]) {
+        if (!destino[campo] && cuentas[campo]) {
+          destino[campo] = cuentas[campo];
+          cambio = true;
+        }
+      }
+      return cambio;
+    };
+
     const creadas: CategoriaActivo[] = [];
+    const completadas: string[] = [];
+    const sinCuenta: string[] = [];
     for (const c of base) {
+      const cuentas = await cuentasDe(String(c.clave));
+      const faltan = (CUENTAS_SAT[String(c.clave)] ?? [])
+        .filter((_, i) => !Object.values(cuentas)[i]);
+      if (faltan.length) sinCuenta.push(`${c.clave} (${faltan.join(', ')})`);
+
       const existe = await this.categorias.findOne({
         where: { empresaId, clave: c.clave },
       });
@@ -814,14 +898,24 @@ export class ActivosService {
           await this.categorias.save(
             this.categorias.create({
               ...c,
+              ...cuentas,
               empresaId,
               metodo: c.metodo ?? MetodoDepreciacion.LINEA_RECTA,
             }),
           ),
         );
+      } else if (completar(existe, cuentas)) {
+        await this.categorias.save(existe);
+        completadas.push(String(c.clave));
       }
     }
-    return { creadas: creadas.length, categorias: creadas };
+    return {
+      creadas: creadas.length,
+      categorias: creadas,
+      /* Lo que se reparó y lo que sigue faltando, dicho en voz alta. */
+      completadas,
+      sinCuentaEnElCatalogo: sinCuenta,
+    };
   }
 
   /* ── Resumen ───────────────────────────────────────────────────────────── */
