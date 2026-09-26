@@ -110,7 +110,80 @@ const PRODUCTOS: any[] = [
     precioCompra: 10,
     categoria: { nombre: 'Sin configurar' }, // ← categoría sin cuentas
   },
+  /*
+   * Los dos que destaparon el defecto: viven en la MISMA categoría que el
+   * refresco gravado —la cuenta de ventas de la categoría es la 401.01— y su
+   * impuesto dice otra cosa.
+   */
+  {
+    id: 'prod-tasa-cero',
+    sku: 'LECHE-1',
+    nombre: 'Leche entera 1 L',
+    precioCompra: 20,
+    impuesto: { tipoFactor: 'TASA', porcentaje: 0 },
+    categoria: {
+      nombre: 'Abarrotes',
+      cuentaVentasId: 'cta-ventas',
+      cuentaCostoVentasId: 'cta-costo',
+      cuentaInventarioId: 'cta-inv',
+      cuentaMermasId: 'cta-mermas',
+    },
+  },
+  {
+    id: 'prod-exento',
+    sku: 'LIBRO-1',
+    nombre: 'Libro',
+    precioCompra: 30,
+    impuesto: { tipoFactor: 'EXENTO', porcentaje: 0 },
+    categoria: {
+      nombre: 'Abarrotes',
+      cuentaVentasId: 'cta-ventas',
+      cuentaCostoVentasId: 'cta-costo',
+      cuentaInventarioId: 'cta-inv',
+      cuentaMermasId: 'cta-mermas',
+    },
+  },
 ];
+
+/*
+ * Las cuentas tal y como las ve `cuentaDeIngresoSegunImpuesto`: por id —la que
+ * trae la categoría— y por `codigoAgrupadorSAT` —la que pide el impuesto—.
+ */
+const CUENTAS_POR_ID: Record<string, any> = {
+  'cta-ventas': {
+    id: 'cta-ventas',
+    numeroCuenta: '401.01',
+    codigoAgrupadorSAT: '401.01',
+    esAfectable: true,
+    activo: true,
+  },
+  'cta-ventas-2': {
+    id: 'cta-ventas-2',
+    numeroCuenta: '401.01',
+    codigoAgrupadorSAT: '401.01',
+    esAfectable: true,
+    activo: true,
+  },
+  'cta-ventas-cero': {
+    id: 'cta-ventas-cero',
+    numeroCuenta: '401.04',
+    codigoAgrupadorSAT: '401.04',
+    esAfectable: true,
+    activo: true,
+  },
+  'cta-ventas-exento': {
+    id: 'cta-ventas-exento',
+    numeroCuenta: '401.07',
+    codigoAgrupadorSAT: '401.07',
+    esAfectable: true,
+    activo: true,
+  },
+};
+const CUENTAS_POR_AGRUPADOR: Record<string, any> = {
+  '401.01': CUENTAS_POR_ID['cta-ventas'],
+  '401.04': CUENTAS_POR_ID['cta-ventas-cero'],
+  '401.07': CUENTAS_POR_ID['cta-ventas-exento'],
+};
 
 interface PolizaGuardada {
   poliza: any;
@@ -180,7 +253,17 @@ function crearArnes(opts?: {
         };
         return qb;
       },
-      findOne: async () => null,
+      findOne: async (opciones?: any) => {
+        const where = opciones?.where ?? {};
+        if (where.id) return CUENTAS_POR_ID[where.id] ?? null;
+        if (where.codigoAgrupadorSAT) {
+          if (opts?.sinCuentas?.includes(`SAT|${where.codigoAgrupadorSAT}`)) {
+            return null;
+          }
+          return CUENTAS_POR_AGRUPADOR[where.codigoAgrupadorSAT] ?? null;
+        }
+        return null;
+      },
     })),
     createQueryRunner: () => ({
       connect: jest.fn(),
@@ -275,6 +358,100 @@ describe('generarAsientoDeVenta', () => {
           cuentaContableId: 'cta-iva-tras',
           abono: 32,
         }),
+      ]),
+    );
+  });
+
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * La cuenta de ingresos la decide el impuesto del producto
+   * --------------------------------------------------------------------------
+   * Medido el 26-sep-2026 contra la instalación: se vendió un producto a tasa
+   * 0 % y uno exento, y los dos se abonaron a «401.01 Ventas y/o servicios
+   * gravados a la tasa general», porque la cuenta salía de la CATEGORÍA y la
+   * categoría no sabe de impuestos. La póliza cuadraba, el balance cuadraba, y
+   * la balanza y la declaración de IVA enseñaban base gravada donde no la hay.
+   *
+   * Es el mismo error de fondo que el CFDI: tres cosas distintas —gravado,
+   * tasa 0 % y exento— tratadas como una sola.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  it('un producto a TASA 0 % se abona a 401.04, no a ventas gravadas', async () => {
+    const { servicio, guardadas } = crearArnes();
+    await servicio.generarAsientoDeVenta(
+      venta({
+        metodoPago: 'EFECTIVO',
+        totalGeneral: 200,
+        detalles: [
+          { productoId: 'prod-tasa-cero', cantidad: 2, subtotal: 200, impuestoMonto: 0 },
+        ],
+      }),
+    );
+    const ingreso = guardadas.find((g) => g.poliza.tipo === TipoPoliza.INGRESO)!;
+    esperarCuadre(ingreso);
+    expect(ingreso.partidas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ cuentaContableId: 'cta-ventas-cero', abono: 200 }),
+      ]),
+    );
+    expect(
+      ingreso.partidas.some((p: any) => p.cuentaContableId === 'cta-ventas'),
+    ).toBe(false);
+  });
+
+  it('un producto EXENTO se abona a 401.07, no a ventas gravadas', async () => {
+    const { servicio, guardadas } = crearArnes();
+    await servicio.generarAsientoDeVenta(
+      venta({
+        metodoPago: 'EFECTIVO',
+        totalGeneral: 300,
+        detalles: [
+          { productoId: 'prod-exento', cantidad: 1, subtotal: 300, impuestoMonto: 0 },
+        ],
+      }),
+    );
+    const ingreso = guardadas.find((g) => g.poliza.tipo === TipoPoliza.INGRESO)!;
+    esperarCuadre(ingreso);
+    expect(ingreso.partidas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ cuentaContableId: 'cta-ventas-exento', abono: 300 }),
+      ]),
+    );
+  });
+
+  it('un producto GRAVADO se queda en la cuenta de su categoría', async () => {
+    // Que el arreglo no mueva de sitio lo que ya estaba bien.
+    const { servicio, guardadas } = crearArnes();
+    await servicio.generarAsientoDeVenta(venta({ metodoPago: 'EFECTIVO' }));
+    const ingreso = guardadas.find((g) => g.poliza.tipo === TipoPoliza.INGRESO)!;
+    expect(ingreso.partidas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ cuentaContableId: 'cta-ventas', abono: 200 }),
+      ]),
+    );
+  });
+
+  it('si el catálogo de la empresa no tiene la 401.04, la venta no se detiene', async () => {
+    /*
+     * Un mostrador parado es peor que una cuenta imperfecta: se abona donde
+     * decía la categoría y el diagnóstico de integridad
+     * —INGRESO_NO_CONCUERDA_CON_EL_IMPUESTO— lo sigue denunciando.
+     */
+    const { servicio, guardadas } = crearArnes({ sinCuentas: ['SAT|401.04'] });
+    await servicio.generarAsientoDeVenta(
+      venta({
+        metodoPago: 'EFECTIVO',
+        totalGeneral: 200,
+        detalles: [
+          { productoId: 'prod-tasa-cero', cantidad: 2, subtotal: 200, impuestoMonto: 0 },
+        ],
+      }),
+    );
+    const ingreso = guardadas.find((g) => g.poliza.tipo === TipoPoliza.INGRESO)!;
+    esperarCuadre(ingreso);
+    expect(ingreso.partidas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ cuentaContableId: 'cta-ventas', abono: 200 }),
       ]),
     );
   });

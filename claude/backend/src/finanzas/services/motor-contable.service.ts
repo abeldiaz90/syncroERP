@@ -216,7 +216,11 @@ export class MotorContableService {
         const sub = this.redondear(det.subtotal);
         const iva = this.redondear(det.impuestoMonto);
         partidasIngreso.push({
-          cuentaContableId: cat.cuentaVentasId,
+          cuentaContableId: await this.cuentaDeIngresoSegunImpuesto(
+            datos.empresaId,
+            prod,
+            cat.cuentaVentasId,
+          ),
           cargo: 0,
           abono: sub,
           referencia: `V#${datos.folio}`,
@@ -477,8 +481,14 @@ export class MotorContableService {
         const sub = this.redondear(det.subtotal);
         const iva = this.redondear(det.impuestoMonto ?? 0);
 
+        /* La reversión regresa a LA MISMA cuenta a la que se abonó la venta:
+           si no, el 401.04 queda abonado para siempre y el 401.01 cargado. */
         partidasIngreso.push({
-          cuentaContableId: cat.cuentaVentasId,
+          cuentaContableId: await this.cuentaDeIngresoSegunImpuesto(
+            datos.empresaId,
+            prod,
+            cat.cuentaVentasId,
+          ),
           cargo: sub,
           abono: 0,
           referencia: ref,
@@ -1565,6 +1575,86 @@ export class MotorContableService {
 
   // ─── Helpers privados ─────────────────────────────────────────────────────
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * A qué cuenta de ingresos se abona una venta
+   * --------------------------------------------------------------------------
+   * Se abonaba SIEMPRE a `categoria.cuentaVentasId`. Pero la cuenta de ingresos
+   * del catálogo SAT no depende de la categoría comercial del producto, sino de
+   * su TRATAMIENTO FISCAL:
+   *
+   *   · gravado a la tasa general → 401.01
+   *   · gravado al 0 %           → 401.04
+   *   · exento                   → 401.07
+   *
+   * Y el impuesto es del producto, no de la categoría: en la misma categoría
+   * «Abarrotes» conviven un refresco gravado y una leche a tasa 0 %. Medido el
+   * 26-sep-2026: la venta de un producto a tasa 0 % y uno exento se abonó
+   * entera a 401.01 «Ventas gravadas a la tasa general». La póliza cuadra, el
+   * balance cuadra, y la declaración de IVA y la balanza mienten: aparece base
+   * gravada donde no la hay.
+   *
+   * Si la cuenta de la categoría ya es de la familia correcta se respeta —una
+   * empresa puede tener 401.02 «de contado» o 401.39 «zona fronteriza»—. Si no,
+   * se busca la canónica de la familia. Y si esa no existe en el catálogo de la
+   * empresa, se usa la de la categoría y se anota: mejor una venta contabilizada
+   * en la cuenta de siempre que un mostrador parado, y el diagnóstico de
+   * integridad —INGRESO_NO_CONCUERDA_CON_EL_IMPUESTO— lo denuncia igual.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  private async cuentaDeIngresoSegunImpuesto(
+    empresaId: string,
+    producto: any,
+    cuentaDeLaCategoria: string,
+  ): Promise<string> {
+    const impuesto = producto?.impuesto;
+    if (!impuesto) return cuentaDeLaCategoria;
+
+    const tipoFactor = String(impuesto.tipoFactor ?? 'TASA');
+    const porcentaje = Number(impuesto.porcentaje ?? 0);
+
+    let familia: string[];
+    let canonica: string;
+    if (tipoFactor === 'EXENTO') {
+      familia = ['401.07', '401.08', '401.09', '401.14', '401.15'];
+      canonica = '401.07';
+    } else if (tipoFactor === 'TASA' && porcentaje === 0) {
+      familia = ['401.04', '401.05', '401.06', '401.12', '401.13'];
+      canonica = '401.04';
+    } else if (tipoFactor === 'TASA') {
+      familia = ['401.01', '401.02', '401.03', '401.39', '401.10', '401.11'];
+      canonica = '401.01';
+    } else {
+      /* NO_OBJETO y cualquier otro factor: no hay familia que imponer. */
+      return cuentaDeLaCategoria;
+    }
+
+    const repo = this.dataSource.getRepository<any>('CuentaContable');
+    const actual = await repo.findOne({
+      where: { id: cuentaDeLaCategoria, empresaId },
+    });
+    /* Sin agrupador no se puede juzgar: se respeta lo configurado. */
+    if (!actual?.codigoAgrupadorSAT) return cuentaDeLaCategoria;
+    if (familia.includes(actual.codigoAgrupadorSAT)) return cuentaDeLaCategoria;
+
+    const destino = await repo.findOne({
+      where: {
+        empresaId,
+        codigoAgrupadorSAT: canonica,
+        esAfectable: true,
+        activo: true,
+      },
+    });
+    if (!destino) {
+      this.logger.warn(
+        `${producto?.nombre ?? producto?.id}: su impuesto pide la cuenta ${canonica} ` +
+          `y el catálogo de la empresa no la tiene; se abona a ${actual.numeroCuenta}.`,
+      );
+      return cuentaDeLaCategoria;
+    }
+    return destino.id;
+  }
+
   private async cargarProductosConCategoria(
     ids: string[],
     empresaId: string,
@@ -1573,6 +1663,9 @@ export class MotorContableService {
     const productos = await this.productoRepo
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.categoria', 'cat')
+      /* El impuesto del producto decide a qué cuenta de ingresos se abona:
+         ver `cuentaDeIngresoSegunImpuesto`. */
+      .leftJoinAndSelect('p.impuesto', 'imp')
       .whereInIds([...new Set(ids)])
       .andWhere('p.empresaId = :empresaId', { empresaId })
       .getMany();

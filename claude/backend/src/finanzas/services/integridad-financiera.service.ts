@@ -346,11 +346,21 @@ export class IntegridadFinancieraService {
       {
         codigo: 'INGRESO_NO_CONCUERDA_CON_EL_IMPUESTO',
         modulo: 'Catálogo/Fiscal',
-        severidad: 'MEDIA',
+        /*
+         * Era MEDIA cuando la venta se abonaba a donde dijera la categoría y el
+         * ingreso quedaba mal clasificado de verdad. Desde que el motor
+         * contable elige la cuenta por el IMPUESTO del producto
+         * —`cuentaDeIngresoSegunImpuesto`—, la póliza sale bien aunque la
+         * categoría diga otra cosa, y lo que queda es una configuración
+         * confusa: quien abra la categoría leerá «401.01» para una leche a
+         * tasa 0 %. Merece limpiarse; no merece una alarma: queda como INFO. Un tablero que
+         * enciende luces por cosas que el sistema ya resolvió deja de leerse.
+         */
+        severidad: 'INFO',
         descripcion:
-          'Productos cuyo impuesto no concuerda con la cuenta de ingresos de su categoría (exentos o a tasa 0 % abonados a ventas gravadas, o al revés).',
+          'Categorías cuya cuenta de ingresos no concuerda con el impuesto de los productos que contienen. La venta se contabiliza igual en la cuenta que le toca por su impuesto —401.01 gravado, 401.04 tasa 0 %, 401.07 exento—; lo que queda mal es la configuración.',
         accion:
-          'Revisar en Finanzas → Categorías contables: las ventas gravadas van al 401.01, las de tasa 0 % al 401.04 y las exentas al 401.07.',
+          'Opcional: en Finanzas → Categorías contables, separar por tratamiento fiscal o dejar la cuenta general. El motor contable resuelve la cuenta por el impuesto del producto.',
         sql: `SELECT COUNT(1) cantidad
                 FROM productos pr
                 JOIN impuestos i ON i.id = pr.impuestoId
