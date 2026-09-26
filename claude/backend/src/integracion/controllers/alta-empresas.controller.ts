@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -12,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import { Public } from '../../common/decorators/public.decorator';
 import { AltaEmpresasService } from '../services/alta-empresas.service';
 import { IdentidadEmpresaService } from '../../iam/services/identidad-empresa.service';
+import { revisarRfc } from '../../common/utils/rfc.util';
 
 /**
  * ============================================================================
@@ -99,9 +101,35 @@ export class AltaEmpresasController {
         'Falta indicar quién autoriza el alta del lado de SUMA (solicitadoPor).',
       );
     }
+    /*
+     * ──────────────────────────────────────────────────────────────────────
+     * EL RFC, COMPROBADO AQUI Y NO EL DIA DEL PRIMER TIMBRADO
+     *
+     * Entraba tal cual desde la consola y se guardaba sin que lo mirara nadie
+     * en ninguna de las tres capas. Es la identidad fiscal que va en CADA CFDI
+     * de esa empresa: un error no falla al dar de alta, falla meses despues,
+     * con facturas ya emitidas que hay que cancelar.
+     *
+     * Se comprueba forma y fecha; no el digito verificador, cuyo algoritmo
+     * rechaza RFC legitimos anteriores a la homoclave. Ver `rfc.util`.
+     *
+     * Vacio se sigue aceptando: una empresa puede darse de alta antes de que
+     * su RFC se conozca. Lo que no se acepta es uno equivocado.
+     * ──────────────────────────────────────────────────────────────────────
+     */
+    const rfcCrudo = String(cuerpo?.rfc ?? '').trim();
+    let rfc: string | null = null;
+    if (rfcCrudo) {
+      const veredicto = revisarRfc(rfcCrudo);
+      if (!veredicto.valido) {
+        throw new BadRequestException(veredicto.motivo);
+      }
+      rfc = veredicto.normalizado;
+    }
+
     return this.alta.crear({
       nombreComercial: String(cuerpo?.nombreComercial ?? ''),
-      rfc: cuerpo?.rfc ?? null,
+      rfc,
       usaFineract: cuerpo?.usaFineract === true,
       solicitadoPor: cuerpo.solicitadoPor.trim(),
       administrador: cuerpo?.administrador?.correo?.trim()

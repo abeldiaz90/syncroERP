@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { fechaCorta } from '@/lib/fechas';
 import {
   DollarSign, Search, ChevronDown, CheckCircle2, AlertCircle,
   X, Save, Clock, User, Calendar, CreditCard, Banknote,
@@ -21,7 +22,7 @@ interface ICredito {
 interface ICuentaBancaria { id: string; nombre: string; tipo: string; esPorDefecto: boolean; }
 
 const fmt$ = (n: number) => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(n);
-const fmtFecha = (s: string) => new Date(s+'T00:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
+const fmtFecha = fechaCorta;
 const diasVencido = (fecha: string) => Math.floor((new Date().getTime() - new Date(fecha+'T00:00:00').getTime()) / 86400000);
 
 const ESTADO_STYLE: Record<string, string> = {
@@ -45,6 +46,12 @@ export default function CobranzaPage() {
   const [creditos, setCreditos]           = useState<ICredito[]>([]);
   const [cuentasBancarias, setCuentasBancarias] = useState<ICuentaBancaria[]>([]);
   const [cargando, setCargando]           = useState(true);
+  /*
+    «Sin créditos» es una afirmación sobre la cartera. Si la consulta falla, la
+    pantalla de cobranza la hacía igual, y quien cobra se va a su casa creyendo
+    que no hay nada que cobrar.
+  */
+  const [errorCarga, setErrorCarga]       = useState('');
   const [busqueda, setBusqueda]           = useState('');
   const [filtroEstado, setFiltroEstado]   = useState('ACTIVO');
   const [creditoSeleccionado, setCreditoSeleccionado] = useState<ICredito|null>(null);
@@ -73,7 +80,13 @@ export default function CobranzaPage() {
       fetch(`${api}/credito/creditos${filtroEstado?`?estado=${filtroEstado}`:''}`, { headers:h() }),
       fetch(`${api}/credito/cuentas-bancarias`, { headers:h() }),
     ]);
-    if (rC.ok)  setCreditos(await rC.json());
+    if (rC.ok) { setCreditos(await rC.json()); setErrorCarga(''); }
+    else {
+      setCreditos([]);
+      setErrorCarga(rC.status === 403
+        ? 'Tu perfil no incluye la consulta de créditos.'
+        : 'No se pudo consultar la cartera de créditos.');
+    }
     if (rCB.ok) {
       const cb = await rCB.json();
       setCuentasBancarias(cb);
@@ -226,6 +239,12 @@ export default function CobranzaPage() {
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
           <p className="text-slate-400 text-sm">Cargando créditos...</p>
+        </div>
+      ) : errorCarga ? (
+        <div className="bg-white rounded-2xl border border-rose-200 p-16 text-center">
+          <DollarSign className="w-12 h-12 text-rose-200 mx-auto mb-3"/>
+          <p className="font-semibold text-rose-700">{errorCarga}</p>
+          <p className="text-sm text-slate-500 mt-1">La cartera no está vacía: no se pudo consultar.</p>
         </div>
       ) : filtrados.length===0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">

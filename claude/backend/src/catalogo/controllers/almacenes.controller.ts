@@ -24,6 +24,15 @@ export class AlmacenesController {
     return this.almacenesService.obtenerAlmacenes(empresaId, estado);
   }
 
+  /*
+   * Va declarado ANTES de las rutas con parametro: si fuera despues, Nest
+   * tomaria «para-venta» como un identificador y nunca se alcanzaria.
+   */
+  @Get('para-venta')
+  async paraVenta(@ActiveUser('empresaId') empresaId: string) {
+    return this.almacenesService.obtenerParaVenta(empresaId);
+  }
+
   @Patch(':id')
   async actualizar(
     @Param('id') id: string,

@@ -25,8 +25,15 @@ export function BarraContextualModulo({ modulo, items, activo, permisos }: Props
    * ofrecía «Nueva póliza», «Balanza» y «Cierre mensual» en botones
    * destacados, y las tres terminan en «esta sección no está en tu perfil».
    *
-   * Las acciones de ventana (la caja) no pasan por aquí: no son una pantalla
-   * del área de trabajo y lo que se puede hacer dentro lo decide el servidor.
+   * Las acciones de ventana —hoy sólo la caja— no pasan por el filtro de
+   * PANTALLA, porque no son una pantalla del área de trabajo. Pero sí por el
+   * de ACCIÓN. Antes se saltaban los dos, con el argumento de que lo que se
+   * puede hacer dentro lo decide el servidor: cierto, y aun así el botón
+   * «Abrir caja» salía primario para gerencia, contabilidad y crédito, y la
+   * ventana se abría sólo para decirles «tu perfil no incluye la caja».
+   * Ofrecer un camino a una negativa es el mismo defecto que ya se corrigió
+   * en el centro de trabajo; esta barra es la otra puerta y se había quedado
+   * sin la regla.
    */
   const { tienePermiso } = usePermiso();
   /*
@@ -34,12 +41,10 @@ export function BarraContextualModulo({ modulo, items, activo, permisos }: Props
    * Poder abrir «Requisiciones» en consulta no es poder crear una: ese botón
    * llevaba al almacenista a llenar un formulario que terminaba en 403.
    */
-  const accionesDelModulo = (modulo.acciones ?? []).filter(
-    (a) =>
-      a.ventana ||
-      (puedeEntrar(permisos, a.href) &&
-        (!a.accion || tienePermiso(a.accion.metodo, a.accion.ruta))),
-  );
+  const accionesDelModulo = (modulo.acciones ?? []).filter((a) => {
+    if (a.accion && !tienePermiso(a.accion.metodo, a.accion.ruta)) return false;
+    return a.ventana || puedeEntrar(permisos, a.href);
+  });
   const acciones: ModuleAction[] = accionesDelModulo.length
     ? accionesDelModulo.slice(0, 5)
     : items.slice(0, 4).map((i) => ({ label: i.label, href: i.href }));

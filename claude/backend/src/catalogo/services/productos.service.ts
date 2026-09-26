@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, ILike, In, Like, Repository } from 'typeorm';
+import { DataSource, EntityManager, ILike, In, Repository } from 'typeorm';
 import { Producto } from '../entities/producto.entity';
 import { ImagenProducto } from '../entities/imagen-producto.entity';
 import { ProductoPrecio } from '../entities/producto-precio.entity';
@@ -16,6 +16,7 @@ import { CrearProductoDto } from '../dto/crear-producto.dto';
 import { InventarioService } from './inventario.service';
 import { Categoria } from '../entities/categoria.entity';
 import { UnidadMedida } from '../entities/unidad-medida.entity';
+import { Impuesto } from '../entities/impuesto.entity';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
 import { StockPorAlmacen } from '../entities/stock-por-almacen.entity';
@@ -629,6 +630,66 @@ export class ProductosService {
   }
 
   // ─────────────────────────────────────────────────────────────────
+  // PANEL FISCAL — para Contabilidad
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * La lista mínima que Contabilidad necesita para dejar el catálogo
+   * facturable: qué producto, qué impuesto lleva y si tiene las dos claves
+   * del SAT. Ni precios, ni costos, ni existencias.
+   */
+  async panelFiscal(empresaId: string) {
+    const productos = await this.productoRepository.find({
+      where: { empresaId },
+      relations: ['impuesto'],
+      order: { nombre: 'ASC' },
+    });
+    return productos.map((p) => ({
+      id: p.id,
+      sku: p.sku,
+      nombre: p.nombre,
+      activo: p.activo,
+      impuestoId: p.impuestoId ?? null,
+      impuestoNombre: p.impuesto?.nombre ?? null,
+      tipoFactor: p.impuesto?.tipoFactor ?? null,
+      porcentaje: p.impuesto ? Number(p.impuesto.porcentaje) : null,
+      claveSAT: p.claveSAT ?? null,
+      claveUnidadSAT: p.claveUnidadSAT ?? null,
+      facturable: Boolean(p.claveSAT && p.claveUnidadSAT && p.impuestoId),
+    }));
+  }
+
+  /**
+   * Asignar —o retirar— el impuesto de un producto. Es la única escritura de
+   * este panel: no toca nada más de la ficha.
+   */
+  async asignarImpuesto(
+    id: string,
+    impuestoId: string | null,
+    empresaId: string,
+  ) {
+    const producto = await this.productoRepository.findOne({
+      where: { id, empresaId },
+    });
+    if (!producto) throw new NotFoundException('Producto no encontrado.');
+
+    if (impuestoId) {
+      const impuesto = await this.productoRepository.manager
+        .getRepository(Impuesto)
+        .findOne({ where: { id: impuestoId, empresaId, activo: true } });
+      if (!impuesto) {
+        throw new NotFoundException(
+          'Ese impuesto no existe o está dado de baja.',
+        );
+      }
+    }
+
+    producto.impuestoId = impuestoId as string;
+    await this.productoRepository.save(producto);
+    return { id: producto.id, impuestoId: producto.impuestoId ?? null };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
   // MÉTRICAS DASHBOARD
   // ─────────────────────────────────────────────────────────────────
 
@@ -650,13 +711,24 @@ export class ProductosService {
     almacenId?: string,
     limite = 15,
   ) {
+    /*
+     * ILike, no Like.
+     *
+     * En Postgres `LIKE` distingue mayusculas. El cajero escribia «taza» en la
+     * caja y no salia nada, porque el producto se llama «Taza de ceramica»;
+     * con «term» tampoco salia el «Termo de acero». Nadie teclea un catalogo
+     * con la mayuscula correcta delante de un cliente, y lo que ve el cajero
+     * es que el producto NO EXISTE. La base venia de SQL Server, donde la
+     * intercalacion por omision ignora mayusculas y `LIKE` bastaba; al mudar
+     * el motor la busqueda se volvio literal sin que nadie tocara una linea.
+     */
     const filtro = `%${String(query ?? '').trim()}%`;
     const productos = await this.productoRepository.find({
       where: [
-        { empresaId, activo: true, nombre: Like(filtro) },
-        { empresaId, activo: true, sku: Like(filtro) },
-        { empresaId, activo: true, codigoBarras: Like(filtro) },
-        { empresaId, activo: true, codigoBarras2: Like(filtro) },
+        { empresaId, activo: true, nombre: ILike(filtro) },
+        { empresaId, activo: true, sku: ILike(filtro) },
+        { empresaId, activo: true, codigoBarras: ILike(filtro) },
+        { empresaId, activo: true, codigoBarras2: ILike(filtro) },
       ],
       relations: [
         'imagenes',

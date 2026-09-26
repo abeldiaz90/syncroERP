@@ -85,9 +85,22 @@ export default function StockInicialPage() {
     } catch (e: any) { setError(e.message || "Error de conexión"); } finally { setOcupado(false); }
   };
 
+  /*
+   * Cancelar una importación en curso es una escritura y puede fallar —el
+   * trabajo ya terminó, el permiso no está—. Se lanzaba sin mirar la
+   * respuesta: el usuario veía la barra seguir avanzando sin una palabra que
+   * explicara por qué no se detuvo.
+   */
   const cancelar = async () => {
     if (!job) return;
-    await fetch(`${apiUrl}/catalogo/importacion/stock-inicial/${job.id}/cancelar`, { method: "POST", headers: { Authorization: `Bearer ${token()}` } });
+    setError("");
+    try {
+      const r = await fetch(`${apiUrl}/catalogo/importacion/stock-inicial/${job.id}/cancelar`, { method: "POST", headers: { Authorization: `Bearer ${token()}` } });
+      if (!r.ok) {
+        const d = await r.json().catch(() => null);
+        setError((Array.isArray(d?.message) ? d.message.join(", ") : d?.message) || "No se pudo cancelar la importación: sigue en curso.");
+      }
+    } catch { setError("No hay conexión con el servidor. La importación sigue en curso."); }
   };
 
   const descargarErrores = () => {

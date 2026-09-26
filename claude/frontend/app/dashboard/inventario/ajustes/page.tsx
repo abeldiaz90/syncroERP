@@ -26,6 +26,7 @@ export default function AjustesStockPage() {
   const [stockActual, setStockActual] = useState<number | null>(null);
   const [buscandoStock, setBuscandoStock] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [errorCarga, setErrorCarga] = useState('');
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
   const [textoBusqueda, setTextoBusqueda] = useState('');
 
@@ -37,9 +38,22 @@ export default function AjustesStockPage() {
       fetch(`${apiUrl}/catalogo/productos?limite=2000`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${apiUrl}/catalogo/almacenes`, { headers: { Authorization: `Bearer ${token}` } }),
     ]).then(async ([resProd, resAlm]) => {
+      /*
+        Sin productos o sin almacenes no se puede capturar un ajuste, y los dos
+        desplegables salían vacíos sin decir por qué: la pantalla parecía rota.
+      */
       if (resProd.ok) { const d = await resProd.json(); setProductos(d.productos || d); }
+      else { setProductos([]); }
       if (resAlm.ok) { const d = await resAlm.json(); setAlmacenes(d.almacenes || d); }
-    }).catch(console.error);
+      else { setAlmacenes([]); }
+      const caidas = [
+        !resProd.ok ? 'el catálogo de productos' : '',
+        !resAlm.ok ? 'la lista de almacenes' : '',
+      ].filter(Boolean);
+      setErrorCarga(caidas.length
+        ? `No se pudo consultar ${caidas.join(' ni ')}. No podrás capturar un ajuste.`
+        : '');
+    }).catch(() => setErrorCarga('No hay conexión con el servidor.'));
   }, [apiUrl]);
 
   useEffect(() => {
@@ -102,6 +116,12 @@ export default function AjustesStockPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto animate-in fade-in duration-500 relative">
+
+      {errorCarga && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {errorCarga}
+        </div>
+      )}
       {buscadorAbierto && <div className="fixed inset-0 z-10" onClick={() => setBuscadorAbierto(false)} />}
 
       {/* Header */}

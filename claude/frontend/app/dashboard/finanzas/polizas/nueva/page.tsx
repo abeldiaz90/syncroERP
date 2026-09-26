@@ -47,8 +47,23 @@ export default function PolizaManualPage() {
 
   useEffect(() => {
     (async () => {
-      const r = await fetch(`${api}/finanzas/cuentas-contables`, { headers: h() });
-      if (r.ok) setCuentas(await r.json());
+      /*
+        Sin cuentas no se puede capturar una partida, y el buscador sale vacío
+        sin decir por qué: la pantalla parece rota. Se dice.
+      */
+      try {
+        const r = await fetch(`${api}/finanzas/cuentas-contables`, { headers: h() });
+        if (r.ok) { setCuentas(await r.json()); }
+        else {
+          setCuentas([]);
+          toast$(r.status === 403
+            ? 'Tu perfil no incluye el catálogo de cuentas contables: no podrás capturar partidas.'
+            : 'No se pudo cargar el catálogo de cuentas contables.', false);
+        }
+      } catch {
+        setCuentas([]);
+        toast$('No hay conexión con el servidor.', false);
+      }
     })();
   }, []);
 
@@ -309,26 +324,46 @@ export default function PolizaManualPage() {
         </div>
       </div>
 
-      {/* Ejemplos rápidos */}
+      {/*
+        * Ejemplos rápidos.
+        *
+        * Decían «Dr. 610-01 Gastos Admin / Cr. 110-01 Caja»: cuentas que NO
+        * existen en este catálogo, ni con ese número ni con esa puntuación —el
+        * catálogo es el del SAT y usa 601.xx, 101, 301.01, con punto—. Un
+        * contador que abre esta pantalla y lee tres ejemplos con códigos que no
+        * encuentra en su catálogo deja de creerle al resto.
+        *
+        * Y dos de los tres ejemplos eran además imposibles aquí: Caja y Bancos
+        * las controla un auxiliar y no admiten póliza manual, que es justo lo
+        * que contesta el servidor si se intenta. Un ejemplo que el sistema
+        * rechaza no es un ejemplo, es una trampa.
+        *
+        * Estos tres se pueden capturar tal cual.
+        */}
       <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-5">
         <p className="text-xs font-bold uppercase text-indigo-600 mb-2">💡 Ejemplos de asientos comunes</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-indigo-700">
           <div className="bg-white rounded-lg p-2.5 border border-indigo-100">
-            <p className="font-bold mb-1">Pago de renta</p>
-            <p>Dr. 610-01 Gastos Admin</p>
-            <p className="pl-4">Cr. 110-01 Caja</p>
+            <p className="font-bold mb-1">Renta por pagar</p>
+            <p>Dr. 601.45 Arrendamiento</p>
+            <p className="pl-4">Cr. 205.02 Acreedores diversos</p>
           </div>
           <div className="bg-white rounded-lg p-2.5 border border-indigo-100">
-            <p className="font-bold mb-1">Pago de nómina</p>
-            <p>Dr. 610-01 Gastos Admin</p>
-            <p className="pl-4">Cr. 110-01 Caja</p>
+            <p className="font-bold mb-1">Papelería por pagar</p>
+            <p>Dr. 601.55 Papelería y artículos de oficina</p>
+            <p className="pl-4">Cr. 205.02 Acreedores diversos</p>
           </div>
           <div className="bg-white rounded-lg p-2.5 border border-indigo-100">
-            <p className="font-bold mb-1">Depósito de capital</p>
-            <p>Dr. 110-01 Caja</p>
-            <p className="pl-4">Cr. 301-01 Capital</p>
+            <p className="font-bold mb-1">Depreciación del mes</p>
+            <p>Dr. 613.04 Depreciación de mobiliario</p>
+            <p className="pl-4">Cr. 171.04 Depreciación acumulada</p>
           </div>
         </div>
+        <p className="mt-2 text-[11px] text-indigo-600">
+          Caja, bancos, clientes, proveedores e inventario los lleva su propio
+          módulo y no admiten póliza manual: se registran ahí para que el
+          auxiliar y el mayor coincidan.
+        </p>
       </div>
 
       {/* Botones */}

@@ -1,12 +1,13 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { fechaLarga } from '@/lib/fechas';
 import { Calendar, X, Printer, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 interface ICuenta { id: string; numeroCuenta: string; nombre: string; saldoFinal: number; }
 
 const HOY = new Date();
 const fmt  = (d: Date) => d.toISOString().split('T')[0];
-const fmtLabel = (s: string) => s ? new Date(s + 'T00:00:00').toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' }) : '';
+const fmtLabel = (s: string) => s ? fechaLarga(s) : '';
 
 const primerDiaMes = fmt(new Date(HOY.getFullYear(), HOY.getMonth(), 1));
 const ultimoDiaMes = fmt(new Date(HOY.getFullYear(), HOY.getMonth() + 1, 0));
@@ -27,6 +28,13 @@ export default function EstadoResultadosPage() {
   const [fechaDesde, setFechaDesde]   = useState(primerDiaMes);
   const [fechaHasta, setFechaHasta]   = useState(ultimoDiaMes);
   const [rangoActivo, setRangoActivo] = useState('Este mes');
+  /*
+    Un reporte financiero vacío parece un reporte en orden: todo en cero y la
+    identidad contable cuadrando sola. La consulta se hacía con `if (res.ok)` y
+    sin `else`, así que cualquier fallo se presentaba como un periodo sin
+    movimientos. Ahora se dice que no se pudo preguntar.
+  */
+  const [error, setError] = useState('');
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
 
@@ -40,7 +48,18 @@ export default function EstadoResultadosPage() {
       const res = await fetch(`${api}/finanzas/polizas/balanza?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) setCuentas(await res.json());
+      if (res.ok) {
+        setCuentas(await res.json());
+        setError('');
+      } else {
+        setCuentas([]);
+        setError(res.status === 403
+          ? 'Tu perfil no incluye la consulta de el estado de resultados.'
+          : 'No se pudo consultar el estado de resultados. Los importes de esta pantalla no son válidos.');
+      }
+    } catch {
+      setCuentas([]);
+      setError('No hay conexión con el servidor. Los importes de esta pantalla no son válidos.');
     } finally { setCargando(false); }
   }, [api]);
 
@@ -82,6 +101,12 @@ export default function EstadoResultadosPage() {
           <Printer className="w-4 h-4" /> Imprimir
         </button>
       </div>
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {error}
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-8">

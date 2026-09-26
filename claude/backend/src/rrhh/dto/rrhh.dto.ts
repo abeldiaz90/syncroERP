@@ -10,6 +10,7 @@ import {
   EstadoEmpleado, JornadaLaboral, NaturalezaConcepto, RegimenPago, TipoContrato, TipoIncidencia, TipoSalario,
 } from '../entities/rrhh.entity';
 import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
+import { EsRfcOpcional } from '../../common/validators/rfc.validator';
 
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
 const upper = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toUpperCase() : value;
@@ -20,7 +21,7 @@ export class CrearEmpleadoDto {
   @Transform(trim) @IsString() @MinLength(1) @MaxLength(80) apellidoPaterno!: string;
   @Transform(trim) @IsOptional() @IsString() @MaxLength(80) apellidoMaterno?: string;
   @Transform(upper) @IsOptional() @Matches(/^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/) curp?: string;
-  @Transform(upper) @IsOptional() @Matches(/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/) rfc?: string;
+  @Transform(upper) @IsOptional() @EsRfcOpcional() rfc?: string;
   @IsOptional() @Matches(/^\d{11}$/) nss?: string;
   @IsOptional() @IsDateString() fechaNacimiento?: string;
   @IsEmailOpcional() @MaxLength(120) email?: string;

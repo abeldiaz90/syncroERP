@@ -21,7 +21,11 @@ export default function CumplimientoNominaPage(){
   useEffect(()=>{if(periodoId)void cargar(periodoId)},[periodoId]);
 
   async function cargar(id=periodoId){
-    if(!id)return; setProcesando(true); setMensaje(null);
+    // El aviso NO se borra al recargar: `ejecutar()` lo pone y acto seguido
+    // llama aquí, así que borrarlo en esta línea hacía que todos los mensajes
+    // de éxito de la pantalla se vieran un instante y desaparecieran. El que
+    // empieza una acción sí limpia el anterior, y eso pasa en `ejecutar()`.
+    if(!id)return; setProcesando(true);
     try{
       setResumen(await api.get<Resumen>(`/rrhh/nomina-avanzada/periodos/${id}/cumplimiento`));
     }catch(e){setMensaje({texto:e instanceof Error?e.message:'No fue posible cargar el cierre.',ok:false})}finally{setProcesando(false)}

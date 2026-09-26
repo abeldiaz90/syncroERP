@@ -14,6 +14,7 @@ import {
 import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 import { TipoCredito } from '../entities/credito-cliente.entity';
 import { UnidadPlazo } from '../entities/producto-credito.entity';
+import { IsFechaOpcional } from '../../common/validators/fecha-opcional.validator';
 
 export class SimularCreditoDto {
   @Type(() => Number)
@@ -36,8 +37,7 @@ export class SimularCreditoDto {
   @IsBoolean()
   sinInteres!: boolean;
 
-  @IsOptional()
-  @IsDateString()
+  @IsFechaOpcional()
   fechaInicio?: string;
 
   @IsOptional()
@@ -109,8 +109,7 @@ export class CrearCreditoDto {
   @IsBoolean()
   sinInteres = true;
 
-  @IsOptional()
-  @IsDateString()
+  @IsFechaOpcional()
   fechaInicio?: string;
 
   @IsOptional()

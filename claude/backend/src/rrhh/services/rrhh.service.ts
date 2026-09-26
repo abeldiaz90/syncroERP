@@ -164,7 +164,7 @@ export class RrhhService {
       q.andWhere('e.departamentoId = :d', { d: filtros.departamentoId });
     if (filtros.busqueda) {
       q.andWhere(
-        '(e.nombres LIKE :b OR e.apellidoPaterno LIKE :b OR e.numeroEmpleado LIKE :b OR e.rfc LIKE :b)',
+        '(e.nombres ILIKE :b OR e.apellidoPaterno ILIKE :b OR e.numeroEmpleado ILIKE :b OR e.rfc ILIKE :b)',
         { b: `%${filtros.busqueda}%` },
       );
     }
@@ -650,11 +650,25 @@ export class RrhhService {
       return new Date(valor.getFullYear(), valor.getMonth(), valor.getDate());
     }
     const texto = String(valor ?? '').trim();
+    /*
+     * La fecha que NO VIENE y la fecha MAL ESCRITA son dos problemas distintos y
+     * se arreglan distinto. Interpolar el valor vacío producía «La fecha  no es
+     * válida.», con su hueco en medio, que es lo que contesta hoy
+     * `GET /rrhh/asistencia` sin parámetros: quien lo lee no sabe si escribió
+     * mal la fecha o si olvidó mandarla.
+     */
+    if (!texto) {
+      throw new BadRequestException(
+        'Falta la fecha. Se espera AAAA-MM-DD.',
+      );
+    }
     const fecha = /^\d{4}-\d{2}-\d{2}$/.test(texto)
       ? new Date(`${texto}T00:00:00`)
       : new Date(texto);
     if (Number.isNaN(fecha.getTime())) {
-      throw new BadRequestException(`La fecha ${texto} no es válida.`);
+      throw new BadRequestException(
+        `La fecha «${texto}» no es válida. Se espera AAAA-MM-DD.`,
+      );
     }
     return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
   }

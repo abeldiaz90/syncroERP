@@ -175,7 +175,16 @@ export const MODULOS: ModuleConfig[] = [
     href: "/dashboard/centros/ventas",
     prefixes: ["/dashboard/centros/ventas", "/dashboard/ventas"],
     acciones: [
-      { label: "Abrir caja", href: "/pos", principal: true, ventana: true },
+      {
+        label: "Abrir caja",
+        href: "/pos",
+        principal: true,
+        ventana: true,
+        // Quien no puede registrar una venta no puede abrir la caja: sin esto
+        // el boton aparecia primario para gerencia, contabilidad y credito, y
+        // la ventana se abria solo para decir «tu perfil no incluye la caja».
+        accion: { metodo: "POST", ruta: "/ventas" },
+      },
       { label: "Historial", href: "/dashboard/ventas/historial" },
       { label: "Devoluciones", href: "/dashboard/ventas/devoluciones" },
     ],
@@ -598,10 +607,29 @@ export const MODULOS: ModuleConfig[] = [
         etiqueta: "Nuevo",
       },
       {
+        /*
+         * El impuesto de cada producto lo decide Contabilidad y hasta hoy no
+         * tenía dónde: la ficha del producto sólo la abre el almacén, que a
+         * propósito no ve el catálogo de impuestos.
+         */
+        label: "Impuestos del catálogo",
+        href: "/dashboard/finanzas/fiscal-productos",
+        grupo: "Control",
+        etiqueta: "Nuevo",
+      },
+      {
         label: "Integridad financiera",
         href: "/dashboard/finanzas/integridad",
         grupo: "Control",
-        etiqueta: "Crítico",
+        /*
+         * Decía «Crítico», fijo, siempre. Las demás etiquetas de este menú
+         * describen QUÉ ES la pantalla —«Nuevo», «Guiado», «Requerido»— y ésta
+         * nombraba un NIVEL DE SEVERIDAD, así que el menú avisaba de un
+         * hallazgo crítico también cuando el tablero estaba en verde. Un aviso
+         * que no depende de nada es un aviso que nadie vuelve a creer, y el día
+         * que haya algo crítico de verdad se verá igual que ayer.
+         */
+        etiqueta: "Diagnóstico",
       },
       {
         label: "Espejo contable",
@@ -947,6 +975,11 @@ export const MODULOS: ModuleConfig[] = [
     relacionados: [{ label: "Bandeja de aprobaciones", href: "/dashboard/aprobaciones" }],
     items: [
       {
+        label: "Panel hotelero",
+        href: "/dashboard/hoteleria/panel",
+        grupo: "Recepción",
+      },
+      {
         label: "Rack de habitaciones",
         href: "/dashboard/hoteleria/rack",
         grupo: "Recepción",
@@ -1062,6 +1095,9 @@ export const MODULOS: ModuleConfig[] = [
 export const RUTAS_CONTENEDOR = new Set<string>([
   "/dashboard/reportes",
   "/dashboard/almacenes/centro",
+  // Redirige al centro de trabajo y no trae datos propios; el panel hotelero
+  // con cifras vive en `/dashboard/hoteleria/panel`, que se concede aparte.
+  "/dashboard/hoteleria",
 ]);
 
 /* ── Resolución de módulo ────────────────────────────────────────────────── */

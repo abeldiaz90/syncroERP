@@ -626,6 +626,12 @@ export class OrdenesCompraService {
           {
             compraId: recepcionId,
             folio: recepcionId.slice(0, 8).toUpperCase(),
+            /*
+             * Y cómo se llama la orden en Compras. Sin esto la póliza decía
+             * «Orden #<id de la recepción>» y mandaba a buscar un documento
+             * que no existe con ese número.
+             */
+            folioOrden: `OC-${oc.id.slice(0, 8).toUpperCase()}`,
             fecha: new Date(),
             empresaId,
             detalles: detallesContables,
@@ -933,7 +939,7 @@ export class OrdenesCompraService {
           fecha: diaPago,
           tipo: TipoMovimiento.EGRESO,
           importe: monto,
-          concepto: `Pago a proveedor OC ${id.slice(0, 8).toUpperCase()}`,
+          concepto: `Pago a proveedor OC-${id.slice(0, 8).toUpperCase()}`,
           origen: OrigenMovimiento.PAGO_PROVEEDOR,
           referencia: dto.referencia,
           documentoId: pago.id,
@@ -964,7 +970,7 @@ export class OrdenesCompraService {
             naturaleza: NaturalezaMovimientoCaja.SALIDA,
             tipo: TipoMovimientoCaja.RETIRO,
             importe: monto,
-            concepto: `Pago a proveedor OC ${id.slice(0, 8).toUpperCase()}`,
+            concepto: `Pago a proveedor OC-${id.slice(0, 8).toUpperCase()}`,
             referencia: dto.referencia,
             documentoId: pago.id,
             tipoDocumento: 'PAGO_PROVEEDOR',

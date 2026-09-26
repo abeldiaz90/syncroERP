@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { IsEmailOpcional } from '../common/validators/email-opcional.validator';
+import { EsRfcOpcional } from '../common/validators/rfc.validator';
 
 export class CrearProveedorDto {
   @IsString()
@@ -23,8 +24,9 @@ export class CrearProveedorDto {
   @IsString()
   razonSocial?: string;
 
+  // El RFC del proveedor viaja en cada CFDI que se le recibe. No se validaba.
   @IsOptional()
-  @IsString()
+  @EsRfcOpcional()
   rfc?: string;
 
   @IsOptional()

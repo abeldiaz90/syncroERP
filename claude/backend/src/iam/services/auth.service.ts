@@ -5,11 +5,13 @@ import {
   UnauthorizedException,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, QueryFailedError } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
@@ -45,7 +47,51 @@ export class AuthService {
     private readonly dataSource: DataSource,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
+    private readonly config: ConfigService,
   ) {}
+
+  /*
+   * ==========================================================================
+   * Quien guarda la contraseña es quien la comprueba
+   * --------------------------------------------------------------------------
+   * `AUTH_MODE` decide donde vive la identidad, y por omision vive en el
+   * directorio (Keycloak). `usuarios.service` ya lo respetaba —aceptar una
+   * invitacion en modo directorio se niega con un mensaje que lo explica— pero
+   * ESTE servicio no recibia la configuracion y por tanto no podia mirarlo.
+   *
+   * Asi que las tres puertas locales seguian abiertas en modo directorio, y
+   * cada una mentia a su manera:
+   *
+   *   `login` devolvia 200 con un token que ningun guardia acepta. La
+   *   estrategia JWT solo admite RS256 de un emisor registrado, asi que el
+   *   token no abre nada: el usuario recibe un «entraste» y despues un 401 en
+   *   la primera pantalla.
+   *
+   *   `recuperar-password` mandaba un correo de verdad —sin sesion— para
+   *   restablecer una contraseña que no autentica nada.
+   *
+   *   `restablecer-password` sobrescribia el marcador
+   *   `sin-acceso-local:identidad-en-el-directorio` con un hash real. Hoy no
+   *   concede acceso; pero el dia que alguien ponga `AUTH_MODE=local`, esas
+   *   cuentas tendrian la contraseña que puso quien corriera el flujo. Un
+   *   agujero dormido no es un agujero menor: es uno que nadie vigila.
+   *
+   * No se borran porque el modo local existe y es legitimo para quien instala
+   * sin directorio. Se cierran cuando no corresponden, que es distinto.
+   * ==========================================================================
+   */
+  private get identidadEnDirectorio(): boolean {
+    return this.config.get<string>('AUTH_MODE', 'keycloak') === 'keycloak';
+  }
+
+  /** La misma frase en las tres puertas: el usuario tiene que leer lo mismo. */
+  private exigirAccesoLocal(): void {
+    if (!this.identidadEnDirectorio) return;
+    throw new ForbiddenException(
+      'Las contraseñas se administran en SUMA, no en el ERP. ' +
+        'Entra, recupérala o cámbiala desde tu cuenta de SUMA.',
+    );
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // Helpers
@@ -166,6 +212,7 @@ export class AuthService {
   // La sesión sólo se emite después de autenticar usuario y contraseña.
   // ═══════════════════════════════════════════════════════════════════════
   async verificarEmail(token: string) {
+    this.exigirAccesoLocal();
     if (!token) throw new BadRequestException('Token no proporcionado');
 
     const usuario = await this.usuarioRepository.findOne({
@@ -204,6 +251,7 @@ export class AuthService {
   // REENVIAR VERIFICACIÓN
   // ═══════════════════════════════════════════════════════════════════════
   async reenviarVerificacion(email: string) {
+    this.exigirAccesoLocal();
     const emailNorm = (email || '').toLowerCase().trim();
 
     const usuario = await this.usuarioRepository.findOne({
@@ -236,6 +284,7 @@ export class AuthService {
   // (evita que un atacante descubra qué correos están registrados).
   // ═══════════════════════════════════════════════════════════════════════
   async solicitarRecuperacion(email: string) {
+    this.exigirAccesoLocal();
     const emailNorm = (email || '').toLowerCase().trim();
     const respuestaGenerica = {
       mensaje:
@@ -275,6 +324,7 @@ export class AuthService {
   // RESTABLECER CONTRASEÑA
   // ═══════════════════════════════════════════════════════════════════════
   async restablecerPassword(token: string, nuevaPassword: string) {
+    this.exigirAccesoLocal();
     if (!token) throw new BadRequestException('Token no proporcionado');
     exigirPoliticaPassword(nuevaPassword);
 
@@ -431,6 +481,7 @@ export class AuthService {
   // LOGIN — exige correo verificado; informa si falta el onboarding
   // ═══════════════════════════════════════════════════════════════════════
   async login(loginDto: LoginDto) {
+    this.exigirAccesoLocal();
     const { email, password } = loginDto;
 
     /*

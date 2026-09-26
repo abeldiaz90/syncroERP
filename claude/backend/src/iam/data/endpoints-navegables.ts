@@ -71,14 +71,36 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
   'GET /ventas': {
     rutaFrontend: '/dashboard/ventas/historial',
     titulo: 'Historial de ventas',
+    /*
+     * El ticket cuelga de `/dashboard/ventas/<id>`, que es HERMANO del
+     * historial, no hijo: sin declararlo aquí no lo cubría ningún permiso y
+     * la pantalla decía «esta sección no está en tu perfil» a los diez roles,
+     * aunque `GET /ventas/:id` contestara 200 a todos. Quien puede ver la
+     * lista de ventas puede ver el comprobante de una de ellas.
+     */
+    rutasAdicionales: ['/dashboard/ventas/:id/ticket'],
     ordenMenu: 2,
   },
   'POST /ventas': {
     // La caja es `/pos`; `/dashboard/ventas/pos` sólo redirige a ella.
     rutaFrontend: '/pos',
-    rutasAdicionales: ['/dashboard/ventas/pos'],
+    /*
+     * Y el ticket también, porque el punto de venta redirige a él en cuanto
+     * se cobra: quien cobra tiene que poder imprimir lo que acaba de cobrar,
+     * tenga o no el historial completo.
+     */
+    rutasAdicionales: ['/dashboard/ventas/pos', '/dashboard/ventas/:id/ticket'],
     titulo: 'Punto de venta',
     ordenMenu: 1,
+  },
+  /*
+   * Facturar es la otra pantalla que cuelga de una venta concreta. No la
+   * abre quien vende: la abre quien puede timbrar.
+   */
+  'POST /cfdi/ventas/:id/timbrar': {
+    rutaFrontend: '/dashboard/ventas/:id/facturar',
+    titulo: 'Facturar venta',
+    ordenMenu: 3,
   },
 
   /* ── COMPRAS ───────────────────────────────────────────────────────────── */
@@ -445,7 +467,15 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
    * los tenía—. El panel es el rack.
    */
   'GET /hoteleria/operacion/panel': {
-    rutaFrontend: '/dashboard/hoteleria/rack',
+    /*
+     * El panel se mudó a su propia dirección. Estaba en `/dashboard/hoteleria`
+     * —padre de Recetas— y por eso se le apuntaba al rack: conceder la portada
+     * regalaba el escandallo. El efecto fue que la portada no la abría nadie
+     * salvo el administrador, y el enlace «Panel» de Reservaciones llevaba a
+     * «esta sección no está en tu perfil». `/dashboard/hoteleria/panel` no es
+     * padre de nada, así que ya se puede conceder sola.
+     */
+    rutaFrontend: '/dashboard/hoteleria/panel',
     titulo: 'Panel hotelero',
     ordenMenu: 99,
   },
@@ -575,10 +605,29 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Operaciones pendientes',
     ordenMenu: 4,
   },
-  'GET /finanzas/activacion/acceso': {
+  /*
+   * La puerta del asistente financiero la abria `GET /finanzas/activacion/
+   * acceso`, que lleva `@SkipPermisos()`: no lo niega nadie, asi que la
+   * pantalla quedaba en el perfil de TODOS los roles. Cobranza entraba y lo
+   * primero que veia era «Tu perfil no incluye esta accion», porque lo que el
+   * asistente consulta de verdad es `GET /finanzas/activacion`. Visto el
+   * 25-sep-2026 con la sesion de cobranza.
+   *
+   * Una pantalla se abre con la llave que usa, no con una que todos tienen.
+   */
+  'GET /finanzas/activacion': {
     rutaFrontend: '/configuracion-financiera',
     titulo: 'Asistente maestro financiero',
     ordenMenu: 11,
+  },
+  /*
+   * El panel fiscal del catálogo: qué producto lleva qué impuesto y si tiene
+   * las claves del SAT. Es de Contabilidad, no del almacén.
+   */
+  'GET /catalogo/productos/fiscal': {
+    rutaFrontend: '/dashboard/finanzas/fiscal-productos',
+    titulo: 'Impuestos del catálogo',
+    ordenMenu: 58,
   },
   'GET /finanzas/asientos-pendientes': {
     rutaFrontend: '/dashboard/finanzas/asientos-pendientes',
@@ -755,3 +804,71 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
 export const RUTAS_FRONTEND_CONOCIDAS = Array.from(
   new Set(Object.values(ENDPOINTS_NAVEGABLES).map((e) => e.rutaFrontend)),
 );
+
+
+/*
+ * ============================================================================
+ * El catalogo y este diccionario tienen que nombrar la misma ruta
+ * ----------------------------------------------------------------------------
+ * La sincronizacion guarda cada endpoint con TODOS sus parametros renombrados
+ * a `:id` (`permisos-dinamicos.service.ts`), porque el guardia compara la ruta
+ * de la peticion contra la fila y ahi los nombres no viajan. Este diccionario,
+ * en cambio, se escribe con el nombre real del parametro, que es lo legible.
+ *
+ * La busqueda era por clave exacta, asi que las dos formas nunca se
+ * encontraban: cualquier entrada cuyo parametro no se llamara `id` quedaba
+ * MUDA. No fallaba: simplemente no hacia nada. El endpoint se daba de alta sin
+ * `rutaFrontend`, `esNavegable` quedaba en falso, y la pantalla no aparecia en
+ * el menu de ningun rol que no fuera administrador —aunque el permiso de la
+ * accion estuviera concedido—. Pasaba con cuatro pantallas, y una de ellas era
+ * la conciliacion bancaria, que es el unico bloqueo del cierre mensual: el
+ * sistema exigia conciliar y no dejaba abrir la pantalla para conciliar.
+ *
+ * Asi que la normalizacion se declara UNA vez, aqui, y los dos lados la usan.
+ * El diccionario se sigue escribiendo con nombres legibles y se indexa
+ * normalizado.
+ * ============================================================================
+ */
+
+/** `/x/:estadoCuentaId/reporte` -> `/x/:id/reporte`. Un solo lugar. */
+export function normalizarParametrosDeRuta(ruta: string): string {
+  return ruta.replace(/\/:\w+/g, '/:id');
+}
+
+export function claveDeEndpoint(metodo: string, ruta: string): string {
+  return `${metodo.toUpperCase()} ${normalizarParametrosDeRuta(ruta)}`;
+}
+
+/*
+ * Indice normalizado. Si dos entradas distintas colapsaran en la misma clave
+ * —`/x/:clienteId` y `/x/:proveedorId`— el diccionario seria ambiguo y la
+ * pantalla que ganara dependeria del orden de escritura. Eso no se resuelve
+ * eligiendo una: se detiene el arranque, porque las rutas hay que separarlas.
+ */
+const INDICE_NAVEGABLE = new Map<string, EndpointNavMeta>();
+for (const [clave, meta] of Object.entries(ENDPOINTS_NAVEGABLES)) {
+  const [metodo, ...resto] = clave.split(' ');
+  const normalizada = claveDeEndpoint(metodo, resto.join(' '));
+  const previa = INDICE_NAVEGABLE.get(normalizada);
+  if (previa && previa.rutaFrontend !== meta.rutaFrontend) {
+    throw new Error(
+      `Dos entradas navegables distintas se normalizan a «${normalizada}»: ` +
+        `«${previa.rutaFrontend}» y «${meta.rutaFrontend}». ` +
+        'Los parametros no viajan en la tabla de permisos, asi que esas dos ' +
+        'rutas son la misma para el guardia: hay que diferenciarlas por ruta.',
+    );
+  }
+  INDICE_NAVEGABLE.set(normalizada, meta);
+}
+
+/**
+ * La pantalla a la que lleva un endpoint, se escriba el parametro como se
+ * escriba. Es la unica forma de consultar el diccionario: indexarlo a mano
+ * vuelve a introducir el desencuentro.
+ */
+export function navegableDe(
+  metodo: string,
+  ruta: string,
+): EndpointNavMeta | undefined {
+  return INDICE_NAVEGABLE.get(claveDeEndpoint(metodo, ruta));
+}

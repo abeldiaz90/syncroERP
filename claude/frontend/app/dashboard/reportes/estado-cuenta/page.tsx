@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { fechaCorta } from '@/lib/fechas';
 import {
   User, FileText, RefreshCw,
   AlertCircle, CheckCircle2
@@ -25,7 +26,7 @@ interface IEstadoCuenta {
 const fmt$ = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
 const fmtFecha = (s: string) =>
-  new Date(s + 'T00:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  fechaCorta(s);
 
 const HOY = new Date();
 const DESDE = new Date(HOY.getFullYear(), HOY.getMonth(), 1).toISOString().split('T')[0];
@@ -49,6 +50,12 @@ export default function EstadoCuentaClientePage() {
   const [hasta, setHasta] = useState(HASTA);
   const [datos, setDatos] = useState<IEstadoCuenta | null>(null);
   const [cargando, setCargando] = useState(false);
+  /*
+    Un reporte que no se pudo consultar no es un reporte en cero. `if (r.ok)`
+    sin `else` presentaba cualquier fallo —un 403, el backend reiniciándose—
+    como un periodo sin movimiento, que es la conclusión contraria.
+  */
+  const [error, setError] = useState('');
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const tok = () => localStorage.getItem('syncro_token') ?? '';
@@ -59,6 +66,7 @@ export default function EstadoCuentaClientePage() {
     const t = setTimeout(async () => {
       const r = await fetch(`${api}/clientes?filtro=${encodeURIComponent(busqueda)}`, { headers: h() });
       if (r.ok) { const d = await r.json(); setClientes(Array.isArray(d) ? d : d.clientes ?? []); }
+      else { setClientes([]); setError('No se pudo buscar clientes.'); }
     }, 300);
     return () => clearTimeout(t);
   }, [busqueda]);
@@ -67,8 +75,19 @@ export default function EstadoCuentaClientePage() {
     if (!clienteId) return;
     setCargando(true);
     const params = new URLSearchParams({ fechaDesde: desde, fechaHasta: hasta });
-    const r = await fetch(`${api}/credito/estado-cuenta/${clienteId}?${params}`, { headers: h() });
-    if (r.ok) setDatos(await r.json());
+    try {
+      const r = await fetch(`${api}/credito/estado-cuenta/${clienteId}?${params}`, { headers: h() });
+      if (r.ok) { setDatos(await r.json()); setError(''); }
+      else {
+        setDatos(null);
+        setError(r.status === 403
+          ? 'Tu perfil no incluye el estado de cuenta.'
+          : 'No se pudo consultar el estado de cuenta de este cliente.');
+      }
+    } catch {
+      setDatos(null);
+      setError('No hay conexión con el servidor.');
+    }
     setCargando(false);
   }, [clienteId, desde, hasta]);
 
@@ -80,6 +99,12 @@ export default function EstadoCuentaClientePage() {
 
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {error}
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-start justify-between mb-6">

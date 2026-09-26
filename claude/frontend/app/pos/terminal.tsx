@@ -111,6 +111,8 @@ export default function TerminalPos() {
   const [metodoPago,        setMetodoPago]        = useState<MetodoPago>('EFECTIVO');
   const [montoRecibido,     setMontoRecibido]     = useState('');
   const [almacenes,         setAlmacenes]         = useState<any[]>([]);
+  /** No hay ningun almacen que ofrecer: la caja no puede vender y lo dice. */
+  const [faltaAlmacen,      setFaltaAlmacen]      = useState(false);
   const [almacenId,         setAlmacenId]         = useState('');
   const [listasPrecio,      setListasPrecio]      = useState<IListaPrecio[]>([]);
   const [listaPrecioId,     setListaPrecioId]     = useState('');
@@ -174,8 +176,22 @@ export default function TerminalPos() {
   // ── Cargar datos iniciales ──────────────────────────────────────
   useEffect(() => {
     Promise.all([
-      intentar(api.get<any[]>('/catalogo/almacenes'), []),
-      intentar(api.get<ICuentaBancaria[]>('/credito/cuentas-bancarias'), []),
+      /*
+       * La lista CORTA de almacenes: identificador y nombre. `GET
+       * /catalogo/almacenes` es del modulo de inventario y esta fuera del
+       * mostrador; como esta pantalla se traga el 403 y se queda con lista
+       * vacia, no habia almacen, y sin almacen el boton «Cobrar» quedaba
+       * apagado para siempre sin decir por que.
+       */
+      intentar(api.get<any[]>('/catalogo/almacenes/para-venta'), []),
+      /*
+       * La lista CORTA: nombre y tipo de cada caja activa, sin CLABE ni número
+       * de cuenta. `GET /credito/cuentas-bancarias` está vedada al mostrador a
+       * propósito, y como esta pantalla traga el 403 y se queda con lista
+       * vacía, el desplegable salía siempre vacío y ninguna venta de contado
+       * podía cerrarse.
+       */
+      intentar(api.get<ICuentaBancaria[]>('/credito/cuentas-bancarias/para-cobro'), []),
       intentar(api.get<IListaPrecio[]>('/catalogo/listas-precio'), []),
       // Sólo los vendibles: un producto sin verificar contra el registro
       // externo no debe ni aparecer en la pantalla del cajero.
@@ -183,6 +199,12 @@ export default function TerminalPos() {
     ]).then(([alm, cb, listas, prodsCredito]) => {
       setAlmacenes(alm);
       if (alm.length>0) setAlmacenId(alm[0].id);
+      /*
+       * Y si aun asi no hay almacen, se DICE. Una caja que no puede cobrar y
+       * no explica que le falta obliga al cajero a adivinar delante del
+       * cliente; es peor que un error.
+       */
+      if (alm.length===0) setFaltaAlmacen(true);
       setListasPrecio(listas);
       const listaDefecto = listas.find((lista) => lista.esPorDefecto) ?? listas[0];
       if (listaDefecto) setListaPrecioId(listaDefecto.id);
@@ -1019,6 +1041,11 @@ export default function TerminalPos() {
             {requiereCuenta&&!cuentaBancariaId&&carrito.length>0&&(
               <p className="text-center text-xs text-amber-600 font-medium mt-2 flex items-center justify-center gap-1">
                 <AlertCircle className="w-3.5 h-3.5"/> Configura o selecciona la cuenta de cobro correspondiente
+              </p>
+            )}
+            {faltaAlmacen&&(
+              <p className="text-center text-xs text-rose-600 font-medium mt-2 flex items-center justify-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5"/> No hay almacén disponible para vender. Pídelo a tu administrador.
               </p>
             )}
             {!listaPrecioId&&(

@@ -64,6 +64,8 @@ export interface ResultadoCorrida {
   totalmenteDepreciados: number;
   asientoPendienteId?: string;
   estadoContable?: 'GENERADO' | 'PENDIENTE' | 'NO_APLICA';
+  /** La póliza que quedó, cuando el asiento sí se generó. */
+  polizaId?: string;
   detalle: Array<{
     codigo: string;
     nombre: string;
@@ -257,7 +259,7 @@ export class ActivosService {
       q.andWhere('a.categoriaId = :cat', { cat: filtros.categoriaId });
     if (filtros.busqueda) {
       q.andWhere(
-        '(a.nombre LIKE :b OR a.codigo LIKE :b OR a.numeroSerie LIKE :b)',
+        '(a.nombre ILIKE :b OR a.codigo ILIKE :b OR a.numeroSerie ILIKE :b)',
         {
           b: `%${filtros.busqueda}%`,
         },
@@ -483,9 +485,29 @@ export class ActivosService {
 
     if (asientoPendienteId) {
       resultado.asientoPendienteId = asientoPendienteId;
+      /*
+       * `reintentarAhora` NO lanza cuando el asiento falla: atrapa el error,
+       * deja el registro FALLIDO y devuelve `{ generado: false, mensaje }`. Es
+       * su contrato y es el correcto —la depreciación ya está confirmada y no
+       * debe caerse porque falte configurar una cuenta—, pero aquí sólo se
+       * miraba el `try/catch`: como nunca lanza, el estado era SIEMPRE
+       * «GENERADO», incluso con el asiento esperando en la bandeja.
+       *
+       * El `catch` se conserva porque `reintentarAhora` sí lanza si el
+       * registro no existe. Lo que faltaba era leer lo que devuelve.
+       */
       try {
-        await this.asientos.reintentarAhora(asientoPendienteId, empresaId);
-        resultado.estadoContable = 'GENERADO';
+        const asiento = await this.asientos.reintentarAhora(
+          asientoPendienteId,
+          empresaId,
+        );
+        resultado.estadoContable = asiento?.generado ? 'GENERADO' : 'PENDIENTE';
+        if (asiento?.polizaId) resultado.polizaId = asiento.polizaId;
+        if (!asiento?.generado) {
+          this.logger.warn(
+            `Depreciación ${mes}/${ejercicio} confirmada; la póliza quedó pendiente: ${asiento?.mensaje ?? 'sin detalle'}`,
+          );
+        }
       } catch (error) {
         const mensaje = error instanceof Error ? error.message : String(error);
         this.logger.error(

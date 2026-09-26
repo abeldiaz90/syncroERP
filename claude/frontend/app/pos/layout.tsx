@@ -29,11 +29,11 @@ import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { leerSesion, puedeEntrar, sesionVigente, type Sesion } from '@/lib/session';
 import { esRolAdministrador } from '@/lib/roles';
-import { api, intentar } from '@/lib/api';
+import { api } from '@/lib/api';
 
 export default function PosLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [estado, setEstado] = useState<'cargando' | 'dentro' | 'sin-acceso'>('cargando');
+  const [estado, setEstado] = useState<'cargando' | 'dentro' | 'sin-acceso' | 'sin-respuesta'>('cargando');
 
   useEffect(() => {
     const jwt = localStorage.getItem('syncro_token') ?? '';
@@ -62,14 +62,25 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
       return;
     }
     let vivo = true;
-    void intentar(api.get<{ rutas?: string[] }>('/admin/permisos/mis-rutas'), { rutas: [] }).then(
-      (r) => {
+    /*
+     * Si la consulta FALLA no se concluye que el perfil no tiene la caja.
+     *
+     * Estaba envuelta en `intentar(..., { rutas: [] })`, así que un backend
+     * reiniciándose o un corte de red de dos segundos le decía al cajero «tu
+     * perfil no incluye la caja» —con el cliente enfrente— cuando lo único que
+     * había pasado es que no se pudo preguntar. «No tienes» y «no pude
+     * preguntar» son dos respuestas distintas y ésta es la pantalla donde
+     * confundirlas cuesta más caro.
+     */
+    api
+      .get<{ rutas?: string[] }>('/admin/permisos/mis-rutas')
+      .then((r) => {
         if (!vivo) return;
-        setEstado(
-          puedeEntrar(r.rutas ?? [], '/pos') ? 'dentro' : 'sin-acceso',
-        );
-      },
-    );
+        setEstado(puedeEntrar(r.rutas ?? [], '/pos') ? 'dentro' : 'sin-acceso');
+      })
+      .catch(() => {
+        if (vivo) setEstado('sin-respuesta');
+      });
     return () => {
       vivo = false;
     };
@@ -79,6 +90,27 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="h-screen grid place-items-center bg-slate-900">
         <Loader2 className="w-7 h-7 text-white/70 animate-spin" />
+      </div>
+    );
+  }
+
+  if (estado === 'sin-respuesta') {
+    return (
+      <div className="h-screen grid place-items-center bg-slate-900 px-6">
+        <div className="max-w-sm text-center">
+          <p className="text-lg font-bold text-white mb-2">No pudimos consultar tu perfil</p>
+          <p className="text-sm text-white/70 mb-5">
+            No es que te falte la caja: no se pudo preguntar al servidor. Suele
+            ser momentáneo. Vuelve a intentarlo en unos segundos.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-xl bg-white text-slate-900 text-sm font-bold"
+          >
+            Reintentar
+          </button>
+        </div>
       </div>
     );
   }

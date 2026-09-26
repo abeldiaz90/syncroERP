@@ -226,7 +226,15 @@ export class FiltroGlobalExcepciones implements ExceptionFilter {
           ? `La tabla ${tablaAusente} no existe en la base de datos. Falta correr las migraciones pendientes.`
           : (conocido?.mensaje ??
             'No se pudo completar la operación en la base de datos.');
-      etiqueta = 'Database Error';
+      /*
+       * `Database Error` sólo cuando lo es. Un `22P02` —un identificador mal
+       * formado que llegó a la consulta— es una petición equivocada, y
+       * etiquetarla como avería de la base manda a revisar el servidor cuando
+       * lo único incorrecto era la URL. Que el error mienta sobre de quién es
+       * la culpa cuesta la misma tarde que no tener mensaje.
+       */
+      etiqueta =
+        conocido && conocido.estado < 500 ? 'Bad Request' : 'Database Error';
     }
 
     // Sin etiqueta propia y sin ser HttpException —un fallo de SQL, un error

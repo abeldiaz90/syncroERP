@@ -21,3 +21,6 @@ claude/backend/uploads/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Respaldos que deja el despliegue de pruebas
+claude/backend/src.respaldo-*/

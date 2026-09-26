@@ -126,6 +126,25 @@ export class IntegracionOutboxService {
     });
   }
 
+  /**
+   * El evento no tenía destino: se descarta con su razón, no se reintenta y no
+   * cuenta como divergencia. Ver `EventoSinDestino`.
+   */
+  async marcarDescartado(
+    evento: EventoIntegracion,
+    razon: string,
+  ): Promise<void> {
+    await this.repo.update(evento.id, {
+      estado: EstadoEventoIntegracion.DESCARTADO,
+      intentos: evento.intentos + 1,
+      ultimoError: razon.slice(0, 2000),
+      proximoIntento: null,
+    });
+    this.logger.log(
+      `Evento ${evento.tipo} ${evento.id} descartado: ${razon}`,
+    );
+  }
+
   async marcarFallo(
     evento: EventoIntegracion,
     error: string,

@@ -18,6 +18,7 @@ export default function DetalleOCPage() {
   const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState(false);
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'info' } | null>(null);
+  const [motivo, setMotivo] = useState('');
   
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000/api';
 
@@ -30,8 +31,24 @@ export default function DetalleOCPage() {
     if (!id) return;
     const token = localStorage.getItem('syncro_token');
     fetch(`${apiUrl}/compras/ordenes/${id}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(async (res) => { if (res.ok) setOC(await res.json()); })
-      .catch(() => mostrarToast("Error de conexión", "error"))
+      /*
+        «Documento no encontrado» es una conclusión sobre la orden: dice que no
+        existe. Un 403 —quien mira no tiene compras— daba exactamente el mismo
+        cartel, y quien lo leía buscaba la orden en otro lado en vez de pedir
+        acceso.
+      */
+      .then(async (res) => {
+        if (res.ok) { setOC(await res.json()); return; }
+        setMotivo(res.status === 403
+          ? 'Tu perfil no incluye la consulta de órdenes de compra.'
+          : res.status === 404
+            ? 'Esta orden de compra no existe.'
+            : 'No se pudo consultar la orden de compra.');
+      })
+      .catch(() => {
+        setMotivo('No hay conexión con el servidor.');
+        mostrarToast("Error de conexión", "error");
+      })
       .finally(() => setCargando(false));
   }, [id, apiUrl]);
 
@@ -56,7 +73,13 @@ export default function DetalleOCPage() {
   };
 
   if (cargando) return <div className="flex justify-center p-20"><Loader2 className="w-10 h-10 animate-spin text-indigo-500" /></div>;
-  if (!oc) return <div className="text-center p-20 text-rose-500 font-bold">Documento no encontrado</div>;
+  if (!oc) return (
+    <div className="text-center p-20">
+      <p className="font-bold text-rose-600">
+        {motivo || 'Documento no encontrado'}
+      </p>
+    </div>
+  );
 
   const subtotalOC = oc.subtotal ?? (oc.total / 1.16);
   const impuestoOC = oc.impuestoTotal ?? (oc.total - subtotalOC);

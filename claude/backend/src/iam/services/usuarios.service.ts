@@ -569,7 +569,7 @@ export class UsuariosService {
 
     if (soloActivos) qb.andWhere('u.activo = :activo', { activo: true });
     if (filtro) {
-      qb.andWhere('(u.nombreCompleto LIKE :filtro OR u.email LIKE :filtro)', {
+      qb.andWhere('(u.nombreCompleto ILIKE :filtro OR u.email ILIKE :filtro)', {
         filtro: `%${filtro}%`,
       });
     }

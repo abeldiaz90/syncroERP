@@ -10,6 +10,7 @@
  */
 
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -83,7 +84,22 @@ export class ActivosController {
   @Get('reportes/cedula')
   @ApiOperation({ summary: 'Cédula de depreciación del ejercicio' })
   cedula(
-    @Query('ejercicio', ParseIntPipe) ejercicio: number,
+    /*
+     * `ParseIntPipe` a secas contesta «Validation failed (numeric string is
+     * expected)», en inglés y sin decir qué campo. Es el único mensaje de todo
+     * el barrido de 1 620 llamadas que no está en castellano ni nombra lo que
+     * falta.
+     */
+    @Query(
+      'ejercicio',
+      new ParseIntPipe({
+        exceptionFactory: () =>
+          new BadRequestException(
+            'Indica el ejercicio de la cédula como un año, por ejemplo 2026.',
+          ),
+      }),
+    )
+    ejercicio: number,
     @ActiveUser('empresaId') empresaId: string,
   ) {
     return this.svc.cedula(ejercicio, empresaId);

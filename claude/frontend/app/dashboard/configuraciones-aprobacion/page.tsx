@@ -36,8 +36,23 @@ type Usuario = {
   rol?: string;
   activo?: boolean;
 };
+/*
+ * El veredicto que el backend adjunta a cada nivel guardado: cuanta gente
+ * activa puede firmarlo de verdad. Nace de una matriz de CREDITO_CLIENTE que
+ * se veia impecable en esta misma pantalla y no dejo levantar una sola
+ * solicitud, porque el unico rol que podia originarla era tambien el unico que
+ * podia firmar el nivel 1. Ver `salud-matriz.util.ts` en el backend.
+ */
+type SaludNivel = {
+  orden: number;
+  firmantesActivos: number;
+  estado: "SIN_FIRMANTE" | "FIRMANTE_UNICO" | "CORRECTO";
+  mensaje: string | null;
+};
+
 type Nivel = {
   id: string;
+  salud?: SaludNivel | null;
   usuarioId?: string;
   rolAprobador?: string;
   orden: number;
@@ -563,6 +578,24 @@ export default function ConfiguracionAprobacionesPage() {
                       </button>
                     </div>
                   </div>
+
+                  {nivel.salud && nivel.salud.estado !== "CORRECTO" && (
+                    <div
+                      role="status"
+                      className={`mb-4 rounded-xl border px-3 py-2 text-[12px] leading-relaxed ${
+                        nivel.salud.estado === "SIN_FIRMANTE"
+                          ? "border-rose-200 bg-rose-50 text-rose-800"
+                          : "border-amber-200 bg-amber-50 text-amber-900"
+                      }`}
+                    >
+                      <span className="font-bold">
+                        {nivel.salud.estado === "SIN_FIRMANTE"
+                          ? "Este nivel no tiene quien lo firme. "
+                          : "Este nivel tiene un solo firmante. "}
+                      </span>
+                      {nivel.salud.mensaje}
+                    </div>
+                  )}
 
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <Campo etiqueta="Usuario específico">

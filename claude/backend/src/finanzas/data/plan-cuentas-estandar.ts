@@ -48,6 +48,17 @@ const ROLES_POR_AGRUPADOR: Readonly<Record<string, RolCuentaSistema>> = {
   '401.32': RolCuentaSistema.INTERESES,
   '501.01': RolCuentaSistema.COSTO_VENTAS,
   '601.84': RolCuentaSistema.MERMAS,
+  /*
+   * Lo que no es de la operación: la utilidad o la pérdida al dar de baja un
+   * activo, y el faltante o el sobrante de un arqueo de caja.
+   *
+   * Los dos roles existían en el enum y NINGUNA cuenta los tenía asignados, así
+   * que `buscarCuentaPorRol` devolvía null y los asientos que dependen de ellos
+   * no se podían generar. No se notaba porque nadie había dado de baja un
+   * activo todavía.
+   */
+  '403.01': RolCuentaSistema.OTROS_INGRESOS,
+  '703.21': RolCuentaSistema.OTROS_GASTOS,
 };
 
 const CODIGOS: ReadonlySet<string> = new Set<string>(
@@ -101,6 +112,72 @@ function naturalezaPorTipo(tipo: TipoCuenta) {
     : NaturalezaCuenta.DEUDORA;
 }
 
+/**
+ * ============================================================================
+ * Las cuentas complementarias van al revés de su tipo
+ * ----------------------------------------------------------------------------
+ * La naturaleza se derivaba SÓLO del tipo: activo y costo, deudoras; pasivo,
+ * capital e ingreso, acreedoras. Es cierto salvo para las cuentas
+ * complementarias, que pertenecen al mismo tipo que la cuenta que corrigen y
+ * tienen la naturaleza contraria. La depreciación acumulada es de ACTIVO y
+ * tiene saldo ACREEDOR; las devoluciones sobre ventas son de INGRESO y tienen
+ * saldo DEUDOR.
+ *
+ * Con la regla vieja, 66 cuentas del catálogo SAT quedaron declaradas al
+ * revés: los seis grupos de estimaciones y depreciaciones acumuladas (108,
+ * 116, 171, 172, 183, 189), las devoluciones sobre ventas (402) y las
+ * devoluciones sobre compras (503).
+ *
+ * Importa porque `naturaleza` es lo que decide el SIGNO con que cada cuenta se
+ * presenta. En la balanza, la depreciación acumulada de mobiliario salía como
+ * −450 —un activo en negativo— en vez de 450 acreedor, que es lo que es. Un
+ * contador lo ve en el primer vistazo, y con razón desconfía del resto del
+ * renglón.
+ *
+ * Los grupos se nombran por su código, que es el del catálogo del SAT y no
+ * cambia, y no por su nombre, que sí.
+ * ============================================================================
+ */
+/*
+ * Se exporta para que otras piezas puedan preguntarlo: el motor contable usa
+ * prefijos de agrupador como red de compatibilidad cuando una cuenta no tiene
+ * su rol asignado, y una red que apunte a un grupo complementario abona los
+ * ingresos a la cuenta que los resta.
+ */
+export const GRUPOS_COMPLEMENTARIOS = [
+  '108', // Estimación de cuentas incobrables      (complementaria de activo)
+  '116', // Estimación de inventarios obsoletos    (complementaria de activo)
+  '171', // Depreciación acumulada de activos fijos
+  '172', // Pérdida por deterioro acumulado de activos fijos
+  '183', // Amortización acumulada de activos diferidos
+  '189', // Estimación por deterioro de inversiones permanentes
+  '402', // Devoluciones y descuentos sobre ingresos (complementaria de ingreso)
+  '503', // Devoluciones y descuentos sobre compras  (complementaria de costo)
+];
+
+function esComplementaria(codigo: string, nombre: string): boolean {
+  const raiz = codigo.split(/[.-]/)[0];
+  if (GRUPOS_COMPLEMENTARIOS.includes(raiz)) return true;
+  /*
+   * Las cuentas de orden van en pares: una lleva el saldo y la otra, llamada
+   * «Contra cuenta …», lo compensa. Ahí el nombre sí es el criterio, porque el
+   * catálogo no las distingue por código.
+   */
+  return codigo.startsWith('8') && /^contra cuenta\b/i.test(nombre.trim());
+}
+
+function naturalezaDeCuenta(
+  codigo: string,
+  nombre: string,
+  tipo: TipoCuenta,
+): NaturalezaCuenta {
+  const base = naturalezaPorTipo(tipo);
+  if (!esComplementaria(codigo, nombre)) return base;
+  return base === NaturalezaCuenta.DEUDORA
+    ? NaturalezaCuenta.ACREEDORA
+    : NaturalezaCuenta.DEUDORA;
+}
+
 const CUENTAS_SAT: CuentaEstandar[] = CODIGOS_AGRUPADORES_SAT_2026.map(
   (entrada) => {
     const tipo = tipoPorCodigo(entrada.codigo);
@@ -108,7 +185,7 @@ const CUENTAS_SAT: CuentaEstandar[] = CODIGOS_AGRUPADORES_SAT_2026.map(
       numeroCuenta: entrada.codigo,
       nombre: entrada.nombre,
       tipo,
-      naturaleza: naturalezaPorTipo(tipo),
+      naturaleza: naturalezaDeCuenta(entrada.codigo, entrada.nombre, tipo),
       esAfectable: entrada.nivel !== 0 && !CON_HIJOS.has(entrada.codigo),
       codigoAgrupadorSAT: entrada.codigo,
       cuentaPadreNumero: resolverPadre(

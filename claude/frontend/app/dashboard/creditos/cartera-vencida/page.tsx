@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { fechaCorta } from '@/lib/fechas';
 import { AlertTriangle, TrendingDown, Clock, Users, DollarSign, RefreshCw, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { ProtectedElement } from '@/app/components/ProtectedElement';
@@ -26,7 +27,7 @@ interface ICartera {
 }
 
 const fmt$ = (n: number) => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(n);
-const fmtFecha = (s: string) => new Date(s+'T00:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
+const fmtFecha = fechaCorta;
 
 const BUCKETS = [
   { key:'corriente', label:'Al corriente',  color:'emerald', dias:'0 días',     bg:'bg-emerald-50', border:'border-emerald-200', text:'text-emerald-700', header:'bg-emerald-600' },
@@ -64,24 +65,59 @@ export default function CarteraVencidaPage() {
    * de abajo, que lo hace a propósito y avisa del resultado.
    * ══════════════════════════════════════════════════════════════════════════
    */
+  /*
+   * Una cartera en cero porque no se pudo preguntar no es una cartera limpia.
+   * `if (res.ok)` sin `else` dejaba el reporte con los cuatro tramos vacíos
+   * ante cualquier fallo, que en una pantalla de morosidad se lee como la
+   * mejor de las noticias.
+   */
+  const [aviso, setAviso] = useState<{ texto: string; ok: boolean } | null>(null);
   const cargar = async () => {
     setCargando(true);
     try {
       const res = await fetch(`${api}/credito/creditos/cartera-vencida`,{
         headers:{ Authorization:`Bearer ${tok()}` }
       });
-      if (res.ok) setCartera(await res.json());
+      if (res.ok) { setCartera(await res.json()); return; }
+      setCartera(null);
+      setAviso({
+        texto: res.status === 403
+          ? 'Tu perfil no incluye la consulta de cartera vencida.'
+          : 'No se pudo consultar la cartera vencida. Vuelve a intentarlo.',
+        ok: false,
+      });
+    } catch {
+      setCartera(null);
+      setAviso({ texto: 'No hay conexión con el servidor.', ok: false });
     } finally { setCargando(false); }
   };
 
   const [recalculando, setRecalculando] = useState(false);
+  /*
+   * El recálculo escribe. Antes se lanzaba con `await fetch` sin mirar la
+   * respuesta: si el servidor lo rechazaba, la pantalla se recargaba con los
+   * mismos números y el botón quedaba como si hubiera hecho su trabajo.
+   */
   const recalcular = async () => {
     setRecalculando(true);
+    setAviso(null);
     try {
-      await fetch(`${api}/credito/cobranza/actualizar-vencidos`, {
+      const res = await fetch(`${api}/credito/cobranza/actualizar-vencidos`, {
         method:'POST', headers:{ Authorization:`Bearer ${tok()}` }
       });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setAviso({
+          texto: (Array.isArray(d?.message) ? d.message.join(', ') : d?.message)
+            || 'No se pudo recalcular la antigüedad. Los números siguen como estaban.',
+          ok: false,
+        });
+        return;
+      }
       await cargar();
+      setAviso({ texto: 'Antigüedad recalculada.', ok: true });
+    } catch {
+      setAviso({ texto: 'No hay conexión con el servidor. No se recalculó nada.', ok: false });
     } finally { setRecalculando(false); }
   };
 
@@ -126,6 +162,12 @@ export default function CarteraVencidaPage() {
           </ProtectedElement>
         </div>
       </div>
+
+      {aviso && (
+        <div className={`mb-6 rounded-xl px-4 py-3 text-sm ${aviso.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
+          {aviso.texto}
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">

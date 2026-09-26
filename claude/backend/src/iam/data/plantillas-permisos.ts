@@ -123,6 +123,107 @@ export interface PlantillaRol {
  */
 const ACCION_PADRON = 'GET /rrhh/padron';
 
+/**
+ * ============================================================================
+ * Las dos autorizaciones del almacén que nadie podía dar
+ * ----------------------------------------------------------------------------
+ * El inventario tiene dos controles de cuatro ojos, los dos correctos y los dos
+ * escritos con todas sus letras en `wms.service.ts`:
+ *
+ *   «La autorización del ajuste debe realizarla una persona distinta de quien
+ *    abrió o capturó el conteo.»
+ *   «Quien solicita la transferencia no puede autorizarla.»
+ *
+ * Y las dos acciones —`PATCH /catalogo/wms/conteos/:id/cerrar` y
+ * `PATCH /catalogo/wms/transferencias/:id/autorizar`— cuelgan del módulo
+ * `almacenes`, que sólo tiene el almacenista. O sea: la única persona que puede
+ * autorizar es la misma que abrió el conteo y solicitó la transferencia.
+ *
+ * Medido el 25-sep-2026 contra la instalación: se abre un conteo cíclico, se
+ * captura, queda en PENDIENTE_AUTORIZACION, y entonces
+ *
+ *   almacenista → 400 «debe realizarla una persona distinta»
+ *   comprador, gerencia, finanzas, contador, tesorería → 403
+ *
+ * El conteo se queda ahí para siempre. En una empresa con un solo almacenista
+ * —el caso normal— NINGÚN conteo físico puede cerrarse y NINGUNA transferencia
+ * entre almacenes puede autorizarse. El control no es estricto: es imposible.
+ *
+ * Es la misma historia que la primera firma de la nómina, unas líneas más
+ * abajo: la regla estaba bien y la población de firmantes era de uno.
+ *
+ * Autorizar el ajuste de un inventario y el movimiento entre almacenes es una
+ * función de supervisión —en SAP y en Business Central la firma el jefe de
+ * almacén o el controller, nunca el operario que contó—, así que va a
+ * `gerencia` y `direccion`, que aprueban y no capturan. Por ACCIÓN y no por
+ * módulo: ver el ajuste que se autoriza no es tener el almacén.
+ * ============================================================================
+ */
+const ACCIONES_AUTORIZAR_ALMACEN = [
+  // Lo que se autoriza: el conteo, sus diferencias y la transferencia.
+  'GET /catalogo/wms/conteos',
+  'GET /catalogo/wms/conteos/:id',
+  'PATCH /catalogo/wms/conteos/:id/cerrar',
+  'GET /catalogo/wms/transferencias',
+  'PATCH /catalogo/wms/transferencias/:id/autorizar',
+];
+
+/**
+ * ============================================================================
+ * Autorizar una compra y autorizar unas vacaciones son funciones de mando
+ * ----------------------------------------------------------------------------
+ * Dos trampas más de la misma familia, medidas el 25-sep-2026:
+ *
+ * REQUISICIONES. `gerencia` VE la bandeja de requisiciones pendientes —200— y
+ * al resolver recibe 403. Es la peor variante: la pantalla aparece, el
+ * documento se lista, y el botón no puede. Y no es hipotético: el servicio que
+ * crea la ruta de aprobación de cada área nueva elige al aprobador por orden de
+ * mando —`['gerencia','direccion','admin']`— porque «autorizar una compra es
+ * una función de mando y no se le puede endosar a quien pase por ahí». O sea
+ * que la próxima área que se cree apunta a alguien que no puede firmar.
+ *
+ * Hoy sólo `contador` resuelve requisiciones. Además de dejar al mando fuera,
+ * junta autorizar y registrar en las mismas manos, que es el par clásico.
+ *
+ * VACACIONES. Sólo `rrhh` puede pedirlas y sólo `rrhh` puede resolverlas, y el
+ * servicio exige —con razón— que quien solicita no apruebe. Con una sola
+ * persona de Recursos humanos, ninguna solicitud de vacaciones se resuelve
+ * jamás. En cualquier ERP la vacación la autoriza el jefe, no el departamento
+ * que la tramita.
+ *
+ * Las dos van a `gerencia` y `direccion`, por ACCIÓN: aprobar una requisición
+ * no es tener Compras, y autorizar unas vacaciones no es tener RRHH.
+ * ============================================================================
+ */
+/**
+ * El tablero de operaciones pendientes.
+ *
+ * Devuelve CUENTAS —«3 requisiciones pendientes», «2 conteos abiertos»—, no
+ * documentos ni importes, y cada línea nombra al responsable y enlaza a la
+ * pantalla donde se resuelve. Colgaba de `/configuracion`, que es de
+ * administración, así que los nueve roles operativos recibían 403: el único
+ * que podía abrirlo era el único que no aparece como responsable de ninguna
+ * de sus líneas.
+ */
+const ACCION_TABLERO_PENDIENTES = 'GET /configuracion/pendientes';
+
+const ACCIONES_AUTORIZAR_OPERACION = [
+  // La requisición: verla en la bandeja y poder resolverla.
+  'GET /compras/requisiciones/aprobaciones/pendientes',
+  /*
+   * Y ABRIRLA. La bandeja lista folio, solicitante e importe; las partidas
+   * —qué se pide, cuánto y para qué— están en el detalle, que es la pantalla
+   * a la que lleva el propio botón. Sin esta acción, `gerencia` recibía un 403
+   * al abrirla y podía resolverla igual: autorizar a ciegas, que es peor que
+   * no poder autorizar, porque no deja rastro de que faltaba un permiso.
+   */
+  'GET /compras/requisiciones/:id',
+  'PATCH /compras/requisiciones/aprobaciones/:id',
+  // Las vacaciones de su gente.
+  'GET /rrhh/vacaciones/solicitudes',
+  'PATCH /rrhh/vacaciones/solicitudes/:id/resolver',
+];
+
 const ACCIONES_FIRMAR_NOMINA = [
   // Los totales del periodo: lo que se autoriza.
   'GET /rrhh/nomina/periodos',
@@ -212,8 +313,25 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
   {
     rol: 'empleado',
     etiqueta: 'Empleado / Vendedor',
-    descripcion: 'Mostrador: vende, cobra, factura y da de alta clientes.',
-    modulos: ['ventas', 'clientes', 'facturacion', 'caja'],
+    descripcion:
+      'Mostrador: vende, cobra, factura, da de alta clientes y lleva su cartera comercial.',
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * Un modulo que nadie podia usar
+     * ------------------------------------------------------------------------
+     * CRM —prospectos, oportunidades, pipeline y agenda— solo lo tenian
+     * gerencia y direccion, y en CONSULTA. Resultado: las tres pantallas
+     * existian, salian en el menu de esos dos roles, y sus botones —«Nueva
+     * oportunidad», «Registrar actividad», mover una etapa— contestaban 403 a
+     * todo el mundo. Un modulo entero que ningun puesto podia trabajar.
+     *
+     * Se le da al mostrador, que es el puesto comercial de esta instalacion y
+     * el unico que habla con el prospecto: en cualquier ERP moderno el CRM es
+     * de Ventas. Gerencia y direccion lo conservan en consulta, que es lo que
+     * les toca: mirar el embudo, no llenarlo.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    modulos: ['ventas', 'clientes', 'facturacion', 'caja', 'crm'],
     modulosConsulta: ['inventario', 'precios', 'credito'],
     /*
      * El mostrador necesita saber si un cliente tiene crédito y cuánto debe.
@@ -221,6 +339,35 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * módulo y se colaban con la consulta: números de cuenta y CLABE a la
      * vista de quien atiende al público, sin que nadie lo decidiera.
      */
+    /*
+     * La lista corta de cajas por las que puede cobrar: nombre y tipo, sin
+     * CLABE ni número de cuenta. Sin ella el desplegable del mostrador salía
+     * vacío —la pantalla traga el 403— y ninguna venta de contado podía
+     * cerrarse: el punto de venta exige elegir caja en todo cobro inmediato.
+     */
+    /*
+     * Y la lista corta de almacenes: nombre e identificador, nada mas. El
+     * mostrador no puede leer `GET /catalogo/almacenes` —trae direccion,
+     * responsable y configuracion de cada bodega—, la caja se quedaba con la
+     * lista vacia porque tragaba el 403, y sin almacen el boton «Cobrar»
+     * quedaba apagado para siempre y sin explicacion. El unico rol que puede
+     * vender era el unico que no podia cerrar una venta desde la pantalla.
+     */
+    /*
+     * Las cinco entradas que la caja consulta al abrir, declaradas. Que
+     * funcionen hoy por herencia de modulo no basta: un veto futuro —o un
+     * modulo que se reordena— apaga el boton «Cobrar» sin que nadie relacione
+     * una cosa con la otra. Aqui son explicitas, y una prueba compara esta
+     * lista contra lo que la pantalla realmente pide.
+     */
+    accionesIrrenunciables: [
+      'GET /credito/cuentas-bancarias/para-cobro',
+      'GET /catalogo/almacenes/para-venta',
+      'GET /catalogo/listas-precio',
+      'GET /credito/productos',
+      'GET /catalogo/productos/buscar',
+      'GET /clientes',
+    ],
     accionesVedadas: ['GET /credito/cuentas-bancarias'],
   },
   {
@@ -271,6 +418,8 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * acción apagada —78 de 79— y nadie lo nota hasta que llega un camión.
      */
     accionesIrrenunciables: [
+      // El tablero de pendientes: cuentas, no documentos.
+      ACCION_TABLERO_PENDIENTES,
       'PATCH /compras/ordenes/:id/recibir',
       'GET /compras/ordenes/recepciones',
       'GET /compras/ordenes/:id',
@@ -319,7 +468,8 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
   {
     rol: 'comprador',
     etiqueta: 'Comprador',
-    descripcion: 'Requisiciones, cotizaciones, órdenes de compra y padrón de proveedores.',
+    descripcion:
+      'Requisiciones, cotizaciones, órdenes de compra y padrón de proveedores.',
     modulos: ['compras', 'proveedores'],
     /*
      * Consulta de inventario SIN el almacen. Necesita saber que hay en
@@ -357,7 +507,11 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * ella el comprador no sabe que llego y que no, y el seguimiento al
      * proveedor se hace por telefono.
      */
-    accionesIrrenunciables: ['GET /compras/ordenes/recepciones'],
+    accionesIrrenunciables: [
+      // El tablero de pendientes: cuentas, no documentos.
+      ACCION_TABLERO_PENDIENTES,
+      'GET /compras/ordenes/recepciones',
+    ],
     accionesVedadas: [
       'PATCH /compras/ordenes/:id/pagar',
       'PATCH /compras/requisiciones/aprobaciones/:id',
@@ -376,7 +530,8 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
   {
     rol: 'finanzas',
     etiqueta: 'Finanzas',
-    descripcion: 'Contabilidad, tesorería, facturación, activos y catálogos financieros.',
+    descripcion:
+      'Contabilidad, tesorería, facturación, activos y catálogos financieros.',
     modulos: [
       'finanzas',
       'tesoreria',
@@ -405,6 +560,41 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      */
     accionesIrrenunciables: [
       /*
+       * ────────────────────────────────────────────────────────────────────
+       * El impuesto del producto lo decide Contabilidad, y hasta hoy no podía
+       * --------------------------------------------------------------------
+       * `impuestoId` vive en la ficha del producto, y esa ficha sólo la abre
+       * el almacenista —el único rol con `inventario`—, que a propósito NO
+       * tiene el catálogo de impuestos: quien acomoda mercancía no decide el
+       * IVA aplicable, y así está escrito en su plantilla.
+       *
+       * Resultado medido el 26-sep-2026: nadie podía asignarle un impuesto a
+       * un producto. Contabilidad lee los impuestos y no abre la ficha; el
+       * almacén abre la ficha y no lee los impuestos. Cuatro de los siete
+       * productos del catálogo llevaban meses sin impuesto, y un producto sin
+       * impuesto se vende con IVA cero en silencio —ni exento, ni tasa 0: sin
+       * declarar—.
+       *
+       * Se concede el panel fiscal: la lista mínima y la asignación. No abre
+       * el maestro de productos ni toca precios ni existencias.
+       * ────────────────────────────────────────────────────────────────────
+       */
+      'GET /catalogo/productos/fiscal',
+      'PATCH /catalogo/productos/:id/impuesto',
+      /*
+       * Enlazar una caja o un banco con su cuenta del plan contable. La
+       * pantalla cuelga de `/credito`, así que sólo ese rol podía editarla —y
+       * el diagnóstico que se queja de una cuenta sin enlazar es el de
+       * Finanzas: quien tiene que arreglarlo no podía—. Se concede la lectura
+       * y la edición; dar de alta una cuenta nueva sigue siendo de Crédito y
+       * Tesorería, que son quienes operan el dinero.
+       */
+      'GET /credito/cuentas-bancarias',
+      'GET /credito/cuentas-bancarias/:id',
+      'PATCH /credito/cuentas-bancarias/:id',
+      // El tablero de pendientes: cuentas, no documentos.
+      ACCION_TABLERO_PENDIENTES,
+      /*
        * La segunda etapa del alta de estructura. Este rol ni siquiera tiene
        * RRHH en consulta —ni debe tenerlo— pero el control presupuestal de un
        * puesto nuevo es suyo, y sin estas dos lineas la etapa se queda sin
@@ -422,23 +612,23 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       // Mapear categorías a cuentas contables: la acción es de Contabilidad,
       // la lista que hay que mapear es de Inventario.
       'GET /catalogo/categorias',
-    /*
-     * El espejo contable —`/dashboard/finanzas/espejo-contable`—. Sus acciones
-     * cuelgan de `/integracion`, un módulo marcado como sensible porque da
-     * poder sobre la conexión con el core, así que no se concede entero. Pero
-     * lo que esa pantalla hace es contabilidad: ver qué cuentas no tienen
-     * equivalencia del otro lado, corresponderlas, y reencolar las pólizas que
-     * no llegaron. Si el contador no puede, nadie lo mira hasta que la balanza
-     * del ERP y la de Fineract dejan de coincidir.
-     */
-    // La nómina: la configuración patronal, la póliza y el cierre son suyos;
-    // los préstamos y la validación de cuentas, también. La plantilla y los
-    // recibos siguen fuera, como se decidió al separar el alta de estructura.
-    ...ACCIONES_NOMINA_CONTABILIDAD,
-    ...ACCIONES_NOMINA_FINANZAS,
-    // El segundo nivel de la cadena de firmas.
-    ...ACCIONES_FIRMAR_NOMINA,
-    ...ACCIONES_ESPEJO_CONTABLE,
+      /*
+       * El espejo contable —`/dashboard/finanzas/espejo-contable`—. Sus acciones
+       * cuelgan de `/integracion`, un módulo marcado como sensible porque da
+       * poder sobre la conexión con el core, así que no se concede entero. Pero
+       * lo que esa pantalla hace es contabilidad: ver qué cuentas no tienen
+       * equivalencia del otro lado, corresponderlas, y reencolar las pólizas que
+       * no llegaron. Si el contador no puede, nadie lo mira hasta que la balanza
+       * del ERP y la de Fineract dejan de coincidir.
+       */
+      // La nómina: la configuración patronal, la póliza y el cierre son suyos;
+      // los préstamos y la validación de cuentas, también. La plantilla y los
+      // recibos siguen fuera, como se decidió al separar el alta de estructura.
+      ...ACCIONES_NOMINA_CONTABILIDAD,
+      ...ACCIONES_NOMINA_FINANZAS,
+      // El segundo nivel de la cadena de firmas.
+      ...ACCIONES_FIRMAR_NOMINA,
+      ...ACCIONES_ESPEJO_CONTABLE,
     ],
   },
   {
@@ -464,27 +654,85 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * en el almacén.
      */
     accionesIrrenunciables: [
+      /*
+       * ────────────────────────────────────────────────────────────────────
+       * El impuesto del producto lo decide Contabilidad, y hasta hoy no podía
+       * --------------------------------------------------------------------
+       * `impuestoId` vive en la ficha del producto, y esa ficha sólo la abre
+       * el almacenista —el único rol con `inventario`—, que a propósito NO
+       * tiene el catálogo de impuestos: quien acomoda mercancía no decide el
+       * IVA aplicable, y así está escrito en su plantilla.
+       *
+       * Resultado medido el 26-sep-2026: nadie podía asignarle un impuesto a
+       * un producto. Contabilidad lee los impuestos y no abre la ficha; el
+       * almacén abre la ficha y no lee los impuestos. Cuatro de los siete
+       * productos del catálogo llevaban meses sin impuesto, y un producto sin
+       * impuesto se vende con IVA cero en silencio —ni exento, ni tasa 0: sin
+       * declarar—.
+       *
+       * Se concede el panel fiscal: la lista mínima y la asignación. No abre
+       * el maestro de productos ni toca precios ni existencias.
+       * ────────────────────────────────────────────────────────────────────
+       */
+      'GET /catalogo/productos/fiscal',
+      'PATCH /catalogo/productos/:id/impuesto',
+      /*
+       * Enlazar una caja o un banco con su cuenta del plan contable. La
+       * pantalla cuelga de `/credito`, así que sólo ese rol podía editarla —y
+       * el diagnóstico que se queja de una cuenta sin enlazar es el de
+       * Finanzas: quien tiene que arreglarlo no podía—. Se concede la lectura
+       * y la edición; dar de alta una cuenta nueva sigue siendo de Crédito y
+       * Tesorería, que son quienes operan el dinero.
+       */
+      'GET /credito/cuentas-bancarias',
+      'GET /credito/cuentas-bancarias/:id',
+      'PATCH /credito/cuentas-bancarias/:id',
+      /*
+       * La conciliación de cartera: verla, ejecutarla y cerrar una
+       * discrepancia. Los tres endpoints nombran a este rol en su `@Roles` y
+       * la tabla de permisos no se los daba, así que `credito` podía ver las
+       * diferencias y no resolverlas, y contabilidad podía resolverlas y no
+       * verlas. Comprobado en vivo: 403 en los tres.
+       */
+      'GET /integracion/conciliacion',
+      'POST /integracion/conciliacion/ejecutar',
+      'PATCH /integracion/conciliacion/:id/resolver',
+      /*
+       * ── Lo que el decorador ya prometía ──────────────────────────────────
+       * `GET /integracion/avisos` y su resolución nombran a este rol en su
+       * `@Roles`, y `@Roles` sólo puede DENEGAR: sin la concesión, la otra
+       * capa contestaba 403. La bandeja de avisos del espejo contable —donde
+       * aparece cada póliza que no llegó al mayor externo— no la miraba nadie.
+       * Igual con el estado contable de los productos de crédito.
+       */
+      'GET /integracion/avisos',
+      'PATCH /integracion/avisos/:id/resolver',
+      'GET /credito/productos/estado',
+      'POST /credito/productos/:id/verificar',
+      // El tablero de pendientes: cuentas, no documentos.
+      ACCION_TABLERO_PENDIENTES,
       'GET /catalogo/categorias',
-    /*
-     * El espejo contable —`/dashboard/finanzas/espejo-contable`—. Sus acciones
-     * cuelgan de `/integracion`, un módulo marcado como sensible porque da
-     * poder sobre la conexión con el core, así que no se concede entero. Pero
-     * lo que esa pantalla hace es contabilidad: ver qué cuentas no tienen
-     * equivalencia del otro lado, corresponderlas, y reencolar las pólizas que
-     * no llegaron. Si el contador no puede, nadie lo mira hasta que la balanza
-     * del ERP y la de Fineract dejan de coincidir.
-     */
-    // La nómina por el lado contable: identidad patronal, póliza y cierre.
-    ...ACCIONES_NOMINA_CONTABILIDAD,
-    // Y puede firmar el nivel de Finanzas cuando le toque sustituirla.
-    ...ACCIONES_FIRMAR_NOMINA,
-    ...ACCIONES_ESPEJO_CONTABLE,
+      /*
+       * El espejo contable —`/dashboard/finanzas/espejo-contable`—. Sus acciones
+       * cuelgan de `/integracion`, un módulo marcado como sensible porque da
+       * poder sobre la conexión con el core, así que no se concede entero. Pero
+       * lo que esa pantalla hace es contabilidad: ver qué cuentas no tienen
+       * equivalencia del otro lado, corresponderlas, y reencolar las pólizas que
+       * no llegaron. Si el contador no puede, nadie lo mira hasta que la balanza
+       * del ERP y la de Fineract dejan de coincidir.
+       */
+      // La nómina por el lado contable: identidad patronal, póliza y cierre.
+      ...ACCIONES_NOMINA_CONTABILIDAD,
+      // Y puede firmar el nivel de Finanzas cuando le toque sustituirla.
+      ...ACCIONES_FIRMAR_NOMINA,
+      ...ACCIONES_ESPEJO_CONTABLE,
     ],
   },
   {
     rol: 'tesoreria',
     etiqueta: 'Tesorería',
-    descripcion: 'Saldos, movimientos, traspasos, conciliación bancaria y caja.',
+    descripcion:
+      'Saldos, movimientos, traspasos, conciliación bancaria y caja.',
     modulos: ['tesoreria', 'caja', 'aprobaciones'],
     // Quien paga tiene que poder ver qué paga y a quién: la orden de compra y
     // el padrón de proveedores, en consulta.
@@ -505,6 +753,8 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * paga tesorería, contra lo que el almacén dio por recibido.
      */
     accionesIrrenunciables: [
+      // El tablero de pendientes: cuentas, no documentos.
+      ACCION_TABLERO_PENDIENTES,
       'PATCH /compras/ordenes/:id/pagar',
       // La acción sin la consulta no sirve: la pantalla de pago abre vacía si
       // no puede listar ni abrir la orden. Pasó con el almacenista —podía ver
@@ -524,7 +774,12 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     etiqueta: 'Crédito',
     descripcion: 'Línea de crédito, verificación del cliente y originación.',
     modulos: ['credito', 'clientes', 'aprobaciones'],
-    modulosConsulta: ['ventas', 'facturacion', 'integracion', 'gobierno-aprobaciones'],
+    modulosConsulta: [
+      'ventas',
+      'facturacion',
+      'integracion',
+      'gobierno-aprobaciones',
+    ],
     /*
      * De la integración con el core le toca lo suyo: la disponibilidad del
      * cliente y los avisos. La correspondencia de cuentas contra el mayor
@@ -553,27 +808,88 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * siguen siendo de administración, y `simular` además marca el expediente
      * como simulación, que la puerta no acepta.
      */
-    accionesIrrenunciables: ['POST /integracion/validacion/ejecutar'],
+    accionesIrrenunciables: [
+      // El tablero de pendientes: cuentas, no documentos.
+      ACCION_TABLERO_PENDIENTES,
+      'POST /integracion/validacion/ejecutar',
+    ],
   },
   {
     rol: 'cobranza',
     etiqueta: 'Cobranza',
     descripcion: 'Cartera, cobros, estados de cuenta y city ledger.',
-    modulos: ['credito', 'clientes'],
-    modulosConsulta: ['ventas', 'facturacion', 'caja', 'hoteleria'],
+    /*
+     * El city ledger es suyo —convenios, cartera del hotel y sus cobros—, pero
+     * el resto de hoteleria no. Mientras el credito hotelero vivio dentro del
+     * modulo «hoteleria», darselo significaba darle tambien la configuracion
+     * de las propiedades y la auditoria nocturna: se comprobo el 25-sep-2026
+     * entrando con este rol a las diez pantallas de recepcion. Ahora el city
+     * ledger es un modulo aparte y hoteleria queda vedada explicitamente, para
+     * que las filas que el reparto viejo dejo encendidas se apaguen al
+     * arrancar.
+     */
+    modulos: ['credito', 'clientes', 'city-ledger'],
+    modulosConsulta: ['ventas', 'facturacion', 'caja'],
+    modulosVedados: ['hoteleria'],
+    accionesIrrenunciables: [
+      /*
+       * El tablero de validación de expedientes nombra a `cobranza` en su
+       * `@Roles`; sin la concesión, el decorador prometía un acceso que la
+       * tabla de permisos negaba.
+       */
+      'GET /integracion/validacion/tablero',
+      'GET /integracion/validacion/expedientes',
+      'GET /integracion/validacion/expedientes/:id',
+      'POST /integracion/validacion/ejecutar',
+    ],
   },
   {
     rol: 'hoteleria',
     etiqueta: 'Hotelería',
     descripcion:
       'Operación del hotel: disponibilidad, ama de llaves, city ledger, recetas y auditoría nocturna.',
-    modulos: ['hoteleria', 'recetas', 'clientes', 'aprobaciones'],
+    modulos: [
+      'hoteleria',
+      /* Recepcion abre el folio contra convenio y consulta el credito. */
+      'city-ledger',
+      'recetas',
+      'clientes',
+      'aprobaciones',
+    ],
     modulosConsulta: ['inventario', 'ventas', 'gobierno-aprobaciones'],
+    /*
+     * El almacen de insumos, sin el almacen entero.
+     *
+     * La configuracion del hotel pide un «Almacen de insumos»: de ahi se
+     * descuentan los consumos que se cargan al folio. Ese desplegable se
+     * llenaba con `GET /catalogo/almacenes`, que pertenece al modulo
+     * `almacenes` —direccion, responsable y configuracion de cada bodega— y
+     * que hoteleria no tiene. El 403 se volvia lista vacia: un control
+     * obligatorio que nadie podia contestar, y detras, un consumo que nunca
+     * se podia postear («El hotel no tiene almacen para descontar el
+     * consumo»). Se vio recorriendo la pantalla el 25-sep-2026.
+     *
+     * Se declara la lista corta —id y nombre— que ya existia para el
+     * mostrador. No abre el modulo de almacenes: solo permite elegir uno.
+     */
+    accionesIrrenunciables: [
+      'GET /catalogo/almacenes/para-venta',
+      /*
+       * Y la lista corta de cajas. Recepcion cobra el folio al hacer
+       * check-out: sin poder nombrar una caja no hay cobro. `GET
+       * /credito/cuentas-bancarias` trae CLABE y numero de cuenta y no le
+       * corresponde; `para-cobro` da nombre y tipo, que es lo que el
+       * desplegable necesita.
+       */
+      'GET /credito/cuentas-bancarias/para-cobro',
+    ],
+    accionesVedadas: ['GET /credito/cuentas-bancarias'],
   },
   {
     rol: 'rrhh',
     etiqueta: 'Recursos Humanos',
-    descripcion: 'Empleados, puestos, asistencia, incidencias, vacaciones, nómina y departamentos.',
+    descripcion:
+      'Empleados, puestos, asistencia, incidencias, vacaciones, nómina y departamentos.',
     modulos: ['rrhh', 'aprobaciones'],
     modulosConsulta: ['tablero', 'gobierno-aprobaciones'],
     /*
@@ -594,11 +910,16 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'POST /rrhh/estructura/solicitudes/:id/gerencia',
       'POST /rrhh/estructura/solicitudes/:id/finanzas',
     ],
+    accionesIrrenunciables: [
+      // El tablero de pendientes: cuentas, no documentos.
+      ACCION_TABLERO_PENDIENTES,
+    ],
   },
   {
     rol: 'gerencia',
     etiqueta: 'Gerencia',
-    descripcion: 'Aprueba y mira todo lo operativo, sin tocar la configuración del sistema.',
+    descripcion:
+      'Aprueba y mira todo lo operativo, sin tocar la configuración del sistema.',
     modulos: ['aprobaciones', 'tablero'],
     modulosConsulta: [
       'ventas',
@@ -615,6 +936,7 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'crm',
       'rrhh',
       'hoteleria',
+      'city-ledger',
       'facturacion',
       'activos',
       'gobierno-aprobaciones',
@@ -649,6 +971,41 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * para los tres roles que la usan.
      */
     accionesIrrenunciables: [
+      /*
+       * Anular una venta. `ROLES_AUTORIZADORES_ANULACION` designa a GERENCIA y
+       * DIRECCION —y el umbral es cero a propósito: anular elimina la venta
+       * entera y no debe estar al alcance de un cajero por ningún importe—,
+       * pero el módulo `ventas` es del mostrador, así que la otra capa les
+       * contestaba 403. Medido el 25-sep-2026: el cajero recibía «requiere
+       * autorización de gerencia» y gerencia no podía. NINGUNA venta del
+       * sistema se podía anular.
+       */
+      'GET /ventas',
+      'PATCH /ventas/:id/anular',
+      /*
+       * Deshacer una cobranza. `@Roles` nombra a este rol —es de las
+       * decisiones que se reservan al mando— y el permiso no estaba: el
+       * endpoint contestaba 403 a quien el propio controlador designa.
+       */
+      'POST /credito/cobranza/pago/:id/cancelar',
+      /*
+       * ── Lo que el decorador ya prometía ──────────────────────────────────
+       * Los endpoints de validación de expedientes nombran a este rol en su
+       * `@Roles`. Como `@Roles` sólo deniega, el tablero y los flujos le
+       * contestaban 403: figuraba como responsable de un gobierno que no podía
+       * ni mirar.
+       */
+      'GET /integracion/validacion/flujos',
+      'GET /integracion/validacion/flujos/:id',
+      'GET /integracion/validacion/flujos/plantilla',
+      'GET /integracion/validacion/capacidades',
+      'GET /integracion/validacion/tablero',
+      'GET /integracion/validacion/expedientes',
+      'GET /integracion/validacion/expedientes/:id',
+      'POST /integracion/validacion/ejecutar',
+      'POST /integracion/validacion/simular',
+      // El tablero de pendientes: cuentas, no documentos.
+      ACCION_TABLERO_PENDIENTES,
       'GET /rrhh/estructura/solicitudes',
       'POST /rrhh/estructura/solicitudes/:id/gerencia',
       /*
@@ -662,6 +1019,13 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
        * siempre en una empresa con una sola persona de Recursos humanos.
        */
       ...ACCIONES_FIRMAR_NOMINA,
+      /*
+       * Cerrar un conteo físico y autorizar una transferencia entre almacenes.
+       * Sin esto, en una empresa con un solo almacenista no se puede hacer ni
+       * lo uno ni lo otro: ver `ACCIONES_AUTORIZAR_ALMACEN`.
+       */
+      ...ACCIONES_AUTORIZAR_ALMACEN,
+      ...ACCIONES_AUTORIZAR_OPERACION,
     ],
     accionesVedadas: [
       'GET /rrhh/nomina/recibos',
@@ -680,7 +1044,8 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
   {
     rol: 'direccion',
     etiqueta: 'Dirección',
-    descripcion: 'Lo mismo que gerencia, más la lectura de la integración con el core.',
+    descripcion:
+      'Lo mismo que gerencia, más la lectura de la integración con el core.',
     modulos: ['aprobaciones', 'tablero'],
     modulosConsulta: [
       'ventas',
@@ -700,6 +1065,7 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'crm',
       'rrhh',
       'hoteleria',
+      'city-ledger',
       'facturacion',
       'integracion',
       'gobierno-aprobaciones',
@@ -741,6 +1107,63 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * la nomina—.
      */
     accionesIrrenunciables: [
+      /*
+       * Anular una venta. `ROLES_AUTORIZADORES_ANULACION` designa a GERENCIA y
+       * DIRECCION —y el umbral es cero a propósito: anular elimina la venta
+       * entera y no debe estar al alcance de un cajero por ningún importe—,
+       * pero el módulo `ventas` es del mostrador, así que la otra capa les
+       * contestaba 403. Medido el 25-sep-2026: el cajero recibía «requiere
+       * autorización de gerencia» y gerencia no podía. NINGUNA venta del
+       * sistema se podía anular.
+       */
+      'GET /ventas',
+      'PATCH /ventas/:id/anular',
+      /*
+       * La conciliación de cartera: verla, ejecutarla y cerrar una
+       * discrepancia. Los tres endpoints nombran a este rol en su `@Roles` y
+       * la tabla de permisos no se los daba, así que `credito` podía ver las
+       * diferencias y no resolverlas, y contabilidad podía resolverlas y no
+       * verlas. Comprobado en vivo: 403 en los tres.
+       */
+      'GET /integracion/conciliacion',
+      'POST /integracion/conciliacion/ejecutar',
+      'PATCH /integracion/conciliacion/:id/resolver',
+      /*
+       * Deshacer una cobranza. `@Roles` nombra a este rol —es de las
+       * decisiones que se reservan al mando— y el permiso no estaba: el
+       * endpoint contestaba 403 a quien el propio controlador designa.
+       */
+      'POST /credito/cobranza/pago/:id/cancelar',
+      /*
+       * ── Lo que el decorador ya prometía ──────────────────────────────────
+       * `GET /integracion/avisos` y su resolución nombran a este rol en su
+       * `@Roles`, y `@Roles` sólo puede DENEGAR: sin la concesión, la otra
+       * capa contestaba 403. La bandeja de avisos del espejo contable —donde
+       * aparece cada póliza que no llegó al mayor externo— no la miraba nadie.
+       * Igual con el estado contable de los productos de crédito.
+       */
+      'GET /integracion/avisos',
+      'PATCH /integracion/avisos/:id/resolver',
+      'GET /credito/productos/estado',
+      'POST /credito/productos/:id/verificar',
+      /*
+       * ── Lo que el decorador ya prometía ──────────────────────────────────
+       * Los endpoints de validación de expedientes nombran a este rol en su
+       * `@Roles`. Como `@Roles` sólo deniega, el tablero y los flujos le
+       * contestaban 403: figuraba como responsable de un gobierno que no podía
+       * ni mirar.
+       */
+      'GET /integracion/validacion/flujos',
+      'GET /integracion/validacion/flujos/:id',
+      'GET /integracion/validacion/flujos/plantilla',
+      'GET /integracion/validacion/capacidades',
+      'GET /integracion/validacion/tablero',
+      'GET /integracion/validacion/expedientes',
+      'GET /integracion/validacion/expedientes/:id',
+      'POST /integracion/validacion/ejecutar',
+      'POST /integracion/validacion/simular',
+      // El tablero de pendientes: cuentas, no documentos.
+      ACCION_TABLERO_PENDIENTES,
       'GET /rrhh/estructura/solicitudes',
       'POST /rrhh/estructura/solicitudes/:id/gerencia',
       /*
@@ -754,6 +1177,9 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
        * siempre en una empresa con una sola persona de Recursos humanos.
        */
       ...ACCIONES_FIRMAR_NOMINA,
+      // Lo mismo que gerencia.
+      ...ACCIONES_AUTORIZAR_ALMACEN,
+      ...ACCIONES_AUTORIZAR_OPERACION,
     ],
     accionesVedadas: [
       'GET /rrhh/nomina/recibos',

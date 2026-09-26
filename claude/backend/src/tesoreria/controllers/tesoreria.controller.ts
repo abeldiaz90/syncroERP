@@ -141,6 +141,21 @@ export class TesoreriaController {
     return this.svc.conciliarManual(body.lineaId, body.movimientoId, empresaId);
   }
 
+  @Patch('conciliacion/:estadoCuentaId/cerrar')
+  @ApiOperation({
+    summary: 'Cierra la conciliacion del periodo',
+    description:
+      'Solo si el reporte cuadra. Es lo que el cierre mensual cuenta como ' +
+      'cobertura bancaria: sin esto, ningun mes puede cerrarse.',
+  })
+  cerrarConciliacion(
+    @Param('estadoCuentaId') estadoCuentaId: string,
+    @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('id') usuarioId: string,
+  ) {
+    return this.svc.cerrarConciliacion(estadoCuentaId, empresaId, usuarioId);
+  }
+
   @Get('conciliacion/:estadoCuentaId/reporte')
   @ApiOperation({
     summary:

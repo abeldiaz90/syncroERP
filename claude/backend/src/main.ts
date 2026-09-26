@@ -56,6 +56,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { PREFIJO_SUBIDAS, RAIZ_SUBIDAS } from './common/almacenamiento/rutas-subidas';
+import { mensajesDeValidacion } from './common/validacion/mensajes-de-validacion';
 
 // `compression` es CommonJS puro y no expone un `default` real. El tsconfig de
 // este proyecto tiene `allowSyntheticDefaultImports` pero NO `esModuleInterop`,
@@ -192,16 +193,13 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true, // avisa si mandan campos que no existen
       transformOptions: { enableImplicitConversion: true },
-      exceptionFactory: (errores) => {
-        const aplanar = (errs: any[], prefijo = ''): string[] =>
-          errs.flatMap((e) => {
-            const ruta = prefijo ? `${prefijo}.${e.property}` : e.property;
-            const propios = Object.values(e.constraints ?? {});
-            const hijos = e.children?.length ? aplanar(e.children, ruta) : [];
-            return [...propios.map((m) => `${ruta}: ${m}`), ...hijos];
-          });
-        return new BadRequestException(aplanar(errores as any[]));
-      },
+      /*
+       * Un campo ausente hacía opinar a todos sus decoradores a la vez: tres
+       * mensajes en inglés, dos de ellos falsos, y ninguno decía que faltaba.
+       * `mensajesDeValidacion` deja uno solo y cierto. Ver su cabecera.
+       */
+      exceptionFactory: (errores) =>
+        new BadRequestException(mensajesDeValidacion(errores as any[])),
     }),
   );
 

@@ -32,8 +32,20 @@ export default function CentroModuloPage() {
         if (vivo) setPermisos(['*']);
         return;
       }
-      const r = await intentar(api.get<{ rutas?: string[] }>('/admin/permisos/mis-rutas'), { rutas: [] });
-      if (vivo) setPermisos(r.rutas ?? []);
+      /*
+       * Un fallo de la consulta NO es una lista vacía de permisos. Envuelta en
+       * `intentar(..., { rutas: [] })`, un backend reiniciándose dejaba el
+       * centro de trabajo sin un solo enlace, igual que si al usuario le
+       * hubieran quitado el módulo entero. `permisos` se queda en null —que
+       * esta pantalla ya trata como «todavía no se sabe»— y no se pinta un
+       * vacío que miente.
+       */
+      try {
+        const r = await api.get<{ rutas?: string[] }>('/admin/permisos/mis-rutas');
+        if (vivo) setPermisos(r.rutas ?? []);
+      } catch {
+        if (vivo) setPermisos(null);
+      }
     })();
     return () => { vivo = false; };
   }, []);

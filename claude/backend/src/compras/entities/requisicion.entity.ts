@@ -13,16 +13,29 @@ import { Aprobacion } from './aprobacion.entity';
 import { Usuario } from '../../iam/entities/usuario.entity';
 import { Cotizacion } from './cotizacion.entity';
 
-export type EstadoRequisicion =
-  | 'PENDIENTE'
-  | 'COTIZANDO'
-  | 'APROBADA'
-  | 'RECHAZADA'
-  | 'CONVERTIDA'
-  | 'ORDEN_GENERADA'
-  | 'RECIBIDA'
-  | 'CON_INCIDENCIAS'
-  | 'CANCELADA';
+/**
+ * El vocabulario de estados, como VALOR y no sólo como tipo.
+ *
+ * Un `type` desaparece al compilar, así que nada podía comprobar en ejecución
+ * —ni en una prueba— que otro módulo estuviera contando un estado que no
+ * existe. El panel de operaciones pendientes buscaba requisiciones en
+ * «PENDIENTE_APROBACION»: un estado que nadie escribe nunca. La consulta era
+ * válida, la tabla existía, la columna existía, y el resultado era cero en
+ * cualquier base del mundo.
+ */
+export const ESTADOS_REQUISICION = [
+  'PENDIENTE',
+  'COTIZANDO',
+  'APROBADA',
+  'RECHAZADA',
+  'CONVERTIDA',
+  'ORDEN_GENERADA',
+  'RECIBIDA',
+  'CON_INCIDENCIAS',
+  'CANCELADA',
+] as const;
+
+export type EstadoRequisicion = (typeof ESTADOS_REQUISICION)[number];
 
 @Entity('requisiciones')
 export class Requisicion {

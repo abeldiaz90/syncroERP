@@ -7,6 +7,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { EsRfcOpcional } from '../../common/validators/rfc.validator';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -14,9 +15,7 @@ const trim = ({ value }: { value: unknown }) =>
 export class OnboardingPasoDto {
   @IsOptional()
   @Transform(trim)
-  @Matches(/^([A-ZÑ&]{3,4})\d{6}[A-Z0-9]{3}$/, {
-    message: 'El RFC no tiene un formato válido',
-  })
+  @EsRfcOpcional()
   rfc?: string;
 
   @IsOptional()

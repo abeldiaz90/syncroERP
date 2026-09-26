@@ -418,7 +418,13 @@ export class CfdiService implements OnModuleInit {
   ) {
     const venta = await this.dataSource.getRepository(Venta).findOne({
       where: { id: ventaId, empresaId },
-      relations: ['cliente', 'detalles', 'detalles.producto'],
+      relations: [
+        'cliente',
+        'detalles',
+        'detalles.producto',
+        /* El impuesto del producto: es quien dice si va gravado, exento o no objeto. */
+        'detalles.producto.impuesto',
+      ],
     });
     if (!venta) throw new NotFoundException('Venta no encontrada.');
     if (venta.estado === 'ANULADA') {
@@ -468,7 +474,49 @@ export class CfdiService implements OnModuleInit {
        * La tasa está guardada en la partida. Se usa esa.
        * ──────────────────────────────────────────────────────────────────────
        */
-      const tasaIVA = this.tasaDePartida(detalle, subtotal);
+      /*
+       * ──────────────────────────────────────────────────────────────────────
+       * Gravado a cero, exento y no objeto son tres cosas distintas
+       * ----------------------------------------------------------------------
+       * `tipoFactor` y `objetoImpuesto` se deducían del importe de la partida:
+       *
+       *   tipoFactor: tasaIVA > 0 ? 'TASA' : 'NO_OBJETO'
+       *
+       * Así, TODA partida sin IVA salía del CFDI como «no objeto de impuesto».
+       * Y no son lo mismo:
+       *
+       *   · Tasa 0 % —alimentos, medicinas, exportación— es objeto de
+       *     impuesto: ObjetoImp 02, TipoFactor Tasa, TasaOCuota 0.000000.
+       *   · Exento es objeto de impuesto y va sin tasa ni importe: ObjetoImp
+       *     02, TipoFactor Exento.
+       *   · No objeto queda fuera del impuesto: ObjetoImp 01 y sin nodo de
+       *     impuestos.
+       *
+       * Declarar como «no objeto» una venta gravada a 0 % cambia lo que el
+       * cliente puede acreditar y lo que la empresa declara. El catálogo ya
+       * distingue las tres —cada impuesto lleva su `tipoFactor`—; lo que
+       * faltaba era leerlo en vez de adivinarlo del importe.
+       *
+       * Y un producto SIN impuesto asignado no dice ninguna de las tres cosas.
+       * Antes se facturaba como «no objeto», que es inventarle una postura
+       * fiscal a algo que nadie declaró. Ahora se niega, con el mismo criterio
+       * que con las claves del SAT que faltan.
+       * ──────────────────────────────────────────────────────────────────────
+       */
+      const impuesto = producto.impuesto;
+      if (!impuesto) {
+        throw new BadRequestException(
+          `«${producto.nombre}»${producto.sku ? ` (${producto.sku})` : ''} no se ` +
+            'puede facturar: nadie ha declarado qué impuesto lleva. Sin impuesto ' +
+            'asignado se factura con IVA cero, que no es lo mismo que exento ni ' +
+            'que tasa 0 %. Se asigna en la ficha del producto, en Costos y precios.',
+        );
+      }
+      const tipoFactor = impuesto.tipoFactor ?? 'TASA';
+      const objetoImpuesto =
+        impuesto.objetoImpuesto ?? (tipoFactor === 'NO_OBJETO' ? '01' : '02');
+      const tasaIVA =
+        tipoFactor === 'TASA' ? this.tasaDePartida(detalle, subtotal) : 0;
       return {
         productoId: detalle.productoId,
         claveSAT: producto.claveSAT,
@@ -480,8 +528,8 @@ export class CfdiService implements OnModuleInit {
         precioUnitario: Number(precioUnitario.toFixed(4)),
         descuento: Number(descuento.toFixed(4)),
         tasaIVA: Number(tasaIVA.toFixed(6)),
-        objetoImpuesto: tasaIVA > 0 ? ('02' as const) : ('01' as const),
-        tipoFactor: tasaIVA > 0 ? ('TASA' as const) : ('NO_OBJETO' as const),
+        objetoImpuesto,
+        tipoFactor,
       };
     });
 
@@ -541,6 +589,7 @@ export class CfdiService implements OnModuleInit {
       relations: [
         'detalles',
         'detalles.producto',
+        'detalles.producto.impuesto',
         'venta',
         'venta.cliente',
       ],
@@ -588,7 +637,21 @@ export class CfdiService implements OnModuleInit {
             const subtotal = Number(detalle.subtotal);
             // Misma razón que arriba; en las notas de crédito es peor, porque
             // los subtotales proporcionales traen cuatro decimales.
-            const tasaIVA = this.tasaDePartida(detalle, subtotal);
+            /* Mismo criterio que al facturar la venta: lo dice el catálogo. */
+            const impuesto = producto.impuesto;
+            if (!impuesto) {
+              throw new BadRequestException(
+                `«${producto.nombre}»${producto.sku ? ` (${producto.sku})` : ''} no ` +
+                  'se puede incluir en la nota de crédito: nadie ha declarado qué ' +
+                  'impuesto lleva.',
+              );
+            }
+            const tipoFactor = impuesto.tipoFactor ?? 'TASA';
+            const objetoImpuesto =
+              impuesto.objetoImpuesto ??
+              (tipoFactor === 'NO_OBJETO' ? '01' : '02');
+            const tasaIVA =
+              tipoFactor === 'TASA' ? this.tasaDePartida(detalle, subtotal) : 0;
             return {
               productoId: detalle.productoId,
               claveSAT: producto.claveSAT,
@@ -600,8 +663,8 @@ export class CfdiService implements OnModuleInit {
               precioUnitario: Number((subtotal / cantidad).toFixed(4)),
               descuento: 0,
               tasaIVA: Number(tasaIVA.toFixed(6)),
-              objetoImpuesto: tasaIVA > 0 ? ('02' as const) : ('01' as const),
-              tipoFactor: tasaIVA > 0 ? ('TASA' as const) : ('NO_OBJETO' as const),
+              objetoImpuesto,
+              tipoFactor,
             };
           }),
           notas: `Nota de crédito por devolución DEV-${devolucion.folio}`,

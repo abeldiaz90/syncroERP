@@ -63,6 +63,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const plan = useContratacion();
   const [empresa, setEmpresa] = useState('');
   const [permisos, setPermisos] = useState<string[] | null>(null);
+  /*
+   * «No tienes permisos» y «no pudimos preguntar qué permisos tienes» son dos
+   * cosas distintas, y aquí se confundían: la consulta iba envuelta en
+   * `intentar(..., { rutas: [] })`, así que un backend reiniciándose —o un
+   * corte de red de dos segundos— dejaba al usuario con la lista vacía y CADA
+   * pantalla contestándole «esta sección no está en tu perfil», con el menú en
+   * blanco. Parece que le quitaron los permisos, y no le quitaron nada.
+   */
+  const [fallaPermisos, setFallaPermisos] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [menuAbierto, setMenuAbierto] = useState(false);      // móvil
   const [colapsado, setColapsado] = useState(false);          // escritorio
@@ -92,11 +101,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (esRolAdministrador(s!.rol)) {
         if (vivo) { setPermisos(['*']); setCargando(false); }
       } else {
-        const r = await intentar(
-          api.get<{ rutas?: string[] }>('/admin/permisos/mis-rutas'),
-          { rutas: [] },
-        );
-        if (vivo) { setPermisos(Array.isArray(r?.rutas) ? r.rutas : []); setCargando(false); }
+        try {
+          const r = await api.get<{ rutas?: string[] }>('/admin/permisos/mis-rutas');
+          if (vivo) {
+            setFallaPermisos(false);
+            setPermisos(Array.isArray(r?.rutas) ? r.rutas : []);
+            setCargando(false);
+          }
+        } catch {
+          /*
+           * No se pudo preguntar. NO se asume que no tiene nada: se deja
+           * `permisos` en null —que el resto del layout ya trata como «aún no
+           * se sabe»— y se enciende el aviso que lo explica.
+           */
+          if (vivo) { setFallaPermisos(true); setCargando(false); }
+        }
       }
 
       /*
@@ -458,13 +477,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Contenido */}
           <main className="flex-1 min-w-0">
-            {accesoDenegado ? <SinAcceso /> : children}
+            {fallaPermisos ? <PermisosNoConsultados onReintentar={() => window.location.reload()} /> : accesoDenegado ? <SinAcceso /> : children}
           </main>
         </div>
 
         <PaletaComandos permisos={permisos} />
       </div>
     </PermisosProvider>
+  );
+}
+
+/* ── No se pudo consultar el perfil ───────────────────────────────────────── */
+
+/**
+ * Lo que se enseña cuando la consulta de permisos falló.
+ *
+ * Es deliberadamente distinto de `SinAcceso`: aquí no se sabe si el usuario
+ * tiene o no la pantalla, y decirle que no la tiene sería inventarse una
+ * respuesta. Lo que hay es un problema de conexión con el servidor, que se
+ * arregla solo en cuanto vuelva.
+ */
+function PermisosNoConsultados({ onReintentar }: { onReintentar: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center px-6" style={{ minHeight: '70vh' }}>
+      <div className="w-14 h-14 rounded-2xl bg-amber-50 grid place-items-center mb-4">
+        <ShieldOff className="w-6 h-6 text-amber-500" />
+      </div>
+      <h1 className="text-[18px] font-bold text-slate-900">No pudimos consultar tu perfil</h1>
+      <p className="text-[13px] text-slate-500 mt-1.5 max-w-sm leading-relaxed">
+        No es que te falten permisos: no se pudo preguntar al servidor cuáles
+        tienes. Suele ser momentáneo —el servicio reiniciándose o la red—.
+        Vuelve a intentarlo en unos segundos.
+      </p>
+      <button type="button" onClick={onReintentar} className="btn btn-primario mt-5">
+        Reintentar
+      </button>
+    </div>
   );
 }
 

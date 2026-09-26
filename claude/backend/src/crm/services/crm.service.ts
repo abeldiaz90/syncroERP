@@ -173,7 +173,7 @@ export class CrmService {
 
     if (busqueda) {
       q.andWhere(
-        '(p.nombre LIKE :b OR p.empresa LIKE :b OR p.email LIKE :b OR p.telefono LIKE :b)',
+        '(p.nombre ILIKE :b OR p.empresa ILIKE :b OR p.email ILIKE :b OR p.telefono ILIKE :b)',
         {
           b: `%${busqueda}%`,
         },
@@ -294,7 +294,7 @@ export class CrmService {
     if (filtros.soloAbiertas)
       q.andWhere('e.tipo = :abierta', { abierta: TipoEtapa.ABIERTA });
     if (filtros.busqueda) {
-      q.andWhere('(o.titulo LIKE :b OR o.folio LIKE :b OR p.nombre LIKE :b)', {
+      q.andWhere('(o.titulo ILIKE :b OR o.folio ILIKE :b OR p.nombre ILIKE :b)', {
         b: `%${filtros.busqueda}%`,
       });
     }
@@ -377,6 +377,13 @@ export class CrmService {
         );
       }
 
+      /*
+       * El nombre de la etapa de la que sale, guardado ANTES de moverla: más
+       * abajo la relación se reemplaza por la de destino, y leerlo después
+       * devolvía el nombre nuevo en el campo que dice «etapaAnterior».
+       */
+      const nombreEtapaAnterior = oportunidad.etapa?.nombre;
+
       const desde =
         oportunidad.fechaUltimoMovimiento ?? oportunidad.fechaCreacion;
       const diasEnEtapa = Math.floor(
@@ -388,7 +395,7 @@ export class CrmService {
           empresaId,
           oportunidadId: oportunidad.id,
           etapaAnteriorId: oportunidad.etapaId,
-          nombreEtapaAnterior: oportunidad.etapa?.nombre,
+          nombreEtapaAnterior,
           etapaNuevaId: destino.id,
           nombreEtapaNueva: destino.nombre,
           diasEnEtapaAnterior: diasEnEtapa,
@@ -396,7 +403,28 @@ export class CrmService {
         }),
       );
 
+      /*
+       * ════════════════════════════════════════════════════════════════════
+       * La oportunidad se quedaba en la columna de la que salía
+       * --------------------------------------------------------------------
+       * La entidad se carga con `relations: ['etapa']`, así que lleva las dos
+       * caras de lo mismo: la columna `etapaId` y el objeto `etapa`. Al
+       * guardar, TypeORM escribe la llave que trae la RELACIÓN, no la columna
+       * suelta; y la relación seguía apuntando a la etapa vieja.
+       *
+       * El resultado, medido en pantalla el 25-sep-2026 moviendo OPP-000002 de
+       * «Prospecto» a «Contactado»: la llamada contesta 200, la probabilidad
+       * sube del 10 % al 25 % —eso es una columna normal y sí se guarda—, el
+       * historial registra el movimiento… y la oportunidad sigue en la columna
+       * de la que salió. El pronóstico del embudo cambia y las tarjetas no se
+       * mueven: el tablero, que es la pantalla entera de este módulo, enseña
+       * una cosa distinta de la que dice el número de arriba.
+       *
+       * Se mueven las dos caras a la vez.
+       * ════════════════════════════════════════════════════════════════════
+       */
       oportunidad.etapaId = destino.id;
+      oportunidad.etapa = destino;
       oportunidad.probabilidad = destino.probabilidad;
       oportunidad.fechaUltimoMovimiento = new Date();
 
@@ -426,7 +454,7 @@ export class CrmService {
 
       return {
         oportunidad,
-        etapaAnterior: oportunidad.etapa?.nombre,
+        etapaAnterior: nombreEtapaAnterior,
         etapaNueva: destino.nombre,
       };
     });

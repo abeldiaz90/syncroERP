@@ -53,6 +53,7 @@ export default function CuentasBancariasPage() {
   const [ctasContables, setCtasContables] = useState<ICuentaContable[]>([]);
   const [bancos, setBancos]         = useState<IBanco[]>([]);
   const [cargando, setCargando]     = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
   const [modal, setModal]           = useState(false);
   const [editando, setEditando]     = useState<ICuentaBancaria | null>(null);
   const [form, setForm]             = useState(FORM_VACIO);
@@ -71,9 +72,23 @@ export default function CuentasBancariasPage() {
       fetch(`${api}/finanzas/cuentas-contables?soloAfectables=true`, { headers: h }),
       fetch(`${api}/catalogos/bancos`, { headers: h }),
     ]);
-    if (rCB.ok) setCuentas(await rCB.json());
-    if (rCC.ok) setCtasContables(await rCC.json());
-    if (rBancos.ok) setBancos(await rBancos.json());
+    /*
+      Tres consultas de tres módulos. El catálogo de cuentas contables es de
+      Contabilidad y puede negarse: sin él no se puede enlazar la cuenta
+      bancaria, y el desplegable vacío no explicaba nada.
+    */
+    if (rCB.ok) { setCuentas(await rCB.json()); }
+    else { setCuentas([]); }
+    if (rCC.ok) { setCtasContables(await rCC.json()); }
+    else { setCtasContables([]); }
+    if (rBancos.ok) { setBancos(await rBancos.json()); }
+    else { setBancos([]); }
+    const caidas = [
+      !rCB.ok ? 'las cuentas bancarias' : '',
+      !rCC.ok ? 'el catálogo de cuentas contables' : '',
+      !rBancos.ok ? 'el catálogo de bancos' : '',
+    ].filter(Boolean);
+    setErrorCarga(caidas.length ? `No se pudo consultar ${caidas.join(', ')}.` : '');
     setCargando(false);
   };
   useEffect(() => { cargar(); }, []);
@@ -148,6 +163,12 @@ export default function CuentasBancariasPage() {
 
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
+
+      {errorCarga && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {errorCarga}
+        </div>
+      )}
       {toast && (
         <div className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-4 rounded-xl shadow-2xl font-semibold text-white ${toast.ok?'bg-emerald-600':'bg-rose-600'}`}>
           {toast.ok ? <CheckCircle2 className="w-5 h-5"/> : <AlertCircle className="w-5 h-5"/>}

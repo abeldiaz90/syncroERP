@@ -10,15 +10,13 @@ import {
   PerfilImpuestosMx,
   TipoPersonaFiscal,
 } from './catalogos-fiscales-mx';
+import { EsRfc } from '../common/validators/rfc.validator';
 
 export class ConfiguracionMexicoDto {
   @IsIn(['FISICA', 'MORAL'])
   tipoPersona!: TipoPersonaFiscal;
 
-  @IsString()
-  @Matches(/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/i, {
-    message: 'El RFC no tiene una estructura válida.',
-  })
+  @EsRfc()
   rfc!: string;
 
   @IsString()

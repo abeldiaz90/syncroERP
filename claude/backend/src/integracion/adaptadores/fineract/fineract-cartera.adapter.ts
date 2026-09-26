@@ -91,11 +91,7 @@ interface ParametrosFineract {
   productoMsiId?: number;
 }
 
-const CREDITOS_SIMPLES = new Set([
-  'CREDITO_30D',
-  'CREDITO_60D',
-  'CREDITO_90D',
-]);
+const CREDITOS_SIMPLES = new Set(['CREDITO_30D', 'CREDITO_60D', 'CREDITO_90D']);
 
 /**
  * Adaptador de Apache Fineract.
@@ -140,12 +136,14 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     if (this.bucketMoraId !== undefined) return this.bucketMoraId;
     const buscado = this.cfg.bucketMoraNombre.trim().toLowerCase();
     try {
-      const buckets = await this.http.get<Array<{ id?: number; name?: string }>>(
-        '/v1/delinquency/buckets',
-        { timeoutMs: this.cfg.timeoutFondoMs },
-      );
+      const buckets = await this.http.get<
+        Array<{ id?: number; name?: string }>
+      >('/v1/delinquency/buckets', { timeoutMs: this.cfg.timeoutFondoMs });
       const hallado = (buckets ?? []).find(
-        (b) => String(b.name ?? '').trim().toLowerCase() === buscado,
+        (b) =>
+          String(b.name ?? '')
+            .trim()
+            .toLowerCase() === buscado,
       );
       if (!hallado?.id) {
         this.logger.warn(
@@ -310,7 +308,10 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     await this.agregarIdentidad(cuerpo, cliente);
 
     try {
-      await this.http.put(`/v1/clients/${encodeURIComponent(idExterno)}`, cuerpo);
+      await this.http.put(
+        `/v1/clients/${encodeURIComponent(idExterno)}`,
+        cuerpo,
+      );
       return idExterno;
     } catch (error) {
       throw this.traducir(error);
@@ -343,7 +344,9 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
    *    igual y llega a una dirección incompleta.
    * ==========================================================================
    */
-  async sincronizarExpediente(cliente: ClienteExterno): Promise<ResultadoExpediente> {
+  async sincronizarExpediente(
+    cliente: ClienteExterno,
+  ): Promise<ResultadoExpediente> {
     const aplicados: string[] = [];
     const omitidos: string[] = [];
 
@@ -354,7 +357,9 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     if (!idExterno) {
       return {
         aplicados,
-        omitidos: ['El cliente todavía no está replicado en el registro externo.'],
+        omitidos: [
+          'El cliente todavía no está replicado en el registro externo.',
+        ],
       };
     }
 
@@ -381,11 +386,24 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
       'Comprobante de domicilio',
     ];
 
-    if (conValor.length) {
+    const lecturaIdentificadores = conValor.length
+      ? await this.leerLista(
+          `/v1/clients/${encodeURIComponent(idExterno)}/identifiers`,
+        )
+      : { leida: true, filas: [] as any[], motivo: '' };
+
+    if (conValor.length && !lecturaIdentificadores.leida) {
+      /*
+       * Sin saber qué hay allá, un alta se vuelve un duplicado y una
+       * corrección se vuelve un alta. Se deja constancia y no se toca nada:
+       * la siguiente sincronización lo aplicará con la lista a la vista.
+       */
+      omitidos.push(
+        `Identificadores: no se pudieron leer los del core (${lecturaIdentificadores.motivo}). No se escribe a ciegas.`,
+      );
+    } else if (conValor.length) {
       const tipos = await this.tiposDeDocumento(idExterno);
-      const existentes = await this.http
-        .get<any[]>(`/v1/clients/${encodeURIComponent(idExterno)}/identifiers`)
-        .catch(() => [] as any[]);
+      const existentes = lecturaIdentificadores.filas;
 
       for (const [etiqueta, valor] of conValor) {
         const tipoId = tipos.get(etiqueta.toUpperCase());
@@ -442,14 +460,22 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     );
     if (ADMINISTRADOS.size) {
       const deseados = new Set(
-        conValor.map(([etiqueta, valor]) =>
-          `${etiqueta}|${String(valor).trim().toUpperCase()}`,
+        conValor.map(
+          ([etiqueta, valor]) =>
+            `${etiqueta}|${String(valor).trim().toUpperCase()}`,
         ),
       );
-      const actuales = await this.http
-        .get<any[]>(`/v1/clients/${encodeURIComponent(idExterno)}/identifiers`)
-        .catch(() => [] as any[]);
-      for (const i of actuales ?? []) {
+      const lecturaRetiro = lecturaIdentificadores.leida
+        ? lecturaIdentificadores
+        : await this.leerLista(
+            `/v1/clients/${encodeURIComponent(idExterno)}/identifiers`,
+          );
+      if (!lecturaRetiro.leida) {
+        omitidos.push(
+          `Retiro de identificadores: no se pudo leer el expediente del core (${lecturaRetiro.motivo}).`,
+        );
+      }
+      for (const i of lecturaRetiro.filas) {
         const etiqueta = String(i?.documentType?.name ?? '');
         if (!ADMINISTRADOS.has(etiqueta)) continue;
         const clave = `${etiqueta}|${String(i?.documentKey ?? '').toUpperCase()}`;
@@ -460,7 +486,9 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
           );
           aplicados.push(`${etiqueta} retirado`);
         } catch (error) {
-          omitidos.push(`${etiqueta} (retiro): ${this.traducir(error).message}`);
+          omitidos.push(
+            `${etiqueta} (retiro): ${this.traducir(error).message}`,
+          );
         }
       }
     }
@@ -478,10 +506,15 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
       const plantilla = await this.http
         .get<any>(`/v1/client/addresses/template`)
         .catch(() => null);
-      const buscar = (lista: any[] | undefined, texto: string | null | undefined) => {
+      const buscar = (
+        lista: any[] | undefined,
+        texto: string | null | undefined,
+      ) => {
         if (!texto) return undefined;
         const objetivo = normalizar(texto);
-        return (lista ?? []).find((o) => normalizar(String(o?.name ?? '')) === objetivo);
+        return (lista ?? []).find(
+          (o) => normalizar(String(o?.name ?? '')) === objetivo,
+        );
       };
       const tipo =
         buscar(plantilla?.addressTypeIdOptions, 'Domicilio particular') ??
@@ -490,7 +523,9 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
       const estado = buscar(plantilla?.stateProvinceIdOptions, d!.estado);
 
       if (!tipo) {
-        omitidos.push('Domicilio: el catálogo ADDRESS_TYPE del core está vacío.');
+        omitidos.push(
+          'Domicilio: el catálogo ADDRESS_TYPE del core está vacío.',
+        );
       } else if (!pais) {
         omitidos.push(
           `Domicilio: el país «${d!.pais ?? 'México'}» no está en el catálogo COUNTRY del core.`,
@@ -523,33 +558,51 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
          * correr la carga dos veces dejaría al cliente con la misma dirección
          * duplicada y nadie sabría cuál es la buena.
          */
-        const existentes = await this.http
-          .get<any[]>(`/v1/client/${encodeURIComponent(idExterno)}/addresses`)
-          .catch(() => [] as any[]);
-        const mismoTipo = (existentes ?? []).find(
-          (a) =>
-            Number(a?.addressTypeId ?? a?.addressType?.id) === Number(tipo.id) ||
-            normalizar(String(a?.addressType ?? '')) === normalizar(String(tipo.name ?? '')),
+        const lecturaDomicilios = await this.leerLista(
+          `/v1/client/${encodeURIComponent(idExterno)}/addresses`,
         );
+        if (!lecturaDomicilios.leida) {
+          /*
+           * Es el caso que el comentario de arriba describe: sin la lista, el
+           * POST no reemplaza, agrega. El duplicado quedaría en el core sin
+           * que nadie sepa cuál de los dos domicilios es el bueno.
+           */
+          omitidos.push(
+            `Domicilio: no se pudieron leer los domicilios del core (${lecturaDomicilios.motivo}). No se crea uno nuevo a ciegas.`,
+          );
+        } else {
+          const mismoTipo = lecturaDomicilios.filas.find(
+            (a) =>
+              Number(a?.addressTypeId ?? a?.addressType?.id) ===
+                Number(tipo.id) ||
+              normalizar(String(a?.addressType ?? '')) ===
+                normalizar(String(tipo.name ?? '')),
+          );
 
-        try {
-          if (mismoTipo?.addressId ?? mismoTipo?.id) {
-            await this.http.put(
-              `/v1/client/${encodeURIComponent(idExterno)}/addresses?type=${tipo.id}`,
-              { ...cuerpo, addressId: Number(mismoTipo.addressId ?? mismoTipo.id) },
-            );
-            aplicados.push('Domicilio corregido');
-          } else {
-            await this.http.post(
-              `/v1/client/${encodeURIComponent(idExterno)}/addresses?type=${tipo.id}`,
-              cuerpo,
-            );
-            aplicados.push(
-              estado ? 'Domicilio' : 'Domicilio (sin estado: no está en el catálogo del core)',
-            );
+          try {
+            if (mismoTipo?.addressId ?? mismoTipo?.id) {
+              await this.http.put(
+                `/v1/client/${encodeURIComponent(idExterno)}/addresses?type=${tipo.id}`,
+                {
+                  ...cuerpo,
+                  addressId: Number(mismoTipo.addressId ?? mismoTipo.id),
+                },
+              );
+              aplicados.push('Domicilio corregido');
+            } else {
+              await this.http.post(
+                `/v1/client/${encodeURIComponent(idExterno)}/addresses?type=${tipo.id}`,
+                cuerpo,
+              );
+              aplicados.push(
+                estado
+                  ? 'Domicilio'
+                  : 'Domicilio (sin estado: no está en el catálogo del core)',
+              );
+            }
+          } catch (error) {
+            omitidos.push(`Domicilio: ${this.traducir(error).message}`);
           }
-        } catch (error) {
-          omitidos.push(`Domicilio: ${this.traducir(error).message}`);
         }
       }
     }
@@ -569,7 +622,10 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     cuerpo: Record<string, unknown>,
     cliente: ClienteExterno,
   ): Promise<void> {
-    if (cliente.fechaNacimiento && /^\d{4}-\d{2}-\d{2}$/.test(cliente.fechaNacimiento)) {
+    if (
+      cliente.fechaNacimiento &&
+      /^\d{4}-\d{2}-\d{2}$/.test(cliente.fechaNacimiento)
+    ) {
       cuerpo.dateOfBirth = cliente.fechaNacimiento;
     }
     if (!cliente.genero) return;
@@ -591,10 +647,37 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     }
   }
 
+  /**
+   * Lee una lista del core distinguiendo «no hay nada» de «no pude mirar».
+   *
+   * Devolver `[]` ante un fallo de lectura es cómodo y es exactamente lo que
+   * no se debe hacer aquí: quien llama usa esa lista para decidir si corrige
+   * lo que ya existe o crea algo nuevo, así que una lista vacía por error se
+   * convierte en un alta duplicada en el core del cliente.
+   */
+  private async leerLista(
+    ruta: string,
+  ): Promise<{ leida: boolean; filas: any[]; motivo: string }> {
+    try {
+      const filas = await this.http.get<any[]>(ruta);
+      return {
+        leida: true,
+        filas: Array.isArray(filas) ? filas : [],
+        motivo: '',
+      };
+    } catch (error) {
+      return { leida: false, filas: [], motivo: this.traducir(error).message };
+    }
+  }
+
   /** Tipos de documento activos del core, indexados por nombre en mayúsculas. */
-  private async tiposDeDocumento(idExterno: string): Promise<Map<string, number>> {
+  private async tiposDeDocumento(
+    idExterno: string,
+  ): Promise<Map<string, number>> {
     const plantilla = await this.http
-      .get<any>(`/v1/clients/${encodeURIComponent(idExterno)}/identifiers/template`)
+      .get<any>(
+        `/v1/clients/${encodeURIComponent(idExterno)}/identifiers/template`,
+      )
       .catch(() => null);
     const lista: any[] = plantilla?.allowedDocumentTypes ?? [];
     return new Map(
@@ -680,7 +763,11 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     } catch (error) {
       // El pago ya estaba aplicado: reintento de un despacho anterior.
       const existente = await this.recuperarTransaccionDuplicada(
-        error, input.creditoIdExterno, referencia, input.monto, input.fechaPago,
+        error,
+        input.creditoIdExterno,
+        referencia,
+        input.monto,
+        input.fechaPago,
       );
       if (existente) return existente;
       throw this.traducir(error);
@@ -733,13 +820,16 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
           manuallyReversed?: boolean;
           reversed?: boolean;
         }[];
-      }>(`/v1/loans/${encodeURIComponent(idExterno)}?associations=transactions`, {
-        timeoutMs: this.cfg.timeoutFondoMs,
-      });
+      }>(
+        `/v1/loans/${encodeURIComponent(idExterno)}?associations=transactions`,
+        {
+          timeoutMs: this.cfg.timeoutFondoMs,
+        },
+      );
 
       return (p?.transactions ?? [])
-        .filter(t => t?.id != null)
-        .map(t => ({
+        .filter((t) => t?.id != null)
+        .map((t) => ({
           idExterno: String(t.id),
           /*
            * Cadena vacía y ausente son lo mismo aquí —Fineract devuelve una u
@@ -766,7 +856,10 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     const limite = Date.now() + (timeoutMs ?? this.cfg.timeoutPosMs);
     const restante = () => {
       const ms = limite - Date.now();
-      if (ms <= 0) throw new Error('Se agotó el tiempo para consultar la cartera del cliente.');
+      if (ms <= 0)
+        throw new Error(
+          'Se agotó el tiempo para consultar la cartera del cliente.',
+        );
       return ms;
     };
     try {
@@ -775,15 +868,23 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
       }>(`/v1/clients/${encodeURIComponent(clienteIdExterno)}/accounts`, {
         timeoutMs: restante(),
       });
-      const activos = (respuesta.loanAccounts ?? []).filter(p => p.status?.active === true);
+      const activos = (respuesta.loanAccounts ?? []).filter(
+        (p) => p.status?.active === true,
+      );
       const resumen: ResumenCarteraCliente = {
-        saldoTotal: 0, saldoVencido: 0, creditosActivos: 0, diasAtrasoMaximo: 0,
+        saldoTotal: 0,
+        saldoVencido: 0,
+        creditosActivos: 0,
+        diasAtrasoMaximo: 0,
       };
       // /clients/:id/accounts enumera préstamos, pero no incluye summary.
       // El saldo y vencido se obtienen del detalle, con un presupuesto de
       // tiempo compartido para no multiplicar la espera del POS por préstamo.
       for (const cuenta of activos) {
-        if (!cuenta.id) throw new Error('El registro externo devolvió un préstamo sin identificador.');
+        if (!cuenta.id)
+          throw new Error(
+            'El registro externo devolvió un préstamo sin identificador.',
+          );
         const prestamo = await this.http.get<{
           status?: { active?: boolean };
           summary?: { totalOutstanding?: number; totalOverdue?: number };
@@ -791,14 +892,19 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
         }>(`/v1/loans/${cuenta.id}`, { timeoutMs: restante() });
         const saldo = prestamo.summary?.totalOutstanding;
         if (saldo == null || !Number.isFinite(Number(saldo))) {
-          throw new Error(`El préstamo ${cuenta.id} no contiene un saldo válido.`);
+          throw new Error(
+            `El préstamo ${cuenta.id} no contiene un saldo válido.`,
+          );
         }
         // Puede haberse cerrado entre la enumeración y la lectura del detalle.
         if (prestamo.status?.active !== true) continue;
         resumen.saldoTotal += Number(saldo);
         resumen.saldoVencido += Number(prestamo.summary?.totalOverdue ?? 0);
         resumen.creditosActivos += 1;
-        resumen.diasAtrasoMaximo = Math.max(resumen.diasAtrasoMaximo, Number(prestamo.delinquent?.pastDueDays ?? 0));
+        resumen.diasAtrasoMaximo = Math.max(
+          resumen.diasAtrasoMaximo,
+          Number(prestamo.delinquent?.pastDueDays ?? 0),
+        );
       }
       return resumen;
     } catch (error) {
@@ -873,10 +979,11 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
         }
 
         if (estado.pendienteAprobacion) {
-          await this.http.post(
-            `/v1/loans/${id}?command=withdrawnByApplicant`,
-            { withdrawnOnDate: input.fecha, note: nota, ...formato },
-          );
+          await this.http.post(`/v1/loans/${id}?command=withdrawnByApplicant`, {
+            withdrawnOnDate: input.fecha,
+            note: nota,
+            ...formato,
+          });
           return true;
         }
 
@@ -926,7 +1033,11 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     } catch (error) {
       // Ya aplicada en un despacho anterior: la referencia choca.
       const existente = await this.recuperarTransaccionDuplicada(
-        error, input.creditoIdExterno, referencia, input.monto, input.fecha,
+        error,
+        input.creditoIdExterno,
+        referencia,
+        input.monto,
+        input.fecha,
       );
       if (existente) return existente;
       throw this.traducir(error);
@@ -975,7 +1086,8 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     try {
       const existentes = await this.listarProductosCredito(input.empresaId);
       const yaEsta = existentes.find(
-        (p) => p.nombre.trim().toLowerCase() === input.nombre.trim().toLowerCase(),
+        (p) =>
+          p.nombre.trim().toLowerCase() === input.nombre.trim().toLowerCase(),
       );
       if (yaEsta) return yaEsta;
 
@@ -1007,7 +1119,9 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
         interestRatePerPeriod: input.sinInteres ? 0 : input.tasaInteresMensual,
         interestRateFrequencyType: TASA_POR_MES,
         amortizationType: AMORTIZACION_CUOTAS_IGUALES,
-        interestType: input.sinInteres ? INTERES_PLANO : INTERES_SALDOS_INSOLUTOS,
+        interestType: input.sinInteres
+          ? INTERES_PLANO
+          : INTERES_SALDOS_INSOLUTOS,
         interestCalculationPeriodType: PERIODO_CALCULO_IGUAL_A_CUOTA,
         transactionProcessingStrategyCode: 'mifos-standard-strategy',
         accountingRule: SIN_CONTABILIDAD,
@@ -1109,7 +1223,9 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
    * plazo se mandaba en meses en vez de días. Lo único que revela eso es
    * comparar la tabla completa, cuota por cuota, fecha por fecha.
    */
-  async fechaMinimaProyeccion(clienteIdExterno: string): Promise<string | null> {
+  async fechaMinimaProyeccion(
+    clienteIdExterno: string,
+  ): Promise<string | null> {
     try {
       const cliente = await this.http.get<{
         timeline?: { activatedOnDate?: number[] };
@@ -1196,20 +1312,24 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
         timeoutMs: this.cfg.timeoutFondoMs,
       });
 
-      return (respuesta.periods ?? [])
-        // El periodo 0 es el desembolso, no una cuota.
-        .filter((p) => Number(p.period ?? 0) >= 1)
-        .map((p) => {
-          const capital = Number(p.principalDue ?? p.principalOriginalDue ?? 0);
-          const interes = Number(p.interestDue ?? p.interestOriginalDue ?? 0);
-          return {
-            numeroCuota: Number(p.period),
-            fechaVencimiento: this.fechaDeArreglo(p.dueDate),
-            montoCapital: capital,
-            montoInteres: interes,
-            montoCuota: Number(p.totalDueForPeriod ?? capital + interes),
-          };
-        });
+      return (
+        (respuesta.periods ?? [])
+          // El periodo 0 es el desembolso, no una cuota.
+          .filter((p) => Number(p.period ?? 0) >= 1)
+          .map((p) => {
+            const capital = Number(
+              p.principalDue ?? p.principalOriginalDue ?? 0,
+            );
+            const interes = Number(p.interestDue ?? p.interestOriginalDue ?? 0);
+            return {
+              numeroCuota: Number(p.period),
+              fechaVencimiento: this.fechaDeArreglo(p.dueDate),
+              montoCapital: capital,
+              montoInteres: interes,
+              montoCuota: Number(p.totalDueForPeriod ?? capital + interes),
+            };
+          })
+      );
     } catch (error) {
       throw this.traducir(error);
     }
@@ -1224,7 +1344,9 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
   private nombreCorto(codigo: string, productoId: string): string {
     const limpio = codigo.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     const relleno = productoId.replace(/[^a-f0-9]/gi, '').toUpperCase();
-    return (limpio.slice(0, 2) + relleno.slice(0, 2)).padEnd(4, 'X').slice(0, 4);
+    return (limpio.slice(0, 2) + relleno.slice(0, 2))
+      .padEnd(4, 'X')
+      .slice(0, 4);
   }
 
   /** Fineract devuelve las fechas como [año, mes, día]. */
@@ -1456,15 +1578,27 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     monto: number,
     fecha: string,
   ): Promise<string | null> {
-    if (!(error instanceof ErrorFineract) || ![400, 403, 409].includes(error.estadoHttp ?? 0)) return null;
+    if (
+      !(error instanceof ErrorFineract) ||
+      ![400, 403, 409].includes(error.estadoHttp ?? 0)
+    )
+      return null;
     try {
       const transaccion = await this.http.get<{
-        id?: number; amount?: number; date?: number[]; reversedOnDate?: number[] | null;
-      }>(`/v1/loans/${encodeURIComponent(creditoId)}/transactions/external-id/${encodeURIComponent(referencia)}`);
-      if (!transaccion.id || transaccion.reversedOnDate != null ||
-          Math.abs(Number(transaccion.amount) - monto) >= 0.005 ||
-          !Number.isFinite(Number(transaccion.amount)) ||
-          this.fechaDeArreglo(transaccion.date) !== fecha.slice(0, 10)) {
+        id?: number;
+        amount?: number;
+        date?: number[];
+        reversedOnDate?: number[] | null;
+      }>(
+        `/v1/loans/${encodeURIComponent(creditoId)}/transactions/external-id/${encodeURIComponent(referencia)}`,
+      );
+      if (
+        !transaccion.id ||
+        transaccion.reversedOnDate != null ||
+        Math.abs(Number(transaccion.amount) - monto) >= 0.005 ||
+        !Number.isFinite(Number(transaccion.amount)) ||
+        this.fechaDeArreglo(transaccion.date) !== fecha.slice(0, 10)
+      ) {
         throw new ErrorIntegracionExterna(
           'La referencia ya existe, pero no corresponde a una transacción vigente con el mismo importe y fecha.',
           false,
@@ -1472,7 +1606,8 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
       }
       return String(transaccion.id);
     } catch (consulta) {
-      if (consulta instanceof ErrorFineract && consulta.estadoHttp === 404) return null;
+      if (consulta instanceof ErrorFineract && consulta.estadoHttp === 404)
+        return null;
       throw this.traducir(consulta);
     }
   }

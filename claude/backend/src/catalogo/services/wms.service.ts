@@ -470,8 +470,12 @@ export class WmsService {
     }
     async verificarConsistenciaUbicaciones(empresaId: string) {
         const resumen = await this.dataSource.query(`
-      SELECT s.productoId, s.almacenId, CAST(s.cantidad AS float) stockAlmacen,
-             CAST(COALESCE(SUM(su.cantidad),0) AS float) stockUbicado
+      -- Alias entrecomillados: sin comillas PostgreSQL los devuelve en
+      -- minusculas y la pantalla de diferencias recibe productoid y
+      -- stockalmacen, con lo que pinta columnas vacias sobre datos correctos.
+      SELECT s.productoId AS "productoId", s.almacenId AS "almacenId",
+             CAST(s.cantidad AS float) AS "stockAlmacen",
+             CAST(COALESCE(SUM(su.cantidad),0) AS float) AS "stockUbicado"
       FROM stock_por_almacen s
       LEFT JOIN stock_ubicaciones su ON su.empresaId=s.empresaId AND su.productoId=s.productoId AND su.almacenId=s.almacenId
       WHERE s.empresaId=$1
@@ -596,9 +600,24 @@ export class WmsService {
             const conteo = await em.save(c);
             return { conteo, asientoPendienteId, ajustes: ajustes.length };
         });
+        /*
+         * `reintentarAhora` no lanza cuando el asiento falla: devuelve
+         * `{ generado: false }`. Aquí se descartaba la respuesta y la pantalla
+         * recibía siempre «EN_COLA», que no es mentira pero tampoco informa:
+         * quien cierra un conteo no llegaba a saber si el ajuste llegó al
+         * mayor ni, cuando llegó, con qué póliza.
+         */
+        let estadoContable: 'GENERADO' | 'PENDIENTE' | 'NO_APLICA' =
+            resultado.asientoPendienteId ? 'PENDIENTE' : 'NO_APLICA';
+        let polizaId: string | undefined;
         if (resultado.asientoPendienteId) {
             try {
-                await this.asientos.reintentarAhora(resultado.asientoPendienteId, empresaId);
+                const asiento = await this.asientos.reintentarAhora(resultado.asientoPendienteId, empresaId);
+                estadoContable = asiento?.generado ? 'GENERADO' : 'PENDIENTE';
+                polizaId = asiento?.polizaId;
+                if (!asiento?.generado) {
+                    this.logger.warn(`Conteo ${resultado.conteo.folio} cerrado; la póliza de ajuste quedó pendiente: ${asiento?.mensaje ?? 'sin detalle'}`);
+                }
             }
             catch (error) {
                 const mensaje = error instanceof Error ? error.message : String(error);
@@ -608,8 +627,9 @@ export class WmsService {
         return {
             ...resultado.conteo,
             ajustesAplicados: resultado.ajustes,
-            estadoContable: resultado.asientoPendienteId ? 'EN_COLA' : 'NO_APLICA',
+            estadoContable,
             asientoPendienteId: resultado.asientoPendienteId,
+            polizaId,
         };
     }
     async listarConteos(empresaId: string) { return this.conteos.find({ where: { empresaId }, relations: ['almacen'], order: { fechaCreacion: 'DESC' } }); }

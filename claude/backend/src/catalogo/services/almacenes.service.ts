@@ -43,6 +43,29 @@ export class AlmacenesService {
     return qb.getMany();
   }
 
+  /**
+   * La lista CORTA de almacenes, para el punto de venta.
+   *
+   * Por que existe: el cajero no puede leer `GET /catalogo/almacenes` —es del
+   * modulo de inventario y trae direccion, responsable y configuracion de cada
+   * bodega—, asi que la caja recibia 403, se quedaba con la lista vacia y sin
+   * almacen no hay venta: el boton «Cobrar» quedaba apagado PARA SIEMPRE y sin
+   * decir por que. El unico rol que puede vender era el unico que no podia
+   * cerrar una venta desde la pantalla.
+   *
+   * La salida no es abrirle el almacen entero al mostrador, es darle lo unico
+   * que necesita: de donde sale la mercancia. Mismo criterio que
+   * `cuentas-bancarias/para-cobro`, que nacio del mismo defecto.
+   */
+  async obtenerParaVenta(empresaId: string) {
+    const almacenes = await this.almacenRepository.find({
+      where: { empresaId, activo: true },
+      select: { id: true, nombre: true },
+      order: { nombre: 'ASC' },
+    });
+    return almacenes.map((a) => ({ id: a.id, nombre: a.nombre }));
+  }
+
   async actualizarAlmacen(id: string, dto: Partial<CrearAlmacenDto>, empresaId: string) {
     const almacen = await this.almacenRepository.findOne({ where: { id, empresaId } });
     if (!almacen) throw new NotFoundException('Almacén no encontrado.');

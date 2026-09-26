@@ -37,6 +37,44 @@ export class ProductosController {
    * @SkipPermisos porque cualquier usuario autenticado necesita verlos
    * para poder llenar la ficha del producto.
    */
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * La postura fiscal del catálogo, para quien la decide
+   * --------------------------------------------------------------------------
+   * `impuestoId` vive en la ficha del producto, y esa ficha sólo la abre el
+   * almacenista —el único rol con el módulo `inventario`—, que a propósito NO
+   * tiene el catálogo de impuestos: quien acomoda mercancía no decide el IVA
+   * aplicable, y así está escrito en su plantilla.
+   *
+   * La consecuencia, medida el 26-sep-2026: NADIE podía asignarle un impuesto
+   * a un producto. Contabilidad lee los impuestos y no abre la ficha; el
+   * almacén abre la ficha y no lee los impuestos. Cuatro de los siete
+   * productos del catálogo llevaban meses sin impuesto, y un producto sin
+   * impuesto se vende con IVA cero en silencio.
+   *
+   * Estas dos rutas son para Contabilidad: una lista mínima —qué producto,
+   * qué impuesto, si tiene las claves del SAT— y la asignación. No abren el
+   * maestro de productos ni tocan precios ni existencias.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  @Get('fiscal')
+  fiscal(@Req() req) {
+    return this.productosService.panelFiscal(req.user.empresaId);
+  }
+
+  @Patch(':id/impuesto')
+  asignarImpuesto(
+    @Param('id') id: string,
+    @Body('impuestoId') impuestoId: string | null,
+    @Req() req,
+  ) {
+    return this.productosService.asignarImpuesto(
+      id,
+      impuestoId ?? null,
+      req.user.empresaId,
+    );
+  }
+
   @SkipPermisos()
   @Get('sectores')
   obtenerSectores() {

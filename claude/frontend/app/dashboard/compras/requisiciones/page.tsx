@@ -84,10 +84,27 @@ export default function RequisicionesPage() {
   const h   = () => ({ Authorization: `Bearer ${tok()}` });
   const toast$ = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 4000); };
 
+  /*
+    «Sin requisiciones · Crea tu primera requisición» es una conclusión. Si la
+    consulta falla, la lista queda vacía y la pantalla invita a duplicar
+    trabajo que quizá ya existe.
+  */
+  const [errorCarga, setErrorCarga] = useState('');
   const cargar = useCallback(async () => {
     setCargando(true);
-    const res = await fetch(`${api}/compras/requisiciones`, { headers: h() });
-    if (res.ok) setRequisiciones(await res.json());
+    try {
+      const res = await fetch(`${api}/compras/requisiciones`, { headers: h() });
+      if (res.ok) { setRequisiciones(await res.json()); setErrorCarga(''); }
+      else {
+        setRequisiciones([]);
+        setErrorCarga(res.status === 403
+          ? 'Tu perfil no incluye la consulta de requisiciones.'
+          : 'No se pudieron consultar las requisiciones.');
+      }
+    } catch {
+      setRequisiciones([]);
+      setErrorCarga('No hay conexión con el servidor.');
+    }
     setCargando(false);
   }, []);
 
@@ -255,6 +272,13 @@ export default function RequisicionesPage() {
           <div className="p-16 text-center">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
             <p className="text-slate-400 text-sm">Cargando...</p>
+          </div>
+        ) : errorCarga ? (
+          <div className="p-16 text-center">
+            <p className="font-semibold text-rose-700">{errorCarga}</p>
+            <p className="text-sm text-slate-500 mt-1">
+              La lista no está vacía: no se pudo consultar.
+            </p>
           </div>
         ) : filtradas.length === 0 ? (
           <div className="p-16 text-center">

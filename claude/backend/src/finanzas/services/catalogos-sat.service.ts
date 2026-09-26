@@ -166,7 +166,7 @@ export class CatalogosSatService implements OnApplicationBootstrap {
       .andWhere('e.tipo = :tipo', { tipo })
       .andWhere('e.activo = :activo', { activo: true });
     if (buscar?.trim()) {
-      qb.andWhere('(e.clave LIKE :buscar OR e.nombre LIKE :buscar)', {
+      qb.andWhere('(e.clave ILIKE :buscar OR e.nombre ILIKE :buscar)', {
         buscar: `%${buscar.trim()}%`,
       });
     }

@@ -13,6 +13,7 @@ import { Pais } from '../catalogo/entities/pais.entity';
 import { Estado } from '../catalogo/entities/estado.entity';
 import { ResolverHomologacionDto } from './resolver-homologacion.dto';
 import { esRolAdministrador, normalizarRol } from '../iam/utils/roles.util';
+import { normalizarRfc, revisarRfcDeTipo } from '../common/utils/rfc.util';
 
 @Injectable()
 export class ProveedoresService {
@@ -41,7 +42,7 @@ export class ProveedoresService {
 
     if (filtro) {
       query.andWhere(
-        '(p.nombre LIKE :filtro OR p.rfc LIKE :filtro OR p.email LIKE :filtro OR p.telefono LIKE :filtro OR p.razonSocial LIKE :filtro)',
+        '(p.nombre ILIKE :filtro OR p.rfc ILIKE :filtro OR p.email ILIKE :filtro OR p.telefono ILIKE :filtro OR p.razonSocial ILIKE :filtro)',
         { filtro: `%${filtro}%` },
       );
     }
@@ -129,11 +130,11 @@ export class ProveedoresService {
   }
 
   private async validar(dto: Partial<CrearProveedorDto>, empresaId: string, excluirId?: string) {
-    const rfc = String(dto.rfc ?? '').trim().toUpperCase();
+    const rfc = normalizarRfc(String(dto.rfc ?? ''));
     if (rfc) {
-      const longitud = (dto.tipoPersona ?? 'MORAL') === 'FISICA' ? 13 : 12;
-      if (rfc.length !== longitud || !/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc))
-        throw new BadRequestException(`El RFC debe ser válido y contener ${longitud} caracteres.`);
+      // Ver `common/utils/rfc.util`: una sola regla para todo el sistema.
+      const veredicto = revisarRfcDeTipo(rfc, dto.tipoPersona ?? 'MORAL');
+      if (!veredicto.valido) throw new BadRequestException(veredicto.motivo);
       const qb = this.proveedorRepo.createQueryBuilder('p').where('p.empresaId=:empresaId', { empresaId }).andWhere('UPPER(p.rfc)=:rfc', { rfc });
       if (excluirId) qb.andWhere('p.id<>:excluirId', { excluirId });
       if (await qb.getOne()) throw new BadRequestException('Ya existe otro proveedor con ese RFC.');

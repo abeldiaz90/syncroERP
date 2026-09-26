@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { fechaCorta } from '@/lib/fechas';
 import { Search, CheckCircle2, AlertCircle, Calendar, X, Printer } from 'lucide-react';
 
 interface IBalanza {
@@ -21,7 +22,7 @@ const TIPO_LABEL: Record<string, string> = {
 
 const HOY = new Date();
 const fmt  = (d: Date) => d.toISOString().split('T')[0];
-const fmtLabel = (s: string) => s ? new Date(s + 'T00:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
+const fmtLabel = (s: string) => s ? fechaCorta(s) : '';
 const primerDiaMes = fmt(new Date(HOY.getFullYear(), HOY.getMonth(), 1));
 const ultimoDiaMes = fmt(new Date(HOY.getFullYear(), HOY.getMonth() + 1, 0));
 const RANGOS = [
@@ -39,6 +40,15 @@ export default function BalanzaComprobacionPage() {
   const [fechaDesde, setFechaDesde]   = useState(primerDiaMes);
   const [fechaHasta, setFechaHasta]   = useState(ultimoDiaMes);
   const [rangoActivo, setRangoActivo] = useState('Este mes');
+  /*
+    Una balanza vacía cuadra sola: cero cargos contra cero abonos. Como la
+    consulta se hacía con `if (res.ok)` y sin `else`, cualquier fallo —un 403,
+    el backend reiniciándose— dejaba la lista vacía y la pantalla anunciaba
+    «Cuadrada» en verde. Es la peor forma posible de este defecto: el reporte
+    que un contador abre para comprobar que todo está bien le contesta que sí
+    justo cuando no ha podido preguntarlo.
+  */
+  const [error, setError] = useState('');
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
 
@@ -52,7 +62,18 @@ export default function BalanzaComprobacionPage() {
       const res = await fetch(`${api}/finanzas/polizas/balanza?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) setCuentas(await res.json());
+      if (res.ok) {
+        setCuentas(await res.json());
+        setError('');
+      } else {
+        setCuentas([]);
+        setError(res.status === 403
+          ? 'Tu perfil no incluye la consulta de la balanza.'
+          : 'No se pudo consultar la balanza. Los importes de esta pantalla no son válidos.');
+      }
+    } catch {
+      setCuentas([]);
+      setError('No hay conexión con el servidor. Los importes de esta pantalla no son válidos.');
     } finally { setCargando(false); }
   }, [api]);
 
@@ -93,9 +114,13 @@ export default function BalanzaComprobacionPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border font-semibold text-sm ${
-            cuadrada ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
+            error ? 'bg-slate-100 border-slate-300 text-slate-600'
+              : cuadrada ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              : 'bg-rose-50 border-rose-200 text-rose-700'
           }`}>
-            {cuadrada
+            {error
+              ? <><AlertCircle className="w-4 h-4" /> Sin datos</>
+              : cuadrada
               ? <><CheckCircle2 className="w-4 h-4" /> Cuadrada</>
               : <><AlertCircle className="w-4 h-4" /> Descuadrada</>
             }
@@ -106,6 +131,12 @@ export default function BalanzaComprobacionPage() {
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {error}
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6">

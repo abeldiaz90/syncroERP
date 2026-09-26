@@ -69,7 +69,72 @@ export class DiagnosticoConfiguracionService {
       this.contarActivos('listas_precio', empresaId), this.contar('creditos_clientes', empresaId),
     ]);
 
-    const empresa = await this.ds.query(`SELECT rfc, regimenFiscal, direccion, codigoPostal, onboardingCompletado FROM Empresas WHERE id=$1 LIMIT 1`, [empresaId]);
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * UNA CUENTA BANCARIA SIN CUENTA CONTABLE NO ES UNA CUENTA LISTA
+     *
+     * `FIN_BANCOS` decía «Cuenta bancaria o caja: completo» con sólo contar
+     * filas. Pero una caja o un banco sin cuenta contable no puede generar una
+     * sola póliza: `buscarCuentaSegunMetodoPago` devuelve null y TODA operación
+     * que la use —ventas, cobranza, pagos, traspasos, nómina— cae en la bandeja
+     * de asientos pendientes. El alta ya lo exige desde hace tiempo, pero las
+     * cuentas creadas antes de esa regla siguen ahí y nadie avisa.
+     *
+     * Medido el 25-sep-2026: la única cuenta de esta instalación —«PRUEBA POS
+     * SIN DINERO REAL»— no tiene cuenta contable, y el diagnóstico daba
+     * finanzas por lista.
+     *
+     * Contar filas no es comprobar que sirvan. Si la tabla no existe se avisa
+     * como «no medido» en vez de devolver un cero que parece un dato.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const hayTablaBancos = await this.existeTabla('cuentas_bancarias');
+    const bancosSinCuenta = hayTablaBancos
+      ? await this.contar(
+          'cuentas_bancarias',
+          empresaId,
+          'AND activo=true AND cuentaContableId IS NULL',
+        )
+      : null;
+
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * UN PRODUCTO QUE SE PUEDE VENDER Y NO SE PUEDE FACTURAR
+     *
+     * El CFDI 4.0 exige por cada renglón la ClaveProdServ y la ClaveUnidad del
+     * catálogo del SAT. Sin ellas el PAC rechaza el comprobante entero — no la
+     * línea, el comprobante—. Pero el punto de venta no las pide: vende igual,
+     * cobra igual, y el problema aparece al timbrar, con el cliente delante.
+     *
+     * Medido el 25-sep-2026 en esta instalación: **los siete productos
+     * activos, sin excepción, están sin ClaveProdServ**, y cinco de siete sin
+     * ClaveUnidad. Ninguna venta de este catálogo se podía facturar, y nada lo
+     * advertía en ninguna pantalla.
+     *
+     * Se cuenta sólo lo vendible y activo: un producto dado de baja no estorba.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const hayTablaProductos = await this.existeTabla('productos');
+    const productosSinClaveSat = hayTablaProductos
+      ? await this.contar(
+          'productos',
+          empresaId,
+          "AND activo=true AND (claveSAT IS NULL OR TRIM(claveSAT)='' " +
+            "OR claveUnidadSAT IS NULL OR TRIM(claveUnidadSAT)='')",
+        )
+      : null;
+
+    /*
+     * Alias entrecomillados: sin ellos `e.regimenFiscal` y `e.codigoPostal`
+     * eran undefined, `fiscal` era SIEMPRE false y `GEN_FISCAL` —que bloquea—
+     * decía «datos fiscales incompletos» con los datos completos.
+     */
+    const empresa = await this.ds.query(
+      `SELECT rfc AS rfc, regimenFiscal AS "regimenFiscal", direccion AS direccion,
+              codigoPostal AS "codigoPostal", onboardingCompletado AS "onboardingCompletado"
+         FROM Empresas WHERE id=$1 LIMIT 1`,
+      [empresaId],
+    );
     const e = empresa?.[0] ?? {};
     const fiscal = Boolean(e.rfc && e.regimenFiscal && e.codigoPostal);
 
@@ -105,9 +170,56 @@ export class DiagnosticoConfiguracionService {
         { codigo:'CRE_BANCOS', titulo:'Cuenta bancaria para cobranza', completo:bancos>0, bloqueante:false, ruta:'/dashboard/creditos/cuentas-bancarias' },
         { codigo:'CRE_PRUEBA', titulo:'Crédito de prueba', completo:creditos>0, bloqueante:false, ruta:'/dashboard/creditos/creditos' },
       ]),
+      facturacion: this.evaluar([
+        {
+          codigo: 'FAC_CLAVES_SAT',
+          titulo:
+            productosSinClaveSat === null
+              ? 'Claves del SAT en los productos (no se pudo comprobar)'
+              : productosSinClaveSat > 0
+                ? `${productosSinClaveSat} producto(s) sin clave del SAT`
+                : 'Claves del SAT en los productos',
+          detalle:
+            productosSinClaveSat && productosSinClaveSat > 0
+              ? 'El CFDI exige ClaveProdServ y ClaveUnidad en cada renglón. Sin ' +
+                'ellas el PAC rechaza el comprobante completo, y el punto de ' +
+                'venta no las pide: la venta se cobra y el problema aparece al ' +
+                'timbrar, con el cliente delante.'
+              : undefined,
+          completo: productosSinClaveSat === 0,
+          /*
+           * Bloquea porque no es un paso pendiente: es una venta que ya se
+           * puede hacer y una factura que no se va a poder emitir.
+           */
+          bloqueante: (productosSinClaveSat ?? 0) > 0,
+          ruta: '/dashboard/productos',
+        },
+      ]),
       finanzas: this.evaluar([
         { codigo:'FIN_CUENTAS', titulo:'Plan contable', completo:cuentas>0, bloqueante:true, ruta:'/configuracion-financiera' },
-        { codigo:'FIN_BANCOS', titulo:'Cuenta bancaria o caja', completo:bancos>0, bloqueante:false, ruta:'/dashboard/creditos/cuentas-bancarias' },
+        {
+          codigo: 'FIN_BANCOS',
+          titulo:
+            bancosSinCuenta === null
+              ? 'Cuenta bancaria o caja (no se pudo comprobar)'
+              : bancosSinCuenta > 0
+                ? `${bancosSinCuenta} cuenta(s) de banco o caja sin cuenta contable`
+                : 'Cuenta bancaria o caja',
+          detalle:
+            bancosSinCuenta && bancosSinCuenta > 0
+              ? 'Sin cuenta contable, ninguna operación que use esa caja o ese ' +
+                'banco puede generar su póliza: todas caen en Asientos ' +
+                'pendientes y el problema se descubre al cerrar el mes.'
+              : undefined,
+          completo: bancos > 0 && bancosSinCuenta === 0,
+          /*
+           * Bloquea sólo cuando HAY cuentas y alguna está sin enlazar: eso es
+           * una configuración rota que va a romper pólizas. No tener ninguna
+           * todavía es un paso pendiente, no un error.
+           */
+          bloqueante: bancos > 0 && (bancosSinCuenta ?? 0) > 0,
+          ruta: '/dashboard/creditos/cuentas-bancarias',
+        },
       ]),
     };
 
@@ -157,8 +269,34 @@ export class DiagnosticoConfiguracionService {
     }
 
     if (await this.existeTabla('transferencias_inventario_detalle') && await this.existeTabla('transferencias_inventario')) {
+      /*
+       * ======================================================================
+       * Un error de otra empresa no es un error tuyo
+       * ----------------------------------------------------------------------
+       * Esta era la UNICA comprobacion del diagnostico que no filtraba por
+       * empresa: contaba los detalles huerfanos de TODAS. Dos consecuencias, y
+       * la segunda es peor que la primera.
+       *
+       * Se filtraba un dato de otra empresa —cuantos documentos rotos tiene—,
+       * que en multiempresa ya es de por si inaceptable. Y ademas el
+       * diagnostico mentia: a una empresa limpia se le reportaba un ERROR con
+       * un enlace a su pantalla de transferencias, donde no encontraria nada
+       * que arreglar. Un error que no se puede resolver acaba ignorandose, y
+       * con el se ignoran los que si eran suyos.
+       *
+       * Nadie lo filtro porque la tabla de detalle NO tiene `empresaId`: cuelga
+       * de su transferencia, y un huerfano es justo el que la perdio. Pero
+       * conserva el producto, y el producto si tiene dueño. Por ahi se le
+       * devuelve.
+       * ======================================================================
+       */
       const huerfanos = await this.ds.query(
-        `SELECT COUNT(1) total FROM transferencias_inventario_detalle d LEFT JOIN transferencias_inventario t ON t.id=d.transferenciaId WHERE t.id IS NULL`,
+        `SELECT COUNT(1) total
+           FROM transferencias_inventario_detalle d
+           LEFT JOIN transferencias_inventario t ON t.id = d.transferenciaId
+           INNER JOIN productos p ON p.id = d.productoId
+          WHERE t.id IS NULL AND p.empresaId = $1`,
+        [empresaId],
       );
       agregar('INV_TRANSFER_HUERFANA', 'ERROR', 'Detalles de transferencia huérfanos', Number(huerfanos?.[0]?.total ?? 0), 'Existen detalles sin documento de transferencia principal.', '/dashboard/inventario/transferencias');
     }

@@ -19,6 +19,15 @@ interface ProtectedElementProps {
    * - 'deshabilitar': renderiza el children envuelto en un span deshabilitado
    */
   sinPermiso?: 'ocultar' | 'deshabilitar';
+  /**
+   * Qué enseñar en lugar del contenido cuando no hay permiso.
+   *
+   * Existe porque ocultar a secas deja huecos que mienten: un estado vacío que
+   * decía «crea la primera con "Nueva reserva"» seguía ahí después de ocultar
+   * ese botón, mandando a pulsar algo que ya no está. Con esto se dice en su
+   * lugar quién sí puede hacerlo.
+   */
+  alternativa?: React.ReactNode;
   /** Clase CSS adicional para el wrapper cuando está deshabilitado */
   claseDeshabilitado?: string;
 }
@@ -43,6 +52,7 @@ export function ProtectedElement({
   children,
   sinPermiso = 'ocultar',
   claseDeshabilitado = 'opacity-40 pointer-events-none cursor-not-allowed select-none',
+  alternativa = null,
 }: ProtectedElementProps) {
   const { tienePermiso, cargando } = usePermiso();
 
@@ -63,8 +73,8 @@ export function ProtectedElement({
         </span>
       );
     }
-    // 'ocultar' — no renderiza nada
-    return null;
+    // 'ocultar' — nada, o lo que se haya puesto en su lugar
+    return <>{alternativa}</>;
   }
 
   return <>{children}</>;

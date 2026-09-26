@@ -24,6 +24,7 @@ import {
   TipoObligacionEmpleado,
 } from './nomina-avanzada.entity';
 import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
+import { EsRfc } from '../../common/validators/rfc.validator';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -40,7 +41,7 @@ export class ConfiguracionPatronalDto {
   razonSocial!: string;
 
   @Transform(upper)
-  @Matches(/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/)
+  @EsRfc()
   rfc!: string;
 
   @IsOptional()

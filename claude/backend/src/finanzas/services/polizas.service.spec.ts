@@ -397,6 +397,86 @@ describe('Ninguna póliza se fecha en un día que no ha llegado', () => {
   });
 });
 
+/**
+ * ============================================================================
+ * El control que tapaba la única salida del problema que evitaba
+ * ----------------------------------------------------------------------------
+ * La regla «ninguna póliza se fecha en un día que no ha llegado» vivía dentro
+ * de `aFecha`, que además de validar NORMALIZA. Y la reversa empieza leyendo la
+ * fecha de la póliza ORIGINAL con esa misma función.
+ *
+ * Resultado: las pólizas que ya estaban fechadas adelante —las que se
+ * capturaron antes de que el control existiera— no se podían cancelar. Al
+ * intentarlo:
+ *
+ *   «No se puede registrar una póliza con fecha 2026-10-15, que todavía no
+ *    llega.»
+ *
+ * ...dicho a quien no estaba registrando nada, sino intentando arreglar
+ * exactamente eso. Medido el 25-sep-2026 contra la instalación: DI-2026-00013
+ * (15-oct) y EG-2026-00013 (30-sep) llevaban dos días atoradas en la bandeja
+ * del espejo contable, rechazadas por Fineract, sin forma de reversarlas.
+ *
+ * Normalizar no es validar. La regla se aplica donde se ESCRIBE una fecha.
+ * ============================================================================
+ */
+describe('Una póliza ya fechada adelante se puede cancelar', () => {
+  const MOTIVO = 'Fecha de captura equivocada';
+  const enDias = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    return new Date(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+        d.getDate(),
+      ).padStart(2, '0')}T00:00:00`,
+    );
+  };
+
+  it('se puede reversar, aunque su fecha todavía no haya llegado', async () => {
+    const { servicio, estado } = crearArnes({
+      poliza: polizaVigente({
+        folio: 'DI-2026-00013',
+        fecha: enDias(20),
+        mes: enDias(20).getMonth() + 1,
+        anio: enDias(20).getFullYear(),
+      }),
+    });
+
+    await servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: MOTIVO });
+
+    expect(estado.reversa).not.toBeNull();
+  });
+
+  it('y la reversa NO hereda la fecha futura: se fecha hoy', async () => {
+    /*
+     * Heredarla sería fabricar una segunda póliza futura y dejar las dos
+     * atoradas: el mayor externo rechaza igual la reversa. Se cancela hoy, que
+     * es cuando de verdad se está cancelando.
+     */
+    const { servicio, estado } = crearArnes({
+      poliza: polizaVigente({ fecha: enDias(20) }),
+    });
+
+    await servicio.cancelarPoliza('emp-1', 'pol-1', { motivo: MOTIVO });
+
+    const fechaReversa = new Date(estado.reversa.fecha);
+    expect(fechaReversa.getTime()).toBeLessThanOrEqual(Date.now() + 1000);
+  });
+
+  it('pero seguir fechando adelante sigue prohibido', () => {
+    // La salida de emergencia no puede convertirse en la puerta principal.
+    const { servicio } = crearArnes();
+    return expect(
+      servicio.cancelarPoliza('emp-1', 'pol-1', {
+        motivo: MOTIVO,
+        fechaReverso: `${enDias(5).getFullYear()}-${String(
+          enDias(5).getMonth() + 1,
+        ).padStart(2, '0')}-${String(enDias(5).getDate()).padStart(2, '0')}`,
+      }),
+    ).rejects.toThrow(/todavía no llega/i);
+  });
+});
+
 // ═══════════════════ ATOMICIDAD ═══════════════════
 
 describe('cancelarPoliza — transacción', () => {

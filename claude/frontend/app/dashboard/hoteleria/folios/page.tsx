@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BedDouble, CreditCard, Plus, RefreshCw, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
+import { fechaCorta } from "@/lib/fechas";
 
 type Reserva = {
   id: string;
@@ -14,6 +15,18 @@ type Reserva = {
   estado: string;
   habitacionId: string | null;
   hotelId: string;
+};
+/* Lo que el check-out contesta y la pantalla tiraba. */
+type Cierre = {
+  folioId: string;
+  total: number;
+  totalCobrado?: number;
+  totalCredito?: number;
+  estadoContable?: string;
+  polizaId?: string | null;
+  advertencia?: string;
+  habitacion?: string | null;
+  idempotente?: boolean;
 };
 type Pago = {
   metodoPago: string;
@@ -47,7 +60,7 @@ type Folio = {
     referencia?: string;
   }>;
 };
-type Cuenta = { id: string; nombre: string; tipo: string; activo: boolean };
+type Cuenta = { id: string; nombre: string; tipo: string };
 type Convenio = {
   id: string;
   numeroConvenio: string;
@@ -82,28 +95,51 @@ export default function FoliosHotelPage() {
     { metodoPago: "EFECTIVO", importe: 0 },
   ]);
   const [error, setError] = useState("");
+  const [resumenCierre, setResumenCierre] = useState<
+    (Cierre & { codigo: string }) | null
+  >(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
+  /*
+    Las dos consultas iban juntas en un `Promise.all` y la segunda pedia
+    `GET /credito/cuentas-bancarias`, que trae CLABE y numero de cuenta y
+    pertenece a Tesoreria: hoteleria recibia 403, el Promise.all entero se
+    rechazaba y la pantalla se quedaba sin huespedes —«No hay huespedes con
+    check-in pendiente de salida»— teniendo uno dentro. Ahora se pide la lista
+    corta de cajas, la misma del mostrador, y cada consulta responde por si
+    misma: que no haya cajas impide cobrar, no ver quien esta hospedado.
+  */
   const cargar = useCallback(async () => {
     setCargando(true);
     setError("");
-    try {
-      const [r, c] = await Promise.all([
-        api.get<Reserva[]>("/hoteleria/operacion/reservaciones"),
-        api.get<Cuenta[]>("/credito/cuentas-bancarias"),
-      ]);
-      setReservas(r.filter((x) => x.estado === "CHECK_IN"));
-      setCuentas(c.filter((x) => x.activo));
-    } catch (e) {
-      setError(
-        e instanceof ApiError
-          ? e.mensajeParaPantalla()
-          : "No se pudo cargar la operación hotelera.",
-      );
-    } finally {
-      setCargando(false);
-    }
+    const problemas: string[] = [];
+    const [r, c] = await Promise.all([
+      api
+        .get<Reserva[]>("/hoteleria/operacion/reservaciones")
+        .catch((e: unknown) => {
+          problemas.push(
+            e instanceof ApiError
+              ? e.mensajeParaPantalla()
+              : "No se pudo cargar la operación hotelera.",
+          );
+          return null;
+        }),
+      api
+        .get<Cuenta[]>("/credito/cuentas-bancarias/para-cobro")
+        .catch((e: unknown) => {
+          problemas.push(
+            e instanceof ApiError && e.esSinPermisos
+              ? "Tu perfil no puede elegir caja: podrás ver los folios, no cobrarlos."
+              : "No se pudo cargar la lista de cajas.",
+          );
+          return null;
+        }),
+    ]);
+    if (r) setReservas(r.filter((x) => x.estado === "CHECK_IN"));
+    if (c) setCuentas(c);
+    setError(problemas.join(" "));
+    setCargando(false);
   }, []);
   useEffect(() => {
     void cargar();
@@ -112,15 +148,23 @@ export default function FoliosHotelPage() {
     setSeleccion(r);
     setError("");
     try {
+      /*
+        El folio es de esta pantalla; los convenios son del City Ledger, que es
+        otro módulo y puede no estar en el perfil de quien atiende recepción.
+        Sin convenios no se puede cargar a crédito de empresa —y se dice—, pero
+        el folio se abre y el huésped paga.
+      */
       const [f, conveniosHotel] = await Promise.all([
         api.get<Folio>(`/hoteleria/operacion/reservaciones/${r.id}/folio`),
-        api.get<Convenio[]>(
-          `/hoteleria/city-ledger/convenios?hotelId=${r.hotelId}`,
-        ),
+        api
+          .get<Convenio[]>(
+            `/hoteleria/city-ledger/convenios?hotelId=${r.hotelId}`,
+          )
+          .catch(() => null),
       ]);
       setFolio(f);
       setConvenios(
-        conveniosHotel.filter(
+        (conveniosHotel ?? []).filter(
           (convenio) =>
             convenio.estado === "APROBADO" &&
             Number(convenio.creditoDisponible) > 0,
@@ -195,12 +239,20 @@ export default function FoliosHotelPage() {
       ),
     );
   };
+  /*
+    El check-out cerraba el folio y no decia nada: el recuadro se cerraba y el
+    huesped desaparecia de la lista. El servidor, en cambio, contesta bastante
+    —cuanto se cobro, cuanto quedo a credito, si la poliza se genero o quedo
+    pendiente de reintento, y una advertencia cuando es lo segundo—. Todo eso
+    se tiraba. Un contador que cierra una cuenta necesita saber si la poliza
+    salio; que la pantalla calle no significa que si.
+  */
   const checkout = async () => {
     if (!seleccion || !folio) return;
     setGuardando(true);
     setError("");
     try {
-      await api.post(
+      const r = await api.post<Cierre>(
         `/hoteleria/operacion/reservaciones/${seleccion.id}/check-out`,
         {
           claveIdempotencia: crypto.randomUUID(),
@@ -211,6 +263,8 @@ export default function FoliosHotelPage() {
           })),
         },
       );
+      const codigo = seleccion.codigo ?? "";
+      setResumenCierre({ ...r, codigo });
       setSeleccion(null);
       setFolio(null);
       await cargar();
@@ -250,6 +304,43 @@ export default function FoliosHotelPage() {
           {error}
         </div>
       )}
+      {resumenCierre && (
+        <div
+          className={`rounded-xl border p-4 ${
+            resumenCierre.estadoContable === "GENERADO"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : "border-amber-200 bg-amber-50 text-amber-900"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-semibold">
+                {resumenCierre.idempotente
+                  ? `El folio ${resumenCierre.codigo} ya estaba cerrado.`
+                  : `Check-out de ${resumenCierre.codigo} cerrado por ${dinero(resumenCierre.total)}.`}
+              </p>
+              <p className="mt-1 text-sm">
+                {Number(resumenCierre.totalCredito ?? 0) > 0
+                  ? `Cobrado ${dinero(resumenCierre.totalCobrado ?? 0)} · a crédito ${dinero(resumenCierre.totalCredito ?? 0)}.`
+                  : `Cobrado ${dinero(resumenCierre.totalCobrado ?? resumenCierre.total)}.`}
+              </p>
+              <p className="mt-1 text-sm font-medium">
+                {resumenCierre.estadoContable === "GENERADO"
+                  ? "Póliza contable generada."
+                  : "Póliza contable PENDIENTE." +
+                    (resumenCierre.advertencia ? ` ${resumenCierre.advertencia}` : "")}
+              </p>
+            </div>
+            <button
+              onClick={() => setResumenCierre(null)}
+              className="rounded-lg p-1 hover:bg-white/60"
+              aria-label="Cerrar aviso"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {reservas.map((r) => (
           <button
@@ -268,12 +359,17 @@ export default function FoliosHotelPage() {
             </h2>
             <p className="text-slate-600">{r.clienteNombre || "Huésped"}</p>
             <p className="mt-3 text-sm text-slate-500">
-              {r.fechaEntrada} → {r.fechaSalida}
+              {fechaCorta(r.fechaEntrada)} → {fechaCorta(r.fechaSalida)}
             </p>
           </button>
         ))}
       </section>
-      {!cargando && reservas.length === 0 && (
+      {/*
+        «No hay huespedes» solo si de verdad no los hay. Con la consulta caida
+        la lista tambien viene vacia, y decir que el hotel esta vacio cuando lo
+        que fallo fue la pregunta es peor que no decir nada.
+      */}
+      {!cargando && reservas.length === 0 && !error && (
         <div className="rounded-2xl border border-dashed p-10 text-center text-slate-500">
           No hay huéspedes con check-in pendiente de salida.
         </div>

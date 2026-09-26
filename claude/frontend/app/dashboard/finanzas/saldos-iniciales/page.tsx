@@ -35,6 +35,12 @@ export default function SaldosInicialesPage() {
   const [guardando, setGuardando] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [toast, setToast]       = useState<{ msg: string; ok: boolean } | null>(null);
+  /*
+    Sin catálogo de cuentas esta pantalla sale sin una sola fila y parece que la
+    empresa no tiene cuentas contables. Lo que pasó es que no se pudo preguntar,
+    y hay que decirlo: es la pantalla donde se cargan los saldos de apertura.
+  */
+  const [errorCarga, setErrorCarga] = useState('');
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const tok = () => localStorage.getItem('syncro_token') ?? '';
@@ -46,8 +52,21 @@ export default function SaldosInicialesPage() {
   useEffect(() => {
     (async () => {
       setCargando(true);
-      const r = await fetch(`${api}/finanzas/cuentas-contables`, { headers: h() });
-      if (r.ok) setCuentas(await r.json());
+      try {
+        const r = await fetch(`${api}/finanzas/cuentas-contables`, { headers: h() });
+        if (r.ok) {
+          setCuentas(await r.json());
+          setErrorCarga('');
+        } else {
+          setCuentas([]);
+          setErrorCarga(r.status === 403
+            ? 'Tu perfil no incluye el catálogo de cuentas contables.'
+            : 'No se pudo cargar el catálogo de cuentas contables.');
+        }
+      } catch {
+        setCuentas([]);
+        setErrorCarga('No hay conexión con el servidor.');
+      }
       setCargando(false);
     })();
   }, []);
@@ -128,6 +147,12 @@ export default function SaldosInicialesPage() {
 
   return (
     <div className="p-6 md:p-10 max-w-4xl mx-auto">
+
+      {errorCarga && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {errorCarga}
+        </div>
+      )}
 
       {toast && (
         <div className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-4 rounded-xl shadow-2xl font-semibold text-white ${toast.ok ? 'bg-emerald-600' : 'bg-rose-600'}`}>

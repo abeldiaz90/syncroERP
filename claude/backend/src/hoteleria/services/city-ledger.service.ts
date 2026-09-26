@@ -571,22 +571,34 @@ export class CityLedgerService {
     );
 
     const exposiciones = await this.dataSource.query(
-      `SELECT base.clienteId,
+      /*
+       * `base.clienteId` iba SIN comillas, asi que la fila llegaba con la llave
+       * `clienteid` y `String(fila.clienteId)` producia la cadena "undefined".
+       * El mapa de exposiciones acababa con UNA sola entrada, llamada
+       * "undefined", y `exposicionPorCliente.get(...)` devolvia 0 para todos.
+       *
+       * O sea: al autorizar un convenio de hotel, el saldo que el cliente ya
+       * debe —en City Ledger y en cartera de ventas— contaba CERO. Un control
+       * de exposicion crediticia que siempre da cero es un control que siempre
+       * aprueba. Los dos alias de al lado si estaban entrecomillados, que es lo
+       * que hacia tan facil no ver el que faltaba.
+       */
+      `SELECT base.clienteId AS "clienteId",
               COALESCE(hotel.saldo,0) AS "saldoHotel",
               COALESCE(venta.saldo,0) AS "saldoVentas"
-         FROM (SELECT DISTINCT clienteId FROM hoteleria_convenios_credito WHERE empresaId=$1) base
+         FROM (SELECT DISTINCT clienteId AS "clienteId" FROM hoteleria_convenios_credito WHERE empresaId=$1) base
          LEFT JOIN (
-           SELECT clienteId, SUM(saldoPendiente) saldo
+           SELECT clienteId AS "clienteId", SUM(saldoPendiente) AS saldo
              FROM hoteleria_city_ledger_cuentas
             WHERE empresaId=$1 AND estado IN ('ABIERTA','VENCIDA')
             GROUP BY clienteId
-         ) hotel ON hotel.clienteId=base.clienteId
+         ) hotel ON hotel."clienteId"=base."clienteId"
          LEFT JOIN (
-           SELECT clienteId, SUM(saldoPendiente) saldo
+           SELECT clienteId AS "clienteId", SUM(saldoPendiente) AS saldo
              FROM creditos_clientes
             WHERE empresaId=$1 AND estado IN ('ACTIVO','VENCIDO')
             GROUP BY clienteId
-         ) venta ON venta.clienteId=base.clienteId`,
+         ) venta ON venta."clienteId"=base."clienteId"`,
       [empresaId],
     );
     const exposicionPorCliente = new Map<string, number>(
@@ -1009,10 +1021,30 @@ export class CityLedgerService {
 
   async diagnosticoHistorico(empresaId: string) {
     const filas = await this.dataSource.query(
-      `SELECT f.id folioId, r.codigo reservacion, f.total, f.totalCobrado,
-              f.saldoPendiente, f.estadoContable, p.metodoPago,
-              CASE WHEN cl.id IS NULL THEN 0 ELSE 1 END tieneCityLedger,
-              ap.estado estadoAsiento, ap.polizaId
+      /*
+       * OJO CON LAS COMILLAS, y no es estilo.
+       *
+       * PostgreSQL pliega a minusculas todo identificador que no venga
+       * entrecomillado. La REFERENCIA a la columna va sin comillas —la columna
+       * real es minuscula, por la estrategia de nombres— y el ALIAS va CON
+       * comillas, porque el alias es la llave con la que JavaScript va a leer
+       * la fila.
+       *
+       * Sin las comillas del alias, `fila.tieneCityLedger` era `undefined`
+       * SIEMPRE, y entonces `!fila.tieneCityLedger` era SIEMPRE cierto:
+       * `sinCityLedger` contaba todos los folios. Y
+       * `fila.estadoAsiento === 'GENERADO'` era SIEMPRE falso, con lo que
+       * `conPolizaGenerada` daba 0 y `pendientesContables` daba el total,
+       * dijeran lo que dijeran los datos. Un diagnostico que contesta lo mismo
+       * con cualquier base es peor que no tenerlo.
+       */
+      `SELECT f.id AS "folioId", r.codigo AS reservacion, f.total AS total,
+              f.totalCobrado AS "totalCobrado",
+              f.saldoPendiente AS "saldoPendiente",
+              f.estadoContable AS "estadoContable",
+              p.metodoPago AS "metodoPago",
+              CASE WHEN cl.id IS NULL THEN 0 ELSE 1 END AS "tieneCityLedger",
+              ap.estado AS "estadoAsiento", ap.polizaId AS "polizaId"
          FROM folios f
          INNER JOIN reservaciones r ON r.id=f.reservacionId AND r.empresaId=f.empresaId
          INNER JOIN pagos_folio_hotel p ON p.folioId=f.id AND p.empresaId=f.empresaId
@@ -1047,25 +1079,25 @@ export class CityLedgerService {
          CASE WHEN to_regclass('aprobaciones_documentos') IS NULL THEN 0 ELSE 1 END aprobaciones,
          CASE WHEN to_regclass('configuraciones_aprobacion') IS NULL THEN 0 ELSE 1 END matrices,
          CASE WHEN to_regclass('Usuarios') IS NULL THEN 0 ELSE 1 END usuarios,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('folios') AND column_name=LOWER('totalCredito')) THEN 0 ELSE 1 END totalCredito,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('folios') AND column_name=LOWER('cuentaCobrarHotelId')) THEN 0 ELSE 1 END enlaceCuenta,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('pagos_folio_hotel') AND column_name=LOWER('convenioId')) THEN 0 ELSE 1 END enlaceConvenio,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('versionCredito')) THEN 0 ELSE 1 END versionCredito,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('clasificacionHotelera')) THEN 0 ELSE 1 END clasificacionHotelera,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('bloquearCreditoConSaldoVencido')) THEN 0 ELSE 1 END politicaVencidos,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('estadoSolicitudCredito')) THEN 0 ELSE 1 END estadoSolicitudCredito,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('limiteCreditoSolicitado')) THEN 0 ELSE 1 END limiteCreditoSolicitado,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('diasCreditoSolicitados')) THEN 0 ELSE 1 END diasCreditoSolicitados,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('versionSolicitudCredito')) THEN 0 ELSE 1 END versionSolicitudCredito,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_convenios_credito') AND column_name=LOWER('versionCreditoCliente')) THEN 0 ELSE 1 END versionConvenioCredito,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('aprobaciones_documentos') AND column_name=LOWER('documentoVersion')) THEN 0 ELSE 1 END versionAprobacion,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('aprobaciones_documentos') AND column_name=LOWER('datosSolicitud')) THEN 0 ELSE 1 END snapshotAprobacion,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_city_ledger_cuentas') AND column_name=LOWER('convenioVersion')) THEN 0 ELSE 1 END cuentaConvenioVersion,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_city_ledger_cuentas') AND column_name=LOWER('numeroConvenioSnapshot')) THEN 0 ELSE 1 END cuentaNumeroConvenioSnapshot,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_city_ledger_cuentas') AND column_name=LOWER('tipoConvenioSnapshot')) THEN 0 ELSE 1 END cuentaTipoConvenioSnapshot,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_city_ledger_cuentas') AND column_name=LOWER('limiteCreditoAplicado')) THEN 0 ELSE 1 END cuentaLimiteCreditoAplicado,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_city_ledger_cuentas') AND column_name=LOWER('diasCreditoAplicados')) THEN 0 ELSE 1 END cuentaDiasCreditoAplicados,
-         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_city_ledger_cuentas') AND column_name=LOWER('versionCreditoClienteAplicada')) THEN 0 ELSE 1 END cuentaVersionCreditoAplicada`,
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('folios') AND column_name=LOWER('totalCredito')) THEN 0 ELSE 1 END "totalCredito",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('folios') AND column_name=LOWER('cuentaCobrarHotelId')) THEN 0 ELSE 1 END "enlaceCuenta",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('pagos_folio_hotel') AND column_name=LOWER('convenioId')) THEN 0 ELSE 1 END "enlaceConvenio",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('versionCredito')) THEN 0 ELSE 1 END "versionCredito",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('clasificacionHotelera')) THEN 0 ELSE 1 END "clasificacionHotelera",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('bloquearCreditoConSaldoVencido')) THEN 0 ELSE 1 END "politicaVencidos",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('estadoSolicitudCredito')) THEN 0 ELSE 1 END "estadoSolicitudCredito",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('limiteCreditoSolicitado')) THEN 0 ELSE 1 END "limiteCreditoSolicitado",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('diasCreditoSolicitados')) THEN 0 ELSE 1 END "diasCreditoSolicitados",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('clientes') AND column_name=LOWER('versionSolicitudCredito')) THEN 0 ELSE 1 END "versionSolicitudCredito",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_convenios_credito') AND column_name=LOWER('versionCreditoCliente')) THEN 0 ELSE 1 END "versionConvenioCredito",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('aprobaciones_documentos') AND column_name=LOWER('documentoVersion')) THEN 0 ELSE 1 END "versionAprobacion",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('aprobaciones_documentos') AND column_name=LOWER('datosSolicitud')) THEN 0 ELSE 1 END "snapshotAprobacion",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_city_ledger_cuentas') AND column_name=LOWER('convenioVersion')) THEN 0 ELSE 1 END "cuentaConvenioVersion",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_city_ledger_cuentas') AND column_name=LOWER('numeroConvenioSnapshot')) THEN 0 ELSE 1 END "cuentaNumeroConvenioSnapshot",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_city_ledger_cuentas') AND column_name=LOWER('tipoConvenioSnapshot')) THEN 0 ELSE 1 END "cuentaTipoConvenioSnapshot",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_city_ledger_cuentas') AND column_name=LOWER('limiteCreditoAplicado')) THEN 0 ELSE 1 END "cuentaLimiteCreditoAplicado",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_city_ledger_cuentas') AND column_name=LOWER('diasCreditoAplicados')) THEN 0 ELSE 1 END "cuentaDiasCreditoAplicados",
+         CASE WHEN NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=LOWER('hoteleria_city_ledger_cuentas') AND column_name=LOWER('versionCreditoClienteAplicada')) THEN 0 ELSE 1 END "cuentaVersionCreditoAplicada"`,
     );
     const esquema = objetos?.[0] ?? {};
     const bloqueos: string[] = [];
@@ -1103,10 +1135,18 @@ export class CityLedgerService {
 
     const matrices = Number(esquema.matrices)
       ? await this.dataSource.query(
-          `;WITH niveles AS (
+          /*
+           * El `;` que abria esta consulta es herencia de SQL Server, donde
+           * `;WITH` es idiomatico. En PostgreSQL convierte la consulta en DOS
+           * sentencias —una vacia y el WITH— y, como lleva `$1`, viaja por el
+           * protocolo extendido, que solo admite una: «cannot insert multiple
+           * commands into a prepared statement». Este diagnostico de
+           * disponibilidad de City Ledger no podia ejecutarse nunca.
+           */
+          `WITH niveles AS (
              SELECT proceso,orden,montoDesde,montoHasta,departamentoId,
                     obligatorio,permiteAutoaprobacion,usuarioId,rolAprobador,
-                    MAX(orden) OVER(PARTITION BY proceso) ultimoOrden
+                    MAX(orden) OVER(PARTITION BY proceso) AS "ultimoOrden"
                FROM configuraciones_aprobacion
               WHERE empresaId=$1 AND activo=true
                 AND proceso IN ('CREDITO_CLIENTE','HOTEL_CONVENIO')
@@ -1118,8 +1158,8 @@ export class CityLedgerService {
                   SUM(CASE WHEN (usuarioId IS NULL AND rolAprobador IS NULL) OR
                                      (usuarioId IS NOT NULL AND rolAprobador IS NOT NULL)
                            THEN 1 ELSE 0 END) AS "responsablesInvalidos",
-                  SUM(CASE WHEN orden=ultimoOrden AND montoHasta IS NOT NULL THEN 1 ELSE 0 END) AS "ultimoConTope",
-                  SUM(CASE WHEN orden<ultimoOrden AND montoHasta IS NULL THEN 1 ELSE 0 END) AS "intermediosSinTope"
+                  SUM(CASE WHEN orden="ultimoOrden" AND montoHasta IS NOT NULL THEN 1 ELSE 0 END) AS "ultimoConTope",
+                  SUM(CASE WHEN orden<"ultimoOrden" AND montoHasta IS NULL THEN 1 ELSE 0 END) AS "intermediosSinTope"
              FROM niveles
             GROUP BY proceso`,
           [empresaId],
@@ -1154,7 +1194,10 @@ export class CityLedgerService {
     const nivelesAprobacion =
       Number(esquema.matrices)
         ? await this.dataSource.query(
-            `SELECT proceso,orden,usuarioId,rolAprobador
+            // `nivel.rolAprobador` era undefined, así que ningún usuario
+            // casaba y el bloqueo «la matriz no puede completarse con personas
+            // distintas» se empujaba siempre.
+            `SELECT proceso,orden,usuarioId AS "usuarioId",rolAprobador AS "rolAprobador"
                FROM configuraciones_aprobacion
               WHERE empresaId=$1 AND activo=true
                 AND proceso IN ('CREDITO_CLIENTE','HOTEL_CONVENIO')
@@ -1269,18 +1312,18 @@ export class CityLedgerService {
                      cc.versionCreditoClienteAplicada IS NULL OR cc.versionCreditoClienteAplicada<=0
                    )) AS "cuentasSinEvidenciaHistorica",
                (SELECT COUNT(*) FROM (
-                  SELECT fechaVencimiento,
+                  SELECT fechaVencimiento AS "fechaVencimiento",
                          ROW_NUMBER() OVER(
                            PARTITION BY empresaId,proceso,documentoId,ciclo
                            ORDER BY nivel
-                         ) posicion
+                         ) AS posicion
                     FROM aprobaciones_documentos
                    WHERE empresaId=$1
                      AND proceso IN ('CREDITO_CLIENTE','HOTEL_CONVENIO')
                      AND estado='PENDIENTE'
                 ) sla
-                WHERE (sla.posicion=1 AND sla.fechaVencimiento IS NULL)
-                   OR (sla.posicion>1 AND sla.fechaVencimiento IS NOT NULL)) AS "slaNoSecuencial"
+                WHERE (sla.posicion=1 AND sla."fechaVencimiento" IS NULL)
+                   OR (sla.posicion>1 AND sla."fechaVencimiento" IS NOT NULL)) AS "slaNoSecuencial"
               FROM hoteleria_convenios_credito h
               LEFT JOIN hoteles hotel
                 ON hotel.id=h.hotelId AND hotel.empresaId=h.empresaId
@@ -1316,7 +1359,10 @@ export class CityLedgerService {
       'IMPUESTO_HOSPEDAJE_POR_PAGAR',
     ];
     const cuentas = await this.dataSource.query(
-      `SELECT rolSistema FROM cuentas_contables
+      // Sin el alias, `cuenta.rolSistema` era undefined y el conjunto de roles
+      // presentes quedaba en {undefined}: los CINCO bloqueos «falta una cuenta
+      // con rol X» se empujaban siempre, hubiera o no las cuentas.
+      `SELECT rolSistema AS "rolSistema" FROM cuentas_contables
         WHERE empresaId=$1 AND activo=true AND esAfectable=true
           AND rolSistema IN (${rolesNecesarios.map((_, i) => `$${i + 2}`).join(',')})`,
       [empresaId, ...rolesNecesarios],

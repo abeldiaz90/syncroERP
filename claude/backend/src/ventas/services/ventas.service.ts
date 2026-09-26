@@ -42,6 +42,7 @@ import {
   METODOS_CREDITO_VENTA,
   METODOS_QUE_REQUIEREN_CUENTA,
 } from '../constants/metodos-pago';
+import { esConflictoDeConcurrencia } from '../../common/database/errores-sql';
 
 // Contrato único de métodos de pago del backend.
 const METODOS_CREDITO = METODOS_CREDITO_VENTA;
@@ -527,8 +528,27 @@ export class VentasService {
 
       // La fila outbox se confirmó junto con la venta. Se intenta procesar
       // de inmediato; si el proceso cae, el cron la retoma sin perderla.
+      /*
+       * `reintentarAhora` no lanza cuando el asiento falla: devuelve
+       * `{ generado: false }`. Descartar la respuesta dejaba a la venta sin
+       * poder decir si llegó al mayor —lo que la recepción, la devolución y la
+       * anulación sí informan—. La venta se confirma igual; lo que cambia es
+       * que ahora se sabe.
+       */
+      let estadoContable: 'GENERADO' | 'PENDIENTE' = 'PENDIENTE';
+      let polizaId: string | undefined;
       try {
-        await this.asientos.reintentarAhora(eventoContable.id, empresaId);
+        const asiento = await this.asientos.reintentarAhora(
+          eventoContable.id,
+          empresaId,
+        );
+        estadoContable = asiento?.generado ? 'GENERADO' : 'PENDIENTE';
+        polizaId = asiento?.polizaId;
+        if (!asiento?.generado) {
+          this.logger.warn(
+            `Venta #${folio} confirmada; la póliza quedó pendiente: ${asiento?.mensaje ?? 'sin detalle'}`,
+          );
+        }
       } catch (error) {
         const mensaje = error instanceof Error ? error.message : String(error);
         this.logger.error(
@@ -557,19 +577,22 @@ export class VentasService {
         ...(resuelta.discrepancias.length > 0
           ? { discrepanciasPrecio: resuelta.discrepancias }
           : {}),
+        estadoContable,
+        asientoPendienteId: eventoContable.id,
+        ...(polizaId ? { polizaId } : {}),
       };
     } catch (err) {
       const transaccionSeguíaActiva = qr.isTransactionActive;
       if (transaccionSeguíaActiva) await qr.rollbackTransaction();
       if (
         transaccionSeguíaActiva &&
-        this.esDeadlockSqlServer(err) &&
+        esConflictoDeConcurrencia(err) &&
         intentoDeadlock < 2
       ) {
         const esperaMs =
           80 + Math.floor(Math.random() * 120) + intentoDeadlock * 100;
         this.logger.warn(
-          `Deadlock 1205 al crear venta. Reintento ${intentoDeadlock + 1}/2 en ${esperaMs} ms.`,
+          `Interbloqueo al crear venta. Reintento ${intentoDeadlock + 1}/2 en ${esperaMs} ms.`,
         );
         await new Promise((resolve) => setTimeout(resolve, esperaMs));
         return this.crear(
@@ -587,25 +610,6 @@ export class VentasService {
     }
   }
 
-  private esDeadlockSqlServer(error: unknown): boolean {
-    const e = error as {
-      number?: number;
-      code?: string;
-      message?: string;
-      driverError?: { number?: number; code?: string; message?: string };
-      originalError?: { info?: { number?: number }; message?: string };
-    };
-    return (
-      e?.number === 1205 ||
-      e?.driverError?.number === 1205 ||
-      e?.originalError?.info?.number === 1205 ||
-      (e?.code === 'EREQUEST' &&
-        /1205|deadlock/i.test(e?.message ?? e?.driverError?.message ?? '')) ||
-      /deadlock|was deadlocked|error 1205/i.test(
-        `${e?.message ?? ''} ${e?.driverError?.message ?? ''} ${e?.originalError?.message ?? ''}`,
-      )
-    );
-  }
 
   // ── Carga la venta completa con cliente y manda el email ───────
   private async enviarEmailVenta(

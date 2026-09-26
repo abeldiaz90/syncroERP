@@ -24,7 +24,10 @@ import {
   MODULO_OTROS,
   moduloDeRuta,
 } from '../data/modulos-catalogo';
-import { ENDPOINTS_NAVEGABLES } from '../data/endpoints-navegables';
+import {
+  navegableDe,
+  normalizarParametrosDeRuta,
+} from '../data/endpoints-navegables';
 import { esRolAdministrador, normalizarRol } from '../utils/roles.util';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { SKIP_PERMISOS_KEY } from '../decorators/skip-permisos.decorator';
@@ -262,6 +265,30 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
    */
   private rolesEstaticosPorRuta = new Map<string, string[]>();
 
+  /*
+   * ==========================================================================
+   * Las pantallas que no necesitan permiso tambien son pantallas
+   * --------------------------------------------------------------------------
+   * `@SkipPermisos()` marca lo que cualquier sesion valida puede leer: paises,
+   * estados, bancos, formas de pago SAT, codigos postales. Son la lista contra
+   * la que se llena CUALQUIER formulario con domicilio o datos de pago, y
+   * resolverlos por contrato de roles dejaba los combos vacios —le paso al
+   * comprador el 21-sep-2026, con Pais y Forma de Pago obligatorios y en
+   * blanco—. Por eso el decorador existe y por eso estos endpoints NI SIQUIERA
+   * se dan de alta en la tabla: no hay permiso que conceder.
+   *
+   * Pero `mis-rutas` se armaba SOLO con filas de permiso. Sin fila no hay
+   * `rutaFrontend`, y sin `rutaFrontend` el layout niega la pantalla. Resultado
+   * medido el 25-sep-2026: `GET /catalogos/formas-pago` devolvia 200 con 22
+   * filas a tesoreria, y `/dashboard/catalogos/formas-pago` le contestaba «esta
+   * seccion no esta en tu perfil». La accion permitida y la pantalla negada,
+   * que es el tercer disfraz del mismo defecto esta semana.
+   *
+   * Aqui se recogen al descubrirlas, para poder concederlas a todos despues.
+   * ==========================================================================
+   */
+  private readonly pantallasSinPermiso = new Set<string>();
+
   constructor(
     @InjectRepository(Controlador)
     private controladorRepo: Repository<Controlador>,
@@ -337,8 +364,6 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
             SKIP_PERMISOS_KEY,
             [prototype[key], metatype],
           );
-          if (esPublico || omitePermisos) continue;
-
           const metodoStr = METHOD_MAP[metodoNum];
           if (!metodoStr || metodoStr === 'ALL') continue;
 
@@ -346,7 +371,18 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
             (rutaBase + '/' + rutaHandler)
               .replace(/\/+/g, '/')
               .replace(/\/$/, '') || '/';
-          const rutaNormalizada = rutaCompleta.replace(/\/:\w+/g, '/:id');
+          const rutaNormalizada = normalizarParametrosDeRuta(rutaCompleta);
+
+          /*
+           * `@Public()` no entra: eso es de antes de la sesion y no es una
+           * pantalla del panel. `@SkipPermisos()` si: es una pantalla que se
+           * abre con cualquier sesion, y alguien tiene que decirlo.
+           */
+          if (omitePermisos && !esPublico) {
+            const pantalla = navegableDe(metodoStr, rutaNormalizada)?.rutaFrontend;
+            if (pantalla) this.pantallasSinPermiso.add(pantalla);
+          }
+          if (esPublico || omitePermisos) continue;
 
           const yaExiste = entrada.endpoints.some(
             (e) => e.metodo === metodoStr && e.ruta === rutaNormalizada,
@@ -455,7 +491,7 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
         const claveNav = `${ep.metodo} ${ep.ruta}`;
         clavesDescubiertas.add(claveNav);
         // @Navegable del handler tiene prioridad; diccionario como respaldo garantizado
-        const navMeta = ep.navDecorador ?? ENDPOINTS_NAVEGABLES[claveNav];
+        const navMeta = ep.navDecorador ?? navegableDe(ep.metodo, ep.ruta);
 
         /*
          * ELIMINADA la inferencia `/dashboard${ep.ruta}`. Generaba 139 rutas
@@ -999,10 +1035,11 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     // pero en BD esta guardada sin ese prefijo.
     const rutaSinPrefijo = ruta.startsWith('/api') ? ruta.slice(4) : ruta;
 
-    const rutaLimpia = rutaSinPrefijo
-      .replace(/\/+$/, '')
-      .replace(/\/[0-9a-fA-F-]{36}/g, '/:id')
-      .replace(/\/:\w+/g, '/:id');
+    const rutaLimpia = normalizarParametrosDeRuta(
+      rutaSinPrefijo
+        .replace(/\/+$/, '')
+        .replace(/\/[0-9a-fA-F-]{36}/g, '/:id'),
+    );
 
     const cacheKey = `${empresaId}:${rolNormalizado}:${metodoLimpio}:${rutaLimpia}`;
     const cacheado = this.cache.get(cacheKey);
@@ -1406,12 +1443,17 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       if (f.rutaFrontend) rutas.add(f.rutaFrontend);
       // Los endpoints que no traen ruta en la base se completan con el
       // diccionario estático, que es el que sabe a qué pantalla llevan.
-      const nav = ENDPOINTS_NAVEGABLES[`${f.metodo} ${f.ruta}`];
+      const nav = navegableDe(f.metodo, f.ruta);
       if (nav?.rutaFrontend) rutas.add(nav.rutaFrontend);
       // Una misma acción puede habilitar más de una pantalla: la caja vive en
       // `/pos` y la dirección vieja sigue redirigiendo a ella.
       for (const extra of nav?.rutasAdicionales ?? []) rutas.add(extra);
     }
+    /*
+     * Y las que no piden permiso a nadie. Van al final y sin condicion: no son
+     * una concesion a este rol, son una regla del sistema.
+     */
+    for (const pantalla of this.pantallasSinPermiso) rutas.add(pantalla);
     return Array.from(rutas);
   }
 
@@ -1883,9 +1925,17 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
    * propia firma. Esas filas se apagan aqui; la lectura la conservan por
    * `modulosConsulta`, porque ver por que algo te llega no es gobernarlo.
    */
+  /*
+   * «city-ledger» se separo de «hoteleria» el 25-sep-2026. Hasta ese dia el
+   * credito hotelero vivia dentro del modulo de recepcion, asi que Cobranza
+   * —que es quien trabaja esa cartera— solo podia llegar a el llevandose
+   * tambien la configuracion de las propiedades y la auditoria nocturna. Las
+   * filas del reparto viejo se apagan aqui.
+   */
   private static readonly MODULOS_RECIEN_SEPARADOS = [
     'almacenes',
     'gobierno-aprobaciones',
+    'city-ledger',
   ];
 
   /**

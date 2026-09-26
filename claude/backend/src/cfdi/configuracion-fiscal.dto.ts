@@ -7,12 +7,13 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { EsRfcOpcional } from '../common/validators/rfc.validator';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
 export class GuardarConfiguracionFiscalDto {
-  @Transform(trim) @IsString() @Matches(/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/i) @IsOptional()
+  @Transform(trim) @EsRfcOpcional()
   rfc?: string;
   @Transform(trim) @IsString() @MinLength(2) @MaxLength(300) @IsOptional()
   razonSocial?: string;

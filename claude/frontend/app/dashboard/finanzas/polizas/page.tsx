@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { fechaCorta } from '@/lib/fechas';
 import Link from 'next/link';
 import {
   BookOpen, FileText, Search, X, Plus,
@@ -39,7 +40,7 @@ const TIPO_CFG = {
 const fmt$ = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
 const fmtFecha = (s: string) =>
-  new Date(s + 'T00:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  fechaCorta(s);
 
 const HOY   = new Date();
 const DESDE = new Date(HOY.getFullYear(), HOY.getMonth(), 1).toISOString().split('T')[0];
@@ -50,6 +51,7 @@ const POR_PAGINA = 20;
 export default function LibroDiarioPage() {
   const [polizas, setPolizas]       = useState<IPoliza[]>([]);
   const [cargando, setCargando]     = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
   const [busqueda, setBusqueda]     = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
   const [desde, setDesde]           = useState(DESDE);
@@ -67,10 +69,28 @@ export default function LibroDiarioPage() {
 
   const cargar = useCallback(async () => {
     setCargando(true);
-    const r = await fetch(`${api}/finanzas/polizas`, {
-      headers: { Authorization: `Bearer ${tok()}` },
-    });
-    if (r.ok) setPolizas(await r.json());
+    /*
+      «No hay pólizas» y «no pude preguntar por las pólizas» se veían igual: la
+      lista vacía. En el libro diario de una empresa que sí opera, lo primero
+      alarma y lo segundo hay que decirlo.
+    */
+    try {
+      const r = await fetch(`${api}/finanzas/polizas`, {
+        headers: { Authorization: `Bearer ${tok()}` },
+      });
+      if (r.ok) {
+        setPolizas(await r.json());
+        setErrorCarga('');
+      } else {
+        setPolizas([]);
+        setErrorCarga(r.status === 403
+          ? 'Tu perfil no incluye la consulta de pólizas.'
+          : 'No se pudieron consultar las pólizas.');
+      }
+    } catch {
+      setPolizas([]);
+      setErrorCarga('No hay conexión con el servidor.');
+    }
     setCargando(false);
     setPagina(1);
   }, []);
@@ -219,6 +239,14 @@ export default function LibroDiarioPage() {
           <div className="p-16 text-center">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
             <p className="text-slate-400 text-sm">Cargando pólizas...</p>
+          </div>
+        ) : errorCarga ? (
+          <div className="p-16 text-center">
+            <FileText className="w-12 h-12 text-rose-200 mx-auto mb-3"/>
+            <p className="font-semibold text-rose-700">{errorCarga}</p>
+            <p className="text-sm text-slate-500 mt-1">
+              El libro diario no está vacío: no se pudo consultar.
+            </p>
           </div>
         ) : paginas.length === 0 ? (
           <div className="p-16 text-center">

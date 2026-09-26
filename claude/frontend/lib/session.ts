@@ -103,9 +103,25 @@ export function iniciales(nombre: string): string {
  */
 export function cubre(permiso: string, ruta: string): boolean {
   if (permiso === '*') return true;
-  const p = permiso.replace(/\/+$/, '');
-  const r = ruta.replace(/\/+$/, '');
-  return r === p || r.startsWith(p + '/');
+  /*
+   * Se compara SEGMENTO A SEGMENTO, y un segmento `:algo` acepta cualquiera.
+   *
+   * Antes esto era `r.startsWith(p + '/')` sobre la cadena entera, y por eso
+   * las doce pantallas que llevan un identificador dentro de la ruta
+   * —`/dashboard/ventas/<id>/ticket`, el detalle de una orden, el expediente
+   * de un cliente— no las cubria ningun permiso: el permiso que el backend
+   * concede es `/dashboard/ventas/:id/ticket`, con el parametro literal, y
+   * ninguna cadena real empieza por ahi. El ticket de una venta decia «esta
+   * seccion no esta en tu perfil» a los diez roles aunque el backend
+   * contestara 200, porque esta capa es distinta de la tabla de permisos.
+   *
+   * Comparar segmentos arregla de paso un fallo silencioso del startsWith:
+   * el permiso `/dashboard/venta` cubria `/dashboard/ventas`.
+   */
+  const p = permiso.replace(/\/+$/, '').split('/');
+  const r = ruta.replace(/\/+$/, '').split('/');
+  if (r.length < p.length) return false;
+  return p.every((seg, i) => seg.startsWith(':') || seg === r[i]);
 }
 
 /** ¿El usuario puede entrar a `ruta` con esta lista de permisos? */

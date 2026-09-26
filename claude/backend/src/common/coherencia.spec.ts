@@ -22,7 +22,11 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'fs';
 import { join, relative, sep} from 'path';
 import { PLANTILLAS_PERMISOS } from '../iam/data/plantillas-permisos';
-import { ENDPOINTS_NAVEGABLES } from '../iam/data/endpoints-navegables';
+import {
+  ENDPOINTS_NAVEGABLES,
+  navegableDe,
+  normalizarParametrosDeRuta,
+} from '../iam/data/endpoints-navegables';
 import { moduloDeRuta, MODULOS_ASIGNABLES, MODULOS_POR_ID } from '../iam/data/modulos-catalogo';
 import { MODULOS_NEGOCIO } from '../iam/data/modulos-catalogo';
 import { ROLES_CON_TRAZA_COMPLETA } from '../aprobaciones/services/aprobaciones-documentos.service';
@@ -116,6 +120,17 @@ function rutasDelBackend(): Set<string> {
             .filter(Boolean)
             .join('/');
         rutas.add(`${verbo} ${completa}`);
+        /*
+         * Y la forma NORMALIZADA, que es la que el sistema usa de verdad.
+         * `normalizarParametrosDeRuta` convierte todo `/:loQueSea` en `/:id`
+         * antes de guardar el endpoint en el catálogo, así que el contrato de
+         * roles se escribe con `:id` aunque el controlador declare `:pagoId`.
+         * Comparar sólo contra el texto literal hacía que esta prueba y el
+         * sistema coincidieran por casualidad —porque casi todos los
+         * parámetros se llaman `id`— y rechazara como huérfana una acción que
+         * en ejecución sí casa.
+         */
+        rutas.add(`${verbo} ${completa.replace(/\/:\w+/g, '/:id')}`);
       }
     }
   }
@@ -1575,6 +1590,44 @@ describe('Coherencia · un boton que lleva a un 403 es peor que no tenerlo', () 
     expect(texto).toMatch(/tienePermiso\(\s*a\.accion\.metodo,\s*a\.accion\.ruta\s*\)/);
   });
 
+  it('la barra superior respeta la accion declarada, tambien en las de ventana', () => {
+    /*
+     * La barra contextual es la OTRA puerta a los mismos botones, y se habia
+     * quedado sin la regla por un orden de operaciones: el filtro empezaba con
+     * `a.ventana ||`, asi que las acciones de ventana se saltaban las dos
+     * comprobaciones —pantalla y accion— con el argumento de que lo que se
+     * puede hacer dentro lo decide el servidor.
+     *
+     * Y lo decide. El problema es lo que ve el usuario antes: a gerencia, a
+     * contabilidad y a credito la barra les ofrecia «Abrir caja» en boton
+     * primario, la ventana se abria, y dentro decia «tu perfil no incluye la
+     * caja». Un viaje entero para llegar a un no.
+     *
+     * La condicion de pantalla si tiene que saltarsela —la caja no es una
+     * pantalla del area de trabajo—; la de accion, no.
+     */
+    if (!FRONTEND) return;
+    const barra = join(FRONTEND, 'components/navigation/BarraContextualModulo.tsx');
+    if (!existsSync(barra)) return;
+    const texto = sinComentarios(leer(barra));
+    expect(texto).toMatch(/tienePermiso\(\s*a\.accion\.metodo,\s*a\.accion\.ruta\s*\)/);
+    /* Que la comprobacion de accion no cuelgue detras de `a.ventana ||`. */
+    expect(texto).not.toMatch(/a\.ventana\s*\|\|[\s\S]{0,200}a\.accion/);
+  });
+
+  it('la caja declara que se abre solo para quien puede vender', () => {
+    /*
+     * El caso concreto, escrito aparte, porque el filtro sin la declaracion no
+     * sirve de nada: un boton sin `accion` declarada pasa por cualquier filtro.
+     */
+    if (!FRONTEND) return;
+    const config = leer(join(FRONTEND, 'app/dashboard/module-config.ts'));
+    const i = config.indexOf('label: "Abrir caja"');
+    expect(i).toBeGreaterThan(-1);
+    const bloque = config.slice(i, config.indexOf('},', i));
+    expect(bloque).toMatch(/accion:\s*\{\s*metodo:\s*"POST",\s*ruta:\s*"\/ventas"/);
+  });
+
   it('toda accion declarada en el menu apunta a un endpoint real', () => {
     if (!FRONTEND) return;
     const config = leer(join(FRONTEND, 'app/dashboard/module-config.ts'));
@@ -1587,6 +1640,86 @@ describe('Coherencia · un boton que lleva a un 403 es peor que no tenerlo', () 
       if (!rutas.has(clave)) huerfanas.push(clave);
     }
     expect(huerfanas).toEqual([]);
+  });
+});
+
+describe('Coherencia · una etiqueta del menu no finge ser una alarma', () => {
+  /*
+   * ==========================================================================
+   * El aviso que siempre decia lo mismo
+   * --------------------------------------------------------------------------
+   * «Integridad financiera» llevaba en el menu la etiqueta «Crítico», escrita
+   * a mano en `module-config.ts`. Fija. Las demas etiquetas de ese menu
+   * describen QUE ES la pantalla —«Nuevo», «Guiado», «Requerido»— y esta
+   * nombraba un NIVEL DE SEVERIDAD, asi que el menu avisaba de un hallazgo
+   * critico tambien con el tablero en verde.
+   *
+   * Se vio el 25-sep-2026, minutos despues de dejar el diagnostico en
+   * SALUDABLE: el menu seguia diciendo «Crítico». Un aviso que no depende de
+   * nada es un aviso que nadie vuelve a creer, y el dia que haya algo critico
+   * de verdad se vera igual que ayer.
+   *
+   * La regla: si una etiqueta nombra un estado, tiene que venir del estado. Si
+   * es fija, describe la pantalla.
+   * ==========================================================================
+   */
+  it('ninguna etiqueta fija nombra una severidad', () => {
+    if (!FRONTEND) return;
+    const config = sinComentarios(
+      leer(join(FRONTEND, 'app/dashboard/module-config.ts')),
+    );
+    const severidades = /^(crítico|critico|alto|alta|error|alerta|urgente|bloqueado)$/i;
+    const culpables = [...config.matchAll(/etiqueta:\s*"([^"]+)"/g)]
+      .map((m) => m[1])
+      .filter((e) => severidades.test(e.trim()));
+    expect([...new Set(culpables)]).toEqual([]);
+  });
+});
+
+describe('Coherencia · quien cierra la caja se entera de lo que paso', () => {
+  /*
+   * ==========================================================================
+   * El corte que no decia nada
+   * --------------------------------------------------------------------------
+   * Se cerro un turno desde la pantalla, con el efectivo contado exacto. La
+   * caja desaparecio de la vista y el aviso decia «el corte y arqueo quedaron
+   * cerrados». Nada mas. La misma frase, palabra por palabra, que habria
+   * salido con un faltante de mil pesos.
+   *
+   * El servidor SI contesta: si el arqueo cuadro no hay nada que contabilizar,
+   * y si hubo diferencia dice si el faltante o el sobrante ya quedo en una
+   * poliza —`GENERADO`— o si quedo pendiente porque la contabilizacion fallo.
+   * La respuesta existia y la pantalla la tiraba: es el mismo defecto que ya
+   * corregimos en la venta, donde «generado» se decia sin mirar si la poliza
+   * habia salido.
+   *
+   * Quien cuenta el dinero responde por la diferencia. Enterarse de que su
+   * faltante quedo sin contabilizar tres dias despues, por la bandeja de
+   * asientos, no es enterarse.
+   * ==========================================================================
+   */
+  it('el cierre de caja informa el estado contable que devuelve el servidor', () => {
+    if (!FRONTEND) return;
+    const pantalla = join(FRONTEND, 'app/dashboard/tesoreria/caja/page.tsx');
+    if (!existsSync(pantalla)) return;
+    const texto = leer(pantalla);
+    expect(texto).toMatch(/FALTANTE/);
+    expect(texto).toMatch(/SOBRANTE/);
+    expect(texto).toMatch(/estadoContable/);
+    expect(texto).toMatch(/PENDIENTE/);
+    /* Y que el arqueo que cuadra lo diga, en vez de callar. */
+    expect(texto).toMatch(/cuadr[oó]/i);
+  });
+
+  it('el servidor sigue devolviendo ese estado', () => {
+    /*
+     * La pantalla no puede informar lo que nadie le manda. Si alguien quita el
+     * `estadoContable` de la respuesta, el aviso vuelve a ser generico sin que
+     * la prueba de arriba se entere.
+     */
+    const servicio = leer(join(SRC, 'caja/services/caja.service.ts'));
+    expect(servicio).toMatch(/estadoContable/);
+    expect(servicio).toMatch(/'GENERADO'\s*\|\s*'PENDIENTE'\s*\|\s*'NO_APLICA'/);
   });
 });
 
@@ -3213,5 +3346,757 @@ describe('Coherencia · un «no se puede» dice qué falta', () => {
     const bloque = /const sinCuenta = new Set<string>\(\)[\s\S]*?\n      \}/.exec(calculo)?.[0] ?? '';
     expect(bloque).toBeTruthy();
     expect(bloque).not.toContain('throw');
+  });
+});
+
+describe('Coherencia · el diccionario navegable y el catálogo nombran la misma ruta', () => {
+  /*
+   * ==========================================================================
+   * El hallazgo
+   * --------------------------------------------------------------------------
+   * La sincronización guarda cada endpoint con TODOS sus parámetros renombrados
+   * a `:id`, porque el guardia compara la ruta de la petición contra la fila y
+   * ahí los nombres no viajan. Este diccionario se escribe con el nombre real
+   * del parámetro, que es lo legible. La búsqueda era por clave exacta.
+   *
+   * Resultado: toda entrada cuyo parámetro no se llamara `id` quedaba MUDA. No
+   * fallaba —no hay forma de que una clave que no existe se queje—: el endpoint
+   * se daba de alta sin `rutaFrontend`, `esNavegable` en falso, y la pantalla
+   * no aparecía en el menú de ningún rol salvo administrador, aunque el permiso
+   * de la acción estuviera concedido.
+   *
+   * Eran cuatro pantallas: atributos y variantes, cobranza, estado de cuenta y
+   * conciliación bancaria. La última es el único bloqueo del cierre mensual, de
+   * modo que el sistema exigía conciliar el banco y no dejaba abrir la pantalla
+   * para conciliarlo. Ningún mes podía cerrarse salvo que lo hiciera el
+   * administrador, que es justo lo que la separación de funciones evita.
+   * ==========================================================================
+   */
+
+  it('toda entrada del diccionario se encuentra con la ruta tal como la guarda el catálogo', () => {
+    /*
+     * Ésta es la prueba que faltaba. Simula lo único que importa: el servicio
+     * no busca por la clave escrita aquí, busca por la ruta YA NORMALIZADA que
+     * trae la fila del catálogo. Si las dos formas no se encuentran, la entrada
+     * no sirve para nada.
+     */
+    const mudas: string[] = [];
+    for (const [clave, meta] of Object.entries(ENDPOINTS_NAVEGABLES)) {
+      const [metodo, ...resto] = clave.split(' ');
+      const comoLaGuardaElCatalogo = normalizarParametrosDeRuta(resto.join(' '));
+      const encontrada = navegableDe(metodo, comoLaGuardaElCatalogo);
+      if (encontrada?.rutaFrontend !== meta.rutaFrontend) {
+        mudas.push(`${clave} → ${meta.rutaFrontend}`);
+      }
+    }
+    expect(mudas.sort()).toEqual([]);
+  });
+
+  it('el diccionario sólo se consulta por la función que normaliza', () => {
+    /*
+     * Indexarlo a mano —`ENDPOINTS_NAVEGABLES[`${metodo} ${ruta}`]`— es
+     * exactamente como nació el defecto: la clave se arma con la ruta cruda y
+     * no coincide. La única puerta es `navegableDe()`. El archivo de datos se
+     * exceptúa porque es quien construye el índice, y esta prueba porque
+     * necesita recorrer el mapa entero.
+     */
+    const culpables = CODIGO.filter(
+      (f) =>
+        !f.ruta.endsWith('iam/data/endpoints-navegables.ts') &&
+        !f.ruta.endsWith('coherencia.spec.ts') &&
+        /ENDPOINTS_NAVEGABLES\s*\[/.test(sinComentarios(f.texto)),
+    ).map((f) => f.ruta);
+    expect(culpables.sort()).toEqual([]);
+  });
+
+  it('la regla que renombra los parámetros está escrita una sola vez', () => {
+    /*
+     * Había dos copias del `replace(/\/:\w+/g, '/:id')` —una al descubrir los
+     * endpoints, otra al verificar el permiso— y el diccionario no tenía
+     * ninguna. Tres lados hablando de lo mismo, dos de acuerdo por casualidad.
+     * Mientras la regla viva en un solo lugar no pueden separarse.
+     */
+    const copias = CODIGO.filter(
+      (f) =>
+        !f.ruta.endsWith('iam/data/endpoints-navegables.ts') &&
+        !f.ruta.endsWith('coherencia.spec.ts') &&
+        /replace\(\s*\/\\\/:\\w\+\/g/.test(sinComentarios(f.texto)),
+    ).map((f) => f.ruta);
+    expect(copias.sort()).toEqual([]);
+  });
+
+  it('ninguna entrada del diccionario nombra una ruta que ningún controlador declara', () => {
+    /*
+     * El otro extremo del mismo error: una entrada que apunta a una ruta que ya
+     * no existe —porque el controlador la renombró o la partió— tampoco falla,
+     * también enmudece. La copia vieja del repositorio tenía justamente
+     * `GET /tesoreria/conciliacion`, sin parámetros, que no lo declara nadie.
+     */
+    const declaradas = new Set(
+      [...rutasDelBackend()].map((r) => {
+        const [metodo, ...resto] = r.split(' ');
+        return `${metodo} ${normalizarParametrosDeRuta(resto.join(' '))}`;
+      }),
+    );
+    const fantasmas = Object.keys(ENDPOINTS_NAVEGABLES)
+      .map((clave) => {
+        const [metodo, ...resto] = clave.split(' ');
+        return {
+          clave,
+          normalizada: `${metodo} ${normalizarParametrosDeRuta(resto.join(' '))}`,
+        };
+      })
+      .filter((e) => !declaradas.has(e.normalizada))
+      .map((e) => e.clave);
+    expect(fantasmas.sort()).toEqual([]);
+  });
+
+  it('la conciliación bancaria tiene pantalla, porque el cierre mensual la exige', () => {
+    /*
+     * El caso concreto, escrito aparte: mientras `CIERRE_EXIGIR_CONCILIACION_
+     * BANCARIA` sea el valor por omisión, el control BANCOS bloquea el cierre y
+     * su única salida es esta pantalla. Un bloqueo sin salida no es un control,
+     * es un muro.
+     */
+    const cierre = leer(
+      join(SRC, 'finanzas/services/cierre-contable.service.ts'),
+    );
+    expect(cierre).toContain("clave: 'BANCOS'");
+    expect(
+      navegableDe('GET', '/tesoreria/conciliacion/:id/reporte')?.rutaFrontend,
+    ).toBe('/dashboard/tesoreria/conciliacion');
+  });
+});
+
+describe('Coherencia · el cierre mensual no puede exigir lo imposible', () => {
+  /*
+   * ==========================================================================
+   * Un control que cuenta un estado que nadie escribe
+   * --------------------------------------------------------------------------
+   * El diagnóstico del cierre contaba las conciliaciones bancarias con
+   * `estado = 'CERRADA'` y bloqueaba el mes si no estaban todas. Pero
+   * `EstadoCierre.CERRADA` no se escribía en ninguna parte: el estado de cuenta
+   * nacía ABIERTA y no había endpoint, ni método, ni botón que lo cerrara. El
+   * enum estaba, las columnas `fechaCierre` y `conciliadoPorId` estaban, y dos
+   * guardias ya protegían un estado cerrado de ser modificado. Todo el diseño
+   * existía menos la puerta: los guardias vigilaban una habitación a la que no
+   * se podía entrar.
+   *
+   * `estadosCerrados` valía cero siempre. Ningún mes de ninguna empresa podía
+   * cerrarse, y no se veía, porque el control hacía exactamente lo que decía.
+   *
+   * La regla, entonces: todo estado que un control del cierre CUENTA tiene que
+   * tener, en alguna parte del sistema, quien lo ESCRIBA. Si no, el control no
+   * es estricto: es imposible.
+   * ==========================================================================
+   */
+  it('todo estado que el cierre cuenta tiene quien lo escriba', () => {
+    const cierre = leer(join(SRC, 'finanzas/services/cierre-contable.service.ts'));
+
+    // Lo que el diagnóstico exige, leído de sus propias consultas.
+    const exigidos = [
+      ...new Set(
+        [...cierre.matchAll(/estado\s*=\s*'([A-Z_]+)'/g)].map((m) => m[1]),
+      ),
+    ];
+    // Si esto se queda vacío la prueba no prueba nada: el cierre siempre
+    // condiciona sobre algún estado.
+    expect(exigidos.length).toBeGreaterThan(0);
+
+    /*
+     * Se leen los comentarios fuera a propósito: este mismo archivo explica el
+     * defecto citando `estado = 'CERRADA'`, y esa cita daba verde por sí sola.
+     * Una prueba que se aprueba con su propia documentación no mide nada.
+     */
+    const resto = CODIGO.filter(
+      (f) =>
+        !f.ruta.endsWith('finanzas/services/cierre-contable.service.ts') &&
+        !f.ruta.endsWith('.spec.ts'),
+    )
+      .map((f) => sinComentarios(f.texto))
+      .join('\n');
+
+    const sinQuienLosEscriba = exigidos.filter((estado) => {
+      // Una asignación a un campo de estado: `estado = X`, `estado: X`.
+      // El `(?<![=!<>])[:=](?![=])` descarta las comparaciones, que son
+      // justamente lo que sobraba y lo que faltaba.
+      const escritura = new RegExp(
+        `\\b\\w*[eE]stado\\w*\\s*(?<![=!<>])[:=](?![=])\\s*[^;,\\n]*\\b${estado}\\b`,
+      );
+      return !escritura.test(resto);
+    });
+
+    expect(sinQuienLosEscriba.sort()).toEqual([]);
+  });
+
+  /*
+   * Un mes sin movimientos en el banco es normal —una cuenta dormida, un mes
+   * anterior al arranque— y tres puertas distintas lo prohibían a la vez: el
+   * botón, la validación del modal y el `@ArrayMinSize(1)` del DTO. Arreglar
+   * dos de las tres no sirve de nada: la tercera contesta «lineas must contain
+   * at least 1 elements» y la cuenta dormida sigue bloqueando el mes.
+   *
+   * Cargar la nada no queda impune: el servicio exige que el estado de cuenta
+   * cuadre consigo mismo, así que sin líneas sólo se acepta si el saldo inicial
+   * es igual al final.
+   */
+  it('un mes sin movimientos bancarios se puede conciliar', () => {
+    const dto = sinComentarios(leer(join(SRC, 'tesoreria/dto/tesoreria.dto.ts')));
+    const declaracion = /lineas!: LineaEstadoCuentaDto\[\]/.exec(dto);
+    expect(declaracion).toBeTruthy();
+    const linea = dto.slice(
+      dto.lastIndexOf('\n', declaracion!.index) + 1,
+      declaracion!.index,
+    );
+    expect(linea).not.toContain('ArrayMinSize');
+
+    // Y el servicio sigue exigiendo que cuadre, que es lo que lo hace seguro.
+    const tesoreria = sinComentarios(
+      leer(join(SRC, 'tesoreria/services/tesoreria.service.ts')),
+    );
+    expect(tesoreria).toContain('El estado de cuenta no cuadra');
+  });
+
+  /*
+   * El caso concreto, escrito aparte para que el día que alguien borre el
+   * método el fallo diga su nombre y no sólo «CERRADA».
+   */
+  it('la conciliación bancaria se puede cerrar, y sólo si cuadra', () => {
+    const tesoreria = sinComentarios(
+      leer(join(SRC, 'tesoreria/services/tesoreria.service.ts')),
+    );
+    expect(tesoreria).toContain('async cerrarConciliacion(');
+    expect(tesoreria).toContain('estado.estado = EstadoCierre.CERRADA');
+    // La condición no es opcional: sin ella el cierre firma un descuadre.
+    expect(tesoreria).toMatch(/if \(!reporte\.cuadra\)/);
+
+    const controlador = sinComentarios(
+      leer(join(SRC, 'tesoreria/controllers/tesoreria.controller.ts')),
+    );
+    expect(controlador).toContain("conciliacion/:estadoCuentaId/cerrar");
+  });
+});
+
+describe('Coherencia · lo que la base recibe y lo que el codigo cree que mando', () => {
+  /*
+   * ==========================================================================
+   * Tres defectos de esta familia, encontrados en el log de Postgres
+   * --------------------------------------------------------------------------
+   * Ninguno de los tres se veia desde la aplicacion. Dos se tragaban en un
+   * try/catch y el tercero salia como «No se pudo completar la operación en la
+   * base de datos», que no dice nada. Los tres estaban escritos, en claro, en
+   * el log del motor.
+   * ==========================================================================
+   */
+
+  /*
+   * El candado del cierre pasaba DOS parametros a una consulta con UN `$1`.
+   * Postgres contesta «bind message supplies 2 parameters, but prepared
+   * statement requires 1» y tumba la transaccion entera: ningun mes podia
+   * cerrarse. El segundo parametro era un `modo` ('Shared' | 'Exclusive') que
+   * sobrevivio al puerto desde SQL Server, donde `sp_getapplock` si lo recibe.
+   *
+   * La regla se comprueba en general: en toda consulta con parametros
+   * posicionales, el mayor `$n` del SQL tiene que coincidir con cuantos se
+   * pasan.
+   */
+  it('ninguna consulta manda mas parametros de los que su SQL usa', () => {
+    const descuadres: string[] = [];
+    let revisadas = 0;
+    // `consultar(`…$1…`, [a, b])` y `query(`…`, [a, b])`
+    const llamada =
+      /\b(?:consultar|query)\(\s*`([^`]*)`\s*,\s*\[([^\]]*)\]\s*,?\s*\)/gs;
+    for (const { ruta, texto } of CODIGO) {
+      if (ruta.endsWith('.spec.ts')) continue;
+      for (const m of sinComentarios(texto).matchAll(llamada)) {
+        const sql = m[1];
+        /*
+         * Solo se mide lo que se puede medir. Un SQL que se arma con
+         * interpolacion —`VALUES ($1,${placeholders})` en el sembrador de
+         * demo— lleva sus `$n` dentro de la expresion y contarlos aqui dice
+         * cualquier cosa; lo mismo con un arreglo que trae un spread. La
+         * prueba se calla ahi en vez de denunciar lo que no leyo, que es el
+         * mismo error que perseguimos en el codigo.
+         */
+        if (sql.includes('${') || m[2].includes('...')) continue;
+        const posiciones = [...sql.matchAll(/\$(\d+)/g)].map((x) => Number(x[1]));
+        if (!posiciones.length) continue;
+        revisadas += 1;
+        const exigidos = Math.max(...posiciones);
+        // Contar argumentos del arreglo: se parte por comas de primer nivel.
+        const crudo = m[2].trim();
+        if (!crudo) continue;
+        let nivel = 0;
+        let entregados = 1;
+        for (const c of crudo) {
+          if ('([{'.includes(c)) nivel++;
+          else if (')]}'.includes(c)) nivel--;
+          else if (c === ',' && nivel === 0) entregados++;
+        }
+        if (entregados !== exigidos) {
+          descuadres.push(`${ruta}: el SQL usa $${exigidos} y recibe ${entregados}`);
+        }
+      }
+    }
+    /*
+     * Esta prueba dio verde una vez sin haber leido NADA: su regex no aceptaba
+     * la coma final antes del parentesis y se saltaba justo la llamada del
+     * candado, que es la que tenia el defecto. Una prueba que no encuentra
+     * ninguna llamada no esta diciendo que todo esta bien, esta diciendo que
+     * no miro. Asi que primero se comprueba que miro.
+     */
+    expect(revisadas).toBeGreaterThan(20);
+    expect(descuadres.sort()).toEqual([]);
+  });
+
+  /*
+   * Y el mismo candado, aun sin ese error, no podia fallar: `pg_advisory_xact_lock`
+   * ESPERA hasta obtenerlo y no devuelve nada; la consulta seleccionaba un `0`
+   * literal y el codigo comprobaba `< 0`. El aviso «el periodo esta siendo
+   * procesado por otra operacion» era decorativo.
+   */
+  it('el candado del cierre se intenta y contesta, no se supone', () => {
+    const cierre = sinComentarios(
+      leer(join(SRC, 'finanzas/services/cierre-contable.service.ts')),
+    );
+    expect(cierre).toContain('pg_try_advisory_xact_lock');
+    expect(cierre).not.toContain('SELECT 0 AS resultado');
+  });
+
+  /*
+   * `empresa_identidad` se creo con las columnas entrecomilladas en camelCase
+   * mientras el proyecto usa `LowercaseNamingStrategy`. Postgres conserva las
+   * mayusculas del identificador entrecomillado y baja las del que no lo esta,
+   * asi que TODA consulta contra esa tabla moria —y el try/catch la hacia
+   * pasar por «esta empresa no tiene realm propio»—. La separacion por
+   * inquilino existia en la tabla y no llegaba a aplicarse nunca.
+   */
+  it('ninguna migracion crea columnas que la estrategia de nombres no podra pedir', () => {
+    const dir = join(SRC, 'database/migrations/postgres');
+    const entrecomillado = /"([a-z]+[A-Z][A-Za-z0-9]*)"/g;
+    const culpables: string[] = [];
+    for (const archivo of readdirSync(dir)) {
+      if (!archivo.endsWith('.ts')) continue;
+      const texto = sinComentarios(leer(join(dir, archivo)));
+      /*
+       * `RENAME COLUMN "viejo" TO "nuevo"` es justamente la reparacion: nombra
+       * la forma vieja para deshacerla. Se exceptuan esas lineas, no el
+       * archivo, para que una migracion no pueda esconder una columna nueva
+       * mal creada detras de un rename.
+       */
+      const lineas = texto
+        .split('\n')
+        .filter((l) => !/RENAME COLUMN|column_name/i.test(l));
+      const nombres = new Set(
+        [...lineas.join('\n').matchAll(entrecomillado)].map((m) => m[1]),
+      );
+      if (nombres.size) culpables.push(`${archivo}: ${[...nombres].join(', ')}`);
+    }
+    expect(culpables.sort()).toEqual([]);
+  });
+});
+
+describe('Coherencia · un control que no pudo medir no puede decir que todo esta bien', () => {
+  /*
+   * ==========================================================================
+   * Una consulta que falló no vale cero
+   * --------------------------------------------------------------------------
+   * El diagnóstico del cierre remataba cuatro de sus consultas con
+   * `.catch(() => [{ x: 0 }])`. Es la misma trampa que `Number(fila?.x ?? 0)`
+   * —corregida el 24-sep en `contarColumna`— entrando por otra puerta: si la
+   * consulta revienta, el diagnóstico se inventa un cero y sigue como si lo
+   * hubiera medido.
+   *
+   * Y dos de los cuatro ceros iban en la dirección peligrosa. `cuentasActivas: 0`
+   * vuelve cierto `coberturaCompleta`, porque la regla es
+   * `cuentasActivas === 0 || …`, y el control de BANCOS pasa en verde.
+   * `operaciones: []` hace que «no se detectaron operaciones sin póliza» también
+   * pase. Es decir: una consulta rota hacía que el mes pareciera MÁS limpio.
+   *
+   * Un control que aprueba porque no pudo medir es peor que uno que falla: el
+   * que falla se investiga.
+   * ==========================================================================
+   */
+  it('ninguna consulta del diagnóstico se traga su error en silencio', () => {
+    const cierre = sinComentarios(
+      leer(join(SRC, 'finanzas/services/cierre-contable.service.ts')),
+    );
+    /*
+     * `.catch(() => …)` descarta el error sin mirarlo. La forma admitida es
+     * `.catch(siFalla('qué', respaldo))`, que además de devolver el respaldo lo
+     * anota como no medido y lo grita al log.
+     */
+    const mudos = [...cierre.matchAll(/\.catch\(\s*\(\s*\)\s*=>/g)];
+    expect(mudos).toHaveLength(0);
+    expect(cierre).toContain('const noSeMidio: string[] = []');
+  });
+
+  it('lo que no se pudo medir bloquea el cierre, y se dice cuál', () => {
+    const cierre = sinComentarios(
+      leer(join(SRC, 'finanzas/services/cierre-contable.service.ts')),
+    );
+    expect(cierre).toContain("clave: 'MEDICION'");
+    // El bloqueo no es decorativo: depende de que haya algo sin medir.
+    expect(cierre).toMatch(/bloquea: noSeMidio\.length > 0/);
+    // Y nombra qué faltó, porque «no se pudo medir» a secas no se investiga.
+    expect(cierre).toContain('noSeMidio.join');
+  });
+});
+
+describe('Coherencia · una empresa no puede ver los datos de otra', () => {
+  /*
+   * ==========================================================================
+   * POR QUÉ ESTA PRUEBA
+   * --------------------------------------------------------------------------
+   * 83 entidades llevan `empresaId`. El aislamiento entre empresas no es una
+   * propiedad de una pantalla ni de un servicio: es una propiedad de CADA
+   * consulta, y basta una que se olvide para que deje de existir.
+   *
+   * No es teórico. El diagnóstico de configuración tenía una comprobación —los
+   * detalles de transferencia huérfanos— que contaba los de TODAS las empresas.
+   * Y el daño no era sólo el dato filtrado: a una empresa limpia se le reportaba
+   * un ERROR con enlace a una pantalla donde no había nada que arreglar. Un
+   * error que no se puede resolver acaba ignorándose, y con él se ignoran los
+   * que sí eran suyos.
+   *
+   * La regla, entonces: toda consulta cruda menciona la empresa, salvo las que
+   * están declaradas abajo con su razón. La lista es corta a propósito. Si
+   * crece, el aislamiento se está erosionando de a poco, que es como se pierde.
+   * ==========================================================================
+   */
+
+  /** Consultas que legítimamente no filtran por empresa, y por qué. */
+  const GLOBALES_A_PROPOSITO: Array<{ marca: RegExp; razon: string }> = [
+    {
+      marca: /FROM Empresas WHERE id=\$1/i,
+      razon: 'El id ES la empresa: filtrar por empresaId sería redundante.',
+    },
+    {
+      marca: /FROM integracion_tenants_reserva/i,
+      razon:
+        'La reserva de inquilinos es la bolsa de la que se saca una empresa nueva: por definición no pertenece a ninguna todavía.',
+    },
+    {
+      marca: /FROM migrations/i,
+      razon: 'El estado del esquema es del servidor, no de una empresa.',
+    },
+    {
+      marca: /FROM detalles_orden_compra WHERE ordencompraid = \$1/i,
+      razon:
+        'Renglones de una orden ya verificada contra la empresa por quien llama. La tabla no lleva empresaId.',
+    },
+    {
+      marca: /FROM amortizacion_cuotas q WHERE q\.creditoid = c\.id/i,
+      razon:
+        'Subconsulta correlacionada: el crédito del que cuelga ya viene filtrado por la consulta exterior.',
+    },
+    {
+      marca: /FROM "\$\{tabla\.toLowerCase\(\)\}"/,
+      razon:
+        'Se arma con `whereEmpresa`, que sólo queda vacío cuando la tabla NO tiene columna de empresa. Comprobado en el propio servicio.',
+    },
+  ];
+
+  it('toda consulta cruda menciona la empresa, salvo las declaradas', () => {
+    const sospechosas: string[] = [];
+    let revisadas = 0;
+
+    for (const { ruta, texto } of CODIGO) {
+      // Migraciones y semillas operan sobre el esquema o siembran datos de
+      // demostración: no tienen empresa en el contexto y no atienden peticiones.
+      if (
+        ruta.includes('migrations') ||
+        ruta.includes('database/commands') ||
+        ruta.endsWith('.spec.ts')
+      ) {
+        continue;
+      }
+      const limpio = sinComentarios(texto);
+      for (const m of limpio.matchAll(
+        /`([^`]*\b(?:FROM|UPDATE|DELETE FROM)\s+[A-Za-z_"][^`]*)`/g,
+      )) {
+        const sql = m[1];
+        // El catálogo del propio motor no es de nadie.
+        if (/information_schema|pg_catalog|pg_advisory|CREATE |ALTER |DROP /i.test(sql)) {
+          continue;
+        }
+        revisadas += 1;
+        if (/empresaid|empresa_id/i.test(sql)) continue;
+        /*
+         * Se compara contra el SQL con los espacios normalizados. La primera
+         * version comparaba contra el texto crudo —con sus saltos de linea y su
+         * sangria— y ninguna excepcion coincidia: la prueba denunciaba
+         * consultas que estaban declaradas. Mismo error que ya cometi hoy con
+         * la coma final; los patrones se escriben para lo que uno cree que hay,
+         * no para lo que hay.
+         */
+        const plano = sql.replace(/\s+/g, ' ').trim();
+        if (GLOBALES_A_PROPOSITO.some((g) => g.marca.test(plano))) continue;
+        sospechosas.push(`${ruta}: ${sql.replace(/\s+/g, ' ').trim().slice(0, 100)}`);
+      }
+    }
+
+    /*
+     * Primero se comprueba que la prueba miró. Ya pasó hoy que una prueba de
+     * este archivo diera verde sin haber leído una sola llamada.
+     */
+    expect(revisadas).toBeGreaterThan(30);
+    expect(sospechosas.sort()).toEqual([]);
+  });
+
+  it('el diagnóstico de configuración no reporta errores de otras empresas', () => {
+    /*
+     * El caso concreto, escrito aparte para que si vuelve, el fallo diga su
+     * nombre. Toda comprobación del diagnóstico que cuente filas tiene que
+     * acotarse a la empresa que pregunta.
+     */
+    const diag = sinComentarios(
+      leer(join(SRC, 'configuracion/services/diagnostico-configuracion.service.ts')),
+    );
+    const consultas = [...diag.matchAll(/`([^`]*\bFROM\b[^`]*)`/g)].map((m) => m[1]);
+    const sinEmpresa = consultas.filter(
+      (sql) =>
+        !/empresaid/i.test(sql) &&
+        !/information_schema|pg_catalog/i.test(sql) &&
+        !/FROM Empresas WHERE id=\$1/i.test(sql),
+    );
+    expect(sinEmpresa.map((s) => s.replace(/\s+/g, ' ').trim().slice(0, 80))).toEqual([]);
+  });
+});
+
+describe('Coherencia · los asistentes de preparacion piden lo que el diagnostico da', () => {
+  /*
+   * ==========================================================================
+   * Seis pantallas de cinco líneas que valen más de lo que parecen
+   * --------------------------------------------------------------------------
+   * Los `wizard-*` de configuración son listas declarativas sobre un componente
+   * común: cada paso nombra un `requisito` y el componente lo marca cumplido
+   * leyendo el diagnóstico real del sistema. Responden la pregunta de toda
+   * empresa nueva —«¿qué tengo que configurar antes de poder usar compras?»— y
+   * son el camino de alta de un cliente.
+   *
+   * Su punto débil es que el acuerdo entre las dos partes es por cadena de
+   * texto. Si alguien renombra `COM_PROVEEDORES` en el backend, el paso del
+   * wizard no falla: se queda eternamente sin marcar, y el usuario nuevo
+   * configura todo y el asistente sigue diciéndole que le falta algo. Otra vez
+   * lo mismo: no se rompe, enmudece.
+   * ==========================================================================
+   */
+  const sinFrontend = FRONTEND ? it : it.skip;
+
+  sinFrontend('todo requisito que un asistente pide, el diagnóstico lo emite', () => {
+    const dir = join(FRONTEND!, 'app/dashboard/configuracion');
+    const paginas = readdirSync(dir).filter((n) => n.startsWith('wizard-'));
+    expect(paginas.length).toBeGreaterThan(0);
+
+    const piden = new Set<string>();
+    const modulosPedidos = new Set<string>();
+    for (const carpeta of paginas) {
+      const texto = leer(join(dir, carpeta, 'page.tsx'));
+      for (const m of texto.matchAll(/requisito:\s*'([A-Z0-9_]+)'/g)) piden.add(m[1]);
+      for (const m of texto.matchAll(/modulo=["']([a-z]+)["']/g)) modulosPedidos.add(m[1]);
+    }
+    expect(piden.size).toBeGreaterThan(10);
+
+    const diag = leer(
+      join(SRC, 'configuracion/services/diagnostico-configuracion.service.ts'),
+    );
+    const emite = new Set(
+      [...diag.matchAll(/codigo:\s*'([A-Z0-9_]+)'/g)].map((m) => m[1]),
+    );
+    const huerfanos = [...piden].filter((c) => !emite.has(c));
+    expect(huerfanos.sort()).toEqual([]);
+
+    // Y el módulo bajo el que se agrupan tiene que existir en la respuesta.
+    const bloqueModulos = /const modulos = \{([\s\S]*?)\n    \};/.exec(diag)?.[1] ?? '';
+    const modulosQueDevuelve = new Set(
+      [...bloqueModulos.matchAll(/^      ([a-z]+):/gm)].map((m) => m[1]),
+    );
+    expect(modulosQueDevuelve.size).toBeGreaterThan(0);
+    const modulosInventados = [...modulosPedidos].filter(
+      (m) => !modulosQueDevuelve.has(m),
+    );
+    expect(modulosInventados.sort()).toEqual([]);
+  });
+});
+
+describe('Coherencia · ninguna ruta publica queda sin puerta', () => {
+  /*
+   * ==========================================================================
+   * `@Public()` no significa «de cualquiera»
+   * --------------------------------------------------------------------------
+   * `@Public()` sólo apaga el guardia de JWT. No es una decisión de negocio:
+   * es un hueco que alguien abre porque quien va a llamar todavía no tiene
+   * sesión —un invitado que no ha puesto contraseña, la consola de SUMA dando
+   * de alta una empresa, Fineract avisando de un cobro—.
+   *
+   * Cada uno de esos casos necesita SU PROPIA puerta, y son distintas:
+   *
+   *   El alta de empresas exige una clave de servicio en cabecera, compara en
+   *   tiempo constante y devuelve 404 —no 403— cuando no la tiene: las rutas
+   *   parecen no existir. Es deliberado, y el controlador lo explica: el alta
+   *   de clientes la decide SUMA en su consola, no un administrador de una
+   *   empresa operadora. Una pantalla para eso convertiría a un inquilino en
+   *   administrador de los demás.
+   *
+   *   Las de invitación y recuperación se defienden con el token que traen en
+   *   el cuerpo, que es lo único que el invitado tiene.
+   *
+   * Lo que no puede pasar es que alguien añada un `@Public()` mañana y no le
+   * ponga ninguna. El daño no se vería: la ruta funcionaría perfectamente, para
+   * todo el mundo.
+   * ==========================================================================
+   */
+
+  /** Rutas sin sesión cuya puerta es el propio acto, y por qué. */
+  const PUERTA_PROPIA: Array<{ ruta: RegExp; razon: string }> = [
+    { ruta: /^GET \/salud/, razon: 'Sonda de vida: no devuelve datos.' },
+    { ruta: /^POST \/auth\/login$/, razon: 'Es el acto de obtener sesión.' },
+    {
+      ruta: /^POST \/auth\/(verificar-email|reenviar-verificacion|recuperar-password|restablecer-password)$/,
+      razon: 'Flujos previos a la sesión; se defienden con el token del correo.',
+    },
+    {
+      ruta: /^POST \/usuarios\/(invitacion|aceptar-invitacion)$/,
+      razon:
+        'El invitado sólo tiene su token y lo manda en el cuerpo, no en la URL, para que no quede en el log del servidor.',
+    },
+  ];
+
+  it('toda ruta @Public() exige una clave, un token, o está declarada', () => {
+    const sinPuerta: string[] = [];
+    let revisadas = 0;
+
+    for (const { ruta, texto } of CODIGO) {
+      if (!ruta.endsWith('.controller.ts')) continue;
+      const limpio = sinComentarios(texto);
+      if (!limpio.includes('@Public()')) continue;
+      const base =
+        limpio.match(/@Controller\(\s*'([^']*)'/)?.[1] ?? '';
+
+      const re =
+        /@Public\(\)\s*(?:@\w+\([^)]*\)\s*)*?@(Get|Post|Patch|Put|Delete)\(\s*(?:'([^']*)')?\s*\)([\s\S]*?)\n  \}/g;
+      for (const m of limpio.matchAll(re)) {
+        revisadas += 1;
+        const clave =
+          `${m[1].toUpperCase()} /` +
+          [base.replace(/^\/|\/$/g, ''), (m[2] ?? '').replace(/^\/|\/$/g, '')]
+            .filter(Boolean)
+            .join('/');
+        const cuerpo = m[3];
+        /*
+         * Tres formas admitidas de defenderse: una clave de servicio, una clave
+         * en la ruta que el emisor tiene que conocer, o un token en el cuerpo.
+         */
+        const seDefiende =
+          /exigirServicio\(|claveValida\(|\btoken\b/.test(cuerpo) ||
+          PUERTA_PROPIA.some((p) => p.ruta.test(clave));
+        if (!seDefiende) sinPuerta.push(`${ruta}: ${clave}`);
+      }
+    }
+
+    // Que la prueba haya mirado, antes de afirmar que todo está bien.
+    expect(revisadas).toBeGreaterThan(10);
+    expect(sinPuerta.sort()).toEqual([]);
+  });
+
+  it('el alta de empresas no se alcanza con una sesión de usuario', () => {
+    /*
+     * El caso concreto. Si alguien vuelve a colgar el alta de clientes de un
+     * `@Roles('administrador')`, esto falla: un administrador de una empresa
+     * operadora no puede dar de alta a las demás.
+     */
+    const alta = sinComentarios(
+      leer(join(SRC, 'integracion/controllers/alta-empresas.controller.ts')),
+    );
+    expect(alta).not.toContain('@Roles(');
+    expect(alta).not.toContain('@ActiveUser(');
+    // Sin la clave configurada, las rutas no existen: 404, no 403.
+    expect(alta).toContain('APROVISIONAMIENTO_TOKEN');
+    expect(alta).toMatch(/throw new NotFoundException\(\)/);
+  });
+});
+
+describe('Coherencia · una pantalla que no pide permiso sigue siendo una pantalla', () => {
+  /*
+   * ==========================================================================
+   * El tercer disfraz del mismo defecto
+   * --------------------------------------------------------------------------
+   * `@SkipPermisos()` marca lo que cualquier sesión válida puede leer: países,
+   * estados, bancos, formas de pago SAT. Son la lista contra la que se llena
+   * cualquier formulario con domicilio o datos de pago, y resolverlos por
+   * contrato de roles dejaba los combos vacíos —le pasó al comprador el
+   * 21-sep-2026, con País y Forma de Pago obligatorios y en blanco—.
+   *
+   * Esos endpoints ni siquiera se dan de alta en la tabla: no hay permiso que
+   * conceder. Pero `mis-rutas` se armaba SÓLO con filas de permiso, así que la
+   * pantalla quedaba fuera de la lista y el layout la negaba.
+   *
+   * Medido el 25-sep-2026 con la sesión real de tesorería:
+   *   GET /catalogos/formas-pago            → 200, 22 filas
+   *   /dashboard/catalogos/formas-pago      → «esta sección no está en tu perfil»
+   *
+   * La acción permitida y la pantalla negada. Es el mismo defecto que dejó
+   * muda la conciliación bancaria y las otras tres pantallas, entrando por una
+   * puerta distinta: allí no coincidían los nombres de los parámetros, aquí no
+   * hay fila que consultar.
+   * ==========================================================================
+   */
+  it('las pantallas sin permiso se conceden a todos, no a nadie', () => {
+    const servicio = sinComentarios(
+      leer(join(SRC, 'iam/services/permisos-dinamicos.service.ts')),
+    );
+    // Se recogen al descubrirlas…
+    expect(servicio).toContain('pantallasSinPermiso');
+    expect(servicio).toMatch(/if \(omitePermisos && !esPublico\)/);
+    // …y se añaden a la lista de rutas de CUALQUIER rol.
+    expect(servicio).toMatch(
+      /for \(const pantalla of this\.pantallasSinPermiso\) rutas\.add\(pantalla\)/,
+    );
+    /*
+     * Y el orden importa: la recolección tiene que ocurrir ANTES del `continue`
+     * que se salta estos endpoints. Si alguien la mueve después, el conjunto
+     * queda vacío y las pantallas vuelven a desaparecer sin que nada falle.
+     */
+    const iRecoge = servicio.indexOf('this.pantallasSinPermiso.add');
+    const iSalta = servicio.indexOf('if (esPublico || omitePermisos) continue;');
+    expect(iRecoge).toBeGreaterThan(-1);
+    expect(iSalta).toBeGreaterThan(-1);
+    expect(iRecoge).toBeLessThan(iSalta);
+  });
+});
+
+describe('Coherencia · el respaldo ya no se firma en ninguna puerta', () => {
+  /*
+   * ==========================================================================
+   * Cuando se quita una firma, hay que quitarla en TODAS partes
+   * --------------------------------------------------------------------------
+   * La cuarta confirmación humana —«confirmo que existe un respaldo reciente de
+   * la base de datos»— se sustituyó por un respaldo que toma el propio cierre.
+   * Se cambió la comprobación del cierre… y se olvidó la del paso previo, que
+   * seguía exigiendo las cuatro.
+   *
+   * El resultado, medido: la pantalla ya no ofrecía la casilla y el servidor
+   * seguía pidiéndola, así que NINGUNA revisión podía confirmarse. «Confirma
+   * las cuatro revisiones humanas antes de continuar», sobre un formulario con
+   * tres.
+   *
+   * Es el mismo descuido que el mes sin movimientos —tres puertas, se
+   * arreglaron dos— cometido esta vez al arreglar el anterior. Por eso la regla
+   * se comprueba sobre TODO el servicio, no sobre una función.
+   * ==========================================================================
+   */
+  it('ninguna puerta del cierre sigue pidiendo el respaldo firmado', () => {
+    const cierre = sinComentarios(
+      leer(join(SRC, 'finanzas/services/cierre-contable.service.ts')),
+    );
+    /*
+     * Ni una sola lectura de `respaldoConfirmado` debe quedar en el servicio:
+     * el dato sigue existiendo en revisiones antiguas, pero ninguna decisión
+     * puede depender de él.
+     */
+    expect(cierre).not.toContain('respaldoConfirmado');
+    // Y el respaldo sí se toma.
+    expect(cierre).toContain('this.respaldoService.generar(');
   });
 });

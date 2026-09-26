@@ -22,6 +22,8 @@ import {
   TipoActividad,
   TipoEtapa,
 } from '../entities/crm.entity';
+import { EsCampoCondicional } from '../../common/validators/campo-condicional.validator';
+import { IsFechaOpcional } from '../../common/validators/fecha-opcional.validator';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -88,16 +90,38 @@ export class CrearProspectoDto {
   @MaxLength(100)
   puesto?: string;
 
-  @ValidateIf((o: CrearProspectoDto) => !o.telefono || Boolean(o.email))
-  @IsEmail()
-  @MaxLength(120)
+  /*
+   * Un prospecto sin manera de contactarlo no es un prospecto, así que se pide
+   * al menos uno de los dos. La regla estaba escrita como dos condiciones
+   * cruzadas —`!o.telefono || Boolean(o.email)`— y cuando no venía ninguno se
+   * cumplían las dos: la respuesta traía cuatro mensajes sobre el formato del
+   * correo y del teléfono, y ni uno decía lo único cierto, que hace falta un
+   * medio de contacto.
+   *
+   * Ahora la regla se dice una vez en cada campo, con su mensaje, y el formato
+   * sólo se comprueba cuando el valor viene.
+   */
+  @Transform(trim)
+  @EsCampoCondicional({
+    requeridoCuando: (o: CrearProspectoDto) => !o?.telefono?.trim(),
+    cuandoFalta:
+      'Escribe un correo o un teléfono: sin uno de los dos no hay forma de contactar al prospecto.',
+    etiqueta: 'El correo',
+    forma: 'correo',
+    maximo: 120,
+  })
   email?: string;
 
-  @ValidateIf((o: CrearProspectoDto) => !o.email || Boolean(o.telefono))
   @Transform(trim)
-  @IsString()
-  @MinLength(7)
-  @MaxLength(20)
+  @EsCampoCondicional({
+    requeridoCuando: (o: CrearProspectoDto) => !o?.email?.trim(),
+    cuandoFalta:
+      'Escribe un teléfono o un correo: sin uno de los dos no hay forma de contactar al prospecto.',
+    etiqueta: 'El teléfono',
+    forma: 'texto',
+    minimo: 7,
+    maximo: 20,
+  })
   telefono?: string;
 
   @IsOptional()
@@ -177,8 +201,7 @@ export class CrearOportunidadDto {
   @Max(100)
   probabilidad?: number;
 
-  @IsOptional()
-  @IsDateString()
+  @IsFechaOpcional()
   fechaCierreEstimada?: string;
 
   @IsSqlServerGuidOpcional()

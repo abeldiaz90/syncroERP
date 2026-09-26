@@ -1,17 +1,13 @@
-import { Transform, Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   IsEnum,
   IsIn,
-  IsInt,
-  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
-  Min,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
-import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { EsCampoCondicional } from '../../common/validators/campo-condicional.validator';
 import { TipoSolicitudEstructura } from '../entities/solicitud-estructura.entity';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -29,27 +25,60 @@ export class CrearSolicitudEstructuraDto {
   @Transform(trim) @IsString() @MinLength(10) @MaxLength(500)
   motivo!: string;
 
-  @ValidateIf((o) => o.tipo === TipoSolicitudEstructura.PUESTO)
-  @Transform(upper) @IsString() @MinLength(1) @MaxLength(20)
+  /*
+   * Los cinco campos del puesto van con `EsCampoCondicional` y no con
+   * `@ValidateIf` + validadores de forma. Con la forma anterior, pedir el alta
+   * de un puesto sin sus datos devolvía DIEZ mensajes para cinco campos —la
+   * mitad falsos, todos menos uno en inglés— y ninguno decía lo único que
+   * importaba: que faltaban. Ver la cabecera del validador.
+   */
+  @Transform(upper)
+  @EsCampoCondicional({
+    requeridoCuando: (o) => o?.tipo === TipoSolicitudEstructura.PUESTO,
+    cuandoFalta: 'Falta la clave del puesto.',
+    etiqueta: 'La clave del puesto',
+    forma: 'texto',
+    minimo: 1,
+    maximo: 20,
+  })
   clave?: string;
 
-  @ValidateIf((o) => o.tipo === TipoSolicitudEstructura.PUESTO)
-  @IsSqlServerGuid()
+  @EsCampoCondicional({
+    requeridoCuando: (o) => o?.tipo === TipoSolicitudEstructura.PUESTO,
+    cuandoFalta: 'Elige el departamento al que pertenece el puesto.',
+    etiqueta: 'El departamento',
+    forma: 'uuid',
+  })
   departamentoId?: string;
 
   @IsOptional() @Transform(trim) @IsString() @MaxLength(400)
   descripcion?: string;
 
-  @ValidateIf((o) => o.tipo === TipoSolicitudEstructura.PUESTO)
-  @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01)
+  @EsCampoCondicional({
+    requeridoCuando: (o) => o?.tipo === TipoSolicitudEstructura.PUESTO,
+    cuandoFalta: 'Falta el salario mínimo del rango autorizado.',
+    etiqueta: 'El salario mínimo',
+    forma: 'numero',
+    minimo: 0.01,
+  })
   salarioMinimo?: number;
 
-  @ValidateIf((o) => o.tipo === TipoSolicitudEstructura.PUESTO)
-  @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01)
+  @EsCampoCondicional({
+    requeridoCuando: (o) => o?.tipo === TipoSolicitudEstructura.PUESTO,
+    cuandoFalta: 'Falta el salario máximo del rango autorizado.',
+    etiqueta: 'El salario máximo',
+    forma: 'numero',
+    minimo: 0.01,
+  })
   salarioMaximo?: number;
 
-  @ValidateIf((o) => o.tipo === TipoSolicitudEstructura.PUESTO)
-  @Type(() => Number) @IsInt() @Min(1)
+  @EsCampoCondicional({
+    requeridoCuando: (o) => o?.tipo === TipoSolicitudEstructura.PUESTO,
+    cuandoFalta: 'Indica cuántas plazas se autorizan.',
+    etiqueta: 'El número de plazas',
+    forma: 'entero',
+    minimo: 1,
+  })
   plazasAutorizadas?: number;
 }
 

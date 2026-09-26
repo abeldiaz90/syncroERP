@@ -73,6 +73,8 @@ export default function DetalleRequisicionPage() {
   
   const [requisicion, setRequisicion] = useState<IRequisicion | null>(null);
   const [cargando, setCargando] = useState(true);
+  /** Por qué no se pudo abrir: se escribe en pantalla en vez de un blanco. */
+  const [motivo, setMotivo] = useState('');
   const [usuarioActual, setUsuarioActual] = useState<any>(null);
   const [comentario, setComentario] = useState('');
   const [aprobando, setAprobando] = useState(false);
@@ -85,12 +87,33 @@ export default function DetalleRequisicionPage() {
       setUsuarioActual(JSON.parse(localStorage.getItem('syncro_user') || '{}')); 
     } catch (e) {}
 
+    /*
+     * Sin comprobar `r.ok`, el cuerpo de un 403 o un 404 —{statusCode, message}—
+     * entraba como si fuera la requisición. Es un objeto, así que la guarda
+     * `if (!requisicion)` lo daba por bueno y la pantalla reventaba en el
+     * primer `requisicion.id.substring(...)`: pantalla en blanco, sin decir
+     * que lo que faltaba era un permiso. Ahora el motivo se muestra.
+     */
     fetch(`${apiUrl}/compras/requisiciones/${requisicionId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(r => r.json())
-      .then(setRequisicion)
-      .catch(console.error)
+      .then(async (r) => {
+        if (r.ok) {
+          setRequisicion(await r.json());
+          return;
+        }
+        const cuerpo = await r.json().catch(() => null);
+        setMotivo(
+          r.status === 403
+            ? 'Tu rol no tiene permiso para abrir esta requisición.'
+            : r.status === 404
+              ? 'Es posible que el identificador sea incorrecto o que la requisición se haya eliminado.'
+              : cuerpo?.message
+                ? String(cuerpo.message)
+                : 'No se pudo cargar la requisición.',
+        );
+      })
+      .catch(() => setMotivo('No se pudo contactar al servidor.'))
       .finally(() => setCargando(false));
   }, [requisicionId, apiUrl]);
 
@@ -112,12 +135,33 @@ export default function DetalleRequisicionPage() {
     setAprobando(true);
     
     try {
-      await fetch(`${apiUrl}/compras/requisiciones/aprobaciones/${aprobacionPendiente.id}`, {
+      /*
+       * Una firma que no se comprueba.
+       *
+       * El PATCH salia y, pasara lo que pasara, la pantalla anunciaba «Nivel
+       * de requisicion aprobado». Si el servidor lo negaba —turno de otro
+       * aprobador, importe fuera de facultad, requisicion ya resuelta— el
+       * aviso verde salia igual y quien firmaba se iba creyendo que habia
+       * firmado. En una cadena de autorizaciones eso no es un mensaje mal
+       * puesto: es una firma que nadie dio y todos dan por dada.
+       */
+      const r = await fetch(`${apiUrl}/compras/requisiciones/aprobaciones/${aprobacionPendiente.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ estado, comentario }),
       });
-      
+      if (!r.ok) {
+        const d = await r.json().catch(() => null);
+        avisar(
+          (Array.isArray(d?.message) ? d.message.join(', ') : d?.message) ||
+            (estado === 'APROBADO'
+              ? 'No se registró la aprobación.'
+              : 'No se registró el rechazo.'),
+          'error',
+        );
+        return;
+      }
+
       avisar(estado === 'APROBADO' ? 'Nivel de requisición aprobado.' : 'Requisición rechazada.', 'exito');
 
       const nueva = await fetch(`${apiUrl}/compras/requisiciones/${requisicionId}`, {
@@ -146,8 +190,10 @@ export default function DetalleRequisicionPage() {
     return (
       <div className="p-12 text-center text-rose-500 bg-rose-50 m-8 rounded-2xl border border-rose-100 max-w-2xl mx-auto">
         <AlertCircle className="w-12 h-12 mx-auto mb-4 text-rose-400" />
-        <p className="text-xl font-bold">Requisición no encontrada</p>
-        <p className="mt-2 text-rose-600">Es posible que el ID sea incorrecto o haya sido eliminada.</p>
+        <p className="text-xl font-bold">No se pudo abrir la requisición</p>
+        <p className="mt-2 text-rose-600">
+          {motivo || 'Es posible que el identificador sea incorrecto o que la requisición se haya eliminado.'}
+        </p>
         <Link href="/dashboard/compras/requisiciones" className="text-indigo-600 font-medium hover:underline mt-6 inline-block">
           &larr; Volver al listado principal
         </Link>

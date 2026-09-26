@@ -58,12 +58,36 @@ export function esViolacionLlaveForanea(error: unknown): boolean {
   return texto.includes('23503') || numero.includes(547);
 }
 
-/** Fila bloqueada por otra transacción o interbloqueo. Vale la pena reintentar. */
+/**
+ * Fila bloqueada por otra transacción o interbloqueo. Vale la pena reintentar.
+ *
+ * Además del código se mira el mensaje. PostgreSQL anuncia el interbloqueo con
+ * `40P01` y el texto «deadlock detected»; SQL Server con el número 1205. Pero
+ * cuando el error llega envuelto por una capa intermedia el código a veces se
+ * pierde por el camino y el texto sobrevive: si sólo se mirara el código, ese
+ * caso dejaría de reintentarse y el usuario vería fallar una venta que la
+ * segunda vez habría pasado sola.
+ */
 export function esConflictoDeConcurrencia(error: unknown): boolean {
   const { texto, numero } = codigos(error);
-  return (
+  if (
     texto.includes('40001') ||
     texto.includes('40P01') ||
     numero.includes(1205)
-  );
+  ) {
+    return true;
+  }
+  const e = (error ?? {}) as {
+    message?: string;
+    driverError?: { message?: string };
+    originalError?: { message?: string };
+  };
+  const mensaje = [
+    e.message,
+    e.driverError?.message,
+    e.originalError?.message,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return /deadlock|was deadlocked|could not serialize access/i.test(mensaje);
 }

@@ -475,8 +475,9 @@ export class CreditosService {
       let venta: any = null;
       if (credito.ventaId) {
         const ventas = await this.dataSource.query(
-          `SELECT id, folio, total, metodoPago FROM ventas WHERE id = $1`,
-          [credito.ventaId],
+          // Sin el alias, el correo de crédito otorgado salía sin método de pago.
+          `SELECT id, folio, total, metodoPago AS "metodoPago" FROM ventas WHERE id = $1 AND empresaId = $2`,
+          [credito.ventaId, empresaId],
         );
         venta = ventas?.[0] ?? null;
       }
@@ -507,11 +508,20 @@ export class CreditosService {
     if (estado) qb.andWhere('c.estado = :estado', { estado });
     if (ventaId) qb.andWhere('c.ventaId = :ventaId', { ventaId });
     const creditos = await qb.getMany();
-    return this.enriquecerConClientes(creditos);
+    return this.enriquecerConClientes(creditos, empresaId);
   }
 
+  /*
+   * `empresaId` no es decorativo aqui. Los ids salen de creditos que YA estaban
+   * filtrados por empresa, asi que hoy la consulta no puede traer un cliente
+   * ajeno. Pero eso depende de que el filtro de arriba siga estando: el dia que
+   * alguien agregue un camino que no filtre, esta consulta devolveria nombres y
+   * RFC de clientes de otra empresa sin una sola señal. En multiempresa la
+   * regla es que CADA consulta se defienda sola, no que confie en la anterior.
+   */
   private async enriquecerConClientes(
     creditos: CreditoCliente[],
+    empresaId: string,
   ): Promise<any[]> {
     if (!creditos.length) return creditos;
     const ids = [...new Set(creditos.map((c) => c.clienteId).filter(Boolean))];
@@ -526,10 +536,10 @@ export class CreditosService {
      */
     const clientes: { id: string; nombre: string; rfc: string }[] =
       await this.dataSource.query(
-        `SELECT id, nombre, rfc FROM clientes WHERE id IN (${ids
+        `SELECT id, nombre, rfc FROM clientes WHERE empresaId = $${ids.length + 1} AND id IN (${ids
           .map((_, i) => `$${i + 1}`)
           .join(',')})`,
-        ids,
+        [...ids, empresaId],
       );
     const clienteMap = new Map(clientes.map((cl: any) => [cl.id, cl]));
     return creditos.map((c) => ({
@@ -611,10 +621,10 @@ export class CreditosService {
       // `.catch`: un reporte de cartera vencida sin nombres no es un reporte.
       const clientes: { id: string; nombre: string; rfc: string }[] =
         await this.dataSource.query(
-          `SELECT id, nombre, rfc FROM clientes WHERE id IN (${idsUnicos
+          `SELECT id, nombre, rfc FROM clientes WHERE empresaId = $${idsUnicos.length + 1} AND id IN (${idsUnicos
             .map((_, i) => `$${i + 1}`)
             .join(',')})`,
-          idsUnicos,
+          [...idsUnicos, empresaId],
         );
       const clienteMap = new Map(clientes.map((cl: any) => [cl.id, cl]));
       const enriquecer = (items: any[]) =>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { fechaCorta } from '@/lib/fechas';
 import { useParams } from 'next/navigation';
 import {
   Printer, Loader2, FileWarning, CheckCircle2, XCircle,
@@ -34,6 +35,10 @@ interface ICreditoCliente {
   montoTotal: number; numeroCuotas: number;
   tasaInteresMensual: number; sinInteres: boolean;
   enganche: number; fechaInicio: string;
+  /* La que manda en el comprobante: la decide el credito, no el ticket. */
+  fechaVencimiento: string | null;
+  saldoPendiente: number;
+  estado: string;
   cuotas: ICuota[];
 }
 
@@ -51,8 +56,14 @@ interface IVenta {
 const fmt$ = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
 
-const fmtFecha = (s: string) =>
-  new Date(s + 'T00:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+/*
+ * Antes esto era `new Date(s + 'T00:00:00')` aquí mismo. Sirve para las fechas
+ * sin hora del backend y devuelve «Invalid Date» con cualquier marca de tiempo
+ * completa —que es lo que se imprimía en la fecha límite de pago—. La función
+ * compartida entiende las dos formas y ante una fecha ilegible imprime una
+ * raya, no un error de JavaScript.
+ */
+const fmtFecha = fechaCorta;
 
 const METODO_INFO: Record<string, { label: string; icon: any; color: string }> = {
   EFECTIVO:      { label: 'Efectivo',           icon: Banknote,       color: '#059669' },
@@ -77,6 +88,14 @@ export default function TicketVentaPage() {
   const id      = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const [venta, setVenta]     = useState<IVenta | null>(null);
   const [credito, setCredito] = useState<ICreditoCliente | null>(null);
+  /*
+   * Un ticket de venta a crédito sin su plan de pagos parece un ticket
+   * completo. Si la consulta del crédito no se pudo hacer —403 porque quien
+   * imprime no ve la cartera, o el servidor no respondió— el ticket salía
+   * igual, sin tabla de cuotas y sin decir que faltaba. Se guarda el motivo
+   * para escribirlo en el papel.
+   */
+  const [creditoNoDisponible, setCreditoNoDisponible] = useState('');
   const [cargando, setCargando] = useState(true);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
@@ -99,10 +118,18 @@ export default function TicketVentaPage() {
           if (rC.ok) {
             const lista = await rC.json();
             if (lista.length > 0) setCredito(lista[0]);
+            else setCreditoNoDisponible('No se encontró el crédito vinculado a esta venta.');
+          } else {
+            setCreditoNoDisponible(
+              rC.status === 403
+                ? 'Tu rol no tiene acceso a la cartera de crédito.'
+                : 'No se pudo consultar el crédito vinculado.',
+            );
           }
         }
       } catch (err) {
         console.error('Error ticket:', err);
+        setCreditoNoDisponible('No se pudo consultar el crédito vinculado.');
       } finally {
         setCargando(false);
       }
@@ -130,9 +157,19 @@ export default function TicketVentaPage() {
   const efectivoRequerido = Math.max(0, venta.total-Number(venta.saldoFavorAplicado||0));
   const cambio      = esEfectivo && venta.montoRecibido ? venta.montoRecibido - efectivoRequerido : null;
   const isAnulada   = venta.estado === 'ANULADA';
-  const fechaVenc   = venta.metodoPago in diasCredito
-    ? new Date(new Date(venta.fechaVenta).getTime() + diasCredito[venta.metodoPago] * 86400000)
-    : null;
+  /*
+   * La fecha límite la DECIDE el crédito, no el ticket. Sumar treinta días a
+   * la venta aquí es una segunda fuente para el mismo dato: si el producto de
+   * crédito arranca el plazo en otra fecha —o si el crédito se reestructura—,
+   * el comprobante del cliente y lo que cobranza reclama dejan de coincidir, y
+   * el papel impreso es el que el cliente tiene en la mano. Se usa la del
+   * crédito; el cálculo local queda sólo por si el crédito no se pudo leer.
+   */
+  const fechaVenc   = credito?.fechaVencimiento
+    ? credito.fechaVencimiento
+    : venta.metodoPago in diasCredito
+      ? new Date(new Date(venta.fechaVenta).getTime() + diasCredito[venta.metodoPago] * 86400000)
+      : null;
 
   return (
     <div className="min-h-screen bg-slate-100 py-8 flex flex-col items-center print:bg-white print:py-0">
@@ -300,13 +337,31 @@ export default function TicketVentaPage() {
               <div className="flex justify-between text-xs text-amber-700">
                 <span>Fecha límite de pago:</span>
                 <span className="font-bold font-mono">
-                  {fechaVenc ? fmtFecha(fechaVenc.toISOString()) : '—'}
+                  {fmtFecha(fechaVenc)}
                 </span>
               </div>
               <div className="flex justify-between text-xs text-amber-700 mt-1">
                 <span>Monto total a pagar:</span>
-                <span className="font-black">{fmt$(venta.total)}</span>
+                <span className="font-black">{fmt$(credito?.montoTotal ?? venta.total)}</span>
               </div>
+              {/*
+                * Un ticket se reimprime. Si el credito ya se cobro y el papel
+                * sigue diciendo «a pagar $240», el cliente se lleva la idea de
+                * que debe algo que ya pago. Cuando el credito trae saldo, se
+                * dice cuanto queda; cuando esta liquidado, se dice que lo esta.
+                */}
+              {credito && credito.estado === 'LIQUIDADO' && (
+                <div className="flex justify-between text-xs text-emerald-700 mt-1">
+                  <span>Saldo:</span>
+                  <span className="font-black">PAGADO</span>
+                </div>
+              )}
+              {credito && credito.estado !== 'LIQUIDADO' && credito.saldoPendiente !== credito.montoTotal && (
+                <div className="flex justify-between text-xs text-amber-700 mt-1">
+                  <span>Saldo pendiente:</span>
+                  <span className="font-black">{fmt$(credito.saldoPendiente)}</span>
+                </div>
+              )}
               {credito && (
                 <p className="text-[9px] text-amber-600 mt-2 font-mono">Ref. crédito: {credito.folio}</p>
               )}
@@ -439,6 +494,13 @@ export default function TicketVentaPage() {
               <div className="mt-2 flex items-center justify-center gap-1 text-[9px] text-amber-600 font-bold">
                 <AlertCircle className="w-3 h-3"/>
                 Sujeto a crédito — conserve este comprobante
+              </div>
+            )}
+            {esCredito && !credito && (
+              <div className="mt-2 rounded border border-dashed border-amber-300 bg-amber-50 px-2 py-1.5 text-[9px] font-bold text-amber-700">
+                Plan de pagos no incluido en este ticket.
+                {creditoNoDisponible ? ` ${creditoNoDisponible}` : ''}
+                {' '}Consúltalo en el estado de cuenta del cliente.
               </div>
             )}
             <div className="font-mono tracking-[0.25em] text-slate-800 text-base opacity-60 mt-3">

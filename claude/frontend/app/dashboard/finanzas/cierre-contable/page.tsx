@@ -313,7 +313,15 @@ export default function CierreContablePage() {
     }
   }
 
-  const todasConfirmadas = Object.values(confirmaciones).every(Boolean);
+  /*
+   * `respaldoConfirmado` se excluye: ya no lo firma nadie, lo hace el cierre.
+   * Se conserva en el tipo para no romper las revisiones ya guardadas que lo
+   * traen, pero exigirlo aqui dejaria el boton apagado para siempre.
+   */
+  const todasConfirmadas =
+    confirmaciones.bancosRevisados &&
+    confirmaciones.ivaRevisado &&
+    confirmaciones.documentosCompletos;
 
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto">
@@ -648,7 +656,7 @@ function Wizard({
       <div className="border border-slate-200 rounded-2xl p-5 mb-5">
         <p className="font-bold text-slate-900">2. Confirmaciones humanas</p>
         <p className="text-xs text-slate-500 mt-1 mb-4">
-          El sistema puede sumar y detectar faltantes, pero estas cuatro
+          El sistema puede sumar y detectar faltantes, pero estas tres
           comprobaciones requieren una persona.
         </p>
         <div className="space-y-3">
@@ -679,15 +687,27 @@ function Wizard({
               setConfirmaciones({ ...confirmaciones, documentosCompletos: valor })
             }
           />
-          <Confirmacion
-            icono={<ShieldCheck className="w-4 h-4" />}
-            texto="Confirmo que existe un respaldo reciente de la base de datos."
-            checked={confirmaciones.respaldoConfirmado}
-            disabled={listo}
-            onChange={(valor) =>
-              setConfirmaciones({ ...confirmaciones, respaldoConfirmado: valor })
-            }
-          />
+          {/*
+            * Aqui habia una cuarta casilla: «Confirmo que existe un respaldo
+            * reciente de la base de datos». El sistema no tomaba ninguno ni
+            * enseñaba como tomarlo, y un contador no sabe que es pg_dump. Una
+            * firma que nadie puede cumplir se acaba marcando igual, y entonces
+            * la evidencia del cierre deja constancia escrita de una
+            * comprobacion que no ocurrio: peor que no pedirla.
+            *
+            * Ahora lo toma el cierre, y si no puede tomarlo el mes no se
+            * cierra. Deja de ser algo que el usuario promete y pasa a ser algo
+            * que el sistema hace.
+            */}
+          <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+            <p className="text-[12.5px] text-emerald-900 leading-relaxed">
+              <strong>El respaldo lo toma el sistema.</strong> Al cerrar se
+              genera una copia completa de la base, se verifica que no haya
+              quedado a medias y se guarda su huella en la evidencia del cierre.
+              Si el respaldo falla, el período <strong>no</strong> se cierra.
+            </p>
+          </div>
         </div>
         <label className="block text-xs font-bold uppercase text-slate-500 mt-5 mb-1.5">
           Notas de la revisión

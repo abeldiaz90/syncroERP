@@ -61,6 +61,7 @@ export default function AprobacionesPage() {
   const [aprobaciones, setAprobaciones] = useState<IAprobacion[]>([]);
   const [adjudicaciones, setAdjudicaciones] = useState<IAdjudicacion[]>([]);
   const [cargando, setCargando]         = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
   const [comentarios, setComentarios]   = useState<Record<string, string>>({});
   const [expandidos, setExpandidos]     = useState<Record<string, boolean>>({});
   const [procesando, setProcesando]     = useState<string | null>(null);
@@ -73,14 +74,37 @@ export default function AprobacionesPage() {
 
   const cargar = useCallback(async () => {
     setCargando(true);
+    /*
+      «Todo al día» es una conclusión, no un estado vacío.
+      Esta es la bandeja donde un aprobador decide si se queda a firmar o se
+      va: si la consulta falla y la lista queda vacía, la pantalla le decía
+      «Todo al día · No tienes requisiciones ni adjudicaciones pendientes de
+      aprobar» y el documento se quedaba esperando. Ahora sólo se dice cuando
+      las dos consultas contestaron.
+
+      Un 403 en una de las dos sigue siendo normal —hay roles que aprueban
+      requisiciones y no adjudicaciones, y al revés—, pero se anota.
+    */
     const [r, ra] = await Promise.all([
       fetch(`${api}/compras/requisiciones/aprobaciones/pendientes`, { headers: h() }),
       fetch(`${api}/compras/cotizaciones/aprobaciones/pendientes`, { headers: h() }),
     ]);
-    if (r.ok) setAprobaciones(await r.json());
-    // Un 403 aqui no vacia la pantalla: hay roles que aprueban requisiciones
-    // y no adjudicaciones, y al reves.
+    if (r.ok) { setAprobaciones(await r.json()); }
+    else { setAprobaciones([]); }
     setAdjudicaciones(ra.ok ? await ra.json() : []);
+    /*
+      Un 403 significa «esto no te toca» y no ensucia la bandeja; cualquier
+      otro fallo sí, porque entonces no se sabe si hay algo esperando.
+    */
+    const caidas = [
+      !r.ok && r.status !== 403 ? 'las requisiciones' : '',
+      !ra.ok && ra.status !== 403 ? 'las adjudicaciones' : '',
+    ].filter(Boolean);
+    setErrorCarga(
+      caidas.length
+        ? `No se pudieron consultar ${caidas.join(' ni ')}. Puede haber documentos esperando tu firma.`
+        : '',
+    );
     setCargando(false);
   }, []);
 
@@ -153,6 +177,12 @@ export default function AprobacionesPage() {
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
           <p className="text-slate-400 text-sm">Cargando aprobaciones...</p>
+        </div>
+      ) : errorCarga ? (
+        <div className="bg-white rounded-2xl border border-rose-200 p-16 text-center">
+          <Inbox className="w-16 h-16 text-rose-200 mx-auto mb-4"/>
+          <p className="font-bold text-xl text-rose-700">No se pudo leer la bandeja</p>
+          <p className="text-slate-500 text-sm mt-1">{errorCarga}</p>
         </div>
       ) : aprobaciones.length === 0 && adjudicaciones.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">

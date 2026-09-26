@@ -218,7 +218,9 @@ export class OperacionHotelService {
     hotel: Hotel,
   ): Promise<{ tarifaBase: number; capacidad: number }> {
     const tipo = await manager.query(
-      `SELECT id, capacidad, tarifaBase, activo FROM tipos_habitacion
+      // `tipo[0].tarifaBase` era undefined y `Number(undefined ?? 0)` daba 0:
+      // TODA reservación nacía con tarifa base cero.
+      `SELECT id, capacidad, tarifaBase AS "tarifaBase", activo FROM tipos_habitacion
         WHERE id=$1 AND hotelId=$2 AND empresaId=$3`,
       [dto.tipoHabitacionId, dto.hotelId, empresaId],
     );

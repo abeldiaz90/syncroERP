@@ -1,6 +1,7 @@
 // app/dashboard/hoteleria/reservaciones/page.tsx
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { PuedeCrear } from "@/app/components/ProtectedElement";
 import {
   CalendarCheck,
   Plus,
@@ -18,6 +19,7 @@ import {
   LayoutDashboard,
   ArrowRightLeft,
 } from "lucide-react";
+import { fechaCorta } from "@/lib/fechas";
 
 interface IHotel {
   id: string;
@@ -181,7 +183,7 @@ export default function ReservacionesPage() {
         </div>
         <div className="flex items-center gap-2">
           <a
-            href="/dashboard/hoteleria"
+            href="/dashboard/hoteleria/panel"
             className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             <LayoutDashboard className="h-4 w-4" /> Panel
@@ -197,12 +199,24 @@ export default function ReservacionesPage() {
               </option>
             ))}
           </select>
+          {/*
+            * Quien no puede crear una reservación no ve el botón.
+            *
+            * Gerencia abre esta pantalla —la tiene en su perfil— y el botón la
+            * llevaba a llenar el formulario entero para terminar en «no tienes
+            * permisos suficientes para esta acción». Es el mismo defecto que ya
+            * se corrigió en la barra de módulos: un botón que lleva a una
+            * negativa es peor que no tener el botón, porque hace perder el
+            * trabajo ya hecho.
+            */}
+          <PuedeCrear ruta="/hoteleria/operacion/reservaciones">
           <button
             onClick={() => setModalNueva(true)}
             className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700"
           >
             <Plus className="w-4 h-4" /> Nueva reserva
           </button>
+          </PuedeCrear>
         </div>
       </div>
 
@@ -212,7 +226,19 @@ export default function ReservacionesPage() {
           <div className="p-12 text-center text-slate-400">
             <CalendarCheck className="w-12 h-12 mx-auto mb-3 text-slate-200" />
             <p className="font-semibold text-slate-600">Sin reservaciones</p>
-            <p className="text-sm">Crea la primera con "Nueva reserva".</p>
+            {/*
+              * El vacío tampoco manda a un botón que no está: a quien no puede
+              * crear reservaciones se le dice quién las crea, no que pulse algo
+              * que no ve.
+              */}
+            <PuedeCrear
+              ruta="/hoteleria/operacion/reservaciones"
+              alternativa={
+                <p className="text-sm">Las reservaciones las registra Recepción.</p>
+              }
+            >
+              <p className="text-sm">Crea la primera con &quot;Nueva reserva&quot;.</p>
+            </PuedeCrear>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -239,8 +265,12 @@ export default function ReservacionesPage() {
                   <td className="px-4 py-3 text-slate-600">
                     {nombreTipo(r.tipoHabitacionId)}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{r.fechaEntrada}</td>
-                  <td className="px-4 py-3 text-slate-600">{r.fechaSalida}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {fechaCorta(r.fechaEntrada)}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {fechaCorta(r.fechaSalida)}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <span
                       className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold border ${ESTADO_BADGE[r.estado] || ""}`}
@@ -1463,12 +1493,55 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
                 </button>
               )}
 
-              <div className="flex items-center justify-between bg-indigo-50 rounded-xl px-4 py-3 mb-4">
-                <span className="font-bold text-indigo-900">Total</span>
-                <span className="text-2xl font-black text-indigo-700">
-                  ${Number(folio.totalCierreEstimado ?? folio.total).toFixed(2)}
-                </span>
-              </div>
+              {/*
+                El folio muestra los cargos ya posteados; el importe grande era
+                el estimado al cierre, que incluye las noches que todavia no se
+                postean. Un solo renglon llamado «Total» debajo de una lista que
+                suma otra cosa se lee como un error de suma. Aqui se dicen las
+                dos cifras y de donde sale la diferencia.
+              */}
+              {(() => {
+                const cargado = Number(folio.total ?? 0);
+                const estimado = Number(
+                  folio.totalCierreEstimado ?? folio.total ?? 0,
+                );
+                const noches = Number(folio.nochesPendientes ?? 0);
+                const porPostear = estimado - cargado;
+                return (
+                  <div className="bg-indigo-50 rounded-xl px-4 py-3 mb-4 space-y-1">
+                    {noches > 0 && (
+                      <>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-semibold text-indigo-900">
+                            Cargado al folio
+                          </span>
+                          <span className="font-bold text-indigo-800">
+                            ${cargado.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-600">
+                          <span>
+                            + {noches} noche{noches === 1 ? "" : "s"} por postear
+                          </span>
+                          <span>${porPostear.toFixed(2)}</span>
+                        </div>
+                      </>
+                    )}
+                    <div
+                      className={`flex items-center justify-between ${
+                        noches > 0 ? "border-t border-indigo-200 pt-1" : ""
+                      }`}
+                    >
+                      <span className="font-bold text-indigo-900">
+                        {noches > 0 ? "Estimado al check-out" : "Total"}
+                      </span>
+                      <span className="text-2xl font-black text-indigo-700">
+                        ${estimado.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           ) : (
             <p className="text-sm text-slate-500">

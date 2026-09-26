@@ -61,12 +61,22 @@ export default function PanelPrincipal() {
       if (!s) return;
       if (vivo) setNombre(s.nombreCompleto || s.email);
 
-      let rutas: string[];
+      let rutas: string[] | null;
       if (esRolAdministrador(s.rol)) {
         rutas = ['*'];
       } else {
-        const r = await intentar(api.get<{ rutas?: string[] }>('/admin/permisos/mis-rutas'), { rutas: [] });
-        rutas = r.rutas ?? [];
+        /*
+         * Si la consulta falla NO se concluye que el perfil está vacío: el
+         * panel principal se quedaba sin un solo acceso, que es exactamente lo
+         * que se ve cuando a alguien le quitan todos los permisos. Se deja en
+         * null, que aquí significa «aún no se sabe».
+         */
+        try {
+          const r = await api.get<{ rutas?: string[] }>('/admin/permisos/mis-rutas');
+          rutas = r.rutas ?? [];
+        } catch {
+          rutas = null;
+        }
       }
       if (vivo) setPermisos(rutas);
 

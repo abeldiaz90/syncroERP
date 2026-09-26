@@ -44,7 +44,13 @@ describe('CajaService', () => {
    * pruebas no ejercitan esa ruta; basta con un doble inerte.
    */
   const tesoreriaFalsa = { registrarEnTransaccion: jest.fn(async () => null) } as any;
-  const servicio = new CajaService({} as any, {} as any, {} as any, tesoreriaFalsa);
+  /*
+   * El cierre con diferencia encola su póliza de arqueo, así que el servicio
+   * recibe también el de asientos pendientes. Estas pruebas no ejercitan esa
+   * ruta; basta con otro doble inerte.
+   */
+  const asientosFalsos = { encolarEnTransaccion: jest.fn(async () => ({ id: 'pend-1' })) } as any;
+  const servicio = new CajaService({} as any, {} as any, {} as any, tesoreriaFalsa, asientosFalsos);
 
   it('rechaza una salida que dejaría efectivo esperado negativo', async () => {
     const { manager, save } = managerConTurno(100);
@@ -97,6 +103,7 @@ describe('CajaService', () => {
       {} as any,
       {} as any,
       { registrarEnTransaccion: jest.fn(async () => null) } as any,
+      { encolarEnTransaccion: jest.fn(async () => ({ id: 'pend-1' })) } as any,
     );
 
     await expect(

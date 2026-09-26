@@ -481,13 +481,41 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
     avisoPrivacidad: hotel?.avisoPrivacidad ?? "",
   });
   const [almacenes, setAlmacenes] = useState<any[]>([]);
+  const [sinAlmacenes, setSinAlmacenes] = useState("");
   const [g, setG] = useState(false);
   const [err, setErr] = useState("");
 
+  /*
+    El catalogo completo de almacenes pertenece a Inventario y hoteleria no lo
+    tiene. Al pedirlo, el 403 se convertia en lista vacia y el selector de
+    «Almacen de insumos» quedaba imposible de contestar: sin almacen no se
+    puede postear un consumo, y la pantalla no decia por que. Se pide la lista
+    corta —solo id y nombre— y, si tampoco se puede, se dice.
+  */
   useEffect(() => {
     (async () => {
-      const r = await fetch(`${api}/catalogo/almacenes`, { headers: h() });
-      if (r.ok) setAlmacenes(await r.json());
+      try {
+        const r = await fetch(`${api}/catalogo/almacenes/para-venta`, {
+          headers: h(),
+        });
+        if (r.ok) {
+          const lista = await r.json();
+          setAlmacenes(lista);
+          setSinAlmacenes(
+            Array.isArray(lista) && lista.length === 0
+              ? "No hay almacenes dados de alta. Inventario debe crear uno antes de poder descontar consumos."
+              : "",
+          );
+          return;
+        }
+        setSinAlmacenes(
+          r.status === 403
+            ? "Tu perfil no puede consultar los almacenes. Pide a Inventario o al administrador que asigne el almacen de insumos."
+            : "No se pudo consultar la lista de almacenes.",
+        );
+      } catch {
+        setSinAlmacenes("No se pudo consultar la lista de almacenes.");
+      }
     })();
   }, []);
   const guardar = async () => {
@@ -568,6 +596,11 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
           ))}
         </select>
       </Field>
+      {sinAlmacenes && (
+        <p className="-mt-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {sinAlmacenes}
+        </p>
+      )}
       <p className="text-xs text-slate-400 -mt-1">
         De este almacén se descuentan los consumibles y amenidades; los blancos
         reutilizables no se consumen.

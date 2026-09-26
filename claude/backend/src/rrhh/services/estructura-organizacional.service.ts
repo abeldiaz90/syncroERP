@@ -90,8 +90,34 @@ export class EstructuraOrganizacionalService {
     const asignaciones = await this.dataSource.getRepository(ConfiguracionAprobacion).count({
       where: { empresaId: usuario.empresaId, usuarioId: usuario.id, activo: true },
     });
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * El permiso concedía y el servicio negaba
+     * ------------------------------------------------------------------------
+     * La plantilla de `direccion` declara irrenunciables `GET /rrhh/estructura/
+     * solicitudes` y `POST /rrhh/estructura/solicitudes/:id/gerencia`, con su
+     * motivo escrito: dirección está por encima de gerencia y la cubre cuando
+     * el gerente falta, porque si no el alta de puestos se para en cuanto una
+     * persona se va de vacaciones. La SEGUNDA etapa no la tiene, así que no
+     * puede firmar las dos y la segregación se mantiene.
+     *
+     * Aquí la lista no la incluía. Resultado medido el 25-sep-2026 con la
+     * sesión de dirección: la tabla de permisos decía que sí —la pantalla
+     * aparecía en su menú— y el servicio contestaba «No tienes acceso a las
+     * solicitudes de estructura». Es el mismo patrón de siempre visto del
+     * revés: una puerta que se abre a una negativa.
+     *
+     * Las dos autorizaciones tienen que decir lo mismo. Ésta es la que estaba
+     * desalineada con la intención declarada.
+     * ────────────────────────────────────────────────────────────────────────
+     */
     if (
-      !rolAutorizado(usuario.rol, ['rrhh', 'gerencia', 'finanzas']) &&
+      !rolAutorizado(usuario.rol, [
+        'rrhh',
+        'gerencia',
+        'direccion',
+        'finanzas',
+      ]) &&
       asignaciones === 0
     ) {
       throw new ForbiddenException('No tienes acceso a las solicitudes de estructura.');
@@ -128,7 +154,13 @@ export class EstructuraOrganizacionalService {
         throw new ForbiddenException(`Esta etapa requiere el rol ${configurado.rolAprobador}.`);
       }
     } else {
-      const rolesPermitidos = etapa === 'GERENCIA' ? ['gerencia'] : ['finanzas'];
+      /*
+       * Dirección cubre la etapa de GERENCIA —y sólo ésa—, por lo dicho en
+       * `listar()`. La de FINANZAS se queda como estaba: quien cubre una firma
+       * no cubre las dos.
+       */
+      const rolesPermitidos =
+        etapa === 'GERENCIA' ? ['gerencia', 'direccion'] : ['finanzas'];
       if (!rolAutorizado(usuario.rol, rolesPermitidos)) {
         throw new ForbiddenException(`Esta etapa requiere el rol ${etapa === 'GERENCIA' ? 'Gerencia' : 'Finanzas'}.`);
       }

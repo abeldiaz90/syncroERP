@@ -24,6 +24,7 @@ export interface IOrdenCompra {
 export default function OrdenesCompraPage() {
   const [ordenes, setOrdenes] = useState<IOrdenCompra[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
   const [busqueda, setBusqueda] = useState('');
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
@@ -38,9 +39,18 @@ export default function OrdenesCompraPage() {
         });
         if (res.ok) {
           setOrdenes(await res.json());
+          setErrorCarga('');
+        } else {
+          /* Una lista vacía por un 403 no es «no hay órdenes de compra». */
+          setOrdenes([]);
+          setErrorCarga(res.status === 403
+            ? 'Tu perfil no incluye la consulta de órdenes de compra.'
+            : 'No se pudieron consultar las órdenes de compra.');
         }
       } catch (error) {
         console.error("Error al cargar las órdenes", error);
+        setOrdenes([]);
+        setErrorCarga('No hay conexión con el servidor.');
       } finally {
         setCargando(false);
       }
@@ -67,6 +77,12 @@ export default function OrdenesCompraPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto text-slate-800">
+
+      {errorCarga && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {errorCarga}
+        </div>
+      )}
       
       {/* Encabezado */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">

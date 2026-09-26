@@ -10,6 +10,8 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../common/validators/sql-server-guid.validator';
+import { EsRfc } from '../common/validators/rfc.validator';
+import { IsFechaOpcional } from '../common/validators/fecha-opcional.validator';
 
 export class PartidaDto {
   @IsSqlServerGuidOpcional()
@@ -68,7 +70,8 @@ export class CrearFacturaDto {
   @IsSqlServerGuidOpcional()
   clienteId?: string;
 
-  @IsString()
+  // El receptor del CFDI. Antes sólo se exigía que fuera texto: «12345» pasaba.
+  @EsRfc()
   rfcReceptor: string;
 
   @IsString()
@@ -111,7 +114,6 @@ export class CrearFacturaDto {
   @IsOptional()
   notas?: string;
 
-  @IsOptional()
-  @IsDateString()
+  @IsFechaOpcional()
   fecha?: string;
 }

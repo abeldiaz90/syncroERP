@@ -11,6 +11,7 @@ import {
   Min,
 } from 'class-validator';
 import { ModoActivacionFinanciera } from '../entities/activacion-financiera.entity';
+import { IsFechaOpcional } from '../../common/validators/fecha-opcional.validator';
 
 export class GuardarActivacionFinancieraDto {
   @IsOptional()
@@ -21,8 +22,7 @@ export class GuardarActivacionFinancieraDto {
   @IsBoolean()
   empresaEnOperacion?: boolean;
 
-  @IsOptional()
-  @IsDateString()
+  @IsFechaOpcional()
   fechaInicioContable?: string;
 
   @IsOptional()

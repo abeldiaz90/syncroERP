@@ -170,6 +170,66 @@ function sesionExpirada() {
     : '/login';
 }
 
+/**
+ * ============================================================================
+ * Las 63 pantallas que llaman al backend con `fetch` a pelo
+ * ----------------------------------------------------------------------------
+ * Este cliente hace tres cosas ante una sesión vencida: renueva el token ANTES
+ * de salir si está por expirar, reintenta una vez tras renovar si aun así llega
+ * un 401, y si nada de eso sirve manda a la pantalla de acceso diciendo «tu
+ * sesión expiró».
+ *
+ * Sesenta y tres pantallas no pasan por aquí: arman el encabezado a mano y
+ * llaman con `fetch` directo. Ésas no renuevan, no reintentan y, sobre todo, no
+ * avisan: cada una hace lo que su propio manejo de errores diga, que muchas
+ * veces es nada. El efecto es una pantalla que sigue pintada, con sus botones,
+ * y en la que ya no funciona nada. Pasó dos veces durante las pruebas del
+ * 25-sep: el formulario de una reservación se cerró sin crear nada y sin decir
+ * por qué.
+ *
+ * Reescribir las 63 en vísperas de la entrega es más riesgo que beneficio. Esto
+ * es lo proporcionado: un vigía que mira las respuestas del backend —las de
+ * `fetch` incluidas— y ante un 401 hace lo mismo que haría este cliente. Vive
+ * donde ya vive la vigilancia de la sesión, porque la sesión no pertenece a una
+ * pantalla.
+ *
+ * No toca las respuestas: sólo las observa.
+ * ============================================================================
+ */
+let vigilando401 = false;
+
+export function vigilar401Global(): () => void {
+  if (typeof window === 'undefined' || vigilando401) return () => undefined;
+  vigilando401 = true;
+  const original = window.fetch.bind(window);
+  const envuelto: typeof window.fetch = async (entrada, init) => {
+    const respuesta = await original(entrada, init);
+    try {
+      const url =
+        typeof entrada === 'string'
+          ? entrada
+          : entrada instanceof URL
+            ? entrada.href
+            : (entrada as Request).url;
+      /*
+       * Sólo el backend del ERP, y sólo el 401. Un 401 de otro origen —o el de
+       * la propia pantalla de acceso— no dice nada sobre esta sesión.
+       */
+      if (respuesta.status === 401 && url && url.startsWith(API_URL)) {
+        sesionExpirada();
+      }
+    } catch {
+      /* Observar no puede romper la petición que observa. */
+    }
+    return respuesta;
+  };
+  window.fetch = envuelto;
+  return () => {
+    if (window.fetch === envuelto) window.fetch = original;
+    vigilando401 = false;
+  };
+}
+
 /* ── Núcleo ──────────────────────────────────────────────────────────────── */
 
 interface Opciones extends Omit<RequestInit, 'body'> {

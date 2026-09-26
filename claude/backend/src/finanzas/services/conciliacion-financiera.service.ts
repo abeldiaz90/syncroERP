@@ -57,10 +57,14 @@ export class ConciliacionFinancieraService {
   private async saldosMayor(empresaId: string, fechaCorte: string) {
     const filas = await this.dataSource.query(
       `
+        -- fila.rolSistema era undefined, así que el mapa de saldos por rol
+        -- acababa con UNA entrada llamada undefined y saldo(rol) devolvía cero
+        -- para todos: el lado del mayor de la conciliación inicial salía en
+        -- ceros contra un auxiliar con datos.
         SELECT
-          c.rolSistema,
-          SUM(CAST(pp.cargo AS decimal(18,4))) cargos,
-          SUM(CAST(pp.abono AS decimal(18,4))) abonos
+          c.rolSistema AS "rolSistema",
+          SUM(CAST(pp.cargo AS decimal(18,4))) AS cargos,
+          SUM(CAST(pp.abono AS decimal(18,4))) AS abonos
         FROM partidas_poliza pp
         INNER JOIN polizas p ON p.id = pp.polizaId
         INNER JOIN cuentas_contables c ON c.id = pp.cuentaContableId
@@ -106,10 +110,13 @@ export class ConciliacionFinancieraService {
     }
     const filas = await this.dataSource.query(
       `
+        -- La CTE entrecomilla sus dos columnas aunque sólo las consuma el SELECT
+        -- de abajo: la regla es absoluta para que nadie tenga que juzgar, a las
+        -- dos de la mañana, si esta lista la va a leer JavaScript o no.
         WITH ultimo AS (
           SELECT
-            m.cuentaBancariaId,
-            m.saldoPosterior,
+            m.cuentaBancariaId AS "cuentaBancariaId",
+            m.saldoPosterior AS "saldoPosterior",
             ROW_NUMBER() OVER (
               PARTITION BY m.cuentaBancariaId
               ORDER BY m.fecha DESC, m.fechaCreacion DESC, m.id DESC
@@ -119,17 +126,27 @@ export class ConciliacionFinancieraService {
             AND m.fecha <= $2
             AND m.cancelado = false
         )
+        -- Los alias van ENTRECOMILLADOS. PostgreSQL pliega a minusculas todo
+        -- identificador suelto, asi que sin comillas la fila llegaba con
+        -- numerocuenta, cuentacontableid y tienemovimientos, y el mapeo de
+        -- abajo leia fila.numeroCuenta => undefined. Consecuencias, todas
+        -- medidas contra el codigo: el numero de cuenta salia vacio en la
+        -- pantalla, vinculada era SIEMPRE false (esta cuenta no esta ligada a
+        -- una cuenta contable, dijera lo que dijera la base) y disponible era
+        -- SIEMPRE false, con lo que el auxiliar de tesoreria de la
+        -- conciliacion inicial nunca aparecia. La columna real es minuscula;
+        -- lo que hay que entrecomillar es el alias.
         SELECT
-          c.id,
-          c.nombre,
-          c.tipo,
-          c.numeroCuenta,
-          c.cuentaContableId,
-          CAST(COALESCE(u.saldoPosterior, 0) AS decimal(18,2)) saldo,
-          CASE WHEN u.cuentaBancariaId IS NULL THEN 0 ELSE 1 END tieneMovimientos
+          c.id AS id,
+          c.nombre AS nombre,
+          c.tipo AS tipo,
+          c.numeroCuenta AS "numeroCuenta",
+          c.cuentaContableId AS "cuentaContableId",
+          CAST(COALESCE(u."saldoPosterior", 0) AS decimal(18,2)) AS saldo,
+          CASE WHEN u."cuentaBancariaId" IS NULL THEN 0 ELSE 1 END AS "tieneMovimientos"
         FROM cuentas_bancarias c
         LEFT JOIN ultimo u
-          ON u.cuentaBancariaId = c.id AND u.rn = 1
+          ON u."cuentaBancariaId" = c.id AND u.rn = 1
         WHERE c.empresaId = $1 AND c.activo=true
         ORDER BY c.tipo, c.nombre
       `,

@@ -314,7 +314,7 @@ export class TesoreriaService {
     }
     if (filtros.busqueda) {
       q.andWhere(
-        '(m.concepto LIKE :b OR m.referencia LIKE :b OR m.folio LIKE :b OR m.nombreTercero LIKE :b)',
+        '(m.concepto ILIKE :b OR m.referencia ILIKE :b OR m.folio ILIKE :b OR m.nombreTercero ILIKE :b)',
         {
           b: `%${filtros.busqueda}%`,
         },
@@ -862,6 +862,76 @@ export class TesoreriaService {
           abono: Number(l.abono),
         })),
       },
+    };
+  }
+
+  /*
+   * ==========================================================================
+   * La puerta que faltaba
+   * --------------------------------------------------------------------------
+   * `EstadoCierre.CERRADA` existia en el enum, la columna `fechaCierre` y
+   * `conciliadoPorId` existian en la tabla, y habia DOS guardias que se negaban
+   * a tocar un estado de cuenta cerrado. Lo unico que no existia era la accion
+   * que lo cierra: el estado nacia ABIERTA en `crearEstadoCuenta` y nadie le
+   * cambiaba el valor nunca.
+   *
+   * No era un detalle de tesoreria. El diagnostico del cierre mensual cuenta
+   * `estado = 'CERRADA'` para saber si el banco esta conciliado, de modo que
+   * ese contador valia cero siempre y el control BLOQUEABA cualquier mes de
+   * cualquier empresa. Un control que cuenta un estado que ningun codigo
+   * escribe no es estricto: es imposible. Y no se ve, porque el control hace
+   * exactamente lo que dice hacer.
+   *
+   * Cerrar es un acto humano: alguien afirma que lo que el banco dice y lo que
+   * los libros dicen ya se explican entre si. Por eso se exige que el reporte
+   * CUADRE. Firmar un descuadre seria certificar una mentira, y el sistema no
+   * debe ofrecer esa firma.
+   * ==========================================================================
+   */
+  async cerrarConciliacion(
+    estadoCuentaId: string,
+    empresaId: string,
+    usuarioId: string,
+  ) {
+    const estado = await this.estados.findOne({
+      where: { id: estadoCuentaId, empresaId },
+    });
+    if (!estado) throw new NotFoundException('El estado de cuenta no existe.');
+
+    if (estado.estado === EstadoCierre.CERRADA) {
+      throw new ConflictException(
+        'Esta conciliacion ya estaba cerrada' +
+          (estado.fechaCierre
+            ? ` desde el ${estado.fechaCierre.toISOString().slice(0, 10)}.`
+            : '.'),
+      );
+    }
+
+    const reporte = await this.reporteConciliacion(estadoCuentaId, empresaId);
+    if (!reporte.cuadra) {
+      throw new BadRequestException(
+        `La conciliacion no cuadra: quedan ${reporte.diferencia.toFixed(2)} sin explicar. ` +
+          `El banco reporta ${reporte.saldoSegunBanco.toFixed(2)} y los libros ` +
+          `${reporte.saldoSegunLibros.toFixed(2)}. ` +
+          'Empareja los movimientos que faltan o registra los que el banco trae y ' +
+          'nosotros no, y vuelve a intentarlo: cerrar con diferencia seria firmar ' +
+          'que cuadra cuando no cuadra.',
+      );
+    }
+
+    estado.estado = EstadoCierre.CERRADA;
+    estado.fechaCierre = new Date();
+    estado.conciliadoPorId = usuarioId;
+    await this.estados.save(estado);
+
+    return {
+      id: estado.id,
+      estado: estado.estado,
+      fechaCierre: estado.fechaCierre,
+      periodo: reporte.periodo,
+      mensaje:
+        `Conciliacion de ${reporte.periodo} cerrada. ` +
+        'El cierre mensual ya la cuenta como cobertura bancaria del periodo.',
     };
   }
 

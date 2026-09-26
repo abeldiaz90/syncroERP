@@ -10,7 +10,9 @@ import {
   Users,
   Play,
   TrendingUp,
+  AlertTriangle,
 } from "lucide-react";
+import { fechaCorta } from "@/lib/fechas";
 
 interface IHotel {
   id: string;
@@ -28,6 +30,9 @@ interface IResultado {
   nochesPosteadas: number;
   montoTotal: number;
   detalle: { codigo: string; monto: number }[];
+  /* La auditoría puede responder 200 y no haber corrido: ver más abajo. */
+  ejecutada?: boolean;
+  motivo?: string | null;
 }
 
 export default function AuditoriaPage() {
@@ -103,7 +108,19 @@ export default function AuditoriaPage() {
     if (r.ok) {
       const d = await r.json();
       setResultado(d);
-      mostrar(`Auditoría completada: ${d.nochesPosteadas} noche(s) posteadas`);
+      /*
+        Un 200 no quiere decir que el día se haya cerrado. Cuando la fecha
+        operativa todavía no termina, la auditoría se niega —correctamente— y
+        devuelve ceros; esta pantalla anunciaba «Auditoría completada» igual.
+        Ahora el aviso dice lo que pasó y el bloque de abajo, también.
+      */
+      if (d.ejecutada === false) {
+        mostrar(d.motivo || "La auditoría no se ejecutó.", false);
+      } else {
+        mostrar(
+          `Auditoría completada: ${d.nochesPosteadas} noche(s) posteadas`,
+        );
+      }
       cargarEstado();
     } else {
       const d = await r.json().catch(() => null);
@@ -189,7 +206,7 @@ export default function AuditoriaPage() {
               <Calendar className="w-3.5 h-3.5" /> Fecha operativa
             </div>
             <p className="text-xl font-semibold text-slate-900">
-              {estado.fechaOperativa}
+              {fechaCorta(estado.fechaOperativa)}
             </p>
           </div>
           <div
@@ -259,11 +276,20 @@ export default function AuditoriaPage() {
       {/* Resultado */}
       {resultado && (
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-          <div className="p-5 border-b border-slate-100 bg-emerald-50">
-            <div className="flex items-center gap-2 text-emerald-700 font-semibold">
-              <CheckCircle2 className="w-5 h-5" /> Auditoría completada
+          {resultado.ejecutada === false ? (
+            <div className="p-5 border-b border-slate-100 bg-amber-50">
+              <div className="flex items-center gap-2 font-semibold text-amber-800">
+                <AlertTriangle className="w-5 h-5" /> La auditoría no se ejecutó
+              </div>
+              <p className="mt-1 text-sm text-amber-800">{resultado.motivo}</p>
             </div>
-          </div>
+          ) : (
+            <div className="p-5 border-b border-slate-100 bg-emerald-50">
+              <div className="flex items-center gap-2 text-emerald-700 font-semibold">
+                <CheckCircle2 className="w-5 h-5" /> Auditoría completada
+              </div>
+            </div>
+          )}
           <div className="grid sm:grid-cols-3 gap-4 p-5">
             <div>
               <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
@@ -283,10 +309,12 @@ export default function AuditoriaPage() {
             </div>
             <div>
               <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
-                Nueva fecha operativa
+                {resultado.ejecutada === false
+                  ? "Fecha operativa (sin cambio)"
+                  : "Nueva fecha operativa"}
               </p>
               <p className="text-lg font-semibold text-slate-900">
-                {resultado.fechaOperativa}
+                {fechaCorta(resultado.fechaOperativa)}
               </p>
             </div>
           </div>

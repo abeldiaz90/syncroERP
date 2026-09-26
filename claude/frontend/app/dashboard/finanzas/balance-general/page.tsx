@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { fechaLarga } from '@/lib/fechas';
 import { Scale, Calendar, X, Printer, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface ICuenta {
@@ -10,7 +11,7 @@ interface ICuenta {
 const HOY = new Date();
 const fmt  = (d: Date) => d.toISOString().split('T')[0];
 const fmtLabel = (s: string) =>
-  s ? new Date(s + 'T00:00:00').toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' }) : '';
+  s ? fechaLarga(s) : '';
 
 const RANGOS = [
   { label: 'Este mes',    desde: fmt(new Date(HOY.getFullYear(), HOY.getMonth(), 1)),     hasta: fmt(new Date(HOY.getFullYear(), HOY.getMonth()+1, 0)) },
@@ -27,6 +28,13 @@ export default function BalanceGeneralPage() {
   const [fechaDesde, setFechaDesde]   = useState(RANGOS[2].desde);
   const [fechaHasta, setFechaHasta]   = useState(RANGOS[2].hasta);
   const [rangoActivo, setRangoActivo] = useState('Histórico');
+  /*
+    Un reporte financiero vacío parece un reporte en orden: todo en cero y la
+    identidad contable cuadrando sola. La consulta se hacía con `if (res.ok)` y
+    sin `else`, así que cualquier fallo se presentaba como un periodo sin
+    movimientos. Ahora se dice que no se pudo preguntar.
+  */
+  const [error, setError] = useState('');
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
 
@@ -40,7 +48,18 @@ export default function BalanceGeneralPage() {
       const res = await fetch(`${api}/finanzas/polizas/balanza?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) setCuentas(await res.json());
+      if (res.ok) {
+        setCuentas(await res.json());
+        setError('');
+      } else {
+        setCuentas([]);
+        setError(res.status === 403
+          ? 'Tu perfil no incluye la consulta de el balance general.'
+          : 'No se pudo consultar el balance general. Los importes de esta pantalla no son válidos.');
+      }
+    } catch {
+      setCuentas([]);
+      setError('No hay conexión con el servidor. Los importes de esta pantalla no son válidos.');
     } finally { setCargando(false); }
   }, [api]);
 
@@ -70,7 +89,8 @@ export default function BalanceGeneralPage() {
   const totalActivo  = activo.reduce((s,c) => s + c.saldoFinal, 0);
   const totalPasivo  = pasivo.reduce((s,c) => s + c.saldoFinal, 0);
   const totalCapital = capital.reduce((s,c) => s + c.saldoFinal, 0) + utilidadPeriodo;
-  const cuadra       = Math.abs(totalActivo - (totalPasivo + totalCapital)) < 1;
+  /* Sin datos no hay nada que cuadre: un balance vacío cuadra solo. */
+  const cuadra       = !error && Math.abs(totalActivo - (totalPasivo + totalCapital)) < 1;
 
   const periodoLabel = rangoActivo === 'Histórico'
     ? 'Histórico completo'
@@ -93,6 +113,12 @@ export default function BalanceGeneralPage() {
           <Printer className="w-4 h-4" /> Imprimir
         </button>
       </div>
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {error}
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6">
@@ -134,7 +160,7 @@ export default function BalanceGeneralPage() {
         <>
           {/* Ecuación contable */}
           <div className={`rounded-2xl border-2 p-4 mb-6 flex items-center justify-center gap-4 flex-wrap ${
-            cuadra ? 'bg-emerald-50 border-emerald-300' : 'bg-rose-50 border-rose-300'
+            error ? 'bg-slate-100 border-slate-300' : cuadra ? 'bg-emerald-50 border-emerald-300' : 'bg-rose-50 border-rose-300'
           }`}>
             <div className="text-center">
               <p className="text-xs font-bold uppercase text-slate-500">Activo</p>
@@ -151,7 +177,9 @@ export default function BalanceGeneralPage() {
               <p className="text-2xl font-black text-emerald-700">{fmt$(totalCapital)}</p>
             </div>
             <div className="flex items-center gap-2 ml-4">
-              {cuadra
+              {error
+                ? <><AlertCircle className="w-5 h-5 text-slate-500" /><span className="text-sm font-bold text-slate-600">Sin datos: no se pudo consultar</span></>
+                : cuadra
                 ? <><CheckCircle2 className="w-5 h-5 text-emerald-600" /><span className="text-sm font-bold text-emerald-700">Balance cuadrado</span></>
                 : <><AlertCircle className="w-5 h-5 text-rose-600" /><span className="text-sm font-bold text-rose-700">Descuadrado ${fmt$(Math.abs(totalActivo - totalPasivo - totalCapital))}</span></>
               }

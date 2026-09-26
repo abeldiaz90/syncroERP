@@ -113,11 +113,39 @@ export const MODULOS_NEGOCIO: ModuloNegocio[] = [
   {
     id: 'hoteleria',
     nombre: 'Hotelería',
-    descripcion: 'Operación, disponibilidad, ama de llaves, city ledger y auditoría nocturna.',
+    descripcion: 'Operación, disponibilidad, ama de llaves y auditoría nocturna.',
     icono: 'BedDouble',
     grupo: 'Operación',
     orden: 16,
     prefijos: ['/hoteleria'],
+  },
+  {
+    /*
+     * ======================================================================
+     * El city ledger es cobranza, no recepcion
+     * ----------------------------------------------------------------------
+     * El credito hotelero —convenios con empresas, cartera, antiguedad de
+     * saldos y cobros— vivia dentro del modulo «hoteleria», de modo que para
+     * que Cobranza pudiera trabajar la cartera del hotel habia que darle
+     * hoteleria entero. Se vio el 25-sep-2026 recorriendo la interfaz: el rol
+     * de cobranza entraba a la configuracion de las propiedades y a la
+     * auditoria nocturna —pantallas de recepcion, no suyas— porque eran la
+     * unica forma de llegar al city ledger.
+     *
+     * Es el mismo corte que ya se hizo con «Almacenes»: si un trabajo se
+     * concede a un puesto distinto, es un modulo distinto. Gana el prefijo mas
+     * largo, asi que `/hoteleria/city-ledger` sale de `/hoteleria` sin tocar
+     * el resto.
+     * ======================================================================
+     */
+    id: 'city-ledger',
+    nombre: 'City Ledger',
+    descripcion:
+      'Convenios de credito hotelero, cartera, antiguedad de saldos y cobros del hotel.',
+    icono: 'BookUser',
+    grupo: 'Operación',
+    orden: 16.5,
+    prefijos: ['/hoteleria/city-ledger'],
   },
   {
     id: 'crm',

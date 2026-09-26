@@ -25,30 +25,41 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class EmpresaIdentidad1789700000000 implements MigrationInterface {
   name = 'EmpresaIdentidad1789700000000';
 
+  /*
+   * Las columnas se crean en MINUSCULAS y sin comillas a proposito. El proyecto
+   * usa `LowercaseNamingStrategy`, asi que TypeORM pide `empresaid`; una columna
+   * creada como `"empresaId"` conserva las mayusculas y NUNCA se encuentra.
+   * Esta tabla nacio asi y cada consulta suya moria con «column
+   * EmpresaIdentidad.empresaid does not exist», en silencio para el usuario:
+   * las busquedas de identidad estan envueltas en try/catch, de modo que el
+   * sistema se comportaba como si la empresa no tuviera realm propio en vez de
+   * avisar que no podia leerlo. La migracion 1790300000000 lo repara donde ya
+   * existe.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS empresa_identidad (
         id                       uuid NOT NULL DEFAULT gen_random_uuid(),
-        "empresaId"              uuid NOT NULL,
+        empresaid              uuid NOT NULL,
         emisor                   varchar(300) NOT NULL,
         realm                    varchar(100) NOT NULL,
-        "clientIdPublico"        varchar(100) NOT NULL,
-        "clientIdServicio"       varchar(100),
-        "secretoServicio"        text,
-        "clientIdProvisionador"  varchar(100),
-        "secretoProvisionador"   text,
-        "dominiosPermitidos"     varchar(300),
+        clientidpublico        varchar(100) NOT NULL,
+        clientidservicio       varchar(100),
+        secretoservicio        text,
+        clientidprovisionador  varchar(100),
+        secretoprovisionador   text,
+        dominiospermitidos     varchar(300),
         estado                   varchar(20) NOT NULL DEFAULT 'APROVISIONANDO',
-        "aprovisionadoPor"       varchar(150),
-        "fechaCreacion"          timestamptz NOT NULL DEFAULT now(),
-        "fechaActualizacion"     timestamptz NOT NULL DEFAULT now(),
+        aprovisionadopor       varchar(150),
+        fechacreacion          timestamptz NOT NULL DEFAULT now(),
+        fechaactualizacion     timestamptz NOT NULL DEFAULT now(),
         CONSTRAINT "PK_empresa_identidad" PRIMARY KEY (id)
       )
     `);
 
     await queryRunner.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS "UQ_empresa_identidad_empresa"
-        ON empresa_identidad ("empresaId")
+        ON empresa_identidad (empresaid)
     `);
     await queryRunner.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS "UQ_empresa_identidad_emisor"

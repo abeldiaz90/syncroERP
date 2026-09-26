@@ -11,6 +11,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
+import { IsFechaOpcional } from '../../common/validators/fecha-opcional.validator';
 
 export class DetalleCrearRequisicionDto {
   @IsSqlServerGuid()
@@ -35,8 +36,7 @@ export class CrearRequisicionDto {
   @IsIn(['BAJA', 'NORMAL', 'ALTA', 'URGENTE'])
   prioridad?: 'BAJA' | 'NORMAL' | 'ALTA' | 'URGENTE';
 
-  @IsOptional()
-  @IsDateString()
+  @IsFechaOpcional()
   fechaRequerida?: string;
 
   @IsArray()

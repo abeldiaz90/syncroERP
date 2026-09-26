@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+public/_uat-tokens.json
+
+# Puentes de UAT: sólo existen para conducir las pruebas desde el navegador
+# y contienen sesiones vivas. No viajan al repositorio.
+public/_uat-*.json

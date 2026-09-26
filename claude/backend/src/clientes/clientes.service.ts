@@ -16,6 +16,7 @@ import { GestionarCreditoClienteDto } from './gestionar-credito-cliente.dto';
 import { esRolAdministrador, normalizarRol } from '../iam/utils/roles.util';
 import { AprobacionesDocumentosService } from '../aprobaciones/services/aprobaciones-documentos.service';
 import { AprobacionDocumento } from '../compras/entities/aprobacion-documento.entity';
+import { normalizarRfc, revisarRfcDeTipo } from '../common/utils/rfc.util';
 
 type CondicionesSolicitudCredito = {
   limiteCredito: number;
@@ -128,7 +129,7 @@ export class ClientesService {
 
     if (filtro) {
       query.andWhere(
-        '(c.nombre LIKE :filtro OR c.email LIKE :filtro OR c.telefono LIKE :filtro OR c.rfc LIKE :filtro)',
+        '(c.nombre ILIKE :filtro OR c.email ILIKE :filtro OR c.telefono ILIKE :filtro OR c.rfc ILIKE :filtro)',
         { filtro: `%${filtro}%` },
       );
     }
@@ -696,23 +697,50 @@ export class ClientesService {
     usuarioId: string,
     motivo: string,
   ) {
+    /*
+     * ──────────────────────────────────────────────────────────────────────
+     * DOS SENTENCIAS EN UNA LLAMADA: PostgreSQL NO LO PERMITE CON PARAMETROS
+     *
+     * Esto eran dos UPDATE separados por `;` dentro de un solo `query(...)` con
+     * `$1..$4`. En SQL Server pasa; en PostgreSQL, en cuanto hay parametros se
+     * usa el protocolo extendido, que acepta UNA sentencia por mensaje. El
+     * servidor contesta «cannot insert multiple commands into a prepared
+     * statement» y TypeORM lo envuelve en un 500 generico:
+     *
+     *   PATCH /api/clientes/<id>/estado
+     *   → 500 «No se pudo completar la operación en la base de datos.»
+     *
+     * O sea: DESACTIVAR UN CLIENTE ERA IMPOSIBLE, con o sin convenios, porque
+     * el error salta al preparar la sentencia y no al tocar filas. Y el mensaje
+     * no decia nada: el motivo solo aparecia en el log del contenedor de
+     * Postgres. Medido el 25-sep-2026.
+     *
+     * Es la misma familia que el `bind message supplies 2 parameters` del
+     * cierre contable: sintaxis de SQL Server sobreviviendo a la mudanza.
+     * Van separadas, y van dentro de la misma transaccion que las llama, asi
+     * que siguen siendo atomicas.
+     * ──────────────────────────────────────────────────────────────────────
+     */
+    const comentario = motivo.slice(0, 500);
     await manager.query(
       `UPDATE hoteleria_convenios_credito
-            SET estado='SUSPENDIDO',
-                comentarioResolucion=$3,
-                suspendidoPorId=$4,
-                fechaSuspension=CURRENT_TIMESTAMP,
-                fechaActualizacion=CURRENT_TIMESTAMP
-          WHERE empresaId=$1 AND clienteId=$2 AND estado='APROBADO';
-
-         UPDATE hoteleria_convenios_credito
-            SET estado='CANCELADO',
-                comentarioResolucion=$3,
-                canceladoPorId=$4,
-                fechaCancelacion=CURRENT_TIMESTAMP,
-                fechaActualizacion=CURRENT_TIMESTAMP
-          WHERE empresaId=$1 AND clienteId=$2 AND estado='PENDIENTE'`,
-      [empresaId, clienteId, motivo.slice(0, 500), usuarioId],
+          SET estado='SUSPENDIDO',
+              comentarioResolucion=$3,
+              suspendidoPorId=$4,
+              fechaSuspension=CURRENT_TIMESTAMP,
+              fechaActualizacion=CURRENT_TIMESTAMP
+        WHERE empresaId=$1 AND clienteId=$2 AND estado='APROBADO'`,
+      [empresaId, clienteId, comentario, usuarioId],
+    );
+    await manager.query(
+      `UPDATE hoteleria_convenios_credito
+          SET estado='CANCELADO',
+              comentarioResolucion=$3,
+              canceladoPorId=$4,
+              fechaCancelacion=CURRENT_TIMESTAMP,
+              fechaActualizacion=CURRENT_TIMESTAMP
+        WHERE empresaId=$1 AND clienteId=$2 AND estado='PENDIENTE'`,
+      [empresaId, clienteId, comentario, usuarioId],
     );
     await manager
       .getRepository(AprobacionDocumento)
@@ -737,12 +765,13 @@ export class ClientesService {
   }
 
   private async validarNegocio(dto: Partial<CrearClienteDto>, empresaId: string, excluirId?: string) {
-    const rfc = String(dto.rfc ?? '').trim().toUpperCase();
+    const rfc = normalizarRfc(String(dto.rfc ?? ''));
     if (rfc) {
-      const tipo = dto.tipoPersona ?? 'FISICA';
-      const longitud = tipo === 'FISICA' ? 13 : 12;
-      if (rfc.length !== longitud || !/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc))
-        throw new BadRequestException(`El RFC debe ser válido y contener ${longitud} caracteres.`);
+      // La regla del RFC vive en `common/utils/rfc.util`. Aquí estaba escrita a
+      // mano, con su propia expresión regular, que no comprobaba que la fecha
+      // del RFC existiera: `ABC130229XX1` pasaba.
+      const veredicto = revisarRfcDeTipo(rfc, dto.tipoPersona ?? 'FISICA');
+      if (!veredicto.valido) throw new BadRequestException(veredicto.motivo);
       const qb = this.clienteRepo.createQueryBuilder('c').where('c.empresaId=:empresaId', { empresaId }).andWhere('UPPER(c.rfc)=:rfc', { rfc });
       if (excluirId) qb.andWhere('c.id<>:excluirId', { excluirId });
       if (await qb.getOne()) throw new BadRequestException('Ya existe otro cliente con ese RFC.');

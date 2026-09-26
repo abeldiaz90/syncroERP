@@ -62,6 +62,13 @@ export class PolizasService {
     };
     const pref = prefijos[tipo] ?? tipo.substring(0, 2).toUpperCase();
     const anio = new Date().getFullYear();
+    /*
+     * Este `.catch` devolvia `[null]`, con lo que un fallo de la consulta
+     * reiniciaba la numeracion en 1 y la siguiente poliza intentaba nacer con
+     * un folio ya usado. Un folio contable repetido no es un error tecnico: es
+     * una poliza que tapa a otra en cualquier reporte que agrupe por folio.
+     * Si no se puede saber cual fue el ultimo, no se inventa el siguiente.
+     */
     const [last] = await this.dataSource
       .query(
         `SELECT folio FROM polizas
@@ -69,7 +76,15 @@ export class PolizasService {
        ORDER BY folio DESC LIMIT 1`,
         [empresaId, `${pref}-${anio}-%`],
       )
-      .catch(() => [null]);
+      .catch((error: unknown) => {
+        throw new BadRequestException(
+          'No se pudo consultar el último folio para continuar la numeración, ' +
+            'así que no se generó ninguna póliza: inventar el folio siguiente ' +
+            `podría repetir uno existente. Detalle: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+        );
+      });
     const seq = last ? parseInt(last.folio.split('-')[2] || '0') + 1 : 1;
     return `${pref}-${anio}-${String(seq).padStart(5, '0')}`;
   }
@@ -83,12 +98,38 @@ export class PolizasService {
     const fechaNormalizada = this.aFecha(fecha);
     const mes = fechaNormalizada.getMonth() + 1;
     const anio = fechaNormalizada.getFullYear();
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * UN CANDADO QUE NO PUDO PREGUNTAR NO DICE «ABIERTO»
+     *
+     * Aqui habia un `.catch(() => [])`, y con el la respuesta a «¿esta cerrado
+     * el periodo?» cuando la consulta falla era NO. Es decir: el unico control
+     * que impide escribir en un mes ya cerrado se volvia permisivo justo en el
+     * momento en que dejaba de funcionar.
+     *
+     * Es el mismo error contra el que avisa el comentario del cierre contable
+     * —«un dato que no se pudo leer no vale cero»— cometido en el candado que
+     * protege lo que ese cierre acaba de firmar. Y no deja rastro: la poliza
+     * entra, el mes cerrado cambia despues de cerrarse, y la balanza que
+     * alguien ya certifico deja de ser la que es.
+     *
+     * Ahora falla, y dice por que. Entre no poder comprobar y dejar pasar, un
+     * candado elige lo primero.
+     * ────────────────────────────────────────────────────────────────────────
+     */
     const cerrado = await this.dataSource
       .query(
         `SELECT id FROM cierres_contables WHERE empresaId = $1 AND mes = $2 AND anio = $3`,
         [empresaId, mes, anio],
       )
-      .catch(() => []);
+      .catch((error: unknown) => {
+        throw new ConflictException(
+          `No se pudo comprobar si el período ${mes}/${anio} está cerrado, así ` +
+            'que la operación no se realizó. Un período cerrado no puede ' +
+            'modificarse, y no comprobarlo equivale a permitirlo. Detalle: ' +
+            `${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
     return (cerrado?.length ?? 0) > 0;
   }
 
@@ -125,6 +166,36 @@ export class PolizasService {
     if (Number.isNaN(fecha.getTime())) {
       throw new BadRequestException(`La fecha de la póliza no es válida: ${texto}`);
     }
+    return fecha;
+  }
+
+  /**
+   * ==========================================================================
+   * Normalizar no es validar, y confundirlos dejó dos pólizas sin salida
+   * --------------------------------------------------------------------------
+   * `aFecha` hacía las dos cosas: parseaba la fecha Y exigía que no fuera
+   * futura. Como la reversa empieza leyendo la fecha de la póliza ORIGINAL
+   * —`this.aFecha(original.fecha)`—, cancelar una póliza ya fechada adelante
+   * era imposible:
+   *
+   *   «No se puede registrar una póliza con fecha 2026-10-15, que todavía no
+   *    llega.»
+   *
+   * ...dicho a quien no estaba registrando nada, sino intentando arreglar
+   * precisamente eso. El control tapaba la única salida del problema que
+   * venía a evitar. Medido el 25-sep-2026: DI-2026-00013 (15-oct) y
+   * EG-2026-00013 (30-sep) seguían atoradas en la bandeja del espejo con
+   * «The journal entry cannot be made for a future date» y no había forma de
+   * reversarlas desde el ERP.
+   *
+   * Así que la regla se aplica donde se ESCRIBE una fecha, no donde se lee una
+   * que ya está guardada. Sigue siendo un solo punto de enganche para todos los
+   * caminos de creación —que era el acierto del diseño original— y la reversa
+   * puede hacer su trabajo.
+   * ==========================================================================
+   */
+  private aFechaNueva(valor: Date | string): Date {
+    const fecha = this.aFecha(valor);
     this.exigirQueYaHayaOcurrido(fecha);
     return fecha;
   }
@@ -195,7 +266,7 @@ export class PolizasService {
       throw new BadRequestException('Una póliza no puede tener valor cero.');
     }
 
-    const fecha = this.aFecha(dto.fecha);
+    const fecha = this.aFechaNueva(dto.fecha);
     await this.verificarPeriodoCerrado(empresaId, fecha);
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -340,7 +411,7 @@ export class PolizasService {
 
     await this.validarCuentasAfectables(datos.empresaId, datos.partidas);
 
-    const fecha = this.aFecha(datos.fecha);
+    const fecha = this.aFechaNueva(datos.fecha);
     await this.verificarPeriodoCerrado(datos.empresaId, fecha);
 
     const qr = this.dataSource.createQueryRunner();
@@ -435,7 +506,7 @@ export class PolizasService {
       throw new BadRequestException('Todas las partidas requieren cuenta contable.');
     }
 
-    const fecha = this.aFecha(datos.fecha);
+    const fecha = this.aFechaNueva(datos.fecha);
     const mes = fecha.getMonth() + 1;
     const anio = fecha.getFullYear();
     const bloqueo = await manager.query(
@@ -593,17 +664,27 @@ export class PolizasService {
     const fechaOriginal = this.aFecha(original.fecha);
     let fechaReverso: Date;
     if (datos.fechaReverso) {
-      fechaReverso = this.aFecha(datos.fechaReverso);
+      fechaReverso = this.aFechaNueva(datos.fechaReverso);
       if (isNaN(fechaReverso.getTime())) {
         throw new BadRequestException(
           'La fecha de reverso no es válida (usa AAAA-MM-DD).',
         );
       }
     } else {
-      // Período original abierto → misma fecha. Cerrado → hoy.
-      fechaReverso = (await this.periodoEstaCerrado(empresaId, fechaOriginal))
-        ? new Date()
-        : fechaOriginal;
+      /*
+       * Período original abierto → misma fecha. Cerrado → hoy.
+       *
+       * Y si la original está fechada adelante —las que quedaron antes de que
+       * existiera el control— la reversa NO puede heredar esa fecha: sería otra
+       * póliza futura, y el mayor externo la rechazaría igual. Se reversa hoy,
+       * que es cuando de verdad se está cancelando.
+       */
+      const originalEsFutura = fechaOriginal.getTime() > Date.now();
+      fechaReverso =
+        originalEsFutura ||
+        (await this.periodoEstaCerrado(empresaId, fechaOriginal))
+          ? new Date()
+          : fechaOriginal;
     }
     await this.verificarPeriodoCerrado(empresaId, fechaReverso);
 
@@ -790,9 +871,14 @@ export class PolizasService {
      */
     const movimientos = await this.dataSource.query(
       `
-      SELECT cc.numeroCuenta, cc.nombre, cc.rolSistema,
-             pp.cargo, pp.abono, pp.referencia,
-             p.fecha, p.folio, p.concepto
+      -- Los alias, entrecomillados. Sin ellos m.rolSistema era undefined en
+      -- cada fila, los cuatro filtros de abajo devolvían listas vacías y la
+      -- pantalla de la declaración mensual de IVA informaba CERO trasladado y
+      -- CERO acreditable sobre un mes con movimientos.
+      SELECT cc.numeroCuenta AS "numeroCuenta", cc.nombre AS nombre,
+             cc.rolSistema AS "rolSistema",
+             pp.cargo AS cargo, pp.abono AS abono, pp.referencia AS referencia,
+             p.fecha AS fecha, p.folio AS folio, p.concepto AS concepto
       FROM partidas_poliza pp
       JOIN cuentas_contables cc ON cc.id = pp.cuentaContableId
       JOIN polizas p ON p.id = pp.polizaId

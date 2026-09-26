@@ -21,6 +21,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { solicitarTexto } from "@/components/ui/dialogos";
+import { fechaCorta } from "@/lib/fechas";
 
 type Hotel = { id: string; nombre: string };
 type Cliente = {
@@ -42,7 +43,6 @@ type CuentaBancaria = {
   id: string;
   nombre: string;
   tipo: string;
-  activo: boolean;
 };
 type Convenio = {
   id: string;
@@ -135,30 +135,64 @@ export default function CityLedgerPage() {
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
 
+  /*
+    Las tres consultas iban en un solo `Promise.all` y la de cuentas bancarias
+    pedia el catalogo completo —CLABE y numero de cuenta, de Tesoreria—, que
+    hoteleria no tiene. El 403 tumbaba tambien las otras dos: sin hoteles no
+    habia hotel seleccionado, sin hotel no se consultaba la cartera, y la
+    pantalla mostraba cero en todo como si la cartera estuviera limpia. Ahora
+    cada consulta responde por si misma y la de cajas usa la lista corta.
+  */
   const cargarBase = useCallback(async () => {
     setCargando(true);
     setError("");
-    try {
-      const [listaHoteles, listaClientes, cuentas] = await Promise.all([
-        api.get<Hotel[]>("/hoteleria/config/hoteles"),
-        api.get<Cliente[]>("/clientes?activos=true"),
-        api.get<CuentaBancaria[]>("/credito/cuentas-bancarias"),
-      ]);
+    const problemas: string[] = [];
+    const fallo = (e: unknown, sinPermiso: string, generico: string) => {
+      problemas.push(
+        e instanceof ApiError && e.esSinPermisos ? sinPermiso : generico,
+      );
+      return null;
+    };
+    const [listaHoteles, listaClientes, cuentas] = await Promise.all([
+      api
+        .get<Hotel[]>("/hoteleria/config/hoteles")
+        .catch((e: unknown) =>
+          fallo(
+            e,
+            "Tu perfil no puede consultar las propiedades.",
+            "No se pudieron consultar las propiedades.",
+          ),
+        ),
+      api
+        .get<Cliente[]>("/clientes?activos=true")
+        .catch((e: unknown) =>
+          fallo(
+            e,
+            "Tu perfil no puede consultar clientes: no podrás abrir convenios nuevos.",
+            "No se pudo consultar la lista de clientes.",
+          ),
+        ),
+      api
+        .get<CuentaBancaria[]>("/credito/cuentas-bancarias/para-cobro")
+        .catch((e: unknown) =>
+          fallo(
+            e,
+            "Tu perfil no puede elegir caja: podrás ver la cartera, no cobrarla.",
+            "No se pudo consultar la lista de cajas.",
+          ),
+        ),
+    ]);
+    if (listaHoteles) {
       setHoteles(listaHoteles);
+      setHotelId((actual) => actual || listaHoteles[0]?.id || "");
+    }
+    if (listaClientes)
       setClientes(
         listaClientes.filter((cliente) => cliente.tipoPersona === "MORAL"),
       );
-      setCuentasBancarias(cuentas.filter((cuenta) => cuenta.activo));
-      setHotelId((actual) => actual || listaHoteles[0]?.id || "");
-    } catch (e) {
-      setError(
-        e instanceof ApiError
-          ? e.mensajeParaPantalla()
-          : "No se pudo abrir City Ledger.",
-      );
-    } finally {
-      setCargando(false);
-    }
+    if (cuentas) setCuentasBancarias(cuentas);
+    setError(problemas.join(" "));
+    setCargando(false);
   }, []);
 
   const cargarOperacion = useCallback(async () => {
@@ -483,8 +517,10 @@ export default function CityLedgerPage() {
                           {convenio?.numeroConvenio}
                         </p>
                       </td>
-                      <td className="px-4 py-3">{cuenta.fechaEmision}</td>
-                      <td className="px-4 py-3">{cuenta.fechaVencimiento}</td>
+                      <td className="px-4 py-3">{fechaCorta(cuenta.fechaEmision)}</td>
+                      <td className="px-4 py-3">
+                        {fechaCorta(cuenta.fechaVencimiento)}
+                      </td>
                       <td
                         className={`px-4 py-3 font-semibold ${cuenta.diasVencidos > 0 ? "text-rose-600" : "text-emerald-600"}`}
                       >
@@ -521,7 +557,8 @@ export default function CityLedgerPage() {
               </tbody>
             </table>
           </div>
-          {!cartera.length && (
+          {/* Vacio de verdad, no vacio por consulta caida. */}
+          {!cartera.length && !error && (
             <div className="p-12 text-center text-slate-500">
               No hay cuentas por cobrar para esta propiedad.
             </div>

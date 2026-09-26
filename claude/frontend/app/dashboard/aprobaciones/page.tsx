@@ -44,6 +44,7 @@ type DatosSolicitud = {
       | "SIN_FLUJO"
       | "SIN_EXPEDIENTE"
       | "RECHAZADA"
+      | "NO_CONCLUIDO"
       | "IMPORTE_INSUFICIENTE"
       | "FAVORABLE";
     estadoExpediente: string | null;
@@ -114,6 +115,13 @@ export default function BandejaAprobacionesPage() {
   const [pendientes, setPendientes] = useState<AprobacionPendiente[]>([]);
   const [historial, setHistorial] = useState<AprobacionHistorial[]>([]);
   const [errorHistorial, setErrorHistorial] = useState<string | null>(null);
+  /*
+    La bandeja vacía se enseña con un panel verde y un «No tienes aprobaciones
+    pendientes». Si la consulta falla, el aviso de error es un toast que se va
+    en cuatro segundos y el panel verde se queda: quien firma cierra el ERP
+    tranquilo con documentos esperando. El fallo tiene que quedarse en pantalla.
+  */
+  const [errorPendientes, setErrorPendientes] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState<string | null>(null);
 
@@ -124,6 +132,7 @@ export default function BandejaAprobacionesPage() {
         "/aprobaciones/pendientes",
       );
       setPendientes(pendientesApi ?? []);
+      setErrorPendientes(null);
       try {
         setHistorial(
           (await api.get<AprobacionHistorial[]>(
@@ -140,12 +149,13 @@ export default function BandejaAprobacionesPage() {
         );
       }
     } catch (error) {
-      avisar(
+      const texto =
         error instanceof ApiError
           ? error.mensajeParaPantalla()
-          : "No se pudo consultar la bandeja de aprobaciones.",
-        "error",
-      );
+          : "No se pudo consultar la bandeja de aprobaciones.";
+      setPendientes([]);
+      setErrorPendientes(texto);
+      avisar(texto, "error");
     } finally {
       setCargando(false);
     }
@@ -234,6 +244,17 @@ export default function BandejaAprobacionesPage() {
       {cargando ? (
         <div className="flex min-h-72 items-center justify-center rounded-3xl border bg-white">
           <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        </div>
+      ) : errorPendientes ? (
+        <div className="rounded-3xl border border-rose-200 bg-rose-50 p-12 text-center">
+          <AlertTriangle className="mx-auto h-12 w-12 text-rose-600" />
+          <h2 className="mt-4 text-xl font-black text-rose-950">
+            No se pudo leer la bandeja
+          </h2>
+          <p className="mt-2 text-sm text-rose-800">{errorPendientes}</p>
+          <p className="mt-1 text-sm text-rose-700">
+            Puede haber documentos esperando tu firma.
+          </p>
         </div>
       ) : pendientes.length === 0 ? (
         <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-12 text-center">
@@ -406,6 +427,43 @@ export default function BandejaAprobacionesPage() {
                     solicitarla con las condiciones vigentes.
                   </div>
                 )}
+
+                {!bloqueaValidacion &&
+                  validacion?.estado === "NO_CONCLUIDO" && (
+                    <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
+                      {/*
+                        El expediente sin concluir NO bloquea: es una decisión
+                        tomada a propósito —«que lo mire una persona», y quien
+                        firma aquí es esa persona—. Lo que no puede pasar es que
+                        firme sin enterarse: hasta el 25-sep-2026 esta tarjeta no
+                        existía y el aprobador veía una solicitud normal, con su
+                        botón verde, mientras el expediente decía que la
+                        identidad del cliente no se pudo comprobar.
+                      */}
+                      <p className="flex gap-2">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>{validacion?.mensaje}</span>
+                      </p>
+                      {(validacion?.motivos?.length ?? 0) > 0 && (
+                        <ul className="mt-2 list-disc space-y-1 pl-10 font-normal">
+                          {validacion?.motivos.map((motivo, i) => (
+                            <li key={i}>{motivo}</li>
+                          ))}
+                        </ul>
+                      )}
+                      <p className="mt-2 pl-6 font-normal">
+                        <Link
+                          href={`/dashboard/creditos/verificacion/ejecutar?cliente=${
+                            item.datos?.clienteId ?? item.documentoId
+                          }&limite=${validacion?.limiteSolicitado ?? item.importe}`}
+                          className="font-bold underline"
+                        >
+                          Volver a verificar a este cliente
+                        </Link>{" "}
+                        antes de firmar, si prefieres no decidirlo con esto.
+                      </p>
+                    </div>
+                  )}
 
                 {bloqueaValidacion && (
                   <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-900">

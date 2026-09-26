@@ -49,6 +49,39 @@ export class CuentasBancariasService {
     });
   }
 
+  /**
+   * ==========================================================================
+   * Las cajas por las que se puede cobrar, sin los datos del banco
+   * --------------------------------------------------------------------------
+   * El punto de venta obliga a elegir caja, banco o TPV en todo cobro
+   * inmediato, y para eso pedía `GET /credito/cuentas-bancarias`. A `empleado`
+   * esa lectura está VEDADA a propósito, y con razón: devuelve número de
+   * cuenta y CLABE, que no tienen por qué estar a la vista de quien atiende al
+   * público.
+   *
+   * El resultado era que el desplegable del mostrador salía siempre vacío —la
+   * pantalla traga el 403 y se queda con lista vacía— y **ninguna venta de
+   * contado podía cerrarse**. Una regla de confidencialidad correcta bloqueaba
+   * la operación porque no existía la vista intermedia.
+   *
+   * Esto es esa vista: el nombre de la caja y su tipo, que es lo que el cajero
+   * necesita nombrar. Ni CLABE, ni número de cuenta, ni cuenta contable.
+   * ==========================================================================
+   */
+  async obtenerParaCobro(empresaId: string) {
+    const cuentas = await this.repo.find({
+      where: { empresaId, activo: true },
+      select: { id: true, nombre: true, tipo: true, esPorDefecto: true },
+      order: { tipo: 'ASC', nombre: 'ASC' },
+    });
+    return cuentas.map((c) => ({
+      id: c.id,
+      nombre: c.nombre,
+      tipo: c.tipo,
+      esPorDefecto: c.esPorDefecto,
+    }));
+  }
+
   async obtenerPorId(id: string, empresaId: string) {
     const cb = await this.repo.findOne({
       where: { id, empresaId },

@@ -40,7 +40,18 @@ export interface DetalleCompraContable {
 }
 export interface DatosCompraContable {
   compraId: string;
+  /**
+   * El folio de la RECEPCIÓN, que es el hecho que se contabiliza.
+   *
+   * Se llamaba así y la póliza lo imprimía como «Orden #», con lo cual el
+   * asiento nombraba un documento que no existe: quien buscaba la orden
+   * «589EDAF5» en Compras no la encontraba nunca, porque ese número era el de
+   * la recepción y la orden se llama OC-5D00B742. Un asiento que nombra mal su
+   * origen obliga a rastrear a mano lo que debería estar escrito.
+   */
   folio: string;
+  /** Cómo se llama la orden en Compras, para que el asiento la nombre bien. */
+  folioOrden?: string;
   fecha: Date;
   empresaId: string;
   detalles: DetalleCompraContable[];
@@ -95,7 +106,10 @@ export class MotorContableService {
   //    CRÉDITO:  Dr. Clientes CxC / Cr. Ventas / Cr. IVA
   //    COSTO:    Dr. CostoVentas  / Cr. Inventario
   // ══════════════════════════════════════════════════════════════════════════
-  async generarAsientoDeVenta(datos: DatosVentaContable): Promise<void> {
+  async generarAsientoDeVenta(
+    datos: DatosVentaContable,
+  ): Promise<string | undefined> {
+    let idPolizaGenerada: string | undefined;
     try {
       this.logger.log(
         `[Venta #${datos.folio}] metodoPago="${datos.metodoPago}" cuentaBancaria="${datos.cuentaBancariaId}"`,
@@ -178,7 +192,7 @@ export class MotorContableService {
             datos.empresaId,
             RolCuentaSistema.IVA_TRASLADADO_NO_COBRADO,
             'PASIVO',
-            '207',
+            '209',
           )
         : null;
 
@@ -313,7 +327,14 @@ export class MotorContableService {
             referencia: `V#${datos.folio}`,
           });
         }
-        await this.crearPoliza({
+        /*
+         * La que representa la operación es ÉSTA, no la de costo. Un asiento
+         * de venta produce dos pólizas —el ingreso y el consumo de inventario—
+         * y `asientos_pendientes` guarda una sola: la que alguien busca al
+         * preguntar «¿dónde quedó registrada esta venta?». Al capturar la
+         * primera por orden de escritura, la bitácora apuntaba al costo.
+         */
+        idPolizaGenerada = await this.crearPoliza({
           empresaId: datos.empresaId,
           tipo: TipoPoliza.INGRESO,
           concepto: `Ingresos — Ticket #${datos.folio}`,
@@ -331,6 +352,10 @@ export class MotorContableService {
       // operaciones sin póliza en silencio.
       throw err;
     }
+
+    // El id viaja hasta `asientos_pendientes`: es el enlace que une la
+    // operación con su póliza y el que un auditor sigue hacia adelante.
+    return idPolizaGenerada;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -355,7 +380,8 @@ export class MotorContableService {
     cuentaBancariaId?: string;
     motivo: string;
     detalles: DetalleVentaContable[];
-  }): Promise<void> {
+  }): Promise<string | undefined> {
+    let idPolizaGenerada: string | undefined;
     try {
       const ref = `ANUL-V#${datos.folio}`;
       const prodMap = await this.cargarProductosConCategoria(
@@ -433,7 +459,7 @@ export class MotorContableService {
           ? RolCuentaSistema.IVA_TRASLADADO_NO_COBRADO
           : RolCuentaSistema.IVA_TRASLADADO_COBRADO,
         'PASIVO',
-        esCredito ? '207' : '208',
+        esCredito ? '209' : '208',
       );
       const partidasIngreso: PartidaInput[] = [];
       let totalVentas = 0,
@@ -483,7 +509,14 @@ export class MotorContableService {
           referencia: ref,
         });
 
-        await this.crearPoliza({
+        /*
+         * La que representa la operación es ÉSTA, no la de costo. Un asiento
+         * de venta produce dos pólizas —el ingreso y el consumo de inventario—
+         * y `asientos_pendientes` guarda una sola: la que alguien busca al
+         * preguntar «¿dónde quedó registrada esta venta?». Al capturar la
+         * primera por orden de escritura, la bitácora apuntaba al costo.
+         */
+        idPolizaGenerada = await this.crearPoliza({
           empresaId: datos.empresaId,
           tipo: TipoPoliza.EGRESO,
           concepto: `Reversión de ingreso — ${datos.folio}. ${datos.motivo}`,
@@ -498,6 +531,10 @@ export class MotorContableService {
       this.logger.error(`[Reversión ${datos.folio}] ${err?.message}`);
       throw err;
     }
+
+    // El id viaja hasta `asientos_pendientes`: es el enlace que une la
+    // operación con su póliza y el que un auditor sigue hacia adelante.
+    return idPolizaGenerada;
   }
 
   /**
@@ -533,7 +570,8 @@ export class MotorContableService {
       costoReintegrado: number;
       costoDanado: number;
     }>;
-  }): Promise<void> {
+  }): Promise<string | undefined> {
+    let idPolizaGenerada: string | undefined;
     try {
       const ref = `DEV-${datos.folio}`;
       const productos = await this.cargarProductosConCategoria(
@@ -651,7 +689,7 @@ export class MotorContableService {
           datos.empresaId,
           RolCuentaSistema.IVA_TRASLADADO_NO_COBRADO,
           'PASIVO',
-          '207',
+          '209',
         );
         if (!cuenta)
           throw new Error('Falta la cuenta de IVA trasladado no cobrado.');
@@ -744,7 +782,14 @@ export class MotorContableService {
             partidaDevolucion.cargo + diferencia,
           );
         }
-        await this.crearPoliza({
+        /*
+         * La que representa la operación es ÉSTA, no la de costo. Un asiento
+         * de venta produce dos pólizas —el ingreso y el consumo de inventario—
+         * y `asientos_pendientes` guarda una sola: la que alguien busca al
+         * preguntar «¿dónde quedó registrada esta venta?». Al capturar la
+         * primera por orden de escritura, la bitácora apuntaba al costo.
+         */
+        idPolizaGenerada = await this.crearPoliza({
           empresaId: datos.empresaId,
           tipo: reembolso > 0 ? TipoPoliza.EGRESO : TipoPoliza.DIARIO,
           concepto: `Devolución DEV-${datos.folio} · Venta #${datos.folioVenta}. ${datos.motivo}`,
@@ -759,6 +804,10 @@ export class MotorContableService {
       this.logger.error(`[Devolución DEV-${datos.folio}] ${err?.message}`);
       throw err;
     }
+
+    // El id viaja hasta `asientos_pendientes`: es el enlace que une la
+    // operación con su póliza y el que un auditor sigue hacia adelante.
+    return idPolizaGenerada;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -767,7 +816,10 @@ export class MotorContableService {
   //    Dr. IVA Acreditable     (116-xx — IVA pagado al proveedor, deducible SAT)
   //    Cr. Proveedores         (210-xx — total con IVA, lo que le debemos)
   // ══════════════════════════════════════════════════════════════════════════
-  async generarAsientoDeCompra(datos: DatosCompraContable): Promise<void> {
+  async generarAsientoDeCompra(
+    datos: DatosCompraContable,
+  ): Promise<string | undefined> {
+    let idPolizaGenerada: string | undefined;
     try {
       const prodMap = await this.cargarProductosConCategoria(
         datos.detalles.map((d) => d.productoId),
@@ -777,13 +829,13 @@ export class MotorContableService {
         datos.empresaId,
         RolCuentaSistema.PROVEEDORES,
         'PASIVO',
-        '21',
+        '201',
       );
       const cuentaIvaAcred = await this.buscarCuentaPorRol(
         datos.empresaId,
         RolCuentaSistema.IVA_ACREDITABLE_PENDIENTE,
         'ACTIVO',
-        '117',
+        '119',
       );
 
       if (!cuentaProveedores) {
@@ -832,7 +884,15 @@ export class MotorContableService {
         }
       }
 
-      if (partidas.length === 0) return;
+      /*
+       * Aquí el vacío sí es legítimo y por eso se devuelve sin más: las líneas
+       * que no tienen cuenta de inventario ya lanzaron arriba, así que llegar
+       * con cero partidas sólo puede significar que TODAS valían cero. Una
+       * recepción sin valor no tiene asiento que hacer. No se parece al caso
+       * de la salida ni al del inventario inicial, donde el vacío escondía una
+       * configuración que faltaba.
+       */
+      if (partidas.length === 0) return undefined;
 
       // Cr. Proveedores = Inventario + IVA Acreditable
       const totalProveedor = this.redondear(
@@ -845,10 +905,12 @@ export class MotorContableService {
         referencia: `C#${datos.folio}`,
       });
 
-      await this.crearPoliza({
+      idPolizaGenerada = await this.crearPoliza({
         empresaId: datos.empresaId,
         tipo: TipoPoliza.EGRESO,
-        concepto: `Compra de mercancía — Orden #${datos.folio}`,
+        concepto: datos.folioOrden
+          ? `Compra de mercancía — Recepción #${datos.folio} · Orden ${datos.folioOrden}`
+          : `Compra de mercancía — Recepción #${datos.folio}`,
         fecha: datos.fecha,
         partidas,
         origenClave: `COMPRA:${datos.compraId}`,
@@ -865,29 +927,70 @@ export class MotorContableService {
       // operaciones sin póliza en silencio.
       throw err;
     }
+
+    // El id viaja hasta `asientos_pendientes`: es el enlace que une la
+    // operación con su póliza y el que un auditor sigue hacia adelante.
+    return idPolizaGenerada;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // 3. ASIENTO DE SALIDA / MERMA / AJUSTE
   // ══════════════════════════════════════════════════════════════════════════
-  async generarAsientoDeSalida(datos: DatosMovimientoContable): Promise<void> {
+  async generarAsientoDeSalida(
+    datos: DatosMovimientoContable,
+  ): Promise<string | undefined> {
+    let idPolizaGenerada: string | undefined;
     try {
       const prodMap = await this.cargarProductosConCategoria(
         datos.detalles.map((d) => d.productoId),
         datos.empresaId,
       );
       const partidas: PartidaInput[] = [];
+      /*
+       * Las líneas que no se pueden contabilizar se saltaban en silencio. Si
+       * se saltaban todas, `partidas` quedaba vacío y el método devolvía sin
+       * más — y ese retorno normal viaja hasta `AsientosPendientesService`,
+       * que sólo puede leerlo de una manera: el asiento se generó. El registro
+       * se marcaba GENERADO, salía de la bandeja, y el diagnóstico de
+       * integridad —que cuenta PENDIENTE, REINTENTANDO y FALLIDO— tampoco lo
+       * veía. Una merma real, con su costo, sin llegar a ningún libro y sin
+       * que ningún control se quejara. Es peor que un fallo: un fallo se
+       * reintenta.
+       *
+       * Ahora se anota el motivo de cada línea saltada y, si no queda ninguna
+       * partida, se lanza nombrando el producto: el asiento queda FALLIDO en
+       * la bandeja con la instrucción de qué categoría configurar.
+       */
+      const sinContabilizar: string[] = [];
+      const nombreDe = (productoId: string) =>
+        prodMap.get(productoId)?.nombre ?? productoId;
+
       for (const det of datos.detalles) {
         const cat = prodMap.get(det.productoId)?.categoria as any;
-        if (!cat?.cuentaInventarioId) continue;
+        if (!cat?.cuentaInventarioId) {
+          sinContabilizar.push(
+            `${nombreDe(det.productoId)}: su categoría no tiene cuenta de inventario.`,
+          );
+          continue;
+        }
         const monto = this.redondear(det.costoUnitario * det.cantidad);
-        if (monto <= 0) continue;
+        if (monto <= 0) {
+          // Sin valor no hay nada que registrar; no es una configuración que falte.
+          continue;
+        }
         const ref = `${datos.tipo}/${datos.motivo}`.substring(0, 80);
         const cuentaDebitoId =
           datos.tipo === 'MERMA'
             ? (cat.cuentaMermasId ?? cat.cuentaCostoVentasId)
             : cat.cuentaCostoVentasId;
-        if (!cuentaDebitoId) continue;
+        if (!cuentaDebitoId) {
+          sinContabilizar.push(
+            datos.tipo === 'MERMA'
+              ? `${nombreDe(det.productoId)}: su categoría no tiene cuenta de mermas ni de costo de ventas.`
+              : `${nombreDe(det.productoId)}: su categoría no tiene cuenta de costo de ventas.`,
+          );
+          continue;
+        }
         partidas.push({
           cuentaContableId: cuentaDebitoId,
           cargo: monto,
@@ -901,14 +1004,33 @@ export class MotorContableService {
           referencia: ref,
         });
       }
-      if (partidas.length === 0) return;
+
+      if (partidas.length === 0) {
+        if (sinContabilizar.length) {
+          throw new Error(
+            `${datos.tipo} ${datos.motivo}: ninguna línea se pudo contabilizar. ${[...new Set(sinContabilizar)].join(' ')}`,
+          );
+        }
+        // Todas las líneas valían cero: no hay asiento que hacer, y es correcto.
+        return undefined;
+      }
+      if (sinContabilizar.length) {
+        /*
+         * Contabilizar la mitad y callar la otra mitad es la peor salida: la
+         * póliza cuadra, el auxiliar no, y nadie sabe por dónde se fue la
+         * diferencia. O entra el movimiento entero o queda pendiente.
+         */
+        throw new Error(
+          `${datos.tipo} ${datos.motivo}: hay líneas que no se pueden contabilizar y el asiento quedaría incompleto. ${[...new Set(sinContabilizar)].join(' ')}`,
+        );
+      }
       const tipoLabel: Record<TipoSalida, string> = {
         MERMA: 'Merma',
         AJUSTE: 'Ajuste',
         CONSUMO: 'Consumo',
         MUESTRA: 'Muestra',
       };
-      await this.crearPoliza({
+      idPolizaGenerada = await this.crearPoliza({
         empresaId: datos.empresaId,
         tipo: TipoPoliza.DIARIO,
         concepto: `${tipoLabel[datos.tipo]} de inventario — ${datos.motivo}`,
@@ -923,6 +1045,10 @@ export class MotorContableService {
       // operaciones sin póliza en silencio.
       throw err;
     }
+
+    // El id viaja hasta `asientos_pendientes`: es el enlace que une la
+    // operación con su póliza y el que un auditor sigue hacia adelante.
+    return idPolizaGenerada;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -940,7 +1066,7 @@ export class MotorContableService {
       diferencia: number;
       costoUnitario: number;
     }>;
-  }): Promise<{ id: string }> {
+  }): Promise<string | undefined> {
     const prodMap = await this.cargarProductosConCategoria(
       datos.detalles.map((detalle) => detalle.productoId),
       datos.empresaId,
@@ -966,10 +1092,8 @@ export class MotorContableService {
         continue;
       }
 
-      const referencia = `${datos.folio}/${producto?.sku ?? detalle.productoId}`.slice(
-        0,
-        80,
-      );
+      const referencia =
+        `${datos.folio}/${producto?.sku ?? detalle.productoId}`.slice(0, 80);
       if (diferencia > 0) {
         partidas.push({
           cuentaContableId: cuentaInventarioId,
@@ -1021,7 +1145,7 @@ export class MotorContableService {
       origenId: datos.ajusteId,
     });
     this.logger.log(`Póliza de ajuste de inventario ${datos.folio} generada`);
-    return { id };
+    return id;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1033,6 +1157,17 @@ export class MotorContableService {
   async generarAsientoDeCobranza(datos: {
     pagoId: string;
     creditoId: string;
+    /**
+     * Cómo se llama el crédito en Crédito y cobranza: `CRD-2026-0011`.
+     *
+     * El concepto decía «Cobranza — Crédito d3524196», que son los ocho
+     * primeros del identificador interno. Quien buscara ese número en el módulo
+     * no encontraría nada, porque ahí los créditos se llaman por su folio. Es
+     * el mismo defecto que la póliza de compra, que llamaba «Orden» al folio de
+     * la recepción: un asiento que nombra mal su origen obliga a rastrear a
+     * mano lo que debería estar escrito.
+     */
+    folioCredito?: string;
     clienteId: string;
     fechaPago: Date;
     empresaId: string;
@@ -1041,7 +1176,8 @@ export class MotorContableService {
     ivaReclasificado?: number;
     totalPagado: number;
     cuentaBancariaId?: string;
-  }): Promise<void> {
+  }): Promise<string | undefined> {
+    let idPolizaGenerada: string | undefined;
     try {
       const { empresaId } = datos;
 
@@ -1056,7 +1192,7 @@ export class MotorContableService {
             empresaId,
             RolCuentaSistema.CAJA,
             'ACTIVO',
-            '1',
+            '101',
           );
 
       // Cr. Clientes CxC — la deuda del cliente que se cancela
@@ -1064,7 +1200,7 @@ export class MotorContableService {
         empresaId,
         RolCuentaSistema.CLIENTES_CXC,
         'ACTIVO',
-        '14',
+        '105',
       );
 
       if (!cuentaCaja)
@@ -1090,11 +1226,20 @@ export class MotorContableService {
 
       // Si hay intereses → abonar a cuenta de ingresos
       if (datos.montoInteres > 0) {
+        /*
+         * El prefijo de compatibilidad era '402', que en el catálogo del SAT
+         * es «Devoluciones, descuentos o bonificaciones sobre ventas»: una
+         * cuenta COMPLEMENTARIA de ingreso, de naturaleza deudora, que RESTA.
+         * Si la cuenta no tiene su rol asignado —que es justo cuando el
+         * prefijo entra en juego— los intereses cobrados se abonaban a la
+         * cuenta que descuenta ingresos. Los ingresos por intereses del plan
+         * estándar son 401.32; el grupo es el 401.
+         */
         const cuentaInteres = await this.buscarCuentaPorRol(
           empresaId,
           RolCuentaSistema.INTERESES,
           'INGRESO',
-          '402',
+          '401',
         );
         if (!cuentaInteres)
           throw new Error(
@@ -1117,7 +1262,7 @@ export class MotorContableService {
             empresaId,
             RolCuentaSistema.IVA_TRASLADADO_NO_COBRADO,
             'PASIVO',
-            '207',
+            '209',
           ),
           this.buscarCuentaPorRol(
             empresaId,
@@ -1147,10 +1292,10 @@ export class MotorContableService {
         );
       }
 
-      await this.crearPoliza({
+      idPolizaGenerada = await this.crearPoliza({
         empresaId,
         tipo: TipoPoliza.INGRESO,
-        concepto: `Cobranza — Crédito ${datos.creditoId.slice(0, 8)}`,
+        concepto: `Cobranza — Crédito ${datos.folioCredito ?? datos.creditoId.slice(0, 8)}`,
         fecha: datos.fechaPago,
         partidas,
         origenClave: `COBRANZA:${datos.pagoId}`,
@@ -1167,6 +1312,10 @@ export class MotorContableService {
       // operaciones sin póliza en silencio.
       throw err;
     }
+
+    // El id viaja hasta `asientos_pendientes`: es el enlace que une la
+    // operación con su póliza y el que un auditor sigue hacia adelante.
+    return idPolizaGenerada;
   }
 
   /**
@@ -1184,6 +1333,8 @@ export class MotorContableService {
   async generarAsientoDeCancelacionCobranza(datos: {
     pagoId: string;
     creditoId: string;
+    /** El folio con el que Crédito y cobranza muestra el crédito. */
+    folioCredito?: string;
     fechaCancelacion: Date | string;
     empresaId: string;
     montoCapital: number;
@@ -1192,7 +1343,8 @@ export class MotorContableService {
     totalPagado: number;
     cuentaBancariaId?: string;
     motivo?: string;
-  }): Promise<void> {
+  }): Promise<string | undefined> {
+    let idPolizaGenerada: string | undefined;
     try {
       const { empresaId } = datos;
 
@@ -1206,19 +1358,23 @@ export class MotorContableService {
             empresaId,
             RolCuentaSistema.CAJA,
             'ACTIVO',
-            '1',
+            '101',
           );
       const cuentaCxC = await this.buscarCuentaPorRol(
         empresaId,
         RolCuentaSistema.CLIENTES_CXC,
         'ACTIVO',
-        '14',
+        '105',
       );
 
       if (!cuentaCaja)
-        throw new Error('Cancelación de cobranza: falta la cuenta de caja/banco.');
+        throw new Error(
+          'Cancelación de cobranza: falta la cuenta de caja/banco.',
+        );
       if (!cuentaCxC)
-        throw new Error('Cancelación de cobranza: falta la cuenta Clientes CxC (140-xx).');
+        throw new Error(
+          'Cancelación de cobranza: falta la cuenta Clientes CxC (140-xx).',
+        );
 
       const ref = `Cancelación cobro CRD-${datos.creditoId.slice(0, 8)}`;
       // Invertido respecto al cobro: sale el dinero de caja y vuelve la deuda.
@@ -1238,11 +1394,20 @@ export class MotorContableService {
       ];
 
       if (datos.montoInteres > 0) {
+        /*
+         * El prefijo de compatibilidad era '402', que en el catálogo del SAT
+         * es «Devoluciones, descuentos o bonificaciones sobre ventas»: una
+         * cuenta COMPLEMENTARIA de ingreso, de naturaleza deudora, que RESTA.
+         * Si la cuenta no tiene su rol asignado —que es justo cuando el
+         * prefijo entra en juego— los intereses cobrados se abonaban a la
+         * cuenta que descuenta ingresos. Los ingresos por intereses del plan
+         * estándar son 401.32; el grupo es el 401.
+         */
         const cuentaInteres = await this.buscarCuentaPorRol(
           empresaId,
           RolCuentaSistema.INTERESES,
           'INGRESO',
-          '402',
+          '401',
         );
         if (!cuentaInteres)
           throw new Error(
@@ -1265,7 +1430,7 @@ export class MotorContableService {
             empresaId,
             RolCuentaSistema.IVA_TRASLADADO_NO_COBRADO,
             'PASIVO',
-            '207',
+            '209',
           ),
           this.buscarCuentaPorRol(
             empresaId,
@@ -1295,13 +1460,10 @@ export class MotorContableService {
         );
       }
 
-      await this.crearPoliza({
+      idPolizaGenerada = await this.crearPoliza({
         empresaId,
         tipo: TipoPoliza.DIARIO,
-        concepto: `Cancelación de cobranza — Crédito ${datos.creditoId.slice(
-          0,
-          8,
-        )}${datos.motivo ? `. ${datos.motivo}` : ''}`,
+        concepto: `Cancelación de cobranza — Crédito ${datos.folioCredito ?? datos.creditoId.slice(0, 8)}${datos.motivo ? `. ${datos.motivo}` : ''}`,
         /*
          * El payload viaja serializado en la bandeja de asientos, así que la
          * fecha vuelve como texto. Reconstruirla aquí evita el fallo que sólo
@@ -1322,6 +1484,10 @@ export class MotorContableService {
       );
       throw err;
     }
+
+    // El id viaja hasta `asientos_pendientes`: es el enlace que une la
+    // operación con su póliza y el que un auditor sigue hacia adelante.
+    return idPolizaGenerada;
   }
 
   /**
@@ -1339,19 +1505,22 @@ export class MotorContableService {
    */
   async generarAsientoDeAjusteDevolucionExterna(datos: {
     creditoId: string;
+    /** El folio con el que Crédito y cobranza muestra el crédito. */
+    folioCredito?: string;
     idTransaccionExterna: string;
     fecha: Date | string;
     empresaId: string;
     monto: number;
     cuentaDevolucionId: string;
-  }): Promise<void> {
+  }): Promise<string | undefined> {
+    let idPolizaGenerada: string | undefined;
     try {
       const { empresaId } = datos;
       const cuentaCxC = await this.buscarCuentaPorRol(
         empresaId,
         RolCuentaSistema.CLIENTES_CXC,
         'ACTIVO',
-        '14',
+        '105',
       );
       if (!cuentaCxC)
         throw new Error(
@@ -1359,14 +1528,10 @@ export class MotorContableService {
         );
 
       const ref = `Devolución externa ${datos.idTransaccionExterna}`;
-      await this.crearPoliza({
+      idPolizaGenerada = await this.crearPoliza({
         empresaId,
         tipo: TipoPoliza.DIARIO,
-        concepto:
-          `Ajuste por devolución en el registro externo — Crédito ${datos.creditoId.slice(
-            0,
-            8,
-          )}. PENDIENTE DE NOTA DE CRÉDITO.`,
+        concepto: `Ajuste por devolución en el registro externo — Crédito ${datos.folioCredito ?? datos.creditoId.slice(0, 8)}. PENDIENTE DE NOTA DE CRÉDITO.`,
         fecha: new Date(datos.fecha),
         partidas: [
           {
@@ -1392,6 +1557,10 @@ export class MotorContableService {
       );
       throw err;
     }
+
+    // El id viaja hasta `asientos_pendientes`: es el enlace que une la
+    // operación con su póliza y el que un auditor sigue hacia adelante.
+    return idPolizaGenerada;
   }
 
   // ─── Helpers privados ─────────────────────────────────────────────────────
@@ -1427,7 +1596,7 @@ export class MotorContableService {
         empresaId,
         RolCuentaSistema.CLIENTES_CXC,
         'ACTIVO',
-        '14',
+        '105',
       );
       if (cxc) return cxc;
       this.logger.warn(
@@ -1448,7 +1617,14 @@ export class MotorContableService {
     if (cuentaBancariaId) {
       try {
         const rows = await this.dataSource.query(
-          `SELECT cuentaContableId FROM cuentas_bancarias WHERE id = $1 AND empresaId = $2`,
+          /*
+           * El ALIAS va entrecomillado. Sin él, PostgreSQL devuelve la llave
+           * como `cuentacontableid`, `rows[0].cuentaContableId` es `undefined`,
+           * y esta rama —la que usa la cuenta contable del banco o del TPV— no
+           * se tomaba NUNCA: toda póliza caía al respaldo de «Caja general».
+           * El dinero de una tarjeta se contabilizaba como efectivo en caja.
+           */
+          `SELECT cuentaContableId AS "cuentaContableId" FROM cuentas_bancarias WHERE id = $1 AND empresaId = $2`,
           [cuentaBancariaId, empresaId],
         );
         if (rows?.[0]?.cuentaContableId) {
@@ -1467,7 +1643,7 @@ export class MotorContableService {
       empresaId,
       RolCuentaSistema.CAJA,
       'ACTIVO',
-      '1',
+      '101',
     );
   }
 
@@ -1550,6 +1726,101 @@ export class MotorContableService {
     );
     const seq = last ? parseInt(last.folio.split('-')[2] || '0') + 1 : 1;
     return `${pref}-${anio}-${String(seq).padStart(5, '0')}`;
+  }
+
+  /**
+   * ==========================================================================
+   * El faltante o el sobrante del arqueo, en los libros
+   * --------------------------------------------------------------------------
+   * Cerrar un turno de caja calculaba la diferencia entre lo esperado y lo
+   * contado, exigía explicarla y la guardaba en la fila del turno. Ahí se
+   * quedaba: **ningún asiento**. El mayor seguía diciendo que en Caja hay lo
+   * teórico y el cajón tenía otra cosa, para siempre, y desde la contabilidad
+   * no había manera de explicar la diferencia.
+   *
+   * Medido el 25-sep-2026 con el primer turno de caja del sistema: fondo 500,
+   * ventas 240, esperado 740, contado 730. El turno guardó `diferencia: -10` y
+   * no se generó ninguna póliza.
+   *
+   * Un faltante es un gasto y un sobrante es un ingreso; los dos van contra la
+   * cuenta de caja, que es la que tiene que quedar igual a lo que hay dentro.
+   * ==========================================================================
+   */
+  async generarAsientoDeCierreCaja(datos: {
+    empresaId: string;
+    turnoId: string;
+    cuentaCajaId: string;
+    diferencia: number;
+    fecha: Date;
+    observaciones?: string;
+  }): Promise<string | undefined> {
+    let idPolizaGenerada: string | undefined;
+    try {
+      const diferencia = this.redondear(Number(datos.diferencia));
+      // Un arqueo que cuadra no tiene nada que registrar, y eso está bien.
+      if (Math.abs(diferencia) < 0.01) return undefined;
+
+      const cuentaCaja = await this.buscarCuentaSegunMetodoPago(
+        datos.empresaId,
+        'EFECTIVO',
+        datos.cuentaCajaId,
+      );
+      if (!cuentaCaja) {
+        throw new Error(
+          'Cierre de caja: la caja no tiene cuenta contable, así que el faltante o el sobrante no se puede registrar.',
+        );
+      }
+
+      const falta = diferencia < 0;
+      const contrapartida = await this.buscarCuentaPorRol(
+        datos.empresaId,
+        falta ? RolCuentaSistema.OTROS_GASTOS : RolCuentaSistema.OTROS_INGRESOS,
+        falta ? 'GASTO' : 'INGRESO',
+        falta ? '703' : '403',
+      );
+      if (!contrapartida) {
+        throw new Error(
+          `Cierre de caja: falta la cuenta de ${falta ? 'otros gastos' : 'otros ingresos'} donde registrar el ${falta ? 'faltante' : 'sobrante'}.`,
+        );
+      }
+
+      const importe = Math.abs(diferencia);
+      const referencia = `ARQUEO ${datos.turnoId.slice(0, 8)}`;
+      const partidas: PartidaInput[] = falta
+        ? [
+            // Faltante: sale dinero de la caja y se reconoce el gasto.
+            { cuentaContableId: contrapartida.id, cargo: importe, abono: 0, referencia },
+            { cuentaContableId: cuentaCaja.id, cargo: 0, abono: importe, referencia },
+          ]
+        : [
+            // Sobrante: entra dinero a la caja y se reconoce el ingreso.
+            { cuentaContableId: cuentaCaja.id, cargo: importe, abono: 0, referencia },
+            { cuentaContableId: contrapartida.id, cargo: 0, abono: importe, referencia },
+          ];
+
+      idPolizaGenerada = await this.crearPoliza({
+        empresaId: datos.empresaId,
+        tipo: TipoPoliza.DIARIO,
+        concepto:
+          `${falta ? 'Faltante' : 'Sobrante'} de caja en el arqueo del turno ` +
+          `${datos.turnoId.slice(0, 8)}` +
+          (datos.observaciones ? ` — ${datos.observaciones}` : ''),
+        fecha: datos.fecha,
+        partidas,
+        origenClave: `CIERRE_CAJA:${datos.turnoId}`,
+        origenTipo: 'CIERRE_CAJA',
+        origenId: datos.turnoId,
+      });
+    } catch (err: any) {
+      this.logger.error(`[Cierre de caja ${datos.turnoId}] ${err?.message}`);
+      // Se propaga: el turno ya está cerrado y la diferencia tiene que quedar
+      // visible en la bandeja hasta que alguien la pueda contabilizar.
+      throw err;
+    }
+
+    // El id viaja hasta `asientos_pendientes`: es el enlace que une la
+    // operación con su póliza y el que un auditor sigue hacia adelante.
+    return idPolizaGenerada;
   }
 
   private async crearPoliza(data: {
@@ -1685,13 +1956,14 @@ export class MotorContableService {
     montoPagado: number;
     ivaReclasificado?: number;
     cuentaBancariaId?: string;
-  }): Promise<void> {
+  }): Promise<string | undefined> {
+    let idPolizaGenerada: string | undefined;
     try {
       const cuentaProveedores = await this.buscarCuentaPorRol(
         datos.empresaId,
         RolCuentaSistema.PROVEEDORES,
         'PASIVO',
-        '21',
+        '201',
       ); // 210-xx Proveedores
       const cuentaCaja = await this.buscarCuentaSegunMetodoPago(
         datos.empresaId,
@@ -1727,13 +1999,13 @@ export class MotorContableService {
             datos.empresaId,
             RolCuentaSistema.IVA_ACREDITABLE_PENDIENTE,
             'ACTIVO',
-            '117',
+            '119',
           ),
           this.buscarCuentaPorRol(
             datos.empresaId,
             RolCuentaSistema.IVA_ACREDITABLE_PAGADO,
             'ACTIVO',
-            '116',
+            '118',
           ),
         ]);
         if (!ivaPendiente || !ivaPagado) {
@@ -1756,7 +2028,7 @@ export class MotorContableService {
           },
         );
       }
-      await this.crearPoliza({
+      idPolizaGenerada = await this.crearPoliza({
         empresaId: datos.empresaId,
         tipo: TipoPoliza.EGRESO,
         concepto: `Pago a proveedor — OC ${datos.folio}`,
@@ -1774,6 +2046,10 @@ export class MotorContableService {
       // operaciones sin póliza en silencio.
       throw err;
     }
+
+    // El id viaja hasta `asientos_pendientes`: es el enlace que une la
+    // operación con su póliza y el que un auditor sigue hacia adelante.
+    return idPolizaGenerada;
   }
 
   async generarAsientoDeHospedaje(datos: {
@@ -1806,7 +2082,7 @@ export class MotorContableService {
      * cierre.
      */
     costoConsumos?: number;
-  }): Promise<{ id: string }> {
+  }): Promise<string | undefined> {
     try {
       const subtotal = this.redondear(datos.subtotal);
       const iva = this.redondear(datos.iva);
@@ -1881,11 +2157,15 @@ export class MotorContableService {
       }
       if (subtotalConsumos > 0) {
         const cuentaConsumos =
+          /*
+           * Igual que arriba: '402' es la complementaria que resta ingresos,
+           * no la cuenta de ventas. Las ventas del plan estándar son 401.01.
+           */
           (await this.buscarCuentaPorRol(
             datos.empresaId,
             RolCuentaSistema.VENTAS,
             'INGRESO',
-            '402',
+            '401',
           )) ?? cuentaIngreso;
         partidas.push({
           cuentaContableId: cuentaConsumos.id,
@@ -2010,7 +2290,7 @@ export class MotorContableService {
         origenTipo: 'HOSPEDAJE',
         origenId: datos.documentoId,
       });
-      return { id };
+      return id;
     } catch (err: any) {
       this.logger.error(`[Hospedaje ${datos.folio}] ${err?.message}`);
       throw err;
@@ -2035,7 +2315,7 @@ export class MotorContableService {
       cuentaDepreciacionAcumuladaId?: string;
       importe: number;
     }>;
-  }): Promise<{ id: string }> {
+  }): Promise<string | undefined> {
     const acumulado = new Map<
       string,
       { gastoId: string; acumuladaId: string; importe: number }
@@ -2113,7 +2393,7 @@ export class MotorContableService {
     this.logger.log(
       `Póliza de depreciación ${datos.mes}/${datos.ejercicio} generada`,
     );
-    return { id };
+    return id;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -2126,7 +2406,8 @@ export class MotorContableService {
     empresaId: string;
     fecha: Date;
     detalles: { productoId: string; cantidad: number; costoUnitario: number }[];
-  }): Promise<void> {
+  }): Promise<string | undefined> {
+    let idPolizaGenerada: string | undefined;
     try {
       const prodMap = await this.cargarProductosConCategoria(
         datos.detalles.map((d) => d.productoId),
@@ -2138,31 +2419,65 @@ export class MotorContableService {
         'CAPITAL',
         '399',
       );
+      /*
+       * ──────────────────────────────────────────────────────────────────────
+       * Aquí el silencio era doble, y la segunda mitad es la peor.
+       *
+       * Sin la cuenta puente, el método escribía un `warn` en el log del
+       * servidor y devolvía normal. Ese retorno llega a
+       * `AsientosPendientesService` como «el asiento se generó»: el registro
+       * se marca GENERADO y la carga entera de inventario inicial queda sin
+       * contabilizar sin que ningún control lo note.
+       *
+       * Y las líneas cuyo producto no tenía cuenta de inventario se saltaban
+       * una por una, mientras la CONTRAPARTIDA se calculaba con el total
+       * PARCIAL. La póliza cuadraba —por un importe menor que el inventario
+       * que se estaba cargando—. El mayor cuadra, el auxiliar no, y la
+       * diferencia no tiene dónde verse.
+       *
+       * Ahora las tres situaciones lanzan. El asiento queda FALLIDO en la
+       * bandeja, con el nombre del producto y la cuenta que falta, y se
+       * reintenta en cuanto se configure.
+       * ──────────────────────────────────────────────────────────────────────
+       */
       if (!cuentaPuente) {
-        this.logger.warn(
-          'Inventario inicial: no existe la cuenta 399-xx "Carga de saldos iniciales". ' +
-            'Ejecuta la precarga estándar de cuentas. Asiento omitido.',
+        throw new Error(
+          'Inventario inicial: no existe la cuenta 399-xx «Carga de saldos iniciales». ' +
+            'Ejecuta la precarga estándar de cuentas y reintenta.',
         );
-        return;
       }
 
       // Dr. Inventario, AGRUPADO por cuenta de inventario de la categoría
       const porCuenta = new Map<string, number>();
+      const sinCuenta: string[] = [];
       for (const det of datos.detalles) {
-        const cat = prodMap.get(det.productoId)?.categoria as any;
-        if (!cat?.cuentaInventarioId) continue;
+        const producto = prodMap.get(det.productoId);
+        const cat = producto?.categoria as any;
         const valor = this.redondear(det.costoUnitario * det.cantidad);
+        if (!cat?.cuentaInventarioId) {
+          // Sin valor no aporta nada al asiento, tenga cuenta o no.
+          if (valor > 0) {
+            sinCuenta.push(
+              `${producto?.nombre ?? det.productoId}: su categoría no tiene cuenta de inventario.`,
+            );
+          }
+          continue;
+        }
         if (valor <= 0) continue;
         porCuenta.set(
           cat.cuentaInventarioId,
           this.redondear((porCuenta.get(cat.cuentaInventarioId) ?? 0) + valor),
         );
       }
-      if (porCuenta.size === 0) {
-        this.logger.warn(
-          'Inventario inicial: ninguna categoría con cuenta de inventario. Asiento omitido.',
+      if (sinCuenta.length) {
+        throw new Error(
+          `Inventario inicial: la carga quedaría incompleta y la póliza cuadraría por un importe menor al real. ${[...new Set(sinCuenta)].join(' ')}`,
         );
-        return;
+      }
+      if (porCuenta.size === 0) {
+        throw new Error(
+          'Inventario inicial: ninguna línea tiene valor contable. Revisa cantidades y costos unitarios de la carga.',
+        );
       }
 
       const partidas: PartidaInput[] = [];
@@ -2184,7 +2499,7 @@ export class MotorContableService {
         referencia: 'INV-INICIAL',
       });
 
-      await this.crearPoliza({
+      idPolizaGenerada = await this.crearPoliza({
         empresaId: datos.empresaId,
         tipo: TipoPoliza.DIARIO,
         concepto: `Carga de inventario inicial — ${datos.detalles.length} productos`,
@@ -2201,6 +2516,10 @@ export class MotorContableService {
       // operaciones sin póliza en silencio.
       throw err;
     }
+
+    // El id viaja hasta `asientos_pendientes`: es el enlace que une la
+    // operación con su póliza y el que un auditor sigue hacia adelante.
+    return idPolizaGenerada;
   }
   // ══════════════════════════════════════════════════════════════════════════
   // ASIENTO DE TESORERÍA — movimientos manuales y traspasos entre cuentas
@@ -2244,7 +2563,7 @@ export class MotorContableService {
     /** Sólo para operacion = 'TRASPASO'. */
     cuentaBancariaOrigenId?: string;
     cuentaBancariaDestinoId?: string;
-  }): Promise<{ id: string }> {
+  }): Promise<string | undefined> {
     try {
       const importe = this.redondear(Number(datos.importe));
       if (!(importe > 0)) {
@@ -2364,7 +2683,7 @@ export class MotorContableService {
         origenTipo: 'TESORERIA',
         origenId: datos.movimientoId,
       });
-      return { id: poliza };
+      return poliza;
     } catch (err: any) {
       this.logger.error(`[Tesorería ${datos.folio}] ${err?.message}`);
       throw err;
@@ -2384,7 +2703,9 @@ export class MotorContableService {
   ): Promise<{ id: string } | null> {
     if (!cuentaBancariaId) return null;
     const filas = await this.dataSource.query(
-      `SELECT cuentaContableId FROM cuentas_bancarias WHERE id = $1 AND empresaId = $2`,
+      // Mismo caso: sin el alias entrecomillado esto devolvía siempre null y
+      // el asiento de tesorería se quedaba sin cuenta.
+      `SELECT cuentaContableId AS "cuentaContableId" FROM cuentas_bancarias WHERE id = $1 AND empresaId = $2`,
       [cuentaBancariaId, empresaId],
     );
     const id = filas?.[0]?.cuentaContableId;
@@ -2426,7 +2747,7 @@ export class MotorContableService {
     cuentaDepreciacionAcumuladaId?: string;
     /** Caja o banco donde entró el importe de la venta, si la hubo. */
     cuentaBancariaId?: string;
-  }): Promise<{ id: string }> {
+  }): Promise<string | undefined> {
     try {
       const costo = this.redondear(Number(datos.costoAdquisicion));
       const acumulada = this.redondear(Number(datos.depreciacionAcumulada));
@@ -2492,7 +2813,7 @@ export class MotorContableService {
             ? RolCuentaSistema.OTROS_INGRESOS
             : RolCuentaSistema.OTROS_GASTOS,
           esUtilidad ? 'INGRESO' : 'GASTO',
-          esUtilidad ? '701' : '702',
+          esUtilidad ? '403' : '703',
         );
         if (!cuentaResultado) {
           throw new Error(
@@ -2519,11 +2840,10 @@ export class MotorContableService {
         origenTipo: 'BAJA_ACTIVO',
         origenId: datos.activoId,
       });
-      return { id };
+      return id;
     } catch (err: any) {
       this.logger.error(`[Baja activo ${datos.codigo}] ${err?.message}`);
       throw err;
     }
   }
-
 }

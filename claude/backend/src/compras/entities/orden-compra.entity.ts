@@ -22,14 +22,17 @@ export type EstadoPagoOC = 'PENDIENTE' | 'PARCIAL' | 'PAGADA';
  * `estadoPago`, que avanzan por separado. Este campo los resume en la etiqueta
  * que la gente de compras ya conoce, y se recalcula solo.
  */
-export type EstadoOC =
-  | 'PENDIENTE'
-  | 'ENVIADA'
-  | 'RECIBIDA'
-  | 'CON_INCIDENCIAS'
-  | 'PARCIALMENTE_PAGADA'
-  | 'PAGADA'
-  | 'CANCELADA';
+export const ESTADOS_OC = [
+  'PENDIENTE',
+  'ENVIADA',
+  'RECIBIDA',
+  'CON_INCIDENCIAS',
+  'PARCIALMENTE_PAGADA',
+  'PAGADA',
+  'CANCELADA',
+] as const;
+
+export type EstadoOC = (typeof ESTADOS_OC)[number];
 
 @Entity('ordenes_compra')
 export class OrdenCompra {

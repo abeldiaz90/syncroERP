@@ -63,7 +63,11 @@ export class EstadoCuentaService {
     // 3. Pagos de cobranza en el período
     const pagos = await this.dataSource.query(
       `
-      SELECT pc.id, pc.fechaPago, pc.montoPagado, pc.metodoPago,
+      -- El folio sí llevaba comillas; las tres columnas de pc, no. Con
+      -- p.fechaPago en undefined, new Date(undefined).toISOString() LANZA,
+      -- así que el estado de cuenta de cualquier cliente con un pago se caía.
+      SELECT pc.id AS id, pc.fechaPago AS "fechaPago",
+             pc.montoPagado AS "montoPagado", pc.metodoPago AS "metodoPago",
              cc.folio AS "creditoFolio"
       FROM pagos_cobranza pc
       JOIN creditos_clientes cc ON cc.id = pc.creditoId

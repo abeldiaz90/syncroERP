@@ -14,6 +14,7 @@ import {
 } from 'class-validator';
 import { IsSqlServerGuid, IsSqlServerGuidOpcional } from '../../common/validators/sql-server-guid.validator';
 import { EstadoOC } from '../entities/orden-compra.entity';
+import { IsFechaOpcional } from '../../common/validators/fecha-opcional.validator';
 
 export class CrearOrdenDesdeCotizacionDto {
   @IsSqlServerGuid()
@@ -57,8 +58,7 @@ export class DetalleRecepcionCompraDto {
   @MaxLength(100)
   lote?: string;
 
-  @IsOptional()
-  @IsDateString()
+  @IsFechaOpcional()
   fechaCaducidad?: string;
 
   @IsSqlServerGuidOpcional()
@@ -99,7 +99,6 @@ export class PagarOrdenCompraDto {
   @MaxLength(120)
   referencia?: string;
 
-  @IsOptional()
-  @IsDateString()
+  @IsFechaOpcional()
   fechaPago?: string;
 }

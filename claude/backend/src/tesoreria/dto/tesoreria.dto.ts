@@ -1,6 +1,5 @@
 import { Transform, Type } from 'class-transformer';
 import {
-  ArrayMinSize,
   IsArray,
   IsDateString,
   IsEnum,
@@ -59,7 +58,19 @@ export class CrearEstadoCuentaDto {
   @Type(() => Number) @IsInt() @Min(1) @Max(12) mes!: number;
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) saldoInicialBanco!: number;
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) saldoFinalBanco!: number;
-  @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => LineaEstadoCuentaDto) lineas!: LineaEstadoCuentaDto[];
+  /*
+   * Sin `@ArrayMinSize(1)` a proposito. Un mes sin movimientos en el banco es
+   * normal —una cuenta dormida, un mes anterior al arranque— y exigir al menos
+   * una linea dejaba esa cuenta sin conciliar para siempre; como el cierre
+   * mensual pide conciliacion cerrada de CADA cuenta activa, esa cuenta
+   * bloqueaba el mes entero y no habia forma de desbloquearlo.
+   *
+   * Cargar la nada no queda impune: el servicio sigue exigiendo que el estado
+   * de cuenta cuadre consigo mismo, de modo que sin lineas solo se acepta si el
+   * saldo inicial es igual al final. Un mes que si tuvo movimientos no se puede
+   * declarar vacio.
+   */
+  @IsArray() @ValidateNested({ each: true }) @Type(() => LineaEstadoCuentaDto) lineas!: LineaEstadoCuentaDto[];
 }
 export class ConciliacionAutomaticaDto { @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(31) ventanaDias = 5; }
 export class ConciliacionManualDto { @IsSqlServerGuid() lineaId!: string; @IsSqlServerGuid() movimientoId!: string; }

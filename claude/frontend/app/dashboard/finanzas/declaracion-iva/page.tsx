@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { fechaCorta } from '@/lib/fechas';
 import {
   Receipt, Calendar, RefreshCw, Printer, CheckCircle2,
   AlertCircle, TrendingUp, TrendingDown, Minus, Info,
@@ -26,7 +27,7 @@ const HOY  = new Date();
 const fmt$ = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
 const fmtFecha = (s: string) =>
-  new Date(s + 'T00:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  fechaCorta(s);
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -47,6 +48,12 @@ export default function DeclaracionIVAPage() {
   const [desde, setDesde]         = useState(primerDia(HOY.getFullYear(), HOY.getMonth()));
   const [hasta, setHasta]         = useState(ultimoDia(HOY.getFullYear(), HOY.getMonth()));
   const [detalleOpen, setDetalleOpen] = useState<'trasladado'|'acreditable'|null>(null);
+  /*
+    Una declaración de IVA que no se pudo consultar se veía igual que un mes sin
+    operaciones: todo en cero. Es la cifra que se presenta ante el SAT; tiene
+    que distinguirse «cero» de «no lo sé».
+  */
+  const [error, setError] = useState('');
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const tok = () => localStorage.getItem('syncro_token') ?? '';
@@ -56,10 +63,23 @@ export default function DeclaracionIVAPage() {
     const d = modoRango ? desde : primerDia(anio, mes);
     const h = modoRango ? hasta : ultimoDia(anio, mes);
     const params = new URLSearchParams({ fechaDesde: d, fechaHasta: h });
-    const res = await fetch(`${api}/finanzas/polizas/iva?${params}`, {
-      headers: { Authorization: `Bearer ${tok()}` },
-    });
-    if (res.ok) setDatos(await res.json());
+    try {
+      const res = await fetch(`${api}/finanzas/polizas/iva?${params}`, {
+        headers: { Authorization: `Bearer ${tok()}` },
+      });
+      if (res.ok) {
+        setDatos(await res.json());
+        setError('');
+      } else {
+        setDatos(null);
+        setError(res.status === 403
+          ? 'Tu perfil no incluye el cálculo de IVA.'
+          : 'No se pudo calcular el IVA del periodo. Las cifras de esta pantalla no son válidas.');
+      }
+    } catch {
+      setDatos(null);
+      setError('No hay conexión con el servidor. Las cifras de esta pantalla no son válidas.');
+    }
     setCargando(false);
   }, [mes, anio, modoRango, desde, hasta]);
 
@@ -74,6 +94,12 @@ export default function DeclaracionIVAPage() {
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
 
+      {error && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 print:hidden">
+          {error}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
@@ -82,7 +108,24 @@ export default function DeclaracionIVAPage() {
             <Receipt className="w-8 h-8 text-indigo-500"/> Declaración de IVA
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Cálculo mensual del IVA para presentar ante el SAT.
+            IVA trasladado contra IVA acreditable del periodo, con su saldo a
+            cargo o a favor.
+          </p>
+          {/*
+            * Decía «Cálculo mensual del IVA para presentar ante el SAT», que
+            * promete la declaración entera. Esta pantalla calcula el impuesto
+            * —que es la cifra que se paga— pero NO el valor de los actos por
+            * tasa, porque esa separación no está en la contabilidad: una venta
+            * a tasa 0 % y una exenta abonan la misma cuenta de ingresos y
+            * ninguna genera partida de IVA, así que en el mayor son
+            * indistinguibles. Decir que aquí sale la declaración completa
+            * llevaría al contador a presentarla sin los renglones de actos a
+            * 0 % y exentos.
+            */}
+          <p className="text-slate-400 text-xs mt-1">
+            No incluye el valor de los actos por tasa —gravados al 16 %, al 0 %
+            y exentos—: esa separación no vive en la contabilidad, sino en los
+            comprobantes.
           </p>
         </div>
         <div className="flex items-center gap-2">

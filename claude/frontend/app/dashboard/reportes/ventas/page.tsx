@@ -38,6 +38,12 @@ const COLUMNAS_VENTAS = [
 export default function ReporteVentasPage() {
   const [ventas, setVentas]     = useState<IVenta[]>([]);
   const [cargando, setCargando] = useState(false);
+  /*
+    Un reporte que no se pudo consultar no es un reporte en cero. `if (r.ok)`
+    sin `else` presentaba cualquier fallo —un 403, el backend reiniciándose—
+    como un periodo sin movimiento, que es la conclusión contraria.
+  */
+  const [error, setError] = useState('');
   const [desde, setDesde]       = useState(DESDE);
   const [hasta, setHasta]       = useState(HASTA);
   const [agrupacion, setAgrupacion] = useState<'dia' | 'metodo' | 'cliente'>('dia');
@@ -49,8 +55,19 @@ export default function ReporteVentasPage() {
   const cargar = useCallback(async () => {
     setCargando(true);
     const p = new URLSearchParams({ fechaDesde: desde, fechaHasta: hasta, limite: '500' });
-    const r = await fetch(`${api}/ventas?${p}`, { headers: h() });
-    if (r.ok) { const d = await r.json(); setVentas(d.ventas ?? d); }
+    try {
+      const r = await fetch(`${api}/ventas?${p}`, { headers: h() });
+      if (r.ok) { const d = await r.json(); setVentas(d.ventas ?? d); setError(''); }
+      else {
+        setVentas([]);
+        setError(r.status === 403
+          ? 'Tu perfil no incluye el reporte de ventas.'
+          : 'No se pudo consultar el reporte de ventas.');
+      }
+    } catch {
+      setVentas([]);
+      setError('No hay conexión con el servidor.');
+    }
     setCargando(false);
   }, [desde, hasta]);
 
@@ -92,6 +109,12 @@ export default function ReporteVentasPage() {
 
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto">
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {error}
+        </div>
+      )}
       <div className="flex items-start justify-between mb-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Reportes</p>

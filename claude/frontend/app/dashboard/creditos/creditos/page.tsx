@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { fechaCorta } from '@/lib/fechas';
 import { CreditCard, Search, Filter, RefreshCw, DollarSign,
   User, ChevronRight, CheckCircle2, Clock, AlertCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -24,7 +25,7 @@ const fmt$ = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
 
 const fmtFecha = (s: string) =>
-  new Date(s + 'T00:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  fechaCorta(s);
 
 const TIPO_LABEL: Record<string, string> = {
   CREDITO_30D: '30 días', CREDITO_60D: '60 días', CREDITO_90D: '90 días',
@@ -41,6 +42,7 @@ const ESTADO_CONFIG: Record<string, { label: string; icon: any; cls: string }> =
 export default function CreditosPage() {
   const [creditos, setCreditos]         = useState<ICredito[]>([]);
   const [cargando, setCargando]         = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
   const [busqueda, setBusqueda]         = useState('');
   const [filtroEstado, setFiltroEstado] = useState('ACTIVO');
 
@@ -52,7 +54,14 @@ export default function CreditosPage() {
     try {
       const url = `${api}/credito/creditos${filtroEstado ? `?estado=${filtroEstado}` : ''}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${tok()}` } });
-      if (res.ok) setCreditos(await res.json());
+      if (res.ok) { setCreditos(await res.json()); setErrorCarga(''); }
+      else {
+        /* «Sin créditos» es una afirmación sobre la cartera, no un hueco. */
+        setCreditos([]);
+        setErrorCarga(res.status === 403
+          ? 'Tu perfil no incluye la consulta de créditos.'
+          : 'No se pudo consultar la cartera de créditos.');
+      }
     } finally {
       setCargando(false);
     }
@@ -73,6 +82,12 @@ export default function CreditosPage() {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
+
+      {errorCarga && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {errorCarga}
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-start justify-between mb-6">

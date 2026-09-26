@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
+  Calculator,
   ChevronLeft, CheckCircle2, Building2, DollarSign, Eye,
   Receipt, AlertCircle, Loader2, Calendar, FileText,
   CheckCircle, Package, TrendingDown, Award
@@ -222,7 +223,19 @@ export default function CotizacionesRequisicionPage() {
             <FileText className="w-10 h-10 text-slate-300" />
           </div>
           <p className="text-xl font-bold text-slate-700">Aún no hay cotizaciones capturadas</p>
-          <p className="mt-2 text-slate-500 text-sm">Regresa a la pantalla anterior para registrar la primera propuesta.</p>
+          {/*
+            * Antes esto sólo decía «regresa a la pantalla anterior». Una
+            * pantalla vacía que manda a otra sin llevar a ella deja al
+            * comprador buscando dónde estaba el botón: la captura vive en
+            * Cotizaciones, detrás de «Capturar». Se ofrece el camino.
+            */}
+          <p className="mt-2 text-slate-500 text-sm">Captura la primera propuesta desde la pantalla de cotizaciones.</p>
+          <Link
+            href="/dashboard/compras/cotizaciones"
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 active:scale-95"
+          >
+            <Calculator className="h-4 w-4" /> Capturar cotizaciones
+          </Link>
         </div>
       ) : (
         <div className="space-y-6">

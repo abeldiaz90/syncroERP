@@ -26,6 +26,7 @@ import { RevisionCierreMensual } from '../entities/revision-cierre-mensual.entit
 import { EventoCierreContable } from '../entities/evento-cierre-contable.entity';
 import { CierreContableController } from '../controllers/cierre-contable.controller';
 import { CierreContableService } from '../services/cierre-contable.service';
+import { RespaldoCierreService } from '../services/respaldo-cierre.service';
 import { CatalogoFiscalVersion } from '../entities/catalogo-fiscal-version.entity';
 import { CatalogoSatEntrada } from '../entities/catalogo-sat-entrada.entity';
 import { CuentaContableSatMapeo } from '../entities/cuenta-contable-sat-mapeo.entity';
@@ -73,6 +74,7 @@ import { IntegridadFinancieraService } from '../services/integridad-financiera.s
     ActivacionFinancieraService,
     ConciliacionFinancieraService,
     CierreContableService,
+    RespaldoCierreService,
     CatalogosSatService,
     IntegridadFinancieraService,
   ],

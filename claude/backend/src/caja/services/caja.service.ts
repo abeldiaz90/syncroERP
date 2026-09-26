@@ -17,6 +17,8 @@ import {
 } from '../entities/movimiento-caja.entity';
 import { EstadoTurnoCaja, TurnoCaja } from '../entities/turno-caja.entity';
 import { TesoreriaService } from '../../tesoreria/services/tesoreria.service';
+import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
+import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
 import {
   OrigenMovimiento,
   TipoMovimiento,
@@ -51,6 +53,7 @@ export class CajaService {
     @InjectRepository(MovimientoCaja)
     private readonly movimientos: Repository<MovimientoCaja>,
     private readonly tesoreria: TesoreriaService,
+    private readonly asientos: AsientosPendientesService,
   ) {}
 
   private async validarCuentaCaja(
@@ -295,7 +298,7 @@ export class CajaService {
     empresaId: string,
     usuarioId: string,
   ) {
-    return this.dataSource.transaction('SERIALIZABLE', async (em) => {
+    const resultado = await this.dataSource.transaction('SERIALIZABLE', async (em) => {
       const turno = await em
         .createQueryBuilder(TurnoCaja, 'turno')
         .setLock('pessimistic_write')
@@ -325,8 +328,73 @@ export class CajaService {
       turno.usuarioCierreId = usuarioId;
       turno.observacionesCierre = dto.observaciones?.trim() || null;
       turno.fechaCierre = new Date();
-      return em.save(turno);
+      const guardado = await em.save(turno);
+
+      /*
+       * ──────────────────────────────────────────────────────────────────────
+       * La diferencia del arqueo tiene que llegar a los libros
+       * ----------------------------------------------------------------------
+       * Antes el cierre calculaba la diferencia, exigía explicarla y la
+       * guardaba aquí. Y ahí se quedaba: el mayor seguía diciendo que en Caja
+       * hay lo teórico y el cajón tenía otra cosa, para siempre, sin manera de
+       * explicarlo desde la contabilidad.
+       *
+       * El asiento se ENCOLA dentro de la misma transacción que cierra el
+       * turno: si el proceso muere entre una cosa y la otra, la fila de la
+       * bandeja se confirma con el cierre y el cron la recoge. Un faltante que
+       * se pierde porque se cayó el servidor es justo lo que no puede pasar.
+       * ──────────────────────────────────────────────────────────────────────
+       */
+      if (Math.abs(diferencia) >= 0.01) {
+        const evento = await this.asientos.encolarEnTransaccion(
+          em,
+          TipoAsiento.CIERRE_CAJA,
+          {
+            empresaId,
+            turnoId: turno.id,
+            cuentaCajaId: turno.cuentaCajaId,
+            diferencia,
+            fecha: turno.fechaCierre,
+            observaciones: turno.observacionesCierre ?? undefined,
+          },
+          empresaId,
+          `ARQUEO-${turno.id.slice(0, 8)}`,
+          turno.id,
+        );
+        return { turno: guardado, asientoPendienteId: evento.id };
+      }
+
+      return { turno: guardado, asientoPendienteId: undefined as string | undefined };
     });
+
+    /*
+     * Se intenta contabilizar de inmediato, como hacen la venta, la recepción y
+     * la devolución. Si falla —falta la cuenta de otros gastos, por ejemplo— el
+     * asiento queda FALLIDO y visible en la bandeja, y el cierre informa el
+     * estado real en vez de dar por hecho que la póliza salió.
+     */
+    let estadoContable: 'GENERADO' | 'PENDIENTE' | 'NO_APLICA' =
+      resultado.asientoPendienteId ? 'PENDIENTE' : 'NO_APLICA';
+    let polizaId: string | undefined;
+    if (resultado.asientoPendienteId) {
+      try {
+        const asiento = await this.asientos.reintentarAhora(
+          resultado.asientoPendienteId,
+          empresaId,
+        );
+        estadoContable = asiento?.generado ? 'GENERADO' : 'PENDIENTE';
+        polizaId = asiento?.polizaId;
+      } catch {
+        // El turno ya está cerrado: la contabilidad la retoma el cron.
+      }
+    }
+
+    return {
+      ...resultado.turno,
+      estadoContable,
+      asientoPendienteId: resultado.asientoPendienteId,
+      ...(polizaId ? { polizaId } : {}),
+    };
   }
 
   turnosAbiertos(empresaId: string) {

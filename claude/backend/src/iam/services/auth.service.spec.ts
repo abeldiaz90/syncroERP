@@ -7,6 +7,7 @@ import { DataSource } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { PermisosDinamicosService } from './permisos-dinamicos.service';
 import { MailService } from '../../common/services/mail.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -40,6 +41,16 @@ describe('AuthService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
+        /*
+         * `AuthService` recibe la configuracion desde el 25-sep-2026 para poder
+         * mirar `AUTH_MODE`: sin ella no sabia si la identidad vive en el
+         * directorio, y por eso sus puertas locales de contraseña seguian
+         * abiertas en modo Keycloak. Aqui se simula en el modo por omision.
+         */
+        {
+          provide: ConfigService,
+          useValue: { get: (_clave: string, porOmision?: unknown) => porOmision },
+        },
         // Inyectamos el mock del repositorio de Empresa
         {
           provide: getRepositoryToken(Empresa),

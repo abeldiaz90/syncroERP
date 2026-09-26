@@ -10,6 +10,7 @@ import {
   Min,
 } from 'class-validator';
 import { IsSqlServerGuidOpcional } from '../common/validators/sql-server-guid.validator';
+import { EsRfcOpcional } from '../common/validators/rfc.validator';
 import { IsEmailOpcional } from '../common/validators/email-opcional.validator';
 
 export class CrearClienteDto {
@@ -22,7 +23,7 @@ export class CrearClienteDto {
   tipoPersona?: 'FISICA' | 'MORAL'; // ← ahora es unión, no string
 
   @IsOptional()
-  @IsString()
+  @EsRfcOpcional()
   rfc?: string;
 
   @IsOptional()

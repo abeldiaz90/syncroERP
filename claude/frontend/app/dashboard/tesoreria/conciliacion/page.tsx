@@ -14,7 +14,7 @@
  */
 
 import { useState } from 'react';
-import { CheckCheck, ClipboardPaste, FileSpreadsheet, Scale } from 'lucide-react';
+import { CheckCheck, ClipboardPaste, FileSpreadsheet, Lock, Scale } from 'lucide-react';
 
 import { api } from '@/lib/api';
 import { dinero, fecha, isoCorto } from '@/lib/format';
@@ -59,12 +59,14 @@ export default function ConciliacionPage() {
   const [estadoCuentaId, setEstadoCuentaId] = useState('');
   const [modalCarga, setModalCarga] = useState(false);
   const [reporte, setReporte] = useState<Reporte | null>(null);
+  const [cerrada, setCerrada] = useState(false);
 
   const cuentas = useDatos<Cuenta[]>(() => api.get('/tesoreria/saldos'), []);
 
   const cargar = useAccion(async (datos: Record<string, unknown>) => {
     const e = await api.post<{ id: string }>('/tesoreria/conciliacion/estados-cuenta', datos);
     setEstadoCuentaId(e.id);
+    setCerrada(false);
     setModalCarga(false);
     avisar('Estado de cuenta cargado y cuadrado.', 'exito');
     return e;
@@ -80,6 +82,24 @@ export default function ConciliacionPage() {
       r.ambiguas.length ? 'alerta' : 'exito',
     );
     await verReporte.ejecutar();
+    return r;
+  });
+
+  /*
+   * Cerrar es lo que el cierre mensual esta esperando: su control de bancos
+   * cuenta las conciliaciones CERRADAS del periodo. Hasta hoy no habia forma de
+   * cerrar ninguna —el backend nunca escribia ese estado—, asi que el control
+   * bloqueaba todos los meses. El boton solo aparece cuando el reporte cuadra,
+   * porque el servidor rechaza cerrar con diferencia y ofrecer un boton que
+   * siempre falla es peor que no ofrecerlo.
+   */
+  const cerrarConciliacion = useAccion(async () => {
+    const r = await api.patch<{ mensaje: string }>(
+      `/tesoreria/conciliacion/${estadoCuentaId}/cerrar`,
+      {},
+    );
+    setCerrada(true);
+    avisar(r.mensaje, 'exito');
     return r;
   });
 
@@ -159,9 +179,9 @@ export default function ConciliacionPage() {
           )}
         </div>
 
-        {(cargar.error || conciliar.error || verReporte.error) && (
+        {(cargar.error || conciliar.error || verReporte.error || cerrarConciliacion.error) && (
           <p className="text-[12.5px] text-rose-600 mt-3 font-medium">
-            {cargar.error || conciliar.error || verReporte.error}
+            {cargar.error || conciliar.error || verReporte.error || cerrarConciliacion.error}
           </p>
         )}
       </Panel>
@@ -195,9 +215,24 @@ export default function ConciliacionPage() {
                     : 'Revisa las partidas de abajo: suelen ser movimientos capturados con importe distinto o que faltan por registrar.'}
                 </p>
               </div>
-              <Distintivo tono={reporte.cuadra ? 'exito' : 'peligro'}>
-                {reporte.cuadra ? 'Conciliado' : 'Con diferencia'}
-              </Distintivo>
+              <div className="flex items-center gap-3">
+                <Distintivo tono={reporte.cuadra ? 'exito' : 'peligro'}>
+                  {reporte.cuadra ? 'Conciliado' : 'Con diferencia'}
+                </Distintivo>
+                {reporte.cuadra &&
+                  (cerrada ? (
+                    <Distintivo tono="exito">Cerrada</Distintivo>
+                  ) : (
+                    <Boton
+                      variante="primario"
+                      icono={<Lock className="w-3.5 h-3.5" />}
+                      onClick={() => void cerrarConciliacion.ejecutar()}
+                      cargando={cerrarConciliacion.ejecutando}
+                    >
+                      Cerrar conciliación del periodo
+                    </Boton>
+                  ))}
+              </div>
             </div>
           </div>
 
@@ -412,8 +447,27 @@ function ModalCargaEstado({
   const declarado = parseFloat(saldoFinal || '0');
   const cuadra = Math.abs(calculado - declarado) < 0.01;
 
+  /*
+   * Un mes sin movimientos en el banco es normal —una cuenta dormida, un mes
+   * anterior al arranque— y hasta hoy no se podia cargar: el boton exigia al
+   * menos una linea. Como el cierre mensual pide conciliacion cerrada de cada
+   * cuenta activa, esa cuenta bloqueaba el mes para siempre.
+   *
+   * Se permite, pero se dice: solo cuando el saldo no se movio, y el boton
+   * cambia de texto para que nadie lo haga creyendo que pego algo.
+   */
+  const mesSinMovimientos =
+    lineas.length === 0 && !!saldoFinal && !pegado.trim() && cuadra;
+
   const enviar = () => {
-    if (!lineas.length) { setError('Pega al menos un movimiento del estado de cuenta.'); return; }
+    if (!lineas.length && !mesSinMovimientos) {
+      setError(
+        pegado.trim()
+          ? 'No se entendió ningún movimiento de lo que pegaste.'
+          : 'Pega los movimientos del banco, o captura el mismo saldo inicial y final si el mes no tuvo movimientos.',
+      );
+      return;
+    }
     if (!saldoFinal) { setError('Captura el saldo final que reporta el banco.'); return; }
     if (!cuadra) {
       setError(
@@ -447,9 +501,13 @@ function ModalCargaEstado({
             variante="primario"
             onClick={enviar}
             cargando={guardando}
-            disabled={!lineas.length || !cuadra}
+            disabled={(!lineas.length && !mesSinMovimientos) || !cuadra}
           >
-            Cargar {lineas.length > 0 ? `${lineas.length} movimientos` : ''}
+            {lineas.length > 0
+              ? `Cargar ${lineas.length} movimientos`
+              : mesSinMovimientos
+                ? 'Cargar mes sin movimientos'
+                : 'Cargar'}
           </Boton>
         </>
       }

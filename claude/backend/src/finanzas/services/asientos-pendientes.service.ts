@@ -10,6 +10,7 @@ import {
 } from '../entities/asiento-pendiente.entity';
 import { MotorContableService } from './motor-contable.service';
 import { omitirTareaProgramada } from '../../common/utils/tareas-programadas.util';
+import { esViolacionUnicidad } from '../../common/database/errores-sql';
 
 /**
  * ============================================================================
@@ -163,10 +164,7 @@ export class AsientosPendientesService {
         return { estado: 'PENDIENTE', asientoPendienteId: guardado.id };
       } catch (errorAlGuardar) {
         try {
-          const numero =
-            (errorAlGuardar as any)?.number ??
-            (errorAlGuardar as any)?.originalError?.info?.number;
-          if (documentoId && (numero === 2601 || numero === 2627)) {
+          if (documentoId && esViolacionUnicidad(errorAlGuardar)) {
             // Otra instancia creó la fila entre el findOne y el INSERT. La
             // restricción única evita el duplicado; actualizamos la ganadora.
             const concurrente = await this.repo.findOne({
@@ -218,6 +216,7 @@ export class AsientosPendientesService {
       [TipoAsiento.AJUSTE_DEVOLUCION_EXTERNA]: 'generarAsientoDeAjusteDevolucionExterna',
       [TipoAsiento.SALIDA_INVENTARIO]: 'generarAsientoDeSalida',
       [TipoAsiento.INVENTARIO_INICIAL]: 'generarAsientoDeInventarioInicial',
+      [TipoAsiento.CIERRE_CAJA]: 'generarAsientoDeCierreCaja',
       [TipoAsiento.AJUSTE_INVENTARIO]: 'generarAsientoDeAjusteInventario',
       [TipoAsiento.HOSPEDAJE]: 'generarAsientoDeHospedaje',
       /*
@@ -260,10 +259,18 @@ export class AsientosPendientesService {
       }
     }
 
+    /*
+     * El motor devuelve el id de la póliza que creó, y ese id es lo único que
+     * une esta bitácora con el mayor. Trece de los quince generadores estaban
+     * declarados `Promise<void>` y lo tiraban: `polizaId` quedaba en null en
+     * los 36 asientos GENERADOS de la instalación, así que la tabla afirmaba
+     * «generado» sin poder decir dónde. Se acepta también la forma antigua
+     * `{ id }` por si algún generador externo todavía la usa.
+     */
     const resultado = await fn.call(this.motorContable, hidratado);
-    return typeof (resultado as any)?.id === 'string'
-      ? (resultado as any).id
-      : undefined;
+    if (typeof resultado === 'string' && resultado) return resultado;
+    const anidado = (resultado as any)?.id;
+    return typeof anidado === 'string' && anidado ? anidado : undefined;
   }
 
   /* ══ REINTENTO AUTOMÁTICO ════════════════════════════════════════════════ */

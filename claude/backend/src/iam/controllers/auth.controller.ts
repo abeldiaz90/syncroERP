@@ -62,40 +62,38 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
-  /** El token viaja en el cuerpo; los enlaces nuevos lo guardan en el fragmento URL. */
-  @Public()
-  @Post('verificar-email')
-  async verificarEmail(@Body() dto: VerificarEmailDto) {
-    return this.authService.verificarEmail(dto.token);
-  }
-
-  /** POST /api/auth/reenviar-verificacion  { email } */
-  @Public()
-  @Post('reenviar-verificacion')
-  async reenviarVerificacion(@Body() dto: ReenviarVerificacionDto) {
-    return this.authService.reenviarVerificacion(dto.email);
-  }
-
-  /**
-   * POST /api/auth/recuperar-password  { email }
-   * Envía el enlace de restablecimiento. Respuesta siempre genérica
-   * (no revela si el correo existe o no).
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Aquí ya no se administran contraseñas
+   * --------------------------------------------------------------------------
+   * Había cuatro rutas públicas más: `verificar-email`,
+   * `reenviar-verificacion`, `recuperar-password` y `restablecer-password`.
+   * Se retiraron el 25-sep-2026 porque la identidad vive en Keycloak y allí se
+   * entra, se recupera y se cambia la contraseña. Mantenerlas aquí era tener
+   * dos sistemas de contraseñas donde sólo uno autentica.
+   *
+   * Lo que las delataba no era que existieran, sino QUE NADIE LAS MIRABA. Este
+   * controlador ya tenía `exigirAutenticacionLocal()` —la guarda que niega el
+   * acceso local cuando la identidad está en el directorio— y la llamaba
+   * exactamente una ruta, `login`. Las otras cuatro se quedaron sin ella. Una
+   * guarda escrita y no invocada es peor que ninguna: quien la lee cree que el
+   * archivo está protegido.
+   *
+   * El daño concreto que hacían en modo directorio:
+   *
+   *   `recuperar-password` mandaba un correo de verdad, sin sesión, para
+   *   restablecer una contraseña que no autentica nada.
+   *
+   *   `restablecer-password` sobrescribía el marcador
+   *   `sin-acceso-local:identidad-en-el-directorio` con un hash real. No
+   *   concedía acceso —la estrategia JWT sólo admite RS256 de un emisor
+   *   registrado— pero dejaba la cuenta con una contraseña puesta por quien
+   *   corriera el flujo, lista para el día que alguien cambiara el modo.
+   *
+   * Los métodos del servicio siguen existiendo y ahora comprueban el modo
+   * ellos mismos: si alguien vuelve a colgar una ruta de ellos, se cierra sola.
+   * ──────────────────────────────────────────────────────────────────────────
    */
-  @Public()
-  @Post('recuperar-password')
-  async recuperarPassword(@Body() dto: RecuperarPasswordDto) {
-    return this.authService.solicitarRecuperacion(dto.email);
-  }
-
-  /**
-   * POST /api/auth/restablecer-password  { token, password }
-   * Guarda la nueva contraseña. Token de un solo uso, expira en 1 h.
-   */
-  @Public()
-  @Post('restablecer-password')
-  async restablecerPassword(@Body() dto: RestablecerPasswordDto) {
-    return this.authService.restablecerPassword(dto.token, dto.password);
-  }
 
   /**
    * POST /api/auth/onboarding/paso/:numero

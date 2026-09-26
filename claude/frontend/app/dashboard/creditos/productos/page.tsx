@@ -21,7 +21,7 @@ import {
   CheckCircle2, AlertCircle, Loader2, Calendar, Calculator, Sprout,
   Link2, Link2Off, Save,
 } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, conPermiso } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { PuedeCrear, PuedeEditar } from '@/app/components/ProtectedElement';
 
@@ -71,6 +71,8 @@ const n = (v: unknown) => Number(v) || 0;
 export default function ProductosCreditoPage() {
   const [productos, setProductos] = useState<IProducto[]>([]);
   const [estado, setEstado]       = useState<IEstado|null>(null);
+  /** El diagnóstico de cada producto es de Contabilidad; el catálogo, de todos. */
+  const [estadoVedado, setEstadoVedado] = useState(false);
   const [cargando, setCargando]   = useState(true);
   const [ocupado, setOcupado]     = useState('');
   const [modal, setModal]         = useState(false);
@@ -88,12 +90,32 @@ export default function ProductosCreditoPage() {
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
+      /*
+       * ──────────────────────────────────────────────────────────────────────
+       * UN PANEL AJENO NO PUEDE DEJAR LA PANTALLA EN BLANCO
+       *
+       * `/credito/productos/estado` —qué le falta a cada producto para poder
+       * venderse— es de `administrador`, `direccion` y `contador`. El catálogo
+       * de productos, en cambio, lo lee cualquiera que tenga la pantalla.
+       *
+       * Al pedir los dos con un `Promise.all`, el 403 del segundo tumbaba al
+       * primero: `credito`, `tesoreria`, `finanzas` y `gerencia` abrían
+       * «Productos de crédito» y veían la pantalla VACÍA con «No tienes
+       * permisos suficientes para esta acción», mientras `GET /credito/productos`
+       * contestaba 200 con los cinco productos. Medido el 25-sep-2026.
+       *
+       * El diagnóstico se pide aparte y, si no es de tu rol, la pantalla lo
+       * dice en una línea y enseña el catálogo igual. `conPermiso` distingue
+       * el 403 —que es una decisión— de una avería, que sigue subiendo.
+       * ──────────────────────────────────────────────────────────────────────
+       */
       const [lista, est] = await Promise.all([
         api.get<IProducto[]>('/credito/productos'),
-        api.get<IEstado>('/credito/productos/estado'),
+        conPermiso(api.get<IEstado>('/credito/productos/estado')),
       ]);
       setProductos(lista);
-      setEstado(est);
+      setEstado(est.valor);
+      setEstadoVedado(est.vedado);
     } catch (e) {
       decir(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cargar el catálogo.', false);
     }
@@ -202,6 +224,20 @@ export default function ProductosCreditoPage() {
               </span></>
             )}
           </p>
+          {estadoVedado && (
+            <p className="mt-2 flex items-start gap-1.5 text-[11px] font-semibold text-amber-800">
+              {/*
+                Decir de quién es el panel, en vez de dejar la columna en
+                blanco: una casilla vacía parece un producto sin problemas.
+              */}
+              <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
+              <span>
+                El diagnóstico de cada producto —qué le falta para poder
+                venderse— es de Contabilidad, así que esa columna no aparece en
+                tu perfil. El catálogo sí es tuyo.
+              </span>
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           <PuedeCrear ruta="/credito/productos">

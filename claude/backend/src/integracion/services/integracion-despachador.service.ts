@@ -23,6 +23,7 @@ import { MapeoCuentasService } from './mapeo-cuentas.service';
 import { EventoIntegracion } from '../entities/evento-integracion.entity';
 import {
   ErrorIntegracionExterna,
+  EventoSinDestino,
   PuertoCarteraExterna,
 } from '../ports/cartera-externa.port';
 /**
@@ -150,6 +151,8 @@ export class IntegracionDespachadorService {
 
     let procesados = 0;
     let fallidos = 0;
+    /** Eventos que resultaron no tener destino. Ni error ni pendiente. */
+    let descartados = 0;
 
     try {
       for (const evento of await this.outbox.pendientes(
@@ -180,6 +183,19 @@ export class IntegracionDespachadorService {
           await this.outbox.marcarEnviado(evento, respuesta);
           procesados += 1;
         } catch (error) {
+          /*
+           * Un evento SIN DESTINO no es un fallo: es un evento que, al
+           * despacharse, resulto no tener a donde ir por diseno —una poliza
+           * cancelada, cuya reversa viaja por su cuenta—. Contarlo como fallo
+           * encendia la pantalla de administracion y, desde que existe el
+           * control del espejo contable, bloqueaba el cierre del mes con algo
+           * que nadie podia resolver. Ver `EventoSinDestino`.
+           */
+          if (error instanceof EventoSinDestino) {
+            descartados += 1;
+            await this.outbox.marcarDescartado(evento, error.message);
+            continue;
+          }
           fallidos += 1;
           const reintentable =
             !(error instanceof ErrorIntegracionExterna) || error.reintentable;
@@ -195,11 +211,13 @@ export class IntegracionDespachadorService {
       this.despachando = false;
     }
 
-    if (procesados || fallidos) {
+    if (procesados || fallidos || descartados) {
       this.logger.log(
-        `Outbox de cartera: ${procesados} aplicado(s), ${fallidos} con error.`,
+        `Outbox de cartera: ${procesados} aplicado(s), ${fallidos} con error` +
+          (descartados ? `, ${descartados} descartado(s) por no tener destino` : '') +
+          '.',
       );
-      return { procesados, fallidos };
+      return { procesados, fallidos, ...(descartados ? { descartados } : {}) };
     }
 
     /*
@@ -272,9 +290,8 @@ export class IntegracionDespachadorService {
     // Una póliza cancelada no se espeja: su reversa es otra póliza, y esa sí
     // viaja con su propio evento.
     if (poliza.estatus === 'CANCELADA') {
-      throw new ErrorIntegracionExterna(
+      throw new EventoSinDestino(
         `La póliza ${poliza.folio} está cancelada; su reversa viaja como póliza propia.`,
-        false,
       );
     }
 

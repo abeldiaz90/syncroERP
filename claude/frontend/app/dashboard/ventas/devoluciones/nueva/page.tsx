@@ -35,29 +35,90 @@ export default function NuevaDevolucionPage() {
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+  /** No hay ninguna caja por la que reembolsar: se dice, no se calla. */
+  const [sinCuentas, setSinCuentas] = useState(false);
   const [resultado, setResultado] = useState<{ folio: number; total: number; estadoFiscal: string; advertencias?: string[] } | null>(null);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("ventaId") ?? "";
     setVentaId(id);
-    api.get<Cuenta[]>("/credito/cuentas-bancarias").then((r) => {
+    /*
+     * La lista CORTA de cajas, no el catálogo completo.
+     *
+     * `GET /credito/cuentas-bancarias` está vedada al mostrador a propósito
+     * —trae CLABE y número de cuenta— y el mostrador es el ÚNICO rol que puede
+     * registrar una devolución. Como aquí el 403 se tragaba en silencio, la
+     * lista quedaba vacía, el desplegable de la cuenta por la que se reembolsa
+     * salía sin opciones y la devolución no se podía terminar. Es el mismo
+     * defecto que apagaba el botón «Cobrar» del punto de venta.
+     */
+    api.get<Cuenta[]>("/credito/cuentas-bancarias/para-cobro").then((r) => {
       const activas = r.filter((c) => c.activo !== false && c.activa !== false);
       setCuentas(activas);
       if (activas[0]) setCuentaId(activas[0].id);
-    }).catch(() => undefined);
+      if (!activas.length) setSinCuentas(true);
+    }).catch(() => setSinCuentas(true));
     if (id) void cargar(id);
   }, []);
 
+  /*
+   * Quien atiende el mostrador tiene el ticket en la mano, y el ticket dice
+   * «#00015». El campo pedía el UUID de la venta —treinta y seis caracteres
+   * que no aparecen en ningún papel—, y la pantalla sólo era usable si se
+   * llegaba a ella desde el historial, que la abre con el id en la dirección.
+   * Ahora se acepta lo que la gente tiene: el número de ticket, los ocho
+   * caracteres que se ven en el historial, o el identificador completo.
+   */
+  async function resolverVenta(entrada: string): Promise<string> {
+    const limpio = entrada.trim();
+    if (/^[0-9a-f-]{36}$/i.test(limpio)) return limpio;
+    const respuesta = await api.get<
+      { ventas?: Array<{ id: string; folio: number }> } | Array<{ id: string; folio: number }>
+    >("/ventas", { query: { limite: 200 } });
+    /* `GET /ventas` contesta `{ ventas: [...] }`; se aceptan las dos formas. */
+    const lista = Array.isArray(respuesta) ? respuesta : (respuesta?.ventas ?? []);
+    const soloNumero = limpio.replace(/^#/, "").replace(/^0+/, "");
+    const porFolio = /^\d+$/.test(soloNumero)
+      ? lista.find((v) => String(v.folio) === soloNumero)
+      : undefined;
+    if (porFolio) return porFolio.id;
+    const porPrefijo = lista.filter((v) =>
+      v.id.toLowerCase().startsWith(limpio.toLowerCase()),
+    );
+    if (porPrefijo.length === 1) return porPrefijo[0].id;
+    if (porPrefijo.length > 1) {
+      throw new Error(
+        `Hay ${porPrefijo.length} ventas que empiezan por «${limpio}». Escribe algunos caracteres más.`,
+      );
+    }
+    throw new Error(
+      `No se encontró la venta «${limpio}». Puedes usar el número del ticket, los ocho caracteres del historial o el identificador completo.`,
+    );
+  }
+
   async function cargar(id = ventaId) {
-    if (!id.trim()) return setError("Captura el ID de la venta.");
+    if (!id.trim()) return setError("Captura el número de ticket o el identificador de la venta.");
     setCargando(true); setError(""); setResultado(null);
     try {
-      const r = await api.get<Disponible>(`/ventas/${id.trim()}/devoluciones/disponible`);
+      const idReal = await resolverVenta(id);
+      const r = await api.get<Disponible>(`/ventas/${idReal}/devoluciones/disponible`);
       setDatos(r);
       setSeleccion(Object.fromEntries(r.detalles.map((d) => [d.id, { cantidad: 0, condicion: "REINTEGRABLE" }])));
     } catch (e) {
       setDatos(null);
-      setError(e instanceof ApiError ? e.mensajeParaPantalla() : "No se pudo consultar la venta.");
+      /*
+       * El mensaje que se escribió arriba —«no se encontró la venta 15»— es
+       * más útil que «no se pudo consultar la venta», que no dice qué hacer.
+       * Un `catch` que aplasta todos los errores en una frase genérica es lo
+       * que obliga a adivinar.
+       */
+      setError(
+        e instanceof ApiError
+          ? e.mensajeParaPantalla()
+          : e instanceof Error && e.message
+            ? e.message
+            : "No se pudo consultar la venta.",
+      );
     } finally { setCargando(false); }
   }
 
@@ -140,7 +201,7 @@ export default function NuevaDevolucionPage() {
       <section className="bg-white border border-slate-200 rounded-2xl p-5 mb-5">
         <label className="text-xs uppercase tracking-wider font-bold text-slate-500">1. Localiza la venta</label>
         <div className="flex gap-2 mt-2">
-          <input value={ventaId} onChange={(e) => setVentaId(e.target.value)} placeholder="UUID de la venta" className="flex-1 border border-slate-300 rounded-xl px-4 py-3" />
+          <input value={ventaId} onChange={(e) => setVentaId(e.target.value)} placeholder="Número de ticket (p. ej. 15) o identificador de la venta" className="flex-1 border border-slate-300 rounded-xl px-4 py-3" />
           <button onClick={() => void cargar()} disabled={cargando} className="bg-slate-900 text-white px-5 rounded-xl font-bold flex items-center gap-2">{cargando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Consultar</button>
         </div>
       </section>
@@ -172,6 +233,11 @@ export default function NuevaDevolucionPage() {
           {destino === "REEMBOLSO" && <div className="grid md:grid-cols-3 gap-3">
             <select value={metodo} onChange={(e) => setMetodo(e.target.value)} className="border rounded-xl px-4 py-3"><option>EFECTIVO</option><option>TRANSFERENCIA</option><option>TARJETA</option><option>CHEQUE</option><option>OTRO</option></select>
             <select value={cuentaId} onChange={(e) => setCuentaId(e.target.value)} className="border rounded-xl px-4 py-3"><option value="">Caja o cuenta…</option>{cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.banco?.nombre ? ` · ${c.banco.nombre}` : ""}</option>)}</select>
+            {sinCuentas && (
+              <p className="text-xs text-rose-600 font-medium flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5" /> No hay ninguna caja activa por la que reembolsar. Pídelo a tu administrador antes de continuar.
+              </p>
+            )}
             <input value={referencia} onChange={(e) => setReferencia(e.target.value)} placeholder="Referencia (opcional)" className="border rounded-xl px-4 py-3" />
           </div>}
         </section>

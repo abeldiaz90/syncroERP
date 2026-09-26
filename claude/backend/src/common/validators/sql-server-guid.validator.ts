@@ -14,7 +14,9 @@ export function IsSqlServerGuid(
   validationOptions: ValidationOptions = {},
 ): PropertyDecorator {
   return Matches(SQL_SERVER_GUID_REGEX, {
-    message: '$property debe ser un GUID válido de SQL Server',
+    // Lo lee una persona, no un DBA: ni «GUID» ni «SQL Server» —que además ya
+    // no es la base de este sistema— le dicen nada.
+    message: '$property no tiene la forma de un identificador del sistema',
     ...validationOptions,
   });
 }

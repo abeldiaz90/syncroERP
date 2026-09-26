@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import { IsIn } from 'class-validator';
+import { EsMotivoDeRechazo } from '../../common/validators/motivo-de-rechazo.validator';
 
 /*
  * ============================================================================
@@ -30,19 +31,33 @@ import { IsIn, IsString, MaxLength, MinLength, ValidateIf } from 'class-validato
  * ============================================================================
  */
 
-const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
+/*
+ * ──────────────────────────────────────────────────────────────────────────
+ * Y por que el motivo ausente se convierte en motivo vacio
+ *
+ * Rechazar sin comentario devolvia TRES errores a la vez:
+ *
+ *   «comentario must be shorter than or equal to 500 characters»
+ *   «Al rechazar hay que decir por que: escribe el motivo (minimo 3 caracteres).»
+ *   «comentario must be a string»
+ *
+ * Los dos de los extremos son falsos —no hay 501 caracteres, no hay un tipo
+ * equivocado: no hay nada— y el unico verdadero queda enterrado en medio. Quien
+ * lee eso no aprende que le falta el motivo; aprende a no leer los errores.
+ *
+ * Al rechazar, que el campo no venga no es «de otro tipo»: es vacio. Diciendolo
+ * asi, `@IsString` y `@MaxLength` pasan, y salta un solo mensaje, que es el
+ * cierto. Medido el 25-sep-2026 contra la instalacion.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+const trim = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() : value;
 
 export class ResolverAprobacionRequisicionDto {
   @IsIn(['APROBADO', 'RECHAZADO'])
   estado!: 'APROBADO' | 'RECHAZADO';
 
   @Transform(trim)
-  @ValidateIf((dto: ResolverAprobacionRequisicionDto) =>
-    dto.estado === 'RECHAZADO' || Boolean(dto.comentario))
-  @IsString()
-  @MinLength(3, {
-    message: 'Al rechazar hay que decir por qué: escribe el motivo (mínimo 3 caracteres).',
-  })
-  @MaxLength(500)
+  @EsMotivoDeRechazo()
   comentario?: string;
 }

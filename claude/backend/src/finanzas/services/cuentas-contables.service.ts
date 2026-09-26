@@ -13,6 +13,7 @@ import {
 import { CrearCuentaContableDto } from '../dto/crear-cuenta-contable.dto';
 import { PLAN_CUENTAS_ESTANDAR } from '../data/plan-cuentas-estandar';
 import { CatalogosSatService } from './catalogos-sat.service';
+import { esViolacionUnicidad } from '../../common/database/errores-sql';
 
 
 /**
@@ -59,12 +60,17 @@ export class CuentasContablesService {
       await this.catalogosSat.sincronizarCuenta(guardada, true, usuarioId);
       return guardada;
     } catch (error: any) {
-      if (error.number === 2627 || error.number === 2601) {
-        throw new ConflictException('Ya existe una cuenta con este número.');
+      if (esViolacionUnicidad(error)) {
+        throw new ConflictException(
+          'Ya existe una cuenta con ese número o ese rol de sistema.',
+        );
       }
-      throw new InternalServerErrorException(
-        'Error al crear la cuenta contable.',
-      );
+      /*
+       * Lo demás se propaga tal cual. Envolverlo en un 500 genérico borraba la
+       * causa —una columna corta, una llave foránea, un valor fuera de rango—
+       * y dejaba al filtro global sin nada que traducir para el usuario.
+       */
+      throw error;
     }
   }
 
@@ -203,7 +209,7 @@ export class CuentasContablesService {
         }
         procesadas = new Set(guardadas.map((cuenta) => cuenta.numeroCuenta));
       } catch (error: any) {
-        if (error.number !== 2627 && error.number !== 2601) throw error;
+        if (!esViolacionUnicidad(error)) throw error;
         // Otra petición pudo completar parte de la plantilla. Se vuelve a
         // leer y la siguiente iteración continúa desde el estado real.
         const recuperadas = await this.cuentaRepository.find({

@@ -108,6 +108,7 @@ const FORM_VACIO = {
 export default function CuentasContablesPage() {
   const [cuentas, setCuentas] = useState<ICuenta[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
   const [busqueda, setBusqueda] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
   const [guia, setGuia] = useState(false);
@@ -128,10 +129,22 @@ export default function CuentasContablesPage() {
 
   const cargar = async () => {
     setCargando(true);
-    const r = await fetch(`${api}/finanzas/cuentas-contables`, {
-      headers: { Authorization: `Bearer ${tok()}` },
-    });
-    if (r.ok) setCuentas(await r.json());
+    /* Un catálogo vacío y un catálogo que no se pudo leer no son lo mismo. */
+    try {
+      const r = await fetch(`${api}/finanzas/cuentas-contables`, {
+        headers: { Authorization: `Bearer ${tok()}` },
+      });
+      if (r.ok) { setCuentas(await r.json()); setErrorCarga(''); }
+      else {
+        setCuentas([]);
+        setErrorCarga(r.status === 403
+          ? 'Tu perfil no incluye el catálogo de cuentas contables.'
+          : 'No se pudo consultar el catálogo de cuentas contables.');
+      }
+    } catch {
+      setCuentas([]);
+      setErrorCarga('No hay conexión con el servidor.');
+    }
     setCargando(false);
   };
   useEffect(() => {
@@ -232,6 +245,12 @@ export default function CuentasContablesPage() {
 
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto text-slate-800">
+
+      {errorCarga && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {errorCarga}
+        </div>
+      )}
       {toast && (
         <div
           className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-4 rounded-xl shadow-2xl font-semibold text-white ${toast.ok ? "bg-emerald-600" : "bg-rose-600"}`}

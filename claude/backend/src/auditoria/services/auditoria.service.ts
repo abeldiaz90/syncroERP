@@ -92,17 +92,40 @@ export class AuditoriaService {
           throw new Error('No fue posible reservar la cadena de auditoría.');
         }
 
+        /*
+         * ────────────────────────────────────────────────────────────────────
+         * LA CADENA DE AUDITORIA NUNCA ESTUVO ENCADENADA
+         *
+         * `SELECT hashRegistro` sin comillas. PostgreSQL pliega a minusculas
+         * todo identificador que no venga entrecomillado, asi que la fila
+         * llegaba como `{ hashregistro: '...' }` y `anteriores[0].hashRegistro`
+         * era `undefined`. El `?? null` lo convertia en `null`, y CADA registro
+         * de auditoria se guardaba con `hashAnterior = null`.
+         *
+         * Lo que eso significa: la bitacora dejaba de ser una cadena y pasaba a
+         * ser una pila de registros sueltos. Se puede borrar uno de en medio y
+         * nada lo delata —que es exactamente lo unico que un hash encadenado
+         * viene a impedir—. Y de rebote, `verificarIntegridad` compara
+         * `r.hashAnterior` contra el hash del registro previo, asi que a partir
+         * del SEGUNDO registro contestaba «integra: false · La referencia al
+         * hash anterior no coincide», siempre, en cualquier instalacion:
+         * acusaba de manipulacion a una bitacora intacta.
+         *
+         * La columna real es minuscula; lo que hay que entrecomillar es el
+         * ALIAS, que es la llave con la que JavaScript lee la fila.
+         * ────────────────────────────────────────────────────────────────────
+         */
         const anteriores: Array<{ hashRegistro: string | null }> =
           base.empresaId == null
             ? await manager.query(
-                `SELECT hashRegistro
+                `SELECT hashRegistro AS "hashRegistro"
                    FROM registros_auditoria
                   WHERE empresaId IS NULL
                   ORDER BY fechaHora DESC, id DESC
                   LIMIT 1 FOR UPDATE`,
               )
             : await manager.query(
-                `SELECT hashRegistro
+                `SELECT hashRegistro AS "hashRegistro"
                    FROM registros_auditoria
                   WHERE empresaId=$1
                   ORDER BY fechaHora DESC, id DESC
@@ -153,20 +176,46 @@ export class AuditoriaService {
       };
       const esperado = this.calcularHash(base, r.hashAnterior);
       if (r.hashAnterior !== anterior || esperado !== r.hashRegistro) {
+        /*
+         * Hay que distinguir DOS fallas que se veian iguales y no lo son.
+         *
+         * Los registros escritos antes del 25-sep-2026 se guardaron todos con
+         * `hashAnterior = null` por el defecto del alias sin comillas. No los
+         * altero nadie: nunca se encadenaron. Decirle a un auditor «el
+         * contenido del registro fue alterado» sobre una bitacora intacta es
+         * una acusacion falsa, y ademas tapa la manipulacion de verdad el dia
+         * que la haya, porque todo el mundo aprende a ignorar ese mensaje.
+         *
+         * Sigue devolviendo `integra: false` —porque de verdad no hay cadena
+         * que verificar en ese tramo— pero dice cual de las dos cosas pasa. No
+         * es una puerta trasera: un registro sin encadenar no se da por bueno,
+         * solo se nombra bien.
+         */
+        const sinEncadenar = r.hashAnterior === null && esperado === r.hashRegistro;
         return {
           integra: false,
           verificados,
           registroInvalidoId: r.id,
-          motivo:
-            r.hashAnterior !== anterior
+          motivo: sinEncadenar
+            ? 'Este registro no quedó encadenado con el anterior. Es el defecto ' +
+              'corregido el 25-sep-2026: hasta esa fecha la bitácora se escribía ' +
+              'sin enlace. El contenido coincide con su propio hash, así que no ' +
+              'fue alterado; simplemente no hay cadena que verificar hasta aquí.'
+            : r.hashAnterior !== anterior
               ? 'La referencia al hash anterior no coincide.'
               : 'El contenido del registro fue alterado.',
+          contenidoIntacto: sinEncadenar,
         };
       }
       anterior = r.hashRegistro;
       verificados += 1;
     }
-    return { integra: true, verificados, registroInvalidoId: null };
+    return {
+      integra: true,
+      verificados,
+      registroInvalidoId: null,
+      contenidoIntacto: true,
+    };
   }
 
   private calcularHash(

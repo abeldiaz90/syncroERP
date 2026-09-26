@@ -188,8 +188,10 @@ export default function PipelinePage() {
       <ModalNuevaOportunidad
         abierto={modalAbierto}
         prospectos={prospectos.datos ?? []}
+        onProspectoCreado={() => prospectos.recargar()}
         etapas={etapas.datos ?? []}
         guardando={crear.ejecutando}
+        errorServidor={crear.error}
         onCerrar={() => setModalAbierto(false)}
         onGuardar={(d) => void crear.ejecutar(d)}
       />
@@ -255,20 +257,86 @@ function TarjetaOportunidad({
 /* ── Alta ─────────────────────────────────────────────────────────────────── */
 
 function ModalNuevaOportunidad({
-  abierto, prospectos, etapas, guardando, onCerrar, onGuardar,
+  abierto, prospectos, etapas, guardando, errorServidor, onCerrar, onGuardar,
+  onProspectoCreado,
 }: {
   abierto: boolean;
   prospectos: Prospecto[];
   etapas: Etapa[];
   guardando: boolean;
+  /*
+    El error del servidor se enseñaba sólo como aviso flotante de cuatro
+    segundos, y el recuadro se quedaba abierto e igual que antes. Quien no
+    llegaba a leerlo volvía a pulsar el botón sin saber qué estaba mal. Aquí se
+    queda hasta que se corrija.
+  */
+  errorServidor: string | null;
   onCerrar: () => void;
   onGuardar: (datos: Record<string, unknown>) => void;
+  onProspectoCreado: () => Promise<unknown> | void;
 }) {
   const [form, setForm] = useState({
     titulo: '', prospectoId: '', importe: '', etapaId: '',
     fechaCierreEstimada: '', descripcion: '',
   });
   const [errores, setErrores] = useState<Record<string, string>>({});
+
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Un prospecto que no se podía dar de alta
+   * --------------------------------------------------------------------------
+   * «Prospecto» es obligatorio para crear una oportunidad, y el desplegable
+   * salía con una sola línea: «Elige uno…». El backend tiene
+   * `POST /crm/prospectos` desde siempre, pero NINGUNA pantalla del frontend lo
+   * llamaba: no existe una pantalla de prospectos. Es decir, no había manera de
+   * crear una oportunidad desde la interfaz, con ningún rol y ningún permiso.
+   * El módulo entero terminaba en este campo.
+   *
+   * Se resuelve como ya se resuelve en reservaciones con el huésped nuevo: se
+   * da de alta aquí mismo, con lo mínimo —nombre y un medio de contacto, que es
+   * lo que el servidor exige— y se queda seleccionado.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const [altaProspecto, setAltaProspecto] = useState(false);
+  const [prospecto, setProspecto] = useState({
+    nombre: '', empresa: '', email: '', telefono: '',
+  });
+  const [errorProspecto, setErrorProspecto] = useState('');
+  const [guardandoProspecto, setGuardandoProspecto] = useState(false);
+
+  const crearProspecto = async () => {
+    if (prospecto.nombre.trim().length < 2) {
+      setErrorProspecto('Escribe el nombre del prospecto.');
+      return;
+    }
+    if (!prospecto.email.trim() && !prospecto.telefono.trim()) {
+      setErrorProspecto(
+        'Escribe un correo o un teléfono: sin uno de los dos no hay forma de contactarlo.',
+      );
+      return;
+    }
+    setErrorProspecto('');
+    setGuardandoProspecto(true);
+    try {
+      const creado = await api.post<Prospecto>('/crm/prospectos', {
+        nombre: prospecto.nombre.trim(),
+        empresa: prospecto.empresa.trim() || undefined,
+        email: prospecto.email.trim() || undefined,
+        telefono: prospecto.telefono.trim() || undefined,
+      });
+      await onProspectoCreado();
+      setForm((f) => ({ ...f, prospectoId: creado.id }));
+      setErrores((e) => ({ ...e, prospectoId: '' }));
+      setAltaProspecto(false);
+      setProspecto({ nombre: '', empresa: '', email: '', telefono: '' });
+    } catch (e) {
+      setErrorProspecto(
+        e instanceof Error ? e.message : 'No se pudo crear el prospecto.',
+      );
+    } finally {
+      setGuardandoProspecto(false);
+    }
+  };
 
   const cambiar = (c: string, v: string) => {
     setForm((f) => ({ ...f, [c]: v }));
@@ -284,7 +352,19 @@ function ModalNuevaOportunidad({
     setErrores(e);
     if (Object.keys(e).length) return;
 
-    onGuardar({ ...form, importe: parseFloat(form.importe) });
+    /*
+      Lo que se dejó en blanco no se manda. Un campo opcional vacío viaja como
+      cadena vacía, y una cadena vacía no es una fecha ni un identificador.
+    */
+    const datos: Record<string, unknown> = {
+      titulo: form.titulo.trim(),
+      prospectoId: form.prospectoId,
+      importe: parseFloat(form.importe),
+    };
+    if (form.etapaId) datos.etapaId = form.etapaId;
+    if (form.fechaCierreEstimada) datos.fechaCierreEstimada = form.fechaCierreEstimada;
+    if (form.descripcion.trim()) datos.descripcion = form.descripcion.trim();
+    onGuardar(datos);
   };
 
   return (
@@ -301,6 +381,12 @@ function ModalNuevaOportunidad({
       }
     >
       <div className="space-y-3.5">
+        {errorServidor && (
+          <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            {errorServidor}
+          </p>
+        )}
+
         <Campo etiqueta="Título" requerido error={errores.titulo}>
           <Entrada
             value={form.titulo}
@@ -316,7 +402,11 @@ function ModalNuevaOportunidad({
             onChange={(e) => cambiar('prospectoId', e.target.value)}
             error={!!errores.prospectoId}
           >
-            <option value="">Elige uno…</option>
+            <option value="">
+              {prospectos.length
+                ? 'Elige uno…'
+                : 'Todavía no hay prospectos — da de alta uno'}
+            </option>
             {prospectos.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nombre}{p.empresa ? ` · ${p.empresa}` : ''}
@@ -324,6 +414,76 @@ function ModalNuevaOportunidad({
             ))}
           </Seleccion>
         </Campo>
+
+        {altaProspecto ? (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 space-y-3">
+            <p className="text-xs font-semibold text-indigo-900">
+              Nuevo prospecto
+            </p>
+            {errorProspecto && (
+              <p className="rounded-lg bg-rose-50 px-2 py-1.5 text-xs text-rose-700">
+                {errorProspecto}
+              </p>
+            )}
+            <Campo etiqueta="Nombre" requerido>
+              <Entrada
+                value={prospecto.nombre}
+                onChange={(e) => setProspecto((p) => ({ ...p, nombre: e.target.value }))}
+                placeholder="María Fernanda Ruiz"
+              />
+            </Campo>
+            <Campo etiqueta="Empresa">
+              <Entrada
+                value={prospecto.empresa}
+                onChange={(e) => setProspecto((p) => ({ ...p, empresa: e.target.value }))}
+                placeholder="Opcional"
+              />
+            </Campo>
+            <div className="grid grid-cols-2 gap-3">
+              <Campo etiqueta="Correo">
+                <Entrada
+                  type="email"
+                  value={prospecto.email}
+                  onChange={(e) => setProspecto((p) => ({ ...p, email: e.target.value }))}
+                />
+              </Campo>
+              <Campo etiqueta="Teléfono">
+                <Entrada
+                  value={prospecto.telefono}
+                  onChange={(e) => setProspecto((p) => ({ ...p, telefono: e.target.value }))}
+                />
+              </Campo>
+            </div>
+            <p className="text-xs text-slate-500">
+              Hace falta el correo o el teléfono: sin uno de los dos no hay
+              forma de contactarlo.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Boton
+                variante="neutro"
+                onClick={() => { setAltaProspecto(false); setErrorProspecto(''); }}
+                disabled={guardandoProspecto}
+              >
+                Cancelar
+              </Boton>
+              <Boton
+                variante="primario"
+                onClick={crearProspecto}
+                cargando={guardandoProspecto}
+              >
+                Guardar prospecto
+              </Boton>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAltaProspecto(true)}
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 py-2 text-sm font-semibold text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50"
+          >
+            <Plus className="h-4 w-4" /> Nuevo prospecto
+          </button>
+        )}
 
         <div className="grid grid-cols-2 gap-3.5">
           <Campo etiqueta="Importe estimado" requerido error={errores.importe}>

@@ -97,6 +97,8 @@ export type VeredictoValidacion = {
     | 'SIN_FLUJO'
     | 'SIN_EXPEDIENTE'
     | 'RECHAZADA'
+    /** El expediente existe pero no concluyo favorable: EN_PROCESO o REVISION_MANUAL. */
+    | 'NO_CONCLUIDO'
     | 'IMPORTE_INSUFICIENTE'
     | 'FAVORABLE';
   estadoExpediente: string | null;
@@ -1420,7 +1422,31 @@ export class AprobacionesDocumentosService {
       };
     }
 
-    const limiteValidado = Number(expediente.limiteSolicitado ?? 0);
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * QUE SE MIDE AQUI, Y POR QUE ASI
+     *
+     * `limiteValidado` leia `expediente.limiteSolicitado` —lo que se PIDIO— en
+     * vez de `limiteSugerido` —lo que el flujo dio por bueno—. La comparacion
+     * de mas abajo era entonces «lo solicitado contra lo solicitado» y no podia
+     * fallar nunca. Verificado el 25-sep-2026 contra la instalacion: un cliente
+     * quedo con 300 000 autorizados y sus dos unicos expedientes decian
+     * `limiteSugerido: 0`.
+     *
+     * Ese tope solo significa algo cuando el expediente CONCLUYO. Mientras
+     * sigue en proceso o espera revision humana, `limiteSugerido` vale 0 porque
+     * todavia no hay veredicto, no porque el veredicto sea cero. Compararlo ahi
+     * convertiria en candado lo que a proposito no lo es —ver el bloque
+     * siguiente— asi que el importe solo se contrasta contra un expediente
+     * concluido.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const concluido =
+      expediente.estado === EstadoEjecucion.APROBADA ||
+      expediente.estado === EstadoEjecucion.APROBADA_CON_AJUSTE;
+    const limiteValidado = concluido
+      ? Number(expediente.limiteSugerido ?? 0)
+      : null;
     const motivos = expediente.motivos ?? [];
     const comun = {
       exigida: true as const,
@@ -1442,12 +1468,46 @@ export class AprobacionesDocumentosService {
       };
     }
 
-    if (limiteValidado + 0.005 < limiteSolicitado) {
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * EL EXPEDIENTE QUE NO CONCLUYO NO BLOQUEA, PERO SE DICE
+     *
+     * Que `REVISION_MANUAL` deje pasar es una decision tomada a proposito y
+     * escrita en `aprobaciones-validacion.spec.ts`: quiere decir «que lo mire
+     * una persona», y quien firma en esta bandeja ES esa persona. Bloquearlo
+     * convertiria el veredicto mas comun del motor —el que sale mientras no hay
+     * proveedores enchufados— en un candado imposible. Se respeta.
+     *
+     * Lo que no se sostiene es que la persona firme sin enterarse. Con
+     * `bloquea: false` y `mensaje: null`, la pantalla no pintaba nada: el
+     * expediente decia «Validacion de identidad (INE) no pudo resolverse y es
+     * un paso bloqueante» y el aprobador veia una solicitud normal con su boton
+     * verde. Delegar el juicio en una persona y no enseñarle el expediente no
+     * es delegar: es firmar a ciegas con una firma que parece informada.
+     *
+     * Asi que sigue sin bloquear, y ahora lo dice. La pantalla lo pinta en
+     * ambar junto al boton.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    if (!concluido) {
+      return {
+        ...comun,
+        estado: 'NO_CONCLUIDO',
+        bloquea: false,
+        mensaje:
+          `El expediente de validación no concluyó: quedó en ${
+            expediente.estado ?? 'estado desconocido'
+          }. ${motivos.join(' ') || 'Sin motivo registrado.'} ` +
+          'Nadie más va a revisarlo: si firmas, la línea se autoriza con esto.',
+      };
+    }
+
+    if ((limiteValidado ?? 0) + 0.005 < limiteSolicitado) {
       return {
         ...comun,
         estado: 'IMPORTE_INSUFICIENTE',
         bloquea: true,
-        mensaje: `El expediente de validación se hizo por ${limiteValidado.toFixed(
+        mensaje: `El expediente de validación dio por bueno ${(limiteValidado ?? 0).toFixed(
           2,
         )} y se está autorizando ${limiteSolicitado.toFixed(
           2,

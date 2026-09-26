@@ -3,6 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ModoCartera, ModoContabilidad } from '../integracion.constants';
+import {
+  combinarContabilidad as combinarContabilidadPura,
+  modoContabilidadGlobal as modoContabilidadGlobalPuro,
+} from '../utils/modo-contabilidad.util';
 import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integracion-empresa.entity';
 import { ContextoPeticionAlmacen } from '../../common/contexto/contexto-peticion';
 
@@ -74,24 +78,15 @@ export class IntegracionModoService {
 
   /** Techo global del espejo contable. */
   get modoContabilidadGlobal(): ModoContabilidad {
-    const bruto = (
-      this.config.get<string>('CONTABILIDAD_EXTERNA_MODO') ??
-      ModoContabilidad.APAGADO
-    )
-      .trim()
-      .toUpperCase();
-    return bruto === ModoContabilidad.ESPEJO
-      ? ModoContabilidad.ESPEJO
-      : ModoContabilidad.APAGADO;
+    return modoContabilidadGlobalPuro(
+      this.config.get<string>('CONTABILIDAD_EXTERNA_MODO'),
+    );
   }
 
   combinarContabilidad(modoEmpresa?: ModoContabilidad | null): ModoContabilidad {
-    if (this.modoContabilidadGlobal === ModoContabilidad.APAGADO) {
-      return ModoContabilidad.APAGADO;
-    }
-    return modoEmpresa === ModoContabilidad.ESPEJO
-      ? ModoContabilidad.ESPEJO
-      : ModoContabilidad.APAGADO;
+    // La regla vive en `utils/modo-contabilidad.util` porque el cierre contable
+    // tambien la necesita y no puede inyectar este servicio. Una sola copia.
+    return combinarContabilidadPura(this.modoContabilidadGlobal, modoEmpresa);
   }
 
   /**

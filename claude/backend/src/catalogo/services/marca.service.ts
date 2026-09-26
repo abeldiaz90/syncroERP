@@ -2,7 +2,6 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
-  InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not } from 'typeorm';
@@ -50,10 +49,11 @@ export class MarcaService {
     try {
       return await this.marcaRepo.save(marca);
     } catch (error: any) {
-      if (error.number === 2627 || error.number === 2601) {
+      if (esViolacionUnicidad(error)) {
         throw new ConflictException('Ya existe otra marca con ese nombre.');
       }
-      throw new InternalServerErrorException('Error al actualizar la marca.');
+      // Mismo criterio que en `create`: lo demás se propaga con su causa.
+      throw error;
     }
   }
 

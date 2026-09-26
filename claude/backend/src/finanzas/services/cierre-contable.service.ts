@@ -17,6 +17,11 @@ import {
   PrepararCierreDto,
 } from '../dto/cierre-mensual.dto';
 import { ActivacionFinancieraService } from './activacion-financiera.service';
+import {
+  RespaldoCierreService,
+  type RespaldoGenerado,
+} from './respaldo-cierre.service';
+import { espejoEncendido } from '../../integracion/utils/modo-contabilidad.util';
 
 type Consultar = (sql: string, parametros?: unknown[]) => Promise<any[]>;
 
@@ -109,6 +114,7 @@ export class CierreContableService {
     private readonly eventoRepo: Repository<EventoCierreContable>,
     private readonly dataSource: DataSource,
     private readonly activacionService: ActivacionFinancieraService,
+    private readonly respaldoService: RespaldoCierreService,
   ) {}
 
   /**
@@ -214,6 +220,44 @@ export class CierreContableService {
       this.dataSource.query(sql, parametros),
   ): Promise<DiagnosticoCierre> {
     const { fechaDesde, fechaHasta } = this.fechasPeriodo(anio, mes);
+
+    /*
+     * ========================================================================
+     * Una consulta que fallo no vale cero
+     * ------------------------------------------------------------------------
+     * Cuatro de estas consultas terminaban en `.catch(() => [{ x: 0 }])`. Es la
+     * misma trampa que `Number(fila?.x ?? 0)` —corregida ayer en
+     * `contarColumna`— por otra puerta: si la consulta revienta, el diagnostico
+     * se inventa un cero y sigue como si lo hubiera medido.
+     *
+     * Y dos de los cuatro ceros iban en la direccion peligrosa:
+     *
+     *   cuentasActivas: 0  -> `coberturaCompleta` se vuelve cierto, porque la
+     *                         regla es `cuentasActivas === 0 || ...`, y el
+     *                         control de BANCOS PASA EN VERDE.
+     *   operaciones: []    -> «No se detectaron operaciones definitivas sin
+     *                         poliza», y ese control tambien PASA.
+     *
+     * Es decir: una consulta rota hacia que el mes pareciera mas limpio, no
+     * menos. Un control que aprueba porque no pudo medir es peor que uno que
+     * falla: el que falla se investiga.
+     *
+     * Aqui se anota lo que no se pudo medir y se convierte en bloqueo propio.
+     * No se puede cerrar un mes sobre numeros que nadie leyo.
+     * ========================================================================
+     */
+    const noSeMidio: string[] = [];
+    const siFalla = <T>(que: string, respaldo: T) => (error: unknown) => {
+      this.logger.error(
+        `El diagnostico del cierre ${mes}/${anio} no pudo medir «${que}»: ` +
+          `${error instanceof Error ? error.message : String(error)}. ` +
+          'Se continua para poder mostrar el resto, pero el periodo NO podra ' +
+          'cerrarse hasta que esa consulta funcione.',
+      );
+      noSeMidio.push(que);
+      return respaldo;
+    };
+
     const [
       contabilidadFilas,
       pendientes,
@@ -222,6 +266,7 @@ export class CierreContableService {
       estadosBancariosFilas,
       conciliacion,
       operacionesFilas,
+      espejoFilas,
     ] = await Promise.all([
       consultar(
         `
@@ -302,7 +347,7 @@ export class CierreContableService {
             WHERE empresaId = $1 AND activo=true AND tipo <> 'CAJA'
           `,
         [empresaId],
-      ).catch(() => [{ cuentasActivas: 0 }]),
+      ).catch(siFalla('cuentas bancarias activas', [{ cuentasActivas: 0 }])),
       consultar(
         `
             SELECT COUNT(*) AS "estadosCerrados"
@@ -311,7 +356,7 @@ export class CierreContableService {
               AND estado = 'CERRADA'
           `,
         [empresaId, anio, mes],
-      ).catch(() => [{ estadosCerrados: 0 }]),
+      ).catch(siFalla('conciliaciones bancarias cerradas', [{ estadosCerrados: 0 }])),
       consultar(
         `
             SELECT fechaCorte, fechaConfirmacion
@@ -321,7 +366,7 @@ export class CierreContableService {
             LIMIT 1
           `,
         [empresaId],
-      ).catch(() => []),
+      ).catch(siFalla('conciliacion inicial de referencia', [])),
       consultar(
         `
           SELECT * FROM (
@@ -361,7 +406,45 @@ export class CierreContableService {
           ) resultado WHERE cantidad > 0
         `,
         [empresaId, fechaDesde, fechaHasta],
-      ).catch(() => []),
+      ).catch(siFalla('operaciones sin contabilizar', [])),
+      /*
+       * ──────────────────────────────────────────────────────────────────
+       * EL ESPEJO CONTABLE, QUE NINGUN CONTROL MIRABA
+       *
+       * El cierre tenia ocho controles y ninguno preguntaba por la unica
+       * integracion que la empresa declaro como su mayor espejo. Medido el
+       * 25-sep-2026 contra la instalacion: 50 eventos en la bandeja de
+       * salida, 5 FALLIDOS, tres por cuentas sin mapear —171.04, 613.04,
+       * 109.05, 601.46— y dos porque Fineract rechazo la fecha.
+       *
+       * O sea: polizas registradas en el ERP que nunca llegaron al mayor
+       * externo, y un cierre que habria certificado el mes como correcto
+       * con los dos libros diferentes. Cerrar un mes es afirmar que los
+       * numeros son los definitivos; en modo ESPEJO eso incluye los del
+       * otro lado.
+       *
+       * Se cuenta lo NO entregado —pendiente, reintentable o fallido— de
+       * esta empresa. No se filtra por periodo a proposito: un evento de
+       * agosto sin entregar sigue siendo una divergencia viva en
+       * septiembre, y esconderlo por fecha seria el mismo error de contar
+       * un estado que nadie escribe.
+       * ──────────────────────────────────────────────────────────────────
+       */
+      consultar(
+        `
+          SELECT
+            COUNT(*) FILTER (WHERE e.estado = 'FALLIDO')::int         AS "fallidos",
+            COUNT(*) FILTER (WHERE e.estado = 'REINTENTABLE')::int    AS "reintentables",
+            COUNT(*) FILTER (WHERE e.estado = 'PENDIENTE')::int       AS "pendientes",
+            MAX(c.modoContabilidad)                                    AS "modoEmpresa"
+          FROM integracion_configuracion_empresa c
+          LEFT JOIN integracion_eventos e
+                 ON e.empresaId = c.empresaId
+                AND e.estado IN ('FALLIDO','REINTENTABLE','PENDIENTE')
+          WHERE c.empresaId = $1
+        `,
+        [empresaId],
+      ).catch(siFalla('estado del espejo contable', [])),
     ]);
 
     const fila = contabilidadFilas?.[0] ?? {};
@@ -402,6 +485,24 @@ export class CierreContableService {
       String(process.env.CIERRE_EXIGIR_CONCILIACION_BANCARIA ?? 'true')
         .trim()
         .toLowerCase() !== 'false';
+
+    /*
+     * El espejo, leido de lo que se midio. Si la consulta fallo, `espejoFilas`
+     * viene vacio y el control no dice que todo esta bien: desaparece, y
+     * MEDICION bloquea por su cuenta.
+     */
+    const espejo = (espejoFilas?.[0] ?? {}) as Record<string, unknown>;
+    const espejoSeMidio = (espejoFilas?.length ?? 0) > 0;
+    const espejoActivo =
+      espejoSeMidio &&
+      espejoEncendido(
+        process.env.CONTABILIDAD_EXTERNA_MODO,
+        espejo.modoEmpresa as string | null,
+      );
+    const espejoSinEntregar =
+      Number(espejo.fallidos ?? 0) +
+      Number(espejo.reintentables ?? 0) +
+      Number(espejo.pendientes ?? 0);
 
     const controles: DiagnosticoCierre['controles'] = [
       {
@@ -474,6 +575,47 @@ export class CierreContableService {
             : 'ADVERTENCIA',
         bloquea: exigirConciliacionBancaria && !coberturaCompleta,
       },
+      /*
+       * Va el primero de los que bloquean porque explica a los demas: si esto
+       * salta, los verdes de abajo no significan nada.
+       */
+      {
+        clave: 'MEDICION',
+        titulo: 'Todos los controles pudieron medirse',
+        descripcion: noSeMidio.length
+          ? `No se pudo medir: ${noSeMidio.join(', ')}. Los controles que dependen ` +
+            'de esos datos no son de fiar; revisa el log del servidor.'
+          : 'Todas las consultas del diagnóstico devolvieron datos.',
+        estado: noSeMidio.length ? 'BLOQUEO' : 'CORRECTO',
+        bloquea: noSeMidio.length > 0,
+      },
+      /*
+       * Solo aplica cuando la empresa declaro el mayor externo como su espejo.
+       * A quien instalo el ERP solo, este control no le dice nada y no aparece:
+       * un control que no puede fallar es ruido, y el ruido tapa los que si.
+       */
+      ...(espejoActivo
+        ? [
+            {
+              clave: 'ESPEJO_CONTABLE',
+              titulo: 'Las pólizas llegaron al mayor externo',
+              descripcion:
+                espejoSinEntregar === 0
+                  ? 'La bandeja de salida no tiene nada sin entregar: los dos libros dicen lo mismo.'
+                  : `${espejoSinEntregar} asiento(s) no han llegado al mayor externo ` +
+                    `(${Number(espejo.fallidos ?? 0)} fallido(s), ` +
+                    `${Number(espejo.reintentables ?? 0)} reintentable(s), ` +
+                    `${Number(espejo.pendientes ?? 0)} pendiente(s)). ` +
+                    'Cerrar así deja los dos libros diferentes. Revísalo en ' +
+                    'Integración › Bandeja de salida: lo más común es una cuenta ' +
+                    'contable sin mapear al mayor externo.',
+              estado: (espejoSinEntregar === 0
+                ? 'CORRECTO'
+                : 'BLOQUEO') as 'CORRECTO' | 'BLOQUEO',
+              bloquea: espejoSinEntregar > 0,
+            },
+          ]
+        : []),
       {
         clave: 'CONCILIACION_INICIAL',
         titulo: 'Existe una conciliación financiera de referencia',
@@ -541,20 +683,45 @@ export class CierreContableService {
     };
   }
 
+  /*
+   * ==========================================================================
+   * El candado del cierre
+   * --------------------------------------------------------------------------
+   * Tenia DOS defectos, y entre los dos hacian que NINGUN mes pudiera cerrarse.
+   *
+   * 1. La consulta usaba un solo parametro y se le pasaban dos: la clave y un
+   *    `modo` ('Shared' | 'Exclusive') que sobrevivio del puerto desde SQL
+   *    Server, donde `sp_getapplock` si lo recibe. Postgres contestaba
+   *    «bind message supplies 2 parameters, but prepared statement requires 1»
+   *    y la transaccion entera se caia. El usuario veia «No se pudo completar
+   *    la operacion en la base de datos», sin mas. Nunca se llego a probar
+   *    porque el control de bancos bloqueaba antes: dos defectos en fila, y el
+   *    primero escondia al segundo.
+   *
+   * 2. Aun sin eso, `pg_advisory_xact_lock` ESPERA hasta obtener el candado y
+   *    no devuelve nada util; la consulta seleccionaba un `0` literal y luego
+   *    se comprobaba `< 0`, que jamas podia ser cierto. El aviso «el periodo
+   *    esta siendo procesado por otra operacion» era codigo muerto: existia
+   *    para tranquilizar leyendolo, no para ocurrir.
+   *
+   * Con `pg_try_advisory_xact_lock` el candado se intenta y se contesta: si
+   * otro cierre lo tiene, este falla de inmediato con un mensaje que dice la
+   * verdad, en vez de quedarse esperando a que el otro termine.
+   * ==========================================================================
+   */
   private async adquirirCandado(
     consultar: Consultar,
     empresaId: string,
     anio: number,
     mes: number,
-    modo: 'Shared' | 'Exclusive',
   ) {
-    const resultado = await consultar(
+    const filas = await consultar(
       `
-        SELECT 0 AS resultado, pg_advisory_xact_lock(hashtextextended($1::text, 0));
+        SELECT pg_try_advisory_xact_lock(hashtextextended($1::text, 0)) AS "obtenido";
       `,
-      [`CIERRE_CONTABLE:${empresaId}:${anio}:${mes}`, modo],
+      [`CIERRE_CONTABLE:${empresaId}:${anio}:${mes}`],
     );
-    if (Number(resultado?.[0]?.resultado ?? -999) < 0) {
+    if (filas?.[0]?.obtenido !== true) {
       throw new ConflictException(
         'El período está siendo procesado por otra operación. Intenta nuevamente.',
       );
@@ -647,14 +814,24 @@ export class CierreContableService {
         'Esta revisión ya no puede modificarse. Toma una nueva fotografía.',
       );
     }
+    /*
+     * TRES, no cuatro. La cuarta era «confirmo que existe un respaldo reciente
+     * de la base de datos» y ya no la firma nadie: la toma el cierre y si no
+     * puede, el mes no se cierra.
+     *
+     * Esta comprobacion se quedo pidiendo las cuatro cuando se cambio la del
+     * cierre, y el resultado era que NINGUNA revision podia confirmarse: la
+     * pantalla ya no ofrecia la casilla y el servidor seguia exigiendola. Es el
+     * mismo descuido del mes sin movimientos —tres puertas y se arreglaron
+     * dos—, aqui cometido al arreglar el anterior.
+     */
     if (
       !dto.confirmaciones.bancosRevisados ||
       !dto.confirmaciones.ivaRevisado ||
-      !dto.confirmaciones.documentosCompletos ||
-      !dto.confirmaciones.respaldoConfirmado
+      !dto.confirmaciones.documentosCompletos
     ) {
       throw new BadRequestException(
-        'Confirma las cuatro revisiones humanas antes de continuar.',
+        'Confirma las tres revisiones humanas antes de continuar.',
       );
     }
     const snapshot = await this.generarDiagnostico(
@@ -709,7 +886,6 @@ export class CierreContableService {
         dto.empresaId,
         revision.anio,
         revision.mes,
-        'Exclusive',
       );
       const existente = await qr.manager.findOne(CierreContable, {
         where: {
@@ -739,13 +915,38 @@ export class CierreContableService {
       if (
         !confirmaciones.bancosRevisados ||
         !confirmaciones.ivaRevisado ||
-        !confirmaciones.documentosCompletos ||
-        !confirmaciones.respaldoConfirmado
+        !confirmaciones.documentosCompletos
       ) {
         throw new BadRequestException(
           'Las confirmaciones humanas de la revisión están incompletas.',
         );
       }
+
+      /*
+       * ======================================================================
+       * El respaldo se toma aqui, y si no se puede el mes no se cierra
+       * ----------------------------------------------------------------------
+       * Habia una cuarta casilla —«Confirmo que existe un respaldo reciente de
+       * la base de datos»— y el sistema no tomaba ninguno ni enseñaba como
+       * tomarlo. Un contador no sabe que es `pg_dump`. Una firma que nadie
+       * puede cumplir se acaba marcando igual, y entonces la evidencia del
+       * cierre deja constancia escrita de una comprobacion que no ocurrio: es
+       * peor que no pedirla.
+       *
+       * Va DESPUES de todos los controles y ANTES de las escrituras, por dos
+       * razones. Primero, no tiene sentido gastar minutos volcando la base
+       * para descubrir despues que el mes tenia bloqueos. Segundo, y esta es
+       * la que importa: lo que queda en el archivo es el estado PREVIO al
+       * cierre, que es exactamente al que alguien querria volver.
+       *
+       * Si falla, lanza. El `catch` de abajo revierte la transaccion y el mes
+       * sigue abierto, con el motivo en pantalla.
+       * ======================================================================
+       */
+      const respaldo: RespaldoGenerado = await this.respaldoService.generar(
+        revision.anio,
+        revision.mes,
+      );
 
       const cierre = await qr.manager.save(
         qr.manager.create(CierreContable, {
@@ -780,6 +981,7 @@ export class CierreContableService {
           evidenciaJson: JSON.stringify({
             diagnostico,
             confirmaciones,
+            respaldo,
           }),
         }),
       );
@@ -793,7 +995,11 @@ export class CierreContableService {
       return {
         cierre,
         totalPolizas: diagnostico.contabilidad.totalPolizas,
-        mensaje: `Período ${revision.mes}/${revision.anio} cerrado con revisión completa. ${diagnostico.contabilidad.totalPolizas} póliza(s) quedaron protegidas.`,
+        respaldo,
+        mensaje:
+          `Período ${revision.mes}/${revision.anio} cerrado con revisión completa. ` +
+          `${diagnostico.contabilidad.totalPolizas} póliza(s) quedaron protegidas. ` +
+          `Respaldo previo verificado: ${respaldo.archivo} (${respaldo.bytes} bytes).`,
       };
     } catch (error) {
       await qr.rollbackTransaction();
@@ -828,7 +1034,6 @@ export class CierreContableService {
         dto.empresaId,
         dto.anio,
         dto.mes,
-        'Exclusive',
       );
       const cierre = await qr.manager.findOne(CierreContable, {
         where: {

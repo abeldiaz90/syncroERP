@@ -12,7 +12,7 @@ import {
   RefreshCw,
   Scale,
 } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, conPermiso } from '@/lib/api';
 
 type CuentaCaja = {
   id: string;
@@ -74,6 +74,10 @@ function mensaje(error: unknown) {
 
 export default function CajaPage() {
   const [cuentas, setCuentas] = useState<CuentaCaja[]>([]);
+  /** El catálogo de cuentas de caja no es de todos los roles que ven esta pantalla. */
+  const [cuentasVedadas, setCuentasVedadas] = useState(false);
+  /** El catálogo de cuentas contables no se pudo leer: no hay contra qué registrar. */
+  const [contablesVedadas, setContablesVedadas] = useState(false);
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [seleccionado, setSeleccionado] = useState<string>('');
   const [resumen, setResumen] = useState<ResumenTurno | null>(null);
@@ -116,15 +120,53 @@ export default function CajaPage() {
 
   const cargar = useCallback(async () => {
     setCargando(true);
-    setAviso(null);
+    /*
+     * OJO: aquí NO se borra el aviso.
+     *
+     * Estaba `setAviso(null)` en esta línea, y `ejecutar()` pone el aviso y
+     * acto seguido llama a `cargar()` para refrescar. Resultado: el mensaje se
+     * escribía y se borraba unos milisegundos después, siempre. Los cuatro
+     * avisos de éxito de esta pantalla —abrir la caja, registrar una entrada,
+     * registrar un retiro y cerrar el turno— no los ha visto nunca nadie. Se
+     * vio al cerrar un turno con sobrante: la caja desapareció de la pantalla
+     * y no quedó ni una palabra de qué había pasado con la diferencia.
+     *
+     * Quien empieza una acción sí limpia el aviso anterior: eso lo hace
+     * `ejecutar()` al arrancar, que es donde corresponde.
+     */
     try {
-      const [listaCuentas, abiertos, contables] = await Promise.all([
-        api.get<CuentaCaja[]>('/credito/cuentas-bancarias'),
+      /*
+       * ──────────────────────────────────────────────────────────────────────
+       * El catálogo de cuentas bancarias no es de todos los que ven esta
+       * pantalla. `GET /credito/cuentas-bancarias` responde 403 al contador
+       * —que sí tiene la caja en su menú— y, dentro de un `Promise.all`, ese
+       * 403 tumbaba las otras dos llamadas: la pantalla entera en blanco con
+       * «No tienes permisos suficientes», incluidos los turnos abiertos, que
+       * sí puede ver. Medido el 25-sep-2026.
+       *
+       * Sin cuentas de caja no hay nada que arquear, así que la pantalla lo
+       * dice con esas palabras en vez de dejar un vacío que parece una avería.
+       * ──────────────────────────────────────────────────────────────────────
+       */
+      const [cuentasRes, abiertos, contables] = await Promise.all([
+        conPermiso(api.get<CuentaCaja[]>('/credito/cuentas-bancarias')),
         api.get<Turno[]>('/caja/turnos/abiertos'),
-        api.get<CuentaContable[]>('/finanzas/cuentas-contables').catch(() => []),
+        /*
+         * El catálogo de cuentas es de Contabilidad, y esta pantalla también la
+         * abre el mostrador. Si la lectura falla —403 o red— el desplegable de
+         * «¿contra qué cuenta se registra?» se quedaba VACÍO y la entrada o el
+         * retiro manual no se podían registrar, sin una palabra que lo
+         * explicara. Es el mismo defecto que apagaba el botón «Cobrar» en la
+         * caja. Se distingue la lista vacía del fallo.
+         */
+        conPermiso(api.get<CuentaContable[]>('/finanzas/cuentas-contables')),
       ]);
+      setCuentasVedadas(cuentasRes.vedado);
+      const listaCuentas = cuentasRes.valor ?? [];
+      setContablesVedadas(contables.vedado);
+      const listaContables = contables.valor ?? [];
       setCuentasContables(
-        (Array.isArray(contables) ? contables : []).filter(
+        (Array.isArray(listaContables) ? listaContables : []).filter(
           (cuenta) => cuenta.permiteMovimientoManual !== false,
         ),
       );
@@ -156,12 +198,29 @@ export default function CajaPage() {
     if (turno?.id) void cargarDetalle(turno.id).catch((error) => setAviso({ texto: mensaje(error), ok: false }));
   }, [turno?.id, cargarDetalle]);
 
-  async function ejecutar(accion: () => Promise<unknown>, texto: string) {
+  /*
+   * `texto` puede ser una frase fija o una función que MIRA LA RESPUESTA.
+   *
+   * Antes era siempre fija: el cierre decía «el corte y arqueo quedaron
+   * cerrados» pasara lo que pasara. El servidor contesta, en cambio, si el
+   * arqueo cuadró (no hay nada que contabilizar), si el faltante o el sobrante
+   * ya quedó en una póliza, o si quedó pendiente porque la contabilización
+   * falló. Quien cierra la caja es responsable de esa diferencia y se iba sin
+   * saber cuál de las tres cosas ocurrió: la respuesta existía y la pantalla
+   * la tiraba.
+   */
+  async function ejecutar(
+    accion: () => Promise<unknown>,
+    texto: string | ((respuesta: any) => string),
+  ) {
     setProcesando(true);
     setAviso(null);
     try {
-      await accion();
-      setAviso({ texto, ok: true });
+      const respuesta = await accion();
+      setAviso({
+        texto: typeof texto === 'function' ? texto(respuesta) : texto,
+        ok: true,
+      });
       await cargar();
       return true;
     } catch (error) {
@@ -211,7 +270,24 @@ export default function CajaPage() {
         efectivoContado: Number(conteo),
         observaciones: observaciones.trim() || undefined,
       }),
-      'El corte y arqueo quedaron cerrados.',
+      (r: any) => {
+        const contado = Number(conteo);
+        const esperado = Number(
+          resumen?.turno.efectivoEsperado ?? turno?.efectivoEsperado ?? 0,
+        );
+        const diferencia = Math.round((contado - esperado) * 100) / 100;
+        const base =
+          Math.abs(diferencia) < 0.01
+            ? `Turno cerrado. El arqueo cuadró: ${moneda.format(contado)} contados contra ${moneda.format(esperado)} esperados.`
+            : diferencia < 0
+              ? `Turno cerrado con un FALTANTE de ${moneda.format(Math.abs(diferencia))}.`
+              : `Turno cerrado con un SOBRANTE de ${moneda.format(diferencia)}.`;
+        if (Math.abs(diferencia) < 0.01) return `${base} No hay nada que contabilizar.`;
+        if (r?.estadoContable === 'GENERADO') return `${base} Ya quedó registrado en una póliza.`;
+        if (r?.estadoContable === 'PENDIENTE')
+          return `${base} La póliza quedó PENDIENTE en la bandeja de asientos; revísala en Finanzas.`;
+        return base;
+      },
     );
     if (ok) {
       setConteo('');
@@ -254,7 +330,21 @@ export default function CajaPage() {
         </div>
       )}
 
-      {!cuentas.length ? (
+      {cuentasVedadas ? (
+        /*
+         * «No hay cajas» y «no puedes ver las cajas» son dos cosas distintas, y
+         * mandar a alguien a crear una cuenta que no puede ni listar es hacerle
+         * perder el viaje.
+         */
+        <section className="rounded-2xl border border-slate-300 bg-slate-50 p-6">
+          <h2 className="font-semibold text-slate-900">El catálogo de cajas no está en tu perfil</h2>
+          <p className="mt-1 text-sm text-slate-700">
+            Las cuentas de caja las administra Crédito y cobranza. Puedes seguir
+            consultando los turnos abiertos, pero para arquear una caja necesitas
+            que tu rol incluya ese catálogo.
+          </p>
+        </section>
+      ) : !cuentas.length ? (
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <h2 className="font-semibold text-amber-950">Primero crea una cuenta de tipo Caja</h2>
           <p className="mt-1 text-sm text-amber-800">
@@ -351,6 +441,13 @@ export default function CajaPage() {
                     <option key={cuenta.id} value={cuenta.id}>{cuenta.numeroCuenta} · {cuenta.nombre}</option>
                   ))}
                 </select>
+                {(contablesVedadas || cuentasContables.length === 0) && (
+                  <p className="text-xs font-medium text-amber-700">
+                    {contablesVedadas
+                      ? 'El catálogo de cuentas contables no está en tu perfil, así que no hay contra qué registrar el movimiento. Lo lleva Contabilidad.'
+                      : 'No hay ninguna cuenta contable que admita movimiento manual. Pídelo a Contabilidad antes de registrar entradas o retiros.'}
+                  </p>
+                )}
                 <p className="text-xs text-slate-500">
                   Un retiro puede ser un depósito al banco, un gasto o una entrega a dirección, y cada caso afecta una cuenta distinta. El movimiento se refleja en el turno, en Tesorería y en la contabilidad.
                 </p>

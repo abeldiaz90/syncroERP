@@ -21,6 +21,15 @@ export class CuentasBancariasController {
     return this.svc.obtenerTodas(empresaId);
   }
 
+  /*
+   * Va declarado ANTES de `@Get(':id')`: si fuera después, Nest tomaría
+   * «para-cobro» como un identificador y la ruta nunca se alcanzaría.
+   */
+  @Get('para-cobro')
+  paraCobro(@ActiveUser('empresaId') empresaId: string) {
+    return this.svc.obtenerParaCobro(empresaId);
+  }
+
   @Get(':id')
   obtenerUna(
     @Param('id') id: string,

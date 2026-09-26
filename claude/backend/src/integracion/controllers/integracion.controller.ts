@@ -50,6 +50,7 @@ import { SincronizacionInicialService } from '../services/sincronizacion-inicial
 import { IntegracionVinculosService } from '../services/integracion-vinculos.service';
 import { DecisionCreditoService } from '../services/decision-credito.service';
 import { DisponibilidadCreditoService } from '../services/disponibilidad-credito.service';
+import { ResolverDiscrepanciaDto } from '../dto/resolver-discrepancia.dto';
 
 /**
  * Administración del registro financiero externo.
@@ -200,11 +201,27 @@ export class IntegracionController {
 
     // Encender el espejo sin verificar la configuración del proveedor es la vía
     // directa a duplicar las cuentas por cobrar. Se avisa en la misma respuesta.
+    /*
+     * El `.catch(() => [])` convertia «no pude comprobar la configuracion del
+     * proveedor» en «no hay avisos», que es la misma respuesta que da una
+     * configuracion correcta. Quien enciende el espejo leia la lista vacia como
+     * luz verde y seguia adelante hacia lo que el propio comentario de arriba
+     * advierte: duplicar las cuentas por cobrar.
+     *
+     * Si la comprobacion no corre, se dice. Encender el espejo no se bloquea
+     * —es una decision de configuracion, no una operacion contable— pero nadie
+     * se va de aqui creyendo que se verifico algo que no se verifico.
+     */
     const avisos =
       fila.modoContabilidad === ModoContabilidad.ESPEJO
         ? await this.contabilidad
             .verificarConfiguracion(empresaId)
-            .catch(() => [])
+            .catch((error: unknown) => [
+              'NO SE PUDO COMPROBAR la configuración del proveedor, así que ' +
+                'esta lista no significa que esté bien. Revísala a mano antes ' +
+                'de operar en espejo. Detalle: ' +
+                (error instanceof Error ? error.message : String(error)),
+            ])
         : [];
 
     return { configuracion: guardado, avisos };
@@ -270,25 +287,60 @@ export class IntegracionController {
     return this.mapeo.previstas(empresaId);
   }
 
+  /**
+   * ──────────────────────────────────────────────────────────────────────────
+   * `simular` también se lee del cuerpo, y no por comodidad
+   *
+   * Esto crea cuentas en el mayor externo y NO tiene operación inversa. La
+   * bandera de ensayo vivía sólo en la cadena de consulta, así que un
+   * `POST /integracion/cuentas/aprovisionar` con `{"simular": true}` en el
+   * cuerpo —que es lo que cualquiera escribe en un POST con opciones— hacía el
+   * aprovisionamiento DE VERDAD y respondía `"simulacion": false`, con las
+   * cuentas ya creadas del otro lado.
+   *
+   * Pasó el 25-sep-2026 durante las pruebas: cuatro cuentas creadas en Fineract
+   * pidiendo un ensayo. Salió bien porque eran justo las que faltaban; con otro
+   * `alcance` habría ensuciado un mayor compartido entre inquilinos, sin vuelta
+   * atrás.
+   *
+   * Una operación irreversible cuya bandera de seguridad se ignora en silencio
+   * cuando se manda de la forma natural es una trampa, no una interfaz. Se
+   * aceptan las dos formas; la cadena de consulta se conserva para no romper a
+   * quien ya la usa.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
   @Post('cuentas/aprovisionar')
   @Roles(...ROLES_ESPEJO_CONTABLE)
   aprovisionarCuentas(
     @ActiveUser('empresaId') empresaId: string,
+    @Body() cuerpo: Record<string, unknown> | undefined,
     @Query('simular') simular?: string,
     @Query('todas') todas?: string,
     @Query('alcance') alcance?: string,
   ) {
     const permitidos = ['usadas', 'previstas', 'todas'] as const;
-    if (alcance && !permitidos.includes(alcance as (typeof permitidos)[number])) {
+    const alcancePedido =
+      alcance ??
+      (typeof cuerpo?.alcance === 'string' ? cuerpo.alcance : undefined);
+    if (
+      alcancePedido &&
+      !permitidos.includes(alcancePedido as (typeof permitidos)[number])
+    ) {
       throw new BadRequestException(
         `alcance debe ser uno de: ${permitidos.join(', ')}.`,
       );
     }
+    const simularPedido =
+      simular === '1' ||
+      simular === 'true' ||
+      cuerpo?.simular === true ||
+      cuerpo?.simular === '1' ||
+      cuerpo?.simular === 'true';
     return this.mapeo.aprovisionar(empresaId, {
-      simular: simular === '1',
+      simular: simularPedido,
       alcance:
-        (alcance as 'usadas' | 'previstas' | 'todas' | undefined) ??
-        (todas === '1' ? 'todas' : 'usadas'),
+        (alcancePedido as 'usadas' | 'previstas' | 'todas' | undefined) ??
+        (todas === '1' || cuerpo?.todas === true ? 'todas' : 'usadas'),
     });
   }
 
@@ -626,9 +678,14 @@ export class IntegracionController {
   async resolver(
     @Param('id') id: string,
     @ActiveUser('empresaId') empresaId: string,
-    @Body() cuerpo?: { nota?: string },
+    @Body() cuerpo: ResolverDiscrepanciaDto,
   ) {
-    if (!(await this.conciliacion.marcarResuelta(id, empresaId, cuerpo?.nota))) {
+    /*
+     * La nota es obligatoria: cerrar una discrepancia la saca de la vista para
+     * siempre, y una fila «resuelta» sin explicación obliga a reconstruir
+     * desde los dos libros lo que alguien ya sabía en el momento de cerrarla.
+     */
+    if (!(await this.conciliacion.marcarResuelta(id, empresaId, cuerpo.nota))) {
       throw new NotFoundException('Discrepancia no encontrada.');
     }
     return { resuelta: true };

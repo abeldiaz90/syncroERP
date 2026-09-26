@@ -57,6 +57,7 @@ export default function CategoriasContablesPage() {
   const [categorias, setCategorias] = useState<ICategoria[]>([]);
   const [cuentas, setCuentas]       = useState<ICuenta[]>([]);
   const [cargando, setCargando]     = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
   const [guardando, setGuardando]   = useState(false);
   const [autoTodas, setAutoTodas]   = useState(false);
   const [confirmAuto, setConfirmAuto] = useState(false);
@@ -83,8 +84,18 @@ export default function CategoriasContablesPage() {
       fetch(`${api}/catalogo/categorias`, { headers: h }),
       fetch(`${api}/finanzas/cuentas-contables?soloAfectables=true`, { headers: h }),
     ]);
-    if (rCat.ok) setCategorias(await rCat.json());
-    if (rCue.ok) setCuentas(await rCue.json());
+    /*
+      Sin catálogo de cuentas los desplegables salen vacíos y parece que la
+      empresa no tiene cuentas afectables. Hay que decir que no se pudo
+      preguntar, porque de otro modo la pantalla invita a guardar una categoría
+      sin cuentas asignadas.
+    */
+    if (rCat.ok) { setCategorias(await rCat.json()); }
+    else { setCategorias([]); setErrorCarga('No se pudieron consultar las categorías.'); }
+    if (rCue.ok) { setCuentas(await rCue.json()); }
+    else { setCuentas([]); setErrorCarga(rCue.status === 403
+      ? 'Tu perfil no incluye el catálogo de cuentas contables.'
+      : 'No se pudo consultar el catálogo de cuentas contables.'); }
     setCargando(false);
   };
 
@@ -201,6 +212,12 @@ export default function CategoriasContablesPage() {
 
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto text-slate-800">
+
+      {errorCarga && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {errorCarga}
+        </div>
+      )}
       {toast && (
         <div className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl font-semibold text-white ${toast.ok ? 'bg-emerald-600' : 'bg-rose-600'}`}>
           {toast.ok ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}

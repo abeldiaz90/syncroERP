@@ -17,6 +17,7 @@ import { Roles } from '../../iam/decorators/roles.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { EstadoAviso } from '../entities/aviso-integracion.entity';
 import { AvisosIntegracionService } from '../services/avisos-integracion.service';
+import { ResolverAvisoDto } from '../dto/resolver-aviso.dto';
 
 /**
  * ============================================================================
@@ -166,10 +167,22 @@ export class AvisosIntegracionController {
     @Param('id') id: string,
     @ActiveUser('empresaId') empresaId: string,
     @ActiveUser('sub') usuarioId: string,
-    @Body() cuerpo: { decision?: 'PROCESADO' | 'DESCARTADO'; nota?: string },
+    @Body() cuerpo: ResolverAvisoDto,
   ) {
-    const decision = cuerpo?.decision === 'DESCARTADO' ? 'DESCARTADO' : 'PROCESADO';
-    const aviso = await this.avisos.resolver(id, empresaId, usuarioId, decision, cuerpo?.nota);
+    /*
+     * La decisión viaja ya validada por el DTO: es obligatoria, sólo admite
+     * los dos valores, y descartar exige nota. Antes se derivaba con
+     * `cuerpo?.decision === 'DESCARTADO' ? 'DESCARTADO' : 'PROCESADO'`, así
+     * que un cuerpo vacío o un dedazo marcaban el aviso como PROCESADO sin
+     * que nadie hubiera decidido nada.
+     */
+    const aviso = await this.avisos.resolver(
+      id,
+      empresaId,
+      usuarioId,
+      cuerpo.decision,
+      cuerpo.nota,
+    );
     if (!aviso) throw new NotFoundException('No existe ese aviso en esta empresa.');
     return aviso;
   }

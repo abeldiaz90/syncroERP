@@ -14,6 +14,7 @@ import {
   esProcesoFinancieroCentral,
   existeAsignacionSegregada,
 } from '../utils/rutas-aprobacion.util';
+import { diagnosticarMatriz, SaludNivel } from '../utils/salud-matriz.util';
 import { PLANTILLAS_PERMISOS } from '../../iam/data/plantillas-permisos';
 import { ROL_ADMINISTRADOR } from '../../iam/utils/roles-catalogo';
 
@@ -37,6 +38,46 @@ import { ROL_ADMINISTRADOR } from '../../iam/utils/roles-catalogo';
  * `ALTA_PROVEEDOR`, se agrega aquí y deja de ser un olvido posible.
  * ============================================================================
  */
+/**
+ * ============================================================================
+ * Quien puede ORIGINAR cada documento
+ * ----------------------------------------------------------------------------
+ * Hace falta para una sola pregunta, y es una pregunta que costo una entrega:
+ * ¿el rol que firma este nivel puede tambien ser quien pide?
+ *
+ * Si la respuesta es si y solo hay una persona con ese rol, esa persona no
+ * podra levantar nunca un documento —quien pide no firma— y la matriz seguira
+ * viendose verde. Le paso a CREDITO_CLIENTE en SUMA: el unico rol que podia dar
+ * de alta un cliente con linea era `credito`, que era tambien el nivel 1.
+ *
+ * No se escribe la lista de roles a mano: se deriva del modulo con ESCRITURA en
+ * las plantillas de permisos, que es la misma fuente que decide el 403. Una
+ * lista paralela se desincroniza; esta no puede.
+ * ============================================================================
+ */
+export const MODULO_QUE_ORIGINA: Record<string, string> = {
+  CREDITO_CLIENTE: 'clientes',
+  HOTEL_CONVENIO: 'hoteleria',
+  REQUISICION: 'compras',
+  COTIZACION: 'compras',
+  ORDEN_COMPRA: 'compras',
+  ALTA_PROVEEDOR: 'proveedores',
+  NOMINA: 'rrhh',
+  ALTA_PUESTO: 'rrhh',
+  ALTA_AREA: 'rrhh',
+  INCIDENCIA_RH: 'rrhh',
+  VACACIONES: 'rrhh',
+};
+
+/** Los roles con escritura en el modulo del que nace este proceso. */
+export function rolesQueOriginan(proceso: string): string[] | undefined {
+  const modulo = MODULO_QUE_ORIGINA[proceso];
+  if (!modulo) return undefined;
+  return PLANTILLAS_PERMISOS.filter((plantilla) =>
+    plantilla.modulos.includes(modulo),
+  ).map((plantilla) => plantilla.rol);
+}
+
 export const ENDPOINTS_POR_PROCESO: Record<string, Array<{ metodo: string; ruta: string }>> = {
   CREDITO_CLIENTE: [
     { metodo: 'GET', ruta: '/aprobaciones/pendientes' },
@@ -363,12 +404,66 @@ export class ConfiguracionesAprobacionService {
     return this.repo.find({ where: { empresaId, proceso: 'REQUISICION', departamentoId, activo: true }, relations: ['usuario', 'departamento'], order: { orden: 'ASC' } });
   }
 
-  obtenerMatriz(empresaId: string, proceso?: string, departamentoId?: string) {
+  /**
+   * ──────────────────────────────────────────────────────────────────────────
+   * La matriz, y ademas si puede ejecutarse
+   * --------------------------------------------------------------------------
+   * Devolvia los niveles y ya. La pantalla los pintaba en verde y quien
+   * gobernaba la matriz se iba tranquilo, porque no habia nada que mirar: la
+   * matriz de CREDITO_CLIENTE de esta instalacion estaba impecable y no dejo
+   * levantar una sola solicitud de credito, porque el unico rol que podia
+   * originarla era tambien el unico que podia firmar el nivel 1.
+   *
+   * Ahora cada nivel viaja con su diagnostico —cuantas personas activas pueden
+   * firmarlo y que significa ese numero— para que el problema se vea donde se
+   * decide y no el dia que alguien intenta trabajar. Ver `salud-matriz.util`.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  async obtenerMatriz(empresaId: string, proceso?: string, departamentoId?: string) {
     const qb = this.repo.createQueryBuilder('c').leftJoinAndSelect('c.usuario', 'usuario').leftJoinAndSelect('c.departamento', 'departamento')
       .where('c.empresaId=:empresaId AND c.activo=true', { empresaId });
     if (proceso) qb.andWhere('c.proceso=:proceso', { proceso });
     if (departamentoId) qb.andWhere('c.departamentoId=:departamentoId', { departamentoId });
-    return qb.orderBy('c.proceso', 'ASC').addOrderBy('c.departamentoId', 'ASC').addOrderBy('c.orden', 'ASC').getMany();
+    const niveles = await qb.orderBy('c.proceso', 'ASC').addOrderBy('c.departamentoId', 'ASC').addOrderBy('c.orden', 'ASC').getMany();
+    if (!niveles.length) return niveles;
+
+    const activos = await this.usuarios.find({
+      where: { empresaId, activo: true },
+      select: { id: true, rol: true, nombreCompleto: true },
+    });
+
+    /*
+     * El diagnostico se calcula por matriz —proceso + departamento— porque el
+     * numero de orden solo significa algo dentro de su propia matriz.
+     */
+    const porMatriz = new Map<string, typeof niveles>();
+    for (const nivel of niveles) {
+      const clave = `${nivel.proceso}::${nivel.departamentoId ?? ''}`;
+      const grupo = porMatriz.get(clave) ?? [];
+      grupo.push(nivel);
+      porMatriz.set(clave, grupo);
+    }
+
+    const personas = activos.map((usuario) => ({
+      id: usuario.id,
+      rol: usuario.rol,
+      nombre: usuario.nombreCompleto,
+    }));
+
+    const salud = new Map<string, SaludNivel>();
+    for (const [clave, grupo] of porMatriz) {
+      const originan = rolesQueOriginan(grupo[0].proceso);
+      for (const veredicto of diagnosticarMatriz(grupo, personas, originan)) {
+        salud.set(`${clave}::${veredicto.orden}`, veredicto);
+      }
+    }
+
+    return niveles.map((nivel) => ({
+      ...nivel,
+      salud:
+        salud.get(`${nivel.proceso}::${nivel.departamentoId ?? ''}::${nivel.orden}`) ??
+        null,
+    }));
   }
 
   async eliminar(id: string, empresaId: string) {

@@ -287,6 +287,36 @@ export class ErrorIntegracionExterna extends Error {
   }
 }
 
+/**
+ * ============================================================================
+ * «Esto no se manda nunca, y está bien» no es un fallo
+ * ----------------------------------------------------------------------------
+ * Hay eventos del outbox que, al despacharse, resultan no tener destino por
+ * diseño. El caso que lo destapó: una póliza CANCELADA no se espeja, porque su
+ * reversa viaja como póliza propia con su propio evento.
+ *
+ * Eso se lanzaba como `ErrorIntegracionExterna` no reintentable, así que el
+ * evento quedaba en FALLIDO. Y FALLIDO significa «alguien tiene que ir a
+ * mirarlo»: enciende la pantalla de administración y —desde el 25-sep-2026—
+ * BLOQUEA EL CIERRE DEL MES con el control del espejo contable.
+ *
+ * Es decir: cancelar una póliza, que es una operación contable normalísima,
+ * dejaba un bloqueo permanente en el cierre que nadie podía resolver, porque no
+ * había nada que resolver. Medido esa misma madrugada con la póliza de prueba
+ * DI-2026-00018.
+ *
+ * Un evento sin destino se marca DESCARTADO con su razón escrita: no se
+ * reintenta, no cuenta como divergencia, y queda la constancia de por qué.
+ * ============================================================================
+ */
+export class EventoSinDestino extends ErrorIntegracionExterna {
+  constructor(message: string) {
+    // No reintentable y sin posibilidad de haberse aplicado: no salió nada.
+    super(message, false, undefined, false);
+    this.name = 'EventoSinDestino';
+  }
+}
+
 export interface PuertoCarteraExterna {
   /** Nombre del proveedor, para diagnóstico y bitácora. */
   readonly proveedor: string;

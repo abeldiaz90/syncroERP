@@ -9,12 +9,12 @@ import { DetalleCotizacion } from './detalle-cotizacion.entity';
 import { OrdenCompra } from './orden-compra.entity';
 import { Usuario } from '../../iam/entities/usuario.entity';
 
-export type EstadoCotizacion =
-  | 'PENDIENTE'
-  | 'PENDIENTE_APROBACION'
-  | 'APROBADA'
-  | 'SELECCIONADA'
-  | 'RECHAZADA'
+export const ESTADOS_COTIZACION = [
+  'PENDIENTE',
+  'PENDIENTE_APROBACION',
+  'APROBADA',
+  'SELECCIONADA',
+  'RECHAZADA',
   /*
    * Perdió la adjudicación. No es lo mismo que RECHAZADA y la diferencia
    * importa: a una propuesta rechazada alguien le dijo que no, con motivo y
@@ -23,7 +23,10 @@ export type EstadoCotizacion =
    * es la primera pregunta que se hace cuando alguien audita por qué se
    * adjudicó a otro.
    */
-  | 'DESCARTADA';
+  'DESCARTADA',
+] as const;
+
+export type EstadoCotizacion = (typeof ESTADOS_COTIZACION)[number];
 
 @Entity('cotizaciones')
 @Index('UQ_cotizacion_requisicion_proveedor', ['empresaId', 'requisicionId', 'proveedorId'], { unique: true })

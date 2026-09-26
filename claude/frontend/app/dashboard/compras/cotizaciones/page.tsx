@@ -49,6 +49,8 @@ export default function CotizacionesPage() {
   const [esperandoAutorizacion, setEsperandoAutorizacion] = useState(0);
   const [proveedores, setProveedores] = useState<IProveedor[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
+  const [errorProveedores, setErrorProveedores] = useState('');
   const [selectedReq, setSelectedReq] = useState<IRequisicion | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -88,16 +90,37 @@ export default function CotizacionesPage() {
         setEsperandoAutorizacion(
           data.filter((r: IRequisicion) => r.estado === 'PENDIENTE').length,
         );
+        setErrorCarga('');
+      } else {
+        /* Sin requisiciones no hay nada que cotizar; hay que saber por qué. */
+        setRequisiciones([]);
+        setErrorCarga(res.status === 403
+          ? 'Tu perfil no incluye la consulta de requisiciones.'
+          : 'No se pudieron consultar las requisiciones por cotizar.');
       }
-    } catch { mostrarToast('Error al cargar requisiciones', 'error'); }
+    } catch {
+      setRequisiciones([]);
+      setErrorCarga('No hay conexión con el servidor.');
+      mostrarToast('Error al cargar requisiciones', 'error');
+    }
   };
 
   const fetchProveedores = async () => {
     const token = localStorage.getItem('syncro_token');
     try {
       const res = await fetch(`${apiUrl}/proveedores`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setProveedores(await res.json());
-    } catch {}
+      if (res.ok) { setProveedores(await res.json()); }
+      else {
+        /* Sin proveedores no se puede cotizar, y el desplegable salía vacío. */
+        setProveedores([]);
+        setErrorProveedores(res.status === 403
+          ? 'Tu perfil no incluye el padrón de proveedores: no podrás capturar una cotización.'
+          : 'No se pudo consultar el padrón de proveedores.');
+      }
+    } catch {
+      setProveedores([]);
+      setErrorProveedores('No hay conexión con el servidor.');
+    }
   };
 
   useEffect(() => {
@@ -201,6 +224,12 @@ export default function CotizacionesPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto text-slate-800">
+
+      {(errorCarga || errorProveedores) && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {[errorCarga, errorProveedores].filter(Boolean).join(' ')}
+        </div>
+      )}
       {toast && (
         <div className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-6 py-4 rounded-xl shadow-2xl font-medium text-white transition-all duration-300 ${toast.tipo === 'exito' ? 'bg-emerald-600' : toast.tipo === 'error' ? 'bg-rose-600' : 'bg-blue-600'}`}>
           {toast.tipo === 'exito' && <CheckCircle2 className="w-5 h-5" />}

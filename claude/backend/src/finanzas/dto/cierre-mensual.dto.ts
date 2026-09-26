@@ -33,8 +33,14 @@ export class ConfirmacionesCierreDto {
   @IsBoolean()
   documentosCompletos!: boolean;
 
+  /*
+   * Ya no se exige. El respaldo lo toma el sistema al cerrar y si no puede, el
+   * mes no se cierra: dejo de ser una firma para ser un hecho. Se conserva
+   * opcional para no romper las revisiones ya guardadas que lo traen.
+   */
+  @IsOptional()
   @IsBoolean()
-  respaldoConfirmado!: boolean;
+  respaldoConfirmado?: boolean;
 }
 
 export class PrepararCierreDto {

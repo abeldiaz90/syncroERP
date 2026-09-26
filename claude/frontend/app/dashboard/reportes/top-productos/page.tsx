@@ -15,6 +15,12 @@ const COLUMNAS_TOP = [
 export default function TopProductosPage() {
   const [productos, setProductos] = useState<any[]>([]);
   const [cargando, setCargando]   = useState(false);
+  /*
+    Un reporte que no se pudo consultar no es un reporte en cero. `if (r.ok)`
+    sin `else` presentaba cualquier fallo —un 403, el backend reiniciándose—
+    como un periodo sin movimiento, que es la conclusión contraria.
+  */
+  const [error, setError] = useState('');
   const [orden, setOrden]         = useState<'cantidad' | 'importe'>('importe');
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
@@ -23,8 +29,19 @@ export default function TopProductosPage() {
 
   const cargar = useCallback(async () => {
     setCargando(true);
-    const r = await fetch(`${api}/ventas/dashboard/top-productos?dias=30`, { headers: h() });
-    if (r.ok) setProductos(await r.json());
+    try {
+      const r = await fetch(`${api}/ventas/dashboard/top-productos?dias=30`, { headers: h() });
+      if (r.ok) { setProductos(await r.json()); setError(''); }
+      else {
+        setProductos([]);
+        setError(r.status === 403
+          ? 'Tu perfil no incluye este reporte.'
+          : 'No se pudo consultar el reporte de productos más vendidos.');
+      }
+    } catch {
+      setProductos([]);
+      setError('No hay conexión con el servidor.');
+    }
     setCargando(false);
   }, []);
 
@@ -38,6 +55,12 @@ export default function TopProductosPage() {
 
   return (
     <div className="p-6 md:p-10 max-w-4xl mx-auto">
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {error}
+        </div>
+      )}
       <div className="flex items-start justify-between mb-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Reportes</p>

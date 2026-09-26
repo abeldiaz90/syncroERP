@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import { IsIn } from 'class-validator';
+import { EsMotivoDeRechazo } from '../../common/validators/motivo-de-rechazo.validator';
 
 /*
  * El comentario: opcional al aprobar, obligatorio al rechazar.
@@ -14,6 +15,25 @@ import { IsIn, IsString, MaxLength, MinLength, ValidateIf } from 'class-validato
  * dos DTO en vez de con una condicion sobre el estado.
  */
 
+/*
+ * ──────────────────────────────────────────────────────────────────────────
+ * Y por que el motivo ausente se convierte en motivo vacio
+ *
+ * Rechazar sin comentario devolvia TRES errores a la vez:
+ *
+ *   «comentario must be shorter than or equal to 500 characters»
+ *   «Al rechazar hay que decir por que: escribe el motivo (minimo 3 caracteres).»
+ *   «comentario must be a string»
+ *
+ * Los dos de los extremos son falsos —no hay 501 caracteres, no hay un tipo
+ * equivocado: no hay nada— y el unico verdadero queda enterrado en medio. Quien
+ * lee eso no aprende que le falta el motivo; aprende a no leer los errores.
+ *
+ * Al rechazar, que el campo no venga no es «de otro tipo»: es vacio. Diciendolo
+ * asi, `@IsString` y `@MaxLength` pasan, y salta un solo mensaje, que es el
+ * cierto. Medido el 25-sep-2026 contra la instalacion.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
@@ -22,17 +42,10 @@ export class ResolverAprobacionDocumentoDto {
   estado!: 'APROBADA' | 'RECHAZADA';
 
   /*
-   * `@ValidateIf` sobre el ESTADO y no sobre la presencia del campo: el
-   * navegador manda "" y no `undefined`, y `@IsOptional` no salta con la
-   * cadena vacia.
+   * Una sola condicion, un solo mensaje. La regla —y por que no son cuatro
+   * decoradores— vive en `EsMotivoDeRechazo`.
    */
   @Transform(trim)
-  @ValidateIf((dto: ResolverAprobacionDocumentoDto) =>
-    dto.estado === 'RECHAZADA' || Boolean(dto.comentario))
-  @IsString()
-  @MinLength(3, {
-    message: 'Al rechazar hay que decir por qué: escribe el motivo (mínimo 3 caracteres).',
-  })
-  @MaxLength(500)
+  @EsMotivoDeRechazo()
   comentario?: string;
 }

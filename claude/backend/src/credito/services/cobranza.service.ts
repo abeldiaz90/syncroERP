@@ -377,6 +377,8 @@ export class CobranzaService {
         {
           pagoId: pago.id,
           creditoId: credito.id,
+          /* El nombre con el que el módulo lo muestra, para que el asiento lo nombre igual. */
+          folioCredito: credito.folio,
           clienteId: credito.clienteId,
           fechaPago,
           empresaId,
@@ -612,6 +614,7 @@ export class CobranzaService {
         {
           pagoId: pago.id,
           creditoId: credito.id,
+          folioCredito: credito.folio,
           fechaCancelacion: pago.fechaCancelacion,
           empresaId,
           montoCapital: Number(pago.montoCapital),
@@ -762,6 +765,7 @@ export class CobranzaService {
         TipoAsiento.AJUSTE_DEVOLUCION_EXTERNA,
         {
           creditoId: credito.id,
+          folioCredito: credito.folio,
           idTransaccionExterna: datos.idTransaccionExterna,
           fecha: datos.fecha,
           empresaId,

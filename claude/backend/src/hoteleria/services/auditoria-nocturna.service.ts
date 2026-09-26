@@ -26,6 +26,19 @@ export interface ResultadoAuditoria {
   nochesPosteadas: number;
   montoTotal: number;
   detalle: { codigo: string; habitacion: string | null; monto: number }[];
+  /*
+   * La auditoria se niega a correr cuando la fecha operativa del hotel todavia
+   * no ha terminado —el cierre de una noche no se hace antes de que la noche
+   * pase—. Esa negativa volvia con los mismos campos que un cierre real: cero
+   * noches, cero pesos, misma fecha; y la pantalla, que solo miraba que la
+   * llamada hubiera respondido 200, anunciaba «Auditoria completada». Quien la
+   * corria se quedaba creyendo que el dia estaba cerrado.
+   *
+   * `ejecutada` distingue las dos cosas y `motivo` dice por que, para que la
+   * pantalla no tenga que adivinarlo de unos ceros.
+   */
+  ejecutada: boolean;
+  motivo: string | null;
 }
 
 const money = (v: number | string | null | undefined) =>
@@ -128,6 +141,8 @@ export class AuditoriaNocturnaService {
     let montoTotal = 0;
     let reservacionesProcesadas = 0;
     let fechaOperativa: string | null = null;
+    let ejecutada = true;
+    let motivo: string | null = null;
 
     await this.dataSource.transaction('SERIALIZABLE', async (manager) => {
       const hotel = await manager
@@ -147,6 +162,10 @@ export class AuditoriaNocturnaService {
       // ejecución impedía recuperar días atrasados durante el mismo día.
       if (hotel.fechaOperativa > hoyHotel) {
         fechaOperativa = hotel.fechaOperativa;
+        ejecutada = false;
+        motivo =
+          `El día operativo del hotel es el ${hotel.fechaOperativa} y en el hotel todavía es ${hoyHotel}. ` +
+          'El cierre se corre cuando la noche ha terminado: no se posteó ninguna renta ni se avanzó la fecha.';
         return;
       }
 
@@ -263,6 +282,8 @@ export class AuditoriaNocturnaService {
       nochesPosteadas,
       montoTotal,
       detalle,
+      ejecutada,
+      motivo,
     };
   }
 

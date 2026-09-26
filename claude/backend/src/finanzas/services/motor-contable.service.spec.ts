@@ -629,7 +629,18 @@ describe('generarAsientoDeInventarioInicial', () => {
     );
   });
 
-  it('sin la cuenta puente 399 configurada: omite el asiento sin lanzar', async () => {
+  /*
+   * Esta prueba exigía lo contrario —«omite el asiento sin lanzar»— y con ello
+   * fijaba el defecto en su sitio. Omitir sin lanzar parece prudente y no lo
+   * es: el retorno normal llega a `AsientosPendientesService` como «el asiento
+   * se generó», el registro se marca GENERADO y sale de la bandeja. La carga
+   * entera de inventario inicial quedaba sin contabilizar, con un `warn` en el
+   * log del servidor como único rastro y ningún control capaz de notarlo.
+   *
+   * Lo correcto es fallar: el asiento queda FALLIDO, visible, y se reintenta
+   * solo en cuanto alguien precargue el plan de cuentas.
+   */
+  it('sin la cuenta puente 399 configurada: falla, y queda en la bandeja', async () => {
     const { servicio, guardadas } = crearArnes({ sinCuentas: ['CAPITAL|399'] });
     await expect(
       servicio.generarAsientoDeInventarioInicial({
@@ -637,7 +648,7 @@ describe('generarAsientoDeInventarioInicial', () => {
         fecha: new Date(),
         detalles: [{ productoId: 'prod-1', cantidad: 1, costoUnitario: 10 }],
       }),
-    ).resolves.not.toThrow();
+    ).rejects.toThrow(/Carga de saldos iniciales/);
     expect(guardadas).toHaveLength(0);
   });
 });

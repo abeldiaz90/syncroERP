@@ -26,6 +26,10 @@ import {
   TipoCuentaBancaria,
 } from '../../credito/entities/cuenta-bancaria.entity';
 import { clabeEsValida } from '../utils/clabe.util';
+import {
+  cuentaDeLaPartida,
+  cuentasVigentesPorClave,
+} from './cuenta-de-la-partida.util';
 import { construirCuentaBancaria } from '../utils/cuenta-bancaria-de-alta.util';
 import { cifrarDatoNomina, descifrarDatoNomina, huellaDatoNomina } from '../utils/datos-sensibles.crypto';
 import {
@@ -1506,6 +1510,20 @@ export class NominaAvanzadaService {
         throw new ConflictException('No existen partidas de nómina.');
       }
 
+      /*
+       * La cuenta congelada en la partida manda. Pero si la partida nació sin
+       * cuenta —porque el concepto no la tenía cuando se calculó— se resuelve
+       * con el catálogo vigente: un hueco no es una decisión que haya que
+       * respetar, y sin esta caída un periodo ya PAGADO quedaba imposible de
+       * contabilizar para siempre. Ver `cuenta-de-la-partida.util.ts`.
+       */
+      const cuentasVigentes = cuentasVigentesPorClave(
+        await em.find(ConceptoNomina, {
+          where: { empresaId },
+          select: { clave: true, cuentaContableId: true },
+        }),
+      );
+
       const faltantes: string[] = [];
       const acumulado = new Map<
         string,
@@ -1547,7 +1565,7 @@ export class NominaAvanzadaService {
           partida.naturaleza === NaturalezaConcepto.OTRO_PAGO
         ) {
           agregar(
-            partida.cuentaContableId,
+            cuentaDeLaPartida(partida, cuentasVigentes),
             partida.concepto,
             Number(partida.importe),
             0,
@@ -1659,6 +1677,29 @@ export class NominaAvanzadaService {
        * septiembre se registraba en octubre: dos meses mal, uno sin el gasto y
        * otro con el doble.
        */
+      /*
+       * Y si el periodo todavía no termina, se dice ASÍ.
+       *
+       * El devengo se fecha el último día del periodo, y la contabilidad no
+       * admite fechas que no han llegado. Con una quincena pagada por
+       * adelantado —termina el 30, se pagó el 25— el contador pedía la póliza
+       * y recibía «no se puede registrar una póliza con fecha 2026-09-30, que
+       * todavía no llega»: cierto, y sin decirle que no había nada que
+       * arreglar, sólo que esperar. Mientras tanto el tablero de integridad
+       * marcaba el periodo como crítico y bloqueaba el cierre mensual.
+       *
+       * Aquí se responde lo que hace falta saber: cuándo.
+       */
+      const finDeHoy = new Date();
+      finDeHoy.setHours(23, 59, 59, 999);
+      const finPeriodo = new Date(`${diaCalendario(periodo.fechaFin)}T12:00:00`);
+      if (finPeriodo.getTime() > finDeHoy.getTime()) {
+        throw new ConflictException(
+          `El devengo de esta nómina se fecha el ${diaCalendario(periodo.fechaFin)}, último día del periodo, y ese día todavía no llega. ` +
+            'La nómina se pagó por adelantado: no falta nada por hacer, la póliza se podrá generar ese día.',
+        );
+      }
+
       const poliza = await this.polizasService.crearPolizaManualEnTransaccion(
         em,
         {

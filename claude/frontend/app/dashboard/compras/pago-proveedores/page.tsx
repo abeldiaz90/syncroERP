@@ -70,6 +70,7 @@ export default function PagoProveedoresPage() {
   const [ordenes, setOrdenes]               = useState<IOrden[]>([]);
   const [cuentasBancarias, setCuentasBancarias] = useState<ICuentaBancaria[]>([]);
   const [cargando, setCargando]             = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
   const [busqueda, setBusqueda]             = useState('');
   const [filtroEstado, setFiltroEstado]     = useState('POR_PAGAR');
   const [ordenSeleccionada, setOrdenSeleccionada] = useState<IOrden|null>(null);
@@ -95,7 +96,19 @@ export default function PagoProveedoresPage() {
       fetch(`${api}/compras/ordenes`, { headers: h() }),
       fetch(`${api}/credito/cuentas-bancarias`, { headers: h() }),
     ]);
-    if (rO.ok) setOrdenes(await rO.json());
+    /*
+      Las órdenes son de Compras y las cuentas bancarias de Tesorería: dos
+      módulos, y quien paga proveedores puede tener uno y no el otro. Antes
+      cualquiera de los dos fallos dejaba la pantalla vacía —«No hay órdenes en
+      el estado seleccionado»— sin decir nada.
+    */
+    if (rO.ok) { setOrdenes(await rO.json()); }
+    else { setOrdenes([]); }
+    const caidas = [
+      !rO.ok ? 'las órdenes de compra' : '',
+      !rCB.ok ? 'las cuentas de pago' : '',
+    ].filter(Boolean);
+    setErrorCarga(caidas.length ? `No se pudo consultar ${caidas.join(' ni ')}.` : '');
     if (rCB.ok) {
       const cb = await rCB.json();
       setCuentasBancarias(cb);
@@ -239,6 +252,13 @@ export default function PagoProveedoresPage() {
           <div className="p-16 text-center">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
             <p className="text-slate-400 text-sm">Cargando órdenes...</p>
+          </div>
+        ) : errorCarga ? (
+          <div className="p-16 text-center">
+            <p className="font-semibold text-rose-700">{errorCarga}</p>
+            <p className="text-sm text-slate-500 mt-1">
+              La lista no está vacía: no se pudo consultar.
+            </p>
           </div>
         ) : filtradas.length === 0 ? (
           <div className="p-16 text-center">
