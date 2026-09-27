@@ -65,7 +65,15 @@ export default function DevolucionesProveedorPage() {
          no puede dejar la pantalla en blanco sobre lo que el rol sí tiene. */
       const [oc, alm, devs] = await Promise.all([
         api.get<any>('/compras/ordenes').catch(() => []),
-        api.get<any>('/catalogo/almacenes').catch(() => []),
+        /*
+          La lista CORTA de almacenes —id y nombre—, no el módulo entero.
+          `/catalogo/almacenes` pertenece a «almacenes» —dirección,
+          responsable y configuración de cada bodega— y el comprador no lo
+          tiene: contestaba 403 y el desplegable del almacén de salida quedaba
+          vacío, así que esta pantalla no se podía usar desde el rol que la
+          necesita. Medido el 27-sep-2026 barriendo rol por rol.
+        */
+        api.get<any>('/catalogo/almacenes/para-venta').catch(() => []),
         api.get<Devolucion[]>('/compras/devoluciones').catch(() => []),
       ]);
       const lista = Array.isArray(oc) ? oc : (oc?.data ?? []);

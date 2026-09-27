@@ -541,6 +541,17 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * proveedor se hace por telefono.
      */
     accionesIrrenunciables: [
+      /*
+       * La lista CORTA de almacenes, para la devolución a proveedor.
+       *
+       * La pantalla de devoluciones pide de qué almacén sale la mercancía, y
+       * la llenaba con `GET /catalogo/almacenes`, que es del módulo
+       * «almacenes» —dirección, responsable y configuración de cada bodega—
+       * y que el comprador no tiene. Contestaba 403, el desplegable quedaba
+       * vacío y la pantalla no se podía usar desde el rol que la necesita.
+       * Es la misma lista corta que ya usan el mostrador y hotelería.
+       */
+      'GET /catalogo/almacenes/para-venta',
       // El tablero de pendientes: cuentas, no documentos.
       ACCION_TABLERO_PENDIENTES,
       'GET /compras/ordenes/recepciones',
