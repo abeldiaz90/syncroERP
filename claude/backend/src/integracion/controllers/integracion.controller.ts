@@ -114,8 +114,14 @@ export class IntegracionController {
     };
   }
 
+  /*
+   * Sólo el administrador. El plan contratado lo gobierna la consola de SUMA,
+   * y la plantilla de dirección lo dice desde siempre: `integracion` está en
+   * sus `modulosConsulta`, o sea GET y nada más. Nombrar aquí a dirección era
+   * prometer lo que el permiso niega: medido el 27-sep, 403.
+   */
   @Patch('configuracion')
-  @Roles('administrador', 'direccion')
+  @Roles('administrador')
   async configurar(
     @Body() dto: ConfigurarIntegracionDto,
     @ActiveUser('empresaId') empresaId: string,
@@ -380,8 +386,17 @@ export class IntegracionController {
   }
 
   /** Evaluación de originación: identidad, buró e historial. No otorga nada. */
+  /*
+   * Nombraba a tres roles y NINGUNO podía llamarlo: medido el 27-sep,
+   * dirección, gerencia y cobranza reciben 403. Tampoco lo llama ninguna
+   * pantalla, igual que `disponibilidad/:clienteId`: los dos son la superficie
+   * del eje de cartera que nunca se cableó —ver `un-modo-que-no-cambia-nada`—.
+   * Se deja nombrando sólo a quien puede, en vez de conceder poder de decidir
+   * crédito por una promesa que nadie pidió. Cuando se cablee el eje se
+   * decide, ahí sí, qué puesto lo ejerce.
+   */
   @Post('evaluar-credito')
-  @Roles('administrador', 'direccion', 'gerencia', 'cobranza')
+  @Roles('administrador')
   async evaluar(
     @Body() dto: EvaluarCreditoDto,
     @ActiveUser('empresaId') empresaId: string,
@@ -434,8 +449,9 @@ export class IntegracionController {
    * el modo: en un cliente real puede mover miles de eventos y eso no debe
    * ocurrir porque alguien tocó un selector.
    */
+  /* Del operador, no de la empresa: ver el @Roles de `configuracion`. */
   @Post('sincronizacion-inicial')
-  @Roles('administrador', 'direccion')
+  @Roles('administrador')
   sincronizacionInicial(
     @ActiveUser('empresaId') empresaId: string,
     @Query('simular') simular?: string,
@@ -614,8 +630,14 @@ export class IntegracionController {
    *
    * Los roles nacen sin permisos, a propósito: ver el servicio.
    */
+  /*
+   * Crear objetos en el registro externo es infraestructura del operador.
+   * Nombraba a dirección y dirección recibía 403 —medido el 27-sep— porque su
+   * módulo `integracion` es de consulta. La frontera está explicada en la
+   * plantilla de dirección, junto a lo que sí se le concedió.
+   */
   @Post('roles/espejo')
-  @Roles('administrador', 'direccion')
+  @Roles('administrador')
   crearRolesEspejo(
     @ActiveUser('empresaId') empresaId: string,
     @Query('simular') simular?: string,
@@ -629,8 +651,17 @@ export class IntegracionController {
     return this.roles.listarMapeo(empresaId);
   }
 
+  /*
+   * La correspondencia de roles es pantalla del operador, no de la empresa:
+   * medido el 27-sep, `/dashboard/permisos/correspondencia` contesta «esta
+   * sección no está en tu perfil» a dirección —la capa de permiso de PANTALLA
+   * la reserva al administrador— y encima sus POST daban 403. Nombrar a
+   * dirección prometía una pantalla que no puede abrir. Los GET siguen
+   * abiertos a dirección, que es lo que dice su plantilla: mira la
+   * integración, no la configura.
+   */
   @Post('roles/mapeo')
-  @Roles('administrador', 'direccion')
+  @Roles('administrador')
   guardarMapeoRol(
     @Body() dto: MapearRolDto,
     @ActiveUser('empresaId') empresaId: string,
@@ -654,8 +685,9 @@ export class IntegracionController {
    * con la identidad de quien lo pide. Es el paso que desbloquea un core recién
    * montado, donde esa cuenta todavía no puede autenticarse sola.
    */
+  /* Infraestructura del operador, como `roles/espejo`. */
   @Post('roles/cuenta-servicio')
-  @Roles('administrador', 'direccion')
+  @Roles('administrador')
   aprovisionarCuentaServicio(
     @Body() dto: AprovisionarCuentaServicioDto,
     @ActiveUser('empresaId') empresaId: string,
@@ -664,8 +696,9 @@ export class IntegracionController {
   }
 
   /** Da de alta al usuario en el registro externo, o corrige sus roles. */
+  /* Del operador, como el resto de `roles/*` que escribe. */
   @Post('roles/aprovisionar/:usuarioId')
-  @Roles('administrador', 'direccion')
+  @Roles('administrador')
   aprovisionar(
     @Param('usuarioId') usuarioId: string,
     @ActiveUser('empresaId') empresaId: string,

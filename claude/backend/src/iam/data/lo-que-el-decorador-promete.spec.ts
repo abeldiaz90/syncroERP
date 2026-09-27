@@ -31,6 +31,8 @@
  * concede.
  * ============================================================================
  */
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { PLANTILLAS_PERMISOS } from './plantillas-permisos';
 
 /**
@@ -76,6 +78,26 @@ const PROMESAS: Array<{ rol: string; acciones: string[]; porque: string }> = [
   },
 ];
 
+/**
+ * La otra mitad, y la que faltaba: lo que el decorador ya NO debe nombrar.
+ *
+ * Siete endpoints nombraban roles de negocio que el permiso nunca les concede
+ * —dirección, gerencia, cobranza— y el arreglo fue quitarlos del decorador, no
+ * conceder: cambiar el plan contratado, la carga inicial, crear objetos en el
+ * registro externo y la correspondencia de roles son del operador, y la capa de
+ * permiso de PANTALLA ya reservaba esa pantalla al administrador. Si alguien los vuelve a nombrar sin
+ * conceder, esta prueba se entera.
+ */
+const SOLO_DEL_ADMINISTRADOR = [
+  "@Patch('configuracion')",
+  "@Post('roles/mapeo')",
+  "@Post('roles/aprovisionar/:usuarioId')",
+  "@Post('sincronizacion-inicial')",
+  "@Post('roles/espejo')",
+  "@Post('roles/cuenta-servicio')",
+  "@Post('evaluar-credito')",
+];
+
 const plantillaDe = (rol: string) =>
   PLANTILLAS_PERMISOS.find((p) => p.rol === rol);
 
@@ -116,5 +138,28 @@ describe('un rol nombrado en @Roles no recibe 403 de la otra capa', () => {
       }
     }
     expect(contradicciones).toEqual([]);
+  });
+
+  it('lo que es del operador no vuelve a nombrar a un puesto', () => {
+    const texto = readFileSync(
+      join(__dirname, '..', '..', 'integracion', 'controllers', 'integracion.controller.ts'),
+      'utf8',
+    );
+    const lineas = texto.split('\n');
+    const reincidentes: string[] = [];
+    for (const marca of SOLO_DEL_ADMINISTRADOR) {
+      const i = lineas.findIndex((l) => l.includes(marca));
+      expect(i).toBeGreaterThanOrEqual(0);
+      const roles = lineas[i + 1] ?? '';
+      if (!/@Roles\('administrador'\)/.test(roles)) {
+        reincidentes.push(`${marca} → ${roles.trim()}`);
+      }
+    }
+    /*
+     * Si esto falla porque de verdad quieres dárselo a un puesto, concédelo en
+     * su plantilla y muévelo a PROMESAS, que es lo que comprueba la otra mitad.
+     * Nombrarlo sin conceder deja un botón que contesta 403.
+     */
+    expect(reincidentes).toEqual([]);
   });
 });
