@@ -75,9 +75,17 @@ export default function LibroDiarioPage() {
       alarma y lo segundo hay que decirlo.
     */
     try {
-      const r = await fetch(`${api}/finanzas/polizas`, {
-        headers: { Authorization: `Bearer ${tok()}` },
-      });
+      /*
+        El periodo lo aplica el servidor. Antes se pedía la contabilidad entera
+        y se recortaba aquí al mes en curso: veinte renglones a la vista y
+        miles viajando por la red en una empresa que lleve un año operando.
+        El filtro de abajo se queda —recorta por tipo y por texto mientras se
+        teclea, sin volver a preguntar— pero ya no es él quien acota el volumen.
+      */
+      const r = await fetch(
+        `${api}/finanzas/polizas?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`,
+        { headers: { Authorization: `Bearer ${tok()}` } },
+      );
       if (r.ok) {
         setPolizas(await r.json());
         setErrorCarga('');
@@ -93,7 +101,7 @@ export default function LibroDiarioPage() {
     }
     setCargando(false);
     setPagina(1);
-  }, []);
+  }, [desde, hasta]);
 
   useEffect(() => { cargar(); }, [cargar]);
 

@@ -817,12 +817,49 @@ export class PolizasService {
     };
   }
 
-  async obtenerPolizas(empresaId: string) {
-    return this.dataSource.getRepository(Poliza).find({
-      where: { empresaId },
-      relations: ['partidas', 'partidas.cuentaContable'],
-      order: { fechaCreacion: 'DESC' },
-    });
+  /**
+   * ──────────────────────────────────────────────────────────────────────────
+   * El libro diario, acotado a un periodo
+   * --------------------------------------------------------------------------
+   * Esto devolvía TODAS las pólizas de la empresa, con todas sus partidas y la
+   * cuenta contable de cada una, sin límite ni periodo. La pantalla pedía la
+   * lista entera y después filtraba en el navegador al mes en curso: lo que se
+   * ve son veinte renglones y lo que viaja es la contabilidad completa.
+   *
+   * Con noventa pólizas de prueba no se nota. Una empresa que opera de verdad
+   * produce miles al año —cada venta, cada compra, cada pago, la nómina, la
+   * depreciación mensual—, y cada una arrastra sus partidas y sus cuentas. El
+   * libro diario de enero del año tres tarda lo mismo que el de diciembre del
+   * año uno porque descarga lo mismo: todo.
+   *
+   * Ahora el periodo lo aplica la base. El filtro por fecha y por tipo es el
+   * mismo que la pantalla ya ofrecía; la diferencia es dónde se ejecuta.
+   *
+   * Sin periodo se sigue devolviendo todo, a propósito: una consulta que
+   * recorta por su cuenta lo que no le pidieron es peor que una lenta —enseña
+   * menos de lo que hay sin decirlo—. Quien llama decide, y la pantalla del
+   * libro diario manda siempre su rango.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  async obtenerPolizas(
+    empresaId: string,
+    desde?: string,
+    hasta?: string,
+    tipo?: string,
+  ) {
+    const qb = this.dataSource
+      .getRepository(Poliza)
+      .createQueryBuilder('poliza')
+      .leftJoinAndSelect('poliza.partidas', 'partida')
+      .leftJoinAndSelect('partida.cuentaContable', 'cuenta')
+      .where('poliza.empresaId = :empresaId', { empresaId })
+      .orderBy('poliza.fechaCreacion', 'DESC');
+
+    if (desde) qb.andWhere('poliza.fecha >= :desde', { desde });
+    if (hasta) qb.andWhere('poliza.fecha <= :hasta', { hasta });
+    if (tipo) qb.andWhere('poliza.tipo = :tipo', { tipo });
+
+    return qb.getMany();
   }
 
   // ══════════════════════════════════════════════════════════════════════════

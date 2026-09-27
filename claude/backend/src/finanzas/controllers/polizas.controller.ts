@@ -1,4 +1,12 @@
-import { Controller, Post, Body, Get, Query, Param } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { PolizasService } from '../services/polizas.service';
 import { CrearPolizaDto } from '../dto/crear-poliza.dto';
 import { CancelarPolizaDto, CrearPolizaManualDto } from '../dto/operaciones-poliza.dto';
@@ -24,8 +32,30 @@ export class PolizasController {
 
   @Navegable('/dashboard/finanzas/polizas', 'Libro Diario', 51)
   @Get()
-  obtenerTodas(@ActiveUser('empresaId') empresaId: string) {
-    return this.polizasService.obtenerPolizas(empresaId);
+  obtenerTodas(
+    @ActiveUser('empresaId') empresaId: string,
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+    @Query('tipo') tipo?: string,
+  ) {
+    /*
+     * Una fecha mal escrita no se ignora. Ignorarla devolvería el libro entero
+     * con cara de estar filtrado, que es justo el defecto que este endpoint
+     * viene a cerrar: quien lee la pantalla creería estar viendo un mes.
+     */
+    for (const [nombre, valor] of [['desde', desde], ['hasta', hasta]]) {
+      if (valor && !/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
+        throw new BadRequestException(
+          `${nombre} debe venir como aaaa-mm-dd; llegó «${valor}».`,
+        );
+      }
+    }
+    if (tipo && !['DIARIO', 'INGRESO', 'EGRESO'].includes(tipo)) {
+      throw new BadRequestException(
+        `tipo debe ser DIARIO, INGRESO o EGRESO; llegó «${tipo}».`,
+      );
+    }
+    return this.polizasService.obtenerPolizas(empresaId, desde, hasta, tipo);
   }
 
   @Navegable(
