@@ -30,7 +30,14 @@ type Partida = {
   detalleOrdenId: string; productoId: string; producto: string | null; sku: string | null;
   recibido: number; devuelto: number; disponible: number; costoUnitario: number; tasaIva: number;
 };
-type Devolvible = { folio: string; proveedor: string | null; estadoPago: string; partidas: Partida[] };
+type Devolvible = {
+  folio: string;
+  proveedor: string | null;
+  estadoPago: string;
+  partidas: Partida[];
+  /** Dónde entró la mercancía: de ahí tiene que salir. */
+  almacenesRecepcion?: Array<{ id: string; nombre: string }>;
+};
 type Devolucion = {
   id: string; folio: string; fecha: string; motivo: string; total: number; estado: string;
   notaCreditoProveedor?: string | null; almacen?: { nombre?: string };
@@ -94,7 +101,19 @@ export default function DevolucionesProveedorPage() {
     if (!ordenId) return;
     api
       .get<Devolvible>('/compras/devoluciones/devolvible', { query: { ordenCompraId: ordenId } })
-      .then(setDevolvible)
+      .then((d) => {
+        setDevolvible(d);
+        /*
+          La mercancía sale de donde entró. La orden sabe en qué almacén se
+          recibió, así que si hay uno solo se elige solo y si hay varios se
+          ofrecen únicamente ésos. Antes se ofrecían TODOS los almacenes de la
+          empresa sin decir en cuál está la mercancía: elegir el equivocado
+          llenaba el formulario entero para recibir, al final, «No existe
+          resumen de stock para el producto y almacén».
+        */
+        const donde = d?.almacenesRecepcion ?? [];
+        setAlmacenId(donde.length === 1 ? donde[0].id : '');
+      })
       .catch((e) => avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo leer la orden.', 'error'));
   }, [ordenId]);
 
@@ -183,8 +202,18 @@ export default function DevolucionesProveedorPage() {
             <span className="text-sm font-bold">Almacén de salida *</span>
             <select value={almacenId} onChange={(e) => setAlmacenId(e.target.value)} className="w-full p-3 border rounded-xl">
               <option value="">Elige…</option>
-              {almacenes.map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+              {(devolvible?.almacenesRecepcion?.length
+                ? devolvible.almacenesRecepcion
+                : almacenes
+              ).map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}
             </select>
+            {devolvible && !devolvible.almacenesRecepcion?.length && (
+              <span className="text-xs text-amber-700">
+                Esta orden no tiene recepción registrada, así que no se sabe en
+                qué almacén entró la mercancía. Elige con cuidado: si ahí no hay
+                existencia, la devolución se va a rechazar.
+              </span>
+            )}
           </label>
           <label className="space-y-1">
             <span className="text-sm font-bold">Fecha *</span>

@@ -97,9 +97,32 @@ export class DevolucionesProveedorService {
       devueltas.map((d) => [d.detalleOrdenId, Number(d.cantidad)]),
     );
 
+    /*
+     * ── De qué almacén salió, sin adivinar ────────────────────────────────
+     *
+     * La pantalla ofrecía TODOS los almacenes de la empresa y no decía en
+     * cuál está la mercancía. Elegir el equivocado llenaba el formulario
+     * entero para recibir, al final, «No existe resumen de stock para el
+     * producto y almacén». Medido el 27-sep-2026 con el rol comprador.
+     *
+     * El dato existe: la recepción de la orden lo registró. Se devuelve para
+     * que la pantalla ofrezca sólo donde de verdad entró la mercancía.
+     */
+    const almacenes = await this.dataSource.query(
+      `SELECT DISTINCT r.almacenId AS "almacenId", a.nombre AS "nombre"
+         FROM recepciones_compra r
+         JOIN almacenes a ON a.id = r.almacenId
+        WHERE r.empresaId = $1 AND r.ordenCompraId = $2`,
+      [empresaId, ordenCompraId],
+    );
+
     return {
       ordenCompraId: oc.id,
       folio: this.folioDeOrden(oc),
+      almacenesRecepcion: (almacenes ?? []).map((a: any) => ({
+        id: String(a.almacenId),
+        nombre: String(a.nombre ?? ''),
+      })),
       proveedorId: oc.proveedorId,
       proveedor: (oc as any).proveedor?.nombre ?? null,
       estadoPago: (oc as any).estadoPago ?? 'PENDIENTE',
