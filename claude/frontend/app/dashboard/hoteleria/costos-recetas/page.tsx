@@ -65,10 +65,38 @@ export default function ControlCostosRecetasPage() {
   const [almacenId, setAlmacenId] = useState('');
   const [recalculo, setRecalculo] = useState<Recalculo | null>(null);
 
+  /*
+    ── Dos llamadas que esta pantalla no podía hacer ─────────────────────────
+
+    `/catalogo/almacenes` es del módulo `almacenes` —dirección, responsable y
+    configuración de cada bodega— y hotelería no lo tiene: contestaba 403 y el
+    desplegable de almacén quedaba vacío, así que el filtro no filtraba nada.
+    La lista corta que sí le corresponde es `/para-venta`, la misma que usan el
+    mostrador y la configuración del hotel.
+
+    Y `/catalogo/productos` NO devuelve un arreglo: devuelve
+    `{ productos, total, paginaActual, totalPaginas }`. Se leía como arreglo, y
+    `productos.datos.find(...)` reventaba en cada render… pero sólo cuando la
+    tabla tenía filas que nombrar. Como el reporte enseñaba siempre cero por el
+    defecto del rango de fechas, `nombreDe` no llegaba a ejecutarse nunca y la
+    pantalla parecía sana. Arreglado el rango, la pantalla se cayó entera —
+    «This page couldn't load»— en cuanto tuvo un dato que mostrar.
+
+    Medido el 27-sep-2026: el primer consumo de receta de la vida del sistema
+    tumbó su propia pantalla de control de costos.
+  */
   const almacenes = useDatos<Array<{ id: string; nombre: string }>>(
-    () => api.get('/catalogo/almacenes'), [],
+    () => api.get('/catalogo/almacenes/para-venta'), [],
   );
-  const productos = useDatos<Producto[]>(() => api.get('/catalogo/productos'), []);
+  const productos = useDatos<Producto[]>(
+    async () => {
+      const r = await api.get<Producto[] | { productos?: Producto[] }>(
+        '/catalogo/productos',
+      );
+      return Array.isArray(r) ? r : (r?.productos ?? []);
+    },
+    [],
+  );
   const comparativo = useDatos<Comparativo>(
     () => api.get('/recetas/costos/teorico-vs-real', {
       query: { desde, hasta, almacenId },
