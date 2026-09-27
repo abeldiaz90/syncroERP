@@ -611,9 +611,34 @@ export class CrmService {
     }
 
     // Días promedio por etapa: dónde se atoran los negocios.
-    const historiales = await this.historial.find({
-      where: { oportunidadId: In(cerradas.map((o) => o.id).concat('')) },
-    });
+    /*
+     * ── El centinela que nunca fue un identificador ──────────────────────
+     *
+     * Esto era `In(cerradas.map(o => o.id).concat(''))`: se añadía una CADENA
+     * VACÍA para que la lista nunca quedara vacía y TypeORM no generara un
+     * `IN ()` sin elementos. Pero la columna es `uuid`, y PostgreSQL rechaza
+     * la cadena vacía al convertirla:
+     *
+     *     invalid input syntax for type uuid: ""
+     *
+     * El filtro global lo traducía a un 400 «El identificador o alguno de los
+     * valores no tiene el formato esperado», que no señala a ninguna parte.
+     *
+     * Y ocurría SIEMPRE, con y sin oportunidades cerradas: el centinela viaja
+     * en los dos casos. `GET /crm/metricas` —conversión, ciclo de venta y
+     * motivos de pérdida, que es el reporte entero del embudo— no ha
+     * funcionado nunca. Medido el 27-sep-2026 cerrando una oportunidad como
+     * ganada y pidiendo las métricas del mes.
+     *
+     * La lista vacía se resuelve no preguntando: si no hay oportunidades
+     * cerradas, no hay historial que traer.
+     */
+    const idsCerradas = cerradas.map((o) => o.id);
+    const historiales = idsCerradas.length
+      ? await this.historial.find({
+          where: { oportunidadId: In(idsCerradas) },
+        })
+      : [];
 
     const porEtapa = new Map<string, { total: number; conteo: number }>();
     for (const h2 of historiales) {
