@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
+import { useContratacion } from '@/lib/contratacion';
 
 type Estado = 'PENDIENTE' | 'PROCESADO' | 'IGNORADO' | 'FALLIDO' | 'DESCARTADO';
 
@@ -91,6 +92,8 @@ export default function AvisosDelCorePage() {
   const [abierto, setAbierto] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const [huerfanos, setHuerfanos] = useState<IAviso[]>([]);
+  /* Para no afirmar que llegó todo bien cuando no hay remitente. */
+  const plan = useContratacion();
 
   const cargar = useCallback(async (estado: Estado | 'TODOS') => {
     setCargando(true);
@@ -171,10 +174,37 @@ export default function AvisosDelCorePage() {
       )}
 
       {/*
+        Antes de contar avisos, si hay de dónde recibirlos.
+
+        «Todo lo recibido fue el eco de operaciones que el ERP mismo originó»
+        es cierto para quien está integrado y no tiene pendientes, y es falso
+        para quien no lo está: ahí no se recibió nada, ni ecos. Un buzón en
+        verde afirmando que todo llegó bien, cuando no hay remitente, es
+        exactamente una pantalla que parece estar bien.
+      */}
+      {plan && !plan.usaRegistroExterno && (
+        <div className="mb-6 p-4 rounded-lg border bg-slate-50 border-slate-200">
+          <div className="flex items-center gap-3">
+            <Inbox className="w-5 h-5 text-slate-500 shrink-0" />
+            <div>
+              <p className="font-medium text-gray-900">
+                Esta empresa no está integrada con un registro externo
+              </p>
+              <p className="text-sm text-gray-600">
+                El buzón no recibe nada porque no hay quien le escriba. Toda la
+                operación vive en el ERP.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/*
         El titular no es «cuántos avisos llegaron» sino «cuántos piden algo».
         Un buzón con mil ecos y cero pendientes está sano, y un contador total
         lo haría parecer un problema.
       */}
+      {!(plan && !plan.usaRegistroExterno) && (
       <div className={`mb-6 p-4 rounded-lg border ${pidenAlgo > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
         <div className="flex items-center gap-3">
           {pidenAlgo > 0
@@ -198,6 +228,7 @@ export default function AvisosDelCorePage() {
           </div>
         </div>
       </div>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-4">
         <button

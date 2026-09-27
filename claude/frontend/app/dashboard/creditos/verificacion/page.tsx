@@ -30,7 +30,7 @@ import {
   CheckCircle2, GripVertical, FlaskConical, ChevronDown, ChevronRight, Pencil, Save,
 } from 'lucide-react';
 import Link from 'next/link';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, intentar } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { TableroVerificaciones } from '@/components/verificaciones/tablero-verificaciones';
 import { PuedeCrear } from '@/app/components/ProtectedElement';
@@ -48,6 +48,21 @@ interface IPaso {
   peso?: number;
   umbralMinimo?: number | null;
   parametros?: Record<string, unknown>;
+}
+
+/**
+ * Lo que contesta `/integracion/validacion/capacidades`.
+ *
+ * `contratables` son los pasos que dependen de un proveedor externo —los
+ * demás no hay nada que contratarlos—; `contratadas` es lo que SUMA declaró
+ * para esta empresa, y `null` significa que no ha declarado nada y entonces no
+ * se restringe ninguno.
+ */
+interface ICapacidades {
+  contratables: TipoPaso[];
+  contratadas: TipoPaso[] | null;
+  sinRestriccion: boolean;
+  nota: string;
 }
 
 interface IFlujo {
@@ -132,6 +147,19 @@ export default function FlujoVerificacionPage() {
   /** El diseño del flujo no es de este perfil: sólo se enseña el tablero. */
   const [soloTablero, setSoloTablero] = useState(false);
 
+  /**
+   * Qué pasos tiene contratados la empresa. `null` = no se sabe, no se marca.
+   * `contratadas: null` dentro de la respuesta = SUMA no ha declarado nada,
+   * y entonces no se restringe ninguno: la misma regla que aplica el servidor.
+   */
+  const [capacidades, setCapacidades] = useState<ICapacidades | null>(null);
+  const contratada = (t: TipoPaso): boolean => {
+    if (!capacidades) return true;
+    if (!capacidades.contratables.includes(t)) return true;
+    if (capacidades.contratadas === null) return true;
+    return capacidades.contratadas.includes(t);
+  };
+
   const [edicion, setEdicion] = useState<
     { id: string; nombre: string; descripcion: string; topeAutomatico: string; puntajeMinimo: string } | null
   >(null);
@@ -142,6 +170,25 @@ export default function FlujoVerificacionPage() {
     try {
       setFlujos(await api.get<IFlujo[]>('/integracion/validacion/flujos'));
       setSoloTablero(false);
+      /*
+       * Qué pasos puede usar de verdad esta empresa.
+       *
+       * El endpoint existía desde que se separó «qué se contrata» de «cómo se
+       * ordena», y ninguna pantalla lo llamaba: el diseñador ofrecía los
+       * cuatro pasos externos a todo el mundo y el «no» llegaba al ACTIVAR,
+       * cuando el flujo ya estaba escrito y guardado. Un botón que lleva a un
+       * no, otra vez, y esta vez después de veinte minutos de trabajo.
+       *
+       * Se pregunta aquí y con respaldo: `null` significa «no lo sé» —el rol
+       * no alcanza, o la consulta no salió— y entonces no se marca nada, que
+       * es mejor que marcar como no contratado lo que sí lo está.
+       */
+      setCapacidades(
+        await intentar(
+          api.get<ICapacidades>('/integracion/validacion/capacidades'),
+          null,
+        ),
+      );
     } catch (e) {
       /*
        * «No tienes permiso» y «se cayó la consulta» no son lo mismo, y aquí la
@@ -414,10 +461,27 @@ export default function FlujoVerificacionPage() {
                             setEditor({ ...editor, pasos: copia });
                           }}>
                           {(Object.keys(CATALOGO) as TipoPaso[]).map((t) => (
-                            <option key={t} value={t}>{CATALOGO[t].nombre}</option>
+                            <option key={t} value={t}>
+                              {CATALOGO[t].nombre}
+                              {contratada(t) ? '' : ' — no contratado'}
+                            </option>
                           ))}
                         </select>
                         <p className="text-xs text-gray-500 mt-1">{meta.que}</p>
+                        {!contratada(paso.tipo) && (
+                          /*
+                           * Se dice aquí, al elegir el paso, y no al activar.
+                           * El paso se puede dejar escrito —diseñar no hace
+                           * daño— pero el flujo no se va a poder activar con
+                           * él dentro, y quien lo está armando tiene derecho a
+                           * saberlo antes de armarlo entero.
+                           */
+                          <p className="text-xs text-amber-700 mt-1">
+                            Esta empresa no tiene contratado este paso. El flujo
+                            no podrá activarse mientras lo incluya: quítalo o
+                            pide a SUMA que lo contrate.
+                          </p>
+                        )}
                         {meta.exigeAutorizacion && (
                           <p className="text-xs text-amber-700 mt-1">
                             Requiere autorización firmada del titular. Sin folio, el paso no consulta.

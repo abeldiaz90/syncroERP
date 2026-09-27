@@ -341,12 +341,25 @@ export default function EspejoContablePage() {
           valor={fallidos.datos?.length ?? 0}
           detalle="esperan la corrección"
         />
+        {/*
+          «Sin enlace» en rojo era una avería inventada para quien no espeja.
+          Una empresa que sólo usa el ERP no tiene enlace porque no contrató
+          ninguno, y el rojo la mandaba a buscar una caída que no existe. Rojo
+          es para el que espeja y perdió el enlace; para el que no espeja, la
+          casilla dice lo que pasa y no alarma.
+        */}
         <Indicador
           etiqueta="Enlace"
-          color={enVuelo ? "#059669" : "#e11d48"}
+          color={enVuelo ? "#059669" : espejoActivo ? "#e11d48" : "#64748b"}
           cargando={estado.cargando}
-          valor={enVuelo ? "En línea" : "Sin enlace"}
-          detalle={estado.datos?.enlace.proveedor ?? "—"}
+          valor={
+            enVuelo ? "En línea" : espejoActivo ? "Sin enlace" : "No se usa"
+          }
+          detalle={
+            enVuelo || espejoActivo
+              ? (estado.datos?.enlace.proveedor ?? "—")
+              : "el espejo está apagado"
+          }
         />
       </div>
 

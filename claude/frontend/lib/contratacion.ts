@@ -24,6 +24,20 @@
 import { useEffect, useState } from 'react';
 import { api, intentar } from '@/lib/api';
 
+/**
+ * Qué eje de la contratación necesita una pantalla para tener sentido.
+ *
+ * Se declara aquí, junto a la función que lo interpreta, y no en cada mapa de
+ * navegación: los mapas son varios —el menú lateral, el centro de trabajo, las
+ * pestañas de permisos— y cada uno que escriba su propio tipo acaba
+ * escribiendo también su propia regla.
+ */
+export type RequiereCore =
+  | 'cualquiera'
+  | 'cartera'
+  | 'contabilidad'
+  | 'validacion';
+
 export interface Contratacion {
   usaRegistroExterno: boolean;
   cartera: string;
@@ -71,9 +85,7 @@ export function useContratacion(): Contratacion | undefined {
  */
 export function contratado(
   plan: Contratacion | undefined | null,
-  item: {
-    requiereCore?: 'cualquiera' | 'cartera' | 'contabilidad' | 'validacion';
-  },
+  item: { requiereCore?: RequiereCore },
 ): boolean {
   if (!item.requiereCore) return true;
   if (!plan) return false;

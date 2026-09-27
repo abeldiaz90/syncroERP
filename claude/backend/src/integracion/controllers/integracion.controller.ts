@@ -51,6 +51,7 @@ import { IntegracionVinculosService } from '../services/integracion-vinculos.ser
 import { DecisionCreditoService } from '../services/decision-credito.service';
 import { DisponibilidadCreditoService } from '../services/disponibilidad-credito.service';
 import { ResolverDiscrepanciaDto } from '../dto/resolver-discrepancia.dto';
+import { hayValidacionContratada } from '../validacion/validacion.constants';
 
 /**
  * Administración del registro financiero externo.
@@ -552,21 +553,31 @@ export class IntegracionController {
      *
      * No es un modo con grados como los otros dos: o hay capacidades
      * declaradas o no las hay.
+     *
+     * La lectura del campo NO se hace aquí. Se hacía —un `?? []` y un
+     * `.length > 0`— y entendía la ausencia como «no contratado», mientras el
+     * servicio que de verdad manda la entiende como «nadie ha declarado nada,
+     * no restrinjo». Como ninguna consola escribe todavía esa lista, el campo
+     * está ausente en todas las instalaciones y la pantalla de verificación
+     * quedaba invisible en el menú de TODAS las empresas mientras el servidor
+     * dejaba activar cualquier flujo. Un campo, un significado:
+     * `hayValidacionContratada`.
      */
     const configuracion = await this.configEmpresa.findOne({
       where: { empresaId },
     });
-    const capacidades =
-      (configuracion?.parametrosProveedor as
-        | { capacidadesValidacion?: unknown[] }
+    const capacidades = (
+      configuracion?.parametrosProveedor as
+        | { capacidadesValidacion?: unknown }
         | null
-        | undefined)?.capacidadesValidacion ?? [];
+        | undefined
+    )?.capacidadesValidacion;
 
     return {
       usaRegistroExterno: await this.modos.usaRegistroExterno(empresaId),
       cartera: perfil.cartera,
       contabilidad: perfil.contabilidad,
-      validacion: Array.isArray(capacidades) && capacidades.length > 0,
+      validacion: hayValidacionContratada(capacidades),
     };
   }
 

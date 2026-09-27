@@ -48,6 +48,7 @@ import {
   CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
+import type { RequiereCore } from "@/lib/contratacion";
 
 export interface ModuleItem {
   label: string;
@@ -70,7 +71,7 @@ export interface ModuleItem {
    * El eje importa: una empresa puede espejar contabilidad y no mover cartera,
    * o al revés. `cualquiera` vale para lo que sirve con cualquiera de los dos.
    */
-  requiereCore?: 'cualquiera' | 'cartera' | 'contabilidad' | 'validacion';
+  requiereCore?: RequiereCore;
 }
 
 export interface ModuleAction {

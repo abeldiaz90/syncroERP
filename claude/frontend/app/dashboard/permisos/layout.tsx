@@ -16,11 +16,32 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Shield, Link2 } from 'lucide-react';
-import { useContratacion } from '@/lib/contratacion';
+import { useContratacion, contratado, type RequiereCore } from '@/lib/contratacion';
 
-const PESTANAS = [
-  { href: '/dashboard/permisos', etiqueta: 'Roles y accesos', Icono: Shield, requiereCore: false },
-  { href: '/dashboard/permisos/correspondencia', etiqueta: 'Correspondencia con Fineract', Icono: Link2, requiereCore: true },
+/*
+ * `requiereCore` se escribe igual que en el mapa de módulos —el eje, no un
+ * booleano— y se pregunta con la misma función.
+ *
+ * Antes esta pestaña llevaba su propia copia de la regla
+ * (`!p.requiereCore || plan?.usaRegistroExterno`). Una regla escrita dos veces
+ * es una regla que un día dice dos cosas: cuando apareció el tercer eje, la
+ * del mapa de módulos aprendió a distinguir cartera de contabilidad y de
+ * validación, y esta copia se quedó preguntando siempre por el registro
+ * externo. Hoy coinciden por casualidad; mañana no.
+ */
+const PESTANAS: {
+  href: string;
+  etiqueta: string;
+  Icono: typeof Shield;
+  requiereCore?: RequiereCore;
+}[] = [
+  { href: '/dashboard/permisos', etiqueta: 'Roles y accesos', Icono: Shield },
+  {
+    href: '/dashboard/permisos/correspondencia',
+    etiqueta: 'Correspondencia con Fineract',
+    Icono: Link2,
+    requiereCore: 'cualquiera',
+  },
 ];
 
 export default function PermisosLayout({ children }: { children: React.ReactNode }) {
@@ -31,9 +52,7 @@ export default function PermisosLayout({ children }: { children: React.ReactNode
    * la pestaña le proponía una tarea imposible con aire de pendiente.
    */
   const plan = useContratacion();
-  const pestanas = PESTANAS.filter(
-    (p) => !p.requiereCore || plan?.usaRegistroExterno,
-  );
+  const pestanas = PESTANAS.filter((p) => contratado(plan, p));
 
   return (
     <div style={{ padding: '24px 24px 0', maxWidth: 1240, margin: '0 auto' }}>

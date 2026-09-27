@@ -109,3 +109,23 @@ export function capacidadPermitida(
   if (!Array.isArray(contratadas)) return true;
   return contratadas.includes(tipo);
 }
+
+/**
+ * ¿Hay validación externa contratada? Lo que la interfaz necesita saber.
+ *
+ * Vive aquí, al lado de `capacidadPermitida`, porque es LA MISMA lectura del
+ * MISMO campo y se hacía dos veces con dos significados: el servicio entendía
+ * la ausencia como «nadie ha declarado nada, no restrinjo», y el endpoint de
+ * contratación la entendía como «no contratado» —un `?? []` seguido de
+ * `.length > 0`—. Como hoy ninguna consola escribe la lista, el campo está
+ * ausente en todas las instalaciones: el servidor dejaba activar cualquier
+ * flujo y el menú escondía la pantalla de verificación a todo el mundo.
+ *
+ * Se recibe `unknown` a propósito: viene de una columna JSON, y lo que no sea
+ * una lista es un dato mal escrito, no una decisión de no contratar. Ante la
+ * duda, la misma postura que toma `capacidadPermitida`: no restringir.
+ */
+export function hayValidacionContratada(capacidades: unknown): boolean {
+  if (!Array.isArray(capacidades)) return true;
+  return capacidades.length > 0;
+}
