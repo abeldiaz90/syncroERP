@@ -1,6 +1,7 @@
 // app/dashboard/hoteleria/housekeeping/page.tsx
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { solicitarTexto } from "@/components/ui/dialogos";
 import {
   Sparkles,
   Loader2,
@@ -141,9 +142,29 @@ export default function HousekeepingPage() {
       mostrar("No se encontró la limpieza terminada.", false);
       return;
     }
-    const comentario = aprobado
-      ? undefined
-      : "Rechazada por supervisión; requiere nueva limpieza.";
+    /*
+     * ── Rechazar es un juicio sobre el trabajo de alguien ────────────────
+     *
+     * El comentario iba fijo: «Rechazada por supervisión; requiere nueva
+     * limpieza.» Se guardaba en `comentarioInspeccion` —el campo existe y el
+     * servidor ya lo aceptaba— pero no decía NADA: ni qué estaba mal, ni qué
+     * hay que repetir. Quien limpió vuelve a la habitación sin saber a qué, y
+     * quien audite la trazabilidad encuentra la misma frase en todos los
+     * rechazos, que es lo mismo que no encontrar ninguna.
+     *
+     * En este ERP, toda decisión que le cuesta trabajo a otro pide su motivo
+     * —cancelar una orden, suspender un convenio, rechazar una requisición—.
+     * Ésta no era la excepción: era el olvido.
+     */
+    let comentario: string | undefined;
+    if (!aprobado) {
+      const motivo = await solicitarTexto(
+        `¿Qué encontraste mal en la habitación ${hab.numero}? Lo va a leer quien la vuelva a limpiar.`,
+        { titulo: "Rechazar la inspección", obligatorio: true },
+      );
+      if (motivo === null) return;
+      comentario = motivo;
+    }
     const r = await fetch(
       `${api}/hoteleria/housekeeping/tareas/${tarea.id}/inspeccionar`,
       {
