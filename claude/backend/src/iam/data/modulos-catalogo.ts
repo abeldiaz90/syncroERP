@@ -312,6 +312,18 @@ export const MODULOS_NEGOCIO: ModuloNegocio[] = [
       '/catalogo/categorias/:id/cuentas',
       '/catalogo/categorias/auto-configurar',
       /*
+       * Y el panel fiscal del catálogo: qué impuesto lleva cada producto y si
+       * tiene sus claves del SAT. Su propio comentario en
+       * `endpoints-navegables` dice que «es de Contabilidad, no del almacén»,
+       * pero el prefijo `/catalogo` lo dejaba en Inventario, así que el
+       * almacenista y hotelería veían la pantalla en su menú… y no podían leer
+       * el catálogo de impuestos, que es de «Precios e impuestos»: abría medio
+       * muerta. Medido el 27-sep-2026 barriendo rol por rol.
+       *
+       * Es más largo que `/catalogo`, así que gana.
+       */
+      '/catalogo/productos/fiscal',
+      /*
        * La puerta de atrás del asistente de recetas. `POST
        * /recetas/wizard/crear-cuentas` llama a `precargarPlanEstandar` —siembra
        * el catálogo de cuentas entero— y `crear-categoria` crea una categoría y

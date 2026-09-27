@@ -976,7 +976,22 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
        */
       'GET /credito/cuentas-bancarias/para-cobro',
     ],
-    accionesVedadas: ['GET /credito/cuentas-bancarias'],
+    accionesVedadas: [
+      'GET /credito/cuentas-bancarias',
+      /*
+       * El panel fiscal del catálogo —qué impuesto lleva cada producto y si
+       * tiene sus claves del SAT— es de Contabilidad; su propio comentario en
+       * `endpoints-navegables` ya lo decía. El 27-sep-2026 se reclasificó al
+       * módulo «Contabilidad» por prefijo, pero la reconciliación de arranque
+       * sólo ENCIENDE permisos, nunca los apaga: las instancias ya sembradas
+       * conservan la fila encendida y la pantalla seguía en el menú de
+       * hotelería, medio muerta —no puede leer el catálogo de impuestos, que
+       * es de «Precios e impuestos»—.
+       *
+       * Se retira por acción, que es lo que sí se apaga.
+       */
+      'GET /catalogo/productos/fiscal',
+    ],
   },
   {
     rol: 'rrhh',

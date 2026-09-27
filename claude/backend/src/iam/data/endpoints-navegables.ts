@@ -543,7 +543,22 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Costos de recetas',
     ordenMenu: 107,
   },
-  'GET /hoteleria/config/hoteles': {
+  /*
+   * La puerta de la configuración del hotel son los TIPOS DE HABITACIÓN, no
+   * la lista de propiedades.
+   *
+   * `GET /hoteleria/config/hoteles` es un dato de consulta: lo necesita
+   * cualquiera que tenga que elegir contra qué propiedad preguntar. El
+   * 27-sep-2026 se le concedió a `cobranza` para que el City Ledger —su
+   * pantalla— dejara de contestar $0.00… y con ello se le abrió también la
+   * configuración del hotel, que no es suya: habitaciones, tipos, tarifas y
+   * almacén de insumos.
+   *
+   * Una pantalla se abre con la llave que usa, no con una que todos tienen.
+   * Quien configura el hotel da de alta tipos de habitación; quien sólo
+   * necesita saber qué hoteles hay, no.
+   */
+  'GET /hoteleria/config/tipos': {
     rutaFrontend: '/dashboard/hoteleria/configuracion',
     titulo: 'Configuración de hotel',
     ordenMenu: 108,
