@@ -33,6 +33,7 @@ import Link from 'next/link';
 import { api, ApiError } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { TableroVerificaciones } from '@/components/verificaciones/tablero-verificaciones';
+import { PuedeCrear } from '@/app/components/ProtectedElement';
 
 type TipoPaso =
   | 'IDENTIDAD_INE' | 'BURO_CREDITO' | 'CIRCULO_CREDITO' | 'HISTORIAL_INTERNO'
@@ -128,6 +129,9 @@ export default function FlujoVerificacionPage() {
    * retrospectiva con qué reglas se aprobó un crédito ya otorgado. Para eso
    * está «Nuevo flujo», que crea otra versión.
    */
+  /** El diseño del flujo no es de este perfil: sólo se enseña el tablero. */
+  const [soloTablero, setSoloTablero] = useState(false);
+
   const [edicion, setEdicion] = useState<
     { id: string; nombre: string; descripcion: string; topeAutomatico: string; puntajeMinimo: string } | null
   >(null);
@@ -137,8 +141,31 @@ export default function FlujoVerificacionPage() {
     setError(null);
     try {
       setFlujos(await api.get<IFlujo[]>('/integracion/validacion/flujos'));
+      setSoloTablero(false);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'No fue posible leer los flujos.');
+      /*
+       * «No tienes permiso» y «se cayó la consulta» no son lo mismo, y aquí la
+       * diferencia decide qué ve la pantalla.
+       *
+       * El diseño del flujo es administración; correrlo y auditarlo es de
+       * crédito. `credito` entra por el TABLERO —ésa es la puerta— y al pedir
+       * la lista de flujos recibe un 403 perfectamente correcto. Pintado como
+       * error rojo parecía una avería encima de un tablero que sí había
+       * cargado con sus ocho verificaciones.
+       *
+       * Un 403 aquí no es una avería: es que esa mitad de la pantalla no es
+       * suya. Se dice con esas palabras y se esconde el panel entero.
+       */
+      const sinPermiso =
+        e instanceof ApiError && (e.esSinPermisos || e.esNoAutorizado);
+      setSoloTablero(sinPermiso);
+      setError(
+        sinPermiso
+          ? null
+          : e instanceof ApiError
+            ? e.message
+            : 'No fue posible leer los flujos.',
+      );
     } finally {
       setCargando(false);
     }
@@ -258,10 +285,20 @@ export default function FlujoVerificacionPage() {
               className="px-3 py-2 text-sm rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center gap-2">
               <Play className="w-4 h-4" /> Verificar a un cliente
             </Link>
-            <button onClick={() => void nuevoDesdePlantilla()}
-              className="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-2">
-              <Plus className="w-4 h-4" /> Nuevo flujo
-            </button>
+            {/*
+              Diseñar el flujo es administración; correrlo es de crédito. La
+              puerta de esta pantalla es el TABLERO —por eso `credito` entra y
+              ve su control de verificaciones—, pero el botón de «Nuevo flujo»
+              se pintaba para todos y contestaba «No tienes permisos
+              suficientes» al pulsarlo. Un botón que lleva a un no es peor que
+              no tener el botón: el usuario cree que hizo algo mal.
+            */}
+            <PuedeCrear ruta="/integracion/validacion/flujos">
+              <button onClick={() => void nuevoDesdePlantilla()}
+                className="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-2">
+                <Plus className="w-4 h-4" /> Nuevo flujo
+              </button>
+            </PuedeCrear>
           </div>
         )}
       </div>
@@ -287,7 +324,22 @@ export default function FlujoVerificacionPage() {
         </div>
       )}
 
-      {!cargando && !editor && (
+      {/*
+        Con el diseño del flujo fuera de alcance, lo que sigue —el flujo
+        activo, la lista y el editor— no tiene nada que enseñar: la consulta
+        que lo alimenta contestó 403. Se dice una vez, en una línea, y se
+        acaba la pantalla.
+      */}
+      {soloTablero && !cargando && (
+        <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          El <strong>diseño</strong> del flujo de verificación —qué se exige, con
+          qué política y hasta qué importe se aprueba solo— es de
+          Administración. Tu perfil corre las verificaciones y consulta su
+          control, que es lo de arriba.
+        </div>
+      )}
+
+      {!soloTablero && !cargando && !editor && (
         <div className={`mb-6 p-4 rounded-lg border ${activo ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
           <div className="flex items-start gap-3">
             {activo ? <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
@@ -445,6 +497,7 @@ export default function FlujoVerificacionPage() {
       )}
 
       {/* ── Lista ─────────────────────────────────────────────────────── */}
+      {!soloTablero && (
       <div className="bg-white border rounded-lg divide-y">
         {cargando && (
           <div className="p-8 text-center text-gray-500 flex items-center justify-center gap-2">
@@ -605,7 +658,7 @@ export default function FlujoVerificacionPage() {
           );
         })}
       </div>
-
+      )}
       <p className="text-xs text-gray-500 mt-4">
         Este flujo produce un veredicto y un expediente; no otorga el crédito. La autorización sigue
         pasando por el flujo de aprobaciones de siempre.
