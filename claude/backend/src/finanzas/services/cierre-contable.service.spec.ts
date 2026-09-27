@@ -108,7 +108,16 @@ describe('CierreContableService — cierre mensual guiado', () => {
     cierreRepo.findOne.mockResolvedValue(null);
     revisionRepo.findOne.mockResolvedValue(null);
     espejoFilas = [];
+    /*
+     * El techo global ya no se lee de `process.env` sino de ConfigService: eran
+     * dos lecturas de la misma configuracion que contestaban distinto, y la que
+     * decidia si el control ESPEJO_CONTABLE existe era la que no veia nada. Se
+     * simula aqui con la misma variable para no reescribir los casos.
+     */
     delete process.env.CONTABILIDAD_EXTERNA_MODO;
+    const config = {
+      get: (clave: string) => process.env[clave],
+    };
     service = new CierreContableService(
       cierreRepo as any,
       revisionRepo as any,
@@ -116,6 +125,7 @@ describe('CierreContableService — cierre mensual guiado', () => {
       dataSource as any,
       activacion as any,
       respaldo as any,
+      config as any,
     );
   });
 

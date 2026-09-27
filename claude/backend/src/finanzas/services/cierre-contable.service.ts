@@ -22,6 +22,8 @@ import {
   type RespaldoGenerado,
 } from './respaldo-cierre.service';
 import { espejoEncendido } from '../../integracion/utils/modo-contabilidad.util';
+import { ConfigService } from '@nestjs/config';
+import { EVENTOS_DE_CONTABILIDAD } from '../../integracion/integracion.constants';
 
 type Consultar = (sql: string, parametros?: unknown[]) => Promise<any[]>;
 
@@ -115,6 +117,22 @@ export class CierreContableService {
     private readonly dataSource: DataSource,
     private readonly activacionService: ActivacionFinancieraService,
     private readonly respaldoService: RespaldoCierreService,
+    /*
+     * El techo global del espejo se lee por aquí y no por `process.env`.
+     *
+     * No es un defecto medido —se comprobó en UAT que el control aparece igual
+     * con las dos lecturas—: es que la misma configuración se leía de dos
+     * sitios distintos. `/integracion/estado` la pide a ConfigService, que
+     * conoce `.env.local` y `.env` y aplica la validación del entorno; esta
+     * clase la pedía al proceso. Mientras coincidan, nadie lo nota; el día que
+     * no coincidan, lo que se rompe es la EXISTENCIA del control —`espejoActivo`
+     * decide si aparece— y un control que desaparece no falla: no está. Nadie
+     * echa de menos lo que no ve, y el cierre certificaría el mes sin comprobar
+     * que las pólizas llegaron al mayor externo.
+     *
+     * Una lectura, una respuesta.
+     */
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -424,10 +442,35 @@ export class CierreContableService {
        * otro lado.
        *
        * Se cuenta lo NO entregado —pendiente, reintentable o fallido— de
-       * esta empresa. No se filtra por periodo a proposito: un evento de
+       * esta empresa, y se cuenta HACIA ATRAS sin limite: un evento de
        * agosto sin entregar sigue siendo una divergencia viva en
        * septiembre, y esconderlo por fecha seria el mismo error de contar
        * un estado que nadie escribe.
+       *
+       * Hacia ADELANTE si hay limite, y faltaba. Dos cosas se contaban que
+       * no le tocan a este control:
+       *
+       *  1. Eventos de la OTRA mitad. `integracion_eventos` es una sola
+       *     cola con dos duenos —cartera y contabilidad— y no se filtraba
+       *     por tipo: un cliente sin publicar en el registro externo
+       *     bloqueaba el cierre CONTABLE. Es la misma leccion que ya se
+       *     aplico al apagar un eje —cada eje mira solo lo suyo—, porque
+       *     negar un cierre por algo que quien cierra no puede resolver es
+       *     senalar a quien no tiene la culpa.
+       *
+       *  2. Documentos de un mes POSTERIOR al que se cierra. La nomina
+       *     fechada el 15 de octubre, corrida en septiembre, vive en la
+       *     cola y el proveedor la rechaza por fecha futura —hace bien—.
+       *     Contarla al cerrar septiembre era un bloqueo que nadie podia
+       *     levantar: no hay nada que corregir, y esperar tampoco sirve,
+       *     porque para cuando llegue el 15 de octubre septiembre ya
+       *     tendria que estar cerrado. Un documento de octubre no es una
+       *     divergencia de septiembre: es un documento de octubre.
+       *
+       * De ahi la regla asimetrica: todo lo anterior al corte cuenta; lo
+       * posterior, no. Todos los eventos del eje contable son polizas
+       * —`EVENTOS_DE_CONTABILIDAD` es exactamente POLIZA_REGISTRADA—, asi
+       * que la fecha del documento se alcanza por `entidadId`.
        * ──────────────────────────────────────────────────────────────────
        */
       consultar(
@@ -441,9 +484,30 @@ export class CierreContableService {
           LEFT JOIN integracion_eventos e
                  ON e.empresaId = c.empresaId
                 AND e.estado IN ('FALLIDO','REINTENTABLE','PENDIENTE')
+                AND e.tipo = ANY($2::text[])
+                /*
+                 * El corte por fecha va en el JOIN, no en el WHERE, y por eso
+                 * esta escrito en negativo.
+                 *
+                 * En el WHERE se probo primero y se midio el resultado: con
+                 * los tres eventos de octubre como unicos de la cola, la
+                 * consulta no devolvia NINGUNA fila —tambien se perdia la de
+                 * configuracion— y el control desaparecia del diagnostico en
+                 * lugar de salir en verde. Un control que se esconde es peor
+                 * que uno que bloquea: nadie echa de menos lo que no ve.
+                 *
+                 * NOT EXISTS ... > corte, y no EXISTS ... <= corte, para que
+                 * un evento cuya poliza ya no esta siga contando: si no se
+                 * puede probar que es posterior al corte, cuenta.
+                 */
+                AND NOT EXISTS (
+                      SELECT 1 FROM polizas p
+                       WHERE p.id = e.entidadId
+                         AND p.fecha > $3::date
+                    )
           WHERE c.empresaId = $1
         `,
-        [empresaId],
+        [empresaId, [...EVENTOS_DE_CONTABILIDAD], fechaHasta],
       ).catch(siFalla('estado del espejo contable', [])),
     ]);
 
@@ -496,7 +560,7 @@ export class CierreContableService {
     const espejoActivo =
       espejoSeMidio &&
       espejoEncendido(
-        process.env.CONTABILIDAD_EXTERNA_MODO,
+        this.config.get<string>('CONTABILIDAD_EXTERNA_MODO'),
         espejo.modoEmpresa as string | null,
       );
     const espejoSinEntregar =
