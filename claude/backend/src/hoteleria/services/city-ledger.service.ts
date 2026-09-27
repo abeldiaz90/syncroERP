@@ -582,8 +582,19 @@ export class CityLedgerService {
        * de exposicion crediticia que siempre da cero es un control que siempre
        * aprueba. Los dos alias de al lado si estaban entrecomillados, que es lo
        * que hacia tan facil no ver el que faltaba.
+       *
+       * 27-sep-2026 · Y ARREGLARLO A MEDIAS COSTO OTRO DEFECTO. Al poner las
+       * comillas en el alias, `base` dejo de tener columna `clienteid`: quedo
+       * con `"clienteId"`, sensible a mayusculas. La REFERENCIA de la linea de
+       * abajo seguia sin comillas, asi que PostgreSQL buscaba `base.clienteid`
+       * y no la encontraba. Esta vez no era un cero silencioso: era un 500 en
+       * cada llamada a la lista de convenios.
+       *
+       * Y estuvo meses en verde porque la funcion devuelve `[]` antes de
+       * llegar aqui cuando no hay convenios. El PRIMER convenio que alguien
+       * firmara rompia la pantalla.
        */
-      `SELECT base.clienteId AS "clienteId",
+      `SELECT base."clienteId" AS "clienteId",
               COALESCE(hotel.saldo,0) AS "saldoHotel",
               COALESCE(venta.saldo,0) AS "saldoVentas"
          FROM (SELECT DISTINCT clienteId AS "clienteId" FROM hoteleria_convenios_credito WHERE empresaId=$1) base
