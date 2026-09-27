@@ -155,6 +155,99 @@ describe('SQL · los alias con mayúsculas van entre comillas', () => {
 
 /**
  * ============================================================================
+ * Y la tercera: quien entrecomilla un alias tiene que entrecomillarlo SIEMPRE
+ * ----------------------------------------------------------------------------
+ * Entrecomillar el alias lo vuelve sensible a mayúsculas, y eso vale para las
+ * dos puntas. Una subconsulta que expone `AS "clienteId"` ya NO tiene columna
+ * `clienteid`, así que la consulta de fuera que la pide sin comillas no
+ * devuelve `undefined` como en los dos casos de arriba: revienta.
+ *
+ *     FROM (SELECT DISTINCT clienteId AS "clienteId" FROM …) base
+ *     SELECT base.clienteId            ← `base.clienteid`: no existe
+ *
+ * Medido el 27-sep-2026 en City Ledger. El endpoint que lista los convenios
+ * contestaba 500 «Database Error» en cada llamada… pero sólo con convenios ya
+ * creados: la función devuelve `[]` antes de llegar a esta consulta cuando no
+ * hay ninguno. Por eso pasó meses en verde. EL PRIMER CONVENIO DE LA VIDA DEL
+ * SISTEMA ROMPÍA LA PANTALLA, y hasta que alguien firmara uno no había manera
+ * de enterarse.
+ *
+ * El comentario que hay junto a esa consulta cuenta cómo se arreglaron los
+ * alias del SELECT y no se tocó la referencia de al lado. Arreglar media regla
+ * es exactamente cómo nace este defecto.
+ * ============================================================================
+ */
+describe('SQL · una referencia a un alias entrecomillado también va entrecomillada', () => {
+  const todas = consultas();
+
+  /** El texto entre un `(` y su pareja, contando niveles. */
+  function parejaDe(texto: string, abre: number): number {
+    let nivel = 0;
+    for (let i = abre; i < texto.length; i++) {
+      if (texto[i] === '(') nivel++;
+      else if (texto[i] === ')') {
+        nivel--;
+        if (nivel === 0) return i;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * Las subconsultas con nombre: `FROM ( … ) base`, `JOIN ( … ) hotel`.
+   *
+   * Sólo ellas importan. `s.almacenId` contra una TABLA real está bien: la
+   * columna de verdad es minúscula por la estrategia de nombres y PostgreSQL
+   * pliega los dos lados igual. Lo que no existe es `base.clienteid` cuando la
+   * subconsulta se llamó `"clienteId"`.
+   */
+  function subconsultas(sql: string): Array<{ alias: string; cuerpo: string }> {
+    const salida: Array<{ alias: string; cuerpo: string }> = [];
+    for (const m of sql.matchAll(/\b(?:FROM|JOIN)\s*\(/gi)) {
+      const abre = m.index! + m[0].length - 1;
+      const cierra = parejaDe(sql, abre);
+      if (cierra < 0) continue;
+      const alias = /^\s*(?:AS\s+)?([A-Za-z_]\w*)/i.exec(sql.slice(cierra + 1))?.[1];
+      if (!alias) continue;
+      if (/^(on|where|group|order|having|left|right|inner|join|union|limit)$/i.test(alias)) {
+        continue;
+      }
+      salida.push({ alias, cuerpo: sql.slice(abre + 1, cierra) });
+    }
+    /* Y las CTE: `WITH ordenados AS ( … )`. */
+    for (const m of sql.matchAll(/\bWITH\s+([A-Za-z_]\w*)\s+AS\s*\(/gi)) {
+      const abre = m.index! + m[0].length - 1;
+      const cierra = parejaDe(sql, abre);
+      if (cierra < 0) continue;
+      salida.push({ alias: m[1], cuerpo: sql.slice(abre + 1, cierra) });
+    }
+    return salida;
+  }
+
+  it('ninguna consulta pide sin comillas un alias que definió con ellas', () => {
+    const culpables: string[] = [];
+    for (const consulta of todas) {
+      const sql = sqlDesnudo(consulta.sql);
+      for (const sub of subconsultas(sql)) {
+        const expuestos = new Set<string>();
+        for (const m of sub.cuerpo.matchAll(/\bAS\s+"([^"]+)"/g)) {
+          if (m[1] !== m[1].toLowerCase()) expuestos.add(m[1]);
+        }
+        if (!expuestos.size) continue;
+        const refs = new RegExp(`\\b${sub.alias}\\.([A-Za-z_]\\w*)`, 'g');
+        for (const m of sql.matchAll(refs)) {
+          if (!expuestos.has(m[1])) continue;
+          culpables.push(`${consulta.ruta}:${consulta.linea} → ${sub.alias}.${m[1]}`);
+        }
+      }
+    }
+
+    expect([...new Set(culpables)].sort()).toEqual([]);
+  });
+});
+
+/**
+ * ============================================================================
  * Y la segunda mitad de la regla, que descubrí tarde
  * ----------------------------------------------------------------------------
  * Las dos pruebas de arriba miran los ALIAS. Pero una columna **seleccionada
