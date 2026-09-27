@@ -570,7 +570,7 @@ export class CrmService {
   async metricas(empresaId: string, desde: string, hasta: string) {
     // Igual que en los demás reportes: la fecha se valida aquí y no en la
     // base, para que el error diga qué falta en vez de «Database Error».
-    const { desde: d, hasta: h } = exigirRangoDeFechas(desde, hasta);
+    const { desde: d, hastaFinDelDia: h } = exigirRangoDeFechas(desde, hasta);
 
     const cerradas = await this.oportunidades.find({
       where: { empresaId, fechaCierreReal: Between(d, h) },

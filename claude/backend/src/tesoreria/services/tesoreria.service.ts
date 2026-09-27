@@ -1077,7 +1077,7 @@ export class TesoreriaService {
     const movimientos = await this.movimientos.find({
       where: {
         empresaId,
-        fecha: Between(rango.desde, rango.hasta),
+        fecha: Between(rango.desde, rango.hastaFinDelDia),
         cancelado: false,
         ...(cuentaBancariaId ? { cuentaBancariaId } : {}),
       },

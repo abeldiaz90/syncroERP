@@ -364,7 +364,10 @@ export class ConsumoRecetasService {
     // Se valida antes de tocar la base: sin esto, una fecha ausente o mal
     // escrita llegaba como `Invalid Date` y el usuario recibía un 500
     // «Database Error» en vez de saber qué le falta.
-    const { desde: inicio, hasta: fin } = exigirRangoDeFechas(desde, hasta);
+    const { desde: inicio, hastaFinDelDia: fin } = exigirRangoDeFechas(
+      desde,
+      hasta,
+    );
 
     // Lo que salió por consumo de receta: el teórico, ya escalado por venta.
     const consumos = await this.movRepo.find({
