@@ -853,6 +853,21 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * como simulación, que la puerta no acepta.
      */
     accionesIrrenunciables: [
+      /*
+       * El CATÁLOGO DE CUENTAS, en lectura, para poder enlazar.
+       *
+       * La pantalla de cuentas bancarias de crédito enlaza cada cuenta con
+       * su cuenta contable: de ahí sale el asiento de cada cobro.
+       *
+       * Sin poder leer el catálogo, el desplegable de cuenta contable sale
+       * vacío y el campo —obligatorio— no se puede contestar: la pantalla
+       * abre y no deja terminar. Es lectura del catálogo, nada más: no
+       * concede pólizas, ni cierres, ni el módulo de contabilidad.
+       *
+       * Medido el 27-sep-2026 llamando, rol por rol, a las lecturas que hace
+       * cada pantalla a la que ese rol entra.
+       */
+      'GET /finanzas/cuentas-contables',
       // El tablero de pendientes: cuentas, no documentos.
       ACCION_TABLERO_PENDIENTES,
       'POST /integracion/validacion/ejecutar',
@@ -876,6 +891,21 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     modulosConsulta: ['ventas', 'facturacion', 'caja'],
     modulosVedados: ['hoteleria'],
     accionesIrrenunciables: [
+      /*
+       * El CATÁLOGO DE CUENTAS, en lectura, para poder enlazar.
+       *
+       * La pantalla de cuentas bancarias enlaza cada cuenta con su cuenta
+       * contable: de ahí sale el asiento de cada cobro.
+       *
+       * Sin poder leer el catálogo, el desplegable de cuenta contable sale
+       * vacío y el campo —obligatorio— no se puede contestar: la pantalla
+       * abre y no deja terminar. Es lectura del catálogo, nada más: no
+       * concede pólizas, ni cierres, ni el módulo de contabilidad.
+       *
+       * Medido el 27-sep-2026 llamando, rol por rol, a las lecturas que hace
+       * cada pantalla a la que ese rol entra.
+       */
+      'GET /finanzas/cuentas-contables',
       /*
        * El tablero de validación de expedientes nombra a `cobranza` en su
        * `@Roles`; sin la concesión, el decorador prometía un acceso que la
@@ -974,6 +1004,21 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'POST /rrhh/estructura/solicitudes/:id/finanzas',
     ],
     accionesIrrenunciables: [
+      /*
+       * El CATÁLOGO DE CUENTAS, en lectura, para poder enlazar.
+       *
+       * Los conceptos de nómina y la configuración de nómina piden a qué
+       * cuenta contable va cada percepción y cada deducción.
+       *
+       * Sin poder leer el catálogo, el desplegable de cuenta contable sale
+       * vacío y el campo —obligatorio— no se puede contestar: la pantalla
+       * abre y no deja terminar. Es lectura del catálogo, nada más: no
+       * concede pólizas, ni cierres, ni el módulo de contabilidad.
+       *
+       * Medido el 27-sep-2026 llamando, rol por rol, a las lecturas que hace
+       * cada pantalla a la que ese rol entra.
+       */
+      'GET /finanzas/cuentas-contables',
       // El tablero de pendientes: cuentas, no documentos.
       ACCION_TABLERO_PENDIENTES,
     ],
