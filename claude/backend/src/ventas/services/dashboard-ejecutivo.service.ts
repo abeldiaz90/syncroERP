@@ -100,11 +100,29 @@ export class DashboardEjecutivoService {
           'GROUP BY p.nombre,p.sku ORDER BY importe DESC LIMIT 5',
         [empresaId, 'ANULADA', inicioMes, finHoy],
       ),
+      /*
+       * Cuentas por cobrar: las DOS carteras.
+       *
+       * Esto sumaba sólo `creditos_clientes` —el crédito de ventas—. El
+       * hospedaje a crédito vive en `hoteleria_city_ledger_cuentas` y quedaba
+       * fuera, así que la dirección leía una cartera más pequeña que la real
+       * en un hotel que opera con convenios. El propio sistema dice, en la
+       * pantalla de convenios, que la línea es UNA SOLA y que la exposición se
+       * mide con las dos juntas.
+       *
+       * No hay doble conteo: son dos tablas operativas distintas, y ninguna de
+       * las dos es la contabilidad.
+       */
       q<{ saldo: number; creditos: number }>(
         'cuentas por cobrar',
-        'SELECT COALESCE(SUM(saldoPendiente),0) AS saldo, COUNT(*) AS creditos ' +
-          'FROM creditos_clientes WHERE empresaId=$1 AND estado IN ($2,$3)',
-        [empresaId, 'ACTIVO', 'VENCIDO'],
+        'SELECT COALESCE(SUM(saldo),0) AS saldo, COALESCE(SUM(piezas),0) AS creditos FROM (' +
+          ' SELECT COALESCE(SUM(saldoPendiente),0) AS saldo, COUNT(*) AS piezas ' +
+          '   FROM creditos_clientes WHERE empresaId=$1 AND estado IN ($2,$3)' +
+          ' UNION ALL ' +
+          ' SELECT COALESCE(SUM(saldoPendiente),0) AS saldo, COUNT(*) AS piezas ' +
+          '   FROM hoteleria_city_ledger_cuentas WHERE empresaId=$1 AND estado IN ($4,$5)' +
+          ') dos',
+        [empresaId, 'ACTIVO', 'VENCIDO', 'ABIERTA', 'VENCIDA'],
       ),
       q<{ saldo: number; ordenes: number }>(
         'cuentas por pagar',
@@ -158,11 +176,25 @@ export class DashboardEjecutivoService {
         'SELECT COUNT(*) AS total FROM requisiciones WHERE empresaId=$1 AND estado=$2',
         [empresaId, 'PENDIENTE'],
       ),
+      /*
+       * Cobranza de hoy: las dos carteras, y sin los pagos cancelados.
+       *
+       * Faltaban los cobros de City Ledger —dos de $1,500 y $1,200 el
+       * 27-sep-2026 no aparecían— y se contaban los pagos CANCELADOS, que no
+       * son cobranza: al cancelar uno, el saldo del crédito vuelve a subir.
+       */
       q<{ total: number; pagos: number }>(
         'cobranza de hoy',
-        'SELECT COALESCE(SUM(pc.montoPagado),0) AS total, COUNT(*) AS pagos ' +
-          'FROM pagos_cobranza pc JOIN creditos_clientes cc ON cc.id=pc.creditoId ' +
-          'WHERE cc.empresaId=$1 AND pc.fechaPago>=$2 AND pc.fechaPago<$3',
+        'SELECT COALESCE(SUM(total),0) AS total, COALESCE(SUM(pagos),0) AS pagos FROM (' +
+          ' SELECT COALESCE(SUM(pc.montoPagado),0) AS total, COUNT(*) AS pagos ' +
+          '   FROM pagos_cobranza pc JOIN creditos_clientes cc ON cc.id=pc.creditoId ' +
+          '  WHERE cc.empresaId=$1 AND pc.cancelado=false ' +
+          '    AND pc.fechaPago>=$2 AND pc.fechaPago<$3' +
+          ' UNION ALL ' +
+          ' SELECT COALESCE(SUM(co.importe),0) AS total, COUNT(*) AS pagos ' +
+          '   FROM hoteleria_city_ledger_cobros co ' +
+          '  WHERE co.empresaId=$1 AND co.fechaPago>=$2 AND co.fechaPago<$3' +
+          ') dos',
         [empresaId, inicioHoy, finHoy],
       ),
     ]);
