@@ -184,6 +184,27 @@ describe('establecerModoCartera', () => {
     expect(guardadas).toHaveLength(0);
   });
 
+  /*
+   * Y sin discrepancias tampoco sube, por una razón distinta y más de fondo:
+   * nadie ejerce AUTORIDAD. Ver `un-modo-que-no-cambia-nada.spec.ts`. Este
+   * caso no existía —nunca se probó una promoción limpia— y por eso el modo
+   * pudo pasar meses prometiendo algo que ningún camino cumplía.
+   */
+  it('no sube a AUTORIDAD ni con la conciliación limpia: nadie la ejerce', async () => {
+    const { servicio, guardadas } = conRepo(ModoCartera.SOMBRA);
+    const r = await servicio.establecerModoCartera(
+      'e1',
+      ModoCartera.AUTORIDAD,
+      sondas(0, 0),
+    );
+
+    expect(r.aplicado).toBe(false);
+    expect(r.motivo).toMatch(/no está cableado/);
+    // Y dice dónde se decide de verdad, para que nadie lo busque a ciegas.
+    expect(r.motivo).toMatch(/City Ledger/);
+    expect(guardadas).toHaveLength(0);
+  });
+
   it('no deja apagar dejando eventos sin entregar', async () => {
     const { servicio, guardadas } = conRepo(ModoCartera.AUTORIDAD);
     const r = await servicio.establecerModoCartera(

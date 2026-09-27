@@ -503,15 +503,35 @@ export class AltaEmpresasService {
               ? 'Reponer la reserva en la próxima ventana de mantenimiento y asignar uno.'
               : null,
         },
+        /*
+         * Este punto exigía AUTORIDAD para darse por hecho, y AUTORIDAD ya no
+         * se concede: nadie la ejerce —ver `un-modo-que-no-cambia-nada.spec.ts`
+         * y la negativa de `establecerModoCartera`—. Un punto de lista que no
+         * se puede marcar nunca es una empresa que jamás sale como terminada, y
+         * eso enseña a ignorar la lista entera.
+         *
+         * Lo que de verdad hay que alcanzar para que la integración sirva es
+         * SOMBRA: desde ahí se publica, se refleja y se concilia. Se marca eso,
+         * y el detalle explica el grado siguiente sin fingir que está a mano.
+         */
         {
           clave: 'conciliacion',
-          titulo: 'Autoridad sobre la cartera',
-          listo: (cfg?.modo ?? ModoCartera.APAGADO) === ModoCartera.AUTORIDAD,
-          detalle:
-            cfg?.modo === ModoCartera.AUTORIDAD
-              ? 'El registro externo manda sobre la cartera.'
-              : 'El ERP sigue siendo el sistema de registro. Subir a AUTORIDAD exige conciliación sin diferencias.',
-          accion: null,
+          titulo: 'Cartera enlazada con el registro externo',
+          listo:
+            !usaFineract ||
+            (cfg?.modo ?? ModoCartera.APAGADO) !== ModoCartera.APAGADO,
+          detalle: !usaFineract
+            ? 'No aplica: esta empresa opera sólo con el ERP.'
+            : (cfg?.modo ?? ModoCartera.APAGADO) === ModoCartera.APAGADO
+              ? 'La cartera no se publica ni se concilia. Súbela a SOMBRA.'
+              : 'En SOMBRA: se publica, se refleja y se concilia, y el ERP ' +
+                'sigue decidiendo. AUTORIDAD no se concede todavía porque ' +
+                'ningún camino de venta consulta al registro externo.',
+          accion:
+            usaFineract &&
+            (cfg?.modo ?? ModoCartera.APAGADO) === ModoCartera.APAGADO
+              ? 'Subir el modo de cartera a SOMBRA.'
+              : null,
         },
       ],
     };
