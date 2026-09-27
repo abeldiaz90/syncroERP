@@ -1,6 +1,24 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
+/**
+ * Un `aaaa-mm-dd` a partir de lo que devuelva la base.
+ *
+ * Una columna `date` consultada con `dataSource.query` llega como objeto
+ * `Date`, no como texto: `String(fecha).slice(0, 10)` daba «Mon Sep 28», que
+ * es lo que acabó impreso en el estado de cuenta del cliente. Y convertirla
+ * con `toISOString()` la movería al día anterior en México. Se lee por sus
+ * componentes locales, que es lo único que no miente.
+ */
+function soloFecha(valor: unknown): string {
+  if (valor instanceof Date) {
+    const mes = String(valor.getMonth() + 1).padStart(2, '0');
+    const dia = String(valor.getDate()).padStart(2, '0');
+    return `${valor.getFullYear()}-${mes}-${dia}`;
+  }
+  return String(valor ?? '').slice(0, 10);
+}
+
 @Injectable()
 export class EstadoCuentaService {
   constructor(private readonly dataSource: DataSource) {}
@@ -88,6 +106,72 @@ export class EstadoCuentaService {
       ],
     );
 
+    /*
+     * ── 3-bis. Y lo que debe por City Ledger ─────────────────────────────
+     *
+     * Este documento es EL QUE SE LE MANDA AL CLIENTE, y leía sólo
+     * `creditos_clientes`: el crédito de ventas. Una agencia que se hospeda a
+     * crédito no tiene un solo renglón ahí, así que su estado de cuenta salía
+     * con saldo CERO teniendo la cuenta abierta.
+     *
+     * Medido el 27-sep-2026: «Agencia de Viajes del Bajío», con $2,700 de
+     * hospedaje cargados y dos cobros aplicados en septiembre, recibía un
+     * estado de cuenta en blanco.
+     *
+     * Y no es un olvido sin consecuencia: el propio sistema dice en la
+     * pantalla de convenios que la línea es UNA SOLA y que la disponibilidad
+     * se calcula con ventas a crédito y City Ledger juntos. Un estado de
+     * cuenta que sólo enseña una mitad contradice el modelo que el resto del
+     * ERP defiende, y además es el que sostiene una gestión de cobranza.
+     *
+     * Las cuentas CANCELADAS no son deuda; los cobros van todos, porque un
+     * cobro de City Ledger no se cancela: se reversa con su propio documento.
+     */
+    const cargosHotel = await this.dataSource.query(
+      `
+      SELECT cl.id,
+             cl.folioReferencia AS "folio",
+             cl.fechaEmision    AS "fecha",
+             cl.importeOriginal AS "importe",
+             cl.numeroConvenioSnapshot AS "convenio"
+        FROM hoteleria_city_ledger_cuentas cl
+       WHERE cl.clienteId = $1 AND cl.empresaId = $2
+         AND cl.estado <> 'CANCELADA'
+         ${desde ? 'AND cl.fechaEmision >= $3' : ''}
+         ${hasta ? `AND cl.fechaEmision <= $${desde ? 4 : 3}` : ''}
+       ORDER BY cl.fechaEmision ASC
+    `,
+      [
+        clienteId,
+        empresaId,
+        ...(desde ? [desde] : []),
+        ...(hasta ? [hasta] : []),
+      ],
+    );
+
+    const abonosHotel = await this.dataSource.query(
+      `
+      SELECT co.id,
+             co.fechaPago AS "fecha",
+             co.importe   AS "importe",
+             co.metodoPago AS "metodoPago",
+             cl.folioReferencia AS "folio",
+             cl.fechaEmision AS "fechaCargo"
+        FROM hoteleria_city_ledger_cobros co
+        JOIN hoteleria_city_ledger_cuentas cl ON cl.id = co.cuentaCobrarId
+       WHERE cl.clienteId = $1 AND co.empresaId = $2
+         ${desde ? 'AND co.fechaPago >= $3' : ''}
+         ${hasta ? `AND co.fechaPago <= $${desde ? 4 : 3}` : ''}
+       ORDER BY co.fechaPago ASC
+    `,
+      [
+        clienteId,
+        empresaId,
+        ...(desde ? [desde] : []),
+        ...(hasta ? [hasta] : []),
+      ],
+    );
+
     // 4. Saldo anterior (ventas crédito antes del período, menos pagos antes del período)
     const [saldoAnt] = await this.dataSource.query(
       `
@@ -104,6 +188,18 @@ export class EstadoCuentaService {
           -- Misma razón: el saldo anterior no descuenta pagos cancelados.
           WHERE cc2.clienteId = $1 AND cc2.empresaId = $2 AND pc2.cancelado = false
             ${desde ? 'AND pc2.fechaPago < $3' : ''}
+        ), 0) +
+        COALESCE((
+          SELECT SUM(cl3.importeOriginal) FROM hoteleria_city_ledger_cuentas cl3
+          WHERE cl3.clienteId = $1 AND cl3.empresaId = $2
+            AND cl3.estado <> 'CANCELADA'
+            ${desde ? 'AND cl3.fechaEmision < $3' : ''}
+        ), 0) -
+        COALESCE((
+          SELECT SUM(co2.importe) FROM hoteleria_city_ledger_cobros co2
+          JOIN hoteleria_city_ledger_cuentas cl2 ON cl2.id = co2.cuentaCobrarId
+          WHERE cl2.clienteId = $1 AND co2.empresaId = $2
+            ${desde ? 'AND co2.fechaPago < $3' : ''}
         ), 0) AS "saldoAnterior"
     `,
       [clienteId, empresaId, ...(desde ? [desde] : [])],
@@ -141,6 +237,42 @@ export class EstadoCuentaService {
         abono: Number(p.montoPagado),
         _ts: new Date(p.fechaPago).getTime(),
       })),
+      /*
+       * Las fechas de City Ledger son columnas `date`: llegan como
+       * `aaaa-mm-dd` y se quedan así. Pasarlas por `new Date(...)` las
+       * interpretaría en UTC y en México saldrían un día antes, que es el
+       * mismo defecto que ya costó dos reportes.
+       */
+      ...cargosHotel.map((c: any) => ({
+        fecha: soloFecha(c.fecha),
+        tipo: 'HOSPEDAJE' as const,
+        folio: c.folio,
+        descripcion: `Hospedaje a crédito — convenio ${c.convenio ?? 'sin número'}`,
+        cargo: Number(c.importe),
+        abono: 0,
+        _ts: new Date(`${soloFecha(c.fecha)}T00:00:00`).getTime(),
+      })),
+      ...abonosHotel.map((a: any) => {
+        /*
+         * Un abono no puede ir ANTES del cargo que paga. La fecha de emisión
+         * de una cuenta de City Ledger es la fecha OPERATIVA del hotel, que va
+         * por delante del calendario: el hospedaje se emitió el 28 y se cobró
+         * el 27. Ordenar por fecha a secas pondría los abonos primero y el
+         * saldo corrido saldría en negativo hasta el final. Para el orden —no
+         * para la fecha que se imprime— el abono se ancla al cargo.
+         */
+        const cobro = new Date(`${soloFecha(a.fecha)}T00:00:01`).getTime();
+        const cargo = new Date(`${soloFecha(a.fechaCargo)}T00:00:01`).getTime();
+        return {
+          fecha: soloFecha(a.fecha),
+          tipo: 'ABONO' as const,
+          folio: a.folio,
+          descripcion: `Abono City Ledger — ${a.metodoPago ?? 'EFECTIVO'}`,
+          cargo: 0,
+          abono: Number(a.importe),
+          _ts: Math.max(cobro, cargo),
+        };
+      }),
     ].sort((a, b) => a._ts - b._ts);
 
     for (const m of todos) {
