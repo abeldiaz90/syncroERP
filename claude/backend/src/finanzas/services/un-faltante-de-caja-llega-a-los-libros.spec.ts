@@ -29,7 +29,14 @@ describe('el arqueo con diferencia se registra en el mayor', () => {
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   });
 
-  function crear(opts: { sinContrapartida?: boolean; sinCuentaCaja?: boolean } = {}) {
+  function crear(
+    opts: {
+      sinContrapartida?: boolean;
+      sinCuentaCaja?: boolean;
+      /** La cuenta del turno registrada como BANCO en vez de CAJA. */
+      comoBanco?: boolean;
+    } = {},
+  ) {
     const guardadas: any[] = [];
     const manager: any = {
       save: jest.fn(async (entidad: any, valor: any) => {
@@ -47,8 +54,8 @@ describe('el arqueo con diferencia se registra en el mayor', () => {
       query: jest.fn(async (sql: string) =>
         /cuentas_bancarias/i.test(sql)
           ? opts.sinCuentaCaja
-            ? [{ cuentaContableId: null }]
-            : [{ cuentaContableId: 'cta-caja' }]
+            ? [{ cuentaContableId: null, tipo: opts.comoBanco ? 'BANCO' : 'CAJA' }]
+            : [{ cuentaContableId: 'cta-caja', tipo: opts.comoBanco ? 'BANCO' : 'CAJA' }]
           : [],
       ),
       getRepository: jest.fn(() => ({
@@ -162,5 +169,28 @@ describe('el arqueo con diferencia se registra en el mayor', () => {
     });
     expect(id).toBe('poliza-1');
     expect(partidasDe(guardadas)).toHaveLength(2);
+  });
+
+  it('pero un BANCO sin cuenta contable no se registra como efectivo', async () => {
+    /*
+     * La otra mitad, y la que costó una póliza mal escrita el 27-sep-2026.
+     *
+     * Una caja sin cuenta contable propia cae en la cuenta general de caja y
+     * está bien: el dinero entró en efectivo, sólo falta saber en qué cajón.
+     * Un BANCO o un TPV sin cuenta contable no tiene ese remedio: caer a
+     * «Caja general» escribe en los libros algo que no pasó. Se midió
+     * cobrando un City Ledger por TRANSFERENCIA de $1,500 y la póliza cargó
+     * 101.01 «Caja y efectivo».
+     *
+     * Cuadra la balanza, cuadra el estado de resultados, y no cuadra el arqueo
+     * de caja meses después sin rastro de por qué. Ahora el asiento falla, se
+     * queda en «Asientos pendientes» con el motivo escrito, y se reintenta
+     * cuando alguien enlace la cuenta.
+     */
+    const { servicio, guardadas } = crear({ sinCuentaCaja: true, comoBanco: true });
+    await expect(
+      servicio.generarAsientoDeCierreCaja({ ...base, diferencia: -10 }),
+    ).rejects.toThrow(/no tiene cuenta contable enlazada/i);
+    expect(guardadas).toEqual([]);
   });
 });

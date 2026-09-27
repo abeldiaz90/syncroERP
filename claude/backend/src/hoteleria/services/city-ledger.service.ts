@@ -980,6 +980,14 @@ export class CityLedgerService {
             ivaReclasificado,
             totalPagado: importe,
             cuentaBancariaId: dto.cuentaBancariaId,
+            /*
+             * El concepto de la póliza decía «Cobranza — Crédito ef29699d»:
+             * los ocho primeros del identificador interno de la cuenta. Quien
+             * buscara ese número en City Ledger no encontraría nada, porque
+             * ahí las cuentas se llaman por su folio de origen. Es el mismo
+             * defecto que ya se corrigió en cobranza de ventas.
+             */
+            folioCredito: cuenta.folioReferencia,
           },
           empresaId,
           `CITY-${cuenta.folioReferencia}`,

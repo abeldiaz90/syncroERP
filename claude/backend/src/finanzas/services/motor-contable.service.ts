@@ -1717,7 +1717,8 @@ export class MotorContableService {
            * se tomaba NUNCA: toda póliza caía al respaldo de «Caja general».
            * El dinero de una tarjeta se contabilizaba como efectivo en caja.
            */
-          `SELECT cuentaContableId AS "cuentaContableId" FROM cuentas_bancarias WHERE id = $1 AND empresaId = $2`,
+          `SELECT cuentaContableId AS "cuentaContableId", tipo AS "tipo"
+             FROM cuentas_bancarias WHERE id = $1 AND empresaId = $2`,
           [cuentaBancariaId, empresaId],
         );
         if (rows?.[0]?.cuentaContableId) {
@@ -1726,8 +1727,45 @@ export class MotorContableService {
             .findOne({ where: { id: rows[0].cuentaContableId } });
           if (cuenta) return cuenta;
         }
+        /*
+         * ── Y si el banco no tiene cuenta contable, NO se cae a Caja ────────
+         *
+         * Quien llama trajo una cuenta bancaria: el dinero entró en un banco o
+         * en un TPV, y eso ya está dicho. Rematar con «Caja general» no es un
+         * respaldo prudente, es escribir en la contabilidad algo que no pasó:
+         * una transferencia de 1.500 registrada como efectivo en caja.
+         *
+         * Medido el 27-sep-2026 cobrando un City Ledger por transferencia: la
+         * póliza cargó 101.01 «Caja y efectivo». La cuenta bancaria de la
+         * instalación no tenía cuenta contable enlazada, y el respaldo lo tapó
+         * sin decir nada. Después cuadra la balanza, cuadra el estado de
+         * resultados y no cuadra la caja con el arqueo, meses más tarde y sin
+         * rastro de por qué.
+         *
+         * Ahora falla, y falla donde se puede arreglar: el asiento queda en
+         * «Asientos pendientes» con el motivo escrito, se enlaza la cuenta en
+         * Finanzas → Cuentas bancarias y se reintenta. Un asiento que espera es
+         * un problema visible; uno mal contabilizado no lo es.
+         *
+         * UNA CAJA sí sigue cayendo a la cuenta general de caja, y es correcto:
+         * el dinero entró en efectivo, sólo falta saber en qué cajón. De eso
+         * avisa el diagnóstico `FIN_BANCOS`. Lo que no puede pasar es que una
+         * transferencia o un TPV acaben ahí.
+         */
+        if (String(rows?.[0]?.tipo ?? '').toUpperCase() !== 'CAJA') {
+          throw new Error(
+            'La cuenta bancaria del cobro no tiene cuenta contable enlazada, ' +
+              'así que no hay dónde registrar la entrada. Enlázala en Finanzas → ' +
+              'Cuentas bancarias y reintenta el asiento. No se registra en Caja: ' +
+              'el dinero no entró en efectivo.',
+          );
+        }
       } catch (e: any) {
+        if (e instanceof Error && /no tiene cuenta contable enlazada/.test(e.message)) {
+          throw e;
+        }
         this.logger.warn('No se pudo leer CuentaBancaria: ' + e?.message);
+        throw e;
       }
     }
 
