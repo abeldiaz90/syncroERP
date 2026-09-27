@@ -874,6 +874,25 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'GET /integracion/validacion/expedientes',
       'GET /integracion/validacion/expedientes/:id',
       'POST /integracion/validacion/ejecutar',
+      /*
+       * La lista de propiedades, y sólo ella.
+       *
+       * Vedar «hoteleria» entero dejó a cobranza —cuya descripción dice «city
+       * ledger»— entrando a la pantalla del City Ledger y sin poder preguntar
+       * de qué hotel. Medido el 27-sep-2026: el rol abría la pantalla, leía
+       * «Tu perfil no puede consultar las propiedades», y los cuatro números
+       * de arriba salían en $0.00 con una cartera real de $2,700. Cartera,
+       * convenios y cobros SÍ contestaban: lo único que faltaba era saber
+       * contra qué propiedad preguntarlos.
+       *
+       * Una pantalla que se abre y no puede preguntar nada es peor que una
+       * pantalla cerrada: la cerrada dice que no, ésta dice cero.
+       *
+       * Va como acción irrenunciable y no abriendo el módulo: cobranza sigue
+       * sin recepción, sin housekeeping, sin auditoría nocturna y sin la
+       * configuración de las propiedades. Sólo la lista para elegir.
+       */
+      'GET /hoteleria/config/hoteles',
     ],
   },
   {
