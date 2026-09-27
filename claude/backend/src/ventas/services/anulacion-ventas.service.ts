@@ -526,7 +526,7 @@ export class AnulacionVentasService {
       };
     });
 
-    let asiento: { generado: boolean; polizaId?: string } = {
+    let asiento: { generado: boolean; polizaId?: string; mensaje?: string } = {
       generado: false,
     };
     try {
@@ -534,6 +534,20 @@ export class AnulacionVentasService {
         resultado.asientoPendienteId,
         empresaId,
       );
+      /*
+       * `reintentarAhora` no lanza por un asiento fallido: devuelve
+       * `generado: false` con el motivo. El `catch` de abajo sólo cubre un
+       * fallo de la propia cola —la base caída, por ejemplo—, así que sin este
+       * guardia la anulación decía haberse contabilizado sin hacerlo.
+       */
+      if (!asiento.generado) {
+        this.logger.warn(
+          `Venta #${resultado.venta.folio} anulada, pero su póliza de reversión no se generó: ${asiento.mensaje ?? ''}`,
+        );
+        resultado.advertencias.push(
+          `La anulación fue confirmada, pero su póliza NO se generó: ${asiento.mensaje ?? ''} Queda en Finanzas → Asientos pendientes.`,
+        );
+      }
     } catch (error) {
       const mensaje = error instanceof Error ? error.message : String(error);
       this.logger.error(

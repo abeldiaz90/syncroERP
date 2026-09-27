@@ -247,6 +247,19 @@ export class DevolucionesVentasService {
           resultado.asientoPendienteId,
           empresaId,
         );
+        /*
+         * `reintentarAhora` no lanza por un asiento fallido: devuelve
+         * `generado: false` con el motivo. Sin este guardia, el aviso del
+         * `catch` no salía nunca y la devolución se daba por contabilizada.
+         */
+        if (!estadoContable.generado) {
+          this.logger.warn(
+            `Devolución DEV-${resultado.devolucion.folio} confirmada, pero su póliza no se generó: ${(estadoContable as any).mensaje ?? ''}`,
+          );
+          resultado.advertencias.push(
+            `La devolución fue confirmada, pero su póliza NO se generó: ${(estadoContable as any).mensaje ?? ''} Queda en Finanzas → Asientos pendientes.`,
+          );
+        }
       } catch (error) {
         const mensaje = error instanceof Error ? error.message : String(error);
         this.logger.error(

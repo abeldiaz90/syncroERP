@@ -422,6 +422,19 @@ export class CobranzaService {
             asientoPendienteId: resultado.asientoPendienteId,
           },
         );
+        /*
+         * `reintentarAhora` no lanza por un asiento fallido: devuelve
+         * `generado: false` con el motivo. Sin este guardia, el aviso de abajo
+         * estaba escrito y no salía nunca.
+         */
+        if (!asiento.generado) {
+          this.logger.warn(
+            `La cobranza ${resultado.pago.id} fue confirmada, pero su póliza no se generó: ${asiento.mensaje}`,
+          );
+          advertencias.push(
+            `El pago quedó registrado, pero su póliza NO se generó: ${asiento.mensaje} Queda en Finanzas → Asientos pendientes.`,
+          );
+        }
       } catch (error) {
         const mensaje = error instanceof Error ? error.message : String(error);
         this.logger.error(

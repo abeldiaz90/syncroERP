@@ -1012,6 +1012,26 @@ export class CityLedgerService {
             polizaId: asiento.polizaId ?? null,
           },
         );
+        /*
+         * `reintentarAhora` NO LANZA cuando el asiento falla: lo deja escrito
+         * en la cola y devuelve `generado: false` con su motivo. El `catch` de
+         * abajo, por tanto, no se ejecuta nunca por esa causa, y su aviso no
+         * salía jamás.
+         *
+         * Medido el 27-sep-2026: cobro de $1,200 por transferencia, póliza no
+         * generada —la cuenta bancaria no tenía cuenta contable enlazada—,
+         * `estadoContable: 'PENDIENTE'`, `polizaId: null`, y la pantalla
+         * decía «Cobro registrado y enviado a contabilidad». Enviado sí,
+         * contabilizado no.
+         */
+        if (!asiento.generado) {
+          this.logger.warn(
+            `El cobro City Ledger ${resultado.cobro.id} quedó confirmado, pero su póliza no se generó: ${asiento.mensaje}`,
+          );
+          advertencias.push(
+            `El cobro quedó registrado, pero su póliza NO se generó: ${asiento.mensaje} Queda en Finanzas → Asientos pendientes.`,
+          );
+        }
       } catch (error) {
         const mensaje = error instanceof Error ? error.message : String(error);
         this.logger.error(

@@ -134,6 +134,13 @@ export default function CityLedgerPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
+  /*
+    Un aviso no es un acierto. «El cobro quedó registrado, pero su póliza NO se
+    generó» pintado en verde se lee igual que «todo bien», y quien lo lee sigue
+    con su día. Se distingue con el color y con el icono, que es lo que
+    realmente se mira.
+  */
+  const [mensajeEsAviso, setMensajeEsAviso] = useState(false);
 
   /*
     Las tres consultas iban en un solo `Promise.all` y la de cuentas bancarias
@@ -293,7 +300,8 @@ export default function CityLedgerPage() {
         `/hoteleria/city-ledger/convenios/${convenio.id}/reenviar`,
         {},
       );
-      setMensaje("Convenio reenviado a la bandeja central de aprobaciones");
+      setMensajeEsAviso(false);
+            setMensaje("Convenio reenviado a la bandeja central de aprobaciones");
       await cargarOperacion();
     } catch (e) {
       setError(
@@ -316,6 +324,7 @@ export default function CityLedgerPage() {
         `/hoteleria/city-ledger/convenios/${convenio.id}/suspender`,
         { comentario },
       );
+      setMensajeEsAviso(false);
       setMensaje(
         "Convenio suspendido. La cartera histórica permanece disponible para cobranza.",
       );
@@ -341,6 +350,7 @@ export default function CityLedgerPage() {
         `/hoteleria/city-ledger/convenios/${convenio.id}/cancelar`,
         { motivo },
       );
+      setMensajeEsAviso(false);
       setMensaje(
         "Convenio cancelado. Los saldos existentes permanecen disponibles para cobranza.",
       );
@@ -444,7 +454,14 @@ export default function CityLedgerPage() {
         </div>
       )}
       {mensaje && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+        <div
+          className={`rounded-2xl border p-4 text-sm ${
+            mensajeEsAviso
+              ? "border-amber-300 bg-amber-50 text-amber-800 font-semibold"
+              : "border-emerald-200 bg-emerald-50 text-emerald-700"
+          }`}
+        >
+          {mensajeEsAviso ? "⚠ " : ""}
           {mensaje}
         </div>
       )}
@@ -767,6 +784,7 @@ export default function CityLedgerPage() {
           onClose={() => setModalConvenio(false)}
           onOk={async () => {
             setModalConvenio(false);
+            setMensajeEsAviso(false);
             setMensaje("Convenio enviado a aprobación");
             await cargarOperacion();
           }}
@@ -778,6 +796,7 @@ export default function CityLedgerPage() {
           onClose={() => setConvenioRenovar(null)}
           onOk={async () => {
             setConvenioRenovar(null);
+            setMensajeEsAviso(false);
             setMensaje("Convenio renovado y enviado a aprobación");
             await cargarOperacion();
           }}
@@ -788,9 +807,14 @@ export default function CityLedgerPage() {
           cuenta={cuentaCobro}
           cuentas={cuentasBancarias}
           onClose={() => setCuentaCobro(null)}
-          onOk={async () => {
+          onOk={async (advertencias) => {
             setCuentaCobro(null);
-            setMensaje("Cobro registrado y enviado a contabilidad");
+            setMensajeEsAviso(advertencias.length > 0);
+            setMensaje(
+              advertencias.length
+                ? advertencias.join(" ")
+                : "Cobro registrado y contabilizado",
+            );
             await cargarOperacion();
           }}
         />
@@ -1303,7 +1327,7 @@ function ModalCobro({
   cuenta: CuentaCity;
   cuentas: CuentaBancaria[];
   onClose: () => void;
-  onOk: () => void;
+  onOk: (advertencias: string[]) => void;
 }) {
   const [form, setForm] = useState({
     importe: Number(cuenta.saldoPendiente),
@@ -1332,13 +1356,23 @@ function ModalCobro({
     setGuardando(true);
     setError("");
     try {
-      await api.post("/hoteleria/city-ledger/cobros", {
-        cuentaCobrarId: cuenta.id,
-        ...form,
-        importe: Number(form.importe),
-        claveIdempotencia: crypto.randomUUID(),
-      });
-      onOk();
+      /*
+        La respuesta se LEE. El cobro puede quedar registrado y su póliza no
+        generarse —una cuenta bancaria sin cuenta contable enlazada, por
+        ejemplo—, y el servidor lo dice en `advertencias`. Antes se descartaba
+        y la pantalla contestaba «Cobro registrado y enviado a contabilidad»
+        sobre un asiento que se había quedado pendiente.
+      */
+      const respuesta = await api.post<{ advertencias?: string[] }>(
+        "/hoteleria/city-ledger/cobros",
+        {
+          cuentaCobrarId: cuenta.id,
+          ...form,
+          importe: Number(form.importe),
+          claveIdempotencia: crypto.randomUUID(),
+        },
+      );
+      onOk(respuesta?.advertencias ?? []);
     } catch (e) {
       setError(
         e instanceof ApiError
