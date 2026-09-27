@@ -11,17 +11,55 @@ import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integ
 import { ContextoPeticionAlmacen } from '../../common/contexto/contexto-peticion';
 
 /**
- * Por qué no se promueve a AUTORIDAD. Exportado para que la prueba y quien lea
- * la respuesta HTTP vean el mismo texto, y para que el día que se cablee el eje
- * baste borrar esta constante y ver dónde se rompe.
+ * ============================================================================
+ * Por qué AUTORIDAD está retirada, y no «pendiente»
+ * ----------------------------------------------------------------------------
+ * Primero se midió: ningún camino distingue SOMBRA de AUTORIDAD en nada que
+ * toque dinero. Un solo servicio lo hacía —`DisponibilidadCreditoService`— y su
+ * endpoint no lo llama ninguna pantalla; la decisión de vender a crédito, en
+ * venta, City Ledger, créditos y aprobaciones, va siempre a
+ * `PoliticaCreditoService`, que lee las tablas del ERP. Ver
+ * `un-modo-que-no-cambia-nada.spec.ts`.
+ *
+ * La primera reacción fue tratarlo como cableado pendiente. Es un error, y la
+ * razón es de diseño, no de calendario:
+ *
+ *  · Lo que hoy impide vender DOS VECES el último disponible es un candado de
+ *    base de datos que `PoliticaCreditoService` toma dentro de la transacción,
+ *    compartido entre la venta y el check-out. Si quien decide es una llamada
+ *    HTTP a otro sistema, esa garantía desaparece: dos ventas simultáneas
+ *    preguntan, las dos oyen «sí», y las dos pasan. Fineract no ofrece reservas
+ *    ni apartados de línea con los que sustituir el candado.
+ *
+ *  · Y una autoridad que se degrada no era una autoridad. El propio código lo
+ *    anticipaba: si el externo no responde, se resuelve con caché degradado y,
+ *    si no hay caché, con el saldo del ERP. Correcto para no detener la caja —y
+ *    la prueba de que el ERP es el que manda de verdad—.
+ *
+ * La práctica de los ERP que conviven con un core financiero es justamente
+ * ésta: el core es la fuente de verdad del REGISTRO, y la decisión dentro de la
+ * transacción se toma localmente contra un límite sincronizado, con conciliación
+ * continua de las diferencias. Eso es, exactamente, SOMBRA.
+ *
+ * Un cliente que quiera que el core sea el dueño del crédito no quiere un grado
+ * más de este eje: quiere el despliegue dirigido por el core, donde la solicitud
+ * nace allá y el ERP no reserva líneas. Ése es otro producto, no un selector.
+ *
+ * Así que el eje tiene DOS grados que significan algo, y el tercero se retira.
+ * No se borra el valor —puede estar escrito en la base de alguna empresa y el
+ * techo global puede nombrarlo— pero no se escribe nunca más.
+ * ============================================================================
  */
-export const NO_HAY_QUIEN_EJERZA_AUTORIDAD =
-  'AUTORIDAD no está cableado todavía: la decisión de vender a crédito la ' +
-  'toma el ERP con sus propias tablas, en venta, City Ledger, créditos y ' +
-  'aprobaciones, y ningún camino consulta al registro externo dentro de la ' +
-  'transacción que reserva la línea. Promover anunciaría una autoridad que ' +
-  'nadie ejerce. SOMBRA ya compara, refleja y registra las diferencias: es ' +
-  'todo lo que AUTORIDAD hace hoy, sin prometer más.';
+export const AUTORIDAD_RETIRADO =
+  'AUTORIDAD está retirada. La decisión de vender a crédito se toma en el ERP ' +
+  'dentro de la transacción que reserva la línea, con un candado que impide ' +
+  'vender dos veces el último disponible; una consulta remota no puede ' +
+  'sostener esa garantía, y la que se degrada cuando el otro sistema no ' +
+  'responde no era una autoridad. SOMBRA es el modo integrado: publica, ' +
+  'refleja y concilia, y el registro externo es la fuente de verdad del ' +
+  'registro. Si lo que se busca es que el core sea el dueño del crédito, eso ' +
+  'es el despliegue dirigido por el core —la solicitud nace allá—, no un grado ' +
+  'de este eje.';
 
 const JERARQUIA = [
   ModoCartera.APAGADO,
@@ -198,52 +236,17 @@ export class IntegracionModoService {
       this.repo.create({ empresaId, parametrosProveedor: {} });
     const anterior = fila.modo ?? ModoCartera.APAGADO;
 
+    /*
+     * Retirada, no pendiente: ver `AUTORIDAD_RETIRADO` arriba.
+     *
+     * Aquí vivía además la puerta de conciliación —no subir con diferencias
+     * abiertas—. Se quitó porque era inalcanzable, y con ella se iba el único
+     * motivo que obligaba a resolver esas diferencias. No se perdió: el
+     * diagnóstico del cierre mensual las enseña ahora, que es donde alguien
+     * mira todos los meses, en vez de en una promoción que nadie iba a pedir.
+     */
     if (modo === ModoCartera.AUTORIDAD) {
-      /*
-       * Antes de la conciliación, algo más básico: hoy nadie ejerce AUTORIDAD.
-       *
-       * Se buscó quién distingue SOMBRA de AUTORIDAD. Un solo servicio,
-       * `DisponibilidadCreditoService`, y su endpoint —
-       * `GET /integracion/disponibilidad/:clienteId`— no lo llama ninguna
-       * pantalla. Todo lo demás pregunta sólo si el eje está APAGADO. Y la
-       * decisión de vender a crédito —venta, City Ledger, créditos,
-       * aprobaciones— va a `PoliticaCreditoService`, que lee sólo las tablas
-       * del ERP, con su propio candado.
-       *
-       * O sea: los dos grados se comportan igual en todo lo que toca dinero.
-       * Promover costaba conciliar hasta cero diferencias —trabajo real, con
-       * una puerta que lo exige— y después no cambiaba un solo comportamiento,
-       * mientras anunciaba que a partir de ahí decide el registro externo. Una
-       * autoridad que nadie ejerce sobre quién puede comprar a crédito.
-       *
-       * Cablearlo es meter al registro externo DENTRO de la transacción que
-       * reserva la línea, y `PoliticaCreditoService` vive en `common` mientras
-       * `DisponibilidadCreditoService` ya depende de él: hay que invertir la
-       * dependencia con un puerto. Es un cambio de diseño, no un parche, y no
-       * se hace sobre el camino por donde pasa el dinero a última hora.
-       *
-       * Mientras no esté cableado se NIEGA, y la negativa dice qué falta.
-       * SOMBRA sigue haciendo todo lo que hoy hace AUTORIDAD —comparar,
-       * reflejar, registrar diferencias— sin prometer lo que no cumple.
-       * `un-modo-que-no-cambia-nada.spec.ts` avisa el día que alguien cablee
-       * el eje, para que esta negativa no se quede puesta para siempre.
-       */
-      /*
-       * La puerta de conciliación se sigue mirando ANTES, y es la que contesta
-       * cuando además hay diferencias: entre «no se puede todavía» y «encima
-       * tienes tres diferencias abiertas», lo segundo es lo que hay que
-       * arreglar hoy, y lo primero no depende de esta empresa. Así la regla
-       * tampoco se pierde: el día que se levante la negativa, la puerta que
-       * queda es la que ya estaba.
-       */
-      const abiertas = await sondas.discrepanciasAbiertas(empresaId);
-      if (abiertas > 0) {
-        return {
-          aplicado: false,
-          motivo: `Hay ${abiertas} discrepancia(s) de conciliación sin resolver.`,
-        };
-      }
-      return { aplicado: false, motivo: NO_HAY_QUIEN_EJERZA_AUTORIDAD };
+      return { aplicado: false, motivo: AUTORIDAD_RETIRADO };
     }
 
     /*

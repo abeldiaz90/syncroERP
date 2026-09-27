@@ -473,13 +473,34 @@ export class CierreContableService {
        * que la fecha del documento se alcanza por `entidadId`.
        * ──────────────────────────────────────────────────────────────────
        */
+      /*
+       * `carteraAbiertas`: diferencias abiertas de la conciliacion de CARTERA.
+       * No son de este control —son del otro eje— y por eso no bloquean; se
+       * enseñan porque perdieron su unica puerta, que era la promocion a
+       * AUTORIDAD, y ese grado se retiro. Una diferencia que ya nadie mira es
+       * una diferencia que se queda ahi para siempre, y el cierre es donde
+       * alguien mira todos los meses.
+       *
+       * La subconsulta lleva `$1` y no `c.empresaId`: esta consulta agrega sin
+       * GROUP BY, y una referencia a la columna ahi dentro la rechaza Postgres.
+       * La explicacion va AQUI y no dentro del SQL a proposito: un bloque de
+       * comentario en medio de la lista de columnas hacia fallar la consulta
+       * entera, el `catch` lo convertia en «no se pudo medir el espejo» y
+       * ESPEJO_CONTABLE desaparecia mientras MEDICION bloqueaba. El SQL se
+       * queda desnudo y lo que hay que explicar se explica en TypeScript.
+       */
       consultar(
         `
           SELECT
             COUNT(*) FILTER (WHERE e.estado = 'FALLIDO')::int         AS "fallidos",
             COUNT(*) FILTER (WHERE e.estado = 'REINTENTABLE')::int    AS "reintentables",
             COUNT(*) FILTER (WHERE e.estado = 'PENDIENTE')::int       AS "pendientes",
-            MAX(c.modoContabilidad)                                    AS "modoEmpresa"
+            MAX(c.modoContabilidad)                                    AS "modoEmpresa",
+            MAX(c.modo)                                                AS "modoCartera",
+            (
+              SELECT COUNT(*)::int FROM integracion_discrepancias d
+               WHERE d.empresaId = $1 AND d.resuelta = false
+            )                                                          AS "carteraAbiertas"
           FROM integracion_configuracion_empresa c
           LEFT JOIN integracion_eventos e
                  ON e.empresaId = c.empresaId
@@ -563,6 +584,17 @@ export class CierreContableService {
         this.config.get<string>('CONTABILIDAD_EXTERNA_MODO'),
         espejo.modoEmpresa as string | null,
       );
+    /*
+     * La cartera es el OTRO eje. Se enseña cuando esa empresa lo tiene
+     * encendido —no APAGADO— y sin importar el techo contable: son
+     * independientes, y una empresa puede mover cartera sin espejar pólizas.
+     */
+    const carteraActiva =
+      espejoSeMidio &&
+      String(espejo.modoCartera ?? 'APAGADO')
+        .trim()
+        .toUpperCase() !== 'APAGADO';
+    const carteraAbiertas = Number(espejo.carteraAbiertas ?? 0);
     const espejoSinEntregar =
       Number(espejo.fallidos ?? 0) +
       Number(espejo.reintentables ?? 0) +
@@ -677,6 +709,35 @@ export class CierreContableService {
                 ? 'CORRECTO'
                 : 'BLOQUEO') as 'CORRECTO' | 'BLOQUEO',
               bloquea: espejoSinEntregar > 0,
+            },
+          ]
+        : []),
+      /*
+       * Las diferencias de la conciliacion de CARTERA. Avisa, no bloquea, y es
+       * deliberado por dos motivos: son del otro eje —bloquear el cierre
+       * contable por algo que quien cierra no puede resolver es senalar a quien
+       * no tiene la culpa, la misma leccion de los eventos sin destino— y
+       * porque este aviso nace hoy: convertirlo de golpe en bloqueo pararia
+       * cierres que ayer pasaban, sin que nadie lo haya decidido.
+       *
+       * Existe porque esas diferencias perdieron su unica puerta. La exigia la
+       * promocion a AUTORIDAD —«no subes con diferencias abiertas»— y ese grado
+       * se retiro por diseno; ver `AUTORIDAD_RETIRADO`. Sin esto, una diferencia
+       * abierta no aparecia en ningun sitio que alguien visite.
+       */
+      ...(carteraActiva && carteraAbiertas > 0
+        ? [
+            {
+              clave: 'CONCILIACION_CARTERA',
+              titulo: 'Diferencias de cartera sin resolver',
+              descripcion:
+                `${carteraAbiertas} diferencia(s) entre la cartera del ERP y ` +
+                'la del registro externo siguen abiertas. No detienen este ' +
+                'cierre —la cartera es otro eje— pero cada una es un saldo que ' +
+                'los dos sistemas cuentan distinto. Se revisan en Integración › ' +
+                'Conciliación de cartera.',
+              estado: 'ADVERTENCIA' as const,
+              bloquea: false,
             },
           ]
         : []),

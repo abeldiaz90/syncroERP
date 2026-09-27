@@ -171,39 +171,32 @@ describe('establecerModoCartera', () => {
     eventosSinResolver: async () => eventos,
   });
 
-  it('no deja subir a AUTORIDAD con discrepancias abiertas', async () => {
-    const { servicio, guardadas } = conRepo(ModoCartera.SOMBRA);
-    const r = await servicio.establecerModoCartera(
-      'e1',
-      ModoCartera.AUTORIDAD,
-      sondas(3, 0),
-    );
-
-    expect(r.aplicado).toBe(false);
-    expect(r.motivo).toMatch(/3 discrepancia/);
-    expect(guardadas).toHaveLength(0);
-  });
-
   /*
-   * Y sin discrepancias tampoco sube, por una razón distinta y más de fondo:
-   * nadie ejerce AUTORIDAD. Ver `un-modo-que-no-cambia-nada.spec.ts`. Este
-   * caso no existía —nunca se probó una promoción limpia— y por eso el modo
-   * pudo pasar meses prometiendo algo que ningún camino cumplía.
+   * Este caso medía la puerta de conciliación al SUBIR a AUTORIDAD. Ya no hay a
+   * dónde subir: el grado está retirado —ver `AUTORIDAD_RETIRADO`— y la
+   * negativa llega antes, por una razón más de fondo que las diferencias
+   * abiertas. Lo que la puerta protegía no se perdió: el diagnóstico del cierre
+   * mensual enseña las diferencias abiertas, que es donde alguien mira todos
+   * los meses.
    */
-  it('no sube a AUTORIDAD ni con la conciliación limpia: nadie la ejerce', async () => {
-    const { servicio, guardadas } = conRepo(ModoCartera.SOMBRA);
-    const r = await servicio.establecerModoCartera(
-      'e1',
-      ModoCartera.AUTORIDAD,
-      sondas(0, 0),
-    );
+  it('no sube a AUTORIDAD, con o sin discrepancias, y dice que está retirada', async () => {
+    for (const diferencias of [0, 3]) {
+      const { servicio, guardadas } = conRepo(ModoCartera.SOMBRA);
+      const r = await servicio.establecerModoCartera(
+        'e1',
+        ModoCartera.AUTORIDAD,
+        sondas(diferencias, 0),
+      );
 
-    expect(r.aplicado).toBe(false);
-    expect(r.motivo).toMatch(/no está cableado/);
-    // Y dice dónde se decide de verdad, para que nadie lo busque a ciegas.
-    expect(r.motivo).toMatch(/City Ledger/);
-    expect(guardadas).toHaveLength(0);
+      expect(r.aplicado).toBe(false);
+      expect(r.motivo).toMatch(/retirada/i);
+      // Y dice dónde se decide de verdad, para que nadie lo busque a ciegas.
+      expect(r.motivo).toMatch(/candado/);
+      expect(r.motivo).toMatch(/SOMBRA/);
+      expect(guardadas).toHaveLength(0);
+    }
   });
+
 
   it('no deja apagar dejando eventos sin entregar', async () => {
     const { servicio, guardadas } = conRepo(ModoCartera.AUTORIDAD);

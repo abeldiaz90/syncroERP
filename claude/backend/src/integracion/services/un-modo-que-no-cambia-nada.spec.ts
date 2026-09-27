@@ -32,26 +32,42 @@ import { join } from 'path';
  * cero de más en una pantalla, sino una autoridad que nadie ejerce sobre quién
  * puede comprar a crédito.
  *
- * QUÉ SE HIZO, Y POR QUÉ ESTO Y NO CABLEARLO
+ * QUÉ SE HIZO, Y POR QUÉ RETIRARLA Y NO CABLEARLA
  *
- * Cablearlo de verdad es meter al registro externo dentro de la transacción
- * que reserva la línea de crédito, y `PoliticaCreditoService` vive en `common`
- * mientras `DisponibilidadCreditoService` ya depende de él: hay que invertir la
- * dependencia con un puerto. Es un cambio de diseño, no un parche, y no se
- * hace la víspera de una entrega sobre el camino por donde pasa el dinero.
+ * La primera reacción fue tratarlo como cableado pendiente. Es un error, y la
+ * razón es de diseño, no de calendario:
  *
- * Así que, mientras no esté cableado, NO SE PROMUEVE. Un modo que promete una
- * autoridad que nadie ejerce no se ofrece: se niega diciendo exactamente qué
- * falta. Cuando el cableado exista, se quita esta negativa —y esta prueba
- * cambia con ella—.
+ *  · Lo que impide vender DOS VECES el último disponible es un candado de base
+ *    de datos que `PoliticaCreditoService` toma dentro de la transacción,
+ *    compartido entre la venta y el check-out. Si quien decide es una llamada
+ *    HTTP a otro sistema, esa garantía desaparece: dos ventas simultáneas
+ *    preguntan, las dos oyen «sí», y las dos pasan. Fineract no ofrece reservas
+ *    de línea con las que sustituir el candado.
+ *
+ *  · Y una autoridad que se degrada no era una autoridad. El propio servicio lo
+ *    anticipaba: sin respuesta del externo resuelve con caché degradado y, sin
+ *    caché, con el saldo del ERP. Correcto para no detener la caja, y la prueba
+ *    de que el ERP es quien manda de verdad.
+ *
+ * La práctica de los ERP que conviven con un core financiero es ésta: el core es
+ * la fuente de verdad del REGISTRO, y la decisión dentro de la transacción se
+ * toma localmente contra un límite sincronizado, con conciliación continua. Eso
+ * es exactamente SOMBRA. Y un cliente que quiera que el core sea el dueño del
+ * crédito no quiere un grado más de este eje: quiere el despliegue dirigido por
+ * el core, donde la solicitud nace allá. Es otro producto, no un selector.
+ *
+ * Así que el eje tiene DOS grados que significan algo y el tercero se retira. El
+ * valor no se borra —puede estar escrito en la base de alguna empresa y el techo
+ * global puede nombrarlo— pero no se escribe nunca más.
  *
  * QUÉ CUIDA ESTA PRUEBA
  *
- * 1. Que la negativa siga ahí mientras nadie consuma el eje.
- * 2. Y que se entere el día que alguien LO CABLEE: si aparece otro consumidor
- *    de `AUTORIDAD` fuera de los sitios conocidos, esta prueba falla para
- *    obligar a revisar si ya se puede levantar la negativa. Un candado que
- *    nadie recuerda es un candado que se queda puesto para siempre.
+ * 1. Que la negativa siga ahí, y que diga «retirada» y no «todavía no»: la
+ *    diferencia es lo único que impide que alguien lo intente otra vez.
+ * 2. Que nadie empiece a EJERCER el grado por la puerta de atrás. Si aparece un
+ *    consumidor de `AUTORIDAD` fuera de los sitios conocidos, esta prueba falla
+ *    para que se revise si es un descuido o una decisión de producto tomada en
+ *    otra parte.
  * ============================================================================
  */
 
@@ -88,6 +104,13 @@ const NOMBRARLO_NO_ES_EJERCERLO = [
   'integracion/services/cliente-cartera.subscriber.ts',
   'integracion/entities/discrepancia-integracion.entity.ts',
   'integracion/controllers/integracion.controller.ts',
+  /*
+   * El diagnóstico del cierre la nombra en un comentario: explica por qué
+   * enseña las diferencias de cartera, que perdieron su puerta cuando el grado
+   * se retiró. No la ejerce. Esta prueba lo señaló en cuanto se escribió, que
+   * es justo lo que se le pedía.
+   */
+  'finanzas/services/cierre-contable.service.ts',
 ];
 
 describe('un modo que no cambia nada', () => {
@@ -114,11 +137,31 @@ describe('un modo que no cambia nada', () => {
     expect(politica).not.toMatch(/Disponibilidad|CarteraExterna|AUTORIDAD/);
   });
 
-  it('promover a AUTORIDAD se niega, y la negativa dice qué falta', () => {
+  it('promover a AUTORIDAD se niega, y la negativa dice que está retirada', () => {
     const modos = readFileSync(
       join(SRC, 'integracion', 'services', 'integracion-modo.service.ts'),
       'utf8',
     );
-    expect(modos).toMatch(/NO_HAY_QUIEN_EJERZA_AUTORIDAD/);
+    expect(modos).toMatch(/AUTORIDAD_RETIRADO/);
+    /*
+     * «Todavía no» invita a volver a intentarlo y a cablearlo; «retirada» dice
+     * que la decisión ya se tomó y por qué. El texto es la mitad del arreglo.
+     */
+    expect(modos).not.toMatch(/no está cableado/);
+  });
+
+  it('el valor del enum sigue existiendo, para no romper lo ya escrito', () => {
+    /*
+     * Retirar no es borrar: una empresa puede tenerlo escrito en su fila y el
+     * techo global puede nombrarlo. Quitar el valor del enum convertiría esos
+     * datos en un estado ilegible, que es peor que un grado que ya no se
+     * concede.
+     */
+    const constantes = readFileSync(
+      join(SRC, 'integracion', 'integracion.constants.ts'),
+      'utf8',
+    );
+    expect(constantes).toMatch(/AUTORIDAD = 'AUTORIDAD'/);
+    expect(constantes).toMatch(/RETIRADO/);
   });
 });

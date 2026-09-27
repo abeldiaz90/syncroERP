@@ -34,8 +34,20 @@ export enum ModoCartera {
    */
   SOMBRA = 'SOMBRA',
   /**
-   * El registro externo manda: el disponible y el saldo del cliente se leen de
-   * ahí y las tablas del ERP quedan como proyección de consulta.
+   * RETIRADO. No se concede a ninguna empresa nueva; ver
+   * `AUTORIDAD_RETIRADO` en `integracion-modo.service.ts` para el porqué.
+   *
+   * Decía: «el registro externo manda: el disponible y el saldo del cliente se
+   * leen de ahí y las tablas del ERP quedan como proyección de consulta». El
+   * valor se conserva —puede estar escrito en la base de una empresa y el techo
+   * global puede nombrarlo— para no romper lo que ya existe, pero
+   * `establecerModoCartera` se niega a escribirlo.
+   *
+   * En corto: poner a un sistema remoto a decidir DENTRO de la transacción que
+   * reserva una línea de crédito rompe la única garantía que hoy impide vender
+   * dos veces el último disponible, y un cliente que quiera que el core sea el
+   * dueño del crédito no quiere un grado más de este eje: quiere el despliegue
+   * dirigido por el core, donde la solicitud nace allá.
    */
   AUTORIDAD = 'AUTORIDAD',
 }

@@ -524,9 +524,10 @@ export class AltaEmpresasService {
             ? 'No aplica: esta empresa opera sólo con el ERP.'
             : (cfg?.modo ?? ModoCartera.APAGADO) === ModoCartera.APAGADO
               ? 'La cartera no se publica ni se concilia. Súbela a SOMBRA.'
-              : 'En SOMBRA: se publica, se refleja y se concilia, y el ERP ' +
-                'sigue decidiendo. AUTORIDAD no se concede todavía porque ' +
-                'ningún camino de venta consulta al registro externo.',
+              : 'En SOMBRA: se publica, se refleja y se concilia, el registro ' +
+                'externo es la fuente de verdad del registro y la decisión de ' +
+                'vender a crédito se toma en el ERP. Es el modo integrado y no ' +
+                'hay otro por encima: AUTORIDAD está retirada.',
           accion:
             usaFineract &&
             (cfg?.modo ?? ModoCartera.APAGADO) === ModoCartera.APAGADO
