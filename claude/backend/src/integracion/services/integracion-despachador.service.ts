@@ -22,6 +22,10 @@ import { PuertoContabilidadExterna } from '../ports/contabilidad-externa.port';
 import { MapeoCuentasService } from './mapeo-cuentas.service';
 import { EventoIntegracion } from '../entities/evento-integracion.entity';
 import {
+  esRechazoPorFechaFutura,
+  proximoAmanecer,
+} from '../utils/aplazamiento.util';
+import {
   ErrorIntegracionExterna,
   EventoSinDestino,
   PuertoCarteraExterna,
@@ -38,6 +42,14 @@ export interface ResultadoDespacho {
   motivo?: 'SIN_ENLACE' | 'YA_EN_CURSO' | 'NADA_PENDIENTE' | 'SOLO_DETENIDOS';
   /** Eventos en FALLIDO, que ninguna cola vuelve a recoger por su cuenta. */
   detenidos?: number;
+  /** Eventos que al despacharse resultaron no tener destino. Ver `EventoSinDestino`. */
+  descartados?: number;
+  /**
+   * Eventos a los que sólo les falta que llegue su fecha. No son error y no
+   * piden nada de nadie: vuelven solos. Se cuentan aparte para que la pantalla
+   * no los presente como un pendiente ni los esconda.
+   */
+  aplazados?: number;
 }
 
 import { IntegracionModoService } from './integracion-modo.service';
@@ -153,6 +165,8 @@ export class IntegracionDespachadorService {
     let fallidos = 0;
     /** Eventos que resultaron no tener destino. Ni error ni pendiente. */
     let descartados = 0;
+    /** Eventos a los que sólo les falta que llegue su fecha. Tampoco son error. */
+    let aplazados = 0;
 
     try {
       for (const evento of await this.outbox.pendientes(
@@ -196,12 +210,37 @@ export class IntegracionDespachadorService {
             await this.outbox.marcarDescartado(evento, error.message);
             continue;
           }
+          const mensaje =
+            error instanceof Error ? error.message : String(error);
+          /*
+           * Y un rechazo POR FECHA FUTURA tampoco es un fallo: es un «todavía
+           * no». Medido en la cola del espejo: tres pólizas en FALLIDO
+           * permanente por «The journal entry cannot be made for a future
+           * date» —la nómina fechada al 15 de octubre, corrida en septiembre—.
+           * No hay nada que corregir, sólo esperar; y contarlo como fallo
+           * gastaba los intentos, encendía un rojo que nadie podía apagar y
+           * bloqueaba el cierre mensual, que mira esta misma cola.
+           *
+           * Se aplaza hasta mañana SIN gastar intento. Ver
+           * `utils/aplazamiento.util` y `marcarAplazado`.
+           */
+          if (esRechazoPorFechaFutura(mensaje)) {
+            aplazados += 1;
+            await this.outbox.marcarAplazado(
+              evento,
+              'La fecha de este documento todavía no ha llegado, así que el ' +
+                'proveedor no puede asentarlo. Se reintenta solo cuando ' +
+                `llegue. Dijo: ${mensaje}`,
+              proximoAmanecer(),
+            );
+            continue;
+          }
           fallidos += 1;
           const reintentable =
             !(error instanceof ErrorIntegracionExterna) || error.reintentable;
           await this.outbox.marcarFallo(
             evento,
-            error instanceof Error ? error.message : String(error),
+            mensaje,
             reintentable,
             this.maxIntentos,
           );
@@ -211,13 +250,19 @@ export class IntegracionDespachadorService {
       this.despachando = false;
     }
 
-    if (procesados || fallidos || descartados) {
+    if (procesados || fallidos || descartados || aplazados) {
       this.logger.log(
         `Outbox de cartera: ${procesados} aplicado(s), ${fallidos} con error` +
           (descartados ? `, ${descartados} descartado(s) por no tener destino` : '') +
+          (aplazados ? `, ${aplazados} aplazado(s) hasta que llegue su fecha` : '') +
           '.',
       );
-      return { procesados, fallidos, ...(descartados ? { descartados } : {}) };
+      return {
+        procesados,
+        fallidos,
+        ...(descartados ? { descartados } : {}),
+        ...(aplazados ? { aplazados } : {}),
+      };
     }
 
     /*

@@ -145,6 +145,35 @@ export class IntegracionOutboxService {
     );
   }
 
+  /**
+   * El evento no falló: todavía no le toca.
+   *
+   * Tercer desenlace, junto a «enviado» y «fallido». Se queda REINTENTABLE con
+   * `proximoIntento` en el futuro y —esto es lo importante— SIN gastar un
+   * intento: un contador que avanza con el tiempo acaba agotándose por esperar,
+   * y una póliza fechada a tres semanas terminaría igual en FALLIDO, sólo más
+   * tarde y con peor explicación.
+   *
+   * Nace de tres eventos en FALLIDO permanente por «The journal entry cannot be
+   * made for a future date»: pólizas con fecha posterior a hoy, que no piden
+   * corregir nada. Ver `utils/aplazamiento.util`.
+   */
+  async marcarAplazado(
+    evento: EventoIntegracion,
+    razon: string,
+    cuando: Date,
+  ): Promise<void> {
+    await this.repo.update(evento.id, {
+      estado: EstadoEventoIntegracion.REINTENTABLE,
+      ultimoError: razon.slice(0, 2000),
+      proximoIntento: cuando,
+    });
+    this.logger.log(
+      `Evento ${evento.tipo} ${evento.id} aplazado hasta ` +
+        `${cuando.toISOString()}: ${razon}`,
+    );
+  }
+
   async marcarFallo(
     evento: EventoIntegracion,
     error: string,

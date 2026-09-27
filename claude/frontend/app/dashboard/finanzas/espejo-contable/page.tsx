@@ -111,6 +111,12 @@ interface ResultadoDespacho {
   fallidos: number;
   motivo?: "SIN_ENLACE" | "YA_EN_CURSO" | "NADA_PENDIENTE" | "SOLO_DETENIDOS";
   detenidos?: number;
+  /**
+   * A los que sólo les falta que llegue su fecha. No son error y no piden nada
+   * de nadie: vuelven solos. Se dicen aparte para que no parezcan un pendiente
+   * —era un rojo permanente que nadie podía apagar— ni desaparezcan sin más.
+   */
+  aplazados?: number;
 }
 
 interface Simulacion {
@@ -234,16 +240,26 @@ export default function EspejoContablePage() {
     const r = await api.post<ResultadoDespacho>(
       "/integracion/outbox/despachar",
     );
+    const aplazadas = r.aplazados
+      ? ` ${r.aplazados} espera(n) a que llegue su fecha; se envían solas.`
+      : "";
     if (r.procesados > 0) {
       avisar(
         `${r.procesados} póliza(s) enviada(s) al mayor externo` +
-          (r.fallidos > 0 ? `; ${r.fallidos} con error.` : "."),
+          (r.fallidos > 0 ? `; ${r.fallidos} con error.` : ".") +
+          aplazadas,
         r.fallidos > 0 ? "alerta" : "exito",
       );
     } else if (r.fallidos > 0) {
       avisar(
-        `Ninguna pasó: ${r.fallidos} evento(s) con error. El motivo de cada uno está en la tabla.`,
+        `Ninguna pasó: ${r.fallidos} evento(s) con error. El motivo de cada uno está en la tabla.` +
+          aplazadas,
         "error",
+      );
+    } else if (r.aplazados) {
+      avisar(
+        `Nada por enviar todavía: ${r.aplazados} póliza(s) llevan fecha posterior a hoy y el mayor externo no puede asentarlas aún. Se envían solas cuando llegue esa fecha; no hay nada que corregir.`,
+        "info",
       );
     } else if (r.motivo === "SIN_ENLACE") {
       avisar(
