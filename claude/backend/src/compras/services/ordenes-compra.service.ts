@@ -161,11 +161,38 @@ export class OrdenesCompraService {
 
       cotizacion.estado = 'SELECCIONADA';
       await qr.manager.save(cotizacion);
+      /*
+       * ──────────────────────────────────────────────────────────────────────
+       * Las que no ganaron se DESCARTAN; rechazar es otra cosa
+       * ----------------------------------------------------------------------
+       * Esto ponía RECHAZADA a todas las hermanas, y la entidad advierte por
+       * qué eso no da igual: «a una propuesta rechazada alguien le dijo que
+       * no, con motivo y con nombre; una descartada simplemente no fue la
+       * elegida. Confundirlas deja al proveedor marcado como reprobado cuando
+       * sólo cotizó más caro».
+       *
+       * Medido el 28-sep-2026 sobre REQ-0C5BE1A8: al FIRMAR la adjudicación de
+       * Proveedor A, el ERP marcó bien a Proveedor B como DESCARTADA. Al
+       * GENERAR LA ORDEN, este `UPDATE` la pasaba a RECHAZADA y deshacía el
+       * criterio del paso anterior. La pantalla, que lee ese estado, cambiaba
+       * de «DESCARTADA» a «Adjudicación rechazada» y encima ofrecía «Reenviar
+       * a aprobación» sobre una requisición que ya estaba en ORDEN_GENERADA.
+       *
+       * Y se excluye a las RECHAZADA: ésas ya tienen su historia —quién dijo
+       * que no, cuándo y por qué— y un UPDATE masivo no puede firmar eso.
+       * ──────────────────────────────────────────────────────────────────────
+       */
       await qr.manager.createQueryBuilder().update(Cotizacion)
-        .set({ estado: 'RECHAZADA' })
-        .where('requisicionId = :requisicionId AND empresaId = :empresaId AND id <> :id AND estado <> :seleccionada', {
-          requisicionId: requisicion.id, empresaId, id: cotizacion.id, seleccionada: 'SELECCIONADA',
-        }).execute();
+        .set({ estado: 'DESCARTADA' })
+        .where(
+          'requisicionId = :requisicionId AND empresaId = :empresaId AND id <> :id AND estado NOT IN (:...intactas)',
+          {
+            requisicionId: requisicion.id,
+            empresaId,
+            id: cotizacion.id,
+            intactas: ['SELECCIONADA', 'RECHAZADA'],
+          },
+        ).execute();
       requisicion.estado = 'ORDEN_GENERADA';
       await qr.manager.save(requisicion);
       await qr.commitTransaction();
