@@ -80,6 +80,34 @@ export class OrdenesCompraService {
         .getOne();
       if (!cotizacion) throw new NotFoundException('Cotización no encontrada');
       if (cotizacion.estado !== 'APROBADA') {
+        /*
+         * Dos negativas distintas, no una.
+         *
+         * Generar la orden es lo que ADJUDICA: la cotizacion ganadora queda
+         * SELECCIONADA y las demas de la misma requisicion pasan a RECHAZADA.
+         * Asi que cuando alguien intenta generar la orden de la perdedora, el
+         * estado ya no es APROBADA -es RECHAZADA- y el mensaje contestaba «debe
+         * estar APROBADA antes de generar la orden». Es cierto de forma literal
+         * y enganoso de forma practica: se lee como «ve a conseguir la firma»,
+         * cuando la firma existio y lo que paso es que otro proveedor gano.
+         * Mandar a alguien a buscar una aprobacion que ya tuvo cuesta mas que
+         * el propio rechazo.
+         *
+         * Medido el 28-sep con dos proveedores compitiendo por la misma
+         * requisicion.
+         */
+        if (cotizacion.estado === 'RECHAZADA') {
+          throw new BadRequestException(
+            'Esta cotizacion quedo descartada: la requisicion se adjudico a otro ' +
+              'proveedor y su orden ya existe. Si hay que cambiar de proveedor, ' +
+              'cancela esa orden primero.',
+          );
+        }
+        if (cotizacion.estado === 'SELECCIONADA') {
+          throw new BadRequestException(
+            'Esta cotizacion ya esta adjudicada y su orden de compra existe.',
+          );
+        }
         throw new BadRequestException('La adjudicación debe estar APROBADA antes de generar la orden de compra.');
       }
       if (

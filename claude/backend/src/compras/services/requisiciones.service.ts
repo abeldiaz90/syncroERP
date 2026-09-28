@@ -141,6 +141,18 @@ export class RequisicionesService {
       );
     }
 
+    /*
+     * Por departamento y sin alternativa global, a proposito: el area
+     * solicitante autoriza su propia necesidad, y el propio servicio de
+     * configuracion lo impone -«las requisiciones requieren un area
+     * solicitante»-, asi que una matriz global de REQUISICION no puede existir.
+     *
+     * Se probo la cascada departamento -> global y se retiro al medirlo: habria
+     * sido una rama que ninguna configuracion puede alcanzar. Consecuencia real
+     * de este diseno, que conviene tener presente: cada departamento nuevo
+     * necesita su matriz, y hasta que la tenga sus requisiciones se niegan con
+     * el mensaje de abajo.
+     */
     const todasLasConfiguraciones = await this.configAprobacionRepo.find({
       where: {
         empresaId,
@@ -152,7 +164,10 @@ export class RequisicionesService {
     });
     if (todasLasConfiguraciones.length === 0) {
       throw new BadRequestException(
-        'No existe una ruta de aprobación activa para requisiciones de este departamento.',
+        'No existe una ruta de aprobación activa para requisiciones de este ' +
+          'departamento. Configúrala en Flujos de aprobación antes de levantar ' +
+          'requisiciones: las requisiciones se autorizan por área y no hay ' +
+          'matriz global que las cubra.',
       );
     }
 
