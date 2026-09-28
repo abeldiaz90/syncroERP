@@ -789,7 +789,39 @@ export class WmsService {
         };
     }
     async listarConteos(empresaId: string) { return this.conteos.find({ where: { empresaId }, relations: ['almacen'], order: { fechaCreacion: 'DESC' } }); }
+    /**
+     * ========================================================================
+     * Un conteo ciego que no era ciego
+     * ------------------------------------------------------------------------
+     * El conteo nace ciego -la pantalla solo sabe abrirlo asi- y su modal lo
+     * promete con estas palabras: «Conteo ciego: captura fisicamente cada
+     * posicion sin mostrar la existencia teorica». Y esto devolvia la entidad
+     * completa, con `existenciaTeorica` en cada posicion, sin mirar si el
+     * conteo es ciego. La pantalla no la pintaba, y ahi acababa el control: la
+     * ceguera la sostenia una columna que nadie dibuja.
+     *
+     * Un conteo ciego existe por una sola razon: que quien cuenta no pueda
+     * ajustar su conteo a la cifra esperada. Y quien cuenta es, muchas veces,
+     * la unica persona con acceso al rack. Si el numero viaja al navegador,
+     * cualquiera que abra las herramientas del desarrollador lo tiene, y el
+     * conteo deja de servir para lo que se hace: encontrar faltantes que
+     * alguien preferiria que no se encontraran.
+     *
+     * Asi que mientras ADMITE CAPTURA y es ciego, el servidor no manda la
+     * teorica ni la diferencia. En cuanto se captura -el estado pasa a
+     * PENDIENTE_AUTORIZACION y ya no se puede volver a capturar- se mandan las
+     * dos: quien autoriza necesita verlas, y la bitacora tambien.
+     * ========================================================================
+     */
     async obtenerConteo(empresaId: string, id: string) { const c = await this.conteos.findOne({ where: { id, empresaId }, relations: ['almacen', 'detalles', 'detalles.producto', 'detalles.ubicacion', 'detalles.lote'] }); if (!c)
-        throw new NotFoundException('Conteo no encontrado'); return c; }
+        throw new NotFoundException('Conteo no encontrado');
+        const admiteCaptura = [EstadoConteoInventario.ABIERTO, EstadoConteoInventario.EN_CONTEO].includes(c.estado);
+        if (c.conteoCiego && admiteCaptura) {
+            for (const d of c.detalles ?? []) {
+                delete (d as unknown as Record<string, unknown>).existenciaTeorica;
+                delete (d as unknown as Record<string, unknown>).diferencia;
+            }
+        }
+        return c; }
 }
 
