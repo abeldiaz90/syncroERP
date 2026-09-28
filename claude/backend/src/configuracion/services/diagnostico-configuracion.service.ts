@@ -361,7 +361,15 @@ export class DiagnosticoConfiguracionService {
         'Reservas o bloqueos mayores a la existencia',
         Number(reservasExcedidas?.[0]?.total ?? 0),
         'La suma reservada, comprometida y bloqueada no puede superar la existencia física.',
-        '/dashboard/inventario',
+        /*
+         * Mandaba a `/dashboard/inventario`, que NO es una pantalla: bajo esa
+         * ruta sólo hay carpetas y ninguna página, así que este hallazgo —de
+         * severidad ERROR— llevaba a un 404 justo cuando hay algo que arreglar.
+         * Es la única ruta rota de este archivo; las otras veinte existen.
+         * Ahora va a donde se ve el conflicto: existencia física contra
+         * reservado, por ubicación y lote.
+         */
+        '/dashboard/almacenes/existencias',
       );
     }
 

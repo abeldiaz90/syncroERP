@@ -120,6 +120,50 @@ describe('un enlace que no lleva a ninguna pantalla', () => {
     }
   }
 
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Y LAS QUE MANDA EL SERVIDOR
+   *
+   * La primera versión de esta prueba sólo miraba el frontend y decía, con
+   * razón, que los destinos armados en tiempo de ejecución no se podían
+   * comprobar. Se podían: no desde el frontend, pero sí desde aquí, porque es
+   * el backend quien los escribe. El centro de configuración pinta botones con
+   * la ruta que le llega en cada hallazgo, y uno de ellos —«Reservas o bloqueos
+   * mayores a la existencia», de severidad ERROR— mandaba a
+   * `/dashboard/inventario`, que no existe. Un 404 justo cuando hay algo que
+   * arreglar.
+   *
+   * Se miran sólo las rutas escritas como cadena; las que se arman con plantilla
+   * (`/dashboard/${modulo}`) no se pueden saber sin ejecutar, y se dice en vez
+   * de fingir.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const BACK = join(__dirname, '..');
+  const rotasDelServidor: string[] = [];
+  let revisadasDelServidor = 0;
+  for (const archivo of fuentes(BACK)) {
+    if (archivo.endsWith('.spec.ts') || archivo.includes(`${'commands'}`)) continue;
+    const texto = readFileSync(archivo, 'utf8')
+      // Un comentario que EXPLICA una ruta rota no es una ruta rota. Ya pasó:
+      // `endpoints-navegables.ts` cuenta en su cabecera cuáles inventaba antes.
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/^\s*\/\/.*$/gm, ' ');
+    for (const m of texto.matchAll(/['"`](\/dashboard\/[A-Za-z0-9\-/_]*)['"`]/g)) {
+      const destino = m[1].replace(/\/$/, '');
+      /*
+       * Las bases de agrupación de `permisos-dinamicos` no son destinos: sólo
+       * dicen a qué módulo pertenece un permiso, y ninguna pantalla las usa
+       * como enlace. Se reconocen por el nombre del campo.
+       */
+      const alrededor = texto.slice(Math.max(0, m.index! - 40), m.index!);
+      if (/rutaFrontendBase\s*:\s*$/.test(alrededor)) continue;
+      revisadasDelServidor += 1;
+      if (!existePantalla(destino)) {
+        rotasDelServidor.push(`${archivo.slice(BACK.length + 1)} → ${destino}`);
+      }
+    }
+  }
+
   it('encuentra pantallas y enlaces que revisar', () => {
     // Si el reconocimiento se rompe, esto se volvería verde por vacío.
     expect(pantallas.size).toBeGreaterThanOrEqual(100);
@@ -128,5 +172,10 @@ describe('un enlace que no lleva a ninguna pantalla', () => {
 
   it('ningún enlace del panel apunta a una pantalla que no existe', () => {
     expect([...new Set(rotos)]).toEqual([]);
+  });
+
+  it('ninguna ruta que manda el servidor apunta a una pantalla que no existe', () => {
+    expect(revisadasDelServidor).toBeGreaterThanOrEqual(50);
+    expect([...new Set(rotasDelServidor)]).toEqual([]);
   });
 });
