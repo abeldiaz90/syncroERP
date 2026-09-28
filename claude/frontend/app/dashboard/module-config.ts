@@ -716,9 +716,14 @@ export const MODULOS: ModuleConfig[] = [
       { label: "Revisar asistencia", href: "/dashboard/rrhh/asistencia", accion: { metodo: "POST", ruta: "/api/rrhh/asistencia" } },
       { label: "Centro integral de nómina", href: "/dashboard/rrhh/centro-nomina" },
     ],
+    /*
+     * «Puestos» y «Departamentos» estaban aquí Y en `items`, así que el centro
+     * de RR. HH. los pintaba dos veces en la misma pantalla —una en su grupo y
+     * otra bajo «Procesos relacionados»—, y «Puestos» encima con dos nombres
+     * distintos para la misma ruta. Lo relacionado es lo que vive en OTRO
+     * módulo; lo propio ya está en su grupo.
+     */
     relacionados: [
-      { label: "Puestos", href: "/dashboard/rrhh/puestos" },
-      { label: "Departamentos", href: "/dashboard/departamentos" },
       { label: "Usuarios", href: "/dashboard/usuarios" },
     ],
     items: [

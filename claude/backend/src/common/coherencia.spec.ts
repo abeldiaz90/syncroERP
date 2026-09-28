@@ -1643,6 +1643,44 @@ describe('Coherencia · un boton que lleva a un 403 es peor que no tenerlo', () 
   });
 });
 
+describe('Coherencia · un centro no lista dos veces la misma pantalla', () => {
+  /*
+   * ==========================================================================
+   * Departamentos, dos veces, en la misma pantalla
+   * --------------------------------------------------------------------------
+   * El centro de RR. HH. pintaba «Puestos» y «Departamentos» en su grupo de
+   * Configuración y otra vez debajo, bajo «Procesos relacionados». Y «Puestos»
+   * con dos nombres distintos —«Puestos y salarios» arriba, «Puestos» abajo—
+   * para la MISMA ruta, que se lee como dos pantallas y es una.
+   *
+   * `relacionados` es para lo que vive en OTRO módulo: el atajo al que uno
+   * salta desde aquí. Lo propio ya está en `items`. Repetirlo no añade un
+   * camino, añade una duda.
+   *
+   * No es grave y por eso se escribe la regla en vez de sólo el arreglo: esta
+   * lista la toca cualquiera que añada una pantalla, y la duplicación se cuela
+   * sin que nadie la vea hasta que un cliente pregunta por qué sale dos veces.
+   * ==========================================================================
+   */
+  it('nada de `relacionados` está ya en `items` del mismo modulo', () => {
+    if (!FRONTEND) return;
+    const config = leer(join(FRONTEND, 'app/dashboard/module-config.ts'));
+    const duplicados: string[] = [];
+    for (const parte of config.split(/\n  \{\n    id: "/).slice(1)) {
+      const id = parte.match(/^(\w+)/)?.[1] ?? '?';
+      const bloque = (re: RegExp) => parte.match(re)?.[0] ?? '';
+      const rutas = (texto: string) =>
+        [...texto.matchAll(/href: "([^"]+)"/g)].map((m) => m[1]);
+      const relacionados = rutas(bloque(/relacionados:\s*\[[\s\S]*?\],/));
+      const items = rutas(bloque(/items:\s*\[[\s\S]*?\n    \],/));
+      for (const ruta of relacionados) {
+        if (items.includes(ruta)) duplicados.push(`${id} · ${ruta}`);
+      }
+    }
+    expect(duplicados).toEqual([]);
+  });
+});
+
 describe('Coherencia · una etiqueta del menu no finge ser una alarma', () => {
   /*
    * ==========================================================================
