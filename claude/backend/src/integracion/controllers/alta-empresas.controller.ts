@@ -346,4 +346,28 @@ export class AltaEmpresasController {
     }
     return this.alta.sembrarCatalogoDe(id);
   }
+
+  /**
+   * Entrega un inquilino de la reserva a una empresa que contrató el core y no
+   * tiene ninguno.
+   *
+   * La lista de pendientes aconsejaba «reponer la reserva y asignar uno» desde
+   * el principio, y asignar uno no se podía por ninguna vía que no fuera
+   * escribir en la base de datos. Ésta es la puerta que faltaba.
+   */
+  @Public()
+  @Post(':id/inquilino')
+  async asignarInquilino(
+    @Headers('x-aprovisionamiento') clave: string | undefined,
+    @Param('id') id: string,
+    @Body() cuerpo: { solicitadoPor?: string },
+  ) {
+    this.exigirServicio(clave);
+    if (!cuerpo?.solicitadoPor?.trim()) {
+      throw new ForbiddenException(
+        'Falta indicar quién autoriza la entrega del inquilino (solicitadoPor).',
+      );
+    }
+    return this.alta.asignarInquilino(id, cuerpo.solicitadoPor.trim());
+  }
 }
