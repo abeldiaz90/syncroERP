@@ -26,6 +26,11 @@ interface Movimiento {
   importe: number; saldoPosterior: number; concepto: string;
   referencia?: string; nombreTercero?: string;
   estadoConciliacion: string; cancelado: boolean;
+  /**
+   * El documento que lo genero, si lo genero alguno. Un movimiento con esto
+   * puesto NO se cancela desde aqui: se deshace donde nacio.
+   */
+  tipoDocumento?: string;
   cuentaBancaria?: { nombre: string };
 }
 
@@ -223,14 +228,34 @@ export default function MovimientosTesoreriaPage() {
                         </Distintivo>
                       </td>
                       <td>
+                        {/*
+                          * El boton solo para los movimientos REGISTRADOS A
+                          * MANO. Cancelar escribe una contrapartida en
+                          * tesoreria y no toca el documento que origino el
+                          * movimiento: cancelar aqui el de un pago a proveedor
+                          * devolvia el saldo al banco y dejaba la orden de
+                          * compra diciendo que esta pagada, sin ninguna
+                          * pantalla donde se vea la diferencia. El servidor ya
+                          * lo niega; ofrecer el boton igual seria mandar a
+                          * alguien a un no.
+                          */}
                         {!m.cancelado && m.estadoConciliacion !== 'CONCILIADO' && (
-                          <button
-                            onClick={() => setACancelar(m)}
-                            className="btn btn-fantasma btn-sm btn-icono"
-                            title="Cancelar movimiento"
-                          >
-                            <Ban className="w-3.5 h-3.5" />
-                          </button>
+                          m.tipoDocumento ? (
+                            <span
+                              className="text-xs text-slate-400"
+                              title={`Lo genero un documento (${m.tipoDocumento}). Se deshace donde se creo: cancelarlo aqui dejaria ese documento diciendo que el dinero si se movio.`}
+                            >
+                              del documento
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setACancelar(m)}
+                              className="btn btn-fantasma btn-sm btn-icono"
+                              title="Cancelar movimiento"
+                            >
+                              <Ban className="w-3.5 h-3.5" />
+                            </button>
+                          )
                         )}
                       </td>
                     </tr>

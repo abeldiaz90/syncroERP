@@ -59,6 +59,77 @@ const ORIGENES_CONTABILIZA_TESORERIA = new Set<OrigenMovimiento>([
   OrigenMovimiento.IMPUESTO,
 ]);
 
+/**
+ * Los documentos que generan movimientos de tesorería, y dónde se deshace cada
+ * uno.
+ *
+ * Existe para que la negativa de `cancelar()` diga algo útil. Se declara a mano
+ * —no se deduce— porque la respuesta correcta no está en el código: es dónde
+ * está la pantalla, y en varios casos la respuesta honesta es «no hay».
+ *
+ * Los `tipoDocumento` salen de quien crea el movimiento; buscarlos es
+ * `grep "tipoDocumento:" src`.
+ */
+const DOCUMENTOS_DE_ORIGEN: Record<string, { que: string; donde: string }> = {
+  VENTA: {
+    que: 'una venta',
+    donde: 'Anula la venta en Ventas → Historial: la anulación devuelve el dinero y deshace el movimiento.',
+  },
+  ENGANCHE_VENTA: {
+    que: 'el enganche de una venta a crédito',
+    donde: 'Anula la venta en Ventas → Historial; el enganche se deshace con ella.',
+  },
+  DEVOLUCION_VENTA: {
+    que: 'una devolución de venta',
+    donde:
+      'Una devolución no se deshace: si se hizo mal, lo correcto es una nueva venta por lo devuelto, no borrar el reembolso.',
+  },
+  ANULACION_VENTA: {
+    que: 'la anulación de una venta',
+    donde:
+      'Es ya el movimiento que deshace otro. Cancelarlo dejaría la venta anulada y el dinero fuera.',
+  },
+  PAGO_COBRANZA: {
+    que: 'un pago de cobranza',
+    donde:
+      'Cancela el pago en Créditos → Cobranza: desde ahí se rehace el reparto entre cuotas y se cancela este movimiento.',
+  },
+  PAGO_PROVEEDOR: {
+    que: 'un pago a proveedor',
+    donde:
+      'El ERP todavía no tiene reversa de pagos a proveedor, así que esto no se deshace desde ninguna pantalla: el ajuste va por una póliza, con su explicación.',
+  },
+  PAGO_NOMINA: {
+    que: 'la dispersión de un periodo de nómina',
+    donde:
+      'Se atiende en RRHH → Pagos, sobre el periodo. Cancelar aquí dejaría el periodo diciendo que se pagó.',
+  },
+  MOVIMIENTO_CAJA: {
+    que: 'un movimiento del turno de caja',
+    donde: 'Se corrige en Tesorería → Caja, dentro del turno al que pertenece.',
+  },
+  COBRO_CITY_LEDGER: {
+    que: 'un cobro de City Ledger',
+    donde: 'Se deshace en Hotelería → City Ledger, sobre el cobro.',
+  },
+  FOLIO_HOTEL: {
+    que: 'el cierre de un folio de hotel',
+    donde: 'Se atiende en Hotelería, sobre el folio.',
+  },
+  TESORERIA_HOSPEDAJE: {
+    que: 'un cobro de hospedaje',
+    donde: 'Se atiende en Hotelería, sobre el folio que lo generó.',
+  },
+  CONSUMO_RECETA: {
+    que: 'un consumo de receta',
+    donde: 'Se atiende en Recetas, sobre el consumo.',
+  },
+  MERMA_DEVOLUCION: {
+    que: 'la merma de una devolución',
+    donde: 'Se atiende junto con la devolución que la produjo.',
+  },
+};
+
 const SIGNO: Record<TipoMovimiento, 1 | -1> = {
   [TipoMovimiento.INGRESO]: 1,
   [TipoMovimiento.TRASPASO_ENTRADA]: 1,
@@ -379,6 +450,46 @@ export class TesoreriaService {
     if (original.estadoConciliacion === EstadoConciliacion.CONCILIADO) {
       throw new ConflictException(
         'El movimiento ya está conciliado con el banco. Desconcílialo antes de cancelarlo.',
+      );
+    }
+
+    /*
+     * ──────────────────────────────────────────────────────────────────────
+     * UN MOVIMIENTO QUE NACIÓ DE UN DOCUMENTO NO SE CANCELA DESDE AQUÍ
+     *
+     * Cancelar escribe una contrapartida en tesorería y NADA MÁS: no toca el
+     * documento que lo originó, y nadie en el sistema mira después si el
+     * movimiento quedó cancelado —los documentos guardan
+     * `movimientoTesoreriaId` y no vuelven a leerlo nunca—.
+     *
+     * Así que cancelar aquí el movimiento de un pago a proveedor devolvía el
+     * saldo al banco y dejaba la orden de compra diciendo que está pagada. Dos
+     * subsistemas afirmando cosas contrarias, cada uno coherente por dentro y
+     * ninguna pantalla donde se vea la diferencia: aparece meses después, en
+     * una conciliación, cuando ya nadie recuerda qué pasó. Igual con una venta,
+     * con un cobro de cobranza o con una dispersión de nómina. Y el botón
+     * estaba en TODOS los renglones de la pantalla de movimientos, así que
+     * hacían falta dos clics.
+     *
+     * La regla que el propio sistema ya sigue en el otro sentido: se cancela el
+     * DOCUMENTO y el documento cancela su movimiento —es lo que hace
+     * `CobranzaService.cancelarPago`—. Aquí se sostiene esa misma regla en vez
+     * de dejar abierta la puerta de atrás.
+     *
+     * Donde el ERP tiene esa salida se nombra; donde NO la tiene se dice que no
+     * la tiene. Mandar a alguien a una pantalla que no existe cuesta más que la
+     * propia negativa, y es un error que este proyecto ya ha pagado varias
+     * veces.
+     * ──────────────────────────────────────────────────────────────────────
+     */
+    if (original.tipoDocumento) {
+      throw new ConflictException(
+        `Este movimiento no se registró a mano: lo generó ${DOCUMENTOS_DE_ORIGEN[original.tipoDocumento]?.que ?? `un documento del sistema (${original.tipoDocumento})`}. ` +
+          'Cancelarlo aquí devolvería el saldo al banco y dejaría ese documento diciendo que el ' +
+          'dinero sí se movió, y ninguna pantalla enseña esa diferencia. ' +
+          (DOCUMENTOS_DE_ORIGEN[original.tipoDocumento]?.donde ??
+            'Hay que deshacerlo donde se creó; si ese documento no admite reversa, el ajuste ' +
+              'tiene que hacerse por una póliza, no borrando el movimiento.'),
       );
     }
 
