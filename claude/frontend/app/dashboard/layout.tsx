@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 
 import { MODULOS, detectarModulo, detectarItem, agruparItems, RUTAS_CONTENEDOR } from './module-config';
+import { establecerVerComo, verComoActual, type VerComo } from '@/lib/ver-como';
 import { api, token, intentar } from '@/lib/api';
 import { leerSesion, sesionVigente, iniciales, puedeEntrar, puedeVerEnlace, type Sesion } from '@/lib/session';
 import PaletaComandos from '@/components/PaletaComandos';
@@ -63,6 +64,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const plan = useContratacion();
   const [empresa, setEmpresa] = useState('');
   const [permisos, setPermisos] = useState<string[] | null>(null);
+
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * La franja de «estás viendo el ERP como otro»
+   * ----------------------------------------------------------------------------
+   * Va arriba del todo, en todas las pantallas, y no se puede cerrar. Una
+   * suplantación que se olvida es la forma más rápida de que alguien reporte
+   * como defecto que «el ERP no le deja hacer nada»: la franja es lo que
+   * convierte eso en una mirada al encabezado.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const [verComo, setVerComo] = useState<VerComo | null>(null);
+  useEffect(() => {
+    const leer = () => setVerComo(verComoActual());
+    leer();
+    window.addEventListener('syncro:ver-como', leer);
+    return () => window.removeEventListener('syncro:ver-como', leer);
+  }, []);
   /*
    * «No tienes permisos» y «no pudimos preguntar qué permisos tienes» son dos
    * cosas distintas, y aquí se confundían: la consulta iba envuelta en
@@ -224,11 +243,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const nombre = sesion?.nombreCompleto || sesion?.email || 'Usuario';
 
+
+
   /* ── Render ────────────────────────────────────────────────────────────── */
 
   return (
     <PermisosProvider>
-      <div className="min-h-screen flex bg-[var(--color-lienzo)]">
+      {verComo && (
+        <div
+          data-imprimir="no"
+          className="fixed top-0 inset-x-0 z-[400] flex items-center justify-center gap-3
+                     bg-amber-500 px-4 py-1.5 text-[12.5px] font-medium text-amber-950"
+        >
+          <span>
+            Estás viendo el ERP como <b>{verComo.nombre}</b> ({verComo.rol}).
+            Lo que guardes queda registrado a tu nombre.
+          </span>
+          <button
+            onClick={() => {
+              establecerVerComo(null);
+              window.location.assign('/dashboard');
+            }}
+            className="rounded border border-amber-900/30 bg-amber-400/60 px-2 py-0.5 font-semibold hover:bg-amber-400"
+          >
+            Volver a ser yo
+          </button>
+        </div>
+      )}
+      <div
+        className="min-h-screen flex bg-[var(--color-lienzo)]"
+        style={verComo ? { paddingTop: '30px' } : undefined}
+      >
 
         {/* ══ MENÚ LATERAL ══════════════════════════════════════════════════ */}
         <aside

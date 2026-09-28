@@ -1083,6 +1083,7 @@ export const MODULOS: ModuleConfig[] = [
       "/dashboard/permisos",
       "/dashboard/auditoria",
       "/dashboard/rpa",
+      "/dashboard/admin/ver-como",
     ],
     items: [
       { label: "Usuarios", href: "/dashboard/usuarios", grupo: "Accesos" },
@@ -1095,6 +1096,17 @@ export const MODULOS: ModuleConfig[] = [
         label: "Bitácora de auditoría",
         href: "/dashboard/auditoria",
         grupo: "Control",
+      },
+      /*
+       * No lleva permiso propio porque su endpoint no está en la tabla de
+       * permisos: quien decide es el servidor, que sólo atiende la cabecera
+       * si quien la manda es administrador y sólo fuera de producción. El
+       * enlace vive en Administración, que ya es de administración.
+       */
+      {
+        label: "Ver el ERP como otra persona",
+        href: "/dashboard/admin/ver-como",
+        grupo: "Accesos",
       },
       {
         label: "Consulta de CURP (RPA)",

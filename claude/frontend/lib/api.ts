@@ -15,6 +15,7 @@
  */
 
 import { asegurarSesion, renovarSesion, token as sesionToken } from './sesion';
+import { CABECERA_SUPLANTACION, verComoActual } from './ver-como';
 
 const API_CONFIGURADA = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
 /** En producción nunca se degrada silenciosamente a localhost. */
@@ -294,6 +295,14 @@ async function request<T>(
     Accept: 'application/json',
     ...(esFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+    /*
+     * «Ver como». No viaja ninguna credencial: sólo a quién se pide ser
+     * atendido. El backend comprueba que quien lo pide sea administrador, que
+     * la persona sea de su misma empresa y que no sea otro administrador; si
+     * la función está apagada, responde que lo está en vez de ignorarlo, para
+     * que nadie crea que está probando un rol cuando no lo está.
+     */
+    ...(verComoActual() ? { [CABECERA_SUPLANTACION]: verComoActual()!.id } : {}),
     ...(headers as Record<string, string>),
   };
 

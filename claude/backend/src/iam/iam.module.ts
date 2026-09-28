@@ -21,6 +21,7 @@ import { IdentidadEmpresaService } from './services/identidad-empresa.service';
 import { AdminPermisosController } from './controllers/admin-permisos.controller';
 import { AuthController } from './controllers/auth.controller';
 import { UsuariosController } from './controllers/usuarios.controller';
+import { SuplantacionController } from './controllers/suplantacion.controller';
 
 import { NotificacionesModule } from '../notificaciones/notificaciones.module';
 import { CommonModule } from '../common/modules/common.module';
@@ -56,7 +57,12 @@ import { CommonModule } from '../common/modules/common.module';
     AuthService,
     UsuariosService,
   ],
-  controllers: [AdminPermisosController, AuthController, UsuariosController],
+  controllers: [
+    AdminPermisosController,
+    AuthController,
+    UsuariosController,
+    SuplantacionController,
+  ],
   exports: [
     PermisosDinamicosService,
     AuthService,

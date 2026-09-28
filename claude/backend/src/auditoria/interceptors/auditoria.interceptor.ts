@@ -117,10 +117,32 @@ export class AuditoriaInterceptor implements NestInterceptor {
     const idDesdeRuta = req?.params?.id ?? null;
     const payload = this.soloEscritura(metodo) ? this.sanitizar(req?.body) : null;
 
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * Quién lo hizo de verdad
+     * ------------------------------------------------------------------------
+     * Cuando el administrador ve el ERP como otra persona, `req.user` ES esa
+     * otra persona —tiene que serlo, o los tres controles de autorización no
+     * se ejercitarían—. Pero la bitácora no puede heredar esa ficción: dejaría
+     * escrito que el almacenista dio de baja un activo cuando lo dio de baja
+     * el administrador. Una auditoría que señala a quien no fue es peor que no
+     * tener auditoría.
+     *
+     * El registro nombra al humano —el administrador, con su id— y conserva el
+     * rol con el que actuó. Son las dos preguntas que se le hacen a una
+     * bitácora: a quién se le piden cuentas, y con qué autoridad se hizo.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const suplantacion = user?.suplantacion;
     const base = {
       empresaId: user?.empresaId ?? null,
-      usuarioId: user?.id ?? null,
-      usuarioEmail: user?.email ?? null,
+      usuarioId: suplantacion?.realId ?? user?.id ?? null,
+      usuarioEmail: suplantacion
+        ? `${suplantacion.realEmail} viendo como ${user?.email ?? 'desconocido'}`.substring(
+            0,
+            250,
+          )
+        : (user?.email ?? null),
       usuarioRol: user?.rol ?? null,
       accion,
       entidad,

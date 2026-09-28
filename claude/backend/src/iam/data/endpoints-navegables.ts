@@ -850,6 +850,20 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Ayuda y documentación',
     ordenMenu: 120,
   },
+  /*
+   * «Ver el ERP como otra persona» tampoco se da de alta en la tabla de
+   * permisos —sus dos lecturas llevan `@SkipPermisos()`—, así que sin esta
+   * línea la pantalla quedaría fuera del perfil de todos. No hace falta
+   * acotarla aquí: quien no sea administrador recibe una negativa del propio
+   * endpoint, y sólo responde fuera de producción y con la variable puesta.
+   * Acotarla además por menú sería un cuarto candado escrito en el sitio más
+   * débil de los cuatro.
+   */
+  'GET /iam/suplantacion': {
+    rutaFrontend: '/dashboard/admin/ver-como',
+    titulo: 'Ver el ERP como otra persona',
+    ordenMenu: 130,
+  },
 };
 
 /** Todas las rutas de pantalla conocidas: sirve para validar el mapa. */

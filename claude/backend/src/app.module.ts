@@ -67,6 +67,8 @@ import { TesoreriaModule } from './tesoreria/modules/tesoreria.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { LowercaseNamingStrategy } from './database/lowercase-naming.strategy';
 import { PermisoEndpointGuard } from './common/guards/permiso-endpoint.guard';
+import { SuplantacionGuard } from './common/guards/suplantacion.guard';
+import { Usuario } from './iam/entities/usuario.entity';
 import { RolesGuard } from './common/guards/roles.guard';
 
 @Module({
@@ -170,6 +172,12 @@ import { RolesGuard } from './common/guards/roles.guard';
     // ── Módulos de dominio ──────────────────────────────────────────────────
     AuditoriaModule,
     IamModule,
+    /*
+     * El guardia de suplantación es global —lo provee este módulo— y necesita
+     * leer la fila del usuario al que se pide ver. El repositorio se declara
+     * aquí porque los guardias globales se resuelven en el inyector raíz.
+     */
+    TypeOrmModule.forFeature([Usuario]),
     CommonModule,
     CatalogoModule,
     ClientesModule,
@@ -207,6 +215,16 @@ import { RolesGuard } from './common/guards/roles.guard';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    /*
+     * Va entre la sesión y los permisos, y ése es todo su sitio: necesita la
+     * identidad ya verificada, y los tres controles de autorización que vienen
+     * detrás tienen que ver a la persona suplantada y no al administrador.
+     * Sin cabecera no hace nada y no cuesta ni una consulta.
+     */
+    {
+      provide: APP_GUARD,
+      useClass: SuplantacionGuard,
     },
     {
       provide: APP_GUARD,
