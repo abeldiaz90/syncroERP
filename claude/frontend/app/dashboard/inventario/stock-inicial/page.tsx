@@ -113,7 +113,15 @@ export default function StockInicialPage() {
   const activo = !!job && !terminales.includes(job.estado);
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto text-slate-800">
-      <Link href="/dashboard/inventario" className="inline-flex items-center gap-1 text-sm text-slate-500 mb-4"><ArrowLeft className="w-4 h-4"/> Inventario</Link>
+      {/*
+        * Volvia a `/dashboard/inventario`, que NO es una pantalla: bajo esa
+        * ruta solo hay carpetas —recepciones, conteos, ubicaciones— y ninguna
+        * pagina. La flecha de volver daba un 404, y lo daba en la carga de
+        * stock inicial, que es de las primerisimas pantallas que toca una
+        * empresa nueva. Ahora va al modulo al que esta pantalla pertenece de
+        * verdad: el menu la lista dentro de Productos, en «Carga de datos».
+        */}
+      <Link href="/dashboard/centros/productos" className="inline-flex items-center gap-1 text-sm text-slate-500 mb-4"><ArrowLeft className="w-4 h-4"/> Productos</Link>
       <h1 className="text-3xl font-bold flex items-center gap-3"><Boxes className="w-8 h-8 text-emerald-600"/> Carga masiva de stock inicial</h1>
       <p className="text-slate-500 mt-1 mb-6">Carga un solo Excel grande. El ERP lo procesa internamente por bloques, permite salir de la pantalla y conserva el avance.</p>
 
