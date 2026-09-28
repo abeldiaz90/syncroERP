@@ -140,7 +140,7 @@ export default function VerComoPage() {
       )}
 
       {habilitada && !lista.cargando && !lista.error && porRol.size === 0 && (
-        <SinDatos mensaje="No hay otras personas dadas de alta en esta empresa." />
+        <SinDatos titulo="No hay otras personas dadas de alta en esta empresa." />
       )}
 
       {[...porRol.entries()].map(([rol, gente]) => (
