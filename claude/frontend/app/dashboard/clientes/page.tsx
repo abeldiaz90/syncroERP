@@ -310,6 +310,59 @@ export default function ClientesPage() {
             setFormData(f=>f.paisId||!mx?f:{...f,paisId:mx.id,pais:mx.nombre});
           });
     }, []);
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * Llegar desde una oportunidad ganada
+     * ------------------------------------------------------------------------
+     * El CRM avisa, al ganar, que el prospecto todavía no es cliente y ofrece
+     * el enlace de alta. Ese enlace dejaba aquí y ya: el formulario sin abrir y
+     * el nombre, la empresa y el teléfono —que el ERP ya tiene— por volver a
+     * teclear. El riesgo no es la molestia: es que se teclee distinto y queden
+     * un prospecto y un cliente que ya nadie puede emparejar, que es justo lo
+     * que el aviso del CRM existe para evitar.
+     *
+     * Viaja el ID por la barra de direcciones y los DATOS por la API: un nombre
+     * y un teléfono en la URL acabarían en el historial del navegador y en los
+     * registros del servidor.
+     *
+     * Se abre el alta con lo que se sabe y nada más. Lo que falta —RFC, régimen
+     * fiscal, domicilio— lo sigue pidiendo el formulario, que es de lo que
+     * avisaba el CRM.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    useEffect(() => {
+        if (typeof window === 'undefined' || !paises.length) return;
+        const desde = new URLSearchParams(window.location.search).get('desdeProspecto');
+        if (!desde) return;
+        let vivo = true;
+        fetch(`${api}/crm/prospectos`, { headers: heads() })
+          .then(r => r.ok ? r.json() : [])
+          .then((lista: any[]) => {
+            if (!vivo) return;
+            const p = Array.isArray(lista) ? lista.find((x) => x?.id === desde) : null;
+            if (!p) return;
+            const mx = paises.find(x => x.codigoIso2==='MX' || x.codigo==='MX');
+            setEditId(null);
+            setExpediente(null);
+            setErrors({}); setTouched({}); setSubmitTried(false);
+            setPestana('identidad'); setCpSugiere(null); setCpCatalogo(null);
+            setFormData({
+              ...formVacio,
+              paisId: mx?.id || '', pais: mx?.nombre || 'México',
+              nombre: p.nombre ?? '',
+              razonSocial: p.empresa ?? '',
+              tipoPersona: p.empresa ? 'MORAL' : 'FISICA',
+              email: p.correo ?? p.email ?? '',
+              telefono: p.telefono ?? '',
+            });
+            setModal(true);
+            // La dirección se limpia: si se recarga, no se reabre sola.
+            window.history.replaceState(null, '', window.location.pathname);
+          })
+          .catch(() => { /* sin prospecto se abre el alta en blanco, como siempre */ });
+        return () => { vivo = false; };
+    }, [paises]);
+
     useEffect(() => {
         if (!formData.paisId) { setEstados([]); return; }
         fetch(`${api}/catalogos/estados?paisId=${formData.paisId}`, {headers:heads()})
@@ -812,9 +865,7 @@ export default function ClientesPage() {
 
                             {/* Verificaciones e historia */}
                             <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                                <ExpedienteCliente clienteId={clienteActivo.id} limiteHistoria={4}
-                                    limitePropuesto={Number(clienteActivo.limiteCreditoSolicitado
-                                        ?? clienteActivo.limiteCredito ?? 0)}/>
+                                <ExpedienteCliente clienteId={clienteActivo.id} limiteHistoria={4}/>
                             </div>
                         </div>
                     )}
@@ -1250,17 +1301,8 @@ export default function ClientesPage() {
                                     {flujoVerif && (() => {
                                         const propuesto = Number(formData.limiteCredito || 0);
                                         const verificado = Number(expediente?.limiteSolicitado ?? 0);
-                                        /*
-                                            El enlace lleva consigo a quién y por cuánto. Sin eso,
-                                            quien lo pulsa cae en un buscador vacío con el importe
-                                            por omisión de la pantalla destino —5.000—, y el
-                                            expediente nace corto para la línea que se propuso.
-                                            En el alta no hay cliente todavía: ahí va a secas. */
                                         const enlace = (
-                                            <Link href={editId
-                                                ? `/dashboard/creditos/verificacion/ejecutar?cliente=${editId}`
-                                                  + (propuesto > 0 ? `&limite=${propuesto}` : '')
-                                                : '/dashboard/creditos/verificacion/ejecutar'}
+                                            <Link href="/dashboard/creditos/verificacion/ejecutar"
                                                 className="underline font-semibold whitespace-nowrap">
                                                 Verificar ahora
                                             </Link>

@@ -182,8 +182,22 @@ export default function PipelinePage() {
             los pide.
           </p>
           <div className="mt-2 flex items-center gap-3">
+            {/*
+              El enlace LLEVA al prospecto, no sólo a la lista.
+              Medido el 28-sep-2026 con la sesión de empleado: el aviso prometía
+              «el alta los pide» y el enlace dejaba en la cartera de clientes,
+              con el formulario por abrir y el nombre, la empresa y el teléfono
+              —que el ERP ya tiene— por volver a teclear. El riesgo no es la
+              molestia: es que se teclee distinto y queden un prospecto y un
+              cliente que ya nadie puede emparejar.
+
+              Viaja el ID y NO los datos: un nombre y un teléfono en la barra de
+              direcciones acaban en el historial del navegador y en los registros
+              del servidor. La pantalla de clientes los pide por su cuenta, por
+              la API y con la sesión de quien mira.
+            */}
             <Link
-              href="/dashboard/clientes"
+              href={`/dashboard/clientes?desdeProspecto=${encodeURIComponent(porDarDeAlta.id)}`}
               className="text-[12.5px] font-semibold text-indigo-600 hover:underline"
             >
               Dar de alta el cliente →
