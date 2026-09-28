@@ -84,6 +84,13 @@ const DOCUMENTOS_DE_ORIGEN: Record<string, { que: string; donde: string }> = {
     donde:
       'Una devolución no se deshace: si se hizo mal, lo correcto es una nueva venta por lo devuelto, no borrar el reembolso.',
   },
+  CANCELACION_TESORERIA: {
+    que: 'la cancelación de otro movimiento',
+    donde:
+      'Es ya el movimiento que deshace otro. Cancelarlo devolvería el dinero a los libros de algo ' +
+      'que se dio por cancelado; si la cancelación estuvo mal, lo que corresponde es registrar de ' +
+      'nuevo el movimiento con su explicación.',
+  },
   ANULACION_VENTA: {
     que: 'la anulación de una venta',
     donde:
@@ -518,6 +525,17 @@ export class TesoreriaService {
           importe: original.importe,
           concepto: `Cancelación de ${original.folio}: ${motivo}`,
           referencia: original.folio,
+          /*
+           * La contrapartida apunta al movimiento que deshace. Antes sólo lo
+           * nombraba en el concepto y en la referencia, que es texto: nada
+           * enlazaba los dos, y sobre todo NADA impedía cancelar la
+           * contrapartida. Hacerlo devolvería el dinero a los libros de un
+           * documento que ya se dio por cancelado —un nudo, no una corrección—.
+           * Con esto entra por la misma puerta que los demás documentos y la
+           * negativa lo explica.
+           */
+          documentoId: original.id,
+          tipoDocumento: 'CANCELACION_TESORERIA',
           registradoPorId: usuarioId,
           estadoConciliacion: EstadoConciliacion.PENDIENTE,
           saldoPosterior: 0,

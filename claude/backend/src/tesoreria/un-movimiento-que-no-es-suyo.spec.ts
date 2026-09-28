@@ -127,6 +127,28 @@ describe('un movimiento que no es suyo', () => {
     expect(guardados).toHaveLength(0);
   });
 
+  it('la contrapartida queda enlazada al movimiento que deshace, y no se cancela', async () => {
+    /*
+     * Antes la contrapartida sólo nombraba al original en el concepto y en la
+     * referencia, que es texto: nada los enlazaba, y sobre todo nada impedía
+     * cancelar la contrapartida. Hacerlo devolvería el dinero a los libros de
+     * un documento que ya se dio por cancelado —un nudo, no una corrección—.
+     */
+    const { s, guardados } = servicio(movimiento());
+    await s.cancelar('m1', 'lo capturé dos veces', 'e1', 'u1');
+    const contra = guardados[1];
+    expect(contra.documentoId).toBe('m1');
+    expect(contra.tipoDocumento).toBe('CANCELACION_TESORERIA');
+
+    // Y con eso entra por la misma puerta que los demás documentos.
+    const { s: s2 } = servicio(
+      movimiento({ id: 'm2', tipoDocumento: 'CANCELACION_TESORERIA', documentoId: 'm1' }),
+    );
+    await expect(s2.cancelar('m2', 'me arrepentí', 'e1', 'u1')).rejects.toThrow(
+      /deshace otro/i,
+    );
+  });
+
   it('un movimiento registrado a mano SÍ se cancela: para eso está', async () => {
     const { s, guardados } = servicio(movimiento());
     const r = (await s.cancelar('m1', 'lo capturé dos veces', 'e1', 'u1')) as unknown as {
