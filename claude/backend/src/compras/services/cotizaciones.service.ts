@@ -270,6 +270,50 @@ export class CotizacionesService implements OnApplicationBootstrap {
     }
     const existente = await this.ordenRepo.findOne({ where: { cotizacionId: id, empresaId } });
     if (existente) throw new ConflictException('La cotización ya tiene una orden de compra.');
+
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * Una requisición tiene UNA adjudicación en curso, o ninguna
+     * ------------------------------------------------------------------------
+     * Medido el 28-sep-2026 por pantalla, con la sesión de compras: sobre
+     * REQ-0C5BE1A8 se enviaron a firma las DOS propuestas —Proveedor A por
+     * $1,252.80 y Proveedor B por $1,148.40—, al mismo tiempo y por la misma
+     * requisición de 6 cajas.
+     *
+     * Lo que eso deja en la bandeja del firmante son dos solicitudes para
+     * comprar una sola cosa. Si firma las dos —y nada se lo impide, porque son
+     * documentos distintos— salen dos órdenes de compra: se compra el doble y
+     * se le debe a dos proveedores. Si firma una, la otra se queda esperando
+     * una firma que ya no significa nada, que es justo el pendiente que hubo
+     * que barrer con `cerrarPendientesDeRequisicionesAdjudicadas`.
+     *
+     * El servicio ya sabía de hermanas: al adjudicar descarta las que quedaron
+     * esperando. El hueco estaba un paso antes —al SOLICITAR no miraba más que
+     * a sí misma—, así que el conflicto se creaba y se limpiaba después en vez
+     * de no crearse.
+     *
+     * El «no» nombra a la que está en curso porque la salida existe y está en
+     * la misma pantalla: retirar aquella solicitud y enviar ésta.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const hermanas = await this.cotizacionRepo.find({
+      where: { empresaId, requisicionId: cot.requisicionId },
+      relations: ['proveedor'],
+    });
+    const enCurso = hermanas.find(
+      (h) =>
+        h.id !== cot.id &&
+        (h.estado === 'PENDIENTE_APROBACION' ||
+          h.estado === 'APROBADA' ||
+          h.estado === 'SELECCIONADA'),
+    );
+    if (enCurso) {
+      throw new ConflictException(
+        enCurso.estado === 'PENDIENTE_APROBACION'
+          ? `La propuesta de ${enCurso.proveedor?.nombre ?? 'otro proveedor'} ya está esperando firma para esta requisición. Retira esa solicitud antes de enviar ésta: dos adjudicaciones en la misma bandeja acaban en dos órdenes de compra.`
+          : `Esta requisición ya se adjudicó a ${enCurso.proveedor?.nombre ?? 'otro proveedor'}. No se puede adjudicar dos veces lo mismo.`,
+      );
+    }
     cot.estado = 'PENDIENTE_APROBACION';
     cot.motivoSeleccion = motivoSeleccion?.trim();
     cot.solicitadoAprobacionPorId = usuarioId;
