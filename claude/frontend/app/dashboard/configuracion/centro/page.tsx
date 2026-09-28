@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
-import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, RefreshCw, ShoppingCart, Truck, Package, Calculator, Settings } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, RefreshCw, ShoppingCart, Truck, Package, Calculator, Settings, FileText } from 'lucide-react';
 
 type Req={codigo:string;titulo:string;completo:boolean;bloqueante:boolean;ruta:string;detalle?:string};
 type Mod={porcentaje:number;estado:string;requisitos:Req[];bloqueantes:Req[]};
@@ -14,7 +14,26 @@ const meta:Record<string,{titulo:string;desc:string;icon:any}>={
  inventario:{titulo:'Inventario',desc:'Almacenes, ubicaciones y existencias',icon:Package},
  credito:{titulo:'Crédito y cobranza',desc:'Clientes, límites, vencimientos y recuperación',icon:ShoppingCart},
  finanzas:{titulo:'Finanzas',desc:'Plan contable, bancos y contabilización',icon:Calculator},
+ /*
+  * `facturacion` faltaba, y el respaldo era `meta.general`: el bloque del
+  * timbrado salía titulado «Configuración general», con la descripción de otro
+  * módulo y justo debajo de otra tarjeta con ESE MISMO título al 100 %. Lo
+  * único que le falta a esta empresa —las claves del SAT de sus productos— se
+  * enseñaba con el nombre de lo que ya estaba completo.
+  */
+ facturacion:{titulo:'Facturación electrónica',desc:'Claves del SAT, certificados y timbrado',icon:FileText},
 };
+
+/**
+ * El nombre de un módulo que todavía no está en la tabla.
+ *
+ * Antes se usaba `meta.general` como respaldo, así que cualquier módulo nuevo
+ * del servidor aparecía con el nombre y la descripción de «Configuración
+ * general». Un rótulo prestado es peor que uno feo: manda a arreglar otra cosa.
+ * Ahora sale con su propia clave, que al menos es cierta, y se ve que falta
+ * darle nombre.
+ */
+const metaDe=(clave:string)=>meta[clave]??{titulo:clave.charAt(0).toUpperCase()+clave.slice(1),desc:'Módulo sin descripción todavía',icon:Settings};
 export default function CentroConfiguracion(){
  const router=useRouter(); const [d,setD]=useState<Diag|null>(null); const [error,setError]=useState(''); const [cargando,setCargando]=useState(true);
  const cargar=async()=>{setCargando(true);setError('');try{setD(await api.get<Diag>('/configuracion/diagnostico'));}catch(e){setError(e instanceof ApiError?e.mensajeParaPantalla():'No se pudo evaluar la configuración.');}finally{setCargando(false)}};
@@ -30,6 +49,6 @@ export default function CentroConfiguracion(){
   <div className="grid gap-4 md:grid-cols-5">
    {[['Vender',d.puedeVender],['Comprar',d.puedeComprar],['Controlar inventario',d.puedeControlarInventario],['Usar crédito',d.puedeUsarCredito],['Contabilizar',d.puedeContabilizar]].map(([t,ok])=><div key={String(t)} className={`rounded-2xl border p-4 ${ok?'border-emerald-200 bg-emerald-50':'border-amber-200 bg-amber-50'}`}>{ok?<CheckCircle2 className="text-emerald-600"/>:<AlertTriangle className="text-amber-600"/>}<p className="mt-2 font-semibold">{String(t)}</p><p className="text-sm">{ok?'Listo para operar':'Requiere configuración'}</p></div>)}
   </div>
-  <div className="grid gap-5 lg:grid-cols-2">{(Object.entries(d.modulos) as Array<[string, Mod]>).map(([k,m])=>{const x=meta[k]??meta.general;const Icon=x.icon;return <section key={k} className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div className="flex gap-3"><div className="rounded-xl bg-slate-100 p-3"><Icon size={22}/></div><div><h2 className="font-bold text-lg">{x.titulo}</h2><p className="text-sm text-slate-500">{x.desc}</p></div></div><span className="font-bold">{m.porcentaje}%</span></div><div className="my-4 h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-indigo-600" style={{width:`${m.porcentaje}%`}}/></div><div className="space-y-2">{m.requisitos.map(r=><button key={r.codigo} onClick={()=>router.push(r.ruta)} className="w-full flex items-center gap-3 rounded-xl border p-3 text-left hover:bg-slate-50">{r.completo?<CheckCircle2 size={18} className="text-emerald-600"/>:r.bloqueante?<XCircle size={18} className="text-red-500"/>:<AlertTriangle size={18} className="text-amber-500"/>}<span className="flex-1 text-sm font-medium">{r.titulo}</span>{!r.completo&&<ArrowRight size={16}/>}</button>)}</div>{['ventas','compras','inventario','credito','finanzas'].includes(k)&&<button onClick={()=>router.push(`/dashboard/configuracion/wizard-${k}`)} className="mt-4 w-full rounded-xl bg-sky-600 px-4 py-3 font-semibold text-white">Abrir wizard de {k}</button>}</section>})}</div>
+  <div className="grid gap-5 lg:grid-cols-2">{(Object.entries(d.modulos) as Array<[string, Mod]>).map(([k,m])=>{const x=metaDe(k);const Icon=x.icon;return <section key={k} className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div className="flex gap-3"><div className="rounded-xl bg-slate-100 p-3"><Icon size={22}/></div><div><h2 className="font-bold text-lg">{x.titulo}</h2><p className="text-sm text-slate-500">{x.desc}</p></div></div><span className="font-bold">{m.porcentaje}%</span></div><div className="my-4 h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-indigo-600" style={{width:`${m.porcentaje}%`}}/></div><div className="space-y-2">{m.requisitos.map(r=><button key={r.codigo} onClick={()=>router.push(r.ruta)} className="w-full flex items-center gap-3 rounded-xl border p-3 text-left hover:bg-slate-50">{r.completo?<CheckCircle2 size={18} className="text-emerald-600"/>:r.bloqueante?<XCircle size={18} className="text-red-500"/>:<AlertTriangle size={18} className="text-amber-500"/>}<span className="flex-1 text-sm font-medium">{r.titulo}</span>{!r.completo&&<ArrowRight size={16}/>}</button>)}</div>{['ventas','compras','inventario','credito','finanzas'].includes(k)&&<button onClick={()=>router.push(`/dashboard/configuracion/wizard-${k}`)} className="mt-4 w-full rounded-xl bg-sky-600 px-4 py-3 font-semibold text-white">Abrir wizard de {k}</button>}</section>})}</div>
  </div>
 }
