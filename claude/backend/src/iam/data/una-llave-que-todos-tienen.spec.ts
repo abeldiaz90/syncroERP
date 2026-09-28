@@ -97,6 +97,19 @@ const PANTALLAS_DE_CONSULTA_ABIERTA = [
   'GET /catalogos/estados',
   'GET /catalogos/formas-pago',
   'GET /catalogos/paises',
+  /*
+   * La ayuda del sistema, añadida el 28-sep-2026. **Sí, la ven los trece
+   * roles, y es lo que se quiere**: es el manual de la herramienta que están
+   * usando, y esconderlo por rol dejaría sin manual justo a quien lo necesita.
+   *
+   * Y no repite el defecto que esta prueba vigila —una pantalla que abre y
+   * contesta que no—, porque la pantalla NO consulta después nada que se
+   * niegue: el índice que devuelve este mismo endpoint ya viene recortado a lo
+   * que ese lector puede abrir. Los cuatro documentos técnicos no aparecen
+   * siquiera listados para quien no es administrador, así que no hay enlace que
+   * lleve a un «no».
+   */
+  'GET /documentacion',
 ];
 
 describe('Coherencia · una pantalla no se abre con una llave que todos tienen', () => {

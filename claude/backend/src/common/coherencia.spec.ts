@@ -26,6 +26,7 @@ import {
   ENDPOINTS_NAVEGABLES,
   navegableDe,
   normalizarParametrosDeRuta,
+  RUTAS_FRONTEND_CONOCIDAS,
 } from '../iam/data/endpoints-navegables';
 import { moduloDeRuta, MODULOS_ASIGNABLES, MODULOS_POR_ID } from '../iam/data/modulos-catalogo';
 import { MODULOS_NEGOCIO } from '../iam/data/modulos-catalogo';
@@ -1833,12 +1834,33 @@ describe('Coherencia · un modulo nombrado existe, o no es un modulo', () => {
 
       const mapea = /moduloPermisos:\s*"([^"]+)"/.exec(bloque);
       const agrupa = /agrupacion:\s*true/.test(bloque);
+      const sinPermiso = /sinPermiso:\s*true/.test(bloque);
 
       if (mapea) {
         if (!validos.has(mapea[1])) mapeoInvalido.push(`${id} → "${mapea[1]}"`);
         continue;
       }
       if (agrupa) continue;
+      /*
+       * `sinPermiso: true` — el cajon no pasa por la tabla porque sus endpoints
+       * llevan `@SkipPermisos()`, igual que los catalogos de referencia. Nacio
+       * con la Ayuda, porque las otras tres declaraciones obligaban a mentir:
+       * la ayuda no es administracion y no agrupa pantallas de varios modulos.
+       *
+       * No basta con declararlo. Se comprueba que la pantalla este en el mapa
+       * navegable, que es la UNICA via por la que una pantalla sin permiso
+       * llega al perfil de alguien. Sin esa entrada el cajon saldria en el menu
+       * de nadie: la accion permitida y la pantalla negada, otra vez.
+       */
+      if (sinPermiso) {
+        const href = /href:\s*"([^"]+)"/.exec(bloque)?.[1];
+        if (!href || !RUTAS_FRONTEND_CONOCIDAS.includes(href)) {
+          sinDeclarar.push(
+            `${id} (declara sinPermiso y ${href ?? 'su href'} no esta en endpoints-navegables)`,
+          );
+        }
+        continue;
+      }
       if (validos.has(id)) continue;
       sinDeclarar.push(id);
     }

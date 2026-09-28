@@ -837,6 +837,19 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Avisos del core',
     ordenMenu: 32,
   },
+  /*
+   * La ayuda la ve todo el mundo, y por eso esta entrada importa: el endpoint
+   * lleva `@SkipPermisos()`, asi que no se da de alta en la tabla de permisos y
+   * sin esta linea la pantalla quedaria fuera del perfil de todos —la accion
+   * permitida y la pantalla negada, que es el defecto que este proyecto ya
+   * persiguio tres veces—. Quien no sea administrador vera el indice recortado
+   * a los dos manuales de usuario; esa decision es del contenido, no del menu.
+   */
+  'GET /documentacion': {
+    rutaFrontend: '/dashboard/ayuda',
+    titulo: 'Ayuda y documentación',
+    ordenMenu: 120,
+  },
 };
 
 /** Todas las rutas de pantalla conocidas: sirve para validar el mapa. */

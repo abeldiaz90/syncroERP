@@ -11,6 +11,19 @@
 
 ---
 
+## Dónde se leen
+
+Aquí, como archivos del repositorio, y **dentro del ERP**: entrando en
+**Ayuda y documentación**, con descarga en PDF. El backend los lee de esta misma
+carpeta en cada petición, así que corregir un documento aquí lo corrige también
+en la pantalla, sin volver a desplegar nada.
+
+Los dos manuales de usuario los lee cualquiera; los cuatro documentos técnicos,
+sólo el administrador. El detalle está en `01-instalacion-y-puesta-en-marcha.md`
+§2.9.
+
+---
+
 ## Los documentos
 
 | # | Documento | Para quién |

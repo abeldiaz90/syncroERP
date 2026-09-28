@@ -137,7 +137,31 @@ un servicio externo esté configurado para que el sistema arranque.
 | `CIERRE_RESPALDO_TIMEOUT_S` | `300` |
 | `CIERRE_EXIGIR_CONCILIACION_BANCARIA` | ver §7 de `02-arquitectura.md` |
 
-### 2.9 Otras
+### 2.9 La ayuda dentro del ERP
+
+Estos documentos se leen desde el propio ERP, en **Ayuda y documentación**, y se
+descargan en PDF. El backend los lee de esta misma carpeta `docs/` en cada
+petición: **no hay copia dentro del backend a propósito**, porque dos copias del
+mismo texto divergen y la pantalla acabaría enseñando la versión vieja.
+
+| Variable | Para qué |
+|---|---|
+| `DOCUMENTACION_DIR` | Dónde está esta carpeta. Sin ella se busca en las rutas habituales relativas al backend, que es lo que funciona en un despliegue normal. Si no la encuentra, **la pantalla dice en qué rutas buscó** en vez de salir vacía. |
+| `DOCUMENTACION_NAVEGADOR` | Ruta de un Chrome o Edge ya instalado, para componer el PDF. Sin ella se usa el Chromium que `puppeteer` descarga al instalar, y si tampoco está, se prueban las rutas habituales de Chrome y Edge. |
+
+Si no hay ningún navegador, el PDF no se genera y la pantalla lo dice **y ofrece
+imprimir desde el navegador**, que produce el mismo documento y siempre existe.
+Para que el servidor lo genere solo: `npx puppeteer browsers install chrome`.
+
+**Quién ve qué.** Los dos manuales de usuario —*Manual por rol* y *Compras y
+nómina*— los lee cualquier sesión válida. Los cuatro documentos técnicos —éste,
+*Arquitectura*, *Aprovisionamiento* y *Límites conocidos*— **sólo los ve el
+administrador**: nombran variables de entorno, claves de servicio y lo que
+todavía no está probado, y eso no es material para la empresa cliente. El índice
+se recorta en el servidor, así que nadie ve listado un documento que al pulsarlo
+le va a contestar que no.
+
+### 2.10 Otras
 
 `BUSINESS_TIMEZONE`, `TZ`, `CRONS_HABILITADOS`, `SCHEMA_CACHE_TTL_MS`,
 `IMPORT_MAX_FILE_MB`, `IMPORT_STOCK_BATCH_SIZE`,

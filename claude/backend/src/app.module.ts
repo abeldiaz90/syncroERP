@@ -59,6 +59,7 @@ import { AprobacionesModule } from './aprobaciones/modules/aprobaciones.module';
 
 // ── Módulos funcionales adicionales ─────────────────────────────────────────
 import { ActivosModule } from './activos/modules/activos.module';
+import { DocumentacionModule } from './documentacion/documentacion.module';
 import { RrhhModule } from './rrhh/modules/rrhh.module';
 import { TesoreriaModule } from './tesoreria/modules/tesoreria.module';
 
@@ -184,6 +185,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     CreditoModule,
     TesoreriaModule,
     ActivosModule,
+    DocumentacionModule,
     RrhhModule,
     CrmModule,
     ConfiguracionModule,

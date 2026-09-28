@@ -32,8 +32,6 @@ interface Activo {
   numeroSerie?: string;
   marca?: string;
   modelo?: string;
-  /* Con esto en cero, la base de cálculo todavía se puede corregir. */
-  depreciacionAcumulada: number;
 }
 
 interface Categoria { id: string; clave: string; nombre: string; tasaAnual: number }

@@ -40,6 +40,7 @@ import {
   BarChart3,
   Database,
   BedDouble,
+  BookOpen,
   Settings,
   Users,
   Wallet,
@@ -126,6 +127,23 @@ export interface ModuleConfig {
    * Una prueba de coherencia exige que se cumpla una de las tres.
    */
   moduloPermisos?: string;
+
+  /**
+   * El cajón no pasa por la tabla de permisos: sus pantallas las abre
+   * cualquier sesión válida (`@SkipPermisos()` en el servidor), igual que los
+   * catálogos de referencia —países, bancos, formas de pago—.
+   *
+   * Es la cuarta declaración posible, y nació con la Ayuda: las otras tres
+   * obligaban a mentir. «Ayuda» no es administración y no agrupa pantallas de
+   * varios módulos; es el manual del sistema, y no hay permiso que conceder ni
+   * que vedar porque el servidor no registra esos endpoints en la tabla.
+   *
+   * Lo que SÍ se recorta es el CONTENIDO: los cuatro documentos técnicos
+   * —variables de entorno, claves de servicio, lo que falta por probar— sólo se
+   * listan para el administrador. Esa decisión es del servidor, documento por
+   * documento, no del menú.
+   */
+  sinPermiso?: true;
   /** Junta pantallas de varios modulos; no es un modulo de permisos. */
   agrupacion?: boolean;
   desc: string;
@@ -1083,6 +1101,27 @@ export const MODULOS: ModuleConfig[] = [
         href: "/dashboard/rpa/curp",
         grupo: "Herramientas",
       },
+    ],
+  },
+  /*
+   * La ayuda es del sistema, no de un área: la ve cualquiera que entre. El
+   * índice que recibe cada quien lo recorta el servidor —los cuatro documentos
+   * técnicos son del administrador—, así que aquí no hay nada que condicionar:
+   * esconder el módulo entero dejaría sin manual a todo el mundo.
+   */
+  {
+    id: "ayuda",
+    sinPermiso: true,
+    nombre: "Ayuda",
+    desc: "Manuales del sistema y documentación técnica",
+    Icono: BookOpen,
+    color: "#0f766e",
+    bg: "#f0fdfa",
+    border: "#ccfbf1",
+    href: "/dashboard/ayuda",
+    prefixes: ["/dashboard/ayuda"],
+    items: [
+      { label: "Ayuda y documentación", href: "/dashboard/ayuda", grupo: "Documentación" },
     ],
   },
 ];
