@@ -54,7 +54,7 @@
 
 <h3>16.3 · Los estados de un préstamo</h3>
 
-<div class="flujo">
+<div class="cinta">
   <div><span class="q">1</span><b>Solicitud</b><em>Submitted and pending approval.</em> Existe, no compromete dinero.</div>
   <div><span class="q">2</span><b>Aprobado</b><em>Approved.</em> Decidido, no entregado.</div>
   <div><span class="q">3</span><b>Activo</b><em>Active.</em> Desembolsado; corre el calendario.</div>
@@ -77,7 +77,7 @@
   (<em>Tenant: default</em>).
 </p>
 
-<div class="caja ojo"><span class="rot">Ojo · los inquilinos no se crean al vuelo</span>
+<div class="nota sec"><span class="rot">Ojo · los inquilinos no se crean al vuelo</span>
   <p>Fineract construye el esquema de un inquilino <strong>al arrancar</strong>. Crear uno nuevo
   obliga a reiniciar el servicio, con todas las instituciones operando. Por eso se preparan por
   lote en una ventana de mantenimiento y se entregan ya listos.</p></div>
@@ -149,21 +149,21 @@
 
 <h3>18.2 · Originar</h3>
 
-<div class="paso"><span class="n">1</span><b class="t">Abrir el cliente y pulsar «+ Crédito»</b>
+<div class="pasoq"><b>Abrir el cliente y pulsar «+ Crédito»</b>
   Se elige el producto. El portal precarga el principal, el plazo, la tasa y la frecuencia
   desde el producto; lo que el producto permita variar, se puede variar dentro de sus
   límites.</div>
 
-<div class="paso"><span class="n">2</span><b class="t">Revisar el calendario propuesto</b>
+<div class="pasoq"><b>Revisar el calendario propuesto</b>
   Antes de guardar, Fineract calcula la tabla de amortización. Es el momento de comprobar que
   el plazo y la primera fecha de pago son los que se acordaron.</div>
 
-<div class="paso"><span class="n">3</span><b class="t">Aprobar</b>
+<div class="pasoq"><b>Aprobar</b>
   Decisión distinta de la solicitud, y normalmente de otra persona. Si la institución tiene
   <em>maker-checker</em> activo para esta acción, la aprobación queda pendiente en la mesa de
   control hasta que un segundo usuario la confirme.</div>
 
-<div class="paso"><span class="n">4</span><b class="t">Desembolsar</b>
+<div class="pasoq"><b>Desembolsar</b>
   Es el acto que <strong>mueve dinero</strong> y el que fija el calendario definitivo. Desde
   aquí el préstamo está <em>Activo</em>.</div>
 
@@ -189,7 +189,7 @@
   <tr><td><strong>Reprogramación</strong></td><td>Cambia el calendario de un préstamo vivo: prórroga, cambio de fecha, reestructura.</td></tr>
 </table>
 
-<div class="caja ojo"><span class="rot">Ojo · la fecha valor</span>
+<div class="nota sec"><span class="rot">Ojo · la fecha valor</span>
   <p>Casi toda operación de un core pide <strong>una fecha</strong>, y no es la de hoy por
   omisión ni un adorno: es la fecha con la que el hecho entra en la contabilidad y con la que
   se recalcula el interés. Poner mal la fecha de un pago cambia el interés devengado y la mora,
@@ -330,7 +330,7 @@
   <tr><td><strong>Programador</strong> <em>(scheduler)</em></td><td>Corre los procesos automáticos: devengo, clasificación de mora, provisiones, intereses de ahorro, recordatorios.</td></tr>
 </table>
 
-<div class="caja ojo"><span class="rot">Ojo · los procesos con error</span>
+<div class="nota sec"><span class="rot">Ojo · los procesos con error</span>
   <p>El contador de <strong>procesos con error</strong> de la mesa de control es el que hay que
   mirar cada mañana. Un proceso de devengo que falló no avisa a nadie por su cuenta: se nota
   semanas después, cuando el estado de resultados no cuadra con la cartera.</p></div>
@@ -364,7 +364,7 @@
   Fineract.</strong>
 </p>
 
-<div class="caja ejerc"><span class="rot">Ejercicio Parte II</span>
+<div class="nota tenue"><span class="rot">Ejercicio Parte II</span>
   <p>Abre un cliente en Cliente 360 y origina un crédito de un producto a plazo simple. Revisa
   el calendario propuesto antes de guardar. Apruébalo, desembólsalo y registra un pago parcial
   con fecha de hace tres días. Después ve a Contabilidad → Pólizas y asientos y localiza los

@@ -1,471 +1,593 @@
 <h2><span class="cap">Capítulo 9</span>Activos fijos</h2>
 
-<p><span class="quien">finanzas</span> &nbsp;<span class="quien">contador</span></p>
+<p class="roles-cab"><span class="rol">finanzas</span> <span class="rol">contador</span></p>
+
+<h3>9.1 · Qué resuelve</h3>
 
 <p>
-  Un activo fijo es un bien que la empresa usa durante años y cuyo costo se lleva al gasto poco
-  a poco: <strong>la depreciación</strong>. El módulo lleva el alta, la corrida mensual, la baja
-  y la cédula.
+  Un activo fijo es un bien que la empresa utiliza durante varios ejercicios y cuyo costo se
+  imputa al gasto de forma gradual: <strong>la depreciación</strong>. El módulo gestiona el
+  alta, la corrida mensual, la baja y la cédula anual.
 </p>
 
-<h3>9.1 · Registro de activos</h3>
+<h3>9.2 · Alta de un activo</h3>
 
 <figure>
   <img src="img/29-activos-registro.jpg" alt="Registro de activos">
-  <figcaption><b>Activos fijos → Registro.</b> Arriba, los cuatro números que importan: activos
-  en uso, costo histórico, depreciación acumulada y <b>valor en libros</b>. La lista da código,
-  categoría, fecha de adquisición, costo, tasa, depreciado, en libros y estado.</figcaption>
+  <figcaption><b>Activos fijos › Registro.</b> Activos en uso, costo histórico, depreciación
+  acumulada y <b>valor en libros</b>. La lista presenta código, categoría, fecha de adquisición,
+  costo, tasa, depreciado, valor en libros y estado.</figcaption>
 </figure>
 
 <table>
-  <tr><th style="width:26%">Dato del alta</th><th>Qué decide</th></tr>
-  <tr><td><strong>Código</strong></td><td>Identifica el activo. Va pegado en una etiqueta física, así que <strong>no se puede cambiar</strong> después.</td></tr>
-  <tr><td><strong>Categoría</strong></td><td>De ella cuelgan la cuenta de activo, la de depreciación acumulada y la de gasto. Es lo que hace que la corrida escriba su póliza.</td></tr>
-  <tr><td><strong>Costo de adquisición</strong></td><td>La base del cálculo.</td></tr>
-  <tr><td><strong>Valor residual</strong></td><td>Lo que se espera que valga al final. Nunca puede superar al costo.</td></tr>
-  <tr><td><strong>Método y tasa / vida útil</strong></td><td>Línea recta es lo habitual; la tasa anual o la vida útil en meses definen el ritmo.</td></tr>
-  <tr><td><strong>Fecha de inicio de depreciación</strong></td><td>Desde cuándo se deprecia. No tiene por qué ser la de compra.</td></tr>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es y qué determina</th></tr></thead>
+  <tr><td class="campo">codigo</td><td><span class="ob">OBLIGATORIO</span></td><td>Identificador del activo. <strong>No puede modificarse después</strong>: va adherido a una etiqueta física.</td></tr>
+  <tr><td class="campo">nombre</td><td><span class="ob">OBLIGATORIO</span></td><td>Descripción del bien.</td></tr>
+  <tr><td class="campo">categoriaId</td><td><span class="ob">OBLIGATORIO</span></td><td>De ella cuelgan la cuenta de activo, la de depreciación acumulada y la de gasto. Es lo que permite que la corrida genere su póliza.</td></tr>
+  <tr><td class="campo">fechaAdquisicion</td><td><span class="ob">OBLIGATORIO</span></td><td>Cuándo se compró.</td></tr>
+  <tr><td class="campo">costoAdquisicion</td><td><span class="ob">OBLIGATORIO</span></td><td>Base del cálculo de depreciación.</td></tr>
+  <tr><td class="campo">metodo</td><td><span class="ob">OBLIGATORIO</span></td><td><span class="campo">LINEA_RECTA</span>, <span class="campo">SALDOS_DECRECIENTES</span> o <span class="campo">NO_DEPRECIABLE</span> —terrenos, obras de arte—.</td></tr>
+  <tr><td class="campo">tasaAnual</td><td><span class="ob">OBLIGATORIO</span> si se deprecia</td><td>Porcentaje anual. Alternativa a la vida útil.</td></tr>
+  <tr><td class="campo">vidaUtilMeses</td><td><span class="op">opcional</span></td><td>Número de meses a depreciar.</td></tr>
+  <tr><td class="campo">valorResidual</td><td><span class="op">opcional</span></td><td>Valor esperado al final de la vida útil. <strong>Nunca puede superar al costo.</strong></td></tr>
+  <tr><td class="campo">fechaInicioDepreciacion</td><td><span class="op">opcional</span></td><td>Desde cuándo se deprecia. No tiene por qué coincidir con la fecha de compra.</td></tr>
+  <tr><td class="campo">numeroSerie · marca · modelo</td><td><span class="op">opcional</span></td><td>Ficha descriptiva.</td></tr>
+  <tr><td class="campo">ubicacion · responsable</td><td><span class="op">opcional</span></td><td>Dónde está y de quién depende. Es lo que se usa en el inventario físico de activos.</td></tr>
 </table>
 
-<h3>9.2 · Corregir una ficha</h3>
-
-<p>El lápiz del renglón abre la corrección, y la regla es ésta:</p>
+<h4>Estados del activo</h4>
 
 <table>
-  <tr><th style="width:34%">Qué se toca</th><th>Cuándo</th></tr>
-  <tr><td><strong>Ficha descriptiva</strong> — nombre, marca, modelo, número de serie, ubicación, responsable</td><td><strong>Siempre.</strong> No cambia ningún número ya asentado.</td></tr>
-  <tr><td><strong>Base de cálculo</strong> — costo, residual, método, tasa, vida útil, fecha de inicio, categoría</td><td><strong>Sólo mientras no haya depreciación corrida.</strong> Tocarla con corridas hechas dejaría los meses viejos calculados con una base y los nuevos con otra, y la depreciación acumulada sería la suma de dos cosas distintas.</td></tr>
+  <thead><tr><th style="width:30%">Estado</th><th>Significado</th></tr></thead>
+  <tr><td class="campo">ACTIVO</td><td>En uso y depreciándose.</td></tr>
+  <tr><td class="campo">EN_MANTENIMIENTO</td><td>Fuera de servicio temporalmente; sigue depreciándose.</td></tr>
+  <tr><td class="campo">TOTALMENTE_DEPRECIADO</td><td>Alcanzó su valor residual. Permanece en el inventario.</td></tr>
+  <tr><td class="campo">BAJA</td><td>Retirado por obsolescencia, siniestro, donación o robo.</td></tr>
+  <tr><td class="campo">VENDIDO</td><td>Retirado por venta, con su utilidad o pérdida asentada.</td></tr>
+</table>
+
+<h3>9.3 · Corregir una ficha</h3>
+
+<p>El lápiz del renglón abre la corrección, gobernada por tres reglas:</p>
+
+<table>
+  <thead><tr><th style="width:34%">Grupo de campos</th><th>Cuándo se puede modificar</th></tr></thead>
+  <tr><td><strong>Ficha descriptiva</strong> — nombre, marca, modelo, número de serie, ubicación, responsable, descripción</td><td><strong>Siempre.</strong> No altera ningún importe ya asentado.</td></tr>
+  <tr><td><strong>Base de cálculo</strong> — costo, valor residual, método, tasa, vida útil, fecha de inicio, categoría</td><td><strong>Sólo mientras no exista depreciación corrida vigente.</strong> Modificarla con corridas aplicadas dejaría los meses anteriores calculados con una base y los siguientes con otra, y la depreciación acumulada sería la suma de dos magnitudes distintas.</td></tr>
   <tr><td><strong>Código</strong></td><td><strong>Nunca.</strong></td></tr>
 </table>
 
 <p>
-  Si hay corridas y hace falta cambiar la base, el camino existe y el sistema lo nombra:
-  <strong>revertir las corridas, corregir y volver a correrlas</strong>. Un activo dado de
-  <em>baja</em> o <em>vendido</em> no se edita: su costo ya es parte de la utilidad o pérdida
-  asentada.
+  Si existen corridas y es necesario modificar la base, el sistema indica el camino disponible:
+  <strong>revertir las corridas, corregir y volver a ejecutarlas</strong>. Un activo en estado
+  BAJA o VENDIDO no admite edición: su costo ya forma parte de la utilidad o pérdida asentada.
 </p>
 
-<h3>9.3 · Corrida de depreciación</h3>
+<h3>9.4 · Corrida de depreciación</h3>
 
 <figure>
   <img src="img/30-activos-depreciacion.jpg" alt="Corrida de depreciación">
-  <figcaption><b>Activos fijos → Corrida de depreciación.</b> Se elige mes y ejercicio y se
-  ejecuta. El aviso de abajo es importante: ejecutar dos veces el mismo periodo
-  <b>no duplica el gasto</b> — los activos ya depreciados se omiten.</figcaption>
+  <figcaption><b>Activos fijos › Corrida de depreciación.</b> Se selecciona mes y ejercicio y se
+  ejecuta. La advertencia inferior es relevante: ejecutar dos veces el mismo periodo <b>no
+  duplica el gasto</b>, los activos ya depreciados se omiten.</figcaption>
 </figure>
 
-<div class="caja auto"><span class="rot">Lo que hace el sistema solo</span>
-  <p>Calcula la depreciación del mes de cada activo activo, la acumula, recalcula el valor en
-  libros y <strong>genera una póliza</strong>: <em>Dr. Gasto por depreciación / Cr.
-  Depreciación acumulada</em>, con las cuentas que salen de la categoría de cada activo.</p></div>
+<div class="nota"><span class="rot">Efecto automático</span>
+  <p>Calcula la depreciación del mes de cada activo en estado depreciable, la acumula,
+  recalcula el valor en libros y <strong>genera una póliza</strong>: cargo a Gasto por
+  depreciación, abono a Depreciación acumulada, con las cuentas procedentes de la categoría de
+  cada activo.</p></div>
 
-<h3>9.4 · Bajas y ventas</h3>
-
-<p>
-  <strong>Activos fijos → Bajas y ventas.</strong> Dar de baja un activo exige el motivo, y el
-  motivo cambia el asiento: una <strong>venta</strong> compara el precio contra el valor en
-  libros y produce utilidad o pérdida; una <strong>baja</strong> por obsolescencia o siniestro
-  cancela el valor restante contra el resultado. En los dos casos el activo sale del inventario
-  y deja de depreciarse.
-</p>
-
-<h3>9.5 · Cédula de depreciación</h3>
+<h3>9.5 · Baja y venta</h3>
 
 <p>
-  El reporte anual, activo por activo y mes por mes. Es lo que se entrega al auditor y lo que
-  sostiene la cifra de depreciación acumulada del balance.
+  <strong>Activos fijos › Bajas y ventas.</strong> La baja exige <strong>motivo</strong>, y el
+  motivo determina el asiento:
 </p>
 
-<div class="caja ejerc"><span class="rot">Ejercicio 9</span>
-  <p>Da de alta un activo con categoría, costo, tasa y fecha de inicio. Corre la depreciación
-  del mes y busca su póliza en el libro diario. Después intenta cambiar el costo del activo: el
-  sistema debe negarse y decirte qué hacer.</p></div>
+<table>
+  <thead><tr><th style="width:26%">Motivo</th><th>Tratamiento contable</th></tr></thead>
+  <tr><td class="campo">VENTA</td><td>Compara el precio de venta con el valor en libros y reconoce utilidad o pérdida. El activo pasa a VENDIDO.</td></tr>
+  <tr><td class="campo">OBSOLESCENCIA</td><td>Cancela el valor restante contra el resultado. El activo pasa a BAJA.</td></tr>
+  <tr><td class="campo">SINIESTRO</td><td>Igual que obsolescencia; suele acompañarse de una cuenta por cobrar al seguro.</td></tr>
+  <tr><td class="campo">DONACION</td><td>Cancela el valor restante como donativo.</td></tr>
+  <tr><td class="campo">ROBO</td><td>Cancela el valor restante como pérdida.</td></tr>
+</table>
+
+<p>En todos los casos el activo sale del inventario depreciable y deja de generar gasto.</p>
+
+<h3>9.6 · Cédula de depreciación</h3>
+
+<p>
+  Reporte anual, activo por activo y mes por mes. Es el documento que se entrega al auditor y
+  el que sustenta la cifra de depreciación acumulada del balance.
+</p>
+
+<div class="nota tenue"><span class="rot">Ejercicio 9</span>
+  <p>Dar de alta un activo con categoría, costo, método, tasa y fecha de inicio. Ejecutar la
+  corrida del mes y localizar su póliza en el libro diario. Intentar después modificar el costo
+  del activo: el sistema debe negarse e indicar el procedimiento correcto.</p></div>
 
 <h2><span class="cap">Capítulo 10</span>Recursos humanos y nómina</h2>
 
-<p><span class="quien">rrhh</span> &nbsp;<span class="quien">tesoreria</span> &nbsp;<span class="quien">finanzas</span></p>
+<p class="roles-cab"><span class="rol">rrhh</span> <span class="rol">tesorería</span> <span class="rol">finanzas</span></p>
+
+<h3>10.1 · Qué resuelve, y por qué son tres manos</h3>
 
 <p>
-  La nómina es el proceso con más manos del ERP, y la separación es el punto: <strong>RRHH
-  prepara, mira y no firma</strong>. Eso explica casi todos los «no me deja» del módulo.
+  La nómina es el proceso con mayor separación de funciones del ERP. El principio:
+  <strong>Recursos humanos prepara, revisa y no firma</strong>. Eso explica prácticamente todos
+  los bloqueos aparentes del módulo.
 </p>
 
 <table>
-  <tr><th style="width:44%">Etapa</th><th>Quién</th></tr>
-  <tr><td>Conceptos, preparar la aprobación, CFDI, capturar cuentas bancarias</td><td><strong>Recursos humanos</strong></td></tr>
-  <tr><td>Dispersión, marcar enviada, conciliar, registrar el pago</td><td><strong>Tesorería</strong></td></tr>
-  <tr><td>Configuración patronal, póliza detallada, cierre financiero</td><td><strong>Finanzas / Contabilidad</strong></td></tr>
+  <thead><tr><th style="width:46%">Etapa</th><th>Responsable</th></tr></thead>
+  <tr><td>Conceptos, preparación de la aprobación, CFDI, captura de cuentas bancarias</td><td><strong>Recursos humanos</strong></td></tr>
+  <tr><td>Dispersión, marca de envío, conciliación y registro del pago</td><td><strong>Tesorería</strong></td></tr>
+  <tr><td>Configuración patronal, póliza detallada y cierre financiero</td><td><strong>Finanzas / Contabilidad</strong></td></tr>
   <tr><td>Préstamos y obligaciones</td><td>RRHH o Finanzas</td></tr>
-  <tr><td><strong>Validar</strong> una cuenta bancaria</td><td>Finanzas o Tesorería — <strong>nunca quien la capturó</strong></td></tr>
+  <tr><td><strong>Validación</strong> de una cuenta bancaria</td><td>Finanzas o Tesorería — <strong>nunca quien la capturó</strong></td></tr>
 </table>
 
-<h3>10.1 · La plantilla</h3>
-
-<figure>
-  <img src="img/31-rrhh-empleados.jpg" alt="Empleados">
-  <figcaption><b>RRHH → Empleados.</b> Plantilla actual, nómina mensual estimada, salario diario
-  promedio e incidencias del mes. Cada empleado con su puesto, ingreso, salario diario,
-  periodicidad de pago y situación.</figcaption>
-</figure>
-
-<div class="caja dep"><span class="rot">Depende de</span>
-  <p>Antes del primer empleado tienen que existir los <strong>departamentos</strong> y los
-  <strong>puestos con su tabulador</strong>. El puesto es el que lleva el rango salarial; el
-  empleado hereda de él.</p></div>
-
-<p>
-  El acceso al sistema <strong>no se crea aquí</strong>: al dar de alta al empleado, el sistema
-  prepara su identidad en el directorio de SUMA y le llega el correo desde ahí. El ERP no pide
-  ni guarda contraseñas.
-</p>
-
-<h3>10.2 · Configuración patronal — una vez, y va primero</h3>
+<h3>10.2 · Configuración patronal — primero y una sola vez</h3>
 
 <figure>
   <img src="img/34-configuracion-patronal.jpg" alt="Configuración patronal">
-  <figcaption><b>RRHH → Configuración patronal.</b> Un asistente de tres pasos: identidad
-  patronal (RFC, registro IMSS, clase de riesgo, prima, ISN), mapa contable (cuentas de gasto y
-  pasivo) y control (PAC, dispersión y cierre).</figcaption>
+  <figcaption><b>RRHH › Configuración patronal.</b> Asistente de tres pasos: identidad patronal
+  (RFC, registro IMSS, clase de riesgo, prima, ISN), mapa contable (cuentas de gasto y pasivo)
+  y control (PAC, dispersión y cierre).</figcaption>
 </figure>
 
-<div class="caja ojo"><span class="rot">Ojo · quién guarda esta pantalla</span>
-  <p>Está en el menú de Recursos humanos pero <strong>el botón de guardar es de Finanzas o
-  Contabilidad</strong>. Es la única pantalla del módulo con esa mezcla, y es a propósito: quien
-  define el mapa contable es quien lleva la contabilidad. <strong>Sin esta configuración la
-  nómina no se puede calcular.</strong></p></div>
+<table>
+  <thead><tr><th style="width:30%">Dato</th><th>Para qué sirve</th></tr></thead>
+  <tr><td>Razón social y RFC del patrón</td><td>Emisión del CFDI de nómina.</td></tr>
+  <tr><td>Registro patronal IMSS</td><td>Cálculo de cuotas obrero-patronales.</td></tr>
+  <tr><td>Clase de riesgo y prima</td><td>Determinan la prima de riesgo de trabajo.</td></tr>
+  <tr><td>Entidad federativa y tasa de ISN</td><td>Impuesto sobre nóminas estatal.</td></tr>
+  <tr><td>Mapa contable</td><td>Contra qué cuentas se asienta el gasto y el pasivo de nómina.</td></tr>
+  <tr><td>Datos del PAC</td><td>Timbrado de los comprobantes.</td></tr>
+</table>
 
-<h3>10.3 · Conceptos</h3>
+<div class="nota sec"><span class="rot">Quién guarda esta pantalla</span>
+  <p>Figura en el menú de Recursos humanos, pero <strong>el botón de guardar corresponde a
+  Finanzas o Contabilidad</strong>. Es la única pantalla del módulo con esa combinación, y es
+  deliberada: quien define el mapa contable es quien lleva la contabilidad. <strong>Sin esta
+  configuración la nómina no puede calcularse.</strong></p></div>
+
+<h3>10.3 · Alta de empleado</h3>
+
+<figure>
+  <img src="img/31-rrhh-empleados.jpg" alt="Empleados">
+  <figcaption><b>RRHH › Empleados.</b> Plantilla actual, nómina mensual estimada, salario diario
+  promedio e incidencias del mes. Cada empleado con su puesto, fecha de ingreso, salario diario,
+  periodicidad de pago y situación.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es y qué regla lo gobierna</th></tr></thead>
+  <tr><td class="campo">nombres</td><td><span class="ob">OBLIGATORIO</span></td><td>Hasta 80 caracteres.</td></tr>
+  <tr><td class="campo">apellidoPaterno</td><td><span class="ob">OBLIGATORIO</span></td><td>Hasta 80 caracteres.</td></tr>
+  <tr><td class="campo">apellidoMaterno</td><td><span class="op">opcional</span></td><td>Hasta 80 caracteres.</td></tr>
+  <tr><td class="campo">departamentoId</td><td><span class="ob">OBLIGATORIO</span></td><td>Unidad organizativa. Determina rutas de aprobación y agrupación del gasto.</td></tr>
+  <tr><td class="campo">fechaIngreso</td><td><span class="ob">OBLIGATORIO</span></td><td>Base de antigüedad, vacaciones y finiquito.</td></tr>
+  <tr><td class="campo">curp</td><td><span class="op">opcional</span></td><td>Formato validado. Necesaria para el CFDI de nómina.</td></tr>
+  <tr><td class="campo">rfc</td><td><span class="op">opcional</span></td><td>Formato validado. Necesario para el CFDI.</td></tr>
+  <tr><td class="campo">nss</td><td><span class="op">opcional</span></td><td>Sólo dígitos. Necesario para el IMSS.</td></tr>
+  <tr><td class="campo">puestoId</td><td><span class="op">opcional</span></td><td>Del puesto hereda el tabulador salarial.</td></tr>
+  <tr><td class="campo">jefeDirectoId</td><td><span class="op">opcional</span></td><td>Estructura organizacional.</td></tr>
+  <tr><td class="campo">email · telefono</td><td><span class="op">opcional</span></td><td>El correo es el que recibe la invitación de acceso al sistema.</td></tr>
+  <tr><td class="campo">numeroEmpleado</td><td><span class="op">opcional</span></td><td>Si se omite, el sistema asigna el siguiente correlativo.</td></tr>
+</table>
 
 <p>
-  <strong>RRHH</strong> define los conceptos —percepciones, deducciones, su fórmula—;
-  <strong>Contabilidad</strong> dice <strong>a qué cuenta</strong> va cada uno. El gasto lo
-  clasifica quien lleva los libros.
+  Estados del empleado:
+  <span class="campo">ACTIVO · INCAPACIDAD · VACACIONES · PERMISO · BAJA</span>.
 </p>
 
-<h3>10.4 · Cuentas bancarias de los empleados</h3>
+<div class="nota"><span class="rot">El acceso al sistema no se crea aquí</span>
+  <p>Al dar de alta al empleado, el sistema prepara su identidad en el directorio de SUMA y el
+  correo de activación se emite desde allí. El ERP no solicita ni almacena contraseñas. El
+  <em>rol</em> se asigna después, en Administración › Usuarios.</p></div>
 
-<p>Dos pasos, y el segundo es todo el control:</p>
+<h3>10.4 · Contratos, puestos y tabuladores</h3>
 
-<ol>
-  <li><strong>Capturar</strong> — RRHH o Tesorería.</li>
-  <li><strong>Validar</strong> — Finanzas o Tesorería, y <strong>no quien la capturó</strong>.</li>
+<table>
+  <thead><tr><th style="width:26%">Catálogo</th><th>Qué define</th></tr></thead>
+  <tr><td><strong>Puestos y salarios</strong></td><td>El tabulador: rango salarial del puesto. El empleado hereda de él.</td></tr>
+  <tr><td><strong>Contratos laborales</strong></td><td>Tipo —<span class="campo">INDETERMINADO · DETERMINADO · POR_OBRA · CAPACITACION · HONORARIOS</span>—, jornada —<span class="campo">DIURNA · NOCTURNA · MIXTA</span>— y régimen de pago —<span class="campo">SEMANAL · CATORCENAL · QUINCENAL · MENSUAL</span>—.</td></tr>
+  <tr><td><strong>Tipo de salario</strong></td><td><span class="campo">FIJO · VARIABLE · MIXTO</span>. Afecta al cálculo del salario base de cotización.</td></tr>
+  <tr><td><strong>Departamentos</strong></td><td>Agrupación del gasto y base de las rutas de aprobación.</td></tr>
+</table>
+
+<h3>10.5 · Incidencias</h3>
+
+<p>
+  <strong>RRHH › Incidencias.</strong> Son el insumo del cálculo y <strong>se capturan antes de
+  calcular</strong>. Registrarlas después obliga a recalcular, y recalcular invalida las firmas
+  ya obtenidas.
+</p>
+
+<table>
+  <thead><tr><th style="width:30%">Tipo</th><th>Efecto en la nómina</th></tr></thead>
+  <tr><td class="campo">FALTA</td><td>Descuenta el día.</td></tr>
+  <tr><td class="campo">RETARDO</td><td>Según política; puede acumular para descuento.</td></tr>
+  <tr><td class="campo">INCAPACIDAD</td><td>Suspende el pago patronal según el tipo y los días a cargo del IMSS.</td></tr>
+  <tr><td class="campo">VACACIONES</td><td>Consume saldo y genera prima vacacional.</td></tr>
+  <tr><td class="campo">PERMISO_CON_GOCE</td><td>No descuenta.</td></tr>
+  <tr><td class="campo">PERMISO_SIN_GOCE</td><td>Descuenta los días.</td></tr>
+  <tr><td class="campo">HORAS_EXTRA</td><td>Percepción adicional, con el tratamiento fiscal correspondiente.</td></tr>
+</table>
+
+<p>
+  Las solicitudes —de vacaciones, permisos— recorren sus propios estados:
+  <span class="campo">CAPTURADA · EN_REVISION · APROBADA · RECHAZADA · CANCELADA</span>.
+</p>
+
+<h3>10.6 · Cuentas bancarias de los empleados</h3>
+
+<p>Dos pasos, y el segundo constituye todo el control:</p>
+
+<ol class="pasos">
+  <li><b>Capturar</b> <span class="quien">rrhh o tesorería</span><br>
+  Nombre del banco, CLABE de 18 dígitos y titular.</li>
+  <li><b>Validar</b> <span class="quien">finanzas o tesorería — nunca quien capturó</span><br>
+  Estado de validación: <span class="campo">PENDIENTE · VALIDADA · RECHAZADA</span>. Sólo las
+  validadas entran en la dispersión.</li>
 </ol>
 
 <p>
-  Una cuenta mal capturada manda el sueldo de alguien a otra parte, y un control que ejerce
-  quien capturó el dato no controla nada. La CLABE se guarda cifrada.
+  Una cuenta mal capturada dirige el salario de una persona a otro destinatario, y un control
+  ejercido por quien capturó el dato no controla nada. La CLABE se almacena cifrada.
 </p>
 
-<h3>10.5 · El centro integral de nómina</h3>
+<h3>10.7 · El periodo de nómina</h3>
 
 <figure>
   <img src="img/32-centro-nomina.jpg" alt="Centro integral de nómina">
-  <figcaption><b>RRHH → Centro integral de nómina.</b> Es el recorrido completo en una pantalla.
-  A la izquierda, <b>preparación de la empresa</b> con sus cinco requisitos y su porcentaje. A
-  la derecha, el <b>asistente del periodo</b> con sus cinco etapas: incidencias → prenómina →
-  autorización → CFDI y pago → contabilidad. Abajo, la revisión de la prenómina con sus alertas
-  y el flujo de aprobación con el estado de cada nivel.</figcaption>
+  <figcaption><b>RRHH › Centro integral de nómina.</b> El recorrido completo en una pantalla. A
+  la izquierda, la <b>preparación de la empresa</b> con sus cinco requisitos y su porcentaje. A
+  la derecha, el <b>asistente del periodo</b> con sus cinco etapas. Debajo, la revisión de la
+  prenómina con sus alertas y el flujo de aprobación con el estado de cada nivel.</figcaption>
 </figure>
-
-<h3>10.6 · El periodo, paso a paso</h3>
 
 <figure>
   <img src="img/33-periodos-nomina.jpg" alt="Periodos de nómina">
-  <figcaption><b>RRHH → Periodos de nómina.</b> Cada periodo con sus fechas, fecha de pago,
-  empleados, percepciones, deducciones, neto a pagar y estado: <b>Aprobado</b>,
-  <b>Pagado</b>, <b>Contabilizado</b>.</figcaption>
+  <figcaption><b>RRHH › Periodos de nómina.</b> Cada periodo con sus fechas, fecha de pago,
+  número de empleados, percepciones, deducciones, neto a pagar y estado.</figcaption>
 </figure>
 
-<div class="paso"><span class="n">1</span><b class="t">Calcular el periodo</b> <span class="quien">rrhh</span><br>
-  El sistema genera la prenómina: percepciones, deducciones y neto por empleado. <strong>Revísala
-  antes de pedir firmas.</strong></div>
-
-<div class="paso"><span class="n">2</span><b class="t">Preparar la aprobación</b> <span class="quien">rrhh</span><br>
-  El sistema toma una <strong>huella del cálculo</strong> y crea los niveles de firma. A partir
-  de aquí, si el cálculo cambia, <strong>las firmas se caen</strong>: al intentar firmar, el
-  sistema responde «El cálculo cambió después de preparar la aprobación». No es un fallo — es
-  que nadie firme una cifra y se pague otra.</div>
-
-<div class="paso"><span class="n">3</span><b class="t">Firmar</b> <span class="quien">los roles de la matriz</span><br>
-  Secuencial: el nivel 2 no aparece hasta que el 1 está dado, y una misma persona no puede
-  firmar dos niveles del mismo ciclo. Si el botón dice que no te toca, el mensaje nombra a
-  quién: «Esta firma es de finanzas».</div>
-
-<div class="paso"><span class="n">4</span><b class="t">Generar dispersión</b> <span class="quien">tesoreria</span><br>
-  Produce el archivo para el banco, con el neto y la CLABE de cada empleado.
-  <strong>Sólo tesorería</strong>, y es deliberado: ese archivo lleva cuánto gana cada persona
-  con nombre y cuenta, y Finanzas aprueba el presupuesto de un puesto sin ver quién lo ocupa.
-  Después: <em>marcar como enviada</em> → <em>conciliar dispersión</em> contra el movimiento del
-  banco → <em>registrar pago</em>.</div>
-
-<div class="paso"><span class="n">5</span><b class="t">Póliza detallada y cierre</b> <span class="quien">finanzas</span><br>
-  Genera el asiento de la nómina y cierra el periodo.</div>
-
-<div class="caja ojo"><span class="rot">Ojo · la fecha de la póliza</span>
-  <p>El sistema no acepta pólizas fechadas en el futuro. Si el periodo de nómina termina el 15
-  de octubre, su póliza de devengo <strong>no puede emitirse el 23 de septiembre</strong>.</p></div>
-
-<h3>10.7 · Asistencia, incidencias y vacaciones</h3>
+<h4>Estados del periodo</h4>
 
 <table>
-  <tr><th style="width:24%">Pantalla</th><th>Qué registra y cómo afecta a la nómina</th></tr>
-  <tr><td><strong>Asistencia</strong></td><td>Entradas y salidas. Base de las faltas y los retardos.</td></tr>
-  <tr><td><strong>Incidencias</strong></td><td>Faltas, permisos, incapacidades, horas extra. <strong>Se capturan antes de calcular</strong>: el cálculo las toma, y capturarlas después obliga a recalcular y tira las firmas.</td></tr>
-  <tr><td><strong>Vacaciones y saldos</strong></td><td>Días generados, tomados y pendientes por empleado, con su prima.</td></tr>
-  <tr><td><strong>Préstamos y descuentos</strong></td><td>Se descuentan solos en el periodo que corresponda.</td></tr>
-  <tr><td><strong>Bajas y finiquitos</strong></td><td>Cálculo del finiquito y salida de la plantilla.</td></tr>
+  <thead><tr><th style="width:30%">Estado</th><th>Significado</th></tr></thead>
+  <tr><td class="campo">ABIERTO</td><td>Creado; admite incidencias.</td></tr>
+  <tr><td class="campo">CALCULANDO · CALCULADO</td><td>En proceso o con prenómina generada.</td></tr>
+  <tr><td class="campo">CON_ALERTAS</td><td>Calculado, con observaciones que conviene revisar antes de firmar.</td></tr>
+  <tr><td class="campo">EN_REVISION</td><td>Preparada la aprobación; espera firmas.</td></tr>
+  <tr><td class="campo">APROBADO</td><td>Todas las firmas obtenidas.</td></tr>
+  <tr><td class="campo">CFDI_PREPARADO · TIMBRADO</td><td>Comprobantes armados y timbrados.</td></tr>
+  <tr><td class="campo">DISPERSION_GENERADA · EN_DISPERSION</td><td>Archivo bancario generado y enviado.</td></tr>
+  <tr><td class="campo">PAGADO</td><td>Conciliado el cargo bancario.</td></tr>
+  <tr><td class="campo">CONTABILIZADO</td><td>Póliza detallada generada.</td></tr>
+  <tr><td class="campo">CERRADO</td><td>Periodo concluido.</td></tr>
+  <tr><td class="campo">CANCELADO · REVERTIDO</td><td>Anulado o deshecho.</td></tr>
 </table>
 
-<div class="caja ejerc"><span class="rot">Ejercicio 10</span>
-  <p>Completa la configuración patronal. Da de alta un empleado con su puesto. Captura una
-  incidencia. Calcula el periodo y revisa la prenómina. Prepara la aprobación,
-  <strong>vuelve a calcular a propósito</strong> e intenta firmar: verás caerse las firmas.
-  Vuelve a preparar, firma con dos usuarios, dispersa y contabiliza.</p></div>
+<h4>Secuencia</h4>
+
+<ol class="pasos">
+  <li><b>Calcular el periodo</b> <span class="quien">rrhh</span><br>
+  Genera la prenómina: percepciones, deducciones y neto por empleado.
+  <strong>Debe revisarse antes de solicitar firmas.</strong></li>
+
+  <li><b>Preparar la aprobación</b> <span class="quien">rrhh</span><br>
+  El sistema calcula una <strong>huella del cálculo</strong> y crea los niveles de firma. A
+  partir de este punto, si el cálculo cambia <strong>las firmas caen</strong>: al intentar
+  firmar, el sistema responde «El cálculo cambió después de preparar la aprobación». No es un
+  fallo: impide que se firme una cifra y se pague otra.</li>
+
+  <li><b>Firmar</b> <span class="quien">los roles de la matriz</span><br>
+  Secuencial. Una misma persona no puede firmar dos niveles del mismo ciclo. Si el botón indica
+  que no corresponde, el mensaje identifica el rol: «Esta firma es de finanzas». Estados:
+  <span class="campo">PENDIENTE · APROBADA · RECHAZADA</span>.</li>
+
+  <li><b>Generar dispersión</b> <span class="quien">tesorería</span><br>
+  Produce el archivo bancario con el neto y la CLABE de cada empleado. Estados:
+  <span class="campo">BORRADOR · GENERADA · ENVIADA · PARCIAL · CONCILIADA · CANCELADA</span>.
+  <br><br>
+  <strong>Corresponde exclusivamente a Tesorería</strong>, por una razón concreta: ese archivo
+  contiene la retribución de cada persona con nombre y cuenta, y Finanzas aprueba el
+  presupuesto de un puesto sin necesidad de conocer quién lo ocupa.</li>
+
+  <li><b>Marcar enviada, conciliar y registrar el pago</b> <span class="quien">tesorería</span><br>
+  La conciliación se realiza contra el cargo real del banco.</li>
+
+  <li><b>Póliza detallada y cierre financiero</b> <span class="quien">finanzas</span><br>
+  Genera el asiento de nómina y cierra el periodo.</li>
+</ol>
+
+<div class="nota sec"><span class="rot">La fecha de la póliza</span>
+  <p>El sistema no acepta pólizas con fecha futura. Si el periodo de nómina concluye el 15 de
+  octubre, su póliza de devengo <strong>no puede emitirse en septiembre</strong>.</p></div>
+
+<h3>10.8 · Préstamos y CFDI</h3>
+
+<p>
+  <strong>Préstamos y descuentos</strong> se amortizan automáticamente en el periodo que
+  corresponda. Estados: <span class="campo">ACTIVO · LIQUIDADO · SUSPENDIDO · CANCELADO</span>.
+</p>
+
+<p>
+  <strong>CFDI de nómina</strong> recorre los estados
+  <span class="campo">BORRADOR · PENDIENTE_PAC · TIMBRADO · ERROR · CANCELADO · SUSTITUIDO</span>.
+</p>
+
+<div class="nota tenue"><span class="rot">Ejercicio 10</span>
+  <p>Completar la configuración patronal. Dar de alta un empleado con su puesto y capturar una
+  incidencia. Calcular el periodo y revisar la prenómina. Preparar la aprobación,
+  <strong>volver a calcular deliberadamente</strong> e intentar firmar: se observará la caída de
+  las firmas. Volver a preparar, firmar con dos usuarios, dispersar y contabilizar.</p></div>
 
 <h2><span class="cap">Capítulo 11</span>Hotelería</h2>
 
-<p><span class="quien">hoteleria</span></p>
+<p class="roles-cab"><span class="rol">hotelería</span></p>
+
+<h3>11.1 · Qué resuelve</h3>
 
 <p>
-  El módulo hotelero es un <em>property management system</em> dentro del ERP: reservas, rack,
-  folios, ama de llaves, crédito hotelero y recetas. Todo lo que cobra termina en tesorería y
-  en la contabilidad como cualquier otro documento.
+  El módulo hotelero es un sistema de gestión de propiedad integrado en el ERP: reservas, rack,
+  folios, ama de llaves, crédito hotelero y recetas. Todo lo que cobra termina en tesorería y en
+  la contabilidad como cualquier otro documento.
 </p>
 
-<h3>11.1 · El rack</h3>
+<h3>11.2 · El rack</h3>
 
 <figure>
   <img src="img/41-hoteleria-rack.jpg" alt="Rack de habitaciones">
-  <figcaption><b>Hotelería → Rack de habitaciones.</b> El estado del hotel de un vistazo:
-  ocupación, disponibles, ocupadas, en limpieza y fuera de servicio, y el mapa por piso con el
-  estado y el tipo de cada habitación.</figcaption>
+  <figcaption><b>Hotelería › Rack de habitaciones.</b> Estado del hotel de un vistazo:
+  ocupación, disponibles, ocupadas, en limpieza y fuera de servicio, con el mapa por piso.</figcaption>
 </figure>
 
-<h3>11.2 · El ciclo del huésped</h3>
+<h3>11.3 · El ciclo del huésped</h3>
 
-<div class="flujo">
+<div class="cinta">
   <div><span class="q">1</span><b>Reservación</b>Fechas, tipo de habitación, tarifa y titular.</div>
   <div><span class="q">2</span><b>Check-in</b>Se asigna habitación y se abre el <em>folio</em>.</div>
-  <div><span class="q">3</span><b>Consumos</b>Hospedaje, alimentos, extras: todo carga al folio.</div>
-  <div><span class="q">4</span><b>Check-out</b>Se cobra el folio: efectivo, tarjeta o city ledger.</div>
-  <div><span class="q">5</span><b>Auditoría nocturna</b>Cierra el día, devenga el hospedaje y deja los saldos.</div>
+  <div><span class="q">3</span><b>Consumos</b>Hospedaje, alimentos y extras cargan al folio.</div>
+  <div><span class="q">4</span><b>Check-out</b>Se liquida el folio: efectivo, tarjeta o city ledger.</div>
+  <div><span class="q">5</span><b>Auditoría nocturna</b>Cierra el día, devenga el hospedaje y consolida saldos.</div>
 </div>
 
 <figure>
   <img src="img/42-hoteleria-folios.jpg" alt="Folios y check-out">
-  <figcaption><b>Hotelería → Folios y check-out.</b> Los folios abiertos con su estado. El folio
+  <figcaption><b>Hotelería › Folios y check-out.</b> Los folios abiertos con su estado. El folio
   es la cuenta del huésped: cobros mixtos, impuestos, tesorería y estado contable del
   hospedaje.</figcaption>
 </figure>
 
-<h3>11.3 · City Ledger — el crédito hotelero</h3>
+<h3>11.4 · City Ledger — crédito hotelero</h3>
 
 <figure>
   <img src="img/43-hoteleria-city-ledger.jpg" alt="City Ledger">
-  <figcaption><b>Hotelería → City Ledger.</b> Convenios con empresas y agencias que consumen
-  contra una línea maestra. Saldo en cartera, saldo vencido, crédito disponible y cuentas
-  abiertas. Cada folio conserva su vencimiento y su IVA pendiente de
-  reclasificar.</figcaption>
+  <figcaption><b>Hotelería › City Ledger.</b> Convenios con empresas y agencias que consumen
+  contra una línea maestra: saldo en cartera, saldo vencido, crédito disponible y cuentas
+  abiertas. Cada folio conserva su vencimiento y su IVA pendiente de reclasificar.</figcaption>
 </figure>
 
 <p>
-  Un convenio de city ledger <strong>pasa por la matriz de firmas</strong>, igual que una línea
-  de crédito comercial: es crédito, y decidir cuánto se le fía a una agencia no es una decisión
-  de recepción.
+  Un convenio de city ledger <strong>recorre la matriz de firmas</strong> igual que una línea de
+  crédito comercial: es crédito, y determinar cuánto se fía a una agencia no es una decisión de
+  recepción.
 </p>
 
-<h3>11.4 · Recetas y control de costos</h3>
+<h3>11.5 · Recetas y control de costos</h3>
 
 <p>
-  <strong>Recetas y escandallos</strong> define de qué se compone cada platillo o bebida en
-  materia prima. Al vender el platillo, el sistema <strong>consume la materia prima del
-  inventario</strong> y valúa el costo real. <strong>Control de costos</strong> compara el costo
-  teórico de la receta contra el consumo real y enseña la desviación — que es donde se ve la
-  merma que nadie reporta.
+  <strong>Recetas y escandallos</strong> define la composición de cada platillo o bebida en
+  materia prima. Al venderse, el sistema <strong>consume la materia prima del inventario</strong>
+  y valúa el costo real. <strong>Control de costos</strong> compara el costo teórico de la receta
+  con el consumo real y presenta la desviación, que es donde se aprecia la merma no reportada.
 </p>
 
-<div class="caja auto"><span class="rot">Lo que hace el sistema solo</span>
+<div class="nota"><span class="rot">Efectos automáticos</span>
   <p>El check-out genera el movimiento de tesorería y la póliza del hospedaje con su IVA. La
   auditoría nocturna devenga el hospedaje del día. El consumo de receta descuenta materia prima
-  y escribe su asiento de costo.</p></div>
+  y registra su asiento de costo.</p></div>
 
 <h2><span class="cap">Capítulo 12</span>CRM</h2>
 
-<p><span class="quien">empleado</span> &nbsp;<span class="quien">gerencia</span></p>
+<p class="roles-cab"><span class="rol">empleado</span> <span class="rol">gerencia</span></p>
 
 <p>
-  El CRM lleva lo que pasa <em>antes</em> de la venta: el prospecto, la oportunidad y las
-  actividades de seguimiento.
+  El CRM gestiona lo anterior a la venta: el prospecto, la oportunidad y las actividades de
+  seguimiento.
 </p>
 
 <figure>
   <img src="img/44-crm-pipeline.jpg" alt="Pipeline">
-  <figcaption><b>CRM → Pipeline.</b> Las oportunidades por etapa —Prospecto, Contactado,
-  Calificado, Propuesta, Negociación— con el valor de cada columna y su probabilidad. Arriba,
-  oportunidades abiertas, valor total, <b>pronóstico ponderado</b> y cuántas están
-  estancadas.</figcaption>
+  <figcaption><b>CRM › Pipeline.</b> Oportunidades por etapa —Prospecto, Contactado, Calificado,
+  Propuesta, Negociación— con el valor de cada columna y su probabilidad. Arriba: oportunidades
+  abiertas, valor total, <b>pronóstico ponderado</b> y cuántas están estancadas.</figcaption>
 </figure>
 
-<p>
-  El <strong>pronóstico ponderado</strong> es el valor de cada oportunidad multiplicado por la
-  probabilidad de su etapa: es la cifra que sirve para planear, mucho más que el valor total.
-  Y <strong>estancadas</strong> son las que llevan tiempo sin movimiento — la métrica que de
-  verdad se revisa en la junta semanal.
-</p>
+<table>
+  <thead><tr><th style="width:30%">Indicador</th><th>Cómo se calcula y para qué sirve</th></tr></thead>
+  <tr><td><strong>Valor total</strong></td><td>Suma del importe de las oportunidades abiertas. Es el techo teórico.</td></tr>
+  <tr><td><strong>Pronóstico ponderado</strong></td><td>Importe multiplicado por la probabilidad de la etapa. <strong>Es la cifra que sirve para planear.</strong></td></tr>
+  <tr><td><strong>Estancadas</strong></td><td>Oportunidades sin movimiento reciente. Es la métrica de la revisión semanal.</td></tr>
+</table>
 
 <p>
-  Al ganar una oportunidad, se convierte en cliente y en venta. <strong>Actividades</strong>
-  registra llamadas, correos y visitas con su próxima fecha.
+  Al ganarse una oportunidad se convierte en cliente y en venta.
+  <strong>Actividades</strong> registra llamadas, correos y visitas con su próxima fecha de
+  seguimiento.
 </p>
 
 <h2><span class="cap">Capítulo 13</span>Aprobaciones y gobierno</h2>
 
-<p><span class="quien">gobierno</span> &nbsp;<span class="quien">gerencia</span> &nbsp;<span class="quien">direccion</span></p>
+<p class="roles-cab"><span class="rol">gobierno</span> <span class="rol">gerencia</span> <span class="rol">dirección</span></p>
+
+<h3>13.1 · Qué resuelve</h3>
 
 <p>
-  Este capítulo es transversal: gobierna compras, crédito, nómina, estructura organizacional y
-  convenios hoteleros. Merece leerse aunque no sea tu módulo, porque explica por qué el sistema
-  te dice que no.
+  Este capítulo es transversal: gobierna compras, crédito, nómina, estructura organizacional,
+  alta de proveedores y convenios hoteleros. Conviene leerlo aunque no sea el módulo propio,
+  porque explica el origen de la mayoría de las negativas del sistema.
 </p>
 
-<h3>13.1 · La bandeja</h3>
+<h3>13.2 · La bandeja</h3>
 
 <figure>
   <img src="img/11-aprobaciones-bandeja.jpg" alt="Bandeja central de aprobaciones">
-  <figcaption><b>Aprobaciones → Bandeja.</b> Arriba, lo que espera tu firma —y sólo lo tuyo: la
-  bandeja muestra únicamente el <em>siguiente</em> nivel asignado a tu usuario o rol—. Abajo, el
-  <b>historial de decisiones</b>: documento, ciclo y nivel, quién solicitó, a quién se asignó,
-  quién resolvió, fechas y comentario.</figcaption>
+  <figcaption><b>Aprobaciones › Bandeja.</b> Arriba, lo que espera la firma del usuario — y sólo
+  eso: la bandeja muestra únicamente el <em>siguiente</em> nivel asignado a su usuario o rol.
+  Abajo, el <b>historial de decisiones</b> con documento, ciclo y nivel, quién solicitó, a quién
+  se asignó, quién resolvió, fechas y comentario.</figcaption>
 </figure>
 
 <p>
-  El historial es la parte que se subestima. Conserva <strong>cada ciclo y cada nivel</strong>,
-  incluidas las cancelaciones automáticas por cambio de condiciones — por ejemplo, un ciclo que
-  se canceló solo porque el cliente se desactivó. Eso es lo que un auditor pide.
+  El historial es la parte que suele subestimarse. Conserva <strong>cada ciclo y cada
+  nivel</strong>, incluidas las cancelaciones automáticas por cambio de condiciones —por
+  ejemplo, un ciclo cancelado porque el cliente se desactivó—. Es el registro que solicita una
+  auditoría.
 </p>
 
-<h3>13.2 · Los flujos</h3>
+<h3>13.3 · Los flujos</h3>
 
 <figure>
   <img src="img/12-flujos-aprobacion.jpg" alt="Flujos de aprobación">
-  <figcaption><b>Aprobaciones → Flujos de aprobación.</b> A la izquierda, los procesos
-  controlados con su estado: <b>Operativo</b>, <b>Falta configurar</b>, <b>No conectado</b>. A
-  la derecha, los niveles del proceso elegido: a quién se asigna —usuario concreto o rol—, desde
-  y hasta qué importe, el SLA de atención en horas, y si el nivel es obligatorio o admite
-  autoaprobación.</figcaption>
+  <figcaption><b>Aprobaciones › Flujos de aprobación.</b> A la izquierda, los procesos
+  controlados con su estado. A la derecha, los niveles del proceso seleccionado: a quién se
+  asigna —usuario concreto o rol—, desde y hasta qué importe, el plazo de atención en horas, y
+  si el nivel es obligatorio o admite autoaprobación.</figcaption>
 </figure>
 
-<table>
-  <tr><th style="width:22%">Estado del proceso</th><th>Qué significa</th></tr>
-  <tr><td><strong>Operativo</strong></td><td>Tiene niveles configurados y con quién firmarlos.</td></tr>
-  <tr><td><strong>Falta configurar</strong></td><td>El proceso existe pero le faltan niveles o firmantes. Los documentos de ese proceso se van a trabar.</td></tr>
-  <tr><td><strong>No conectado</strong></td><td>El proceso no está enlazado a documentos todavía.</td></tr>
-</table>
-
-<h4>El diagnóstico por nivel</h4>
+<h4>Campos de un nivel</h4>
 
 <table>
-  <tr><th style="width:26%">Lo que ves</th><th>Qué significa</th><th style="width:28%">Qué hacer</th></tr>
-  <tr><td>Nada</td><td>El nivel tiene quien lo firme.</td><td>—</td></tr>
-  <tr><td><strong>Ámbar:</strong> «Este nivel tiene un solo firmante»</td><td>Sólo una persona puede firmarlo, y esa persona también puede originar el documento. <strong>Toda solicitud que ella misma levante será rechazada al guardarse.</strong></td><td>Dar de alta a otra persona con ese rol, o enrutar el nivel a un rol distinto del que origina.</td></tr>
-  <tr><td><strong>Rojo:</strong> «Este nivel no tiene quien lo firme»</td><td>Ninguna persona activa tiene ese rol, o la asignada se dio de baja.</td><td>Corregir la matriz o el usuario.</td></tr>
+  <thead><tr><th style="width:26%">Campo</th><th>Qué determina</th></tr></thead>
+  <tr><td><strong>Usuario específico</strong></td><td>Persona concreta que firma. Si se da de baja, entra la suplencia.</td></tr>
+  <tr><td><strong>O asignar por rol</strong></td><td>Cualquier persona activa con ese rol. Más robusto que nombrar personas.</td></tr>
+  <tr><td><strong>Aplica desde / Aplica hasta</strong></td><td>Rango de importe en el que el nivel es exigible. Es el umbral que decide cuántas firmas se piden.</td></tr>
+  <tr><td><strong>SLA de atención</strong></td><td>Horas previstas para resolver. Alimenta los indicadores de retraso.</td></tr>
+  <tr><td><strong>Nivel obligatorio</strong></td><td>Si puede omitirse cuando no aplica.</td></tr>
+  <tr><td><strong>Permitir autoaprobación</strong></td><td>Excepcional. Habilitarlo anula la separación de funciones de ese nivel.</td></tr>
 </table>
 
-<div class="caja ojo"><span class="rot">Ojo · el error clásico de la matriz</span>
-  <p>Una matriz puede verse impecable y <strong>no dejar levantar una sola solicitud</strong>:
-  basta con que el único rol que puede originar el documento sea también el único que puede
-  firmar su primer nivel. El problema se descubre el día que alguien intenta trabajar. Por eso
-  el diagnóstico está donde se decide, no donde se sufre.</p></div>
+<h4>Estado de los procesos</h4>
 
-<h3>13.3 · Quién gobierna no firma</h3>
+<table>
+  <thead><tr><th style="width:26%">Estado</th><th>Significado</th></tr></thead>
+  <tr><td><strong>Operativo</strong></td><td>Tiene niveles configurados y firmantes disponibles.</td></tr>
+  <tr><td><strong>Falta configurar</strong></td><td>El proceso existe pero carece de niveles o de firmantes. Sus documentos se detendrán.</td></tr>
+  <tr><td><strong>No conectado</strong></td><td>El proceso todavía no está enlazado a documentos.</td></tr>
+</table>
+
+<h4>Diagnóstico por nivel</h4>
+
+<table>
+  <thead><tr><th style="width:24%">Indicación</th><th style="width:38%">Significado</th><th>Corrección</th></tr></thead>
+  <tr><td>Ninguna</td><td>El nivel tiene quien lo firme.</td><td>—</td></tr>
+  <tr><td><strong>Ámbar:</strong> «Este nivel tiene un solo firmante»</td><td>Una sola persona puede firmarlo, y esa persona también puede originar el documento. <strong>Toda solicitud que ella misma levante será rechazada al guardarse.</strong></td><td>Dar de alta otra persona con ese rol, o enrutar el nivel a un rol distinto del que origina.</td></tr>
+  <tr><td><strong>Rojo:</strong> «Este nivel no tiene quien lo firme»</td><td>Ninguna persona activa tiene ese rol, o la asignada se dio de baja.</td><td>Corregir la matriz o reactivar al usuario.</td></tr>
+</table>
+
+<div class="nota sec"><span class="rot">El error clásico de la matriz</span>
+  <p>Una matriz puede parecer impecable y <strong>no permitir levantar una sola solicitud</strong>:
+  basta con que el único rol capaz de originar el documento sea también el único capaz de firmar
+  su primer nivel. El problema se descubre el día en que alguien intenta trabajar. Por eso el
+  diagnóstico aparece donde se configura, y no donde se sufre.</p></div>
+
+<h3>13.4 · Quien gobierna no firma</h3>
 
 <p>
-  El rol <strong>gobierno</strong> define la matriz y tiene la acción de resolver aprobaciones
-  explícitamente vedada. No es una limitación técnica: es el control. Quien escribe las reglas
-  no las ejecuta.
+  El rol <strong>gobierno</strong> define la matriz y tiene vedada la acción de resolver
+  aprobaciones. No es una limitación técnica: es el control mismo. Quien redacta las reglas no
+  las ejecuta.
 </p>
 
-<div class="caja ejerc"><span class="rot">Ejercicio 13</span>
-  <p>Entra a Flujos de aprobación, elige «Requisiciones de compra» y añade un segundo nivel con
-  un rango de importe. Guarda. Levanta una requisición que supere ese importe y comprueba que
-  ahora pide dos firmas, en orden. Después cambia el nivel 1 a un rol sin usuarios activos y
-  mira aparecer el diagnóstico rojo.</p></div>
+<div class="nota tenue"><span class="rot">Ejercicio 13</span>
+  <p>En Flujos de aprobación, seleccionar «Requisiciones de compra» y añadir un segundo nivel
+  con un rango de importe. Guardar. Levantar una requisición que supere ese importe y comprobar
+  que exige dos firmas en orden. Cambiar después el nivel 1 a un rol sin usuarios activos y
+  observar el diagnóstico en rojo.</p></div>
 
 <h2><span class="cap">Capítulo 14</span>Reportes</h2>
 
-<p><span class="quien">gerencia</span> &nbsp;<span class="quien">direccion</span></p>
+<p class="roles-cab"><span class="rol">gerencia</span> <span class="rol">dirección</span></p>
 
 <figure>
   <img src="img/45-panel-ejecutivo.jpg" alt="Panel ejecutivo">
-  <figcaption><b>Reportes → Panel ejecutivo.</b> Los ocho indicadores del negocio: ventas de
-  hoy, cobrado hoy, ventas de la semana y del mes, por cobrar, por pagar, valor del inventario e
-  IVA a pagar. Debajo, alertas que requieren atención y las ventas de los últimos 30
+  <figcaption><b>Reportes › Panel ejecutivo.</b> Ocho indicadores: ventas de hoy, cobrado hoy,
+  ventas de la semana y del mes, por cobrar, por pagar, valor del inventario e IVA a pagar.
+  Debajo, alertas que requieren atención y la evolución de ventas de los últimos 30
   días.</figcaption>
 </figure>
 
 <p>
-  Las <strong>alertas que requieren atención</strong> son el renglón que hay que mirar todos los
-  días: cuotas vencidas, productos con stock bajo y requisiciones pendientes de firma. Son las
-  tres cosas que se pudren si nadie las mira.
+  Las <strong>alertas que requieren atención</strong> son la lectura diaria: cuotas vencidas,
+  productos con existencia baja y requisiciones pendientes de firma. Son las tres situaciones
+  que se deterioran si nadie las revisa.
 </p>
 
 <table>
-  <tr><th style="width:26%">Reporte</th><th>Para qué</th></tr>
-  <tr><td><strong>Panel ejecutivo</strong></td><td>El pulso diario del negocio.</td></tr>
+  <thead><tr><th style="width:26%">Reporte</th><th>Uso</th></tr></thead>
+  <tr><td><strong>Panel ejecutivo</strong></td><td>Seguimiento diario del negocio.</td></tr>
   <tr><td><strong>Ventas</strong></td><td>Por periodo, vendedor, sucursal y forma de pago.</td></tr>
-  <tr><td><strong>Top de productos</strong></td><td>Qué se vende y qué no se mueve.</td></tr>
-  <tr><td><strong>Inventario</strong></td><td>Valuación y rotación.</td></tr>
+  <tr><td><strong>Top de productos</strong></td><td>Rotación: qué se vende y qué no se mueve.</td></tr>
+  <tr><td><strong>Inventario</strong></td><td>Valuación y rotación de existencias.</td></tr>
   <tr><td><strong>Corte de caja</strong></td><td>Por turno y por cajero, con sus diferencias.</td></tr>
-  <tr><td><strong>Estado de cuenta</strong></td><td>Por cliente, con su cartera.</td></tr>
+  <tr><td><strong>Estado de cuenta</strong></td><td>Por cliente, con el detalle de su cartera.</td></tr>
 </table>
 
 <h2><span class="cap">Capítulo 15</span>Administración</h2>
 
-<p><span class="quien">administrador</span></p>
+<p class="roles-cab"><span class="rol">administrador</span></p>
 
 <h3>15.1 · Usuarios</h3>
 
 <figure>
   <img src="img/52-usuarios.jpg" alt="Directorio de personal">
-  <figcaption><b>Administración → Usuarios.</b> Quién puede entrar, con qué rol, en qué área y
-  si está activo. El aviso «Sin área asignada» importa más de lo que parece: el área es la que
-  determina la ruta de aprobación de sus requisiciones.</figcaption>
+  <figcaption><b>Administración › Usuarios.</b> Quién puede acceder, con qué rol, en qué
+  departamento y si está activo. El aviso «Sin área asignada» es relevante: el departamento
+  determina la ruta de aprobación de las requisiciones de esa persona.</figcaption>
 </figure>
 
 <p>
-  Aquí se asigna el <strong>rol</strong> y el <strong>área</strong>, y se activa o desactiva el
-  acceso. La contraseña no está aquí: vive en SUMA.
+  Aquí se asignan el <strong>rol</strong> y el <strong>departamento</strong>, y se activa o
+  desactiva el acceso. La contraseña no reside en esta pantalla: reside en SUMA.
 </p>
 
 <h3>15.2 · Roles y permisos</h3>
 
 <p>
-  Ya se vio en el capítulo 0.6. Dos cosas prácticas: <strong>«Usar módulos sugeridos»</strong>
-  devuelve un rol a su plantilla si alguien lo dejó raro, y el <strong>ajuste fino</strong> por
-  acción existe para los casos que la plantilla no cubre — queda marcado como «Ajustado a mano»
-  para que se note.
+  Descrito en el capítulo 0.6. Dos utilidades prácticas: <strong>«Usar módulos sugeridos»</strong>
+  restituye un rol a su plantilla, y el <strong>ajuste fino por acción</strong> cubre los casos
+  que la plantilla no contempla, quedando marcado como «Ajustado a mano» para que resulte
+  visible.
 </p>
 
 <h3>15.3 · Bitácora de auditoría</h3>
 
 <figure>
   <img src="img/48-bitacora-auditoria.jpg" alt="Bitácora de auditoría">
-  <figcaption><b>Administración → Bitácora de auditoría.</b> Registro inmutable de quién hizo
-  qué y cuándo: fecha, usuario con su rol, acción, entidad afectada y el identificador del
-  registro. Sólo lectura — no se puede editar ni borrar.</figcaption>
+  <figcaption><b>Administración › Bitácora de auditoría.</b> Registro inmutable de quién hizo
+  qué y cuándo: fecha, usuario con su rol, acción, entidad afectada e identificador del registro.
+  Sólo lectura.</figcaption>
 </figure>
 
 <p>
-  Cada registro guarda una huella criptográfica de su contenido <strong>más la huella del
-  registro anterior</strong>: la bitácora es una cadena, y borrar o alterar un registro la
-  rompe de forma detectable. La columna <em>Estado</em> es el resultado de esa verificación.
+  Cada registro almacena una huella criptográfica de su contenido <strong>más la huella del
+  registro anterior</strong>: la bitácora constituye una cadena, y eliminar o alterar un
+  registro la rompe de forma detectable. La columna <em>Estado</em> refleja el resultado de esa
+  verificación.
 </p>
 
 <h3>15.4 · Ayuda y documentación</h3>
 
 <p>
-  <strong>Ayuda → Ayuda y documentación.</strong> Este manual y la documentación del sistema,
-  dentro del propio ERP, con descarga en PDF. Los manuales de usuario los ve cualquiera; la
-  documentación técnica —variables de entorno, arquitectura, límites conocidos— sólo el
+  <strong>Ayuda › Ayuda y documentación.</strong> La documentación del sistema dentro del propio
+  ERP, con descarga en PDF. Los manuales de usuario son accesibles a cualquier perfil; la
+  documentación técnica —variables de entorno, arquitectura, límites conocidos— únicamente al
   administrador.
 </p>

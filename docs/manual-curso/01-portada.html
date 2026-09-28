@@ -1,71 +1,81 @@
 <section class="portada">
-  <div class="sello">SUMA México · Manual de formación</div>
-  <h1>SyncroERP<br>+ Apache Fineract</h1>
-  <div class="linea"></div>
-  <h2>Manual funcional completo, por rol y por modo de contratación</h2>
-  <p class="para">
-    Este documento enseña a operar el sistema desde cero. No supone conocimientos previos
-    de ERP ni de banca: cada capítulo dice qué resuelve, quién interviene, qué tiene que
-    existir antes, qué escribe el sistema por su cuenta y en qué se equivoca la gente el
-    primer mes.
+  <div class="marca"></div>
+  <div class="emisor">SUMA México</div>
+  <h1>SyncroERP<br>Apache Fineract<em>Manual de operación y formación</em></h1>
+  <div class="regla"></div>
+  <p class="sub">
+    Documento de referencia para la puesta en marcha y la capacitación. Describe cada
+    proceso a nivel de campo capturado, estado del documento y efecto en inventario,
+    tesorería y contabilidad, para los tres modos de contratación.
   </p>
-  <div class="modos">
-    <div class="modo"><b>Sólo ERP</b><span>La empresa opera su gestión completa sin core financiero.</span></div>
-    <div class="modo"><b>Sólo Fineract</b><span>La institución opera su cartera en el core, sin ERP.</span></div>
-    <div class="modo"><b>ERP + Fineract</b><span>Los dos integrados: cartera y contabilidad espejo.</span></div>
-  </div>
-  <div class="pie">
-    <span>Revisión 1 · 28 de septiembre de 2026</span>
-    <span>Documento de formación · uso interno y de cliente</span>
+  <div class="ficha">
+    <table>
+      <tr><td>Revisión</td><td>1 — 28 de septiembre de 2026</td></tr>
+      <tr><td>Alcance</td><td>SyncroERP (15 módulos) · Apache Fineract · integración de ambos</td></tr>
+      <tr><td>Dirigido a</td><td>Personal operativo sin experiencia previa en ERP o core financiero, e instructores</td></tr>
+      <tr><td>Clasificación</td><td>Documentación de producto — uso interno y de cliente</td></tr>
+    </table>
   </div>
 </section>
 
-<h2 style="page-break-before:auto"><span class="cap">Antes de nada</span>Cómo usar este manual</h2>
+<h2 style="page-break-before:auto"><span class="cap">Preliminar</span>Cómo está construido este documento</h2>
+
+<h3>Alcance y destinatarios</h3>
 
 <p>
-  El manual está escrito para leerse <strong>en orden la primera vez</strong> y para
-  consultarse por capítulos después. Si vas a dar el curso, cada capítulo de la Parte I es
-  una sesión de entre 45 y 90 minutos.
+  Este manual describe <strong>qué hace el sistema y cómo se opera</strong>. No supone
+  conocimientos previos de gestión empresarial ni de banca. Está escrito para leerse en orden
+  la primera vez y para consultarse por proceso después; si se imparte como curso, cada
+  capítulo de la Parte I corresponde a una sesión de entre 45 y 90 minutos.
 </p>
-
-<h3>Las tres partes, y cuál te toca</h3>
 
 <table>
-  <tr><th style="width:26%">Si tu empresa contrató…</th><th>Lee</th></tr>
-  <tr><td><strong>Sólo el ERP</strong></td><td>Parte 0 y Parte I completas. La Parte II y la III no se te aplican: las pantallas que ahí se describen <em>no aparecen</em> en tu instalación.</td></tr>
-  <tr><td><strong>Sólo Fineract</strong></td><td>Parte 0 (capítulos 0.1 a 0.4) y Parte II. La Parte I describe un producto que no usas.</td></tr>
-  <tr><td><strong>ERP + Fineract</strong></td><td>Todo. La Parte III explica qué cambia respecto de la Parte I y no la repite.</td></tr>
+  <thead><tr><th style="width:30%">Modalidad contratada</th><th>Partes aplicables</th></tr></thead>
+  <tr><td><strong>Sólo ERP</strong></td><td>Parte 0 y Parte I completas. Las pantallas descritas en las Partes II y III no existen en la instalación.</td></tr>
+  <tr><td><strong>Sólo Fineract</strong></td><td>Parte 0 (capítulos 0.1 a 0.4) y Parte II.</td></tr>
+  <tr><td><strong>ERP + Fineract</strong></td><td>Todas. La Parte III describe únicamente las diferencias respecto de la Parte I.</td></tr>
 </table>
 
-<h3>Los símbolos que vas a ver</h3>
-
-<div class="caja dep"><span class="rot">Depende de</span>
-  <p>Lo que tiene que existir <strong>antes</strong> de que este proceso funcione. Es la causa
-  número uno de «no me deja»: casi nunca es un fallo, casi siempre es un paso previo que no
-  se dio.</p></div>
-
-<div class="caja auto"><span class="rot">Lo que hace el sistema solo</span>
-  <p>Lo que se escribe sin que nadie lo teclee: la póliza contable, el movimiento de
-  inventario, el saldo del banco, el costo del producto. Saber esto es la diferencia entre
-  operar el sistema y pelearse con él.</p></div>
-
-<div class="caja ojo"><span class="rot">Ojo</span>
-  <p>El error que comete todo el mundo, y cómo se ve cuando ocurre.</p></div>
-
-<div class="caja ejerc"><span class="rot">Ejercicio</span>
-  <p>Qué hacer en el ambiente de prácticas para fijar el capítulo. Si estás dando el curso,
-  reserva tiempo para esto: leer el flujo no enseña el flujo.</p></div>
-
-<h3>Una advertencia sobre las pantallas</h3>
+<h3>Estructura de cada proceso</h3>
 
 <p>
-  Todas las capturas de este manual son del sistema real, no maquetas. Los datos que se ven
-  son de un ambiente de pruebas, así que los importes y los nombres no significan nada: lo
-  que importa es <strong>dónde está cada cosa y qué botones hay</strong>.
+  Los capítulos operativos siguen siempre el mismo orden, de modo que la información se
+  encuentre sin releer:
 </p>
 
+<table>
+  <thead><tr><th style="width:26%">Apartado</th><th>Contenido</th></tr></thead>
+  <tr><td><strong>Qué resuelve</strong></td><td>El propósito del documento o proceso y su lugar en el circuito.</td></tr>
+  <tr><td><strong>Quién interviene</strong></td><td>Los roles que participan y en qué punto. Cuando el sistema impide que una misma persona ejecute dos pasos, se indica.</td></tr>
+  <tr><td><strong>Requisitos previos</strong></td><td>Qué debe existir antes. Es el origen de la mayoría de los bloqueos durante la puesta en marcha.</td></tr>
+  <tr><td><strong>Campos que se capturan</strong></td><td>Tabla con cada campo, si es obligatorio, qué significa y qué regla lo valida.</td></tr>
+  <tr><td><strong>Qué no se captura</strong></td><td>Los datos que el sistema calcula o hereda, y el motivo. Evita búsquedas de campos inexistentes.</td></tr>
+  <tr><td><strong>Estados y transiciones</strong></td><td>Los estados posibles del documento y qué los hace avanzar.</td></tr>
+  <tr><td><strong>Efectos automáticos</strong></td><td>Lo que el sistema escribe sin intervención: existencias, costos, saldos, movimientos de tesorería y pólizas contables.</td></tr>
+  <tr><td><strong>Errores frecuentes</strong></td><td>Los fallos habituales durante los primeros meses de operación y su causa real.</td></tr>
+  <tr><td><strong>Ejercicio</strong></td><td>Práctica sugerida en el ambiente de pruebas.</td></tr>
+</table>
+
+<h3>Convenciones tipográficas</h3>
+
+<table>
+  <thead><tr><th style="width:26%">Marca</th><th>Significado</th></tr></thead>
+  <tr><td><span class="ob">OBLIGATORIO</span></td><td>El campo debe capturarse; sin él, el documento no se guarda.</td></tr>
+  <tr><td><span class="op">opcional</span></td><td>Puede omitirse. Cuando su omisión tiene consecuencias, se indica.</td></tr>
+  <tr><td><span class="campo">nombreCampo</span></td><td>Identificador técnico del campo, tal como aparece en la interfaz de programación y en los mensajes de error.</td></tr>
+  <tr><td><span class="rol">tesorería</span></td><td>Rol del sistema que ejecuta la acción.</td></tr>
+  <tr><td><span class="cod">ESTADO</span></td><td>Estado de un documento.</td></tr>
+</table>
+
+<h3>Sobre las capturas de pantalla</h3>
+
 <p>
-  Y algo que conviene entender desde la primera página: <strong>lo que tú ves en el sistema
-  depende de tu rol</strong>. Si una pantalla de este manual no te aparece, no está rota — es
-  que tu perfil no la incluye. El capítulo 0.6 explica cómo está repartido.
+  Todas las imágenes proceden del sistema en funcionamiento. Los importes y nombres
+  corresponden a un ambiente de pruebas y carecen de significado; lo relevante es la
+  disposición de la información y las acciones disponibles en cada pantalla.
 </p>
+
+<div class="nota"><span class="rot">Advertencia sobre visibilidad</span>
+  <p>Lo que cada usuario ve depende de su rol. Si una pantalla descrita en este manual no
+  aparece en el menú, no se trata de un fallo: el perfil asignado no la incluye. El reparto
+  completo figura en el Anexo A.</p></div>

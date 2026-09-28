@@ -1,567 +1,360 @@
 <h2><span class="cap">Capítulo 5</span>Ventas y punto de venta</h2>
 
-<p><span class="quien">empleado</span> &nbsp;<span class="quien">tesoreria</span></p>
+<p class="roles-cab"><span class="rol">empleado</span> <span class="rol">tesorería</span></p>
+
+<h3>5.1 · Qué resuelve</h3>
 
 <p>
-  Vender es la operación más rápida del sistema y la que más cosas dispara. Un ticket de
-  mostrador mueve inventario, caja, contabilidad, impuestos y —si es a crédito— la cartera del
-  cliente, todo en la misma transacción.
+  La venta es la operación más rápida del sistema y la que desencadena más efectos. Un ticket
+  de mostrador afecta simultáneamente al inventario, a la caja, a la contabilidad, a los
+  impuestos y —si es a crédito— a la cartera del cliente, todo dentro de la misma transacción.
 </p>
 
-<h3>5.1 · El punto de venta</h3>
+<h3>5.2 · Requisitos previos</h3>
 
-<p>
-  <strong>Ventas → Abrir caja</strong>, o directamente la dirección <code>/pos</code>. El punto
-  de venta se abre <em>fuera</em> del área de trabajo: ocupa la pantalla entera porque quien
-  cobra no navega por menús.
-</p>
+<table>
+  <thead><tr><th style="width:30%">Requisito</th><th>Consecuencia de su ausencia</th></tr></thead>
+  <tr><td><strong>Turno de caja abierto</strong></td><td>El punto de venta no permite cobrar. Cada venta, cobro, reembolso, entrada y retiro se vincula al turno.</td></tr>
+  <tr><td><strong>Producto con precio en una lista activa</strong></td><td>El artículo no aparece o aparece sin precio.</td></tr>
+  <tr><td><strong>Existencia disponible en el almacén elegido</strong></td><td>El sistema impide vender lo que no hay o lo que está reservado.</td></tr>
+  <tr><td><strong>Forma de pago configurada</strong></td><td>No se puede cobrar.</td></tr>
+  <tr><td><strong>Cliente</strong></td><td>Siempre existe <em>Público General</em>; para facturar hace falta uno con datos fiscales.</td></tr>
+</table>
+
+<h3>5.3 · El punto de venta</h3>
 
 <figure>
   <img src="img/03-pos-punto-de-venta.jpg" alt="Punto de venta">
-  <figcaption><b>Punto de venta.</b> Arriba las teclas rápidas (F2 buscar, F4 cobrar, F8
-  cliente, Esc limpiar). A la izquierda el buscador de producto por nombre, SKU o código de
-  barras, y el selector de <b>almacén</b> y de <b>lista de precios</b>. A la derecha el
-  carrito, el cliente, la forma de pago y el total.</figcaption>
+  <figcaption><b>Punto de venta.</b> Teclas rápidas en la cabecera (F2 buscar, F4 cobrar, F8
+  cliente, Esc limpiar). A la izquierda, el buscador por nombre, SKU o código de barras y los
+  selectores de <b>almacén</b> y <b>lista de precios</b>. A la derecha, el carrito, el cliente,
+  la modalidad de pago y el total. Ocupa la pantalla completa: quien cobra no navega por
+  menús.</figcaption>
 </figure>
 
-<div class="caja dep"><span class="rot">Depende de</span>
-  <p>Un <strong>turno de caja abierto</strong>. Si no hay turno, el punto de venta pide abrirlo
-  primero: cada venta, cobro, reembolso, entrada y retiro de efectivo queda ligado al turno, y
-  sin turno no hay a qué ligarlo. El turno se abre en <em>Tesorería → Caja, corte y
-  arqueo</em>.</p></div>
+<h4>Campos de la venta</h4>
 
-<h4>La venta, paso a paso</h4>
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es y qué regla lo gobierna</th></tr></thead>
+  <tr><td class="campo">metodoPago</td><td><span class="ob">OBLIGATORIO</span></td><td><span class="campo">EFECTIVO · TARJETA · TRANSFERENCIA · CHEQUE · MSI_BANCO · CREDITO_30D · CREDITO_60D</span> y demás productos de crédito.</td></tr>
+  <tr><td class="campo">detalles[]</td><td><span class="ob">OBLIGATORIO</span></td><td>Al menos un renglón.</td></tr>
+  <tr><td class="campo">detalles[].productoId</td><td><span class="ob">OBLIGATORIO</span></td><td>Producto activo.</td></tr>
+  <tr><td class="campo">detalles[].cantidad</td><td><span class="ob">OBLIGATORIO</span></td><td>Mayor que cero. Se valida contra el <strong>disponible</strong>, no contra el físico.</td></tr>
+  <tr><td class="campo">detalles[].precioUnitario</td><td><span class="ob">OBLIGATORIO</span></td><td>Procede de la lista de precios; puede editarse si el perfil lo permite.</td></tr>
+  <tr><td class="campo">detalles[].descuento</td><td><span class="op">opcional</span></td><td>Importe descontado del renglón.</td></tr>
+  <tr><td class="campo">clienteId</td><td><span class="op">opcional</span></td><td>Si se omite, Público General. <strong>Obligatorio para vender a crédito y para facturar.</strong></td></tr>
+  <tr><td class="campo">almacenId</td><td><span class="op">opcional</span></td><td>De dónde sale la mercancía. Si se omite, el almacén por omisión del punto de venta.</td></tr>
+  <tr><td class="campo">listaPrecioId</td><td><span class="op">opcional</span></td><td>Qué tarifa se aplica. Si el cliente tiene lista asignada, prevalece la suya.</td></tr>
+  <tr><td class="campo">cuentaBancariaId</td><td><span class="op">opcional</span></td><td>A qué cuenta entra el dinero. Necesario en pagos que no son efectivo de caja.</td></tr>
+  <tr><td class="campo">detalles[].loteEspecificoId</td><td><span class="op">opcional</span></td><td>Fuerza un lote concreto. Si se omite, el sistema aplica la rotación configurada.</td></tr>
+  <tr><td class="campo">detalles[].ubicacionId</td><td><span class="op">opcional</span></td><td>Desde qué posición sale.</td></tr>
+  <tr><td class="campo">detalles[].equivalenciaId</td><td><span class="op">opcional</span></td><td>Unidad de venta distinta de la base.</td></tr>
+  <tr><td class="campo">detalles[].reservaId</td><td><span class="op">opcional</span></td><td>Consume una reserva previa en lugar de crear una nueva.</td></tr>
+  <tr><td class="campo">subtotal · impuestos · total</td><td><span class="op">opcional</span></td><td>Se aceptan pero <strong>nunca se usan como fuente de verdad</strong>: el servidor recalcula. Evita que una pantalla desactualizada fije un importe.</td></tr>
+</table>
 
-<div class="paso"><span class="n">1</span><b class="t">Elegir almacén y lista de precios</b>
-  El almacén decide de dónde sale la mercancía y, por tanto, qué existencia se descuenta. La
-  lista de precios decide a qué precio. Los dos salen preseleccionados; cambiarlos a mitad de
-  un ticket es la causa habitual de precios raros.</div>
+<h4>Venta a crédito — campos adicionales</h4>
 
-<div class="paso"><span class="n">2</span><b class="t">Buscar y agregar productos</b>
-  Por nombre, SKU o lector de código de barras. El sistema valida la <strong>existencia
-  disponible</strong> —no el físico— y no deja vender lo que ya está comprometido.</div>
+<table>
+  <thead><tr><th style="width:30%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">productoCreditoId</td><td><span class="op">opcional</span></td><td>Producto de crédito que se aplica. <strong>El plazo, la tasa y los límites salen del producto</strong>, no de lo que mande la pantalla.</td></tr>
+  <tr><td class="campo">tipoCredito</td><td><span class="op">opcional</span></td><td>Alternativa heredada al producto de crédito.</td></tr>
+  <tr><td class="campo">fechaInicio</td><td><span class="op">opcional</span></td><td>Desde cuándo corre el calendario de cuotas.</td></tr>
+  <tr><td class="campo">metodoPagoEnganche</td><td><span class="op">opcional</span></td><td>Cómo se cobra el enganche, si lo hay.</td></tr>
+  <tr><td class="campo">cuentaBancariaEngancheId</td><td><span class="op">opcional</span></td><td>A qué cuenta entra el enganche.</td></tr>
+</table>
 
-<div class="paso"><span class="n">3</span><b class="t">Elegir cliente</b>
-  Por omisión, <em>Público General</em>. Se cambia con F8. El cliente importa para tres cosas:
-  su lista de precios, su facturación y su crédito.</div>
+<h4>Secuencia de cobro</h4>
 
-<div class="paso"><span class="n">4</span><b class="t">Contado o crédito</b>
-  <strong>Contado</strong>: efectivo, tarjeta, transferencia o MSI banco.
+<ol class="pasos">
+  <li><b>Elegir almacén y lista de precios</b><br>
+  El almacén determina qué existencia se descuenta; la lista, a qué precio se vende. Ambos
+  vienen preseleccionados. Cambiarlos a mitad de un ticket es la causa habitual de precios
+  inesperados.</li>
+  <li><b>Agregar productos</b><br>
+  Por nombre, SKU o lector. El sistema valida el disponible y bloquea lo comprometido.</li>
+  <li><b>Elegir cliente</b><br>
+  F8. Determina la lista de precios aplicable, la facturación y la disponibilidad de crédito.</li>
+  <li><b>Elegir modalidad</b><br>
+  <strong>Contado</strong>: efectivo, tarjeta, transferencia o meses sin intereses del banco.
   <strong>Crédito</strong>: sólo se habilita si el cliente tiene línea vigente y disponible
-  suficiente. Si no, el botón lo dice — no se queda mudo.</div>
+  suficiente; en caso contrario el botón indica el motivo.</li>
+  <li><b>Cobrar</b> — F4<br>
+  Con el importe recibido, el sistema calcula el cambio.</li>
+</ol>
 
-<div class="paso"><span class="n">5</span><b class="t">Cobrar</b>
-  Con el monto recibido, el sistema calcula el cambio. F4.</div>
+<h4>Efectos automáticos, en un solo acto</h4>
 
-<div class="caja auto"><span class="rot">Lo que hace el sistema solo, en un solo acto</span>
-  <p>• <strong>Descuenta la existencia</strong> del almacén y la ubicación.<br>
-  • <strong>Registra el movimiento de caja</strong> en el turno abierto.<br>
-  • <strong>Genera la póliza</strong>: ingreso, IVA trasladado y costo de venta contra
-  inventario.<br>
-  • Si es a crédito, <strong>reserva la línea</strong> del cliente y crea el crédito con su
-  calendario de cuotas.<br>
-  • Deja el <strong>ticket</strong> listo para imprimir y, si el cliente lo pide, para
-  facturar.</p></div>
+<table>
+  <thead><tr><th style="width:30%">Efecto</th><th>Detalle</th></tr></thead>
+  <tr><td><strong>Existencia</strong></td><td>Baja en el almacén, la ubicación y el lote correspondientes.</td></tr>
+  <tr><td><strong>Caja o banco</strong></td><td>Movimiento registrado en el turno abierto, con <span class="campo">tipoDocumento = VENTA</span>.</td></tr>
+  <tr><td><strong>Póliza</strong></td><td>Ingreso, IVA trasladado y costo de venta contra inventario.</td></tr>
+  <tr><td><strong>Crédito</strong></td><td>Si la venta es a crédito: reserva la línea del cliente, crea el crédito y genera su calendario de cuotas.</td></tr>
+  <tr><td><strong>Ticket y CFDI</strong></td><td>Ticket disponible para impresión; si el cliente lo solicita, la venta queda lista para facturar.</td></tr>
+</table>
 
-<h3>5.2 · Historial de ventas</h3>
+<h3>5.4 · Historial de ventas</h3>
 
 <figure>
   <img src="img/02-ventas-historial.jpg" alt="Historial de ventas">
-  <figcaption><b>Ventas → Historial.</b> Cada renglón: folio y fecha, cliente, método de pago,
-  estado y total cobrado. Los estados que hay que saber leer son
-  <b>COMPLETADA</b>, <b>PARCIALMENTE_DEVUELTA</b>, <b>DEVUELTA</b> y <b>ANULADA</b>. Los tres
-  iconos de la derecha son ticket, factura y devolución.</figcaption>
+  <figcaption><b>Ventas › Historial.</b> Folio y fecha, cliente, método de pago, estado e
+  importe cobrado. Los tres iconos de la derecha corresponden a ticket, factura y
+  devolución.</figcaption>
 </figure>
 
-<h4>Anular no es devolver</h4>
-
 <table>
-  <tr><th style="width:20%"></th><th>Anular</th><th>Devolver</th></tr>
-  <tr><td class="n">Cuándo</td><td>La venta estuvo mal desde el principio: se capturó dos veces, se cobró al cliente equivocado.</td><td>El cliente trae la mercancía de vuelta.</td></tr>
-  <tr><td class="n">Mercancía</td><td>Vuelve entera al almacén.</td><td>Vuelve lo que trajo; puede ser parcial.</td></tr>
-  <tr><td class="n">Dinero</td><td>Se deshace el cobro.</td><td>Reembolso, saldo a favor o ajuste a cuentas por cobrar.</td></tr>
-  <tr><td class="n">Rastro</td><td>La venta queda <em>ANULADA</em>, no se borra.</td><td>Nace un documento <em>DEV-n</em> enlazado a la venta.</td></tr>
+  <thead><tr><th style="width:30%">Estado</th><th>Significado</th></tr></thead>
+  <tr><td class="campo">COMPLETADA</td><td>Venta normal.</td></tr>
+  <tr><td class="campo">PARCIALMENTE_DEVUELTA</td><td>Se devolvió parte de la mercancía.</td></tr>
+  <tr><td class="campo">DEVUELTA</td><td>Se devolvió todo.</td></tr>
+  <tr><td class="campo">ANULADA</td><td>La venta se dejó sin efecto.</td></tr>
 </table>
 
-<h3>5.3 · Devoluciones</h3>
+<h3>5.5 · Anular frente a devolver</h3>
+
+<table>
+  <thead><tr><th style="width:20%"></th><th style="width:40%">Anular</th><th>Devolver</th></tr></thead>
+  <tr><td><strong>Cuándo</strong></td><td>La venta fue incorrecta desde el origen: capturada dos veces, cobrada al cliente equivocado.</td><td>El cliente trae la mercancía de vuelta.</td></tr>
+  <tr><td><strong>Alcance</strong></td><td>Total.</td><td>Total o parcial, renglón por renglón.</td></tr>
+  <tr><td><strong>Mercancía</strong></td><td>Vuelve completa al almacén.</td><td>Vuelve lo que se trajo, y sólo si su condición lo permite.</td></tr>
+  <tr><td><strong>Dinero</strong></td><td>Se deshace el cobro.</td><td>Reembolso, saldo a favor o ajuste a cuentas por cobrar.</td></tr>
+  <tr><td><strong>Rastro</strong></td><td>La venta queda ANULADA; no se borra.</td><td>Nace un documento independiente <span class="campo">DEV-n</span> enlazado a la venta.</td></tr>
+  <tr><td><strong>Campo exigido</strong></td><td><span class="campo">motivo</span> <span class="ob">OBLIGATORIO</span>, hasta 500 caracteres</td><td><span class="campo">motivo</span> <span class="ob">OBLIGATORIO</span>, hasta 500 caracteres</td></tr>
+</table>
+
+<div class="nota"><span class="rot">Por qué el motivo es obligatorio</span>
+  <p>Es lo que explicará ese movimiento dentro de seis meses, cuando el importe aparezca en una
+  conciliación y nadie recuerde la operación.</p></div>
+
+<h3>5.6 · Devolución de venta</h3>
 
 <figure>
   <img src="img/04-ventas-devoluciones.jpg" alt="Devoluciones de venta">
-  <figcaption><b>Ventas → Devoluciones.</b> Cada devolución con su venta de origen y su
-  <b>resolución</b>: <b>REEMBOLSO</b> (sale dinero de caja) o <b>AJUSTE CXC</b> (baja el saldo
-  que el cliente debe). La columna fiscal avisa si queda una nota de crédito por
+  <figcaption><b>Ventas › Devoluciones.</b> Cada devolución con su venta de origen y su
+  <b>resolución</b>: REEMBOLSO —sale dinero— o AJUSTE CXC —baja el saldo que el cliente
+  adeuda—. La columna fiscal advierte si queda una nota de crédito pendiente de
   timbrar.</figcaption>
 </figure>
 
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">motivo</td><td><span class="ob">OBLIGATORIO</span></td><td>Hasta 500 caracteres.</td></tr>
+  <tr><td class="campo">destinoImporte</td><td><span class="ob">OBLIGATORIO</span></td><td><span class="campo">REEMBOLSO</span> o <span class="campo">SALDO_FAVOR</span>. Determina si sale dinero o si queda a favor del cliente.</td></tr>
+  <tr><td class="campo">detalles[].detalleVentaId</td><td><span class="ob">OBLIGATORIO</span></td><td>Qué renglón de la venta se devuelve.</td></tr>
+  <tr><td class="campo">detalles[].cantidad</td><td><span class="ob">OBLIGATORIO</span></td><td>No puede superar lo vendido menos lo ya devuelto.</td></tr>
+  <tr><td class="campo">detalles[].condicion</td><td><span class="ob">OBLIGATORIO</span></td><td><span class="campo">REINTEGRABLE</span> vuelve al inventario vendible; <span class="campo">DANADO</span> y <span class="campo">NO_REINTEGRABLE</span> no. <strong>Es el campo que decide si la mercancía se puede volver a vender.</strong></td></tr>
+  <tr><td class="campo">metodoReembolso</td><td><span class="op">opcional</span></td><td><span class="campo">EFECTIVO · TRANSFERENCIA · TARJETA · CHEQUE · OTRO</span>. Necesario si el destino es REEMBOLSO.</td></tr>
+  <tr><td class="campo">cuentaBancariaId</td><td><span class="op">opcional</span></td><td>De dónde sale el reembolso.</td></tr>
+  <tr><td class="campo">referenciaReembolso</td><td><span class="op">opcional</span></td><td>Hasta 120 caracteres.</td></tr>
+  <tr><td class="campo">claveIdempotencia</td><td><span class="ob">OBLIGATORIO</span></td><td>Entre 16 y 100 caracteres. Impide la devolución duplicada.</td></tr>
+</table>
+
+<h4>Resolución: quién decide adónde va el dinero</h4>
+
 <p>
-  La resolución la decide el sistema según cómo se pagó la venta: lo que se pagó en efectivo se
-  reembolsa; lo que se vendió a crédito se ajusta contra la cuenta por cobrar. Devolver
-  efectivo de una venta a crédito sería regalar dinero.
+  La resolución la determina el sistema según cómo se pagó la venta original: lo pagado en
+  efectivo se reembolsa; lo vendido a crédito se ajusta contra la cuenta por cobrar. Los valores
+  posibles son <span class="campo">REEMBOLSO</span>, <span class="campo">SALDO_FAVOR</span>,
+  <span class="campo">AJUSTE_CXC</span> y <span class="campo">MIXTA</span>. Devolver efectivo de
+  una venta a crédito equivaldría a entregar dinero que nunca se recibió.
 </p>
 
-<div class="caja ojo"><span class="rot">Ojo · una devolución no se deshace</span>
-  <p>Si se hizo mal, lo correcto es una <strong>nueva venta</strong> por lo devuelto, no borrar
-  el reembolso. Y su movimiento de tesorería tampoco se cancela desde Tesorería: el sistema lo
-  niega y explica por qué (capítulo 7).</p></div>
+<h4>Estado fiscal de la devolución</h4>
 
-<h3>5.4 · Facturación (CFDI)</h3>
+<table>
+  <thead><tr><th style="width:34%">Estado</th><th>Significado</th></tr></thead>
+  <tr><td class="campo">NO_REQUERIDO</td><td>La venta no se facturó; no procede nota de crédito.</td></tr>
+  <tr><td class="campo">PENDIENTE_NOTA_CREDITO</td><td>Hay factura y falta emitir la nota de crédito.</td></tr>
+  <tr><td class="campo">NOTA_CREDITO_GENERADA</td><td>Emitida y timbrada.</td></tr>
+  <tr><td class="campo">ERROR_NOTA_CREDITO</td><td>Falló el timbrado; requiere atención.</td></tr>
+</table>
 
-<div class="caja dep"><span class="rot">Depende de</span>
-  <p>Cuatro cosas, y si falta una no se factura: (1) datos fiscales completos de la empresa,
-  (2) <strong>ClaveProdServ y ClaveUnidad</strong> en cada producto, (3) el impuesto del
-  producto y (4) el RFC y régimen fiscal del cliente. Las pantallas <em>Finanzas →
-  Clasificación SAT</em> e <em>Impuestos del catálogo</em> listan a quién le falta.</p></div>
+<div class="nota sec"><span class="rot">Una devolución no se deshace</span>
+  <p>Si se registró mal, lo correcto es una <strong>nueva venta</strong> por lo devuelto, no
+  eliminar el reembolso. Su movimiento de tesorería tampoco se cancela desde Tesorería: el
+  sistema lo impide y explica por qué (capítulo 7).</p></div>
 
-<div class="caja ejerc"><span class="rot">Ejercicio 5</span>
-  <p>Abre turno de caja. Haz una venta de contado de dos productos y otra a crédito a un
-  cliente con línea. Devuelve parcialmente la primera. Después comprueba en:
-  <strong>Almacenes → Existencias</strong> que bajó lo vendido y subió lo devuelto;
-  <strong>Tesorería → Caja</strong> que están los dos movimientos; <strong>Finanzas → Libro
-  diario</strong> las pólizas; y <strong>Crédito → Créditos</strong> el crédito nuevo con sus
+<h3>5.7 · Facturación</h3>
+
+<table>
+  <thead><tr><th style="width:38%">Requisito</th><th>Dónde se revisa</th></tr></thead>
+  <tr><td>Datos fiscales completos de la empresa</td><td>Configuración › Centro de configuración</td></tr>
+  <tr><td>ClaveProdServ y ClaveUnidad por producto</td><td>Finanzas › Clasificación SAT</td></tr>
+  <tr><td>Impuesto asignado al producto</td><td>Finanzas › Impuestos del catálogo</td></tr>
+  <tr><td>RFC, régimen fiscal y uso de CFDI del cliente</td><td>Catálogos › Clientes</td></tr>
+</table>
+
+<div class="nota tenue"><span class="rot">Ejercicio 5</span>
+  <p>Abrir turno de caja. Registrar una venta de contado de dos productos y otra a crédito a un
+  cliente con línea vigente. Devolver parcialmente la primera, con un renglón REINTEGRABLE y
+  otro DANADO. Verificar después: en Existencias, que sólo volvió el reintegrable; en Caja, los
+  dos movimientos; en Libro diario, las pólizas; y en Créditos, el crédito nuevo con sus
   cuotas.</p></div>
 
 <h2><span class="cap">Capítulo 6</span>Crédito y cobranza</h2>
 
-<p><span class="quien">credito</span> &nbsp;<span class="quien">cobranza</span> &nbsp;<span class="quien">gerencia</span> &nbsp;<span class="quien">direccion</span></p>
+<p class="roles-cab"><span class="rol">crédito</span> <span class="rol">cobranza</span> <span class="rol">gerencia</span> <span class="rol">dirección</span></p>
+
+<h3>6.1 · Qué resuelve</h3>
 
 <p>
-  Este módulo lleva el <strong>crédito comercial</strong>: vender hoy y cobrar después. En el
-  modo «sólo ERP» es la funcionalidad completa; en el modo con core, el ERP sigue decidiendo y
-  el core lleva el registro (Parte III).
+  Este módulo gestiona el <strong>crédito comercial</strong>: vender hoy y cobrar después. En la
+  modalidad «sólo ERP» constituye la funcionalidad completa; en la modalidad con core, el ERP
+  sigue decidiendo y el core lleva el registro financiero (Parte III).
 </p>
 
-<h3>6.1 · El circuito</h3>
-
-<div class="flujo">
-  <div><span class="q">1</span><b>Producto de crédito</b>Plazo, tasa, número de cuotas. Se define una vez.</div>
-  <div><span class="q">2</span><b>Verificación</b>Se comprueba al cliente antes de darle línea.</div>
-  <div><span class="q">3</span><b>Línea autorizada</b>Pasa por la matriz de firmas.</div>
-  <div><span class="q">4</span><b>Venta a crédito</b>Consume disponible y crea el crédito.</div>
-  <div><span class="q">5</span><b>Cobranza</b>Se registran los abonos cuota por cuota.</div>
-  <div><span class="q">6</span><b>Cartera vencida</b>Lo que no se pagó, por antigüedad.</div>
+<div class="cinta">
+  <div><span class="q">Una vez</span><b>Producto de crédito</b>Plazo, número de cuotas, tasa y límites.</div>
+  <div><span class="q">Por cliente</span><b>Verificación</b>Qué se comprueba antes de otorgar.</div>
+  <div><span class="q">Con firmas</span><b>Línea autorizada</b>Importe y plazo aprobados.</div>
+  <div><span class="q">En cada venta</span><b>Consumo</b>Se reserva disponible y nace el crédito.</div>
+  <div><span class="q">Continuo</span><b>Cobranza</b>Abonos aplicados por antigüedad.</div>
+  <div><span class="q">Control</span><b>Cartera vencida</b>Antigüedad de saldos por tramo.</div>
 </div>
 
-<h3>6.2 · Productos de crédito</h3>
+<h3>6.2 · Producto de crédito</h3>
 
 <figure>
   <img src="img/39-productos-credito.jpg" alt="Productos de crédito">
-  <figcaption><b>Crédito → Productos de crédito.</b> Lo que la empresa puede vender a crédito:
-  plazo, número de cuotas, tasa y límite. La columna <b>EXTERNO</b> y el botón
-  <b>Sincronizar</b> sólo tienen sentido en el modo con core (Parte III); en modo sólo ERP la
-  columna «para vender falta» dirá siempre «nada, se puede vender».</figcaption>
+  <figcaption><b>Crédito › Productos de crédito.</b> Lo que la empresa puede vender a crédito:
+  plazo, número de cuotas, tasa y límite. Las columnas <b>EXTERNO</b> y <b>Sincronizar</b> sólo
+  operan en la modalidad con core.</figcaption>
 </figure>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es y qué regla lo gobierna</th></tr></thead>
+  <tr><td class="campo">codigo</td><td><span class="ob">OBLIGATORIO</span></td><td>Sólo letras, dígitos y guiones.</td></tr>
+  <tr><td class="campo">nombre</td><td><span class="ob">OBLIGATORIO</span></td><td>Entre 3 y 120 caracteres. Es lo que ve quien vende.</td></tr>
+  <tr><td class="campo">unidadPlazo</td><td><span class="ob">OBLIGATORIO</span></td><td><span class="campo">DIAS</span> o <span class="campo">MESES</span>.</td></tr>
+  <tr><td class="campo">cadaCuantos</td><td><span class="ob">OBLIGATORIO</span></td><td>Entre 1 y 365. Junto con la unidad define la periodicidad: «cada 15 días», «cada 2 meses».</td></tr>
+  <tr><td class="campo">cuotasMinimas</td><td><span class="ob">OBLIGATORIO</span></td><td>Entre 1 y 60.</td></tr>
+  <tr><td class="campo">cuotasMaximas</td><td><span class="ob">OBLIGATORIO</span></td><td>Entre 1 y 60. Acota lo que el vendedor puede ofrecer.</td></tr>
+  <tr><td class="campo">sinInteres</td><td><span class="ob">OBLIGATORIO</span></td><td>Si es verdadero, el crédito no devenga interés.</td></tr>
+  <tr><td class="campo">tasaInteresMensual</td><td><span class="op">opcional</span></td><td>Entre 0 y 100. Necesaria si el producto sí devenga interés.</td></tr>
+  <tr><td class="campo">tasaEditable</td><td><span class="op">opcional</span></td><td>Si permite ajustar la tasa en cada operación.</td></tr>
+  <tr><td class="campo">montoMinimo · montoMaximo</td><td><span class="op">opcional</span></td><td>Límites por operación.</td></tr>
+  <tr><td class="campo">flujoValidacionId</td><td><span class="op">opcional</span></td><td>Qué flujo de verificación exige este producto antes de otorgarse.</td></tr>
+</table>
+
+<p>Estados del producto: <span class="campo">BORRADOR · ACTIVO · SUSPENDIDO</span>. Sólo los
+activos pueden venderse.</p>
 
 <h3>6.3 · Verificación del cliente</h3>
 
 <figure>
   <img src="img/38-flujo-verificacion.jpg" alt="Flujo de verificación">
-  <figcaption><b>Crédito → Flujo de verificación.</b> Qué se comprueba antes de otorgar, control
-  por control: identidad, listas de bloqueo, buró, círculo, cartera propia, política interna,
-  revisión humana y CURP. Abajo, las últimas corridas con el veredicto de cada
+  <figcaption><b>Crédito › Flujo de verificación.</b> Qué se comprueba antes de otorgar, control
+  por control: identidad, listas de bloqueo, buró, círculo de crédito, cartera propia, política
+  interna, revisión humana y CURP. Debajo, las últimas corridas con el veredicto de cada
   una.</figcaption>
 </figure>
 
 <p>
-  Cada control se puede exigir o no. Los que dependen de un proveedor externo —buró, círculo,
-  listas— quedan en cero hasta que ese proveedor esté conectado, y el sistema lo dice con esas
-  palabras en vez de dar por buena una comprobación que no hizo.
+  Cada control puede exigirse o no. Los que dependen de un proveedor externo permanecen en cero
+  mientras no esté conectado, y el sistema lo declara con esas palabras en lugar de dar por
+  válida una comprobación que no realizó.
 </p>
 
 <h3>6.4 · Autorizar una línea de crédito</h3>
 
-<p>
-  <strong>Aprobaciones → Bandeja.</strong> Cada solicitud muestra el cliente, el importe pedido,
-  el plazo y el nivel de riesgo. Y un recuadro que hay que leer <em>antes</em> de firmar:
-</p>
+<p><strong>Aprobaciones › Bandeja.</strong> Cada solicitud presenta cliente, importe solicitado,
+plazo y nivel de riesgo, y un recuadro que debe leerse antes de firmar.</p>
 
 <table>
-  <tr><th style="width:16%">Recuadro</th><th style="width:16%">¿El botón funciona?</th><th>Qué significa</th></tr>
-  <tr><td><strong>Rojo</strong></td><td>No, está apagado</td><td>Hay algo que impide autorizar: no hay expediente de validación, el expediente quedó RECHAZADO, o el importe validado es menor que el que se está autorizando. El recuadro dice cuál de los tres y trae el enlace para verificar al cliente; al volver, el botón se enciende solo.</td></tr>
-  <tr><td><strong>Ámbar</strong></td><td><strong>Sí</strong></td><td>Ahí está lo delicado: el expediente <em>no concluyó</em> —por ejemplo porque no hay proveedor de identidad conectado— y el recuadro lista los motivos. El sistema deja la decisión en tus manos a propósito, porque «revisión manual» quiere decir que la mire una persona, y esa persona eres tú. Termina con la frase que importa: <strong>«Nadie más va a revisarlo: si firmas, la línea se autoriza con esto.»</strong></td></tr>
+  <thead><tr><th style="width:14%">Recuadro</th><th style="width:16%">¿Botón activo?</th><th>Significado</th></tr></thead>
+  <tr><td><strong>Rojo</strong></td><td>No</td><td>Existe un impedimento: no hay expediente de validación, el expediente quedó RECHAZADO, o el importe validado es inferior al que se pretende autorizar. El recuadro identifica cuál de los tres e incluye enlace para verificar al cliente; al regresar, el botón se habilita.</td></tr>
+  <tr><td><strong>Ámbar</strong></td><td><strong>Sí</strong></td><td>El expediente <em>no concluyó</em> —por ejemplo, sin proveedor de identidad conectado— y el recuadro enumera los motivos. La decisión queda deliberadamente en manos del firmante: «revisión manual» significa que la revise una persona. El recuadro termina con la advertencia: <strong>«Nadie más va a revisarlo: si firmas, la línea se autoriza con esto.»</strong></td></tr>
 </table>
 
-<h4>Las cuatro reglas de firma</h4>
+<h4>Reglas de firma</h4>
 
 <ul>
-  <li><strong>Las firmas van en orden.</strong> El nivel 2 no aparece hasta que el 1 está dado.</li>
-  <li><strong>Quien pide no firma.</strong></li>
+  <li><strong>Las firmas son secuenciales.</strong> El nivel 2 no aparece hasta resolver el 1.</li>
+  <li><strong>Quien solicita no firma.</strong></li>
   <li><strong>Una misma persona no puede firmar dos niveles del mismo ciclo.</strong></li>
   <li><strong>Rechazar exige motivo escrito.</strong></li>
 </ul>
 
-<h3>6.5 · Créditos vivos</h3>
+<h3>6.5 · El crédito</h3>
 
 <figure>
   <img src="img/35-creditos.jpg" alt="Créditos">
-  <figcaption><b>Crédito → Créditos.</b> Cada crédito con su folio, cliente, tipo —mensualidades
-  o plazo simple—, total, <b>saldo pendiente</b>, vencimiento y una barra de avance. El filtro
-  de arriba separa activos, vencidos y liquidados.</figcaption>
+  <figcaption><b>Crédito › Créditos.</b> Folio, cliente, tipo, importe total, <b>saldo
+  pendiente</b>, vencimiento y barra de avance. El filtro separa activos, vencidos y
+  liquidados.</figcaption>
 </figure>
+
+<table>
+  <thead><tr><th style="width:26%">Campo del alta</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">clienteId</td><td><span class="ob">OBLIGATORIO</span></td><td>Titular. Debe tener línea vigente y disponible suficiente.</td></tr>
+  <tr><td class="campo">montoVenta</td><td><span class="ob">OBLIGATORIO</span></td><td>Importe financiado. Mayor que cero.</td></tr>
+  <tr><td class="campo">numeroCuotas</td><td><span class="ob">OBLIGATORIO</span></td><td>Entre 1 y 360, acotado por el producto.</td></tr>
+  <tr><td class="campo">productoCreditoId</td><td><span class="op">opcional</span></td><td>Recomendado: <strong>el plazo, la tasa y los límites salen del producto</strong>, no de la petición.</td></tr>
+  <tr><td class="campo">ventaId</td><td><span class="op">opcional</span></td><td>Venta que origina el crédito, cuando procede del punto de venta.</td></tr>
+  <tr><td class="campo">fechaInicio</td><td><span class="op">opcional</span></td><td>Desde cuándo corre el calendario.</td></tr>
+  <tr><td class="campo">metodoPagoEnganche · cuentaBancariaEngancheId</td><td><span class="op">opcional</span></td><td>Cómo y dónde se cobra el enganche.</td></tr>
+  <tr><td class="campo">notas</td><td><span class="op">opcional</span></td><td>Hasta 1000 caracteres.</td></tr>
+</table>
+
+<p>
+  Estados del crédito: <span class="campo">ACTIVO · LIQUIDADO · VENCIDO · CANCELADO</span>.
+  Estados de cada cuota: <span class="campo">PENDIENTE · PAGADA · PAGO_PARCIAL · VENCIDA</span>.
+</p>
+
+<div class="nota"><span class="rot">Simulación antes de comprometer</span>
+  <p>Existe una función de simulación que calcula el calendario completo sin crear nada, a
+  partir de capital, número de cuotas, tasa, periodicidad y fecha de inicio. Es la forma
+  correcta de mostrar al cliente lo que va a pagar antes de firmar.</p></div>
 
 <h3>6.6 · Registrar cobranza</h3>
 
 <figure>
   <img src="img/36-cobranza.jpg" alt="Cobranza">
-  <figcaption><b>Crédito → Cobranza.</b> Cada crédito abierto con sus cuotas: pendientes,
-  pagadas y parciales. <b>Registrar abono</b> aplica el pago; el sistema reparte el importe
-  entre cuotas por antigüedad, no a capricho.</figcaption>
+  <figcaption><b>Crédito › Cobranza.</b> Cada crédito abierto con sus cuotas: pendientes,
+  pagadas y parciales. <b>Registrar abono</b> aplica el pago.</figcaption>
 </figure>
 
-<div class="caja auto"><span class="rot">Lo que hace el sistema solo</span>
-  <p>Un abono <strong>reparte por antigüedad</strong> —primero la cuota más vieja—, actualiza
-  el saldo del crédito, <strong>libera línea disponible</strong> del cliente, registra el
-  ingreso en tesorería y genera la póliza de cobranza. Cancelar un pago de cobranza deshace el
-  reparto <em>y</em> su movimiento de tesorería, en ese orden.</p></div>
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">creditoId</td><td><span class="ob">OBLIGATORIO</span></td><td>Crédito al que se abona.</td></tr>
+  <tr><td class="campo">montoPagado</td><td><span class="ob">OBLIGATORIO</span></td><td>Mayor que cero.</td></tr>
+  <tr><td class="campo">metodoPago</td><td><span class="ob">OBLIGATORIO</span></td><td><span class="campo">EFECTIVO · TARJETA · TRANSFERENCIA · CHEQUE · OTRO</span>.</td></tr>
+  <tr><td class="campo">claveIdempotencia</td><td><span class="ob">OBLIGATORIO</span></td><td>Entre 8 y 100 caracteres. Impide el abono duplicado.</td></tr>
+  <tr><td class="campo">cuotaId</td><td><span class="op">opcional</span></td><td>Fuerza la aplicación a una cuota concreta. Si se omite, el sistema reparte por antigüedad.</td></tr>
+  <tr><td class="campo">cuentaBancariaId</td><td><span class="op">opcional</span></td><td>Dónde entra el dinero.</td></tr>
+  <tr><td class="campo">referencia</td><td><span class="op">opcional</span></td><td>Hasta 200 caracteres.</td></tr>
+  <tr><td class="campo">fechaPago</td><td><span class="op">opcional</span></td><td>Si se omite, la del día. Determina el periodo contable.</td></tr>
+</table>
+
+<h4>Efectos automáticos del abono</h4>
+
+<table>
+  <thead><tr><th style="width:30%">Efecto</th><th>Detalle</th></tr></thead>
+  <tr><td><strong>Reparto</strong></td><td>Por antigüedad: primero la cuota más antigua. Una cuota puede quedar en PAGO_PARCIAL.</td></tr>
+  <tr><td><strong>Saldo del crédito</strong></td><td>Se recalcula; al llegar a cero el crédito pasa a LIQUIDADO.</td></tr>
+  <tr><td><strong>Línea del cliente</strong></td><td>Se libera disponible por el importe aplicado a capital.</td></tr>
+  <tr><td><strong>Tesorería</strong></td><td>Ingreso con <span class="campo">tipoDocumento = PAGO_COBRANZA</span>.</td></tr>
+  <tr><td><strong>Póliza</strong></td><td>Cargo a Banco o Caja, abono a Clientes.</td></tr>
+  <tr><td><strong>Estado fiscal</strong></td><td><span class="campo">NO_REQUERIDO · PENDIENTE_REP · REP_GENERADO · ERROR_REP</span>, según si procede complemento de pago.</td></tr>
+</table>
+
+<div class="nota"><span class="rot">Cancelar un pago de cobranza</span>
+  <p>Deshace el reparto entre cuotas <em>y después</em> cancela su movimiento de tesorería, en
+  ese orden. Es el único camino correcto: cancelar el movimiento bancario directamente dejaría
+  las cuotas marcadas como pagadas.</p></div>
 
 <h3>6.7 · Cartera vencida</h3>
 
 <figure>
   <img src="img/37-cartera-vencida.jpg" alt="Cartera vencida">
-  <figcaption><b>Crédito → Cartera vencida.</b> El reporte de antigüedad de saldos: al
-  corriente, 1–30, 31–60, 61–90 y más de 90 días, con importe y número de cuotas en cada
-  tramo. <b>Recalcular antigüedad</b> vuelve a clasificar con la fecha de hoy.</figcaption>
+  <figcaption><b>Crédito › Cartera vencida.</b> Antigüedad de saldos: al corriente, 1–30, 31–60,
+  61–90 y más de 90 días, con importe y número de cuotas por tramo. <b>Recalcular antigüedad</b>
+  reclasifica con la fecha del día.</figcaption>
 </figure>
 
-<div class="caja ejerc"><span class="rot">Ejercicio 6</span>
-  <p>Solicita una línea para un cliente, verifícalo, y autorízala con dos usuarios distintos
-  para ver la secuencia de firmas. Haz una venta a crédito con esa línea. Registra un abono
-  parcial y comprueba en la pantalla de cobranza cómo se repartió y cuánto disponible se le
-  liberó al cliente.</p></div>
-
-<h2><span class="cap">Capítulo 7</span>Tesorería</h2>
-
-<p><span class="quien">tesoreria</span></p>
-
-<p>
-  Tesorería es donde vive <strong>el dinero</strong>: la caja del mostrador y las cuentas
-  bancarias. La idea que organiza el módulo entero es la diferencia entre
-  <strong>efectivo del turno</strong> y <strong>saldo del banco</strong>.
-</p>
-
-<h3>7.1 · Caja, corte y arqueo</h3>
-
-<figure>
-  <img src="img/15-tesoreria-caja.jpg" alt="Caja, corte y arqueo">
-  <figcaption><b>Tesorería → Caja, corte y arqueo.</b> Arriba los cuatro números del turno:
-  fondo inicial, entradas, salidas y <b>efectivo esperado</b>. A la izquierda los movimientos
-  del turno; a la derecha, entrada o retiro manual y el <b>corte y arqueo</b> con el efectivo
-  contado.</figcaption>
-</figure>
-
-<div class="paso"><span class="n">1</span><b class="t">Abrir turno con fondo inicial</b>
-  El fondo es el efectivo con el que empieza la caja. Todo lo que pase después se mide contra
-  él.</div>
-
-<div class="paso"><span class="n">2</span><b class="t">Operar</b>
-  Las ventas, los cobros y los reembolsos entran solos. Las entradas y retiros manuales se
-  capturan aquí, <strong>y exigen decir contra qué cuenta contable se registran</strong>: un
-  retiro puede ser un depósito al banco, un gasto o una entrega a dirección, y cada caso afecta
-  una cuenta distinta.</div>
-
-<div class="paso"><span class="n">3</span><b class="t">Cerrar turno con arqueo</b>
-  Se cuenta el efectivo físicamente y se captura. <strong>Una diferencia exige
-  observaciones.</strong> El sistema no la esconde ni la absorbe: la registra con su
-  explicación.</div>
-
-<h3>7.2 · Movimientos bancarios</h3>
-
-<figure>
-  <img src="img/16-tesoreria-movimientos.jpg" alt="Movimientos bancarios">
-  <figcaption><b>Tesorería → Movimientos bancarios.</b> Arriba, cada cuenta con su saldo y
-  cuántos movimientos le faltan por conciliar. En la lista: folio, fecha, concepto, cuenta,
-  entrada, salida, saldo acumulado y estado de conciliación.</figcaption>
-</figure>
-
-<h4>La regla que hay que entender de este módulo</h4>
-
-<p>Mira la última columna de la lista. Cada renglón es una de dos cosas:</p>
-
-<table>
-  <tr><th style="width:26%">Lo que ves</th><th>Qué significa</th></tr>
-  <tr><td>El botón <strong>«Cancelar»</strong></td><td>El movimiento se <strong>capturó a mano</strong>. Se puede cancelar aquí.</td></tr>
-  <tr><td>La leyenda <strong>«del documento»</strong></td><td>Lo generó una venta, un pago, un cobro, la nómina, un folio de hotel… <strong>Se deshace desde ese documento, no desde aquí.</strong></td></tr>
-</table>
-
-<p>
-  <strong>Por qué.</strong> Cancelar aquí devuelve el saldo al banco y <em>no toca el
-  documento</em>: la orden de compra seguiría diciendo que está pagada. Dos subsistemas
-  afirmando cosas contrarias, cada uno coherente por dentro, y ninguna pantalla donde se vea la
-  diferencia — aparece meses después, en una conciliación, cuando ya nadie recuerda qué pasó.
-</p>
-
-<p>
-  Si se intenta de todas formas, el sistema <strong>dice qué documento lo generó y dónde se
-  deshace</strong>. Y donde el ERP todavía no tiene esa pantalla —hoy, el pago a proveedor y el
-  traspaso entre cuentas— lo dice así, en vez de mandar a buscar algo que no está.
-</p>
-
-<div class="caja ojo"><span class="rot">Ojo · los traspasos entre cuentas</span>
-  <p>Un traspaso escribe <strong>dos</strong> movimientos —salida en la cuenta de origen,
-  entrada en la de destino— y <strong>una sola póliza</strong> con los dos lados. Por eso
-  ninguna de las dos piernas se cancela por separado: hacerlo dejaría la otra en pie y el mismo
-  importe duplicado o desaparecido. Si un traspaso salió mal, se registra el traspaso
-  contrario con su explicación.</p></div>
-
-<h3>7.3 · Conciliación bancaria</h3>
-
-<p>Es lo que desbloquea el cierre mensual del contador, así que conviene hacerla pronto.</p>
-
-<figure>
-  <img src="img/17-conciliacion-bancaria.jpg" alt="Conciliación bancaria">
-  <figcaption><b>Tesorería → Conciliación bancaria.</b> Se elige cuenta, mes y ejercicio, y se
-  carga el estado de cuenta. Hasta que no se cargue, no hay nada que conciliar — y el sistema
-  lo dice en vez de enseñar una tabla vacía.</figcaption>
-</figure>
-
-<div class="paso"><span class="n">1</span><b class="t">Cargar el estado de cuenta</b>
-  Se captura el saldo inicial y el <strong>final</strong> del banco, y se pegan los movimientos
-  desde Excel: fecha, descripción, referencia, cargo, abono. Acepta <code>dd/mm/aaaa</code> y
-  <code>aaaa-mm-dd</code>, e ignora símbolos de moneda y comas.
-  <br><br>
-  <strong>Mes sin movimientos:</strong> si el saldo no se movió, deja el pegado vacío y pon el
-  mismo saldo inicial y final. El botón dirá «Cargar mes sin movimientos». Una cuenta dormida
-  no debe bloquear el cierre.
-  <br><br>
-  El sistema exige que el estado de cuenta <strong>cuadre consigo mismo</strong> antes de
-  aceptarlo: saldo inicial más abonos menos cargos tiene que dar el saldo final. Si no cuadra,
-  el error está en la captura, no en los libros.</div>
-
-<div class="paso"><span class="n">2</span><b class="t">Conciliar automáticamente</b>
-  Empareja por importe y ventana de fechas. <strong>Lo ambiguo queda pendiente y se
-  reporta</strong>; no se adivina. Lo que queda se empareja a mano.</div>
-
-<div class="paso"><span class="n">3</span><b class="t">Ver el reporte</b>
-  Explica la diferencia entre banco y libros en las cuatro categorías clásicas: depósitos en
-  tránsito, cheques en tránsito, cargos no registrados y abonos no registrados.</div>
-
-<div class="paso"><span class="n">4</span><b class="t">Cerrar la conciliación del periodo</b>
-  El botón <strong>sólo aparece si cuadra</strong>. Cerrar con diferencia sería firmar que
-  cuadra cuando no cuadra. Una conciliación cerrada no se modifica.</div>
-
-<h3>7.4 · Flujo de efectivo</h3>
-
-<p>
-  <strong>Tesorería → Flujo de efectivo.</strong> La proyección: lo que va a entrar por cobrar
-  y lo que va a salir por pagar, en el horizonte que se elija. Los traspasos entre cuentas
-  propias se excluyen — mover dinero de un bolsillo a otro no es flujo.
-</p>
-
-<div class="caja ejerc"><span class="rot">Ejercicio 7</span>
-  <p>Abre un turno con $500 de fondo, haz una venta en efectivo, registra un retiro por depósito
-  al banco y cierra el turno contando $10 de menos a propósito. Escribe la observación. Después
-  entra a Movimientos bancarios y localiza dos renglones: el de tu retiro —que sí tiene botón
-  de cancelar— y el de la venta —que dice «del documento»—.</p></div>
-
-<h2><span class="cap">Capítulo 8</span>Contabilidad y cierre mensual</h2>
-
-<p><span class="quien">contador</span> &nbsp;<span class="quien">finanzas</span></p>
-
-<p>
-  La contabilidad del ERP <strong>no se captura: se genera</strong>. Cada documento de los
-  capítulos anteriores escribe su póliza. La póliza manual existe para lo que no tiene módulo
-  —la renta, la luz, una reclasificación— y es la excepción, no la regla.
-</p>
-
-<h3>8.1 · El catálogo de cuentas</h3>
-
-<figure>
-  <img src="img/28-catalogo-cuentas.jpg" alt="Catálogo de cuentas">
-  <figcaption><b>Finanzas → Catálogo de cuentas.</b> El plan contable de la empresa, con el
-  conteo por naturaleza arriba. Cada cuenta lleva su <b>código agrupador del SAT</b>, su tipo,
-  su naturaleza y su nivel. Las de nivel <em>Detalle</em> son las únicas que reciben
-  movimientos; las <em>Mayor</em> sólo acumulan.</figcaption>
-</figure>
-
-<p>
-  Fíjate en la etiqueta <strong>«Uso automático»</strong> de algunas cuentas: son las que el
-  sistema usa por su cuenta —caja y efectivo, bancos, clientes, proveedores, inventario—.
-  Cambiarlas de sitio rompe la generación automática de pólizas.
-</p>
-
-<h3>8.2 · El libro diario</h3>
-
-<figure>
-  <img src="img/18-libro-diario.jpg" alt="Libro diario">
-  <figcaption><b>Finanzas → Libro diario.</b> Todas las pólizas del periodo con su folio, tipo
-  —Diario, Ingreso, Egreso—, concepto, número de partidas y total. Arriba, el resumen del
-  filtro con <b>Debe</b>, <b>Haber</b> y si está <b>Cuadrado</b>.</figcaption>
-</figure>
-
-<p>
-  Lee los conceptos de esa lista: «Ajuste de inventario por conteo», «Costo de devolución»,
-  «Cobranza — Crédito», «Ingreso por hospedaje», «Baja de activo». <strong>Cada uno viene de un
-  documento de otro módulo.</strong> Eso es lo que significa que la contabilidad se genere.
-</p>
-
-<h3>8.3 · Póliza manual</h3>
-
-<figure>
-  <img src="img/19-nueva-poliza.jpg" alt="Nueva póliza manual">
-  <figcaption><b>Finanzas → Nueva póliza.</b> Tipo, fecha, concepto y las partidas. El total de
-  cargos y abonos se ve en vivo y el botón de guardar no se enciende hasta que cuadra. Abajo,
-  tres ejemplos de asientos comunes, para quien no los tiene en la cabeza.</figcaption>
-</figure>
-
-<table>
-  <tr><th style="width:24%">Campo</th><th>Regla</th></tr>
-  <tr><td><strong>Tipo</strong></td><td>Diario, Ingreso o Egreso.</td></tr>
-  <tr><td><strong>Fecha</strong></td><td><strong>No se aceptan fechas futuras.</strong> La contabilidad registra lo que ya ocurrió.</td></tr>
-  <tr><td><strong>Concepto</strong></td><td>Qué fue, en palabras. Es lo que alguien leerá dentro de un año.</td></tr>
-  <tr><td><strong>Partidas</strong></td><td>Al menos dos. Cargos y abonos hasta que diga <em>Cuadrada</em>.</td></tr>
-</table>
-
-<div class="caja ojo"><span class="rot">Ojo · cuentas que no admiten póliza manual</span>
-  <p>Bancos, clientes, proveedores e inventario los lleva un <strong>auxiliar</strong>. Si
-  eliges una de ésas, el sistema lo explica y te manda al módulo correcto. No es un capricho:
-  una póliza manual contra bancos deja el mayor y el auxiliar diciendo cosas distintas, y a
-  partir de ahí la conciliación no cuadra nunca.</p></div>
-
-<h4>Cancelar una póliza</h4>
-
-<p>
-  No se borra ni se edita: <strong>se emite su reversa</strong>. El sistema invierte cargos y
-  abonos y deja las dos en el libro con referencia cruzada. Si el período original está cerrado
-  —o la póliza estaba fechada adelante— la reversa se fecha <strong>hoy</strong>, que es cuando
-  de verdad se está cancelando.
-</p>
-
-<h3>8.4 · Estados financieros</h3>
-
-<figure>
-  <img src="img/20-balanza.jpg" alt="Balanza de comprobación">
-  <figcaption><b>Balanza de comprobación.</b> Por periodo, con los botones rápidos «Este mes»,
-  «Mes anterior», «Este año» e «Histórico». El sello <b>Cuadrada</b> de arriba es lo primero
-  que hay que mirar.</figcaption>
-</figure>
-
-<figure>
-  <img src="img/21-estado-resultados.jpg" alt="Estado de resultados">
-  <figcaption><b>Estado de resultados.</b> Ingresos, costo de ventas, utilidad bruta, gastos
-  operativos y resultado. Cada renglón lleva su número de cuenta a la izquierda, para poder
-  rastrear de dónde sale la cifra.</figcaption>
-</figure>
-
-<p>Y el <strong>Balance general</strong>, con la misma lógica.</p>
-
-<h3>8.5 · Declaración de IVA</h3>
-
-<figure>
-  <img src="img/22-declaracion-iva.jpg" alt="Declaración de IVA">
-  <figcaption><b>Finanzas → Declaración de IVA.</b> IVA trasladado contra IVA acreditable, con
-  el saldo a cargo o a favor del periodo. Abajo, el detalle de los movimientos de cada lado y
-  el texto que explica en qué línea del portal del SAT va ese número.</figcaption>
-</figure>
-
-<div class="caja ojo"><span class="rot">Ojo</span>
-  <p>Es una <strong>estimación contable</strong>: se revisa contra los CFDI y las declaraciones
-  antes de presentarla. No incluye el IVA de los actos por tasa —gravados al 16 %, al 0 % y
-  exentos— porque esa separación no vive en la contabilidad sino en los comprobantes.</p></div>
-
-<h3>8.6 · Asientos pendientes</h3>
-
-<figure>
-  <img src="img/26-asientos-pendientes.jpg" alt="Asientos pendientes">
-  <figcaption><b>Finanzas → Asientos pendientes.</b> Las operaciones registradas cuya póliza no
-  se pudo generar. Cuatro contadores: requieren revisión, en cola, resueltos y descartados. La
-  lista dice el <b>origen</b> —de qué módulo viene—, el documento, cuántos intentos lleva y el
-  resultado del último.</figcaption>
-</figure>
-
-<p>
-  <strong>Ésta es la pantalla que hay que mirar todas las semanas.</strong> Un asiento pendiente
-  significa que una operación ocurrió y la contabilidad no se enteró. El motivo más frecuente,
-  con diferencia, es un producto sin categoría o una categoría sin cuentas.
-</p>
-
-<p>
-  El botón <strong>Reintentar ahora</strong> vuelve a intentarlo. Y si el asiento ya se generó
-  pero el documento se quedó atrás —diciendo «pendiente» aunque su póliza exista— el mismo
-  botón repara el documento.
-</p>
-
-<h3>8.7 · El cierre mensual</h3>
-
-<p>
-  Cerrar un mes es <strong>afirmar que los números de ese mes son los definitivos</strong>.
-  Después del cierre no se pueden registrar ni modificar pólizas de ese periodo.
-</p>
-
-<figure>
-  <img src="img/23-cierre-mensual.jpg" alt="Cierre mensual">
-  <figcaption><b>Finanzas → Cierre mensual.</b> El año completo, mes por mes, con cuántas
-  pólizas tiene cada uno. Los meses terminados ofrecen <b>Revisar para cerrar</b>; los ya
-  cerrados muestran el candado y <b>Ver / reabrir</b>; los que todavía no terminan dicen «Mes
-  todavía abierto» — el mes en curso y los futuros no se cierran.</figcaption>
-</figure>
-
-<h4>Paso 1 · La revisión: nueve controles</h4>
-
-<figure>
-  <img src="img/25-cierre-revision-controles.jpg" alt="Revisión de cierre">
-  <figcaption><b>Revisión de cierre.</b> El sistema toma una <em>fotografía</em> y corre los
-  nueve controles. Verde pasa, <b>rojo bloquea</b>, ámbar avisa. Debajo, el resumen de pólizas,
-  Debe, Haber y diferencias, y la estimación de IVA del periodo.</figcaption>
-</figure>
-
-<table>
-  <tr><th style="width:38%">Control</th><th>Qué comprueba</th><th style="width:14%">¿Bloquea?</th></tr>
-  <tr><td>Todos los controles pudieron medirse</td><td>Que ninguna consulta del diagnóstico falló</td><td>sí</td></tr>
-  <tr><td>El mes tiene registros contables</td><td>Que no cierres un mes vacío por accidente</td><td>sí</td></tr>
-  <tr><td>Debe y Haber coinciden</td><td>Que la balanza cuadre</td><td>sí</td></tr>
-  <tr><td>Pólizas completas y cuadradas</td><td>Que ninguna esté a medias</td><td>sí</td></tr>
-  <tr><td>No hay operaciones esperando póliza</td><td>Que nada del mes quedara sin contabilizar</td><td>sí</td></tr>
-  <tr><td>Todos los módulos llegaron al libro mayor</td><td>Que ningún módulo se quedara fuera</td><td>sí</td></tr>
-  <tr><td>Conciliación bancaria del mes</td><td>Que cada cuenta activa tenga conciliación <strong>cerrada</strong></td><td>configurable</td></tr>
-  <tr><td>Las pólizas llegaron al mayor externo</td><td>Que la bandeja de salida no tenga nada sin entregar</td><td>sí <em>(sólo en modo espejo)</em></td></tr>
-  <tr><td>Existe una conciliación de referencia</td><td>Que haya una revisión inicial confirmada</td><td>no, avisa</td></tr>
-</table>
-
-<div class="caja ojo"><span class="rot">Ojo · «No se pudo medir»</span>
-  <p>Si aparece, <strong>no lo ignores</strong>. Significa que una consulta del diagnóstico
-  falló y que los demás verdes no son de fiar: lo que no se pudo medir es un bloqueo con
-  nombre, no un aprobado. El motivo está en el log del servidor.</p></div>
-
-<h4>Paso 2 · Las tres confirmaciones humanas</h4>
-
-<ol>
-  <li>Revisé bancos, cajas y partidas en tránsito.</li>
-  <li>Revisé el IVA contra los comprobantes disponibles.</li>
-  <li>No faltan ventas, compras, nómina ni documentos del mes.</li>
-</ol>
-
-<p>
-  Y un campo de <strong>notas</strong>: escribe qué revisaste. Queda en la evidencia del cierre
-  y es lo que alguien leerá dentro de un año cuando pregunte por qué ese mes quedó así.
-</p>
-
-<p>
-  <strong>El respaldo no se firma.</strong> Lo toma el sistema al cerrar, comprueba que el
-  archivo esté completo y guarda su huella. Si el respaldo falla, el mes <strong>no</strong> se
-  cierra.
-</p>
-
-<h4>Paso 3 · Cerrar</h4>
-
-<p>Al confirmar, el sistema hace cuatro cosas en este orden:</p>
-
-<ol>
-  <li>Toma el respaldo y lo verifica. <em>Si falla, aquí se detiene todo.</em></li>
-  <li>Vuelve a correr los controles — la información pudo cambiar desde la fotografía.</li>
-  <li>Marca las pólizas del mes como protegidas.</li>
-  <li>Guarda la evidencia: diagnóstico, confirmaciones, notas y datos del respaldo.</li>
-</ol>
-
-<h4>Reabrir</h4>
-
-<figure>
-  <img src="img/24-cierre-reapertura.jpg" alt="Reapertura de un periodo">
-  <figcaption><b>Ver / reabrir.</b> Un periodo cerrado enseña cuándo se cerró y ofrece la
-  reapertura con <b>motivo obligatorio</b>. La reapertura no borra el cierre anterior: queda en
-  la bitácora. Es excepcional y debe notarse.</figcaption>
-</figure>
-
-<div class="caja ejerc"><span class="rot">Ejercicio 8</span>
-  <p>Elige un mes terminado y pulsa «Revisar para cerrar» sin cerrarlo. Anota qué controles
-  salen en rojo y por qué. Si sale rojo el de conciliación bancaria, ve al capítulo 7, carga el
-  estado de cuenta de ese mes —o márcalo como mes sin movimientos— ciérralo, y vuelve a pulsar
-  «Volver a calcular». Ese ciclo es el cierre mensual entero.</p></div>
+<div class="nota tenue"><span class="rot">Ejercicio 6</span>
+  <p>Solicitar una línea para un cliente, verificarlo y autorizarla con dos usuarios distintos
+  para observar la secuencia de firmas. Realizar una venta a crédito con esa línea. Registrar un
+  abono parcial <em>sin</em> indicar cuota y comprobar cómo se repartió por antigüedad y cuánto
+  disponible se liberó.</p></div>

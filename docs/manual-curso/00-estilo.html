@@ -2,109 +2,154 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>SyncroERP + Apache Fineract · Manual de curso</title>
+<title>SyncroERP + Apache Fineract · Manual de operación</title>
 <style>
-  @page { size: Letter; margin: 18mm 16mm 20mm 16mm; }
+  @page { size: Letter; margin: 20mm 18mm 18mm 18mm; }
 
   * { box-sizing: border-box; }
   html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
   body {
-    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    font-size: 10pt; line-height: 1.6; color: #1e2430; margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 10pt; line-height: 1.58; color: #16161a; margin: 0; background: #fff;
   }
+  .sans { font-family: "Helvetica Neue", Arial, sans-serif; }
 
   /* ── Portada ─────────────────────────────────────────────────────────── */
-  .portada {
-    height: 240mm; width: 100%; page-break-after: always;
-    background-color: #111c34;
-    background-image: linear-gradient(150deg, #0f172a 0%, #1e293b 55%, #312e81 100%);
-    color: #fff; padding: 26mm 20mm; position: relative; border-radius: 4px;
-  }
-  .portada .sello { font-size: 8.5pt; letter-spacing: .32em; text-transform: uppercase; color: #a5b4fc; }
-  .portada h1 { font-size: 32pt; line-height: 1.08; margin: 8mm 0 4mm; font-weight: 700; color:#fff; }
-  .portada h2 { font-size: 14pt; font-weight: 400; color: #cbd5e1; margin: 0 0 12mm; line-height: 1.4; page-break-before: auto; border: 0; padding: 0; }
-  .portada .linea { width: 46mm; height: 3px; background: #818cf8; margin-bottom: 10mm; }
-  .portada .para { font-size: 10.5pt; color: #e2e8f0; max-width: 130mm; }
-  .portada .pie { position: absolute; bottom: 18mm; left: 20mm; right: 20mm;
-    font-size: 9pt; color: #94a3b8; border-top: 1px solid #334155; padding-top: 5mm;
-    display: flex; justify-content: space-between; }
-  .portada .modos { margin-top: 12mm; display: flex; gap: 5mm; }
-  .portada .modo { border: 1px solid #475569; border-radius: 6px; padding: 5mm 6mm; flex: 1; }
-  .portada .modo b { display: block; font-size: 11pt; color: #fff; margin-bottom: 2mm; }
-  .portada .modo span { font-size: 8.5pt; color: #94a3b8; line-height: 1.45; display: block; }
+  .portada { height: 238mm; page-break-after: always; position: relative;
+             border-top: 6px solid #16161a; padding-top: 10mm; }
+  .portada .emisor { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 8pt;
+    letter-spacing: .26em; text-transform: uppercase; color: #6b6b6b; }
+  .portada h1 { font-size: 36pt; line-height: 1.04; margin: 22mm 0 0; font-weight: normal;
+                letter-spacing: -0.01em; }
+  .portada h1 em { font-style: normal; display: block; font-size: 22pt; color: #6b6b6b;
+                   margin-top: 3mm; letter-spacing: 0; }
+  .portada .regla { border-top: 1px solid #16161a; margin: 10mm 0 6mm; }
+  .portada .sub { font-size: 12pt; color: #333; max-width: 118mm; text-align: left; }
+  .portada .ficha { position: absolute; bottom: 0; left: 0; right: 0;
+    border-top: 3px solid #16161a; padding-top: 4mm;
+    font-family: "Helvetica Neue", Arial, sans-serif; font-size: 8.5pt; color: #4a4a4a; }
+  .portada .ficha table { width: 100%; border: 0; font-size: 8.5pt; margin: 0; }
+  .portada .ficha td { border: 0; padding: .8mm 0; vertical-align: top; }
+  .portada .ficha td:first-child { width: 34mm; color: #8a8a8a;
+    text-transform: uppercase; letter-spacing: .1em; font-size: 7.5pt; }
+  .portada .marca { position: absolute; top: 10mm; right: 0; width: 26mm; height: 26mm;
+                    background: #7a2230; }
 
-  /* ── Estructura ──────────────────────────────────────────────────────── */
-  .parte { page-break-before: always; page-break-after: always;
-    height: 240mm; display: flex; flex-direction: column; justify-content: center; }
-  .parte .num { font-size: 9pt; letter-spacing: .3em; text-transform: uppercase; color: #6366f1; }
-  .parte h1 { font-size: 30pt; line-height: 1.1; margin: 4mm 0 6mm; color: #0f172a; }
-  .parte p { font-size: 11pt; color: #475569; max-width: 140mm; }
-  .parte ol { font-size: 10pt; color: #475569; margin-top: 8mm; }
+  /* ── Divisores de parte ──────────────────────────────────────────────── */
+  .parte { page-break-before: always; page-break-after: always; height: 230mm;
+           display: flex; flex-direction: column; justify-content: center; }
+  .parte .num { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 8.5pt;
+    letter-spacing: .28em; text-transform: uppercase; color: #7a2230; }
+  .parte h1 { font-size: 30pt; font-weight: normal; margin: 3mm 0 0; }
+  .parte .regla { border-top: 3px solid #16161a; width: 40mm; margin: 6mm 0 7mm; }
+  .parte p { font-size: 11pt; color: #3a3a3a; max-width: 130mm; text-align: left; }
+  .parte ol { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 9pt;
+              color: #4a4a4a; margin-top: 9mm; columns: 2; column-gap: 12mm; }
+  .parte ol li { margin: 1.4mm 0; break-inside: avoid; }
 
-  h2 { page-break-before: always; font-size: 17pt; color: #0f172a; margin: 0 0 1mm;
-       padding-bottom: 2.5mm; border-bottom: 2px solid #6366f1; }
-  h2 .cap { display: block; font-size: 8.5pt; letter-spacing: .22em; text-transform: uppercase;
-            color: #6366f1; margin-bottom: 1.5mm; font-weight: 600; }
-  h3 { font-size: 12.5pt; color: #1e293b; margin: 7mm 0 2mm; page-break-after: avoid; }
-  h4 { font-size: 10.5pt; color: #334155; margin: 5mm 0 1.5mm; page-break-after: avoid; }
-  p { margin: 2mm 0; orphans: 2; widows: 2; }
+  /* ── Títulos ─────────────────────────────────────────────────────────── */
+  h2 { page-break-before: always; font-size: 18pt; font-weight: normal; margin: 0 0 6mm;
+       padding-bottom: 3mm; border-bottom: 2px solid #16161a; }
+  h2 .cap { display: block; font-family: "Helvetica Neue", Arial, sans-serif;
+            font-size: 8pt; letter-spacing: .24em; text-transform: uppercase;
+            color: #7a2230; margin-bottom: 2mm; }
+  h3 { font-size: 12pt; font-weight: bold; margin: 7mm 0 2mm; page-break-after: avoid;
+       border-bottom: 1px solid #c9c5bd; padding-bottom: 1.2mm; }
+  h4 { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 9.5pt; font-weight: bold;
+       margin: 5mm 0 1.5mm; page-break-after: avoid; color: #16161a; }
+  h5 { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 8pt; font-weight: bold;
+       letter-spacing: .14em; text-transform: uppercase; color: #6b6b6b;
+       margin: 4mm 0 1.5mm; page-break-after: avoid; }
+  p { margin: 2.2mm 0; orphans: 2; widows: 2; text-align: justify; hyphens: auto; }
   ul, ol { margin: 2.5mm 0; padding-left: 6mm; }
   li { margin: 1.2mm 0; }
-  strong { color: #0f172a; font-weight: 650; }
-  code { font-family: Consolas, "Cascadia Mono", monospace; font-size: .88em;
-         background: #eef2f7; padding: .1em .35em; border-radius: 3px; color: #1e293b; }
+  code, .cod { font-family: "Courier New", Courier, monospace; font-size: .9em; color: #16161a; }
+  .cod { white-space: nowrap; }
 
-  /* ── Tablas ──────────────────────────────────────────────────────────── */
-  table { width: 100%; border-collapse: collapse; font-size: 8.8pt; margin: 3mm 0; }
+  /* ── Tablas: sólo reglas horizontales ────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; margin: 3.5mm 0;
+          font-family: "Helvetica Neue", Arial, sans-serif; font-size: 8.4pt; line-height: 1.45; }
   thead { display: table-header-group; }
-  th, td { border: 1px solid #d5dbe4; padding: 1.8mm 2.4mm; text-align: left; vertical-align: top; }
-  th { background: #eef2f7; font-weight: 650; color: #0f172a; }
+  th { text-align: left; font-weight: bold; font-size: 7.6pt; letter-spacing: .08em;
+       text-transform: uppercase; color: #16161a; padding: 1.6mm 2.6mm 1.6mm 0;
+       border-top: 1.5px solid #16161a; border-bottom: 1px solid #16161a; }
+  td { padding: 1.6mm 2.6mm 1.6mm 0; vertical-align: top; border-bottom: .5px solid #d5d1c9; }
   tr { page-break-inside: avoid; }
-  td.n { white-space: nowrap; }
+  .ob { font-size: 7pt; font-weight: bold; letter-spacing: .06em; color: #7a2230;
+        font-family: "Helvetica Neue", Arial, sans-serif; white-space: nowrap; }
+  .op { font-size: 7pt; letter-spacing: .06em; color: #8a8a8a;
+        font-family: "Helvetica Neue", Arial, sans-serif; white-space: nowrap; }
+  .campo { font-family: "Courier New", Courier, monospace; font-size: 8.2pt; }
 
   /* ── Figuras ─────────────────────────────────────────────────────────── */
-  figure { margin: 4mm 0 5mm; page-break-inside: avoid; }
-  figure img { width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; display: block; }
-  figcaption { font-size: 8.2pt; color: #64748b; margin-top: 1.5mm; line-height: 1.45; }
-  figcaption b { color: #334155; }
+  figure { margin: 4.5mm 0 5.5mm; page-break-inside: avoid; }
+  figure img { width: 100%; border: .5px solid #b9b5ad; display: block; }
+  figcaption { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 7.6pt;
+               color: #5a5a5a; margin-top: 1.6mm; line-height: 1.45;
+               padding-left: 3mm; border-left: 2px solid #c9c5bd; text-align: left; }
+  figcaption b { color: #16161a; }
 
-  /* ── Cajas ───────────────────────────────────────────────────────────── */
-  .caja { border-left: 3px solid; padding: 3mm 4mm; margin: 4mm 0; border-radius: 0 4px 4px 0;
-          page-break-inside: avoid; font-size: 9.2pt; }
-  .caja p:first-child { margin-top: 0; } .caja p:last-child { margin-bottom: 0; }
-  .caja .rot { display: block; font-size: 8pt; letter-spacing: .14em; text-transform: uppercase;
-               font-weight: 700; margin-bottom: 1.5mm; }
-  .dep   { border-color:#6366f1; background:#eef2ff; } .dep .rot   { color:#4338ca; }
-  .ojo   { border-color:#d97706; background:#fffbeb; } .ojo .rot   { color:#b45309; }
-  .auto  { border-color:#059669; background:#ecfdf5; } .auto .rot  { color:#047857; }
-  .nota  { border-color:#64748b; background:#f6f8fa; } .nota .rot  { color:#475569; }
-  .ejerc { border-color:#0891b2; background:#ecfeff; } .ejerc .rot { color:#0e7490; }
+  /* ── Notas ───────────────────────────────────────────────────────────── */
+  .nota { margin: 4mm 0; padding: 0 0 0 5mm; border-left: 2px solid #16161a;
+          page-break-inside: avoid; font-size: 9.4pt; }
+  .nota.sec { border-left-color: #7a2230; }
+  .nota.tenue { border-left-color: #b9b5ad; color: #3a3a3a; }
+  .nota .rot { display: block; font-family: "Helvetica Neue", Arial, sans-serif;
+               font-size: 7.4pt; letter-spacing: .16em; text-transform: uppercase;
+               font-weight: bold; margin-bottom: 1.4mm; color: #16161a; }
+  .nota.sec .rot { color: #7a2230; }
+  .nota p { margin: 1.6mm 0; }
+  .nota p:first-of-type { margin-top: 0; } .nota p:last-child { margin-bottom: 0; }
 
-  /* ── Flujo en pasos ──────────────────────────────────────────────────── */
-  .flujo { display: table; width: 100%; margin: 4mm 0; page-break-inside: avoid;
-           border: 1px solid #d5dbe4; border-radius: 5px; overflow: hidden; }
-  .flujo > div { display: table-cell; width: 1%; padding: 3mm 3mm; border-right: 1px solid #e2e8f0;
-                 font-size: 8.5pt; vertical-align: top; background: #fbfcfe; }
-  .flujo > div:last-child { border-right: 0; }
-  .flujo .q { display: block; font-size: 7.5pt; letter-spacing: .1em; text-transform: uppercase;
-              color: #6366f1; font-weight: 700; margin-bottom: 1mm; }
-  .flujo b { display: block; color: #0f172a; font-size: 9.2pt; margin-bottom: .8mm; }
+  /* ── Secuencia de pasos ──────────────────────────────────────────────── */
+  ol.pasos { list-style: none; padding: 0; margin: 4mm 0; counter-reset: paso; }
+  ol.pasos > li { counter-increment: paso; position: relative; padding-left: 10mm;
+                  margin: 3.5mm 0; page-break-inside: avoid; }
+  ol.pasos > li::before { content: counter(paso, decimal-leading-zero);
+    position: absolute; left: 0; top: 0.2mm;
+    font-family: "Helvetica Neue", Arial, sans-serif; font-size: 9pt; font-weight: bold;
+    color: #7a2230; }
+  ol.pasos > li > b { display: block; font-size: 10.5pt; margin-bottom: .8mm; }
+  .quien { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 7.4pt;
+    letter-spacing: .1em; text-transform: uppercase; color: #6b6b6b; font-weight: bold; }
 
-  .paso { margin: 4mm 0; padding-left: 9mm; position: relative; page-break-inside: avoid; }
-  .paso .n { position: absolute; left: 0; top: .2mm; width: 6.5mm; height: 6.5mm;
-             background: #4f46e5; color: #fff; border-radius: 50%; font-size: 8.5pt;
-             font-weight: 700; text-align: center; line-height: 6.5mm; }
-  .paso b.t { display: block; color: #0f172a; font-size: 10.5pt; margin-bottom: .8mm; }
+  /* ── Cinta de flujo ──────────────────────────────────────────────────── */
+  .cinta { display: table; width: 100%; margin: 4mm 0; page-break-inside: avoid;
+           border-top: 1.5px solid #16161a; border-bottom: 1.5px solid #16161a; }
+  .cinta > div { display: table-cell; width: 1%; padding: 2.6mm 3mm 2.6mm 0;
+                 font-family: "Helvetica Neue", Arial, sans-serif; font-size: 7.8pt;
+                 vertical-align: top; line-height: 1.4; color: #3a3a3a; }
+  .cinta > div + div { border-left: .5px solid #c9c5bd; padding-left: 3mm; }
+  .cinta .q { display: block; font-size: 6.8pt; letter-spacing: .12em;
+              text-transform: uppercase; color: #7a2230; font-weight: bold; margin-bottom: .8mm; }
+  .cinta b { display: block; color: #16161a; font-size: 8.6pt; margin-bottom: .6mm; }
 
-  .quien { font-size: 8pt; text-transform: uppercase; letter-spacing: .1em; font-weight: 700;
-           color: #fff; background: #475569; padding: .6mm 2mm; border-radius: 3px;
-           display: inline-block; vertical-align: 1.5px; }
+  /* ── Etiqueta de rol ─────────────────────────────────────────────────── */
+  .rol { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 7.4pt;
+         letter-spacing: .12em; text-transform: uppercase; font-weight: bold;
+         color: #16161a; border: .8px solid #16161a; padding: .4mm 1.6mm;
+         display: inline-block; vertical-align: 1.2px; }
+  .roles-cab { margin: 0 0 4mm; }
 
-  .indice { font-size: 9.5pt; }
-  .indice .l1 { font-weight: 650; color: #0f172a; margin-top: 3.5mm; }
-  .indice .l2 { padding-left: 6mm; color: #475569; }
-  .indice .l0 { font-size: 11pt; font-weight: 700; color: #4338ca; margin-top: 7mm;
-                border-top: 1px solid #cbd5e1; padding-top: 2.5mm; }
+  /* ── Índice ──────────────────────────────────────────────────────────── */
+  .indice { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 8.6pt;
+            columns: 2; column-gap: 10mm; }
+  .indice div { break-inside: avoid; }
+  .indice .l0 { font-size: 9.5pt; font-weight: bold; letter-spacing: .1em;
+    text-transform: uppercase; color: #7a2230; margin: 5mm 0 1.5mm;
+    border-bottom: 1px solid #16161a; padding-bottom: 1mm; }
+  .indice .l0:first-child { margin-top: 0; }
+  .indice .l1 { color: #16161a; margin: 1.2mm 0; }
+  .indice .l2 { color: #6b6b6b; padding-left: 4mm; font-size: 8pt; margin-bottom: 1.5mm; }
+
+  /* ── Paso suelto (bloques heredados) ─────────────────────────────────── */
+  .pasoq { margin: 3.5mm 0; padding-left: 5mm; border-left: 2px solid #c9c5bd;
+           page-break-inside: avoid; }
+  .pasoq > b { display: block; font-size: 10.5pt; margin-bottom: .8mm; }
+
+  /* ── Divisor de parte: la lista no va a dos columnas si es corta ─────── */
+  .parte ol.una { columns: 1; }
 </style>
 </head>
 <body>

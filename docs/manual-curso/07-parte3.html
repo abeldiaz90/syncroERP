@@ -46,7 +46,7 @@ que lo necesitan.</p>
   <tr><td>¿Cómo se clasifica la mora?</td><td><strong>El core</strong></td><td>Tiene el motor de clasificación y provisión.</td></tr>
 </table>
 
-<div class="caja nota"><span class="rot">La frase que resume el modo</span>
+<div class="nota tenue"><span class="rot">La frase que resume el modo</span>
   <p><strong>El ERP decide y el core registra.</strong> El core no es un sustituto del ERP ni
   al revés: es el libro donde queda la historia financiera, y el sitio donde esa historia se
   clasifica y se provisiona con reglas que el ERP no tiene.</p></div>
@@ -61,7 +61,7 @@ que lo necesitan.</p>
   ese momento</strong>. Lo anota en una bandeja de salida y sigue.
 </p>
 
-<div class="flujo">
+<div class="cinta">
   <div><span class="q">1</span><b>Ocurre el hecho</b>La venta se guarda y el usuario recibe su ticket.</div>
   <div><span class="q">2</span><b>Se anota el evento</b>En la misma transacción, para que no se pierda.</div>
   <div><span class="q">3</span><b>Se despacha</b>Después, en segundo plano o a mano.</div>
@@ -116,7 +116,7 @@ que lo necesitan.</p>
 
 <h2><span class="cap">Capítulo 23</span>El espejo contable</h2>
 
-<p><span class="quien">contador</span> &nbsp;<span class="quien">finanzas</span></p>
+<p class="roles-cab"><span class="rol">contador</span> <span class="rol">finanzas</span></p>
 
 <p>
   En modo <code>ESPEJO</code>, cada póliza que el ERP registra se envía también al mayor del
@@ -136,29 +136,29 @@ que lo necesitan.</p>
 
 <h3>23.1 · Las tres herramientas</h3>
 
-<div class="paso"><span class="n">1</span><b class="t">Cuentas por corresponder</b>
+<div class="pasoq"><b>Cuentas por corresponder</b>
   Mientras una cuenta no tenga equivalencia, su póliza no se manda: un asiento a medias en el
   mayor externo es peor que ninguno. <strong>Crear y corresponder</strong> las da de alta en el
   core y las enlaza. La casilla <em>incluir las previstas</em> añade las que todavía no se han
   usado pero se van a usar — es la forma de adelantarse.</div>
 
-<div class="paso"><span class="n">2</span><b class="t">Pólizas que no llegaron al mayor externo</b>
+<div class="pasoq"><b>Pólizas que no llegaron al mayor externo</b>
   Están registradas y son válidas en el ERP; lo único que falta es su reflejo.
   <strong>Despachar la cola</strong> las reintenta.</div>
 
-<div class="paso"><span class="n">3</span><b class="t">¿Las dos contabilidades dicen lo mismo?</b>
+<div class="pasoq"><b>¿Las dos contabilidades dicen lo mismo?</b>
   <strong>Comparar ahora</strong> recorre las pólizas del periodo y contrasta cada una contra el
   asiento del mayor externo. Las discrepancias salen con su código y su explicación — por
   ejemplo, una reversa hecha directamente en el core, o un vínculo que quedó incompleto.</div>
 
-<div class="caja ojo"><span class="rot">Ojo · el orden de trabajo</span>
+<div class="nota sec"><span class="rot">Ojo · el orden de trabajo</span>
   <p>Siempre el mismo: <strong>primero corresponder cuentas, después despachar, y sólo entonces
   comparar</strong>. Comparar con cuentas sin corresponder produce una lista de discrepancias que
   son todas el mismo problema.</p></div>
 
 <h2><span class="cap">Capítulo 24</span>Avisos del core</h2>
 
-<p><span class="quien">credito</span> &nbsp;<span class="quien">direccion</span></p>
+<p class="roles-cab"><span class="rol">credito</span> <span class="rol">direccion</span></p>
 
 <p>
   El flujo del capítulo 22 va del ERP al core. <strong>Éste va al revés.</strong> Cuando algo
@@ -205,7 +205,7 @@ que lo necesitan.</p>
   <tr><td><strong>Abrir el crédito</strong> / <strong>Abrir…</strong></td><td>Lleva al documento del ERP para resolverlo.</td></tr>
 </table>
 
-<div class="caja ojo"><span class="rot">Ojo</span>
+<div class="nota sec"><span class="rot">Ojo</span>
   <p>Un aviso sin atender no rompe nada hoy, y ése es el problema: se acumula en silencio y
   aparece en la comparación contable o en la conciliación de cartera tres semanas después.
   <strong>Es una bandeja, y se vacía como una bandeja.</strong></p></div>
@@ -261,11 +261,11 @@ que lo necesitan.</p>
 
 <h4>Si ese control sale rojo</h4>
 
-<div class="paso"><span class="n">1</span><b class="t">Ir a Finanzas → Espejo contable</b>
+<div class="pasoq"><b>Ir a Finanzas → Espejo contable</b>
   Mirar primero <em>cuentas sin corresponder</em>. Es la causa número uno, con diferencia.</div>
-<div class="paso"><span class="n">2</span><b class="t">Crear y corresponder las cuentas que falten</b></div>
-<div class="paso"><span class="n">3</span><b class="t">Despachar la cola</b></div>
-<div class="paso"><span class="n">4</span><b class="t">Volver al cierre y pulsar «Volver a calcular»</b></div>
+<div class="pasoq"><b>Crear y corresponder las cuentas que falten</b></div>
+<div class="pasoq"><b>Despachar la cola</b></div>
+<div class="pasoq"><b>Volver al cierre y pulsar «Volver a calcular»</b></div>
 
 <p>
   Cerrar el mes con asientos sin entregar dejaría los dos libros distintos, y el cierre es
@@ -288,7 +288,7 @@ que lo necesitan.</p>
   <tr><td>El core no responde</td><td>Comprobar el estado del enlace en <em>Espejo contable</em> y en <em>Mi jornada</em> del portal. Mientras tanto, <strong>el ERP sigue operando</strong>: lo que se acumula es la bandeja.</td></tr>
 </table>
 
-<div class="caja ejerc"><span class="rot">Ejercicio Parte III</span>
+<div class="nota tenue"><span class="rot">Ejercicio Parte III</span>
   <p>Haz una venta a crédito en el ERP. Después busca a ese cliente en el portal del core: mira
   su <em>referencia externa</em> y comprueba que el crédito aparece en su Cliente 360 con el
   mismo importe. Luego entra a <em>Finanzas → Espejo contable</em> y pulsa «Comparar ahora» para

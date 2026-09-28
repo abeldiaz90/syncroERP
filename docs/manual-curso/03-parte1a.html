@@ -1,479 +1,373 @@
 <section class="parte">
   <div class="num">Parte I</div>
   <h1>SyncroERP</h1>
-  <p>El sistema de gestión completo, capítulo por capítulo. Todo lo de esta parte
-  funciona igual en los tres modos: es el ERP, y no depende del core.</p>
+  <div class="regla"></div>
+  <p>Los quince módulos, proceso por proceso: qué campos se capturan, quién los
+  captura, qué estados recorre cada documento y qué escribe el sistema por su cuenta.
+  Todo esta parte es idéntica en las tres modalidades.</p>
   <ol>
-    <li>1 · Puesta a punto de la empresa</li>
-    <li>2 · Catálogos base</li>
-    <li>3 · Almacenes e inventario</li>
-    <li>4 · Compras</li>
-    <li>5 · Ventas y punto de venta</li>
-    <li>6 · Crédito y cobranza</li>
-    <li>7 · Tesorería</li>
-    <li>8 · Contabilidad y cierre mensual</li>
-    <li>9 · Activos fijos</li>
-    <li>10 · Recursos humanos y nómina</li>
-    <li>11 · Hotelería</li>
-    <li>12 · CRM</li>
-    <li>13 · Aprobaciones y gobierno</li>
-    <li>14 · Reportes</li>
-    <li>15 · Administración</li>
+    <li>1 — Puesta a punto de la empresa</li>
+    <li>2 — Catálogos base</li>
+    <li>3 — Almacenes e inventario</li>
+    <li>4 — Compras</li>
+    <li>5 — Ventas y punto de venta</li>
+    <li>6 — Crédito y cobranza</li>
+    <li>7 — Tesorería</li>
+    <li>8 — Contabilidad y cierre</li>
+    <li>9 — Activos fijos</li>
+    <li>10 — Recursos humanos y nómina</li>
+    <li>11 — Hotelería</li>
+    <li>12 — CRM</li>
+    <li>13 — Aprobaciones y gobierno</li>
+    <li>14 — Reportes</li>
+    <li>15 — Administración</li>
   </ol>
 </section>
 
 <h2><span class="cap">Capítulo 1</span>Puesta a punto de la empresa</h2>
 
-<p><span class="quien">administrador</span> &nbsp;<span class="quien">contador</span></p>
+<p class="roles-cab"><span class="rol">administrador</span> <span class="rol">contador</span></p>
+
+<h3>1.1 · Qué resuelve</h3>
 
 <p>
-  Un ERP recién entregado no sabe nada de tu negocio: no sabe qué vendes, con qué impuestos,
-  desde qué almacén, ni contra qué cuentas contables. <strong>Este capítulo es el que decide
-  si el resto del curso funciona o no.</strong> Un sistema mal preparado no falla el primer
-  día; falla el día 20, cuando alguien quiere facturar y descubre que faltaba una clave.
+  Un ERP recién instalado desconoce el negocio: no sabe qué se vende, con qué impuestos, desde
+  qué almacén ni contra qué cuentas contables. Este capítulo determina si el resto del sistema
+  funciona. Una instalación mal preparada no falla el primer día: falla tres semanas después,
+  cuando se intenta facturar y falta una clave, o al cerrar el mes y aparecen operaciones sin
+  contabilizar.
 </p>
 
-<h3>1.1 · El centro de configuración</h3>
+<h3>1.2 · Centro de configuración</h3>
 
 <p>
-  <strong>Configuración → Centro de configuración.</strong> Es un diagnóstico: recorre la
-  empresa, comprueba módulo por módulo lo que hace falta para operar, y lo dice con un
-  porcentaje y una lista.
+  <strong>Configuración › Centro de configuración.</strong> Recorre la empresa, verifica módulo
+  por módulo los requisitos de operación y presenta el resultado como porcentaje y lista de
+  puntos resueltos y pendientes.
 </p>
 
 <figure>
   <img src="img/01-centro-configuracion.jpg" alt="Centro de configuración">
-  <figcaption><b>Centro de configuración.</b> Arriba, el porcentaje global y las cinco
-  capacidades: vender, comprar, controlar inventario, usar crédito, contabilizar. Debajo, cada
-  módulo con su porcentaje y qué punto está resuelto y cuál no. El botón «Abrir wizard de…»
-  lleva al asistente que completa ese módulo.</figcaption>
+  <figcaption><b>Centro de configuración.</b> Porcentaje global y las cinco capacidades
+  —vender, comprar, controlar inventario, usar crédito, contabilizar— con su estado. Debajo,
+  cada módulo con su porcentaje y el detalle de qué requisito está cubierto. El botón «Abrir
+  wizard de…» conduce al asistente que completa ese módulo.</figcaption>
 </figure>
 
 <p>
-  Las cinco capacidades de arriba son la lectura rápida: <strong>«Listo para operar» significa
-  que ese circuito ya se puede ejercer de punta a punta</strong>. Si dice que falta algo, dice
-  qué.
+  La lectura rápida son las cinco capacidades superiores: <strong>«Listo para operar»
+  significa que ese circuito puede ejercerse de extremo a extremo</strong>. Si falta algo, la
+  pantalla indica qué.
 </p>
 
-<div class="caja dep"><span class="rot">Depende de</span>
-  <p>Nada — es el primer sitio al que se entra. Pero <em>todo lo demás depende de él</em>:
-  mientras el centro no diga «listo para operar» en una capacidad, esa capacidad no se puede
-  enseñar en el curso ni usar en producción.</p></div>
-
-<h3>1.2 · Los seis asistentes</h3>
-
-<p>
-  Cada capacidad tiene un asistente que la completa en orden. No son obligatorios —todo se
-  puede configurar a mano en sus pantallas— pero el asistente evita el error clásico de
-  configurar en desorden y descubrirlo tarde.
-</p>
+<h3>1.3 · Los seis asistentes</h3>
 
 <table>
-  <tr><th style="width:26%">Asistente</th><th>Qué deja listo</th></tr>
-  <tr><td><strong>Wizard financiero</strong></td><td>Catálogo de cuentas, categorías contables, fecha desde la que se controla la contabilidad y saldos iniciales. <strong>Va primero.</strong></td></tr>
-  <tr><td><strong>Wizard de ventas</strong></td><td>Productos activos, categorías, unidades, formas de pago, lista de precios y al menos un cliente.</td></tr>
-  <tr><td><strong>Wizard de compras</strong></td><td>Proveedores, áreas del solicitante y el ciclo de aprobación de compra.</td></tr>
+  <thead><tr><th style="width:26%">Asistente</th><th>Deja configurado</th></tr></thead>
+  <tr><td><strong>Wizard financiero</strong></td><td>Catálogo de cuentas, categorías contables, fecha a partir de la cual se controla la contabilidad y saldos iniciales. <strong>Debe ejecutarse primero.</strong></td></tr>
+  <tr><td><strong>Wizard de ventas</strong></td><td>Productos activos, categorías, unidades de medida, formas de pago, lista de precios y al menos un cliente.</td></tr>
+  <tr><td><strong>Wizard de compras</strong></td><td>Proveedores, departamentos de los solicitantes y ciclo de aprobación de compra.</td></tr>
   <tr><td><strong>Wizard de inventario</strong></td><td>Almacenes, ubicaciones y existencias iniciales.</td></tr>
-  <tr><td><strong>Wizard de crédito</strong></td><td>Productos de crédito, plazos, tasas y la matriz de firmas para autorizar líneas.</td></tr>
-  <tr><td><strong>Importación inicial</strong></td><td>Carga masiva desde Excel de productos, clientes, proveedores y existencias.</td></tr>
+  <tr><td><strong>Wizard de crédito</strong></td><td>Productos de crédito, plazos, tasas y matriz de firmas para autorizar líneas.</td></tr>
+  <tr><td><strong>Importación inicial</strong></td><td>Carga masiva desde hoja de cálculo de productos, clientes, proveedores y existencias.</td></tr>
 </table>
 
-<div class="caja ojo"><span class="rot">Ojo · el orden importa</span>
-  <p>El financiero va primero porque de él cuelgan las cuentas contra las que todo lo demás
-  contabiliza. Si se configura ventas antes que la contabilidad, se venden productos cuya
-  póliza no se puede generar, y eso <strong>no se ve en la pantalla de ventas</strong>: se ve
-  semanas después en «Asientos pendientes» o, peor, en el cierre del mes.</p></div>
+<div class="nota sec"><span class="rot">El orden es material</span>
+  <p>El asistente financiero va primero porque de él dependen las cuentas contra las que todo
+  lo demás contabiliza. Configurar ventas antes que contabilidad produce ventas cuya póliza no
+  puede generarse, y ese fallo <strong>no se manifiesta en la pantalla de ventas</strong>:
+  aparece semanas después en Asientos pendientes o, peor, al cerrar el mes.</p></div>
 
-<h3>1.3 · Integridad de datos</h3>
+<h3>1.4 · Integridad de datos</h3>
 
 <p>
-  <strong>Configuración → Integridad de datos.</strong> Un control preventivo que se corre
-  después de importar, limpiar o migrar. Comprueba que los datos son coherentes entre sí — por
-  ejemplo, que la existencia consolidada de un producto coincida con la suma de sus
+  <strong>Configuración › Integridad de datos.</strong> Control preventivo que se ejecuta
+  después de importar, depurar o migrar información. Verifica la coherencia interna de los
+  datos; por ejemplo, que la existencia consolidada de un producto coincida con la suma de sus
   ubicaciones.
 </p>
 
 <figure>
   <img src="img/50-integridad-datos.jpg" alt="Verificación de integridad">
-  <figcaption><b>Integridad de datos.</b> Cada hallazgo dice qué está mal y lleva a la pantalla
-  donde se arregla. Se corre después de cada carga masiva; no es un diagnóstico de uso
+  <figcaption><b>Integridad de datos.</b> Cada hallazgo describe la inconsistencia y enlaza con
+  la pantalla donde se corrige. Se ejecuta tras cada carga masiva; no es un control de uso
   diario.</figcaption>
 </figure>
 
-<div class="caja ejerc"><span class="rot">Ejercicio 1</span>
-  <p>Abre el centro de configuración y anota el porcentaje de cada módulo. Elige el más bajo,
-  entra en su wizard y completa un paso. Vuelve al centro, pulsa <strong>Validar
-  nuevamente</strong> y comprueba que el porcentaje subió. Eso es el ciclo que vas a repetir
-  toda la puesta en marcha.</p></div>
+<div class="nota tenue"><span class="rot">Ejercicio 1</span>
+  <p>Abrir el centro de configuración y anotar el porcentaje de cada módulo. Elegir el más
+  bajo, entrar en su asistente y completar un paso. Volver al centro, pulsar «Validar
+  nuevamente» y comprobar el incremento. Ese ciclo se repite durante toda la puesta en
+  marcha.</p></div>
 
 <h2><span class="cap">Capítulo 2</span>Catálogos base</h2>
 
-<p><span class="quien">administrador</span> &nbsp;<span class="quien">comprador</span> &nbsp;<span class="quien">contador</span></p>
+<p class="roles-cab"><span class="rol">administrador</span> <span class="rol">comprador</span> <span class="rol">contador</span></p>
+
+<h3>2.1 · Qué resuelve</h3>
 
 <p>
-  Los catálogos son los sustantivos del sistema: los productos, los clientes, los proveedores,
-  los impuestos. Todo documento nombra catálogos, así que un catálogo mal hecho se propaga a
-  todos los documentos que lo usen — y corregirlo después no corrige los documentos ya
-  emitidos.
+  Los catálogos son los sustantivos del sistema. Todo documento los referencia, de modo que un
+  catálogo incompleto se propaga a cada documento que lo use — y corregirlo después no corrige
+  los documentos ya emitidos.
 </p>
 
-<h3>2.1 · Productos</h3>
+<h3>2.2 · Producto</h3>
 
-<p><strong>Productos → Catálogo de productos.</strong></p>
+<p><strong>Productos › Catálogo de productos › Nuevo artículo.</strong></p>
 
 <figure>
   <img src="img/49-catalogo-productos.jpg" alt="Catálogo de productos">
-  <figcaption><b>Catálogo de productos.</b> A la izquierda los filtros por categoría, marca y
-  existencia; a la derecha el buscador. El catálogo no se carga entero de golpe a
-  propósito — en una empresa con miles de artículos, se busca, no se navega.</figcaption>
+  <figcaption><b>Catálogo de productos.</b> Filtros por categoría, marca y existencia a la
+  izquierda; buscador por SKU, código o nombre en la parte superior. El catálogo no se carga
+  completo de forma automática: en una empresa con miles de artículos se busca, no se
+  navega.</figcaption>
 </figure>
 
-<h4>Los cuatro tipos, y por qué importan</h4>
+<h4>Campos que se capturan</h4>
 
 <table>
-  <tr><th style="width:22%">Tipo</th><th style="width:16%">¿Mueve inventario?</th><th>Cuándo se usa</th></tr>
-  <tr><td><strong>FÍSICO</strong></td><td>Sí</td><td>Lo que se compra, se guarda y se vende.</td></tr>
-  <tr><td><strong>CONSUMIBLE</strong></td><td>Sí</td><td>Lo que se consume en la operación y no se revende.</td></tr>
-  <tr><td><strong>MATERIA_PRIMA</strong></td><td>Sí</td><td>Entra en una receta o escandallo.</td></tr>
-  <tr><td><strong>SERVICIO</strong></td><td>No</td><td>Mano de obra, instalación, consultoría. No tiene existencia.</td></tr>
+  <thead><tr><th style="width:22%">Campo</th><th style="width:12%"></th><th>Qué es y qué regla lo gobierna</th></tr></thead>
+  <tr><td class="campo">nombre</td><td><span class="ob">OBLIGATORIO</span></td><td>Descripción comercial. Es lo que se busca en el punto de venta y lo que sale en la factura.</td></tr>
+  <tr><td class="campo">sku</td><td><span class="ob">OBLIGATORIO</span></td><td>Código interno. Único por empresa. Conviene fijar una convención antes de cargar el catálogo: cambiarlo después obliga a reetiquetar.</td></tr>
+  <tr><td class="campo">tipo</td><td><span class="ob">OBLIGATORIO</span></td><td>Determina si el artículo mueve inventario. Ver el cuadro siguiente.</td></tr>
+  <tr><td class="campo">categoriaId</td><td><span class="ob">OBLIGATORIO</span> si mueve inventario</td><td>De la categoría cuelgan las cuentas contables del producto. Sin ella la mercancía entra y la póliza no se genera.</td></tr>
+  <tr><td class="campo">unidadMedidaId</td><td><span class="ob">OBLIGATORIO</span></td><td>Cómo se cuenta. Enlaza con la ClaveUnidad del SAT.</td></tr>
+  <tr><td class="campo">impuestoId</td><td><span class="ob">OBLIGATORIO</span> para facturar</td><td>IVA 16 %, 0 %, exento o retención.</td></tr>
+  <tr><td class="campo">precioCompra</td><td><span class="op">opcional</span></td><td>Último costo conocido. <strong>El sistema lo mantiene solo</strong> con cada recepción; se captura únicamente para el arranque.</td></tr>
+  <tr><td class="campo">precioVenta</td><td><span class="op">opcional</span></td><td>Si se define margen, se recalcula con cada cambio de costo.</td></tr>
+  <tr><td class="campo">margen</td><td><span class="op">opcional</span></td><td>Porcentaje sobre el costo. Es lo que convierte una recepción en un precio nuevo.</td></tr>
+  <tr><td class="campo">claveProdServ</td><td><span class="ob">OBLIGATORIO</span> para facturar</td><td>Clave del catálogo de productos y servicios del SAT.</td></tr>
+  <tr><td class="campo">claveUnidad</td><td><span class="ob">OBLIGATORIO</span> para facturar</td><td>Clave de unidad del SAT.</td></tr>
+  <tr><td class="campo">marcaId</td><td><span class="op">opcional</span></td><td>Sólo clasificación y filtros.</td></tr>
+  <tr><td class="campo">codigoBarras</td><td><span class="op">opcional</span></td><td>Permite vender con lector en el punto de venta.</td></tr>
+  <tr><td class="campo">stockMinimo</td><td><span class="op">opcional</span></td><td>Alimenta la alerta de existencia baja del panel ejecutivo.</td></tr>
+  <tr><td class="campo">activo</td><td><span class="op">opcional</span></td><td>Un producto inactivo no se puede vender ni requisitar, pero conserva su historia.</td></tr>
 </table>
 
-<div class="caja dep"><span class="rot">Depende de · la categoría</span>
-  <p>Todo producto que mueve inventario <strong>tiene que tener categoría</strong>, porque de
-  la categoría cuelgan sus cuentas contables. Sin ella la mercancía entra al almacén y
-  <strong>la póliza no se genera</strong> — la recepción sale en verde y la contabilidad no se
-  entera. Un SERVICIO no lleva inventario y no la necesita.</p></div>
-
-<h4>Datos fiscales del producto</h4>
-
-<p>
-  Para facturar hace falta, por producto, la <strong>ClaveProdServ</strong> y la
-  <strong>ClaveUnidad</strong> del catálogo del SAT, más su impuesto. Se revisan en
-  <strong>Finanzas → Clasificación SAT</strong> e <strong>Impuestos del catálogo</strong>, que
-  listan exactamente los productos a los que les falta.
-</p>
-
-<h3>2.2 · Categorías, marcas y unidades</h3>
+<h4>Los cuatro tipos</h4>
 
 <table>
-  <tr><th style="width:24%">Catálogo</th><th>Para qué sirve, más allá de clasificar</th></tr>
-  <tr><td><strong>Categorías</strong></td><td>Llevan las <strong>cuentas contables</strong> del producto: inventario, costo de venta e ingreso. Es el catálogo más importante del sistema y el que más se descuida.</td></tr>
-  <tr><td><strong>Marcas</strong></td><td>Sólo clasificación y filtros.</td></tr>
-  <tr><td><strong>Unidades de medida</strong></td><td>Cómo se cuenta. Enlaza con la ClaveUnidad del SAT.</td></tr>
-  <tr><td><strong>Listas de precio</strong></td><td>A qué precio se vende y a quién. Una empresa puede tener varias —mostrador, mayoreo, convenio— y el cliente puede llevar la suya.</td></tr>
-  <tr><td><strong>Impuestos</strong></td><td>IVA 16 %, 0 %, exento, retenciones. Se asigna por producto.</td></tr>
+  <thead><tr><th style="width:22%">Tipo</th><th style="width:18%">¿Mueve inventario?</th><th>Uso</th></tr></thead>
+  <tr><td class="campo">FISICO</td><td>Sí</td><td>Lo que se compra, se almacena y se vende.</td></tr>
+  <tr><td class="campo">CONSUMIBLE</td><td>Sí</td><td>Lo que se consume en la operación y no se revende.</td></tr>
+  <tr><td class="campo">MATERIA_PRIMA</td><td>Sí</td><td>Entra en una receta o escandallo.</td></tr>
+  <tr><td class="campo">SERVICIO</td><td>No</td><td>Mano de obra, instalación, consultoría. No tiene existencia ni requiere categoría contable de inventario.</td></tr>
 </table>
 
-<h3>2.3 · Clientes</h3>
+<div class="nota sec"><span class="rot">Requisito crítico — la categoría</span>
+  <p>Todo producto que mueve inventario necesita categoría, porque de ella cuelgan las cuentas
+  de inventario, costo de venta e ingreso. Sin categoría, la recepción se registra en verde, la
+  existencia sube y <strong>el asiento queda encolado indefinidamente</strong>. Se detecta en
+  Finanzas › Asientos pendientes y bloquea el cierre del mes.</p></div>
 
-<p><strong>Catálogos → Clientes.</strong> Es más que un nombre y un RFC: es el
-<em>expediente</em> del cliente.</p>
+<h3>2.3 · Categorías, unidades, marcas, listas de precio e impuestos</h3>
+
+<table>
+  <thead><tr><th style="width:24%">Catálogo</th><th>Función, más allá de clasificar</th></tr></thead>
+  <tr><td><strong>Categorías</strong></td><td>Contienen las <strong>cuentas contables</strong> del producto: inventario, costo de venta e ingreso. Es el catálogo más importante del sistema y el que con más frecuencia se descuida.</td></tr>
+  <tr><td><strong>Unidades de medida</strong></td><td>Definen cómo se cuenta y enlazan con la ClaveUnidad del SAT. Admiten equivalencias —caja de 12 piezas— que el punto de venta y la recepción utilizan.</td></tr>
+  <tr><td><strong>Marcas</strong></td><td>Clasificación y filtros.</td></tr>
+  <tr><td><strong>Listas de precio</strong></td><td>A qué precio se vende y a quién. Una empresa puede tener varias —mostrador, mayoreo, convenio— y un cliente puede tener asignada la suya.</td></tr>
+  <tr><td><strong>Impuestos</strong></td><td>IVA por tasa, exentos y retenciones. Se asignan por producto y determinan el cálculo del CFDI y de la declaración.</td></tr>
+</table>
+
+<h3>2.4 · Cliente</h3>
+
+<p><strong>Catálogos › Clientes › Nuevo cliente.</strong></p>
 
 <figure>
   <img src="img/05-clientes-expediente.jpg" alt="Cartera de clientes">
-  <figcaption><b>Cartera de clientes.</b> Arriba, cuántos hay y cuántos tienen línea de crédito
-  vigente. En medio, el <b>control de verificaciones</b>: qué se ha comprobado de la cartera,
-  control por control. Abajo a la izquierda la lista; a la derecha, el expediente del cliente
-  seleccionado con su tipo, su línea, su estado de riesgo y su crédito disponible.</figcaption>
+  <figcaption><b>Cartera de clientes.</b> En la parte superior, cuántos clientes hay y cuántos
+  tienen línea de crédito vigente. En el centro, el <b>control de verificaciones</b>: qué se ha
+  comprobado de la cartera, control por control. Abajo, la lista y el expediente del cliente
+  seleccionado con su tipo, línea autorizada, nivel de riesgo y crédito disponible.</figcaption>
 </figure>
 
-<p>Un cliente tiene tres capas, y conviene no mezclarlas:</p>
+<h4>Las tres capas del expediente</h4>
 
 <table>
-  <tr><th style="width:22%">Capa</th><th>Qué es</th><th style="width:20%">Quién la mantiene</th></tr>
-  <tr><td><strong>Identificación</strong></td><td>Nombre o razón social, RFC, régimen fiscal, domicilio, contacto. Es lo que sale en la factura.</td><td>quien da de alta</td></tr>
-  <tr><td><strong>Comercial</strong></td><td>Lista de precios, condiciones, vendedor asignado.</td><td>ventas</td></tr>
-  <tr><td><strong>Crediticia</strong></td><td>Línea autorizada, plazo, riesgo, expediente de verificación.</td><td><strong>crédito</strong>, con firmas</td></tr>
+  <thead><tr><th style="width:20%">Capa</th><th style="width:44%">Contenido</th><th>Quién la mantiene</th></tr></thead>
+  <tr><td><strong>Identificación</strong></td><td>Nombre o razón social, RFC, régimen fiscal, uso de CFDI, domicilio fiscal, correo y teléfono. Es lo que se imprime en la factura.</td><td>quien da de alta</td></tr>
+  <tr><td><strong>Comercial</strong></td><td>Lista de precios asignada, condiciones, vendedor responsable.</td><td>ventas</td></tr>
+  <tr><td><strong>Crediticia</strong></td><td>Línea autorizada, plazo, nivel de riesgo, expediente de verificación, disponible y utilizado.</td><td><strong>crédito</strong>, con firmas</td></tr>
 </table>
 
-<div class="caja ojo"><span class="rot">Ojo</span>
-  <p>La línea de crédito <strong>no se teclea aquí</strong>. Se solicita y pasa por la matriz
-  de firmas (capítulo 6). Si el campo aparece bloqueado, es correcto.</p></div>
+<div class="nota"><span class="rot">La línea de crédito no se teclea aquí</span>
+  <p>Se solicita y recorre la matriz de firmas (capítulo 6). Si el campo aparece bloqueado en
+  el expediente, el comportamiento es el correcto. Un importe de línea capturado directamente
+  sería una autorización sin firma y sin rastro.</p></div>
 
-<h3>2.4 · Proveedores</h3>
+<h3>2.5 · Proveedor</h3>
 
 <p>
-  <strong>Compras → Proveedores</strong> o <strong>Catálogos → Proveedores</strong>. Mismos
-  datos fiscales que un cliente, más condiciones de pago y días de crédito. Un proveedor puede
-  requerir <strong>alta y activación aprobadas</strong> según cómo esté configurada la matriz:
-  quien da de alta a un proveedor decide a quién se le puede pagar, y eso normalmente no es
-  una sola firma.
+  <strong>Compras › Proveedores.</strong> Datos fiscales equivalentes a los de un cliente, más
+  condiciones de pago y días de crédito. Según la configuración de la matriz, el alta y la
+  activación de un proveedor pueden requerir aprobación: quien da de alta a un proveedor
+  determina a quién puede pagarse, y esa decisión no suele corresponder a una sola persona.
 </p>
 
-<div class="caja ejerc"><span class="rot">Ejercicio 2</span>
-  <p>Da de alta un producto FÍSICO completo: categoría con cuentas, unidad, impuesto,
-  ClaveProdServ y ClaveUnidad, y precio en la lista por omisión. Después da de alta un cliente
-  de contado con RFC válido. Al terminar, vuelve al centro de configuración: los dos módulos
-  deberían haber subido.</p></div>
+<div class="nota tenue"><span class="rot">Ejercicio 2</span>
+  <p>Dar de alta un producto FÍSICO completo: categoría con cuentas contables, unidad,
+  impuesto, ClaveProdServ, ClaveUnidad y precio en la lista por omisión. A continuación, un
+  cliente de contado con RFC válido. Verificar en el centro de configuración que los módulos
+  correspondientes incrementaron su porcentaje.</p></div>
 
 <h2><span class="cap">Capítulo 3</span>Almacenes e inventario</h2>
 
-<p><span class="quien">almacenista</span></p>
+<p class="roles-cab"><span class="rol">almacenista</span></p>
+
+<h3>3.1 · Qué resuelve</h3>
 
 <p>
-  El inventario del ERP no es una lista de cantidades: es <strong>dónde está cada cosa</strong>.
-  El sistema lleva existencias por almacén <em>y</em> por ubicación dentro del almacén, con
-  lote si el producto lo usa. Eso es lo que permite decirle a alguien «está en B-02-07» en vez
-  de «hay ocho en algún sitio».
+  El inventario no es una lista de cantidades: es <strong>la ubicación física de cada
+  artículo</strong>. El sistema lleva existencias por almacén, por ubicación dentro del almacén
+  y por lote cuando el producto lo requiere. Eso permite indicar «está en B-02-07» en lugar de
+  «hay ocho en algún sitio».
 </p>
 
-<h3>3.1 · La jerarquía</h3>
+<h3>3.2 · Jerarquía</h3>
 
-<div class="flujo">
-  <div><span class="q">1</span><b>Almacén</b>Una bodega, una sucursal, un punto físico.</div>
-  <div><span class="q">2</span><b>Ubicación</b>Pasillo-estante-nivel: <code>A-01-01</code>. Es la dirección dentro del almacén.</div>
-  <div><span class="q">3</span><b>Lote</b>Cuando el producto lo requiere: caducidad, serie, tanda.</div>
-  <div><span class="q">4</span><b>Existencia</b>La cantidad en ese cruce, con lo físico, lo reservado y lo disponible.</div>
+<div class="cinta">
+  <div><span class="q">Nivel 1</span><b>Almacén</b>Una bodega, una sucursal, un punto físico. Puede llevar contabilidad separada.</div>
+  <div><span class="q">Nivel 2</span><b>Ubicación</b>La dirección dentro del almacén: zona, pasillo, rack, nivel, posición.</div>
+  <div><span class="q">Nivel 3</span><b>Lote</b>Cuando el producto lo exige: caducidad, número de serie, tanda de producción.</div>
+  <div><span class="q">Resultado</span><b>Existencia</b>La cantidad en ese cruce, con su desglose en físico, reservado y disponible.</div>
 </div>
 
 <figure>
   <img src="img/13-existencias.jpg" alt="Existencias por ubicación y lote">
-  <figcaption><b>Almacenes → Existencias y posiciones.</b> La consulta unificada: producto,
-  almacén, ubicación, lote, físico, reservado y disponible. Cada renglón lleva al lado las dos
-  acciones que se hacen desde aquí —<b>Reubicar</b> y <b>Transferir</b>— para no tener que
-  cambiar de pantalla.</figcaption>
+  <figcaption><b>Almacenes › Existencias y posiciones.</b> Consulta unificada: producto,
+  almacén, ubicación, lote, físico, reservado y disponible. Cada renglón ofrece las dos
+  operaciones que se ejecutan desde aquí —<b>Reubicar</b> y <b>Transferir</b>— sin cambiar de
+  pantalla.</figcaption>
 </figure>
 
-<p>
-  <strong>Físico, reservado y disponible</strong> no son lo mismo y confundirlos causa
-  problemas reales: <em>físico</em> es lo que hay, <em>reservado</em> es lo que ya está
-  comprometido en un documento sin salir todavía, y <em>disponible</em> es lo que se puede
-  vender. Vender contra el físico en vez del disponible es cómo se promete dos veces la misma
-  caja.
-</p>
-
-<h3>3.2 · Las cinco operaciones del almacén</h3>
+<h4>Físico, reservado y disponible</h4>
 
 <table>
-  <tr><th style="width:22%">Operación</th><th>Qué hace</th><th style="width:26%">Efecto contable</th></tr>
-  <tr><td><strong>Recepción</strong></td><td>Entra mercancía contra una orden de compra.</td><td>Póliza de entrada; actualiza costo</td></tr>
-  <tr><td><strong>Transferencia</strong></td><td>Mueve mercancía <em>entre almacenes</em>.</td><td>Traspaso; no cambia el valor total</td></tr>
-  <tr><td><strong>Reubicación</strong></td><td>Mueve mercancía <em>dentro</em> del mismo almacén.</td><td>Ninguno: no cambia nada valuable</td></tr>
-  <tr><td><strong>Conteo físico</strong></td><td>Cuenta lo que hay de verdad y lo compara con los libros.</td><td>Ninguno hasta que se aplique el ajuste</td></tr>
-  <tr><td><strong>Ajuste / merma</strong></td><td>Corrige la existencia y explica por qué.</td><td>Póliza de ajuste o de merma</td></tr>
+  <thead><tr><th style="width:20%">Magnitud</th><th>Definición</th></tr></thead>
+  <tr><td><strong>Físico</strong></td><td>Lo que hay en la posición.</td></tr>
+  <tr><td><strong>Reservado</strong></td><td>Lo comprometido en un documento que todavía no ha salido.</td></tr>
+  <tr><td><strong>Disponible</strong></td><td>Físico menos reservado. <strong>Es lo que se puede vender.</strong></td></tr>
 </table>
 
-<h3>3.3 · Recepción de mercancía</h3>
+<p>
+  Vender contra el físico en lugar del disponible es el mecanismo por el que se compromete dos
+  veces la misma mercancía. El punto de venta valida siempre contra el disponible.
+</p>
 
-<figure>
-  <img src="img/09-recepciones.jpg" alt="Recepción de mercancía">
-  <figcaption><b>Almacenes → Recepciones.</b> Dos pestañas: <b>Por recibir</b> —las órdenes de
-  compra enviadas que esperan llegada— e <b>Historial completo</b>. Los dos contadores de
-  arriba son el pulso del muelle: cuántas en tránsito y cuántas recibidas.</figcaption>
-</figure>
+<h3>3.3 · Ubicaciones</h3>
 
-<p>El detalle del flujo está en el capítulo 4, porque una recepción no existe sin una orden de compra.</p>
+<p><strong>Almacenes › Ubicaciones › Nueva ubicación.</strong></p>
 
-<h3>3.4 · Conteos físicos</h3>
+<table>
+  <thead><tr><th style="width:22%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">almacenId</td><td><span class="ob">OBLIGATORIO</span></td><td>Almacén al que pertenece.</td></tr>
+  <tr><td class="campo">codigo</td><td><span class="ob">OBLIGATORIO</span></td><td>El identificador que se lee en el estante. Máximo 80 caracteres.</td></tr>
+  <tr><td class="campo">zona</td><td><span class="op">opcional</span></td><td>Agrupación lógica: refrigerado, seco, cuarentena.</td></tr>
+  <tr><td class="campo">pasillo · rack · nivel · posicion</td><td><span class="op">opcional</span></td><td>Descomposición de la dirección. Sirve para ordenar la ruta de conteo y de surtido.</td></tr>
+  <tr><td class="campo">capacidadMaxima</td><td><span class="op">opcional</span></td><td>Límite de la posición.</td></tr>
+  <tr><td class="campo">estado</td><td><span class="op">opcional</span></td><td>Disponibilidad operativa de la posición.</td></tr>
+</table>
+
+<h4>Asignar un producto a una ubicación</h4>
+
+<p>
+  Un producto puede tener <strong>ubicaciones asignadas</strong>, con una marcada como
+  principal. Los campos son <span class="campo">esPrincipal</span>,
+  <span class="campo">capacidadAsignada</span>, <span class="campo">stockMinimo</span> y
+  <span class="campo">stockMaximo</span>. En la recepción, las posiciones asignadas aparecen
+  marcadas y en primer lugar; las demás requieren confirmar la asignación.
+</p>
+
+<h3>3.4 · Las cinco operaciones del almacén</h3>
+
+<table>
+  <thead><tr><th style="width:20%">Operación</th><th style="width:34%">Qué hace</th><th>Efecto contable</th></tr></thead>
+  <tr><td><strong>Recepción</strong></td><td>Ingresa mercancía contra una orden de compra.</td><td>Póliza de entrada; actualiza costo y precio</td></tr>
+  <tr><td><strong>Transferencia</strong></td><td>Mueve mercancía <em>entre almacenes</em>, con salida y recepción.</td><td>Traspaso; no altera el valor total del inventario</td></tr>
+  <tr><td><strong>Reubicación</strong></td><td>Mueve mercancía <em>dentro</em> del mismo almacén.</td><td>Ninguno: no cambia nada valuable</td></tr>
+  <tr><td><strong>Conteo físico</strong></td><td>Cuenta lo existente y lo compara con el registro.</td><td>Ninguno hasta que se aplique el ajuste</td></tr>
+  <tr><td><strong>Ajuste o merma</strong></td><td>Corrige la existencia y registra el motivo.</td><td>Póliza de ajuste o de merma</td></tr>
+</table>
+
+<h3>3.5 · Transferencia entre almacenes</h3>
+
+<p>
+  Es un documento en <strong>dos actos</strong>: quien envía y quien recibe. Entre ambos, la
+  mercancía está en tránsito y no pertenece a ninguno de los dos almacenes.
+</p>
+
+<h4>Acto 1 — Crear la transferencia <span class="quien">almacén de origen</span></h4>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">almacenOrigenId</td><td><span class="ob">OBLIGATORIO</span></td><td>De dónde sale.</td></tr>
+  <tr><td class="campo">almacenDestinoId</td><td><span class="ob">OBLIGATORIO</span></td><td>Adónde va.</td></tr>
+  <tr><td class="campo">motivo</td><td><span class="ob">OBLIGATORIO</span></td><td>Por qué se mueve. Máximo 255 caracteres. Es lo que se lee al auditar el movimiento.</td></tr>
+  <tr><td class="campo">detalles[]</td><td><span class="ob">OBLIGATORIO</span></td><td>Al menos un renglón, cada uno con <span class="campo">productoId</span>, <span class="campo">ubicacionOrigenId</span> y cantidad.</td></tr>
+</table>
+
+<h4>Acto 2 — Recibir la transferencia <span class="quien">almacén de destino</span></h4>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">detalleId</td><td><span class="ob">OBLIGATORIO</span></td><td>Qué renglón de la transferencia se recibe.</td></tr>
+  <tr><td class="campo">ubicacionDestinoId</td><td><span class="ob">OBLIGATORIO</span></td><td>En qué posición se guarda.</td></tr>
+  <tr><td class="campo">cantidadRecibida</td><td><span class="op">opcional</span></td><td>Si se omite, se asume la enviada. Capturarla permite documentar faltantes.</td></tr>
+  <tr><td class="campo">cantidadDanada</td><td><span class="op">opcional</span></td><td>Lo que llegó dañado. No entra al disponible.</td></tr>
+  <tr><td class="campo">observaciones</td><td><span class="op">opcional</span></td><td>Máximo 500 caracteres.</td></tr>
+</table>
+
+<h3>3.6 · Conteo físico</h3>
 
 <figure>
   <img src="img/14-conteos-fisicos.jpg" alt="Conteos físicos">
-  <figcaption><b>Almacenes → Conteos físicos.</b> Se abre un conteo por almacén, opcionalmente
-  acotado a unas ubicaciones y marcado como cíclico. Los conteos cerrados quedan con su
-  motivo, que es lo que se lee un año después.</figcaption>
+  <figcaption><b>Almacenes › Conteos físicos.</b> Se abre un conteo por almacén, opcionalmente
+  acotado a determinadas ubicaciones y marcado como cíclico. Los conteos cerrados conservan su
+  motivo y su resultado.</figcaption>
 </figure>
 
-<div class="flujo">
-  <div><span class="q">Paso 1</span><b>Abrir conteo</b>Se elige almacén y, si se quiere, un subconjunto de ubicaciones.</div>
-  <div><span class="q">Paso 2</span><b>Contar</b>Se captura lo que hay de verdad. En <em>conteo ciego</em> el sistema no enseña lo que dicen los libros.</div>
-  <div><span class="q">Paso 3</span><b>Comparar</b>El sistema calcula la diferencia por posición.</div>
-  <div><span class="q">Paso 4</span><b>Ajustar</b>El ajuste corrige la existencia <em>y</em> genera su póliza.</div>
-</div>
+<h4>Estados del conteo</h4>
 
-<div class="caja ojo"><span class="rot">Ojo · el conteo ciego es el que sirve</span>
-  <p>Si quien cuenta ve lo que debería haber, cuenta eso. El conteo ciego es la única forma de
-  que el número salga de la estantería y no de la pantalla. Cuesta un poco más y es el único
-  que vale para valuar.</p></div>
+<table>
+  <thead><tr><th style="width:26%">Estado</th><th>Significado y qué lo hace avanzar</th></tr></thead>
+  <tr><td class="campo">BORRADOR</td><td>Definido pero sin abrir. Todavía se puede modificar su alcance.</td></tr>
+  <tr><td class="campo">ABIERTO</td><td>Congelado el alcance; puede empezar la captura.</td></tr>
+  <tr><td class="campo">EN_CONTEO</td><td>Hay capturas registradas.</td></tr>
+  <tr><td class="campo">PENDIENTE_AUTORIZACION</td><td>Cerrada la captura, con diferencias que requieren aprobación antes de ajustar.</td></tr>
+  <tr><td class="campo">AJUSTADO</td><td>Aplicado el ajuste: la existencia cambió y se generó la póliza.</td></tr>
+  <tr><td class="campo">CERRADO</td><td>Conteo concluido sin ajuste o ya ajustado.</td></tr>
+  <tr><td class="campo">CANCELADO</td><td>Anulado sin efecto.</td></tr>
+</table>
 
-<div class="caja auto"><span class="rot">Lo que hace el sistema solo</span>
-  <p>Un ajuste de inventario <strong>escribe su póliza</strong>: contra la cuenta de inventario
-  de la categoría del producto y contra la cuenta de ajuste o merma. Si al producto le falta
-  categoría, el ajuste entra y la póliza queda encolada — se revisa en <em>Finanzas → Asientos
-  pendientes</em>.</p></div>
+<h4>Secuencia</h4>
 
-<div class="caja ejerc"><span class="rot">Ejercicio 3</span>
-  <p>Abre un conteo ciego de una sola ubicación con dos productos. Captura una cantidad
-  distinta a propósito en uno. Cierra el conteo, mira la diferencia y aplica el ajuste. Después
-  ve a <strong>Finanzas → Libro diario</strong> y busca la póliza que acaba de nacer.</p></div>
+<ol class="pasos">
+  <li><b>Abrir el conteo</b> <span class="quien">almacenista</span><br>
+  Se elige almacén y, opcionalmente, un subconjunto de ubicaciones. Se marca si es cíclico.</li>
+  <li><b>Contar</b> <span class="quien">almacenista</span><br>
+  Se captura lo verificado físicamente. En <strong>conteo ciego</strong> el sistema no muestra
+  la existencia registrada.</li>
+  <li><b>Comparar</b><br>
+  El sistema calcula la diferencia por posición y lote.</li>
+  <li><b>Ajustar</b> <span class="quien">almacenista</span> <span class="quien">o quien autorice</span><br>
+  El ajuste corrige la existencia y genera su póliza contra la cuenta de inventario de la
+  categoría del producto y la cuenta de ajuste o merma.</li>
+</ol>
 
-<h2><span class="cap">Capítulo 4</span>Compras</h2>
+<div class="nota sec"><span class="rot">El conteo ciego es el único que valúa</span>
+  <p>Si quien cuenta ve la existencia registrada, cuenta esa cifra. El conteo ciego es la única
+  modalidad en la que el número procede de la estantería y no de la pantalla. Cuesta algo más
+  de tiempo y es la única válida para efectos de valuación.</p></div>
 
-<p><span class="quien">almacenista</span> <span class="quien">comprador</span> <span class="quien">gerencia</span> <span class="quien">tesoreria</span></p>
+<div class="nota"><span class="rot">Efecto automático del ajuste</span>
+  <p>Un ajuste escribe su póliza contra la cuenta de inventario de la categoría y la cuenta de
+  ajuste o merma. Si el producto carece de categoría, el ajuste se aplica y el asiento queda
+  encolado; se revisa en Finanzas › Asientos pendientes.</p></div>
 
-<p>
-  El ciclo de compra es el capítulo donde mejor se ve la idea de <strong>segregación de
-  funciones</strong>: pedir, autorizar, elegir proveedor, recibir y pagar son cinco decisiones
-  distintas, y el sistema impide activamente que las tome la misma persona. Si estás solo
-  delante de la pantalla y algo «no te deja», lo más probable es que no sea un fallo.
-</p>
-
-<div class="flujo">
-  <div><span class="q">almacenista</span><b>Requisición</b>«Necesito esto»: producto y cantidad, sin precios.</div>
-  <div><span class="q">quien manda</span><b>Autorización</b>Aprueba o rechaza con motivo.</div>
-  <div><span class="q">comprador</span><b>Cotización</b>Pide precios y adjudica al proveedor elegido.</div>
-  <div><span class="q">quien manda</span><b>Adjudicación</b>Aprueba a quién se le compra.</div>
-  <div><span class="q">comprador</span><b>Orden de compra</b>Se envía al proveedor.</div>
-  <div><span class="q">almacenista</span><b>Recepción</b>Entra lo que llegó de verdad.</div>
-  <div><span class="q">tesorería</span><b>Pago</b>Se paga lo recibido.</div>
-</div>
-
-<h3>4.1 · Requisición</h3>
-
-<p><strong>Compras → Requisiciones → Nueva.</strong></p>
-
-<figure>
-  <img src="img/06-compras-requisiciones.jpg" alt="Requisiciones">
-  <figcaption><b>Requisiciones.</b> Los cuatro contadores de arriba son el estado del ciclo:
-  total, pendientes de firma, en cotización y recibidas. En la lista, cada renglón dice su
-  estado y, si espera firma, <b>de quién</b> la espera.</figcaption>
-</figure>
-
-<div class="paso"><span class="n">1</span><b class="t">Elegir almacén de destino y fecha requerida</b>
-  El almacén decide adónde llegará la mercancía; la fecha requerida es la que ordena la
-  prioridad del comprador.</div>
-
-<div class="paso"><span class="n">2</span><b class="t">Agregar renglones: producto y cantidad</b>
-  <strong>No se capturan precios.</strong> Una requisición pide cantidad, no dinero. Quien
-  necesita un producto no tiene por qué saber lo que cuesta, y si lo escribe, ancla al
-  comprador.</div>
-
-<div class="paso"><span class="n">3</span><b class="t">Guardar</b>
-  El sistema la valúa solo, con el <strong>costo de la última compra</strong> de cada producto,
-  y ese importe decide si necesita firma.</div>
-
-<div class="caja auto"><span class="rot">Lo que hace el sistema solo</span>
-  <p>Un producto del que todavía no se sabe el costo vale cero, lo que empuja el importe
-  <strong>hacia abajo</strong>. Es deliberado: lo desconocido no escala solo a la dirección.</p></div>
-
-<h4>Qué pasa después</h4>
-
-<p>
-  Si el importe supera el umbral configurado, la requisición queda <em>PENDIENTE</em> y aparece
-  en la bandeja de quien manda. Si no lo supera, nace ya <em>COTIZANDO</em> y el comprador
-  puede trabajarla.
-</p>
-
-<div class="caja dep"><span class="rot">Depende de</span>
-  <p>Tres cosas, y si faltan el sistema lo dice por su nombre en vez de fallar a medias:
-  (1) el <strong>área</strong> del solicitante, (2) la <strong>ruta de aprobación</strong> de
-  esa área y (3) la <strong>categoría</strong> de cada producto que mueve existencias.</p></div>
-
-<div class="caja ojo"><span class="rot">Ojo · los umbrales por monto</span>
-  <p>Están implementados pero llegan <strong>sin configurar</strong>. Hasta que alguien ponga
-  los números —«hasta $X no necesita firma»— toda requisición sube al mando, cueste diez cajas
-  de guantes o una flotilla. Es una decisión de negocio, no técnica, y se fija en
-  <em>Aprobaciones → Flujos de aprobación</em>.</p></div>
-
-<h4>Si el aprobador se fue de la empresa</h4>
-
-<p>
-  La requisición no se detiene. El sistema busca, en este orden: la persona que la ruta nombra
-  si sigue activa → quien tenga ese rol → quien tenga el rol que esa persona tenía →
-  administración. <strong>El solicitante no aparece en ninguno de los cuatro</strong>: la
-  suplencia cubre ausencias, no perdona la separación de funciones.
-</p>
-
-<h3>4.2 · Autorizar la requisición</h3>
-
-<p><strong>Aprobaciones → Bandeja.</strong> Se ve qué se pide, para cuándo, quién lo pide y el
-importe estimado. <strong>Rechazar exige motivo escrito</strong>: el motivo es lo único que le
-dice al solicitante qué cambiar.</p>
-
-<h3>4.3 · Cotizar y adjudicar</h3>
-
-<figure>
-  <img src="img/07-compras-cotizaciones.jpg" alt="Gestión de cotizaciones">
-  <figcaption><b>Compras → Cotizaciones.</b> Lista las requisiciones aprobadas que esperan
-  precio. <b>Capturar</b> abre la captura de propuestas por proveedor; <b>Ver</b> muestra la
-  comparación.</figcaption>
-</figure>
-
-<div class="paso"><span class="n">1</span><b class="t">Capturar las propuestas</b>
-  Por cada proveedor: producto, cantidad, precio y condiciones. Se capturan todas las que se
-  pidieron, no sólo la ganadora — la comparación es la evidencia de por qué se eligió.</div>
-
-<div class="paso"><span class="n">2</span><b class="t">Adjudicar</b>
-  Se elige proveedor. <strong>La adjudicación también se aprueba, y no por quien la pidió.</strong>
-  Es el punto donde se decide a quién se le da el dinero, así que es donde más se paga tener
-  dos pares de ojos.</div>
-
-<h3>4.4 · Orden de compra</h3>
-
-<figure>
-  <img src="img/08-compras-ordenes.jpg" alt="Órdenes de compra">
-  <figcaption><b>Compras → Órdenes de compra.</b> El historial de documentos oficiales enviados
-  a proveedores, con su estado: <b>PENDIENTE</b> (enviada, sin llegar), <b>RECIBIDA</b>,
-  <b>PAGADA</b>, <b>CANCELADA</b>. El icono de impresora genera el documento para el
-  proveedor.</figcaption>
-</figure>
-
-<p>
-  Desde aquí el comprador ya sólo <strong>da seguimiento</strong>: puede consultar las
-  recepciones para saber si llegó, y no puede registrarlas.
-</p>
-
-<h3>4.5 · Recepción</h3>
-
-<div class="paso"><span class="n">1</span><b class="t">Capturar lo que llegó de verdad</b>
-  Renglón por renglón. Puede ser menos de lo pedido: la orden queda <em>PARCIAL</em> y espera
-  el resto. Capturar lo pedido en vez de lo llegado es el error que más caro sale, porque
-  descuadra inventario y cuentas por pagar a la vez.</div>
-
-<div class="paso"><span class="n">2</span><b class="t">Elegir la ubicación de cada producto</b>
-  El desplegable marca con ★ las posiciones donde ese producto ya tiene casa y las pone
-  primero. Si eliges una donde nunca ha estado, aparece <strong>«Asignar a B-02-07»</strong>;
-  al pulsarlo, esa posición pasa a ★. Si tu rol no puede asignar, la pantalla te dice a quién
-  pedírselo.</div>
-
-<div class="paso"><span class="n">3</span><b class="t">Firmar la recepción</b></div>
-
-<div class="caja auto"><span class="rot">Lo que hace el sistema solo · y conviene que lo sepas</span>
-  <p>• Sube la <strong>existencia</strong> en esa ubicación.<br>
-  • Actualiza el <strong>costo del producto</strong> con lo que se pagó.<br>
-  • <strong>Recalcula el precio de venta</strong> desde ese costo con el margen configurado
-  (ejemplo real: costo $100 → precio $135; sube el costo a $137 → el precio pasa a $185 sin
-  recapturar nada).<br>
-  • Genera la <strong>póliza</strong> de la entrada.<br>
-  • Ese costo nuevo <strong>valúa la siguiente requisición</strong> del mismo producto.</p></div>
-
-<div class="caja ojo"><span class="rot">Ojo · lo que hay que vigilar después de recibir</span>
-  <p>Si al producto le falta la cuenta de inventario, la mercancía entra y <strong>la póliza no
-  se genera</strong>, y nada en la pantalla de recepción lo delata. Revisa <strong>Finanzas →
-  Asientos pendientes</strong> después de recibir: ahí aparece qué faltó y por qué. El cierre
-  mensual también lo bloquea, pero eso es tres semanas tarde.</p>
-  <p>Y si pulsas dos veces, <strong>no recibes dos veces</strong>: la recepción lleva una clave
-  de idempotencia respaldada por un índice único en la base.</p></div>
-
-<h3>4.6 · Pago a proveedores</h3>
-
-<figure>
-  <img src="img/10-pago-proveedores.jpg" alt="Pago a proveedores">
-  <figcaption><b>Compras → Pago a proveedores.</b> Sólo aparecen las órdenes <b>recibidas</b>:
-  no se paga lo que no ha llegado. El total por pagar arriba, y los filtros por estado
-  —por pagar, entrega incompleta, pago parcial, pagadas—.</figcaption>
-</figure>
-
-<p>
-  <strong>Es de tesorería</strong>, y el comprador no puede llegar aquí: quien elige al
-  proveedor no le firma el cheque.
-</p>
-
-<div class="caja auto"><span class="rot">Lo que hace el sistema solo</span>
-  <p>Registrar el pago escribe el asiento <em>Dr. Proveedores / Cr. Banco o Caja</em>, mueve el
-  saldo de la cuenta bancaria y deja el movimiento en Tesorería marcado como <em>del
-  documento</em> — no se cancela desde tesorería (capítulo 7).</p></div>
-
-<h3>4.7 · Devoluciones a proveedor</h3>
-
-<p>
-  <strong>Compras → Devoluciones a proveedor.</strong> Es la compra al revés: salen las piezas
-  del almacén, baja la cuenta por pagar y se genera la póliza inversa. Se hace contra una
-  recepción, no contra la orden, porque sólo se devuelve lo que entró.
-</p>
-
-<div class="caja ejerc"><span class="rot">Ejercicio 4 · el ciclo completo</span>
-  <p>Con tres personas distintas (o tres sesiones): levanta una requisición de dos productos,
-  apruébala con otro usuario, captura dos cotizaciones de proveedores distintos, adjudica y
-  aprueba, genera la orden, recíbela <strong>parcialmente</strong> y páguala.
-  Después comprueba: la existencia subió sólo en lo recibido, la orden quedó PARCIAL, el costo
-  del producto cambió, y en el libro diario hay dos pólizas nuevas.</p></div>
+<div class="nota tenue"><span class="rot">Ejercicio 3</span>
+  <p>Abrir un conteo ciego de una sola ubicación con dos productos. Capturar una cantidad
+  distinta a propósito en uno de ellos. Cerrar el conteo, revisar la diferencia y aplicar el
+  ajuste. Localizar después en Finanzas › Libro diario la póliza generada.</p></div>

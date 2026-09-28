@@ -1,0 +1,424 @@
+<h2><span class="cap">Capítulo 7</span>Tesorería</h2>
+
+<p class="roles-cab"><span class="rol">tesorería</span></p>
+
+<h3>7.1 · Qué resuelve</h3>
+
+<p>
+  Tesorería administra el dinero: el efectivo del mostrador y las cuentas bancarias. El módulo
+  se organiza en torno a una distinción que conviene fijar desde el principio: <strong>el
+  efectivo de un turno</strong> y <strong>el saldo de una cuenta</strong> son dos cosas
+  distintas, con controles distintos.
+</p>
+
+<h3>7.2 · Cuentas bancarias y de caja</h3>
+
+<p><strong>Tesorería › Cuentas bancarias.</strong> Todo movimiento de dinero ocurre contra una
+cuenta, y las cuentas son de tres tipos.</p>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">nombre</td><td><span class="ob">OBLIGATORIO</span></td><td>Hasta 100 caracteres. Es lo que se elige al cobrar y al pagar.</td></tr>
+  <tr><td class="campo">tipo</td><td><span class="ob">OBLIGATORIO</span></td><td><span class="campo">CAJA</span> —efectivo de mostrador—, <span class="campo">BANCO</span> —cuenta bancaria— o <span class="campo">TPV</span> —terminal punto de venta—.</td></tr>
+  <tr><td class="campo">numeroCuenta</td><td><span class="op">opcional</span></td><td>Hasta 50 caracteres.</td></tr>
+  <tr><td class="campo">bancoId</td><td><span class="op">opcional</span></td><td>Institución. Alimenta la conciliación.</td></tr>
+  <tr><td class="campo">clabe</td><td><span class="op">opcional</span></td><td><strong>Exactamente 18 dígitos.</strong> Se valida el formato.</td></tr>
+  <tr><td class="campo">cuentaContableId</td><td><span class="op">opcional</span></td><td><strong>Determinante:</strong> es la cuenta del mayor contra la que se asientan los movimientos de esta cuenta. Sin ella, los movimientos entran y sus pólizas quedan encoladas.</td></tr>
+  <tr><td class="campo">esPorDefecto</td><td><span class="op">opcional</span></td><td>Cuenta preseleccionada en cobros y pagos.</td></tr>
+</table>
+
+<h3>7.3 · Caja, corte y arqueo</h3>
+
+<figure>
+  <img src="img/15-tesoreria-caja.jpg" alt="Caja, corte y arqueo">
+  <figcaption><b>Tesorería › Caja, corte y arqueo.</b> Los cuatro indicadores del turno: fondo
+  inicial, entradas, salidas y <b>efectivo esperado</b>. A la izquierda, los movimientos del
+  turno; a la derecha, la entrada o retiro manual y el cierre con arqueo.</figcaption>
+</figure>
+
+<h4>Abrir turno</h4>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">cuentaCajaId</td><td><span class="ob">OBLIGATORIO</span></td><td>Qué caja se abre. Una caja no admite dos turnos abiertos a la vez.</td></tr>
+  <tr><td class="campo">fondoInicial</td><td><span class="ob">OBLIGATORIO</span></td><td>Efectivo con el que empieza. Puede ser cero. Todo el arqueo se mide contra este valor.</td></tr>
+  <tr><td class="campo">observaciones</td><td><span class="op">opcional</span></td><td>Hasta 500 caracteres.</td></tr>
+</table>
+
+<h4>Entrada o retiro manual</h4>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">cuentaCajaId</td><td><span class="ob">OBLIGATORIO</span></td><td>Caja afectada.</td></tr>
+  <tr><td class="campo">cuentaContrapartidaId</td><td><span class="ob">OBLIGATORIO</span></td><td><strong>Contra qué cuenta contable se registra.</strong> El sistema no puede deducir si un retiro es un depósito al banco, un gasto o una entrega a dirección: cada caso afecta una cuenta distinta.</td></tr>
+  <tr><td class="campo">importe</td><td><span class="ob">OBLIGATORIO</span></td><td>Mayor que cero.</td></tr>
+  <tr><td class="campo">concepto</td><td><span class="ob">OBLIGATORIO</span></td><td>Hasta 300 caracteres. Explica el movimiento.</td></tr>
+  <tr><td class="campo">referencia</td><td><span class="op">opcional</span></td><td>Hasta 120 caracteres.</td></tr>
+</table>
+
+<h4>Cerrar turno con arqueo</h4>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">efectivoContado</td><td><span class="ob">OBLIGATORIO</span></td><td>Lo que hay físicamente en la caja, contado.</td></tr>
+  <tr><td class="campo">observaciones</td><td><span class="op">opcional</span></td><td>Hasta 500 caracteres. <strong>Una diferencia entre lo contado y lo esperado exige explicación.</strong></td></tr>
+</table>
+
+<p>
+  El sistema no absorbe ni oculta la diferencia: la registra con su importe y su explicación, y
+  queda en el reporte de corte de caja por turno y por cajero.
+</p>
+
+<h3>7.4 · Movimientos bancarios</h3>
+
+<figure>
+  <img src="img/16-tesoreria-movimientos.jpg" alt="Movimientos bancarios">
+  <figcaption><b>Tesorería › Movimientos bancarios.</b> Arriba, cada cuenta con su saldo y
+  cuántos movimientos quedan por conciliar. En la lista: folio, fecha, concepto, cuenta,
+  entrada, salida, saldo acumulado y estado de conciliación.</figcaption>
+</figure>
+
+<h4>Campos del movimiento</h4>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">cuentaBancariaId</td><td><span class="ob">OBLIGATORIO</span></td><td>Cuenta afectada.</td></tr>
+  <tr><td class="campo">fecha</td><td><span class="ob">OBLIGATORIO</span></td><td>Fecha valor. Determina el periodo contable y la posición en el saldo acumulado.</td></tr>
+  <tr><td class="campo">tipo</td><td><span class="ob">OBLIGATORIO</span></td><td><span class="campo">INGRESO · EGRESO · TRASPASO_ENTRADA · TRASPASO_SALIDA</span>.</td></tr>
+  <tr><td class="campo">importe</td><td><span class="ob">OBLIGATORIO</span></td><td>Mayor que cero. El signo lo aporta el tipo, no el importe.</td></tr>
+  <tr><td class="campo">concepto</td><td><span class="ob">OBLIGATORIO</span></td><td>Entre 3 y 500 caracteres.</td></tr>
+  <tr><td class="campo">cuentaContrapartidaId</td><td><span class="ob">OBLIGATORIO</span> en movimientos manuales</td><td>Contra qué cuenta contable se asienta. El sistema no puede adivinar si un ingreso es una aportación, un reembolso o un cobro.</td></tr>
+  <tr><td class="campo">origen</td><td><span class="op">opcional</span></td><td><span class="campo">MANUAL · VENTA · DEVOLUCION_VENTA · COBRANZA · PAGO_PROVEEDOR · NOMINA · TRASPASO · COMISION_BANCARIA · IMPUESTO · HOSPEDAJE</span>. Lo asigna el módulo que genera el movimiento.</td></tr>
+  <tr><td class="campo">referencia</td><td><span class="op">opcional</span></td><td>Hasta 100 caracteres. Clave para conciliar.</td></tr>
+  <tr><td class="campo">numeroCheque</td><td><span class="op">opcional</span></td><td>Hasta 30 caracteres.</td></tr>
+  <tr><td class="campo">terceroId · nombreTercero</td><td><span class="op">opcional</span></td><td>Con quién se hizo la operación.</td></tr>
+  <tr><td class="campo">documentoId · tipoDocumento</td><td><span class="op">opcional</span></td><td>Los escribe el módulo de origen. Ver el apartado siguiente.</td></tr>
+</table>
+
+<h4>La regla central del módulo</h4>
+
+<p>Cada renglón de la lista es una de dos cosas, y se distingue a simple vista:</p>
+
+<table>
+  <thead><tr><th style="width:28%">Lo que muestra</th><th>Significado</th></tr></thead>
+  <tr><td>El botón <strong>Cancelar</strong></td><td>El movimiento se <strong>capturó manualmente</strong>. Puede cancelarse aquí.</td></tr>
+  <tr><td>La leyenda <strong>del documento</strong></td><td>Lo generó una venta, un pago, un cobro, la nómina o un folio. <strong>Se deshace desde ese documento, no desde aquí.</strong></td></tr>
+</table>
+
+<p>
+  <strong>Fundamento.</strong> Cancelar aquí devuelve el saldo a la cuenta y <em>no modifica el
+  documento de origen</em>: la orden de compra continuaría figurando como pagada. Dos
+  subsistemas afirmarían cosas contrarias, cada uno coherente por dentro, sin ninguna pantalla
+  donde se aprecie la discrepancia. Se manifiesta meses después, en una conciliación.
+</p>
+
+<p>
+  Si se intenta de todas formas, el sistema <strong>identifica el documento de origen e indica
+  dónde se deshace</strong>. Cuando el ERP todavía no dispone de esa pantalla —hoy, el pago a
+  proveedor y el traspaso entre cuentas— lo declara expresamente en lugar de remitir a una
+  función inexistente.
+</p>
+
+<h4>Traspaso entre cuentas</h4>
+
+<div class="nota sec"><span class="rot">Dos movimientos, una póliza</span>
+  <p>Un traspaso escribe <strong>dos</strong> movimientos —salida en la cuenta de origen,
+  entrada en la de destino— y <strong>una sola póliza</strong> con ambos lados. Ninguna de las
+  dos piernas se cancela por separado: hacerlo dejaría la otra en pie y el mismo importe
+  duplicado o desaparecido, con la póliza afirmando que el traspaso se realizó completo. Si un
+  traspaso se registró mal, se corrige con el traspaso contrario y su explicación.</p></div>
+
+<h4>Cancelar un movimiento manual</h4>
+
+<p>
+  Al cancelar un movimiento capturado a mano, el sistema marca el original como cancelado con
+  su motivo y escribe una <strong>contrapartida</strong> del signo inverso, enlazada al
+  original. Esa contrapartida tampoco es cancelable: devolver el dinero a los libros de algo ya
+  cancelado sería un enredo, no una corrección.
+</p>
+
+<h3>7.5 · Conciliación bancaria</h3>
+
+<p>Es el proceso que desbloquea el cierre mensual, por lo que conviene realizarlo pronto.</p>
+
+<figure>
+  <img src="img/17-conciliacion-bancaria.jpg" alt="Conciliación bancaria">
+  <figcaption><b>Tesorería › Conciliación bancaria.</b> Se selecciona cuenta, mes y ejercicio, y
+  se carga el estado de cuenta. Hasta que no se carga no hay nada que conciliar, y el sistema lo
+  indica en lugar de mostrar una tabla vacía.</figcaption>
+</figure>
+
+<ol class="pasos">
+  <li><b>Cargar el estado de cuenta</b><br>
+  Se captura el saldo inicial y el <strong>final</strong> del banco, y se pegan los movimientos
+  desde la hoja de cálculo: fecha, descripción, referencia, cargo y abono. Se aceptan los
+  formatos <span class="cod">dd/mm/aaaa</span> y <span class="cod">aaaa-mm-dd</span>, y se
+  ignoran símbolos de moneda y separadores de miles.
+  <br><br>
+  <strong>Mes sin movimientos:</strong> si el saldo no varió, se deja vacío el pegado y se
+  captura el mismo saldo inicial y final. El botón pasa a «Cargar mes sin movimientos». Una
+  cuenta inactiva no debe bloquear el cierre.
+  <br><br>
+  El sistema exige que el estado de cuenta <strong>cuadre consigo mismo</strong> antes de
+  aceptarlo: saldo inicial, más abonos, menos cargos, debe dar el saldo final. Si no cuadra, el
+  error está en la captura y no en los libros.</li>
+
+  <li><b>Conciliar automáticamente</b><br>
+  Empareja por importe y ventana de fechas. <strong>Lo ambiguo queda pendiente y se
+  reporta</strong>; el sistema no elige entre dos candidatos posibles. El resto se empareja
+  manualmente.</li>
+
+  <li><b>Revisar el reporte</b><br>
+  Explica la diferencia entre banco y libros en las cuatro categorías clásicas: depósitos en
+  tránsito, cheques en tránsito, cargos no registrados y abonos no registrados.</li>
+
+  <li><b>Cerrar la conciliación del periodo</b><br>
+  El botón <strong>sólo aparece si cuadra</strong>. Cerrar con diferencia equivaldría a firmar
+  que cuadra cuando no cuadra. Una conciliación cerrada
+  (<span class="campo">EstadoCierre = CERRADA</span>) no se modifica.</li>
+</ol>
+
+<p>
+  Estados de conciliación de cada movimiento:
+  <span class="campo">PENDIENTE · CONCILIADO · EN_TRANSITO</span>.
+</p>
+
+<h3>7.6 · Flujo de efectivo</h3>
+
+<p>
+  <strong>Tesorería › Flujo de efectivo.</strong> Proyección de entradas por cobrar y salidas
+  por pagar en el horizonte elegido. Los traspasos entre cuentas propias se excluyen: mover
+  dinero de una cuenta a otra no constituye flujo.
+</p>
+
+<div class="nota tenue"><span class="rot">Ejercicio 7</span>
+  <p>Abrir un turno con fondo inicial, registrar una venta en efectivo y un retiro por depósito
+  al banco —indicando la cuenta contable de contrapartida— y cerrar el turno declarando un
+  efectivo contado inferior al esperado, con su observación. Después, en Movimientos bancarios,
+  localizar dos renglones: el del retiro, que ofrece el botón de cancelar, y el de la venta, que
+  indica «del documento».</p></div>
+
+<h2><span class="cap">Capítulo 8</span>Contabilidad y cierre mensual</h2>
+
+<p class="roles-cab"><span class="rol">contador</span> <span class="rol">finanzas</span></p>
+
+<h3>8.1 · Qué resuelve</h3>
+
+<p>
+  La contabilidad del ERP <strong>no se captura: se genera</strong>. Cada documento de los
+  capítulos anteriores produce su póliza. La póliza manual existe para lo que carece de módulo
+  —la renta, los servicios, una reclasificación— y constituye la excepción.
+</p>
+
+<h3>8.2 · Catálogo de cuentas</h3>
+
+<figure>
+  <img src="img/28-catalogo-cuentas.jpg" alt="Catálogo de cuentas">
+  <figcaption><b>Finanzas › Catálogo de cuentas.</b> Plan contable de la empresa con el recuento
+  por naturaleza. Cada cuenta lleva su <b>código agrupador del SAT</b>, su tipo, su naturaleza y
+  su nivel.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th style="width:26%">Atributo</th><th>Qué determina</th></tr></thead>
+  <tr><td><strong>Número</strong></td><td>Posición en el plan. Define la jerarquía.</td></tr>
+  <tr><td><strong>Tipo</strong></td><td>Activo, Pasivo, Capital, Ingreso, Costo, Gasto u Orden.</td></tr>
+  <tr><td><strong>Naturaleza</strong></td><td>Deudora o acreedora. Define qué significa un saldo positivo.</td></tr>
+  <tr><td><strong>Nivel</strong></td><td><strong>Mayor</strong> acumula y no recibe movimientos; <strong>Detalle</strong> es la única que los recibe.</td></tr>
+  <tr><td><strong>Código agrupador SAT</strong></td><td>Correspondencia con el catálogo oficial, necesaria para la contabilidad electrónica.</td></tr>
+  <tr><td><strong>Uso automático</strong></td><td>Marca las cuentas que el sistema utiliza por sí mismo —caja, bancos, clientes, proveedores, inventario—. Reasignarlas rompe la generación automática de pólizas.</td></tr>
+</table>
+
+<h3>8.3 · Libro diario</h3>
+
+<figure>
+  <img src="img/18-libro-diario.jpg" alt="Libro diario">
+  <figcaption><b>Finanzas › Libro diario.</b> Todas las pólizas del periodo con folio, tipo,
+  concepto, número de partidas e importe. En la cabecera, el resumen del filtro con <b>Debe</b>,
+  <b>Haber</b> y si está <b>Cuadrado</b>.</figcaption>
+</figure>
+
+<p>
+  Conviene leer los conceptos de esa lista: «Ajuste de inventario por conteo», «Costo de
+  devolución», «Cobranza — Crédito», «Ingreso por hospedaje», «Baja de activo». <strong>Cada
+  uno procede de un documento de otro módulo.</strong> Eso es lo que significa que la
+  contabilidad se genere.
+</p>
+
+<h3>8.4 · Póliza manual</h3>
+
+<figure>
+  <img src="img/19-nueva-poliza.jpg" alt="Nueva póliza manual">
+  <figcaption><b>Finanzas › Nueva póliza.</b> Tipo, fecha, concepto y partidas. El total de
+  cargos y abonos se actualiza en vivo y el botón de guardar permanece inactivo hasta que
+  cuadra. Debajo, tres ejemplos de asientos habituales.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es y qué regla lo gobierna</th></tr></thead>
+  <tr><td class="campo">fecha</td><td><span class="ob">OBLIGATORIO</span></td><td><strong>No se aceptan fechas futuras.</strong> La contabilidad registra hechos ocurridos. Tampoco se acepta una fecha dentro de un periodo cerrado.</td></tr>
+  <tr><td class="campo">concepto</td><td><span class="ob">OBLIGATORIO</span></td><td>Entre 3 y 500 caracteres. Es lo que alguien leerá dentro de un año.</td></tr>
+  <tr><td class="campo">partidas[]</td><td><span class="ob">OBLIGATORIO</span></td><td><strong>Mínimo dos.</strong> Una partida sola no puede cuadrar.</td></tr>
+  <tr><td class="campo">partidas[].cuentaContableId</td><td><span class="ob">OBLIGATORIO</span></td><td>Cuenta de <strong>nivel detalle</strong> que no esté controlada por un auxiliar.</td></tr>
+  <tr><td class="campo">partidas[].cargo</td><td><span class="ob">OBLIGATORIO</span></td><td>Cero o positivo. En cada partida, cargo y abono no pueden ser ambos distintos de cero.</td></tr>
+  <tr><td class="campo">partidas[].abono</td><td><span class="ob">OBLIGATORIO</span></td><td>Cero o positivo.</td></tr>
+  <tr><td class="campo">partidas[].referencia</td><td><span class="op">opcional</span></td><td>Hasta 300 caracteres. Factura, contrato o documento que respalda la partida.</td></tr>
+</table>
+
+<div class="nota sec"><span class="rot">Cuentas que no admiten póliza manual</span>
+  <p>Bancos, clientes, proveedores e inventario están controladas por un <strong>auxiliar</strong>.
+  Al seleccionar una de ellas, el sistema lo explica y remite al módulo correspondiente. No es
+  una restricción arbitraria: una póliza manual contra bancos separa el mayor del auxiliar, y a
+  partir de ese momento la conciliación no vuelve a cuadrar.</p></div>
+
+<h4>Cancelar una póliza</h4>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">motivo</td><td><span class="ob">OBLIGATORIO</span></td><td>Entre 5 y 500 caracteres.</td></tr>
+  <tr><td class="campo">fechaReverso</td><td><span class="op">opcional</span></td><td>Si se omite, la del día.</td></tr>
+</table>
+
+<p>
+  Una póliza no se borra ni se edita: <strong>se emite su reversa</strong>. El sistema invierte
+  cargos y abonos y conserva ambas en el libro con referencia cruzada. Si el periodo original
+  está cerrado —o la póliza estaba fechada por adelantado— la reversa se fecha
+  <strong>hoy</strong>, que es cuando efectivamente se está cancelando.
+</p>
+
+<h3>8.5 · Estados financieros</h3>
+
+<figure>
+  <img src="img/20-balanza.jpg" alt="Balanza de comprobación">
+  <figcaption><b>Balanza de comprobación.</b> Por periodo, con accesos rápidos a mes actual, mes
+  anterior, año e histórico. El sello <b>Cuadrada</b> de la cabecera es el primer dato a
+  verificar.</figcaption>
+</figure>
+
+<figure>
+  <img src="img/21-estado-resultados.jpg" alt="Estado de resultados">
+  <figcaption><b>Estado de resultados.</b> Ingresos, costo de ventas, utilidad bruta, gastos
+  operativos y resultado. Cada renglón conserva su número de cuenta, lo que permite rastrear el
+  origen de cada cifra.</figcaption>
+</figure>
+
+<p>Y el <strong>Balance general</strong>, con la misma estructura.</p>
+
+<h3>8.6 · Declaración de IVA</h3>
+
+<figure>
+  <img src="img/22-declaracion-iva.jpg" alt="Declaración de IVA">
+  <figcaption><b>Finanzas › Declaración de IVA.</b> IVA trasladado contra IVA acreditable, con
+  el saldo a cargo o a favor del periodo. Debajo, el detalle de los movimientos de cada lado y
+  la indicación de en qué línea del portal del SAT corresponde cada importe.</figcaption>
+</figure>
+
+<div class="nota"><span class="rot">Es una estimación contable</span>
+  <p>Se revisa contra los CFDI y las declaraciones antes de presentarla. No desglosa el valor de
+  los actos por tasa —gravados al 16 %, al 0 % y exentos— porque esa separación no reside en la
+  contabilidad sino en los comprobantes.</p></div>
+
+<h3>8.7 · Asientos pendientes</h3>
+
+<figure>
+  <img src="img/26-asientos-pendientes.jpg" alt="Asientos pendientes">
+  <figcaption><b>Finanzas › Asientos pendientes.</b> Operaciones registradas cuya póliza no pudo
+  generarse. Cuatro contadores: requieren revisión, en cola, resueltos y descartados. La lista
+  indica el <b>origen</b>, el documento, el número de intentos y el resultado del último.</figcaption>
+</figure>
+
+<p>
+  <strong>Ésta es la pantalla de revisión semanal.</strong> Un asiento pendiente significa que
+  una operación ocurrió y la contabilidad no la registró. La causa más frecuente es un producto
+  sin categoría, una categoría sin cuentas o una cuenta bancaria sin cuenta contable enlazada.
+</p>
+
+<p>
+  El botón <strong>Reintentar ahora</strong> vuelve a intentar la generación. Si el asiento ya
+  se generó pero el documento quedó rezagado —indicando «pendiente» pese a existir su póliza—
+  el mismo botón corrige el documento.
+</p>
+
+<h3>8.8 · Cierre mensual</h3>
+
+<p>
+  Cerrar un mes es <strong>declarar que las cifras de ese periodo son definitivas</strong>.
+  Después del cierre no pueden registrarse ni modificarse pólizas de ese periodo.
+</p>
+
+<figure>
+  <img src="img/23-cierre-mensual.jpg" alt="Cierre mensual">
+  <figcaption><b>Finanzas › Cierre mensual.</b> El ejercicio completo, mes a mes, con el número
+  de pólizas de cada uno. Los meses terminados ofrecen <b>Revisar para cerrar</b>; los cerrados
+  muestran candado y <b>Ver / reabrir</b>; el mes en curso y los futuros no se cierran.</figcaption>
+</figure>
+
+<h4>Los nueve controles</h4>
+
+<figure>
+  <img src="img/25-cierre-revision-controles.jpg" alt="Revisión de cierre">
+  <figcaption><b>Revisión de cierre.</b> El sistema toma una fotografía del periodo y ejecuta los
+  nueve controles. Verde pasa, <b>rojo bloquea</b>, ámbar advierte. Debajo, el resumen de
+  pólizas, Debe, Haber y diferencias, y la estimación de IVA.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th style="width:36%">Control</th><th style="width:38%">Qué comprueba</th><th>Bloquea</th></tr></thead>
+  <tr><td>Todos los controles pudieron medirse</td><td>Que ninguna consulta del diagnóstico falló</td><td>Sí</td></tr>
+  <tr><td>El mes tiene registros contables</td><td>Que no se cierre un mes vacío por descuido</td><td>Sí</td></tr>
+  <tr><td>Debe y Haber coinciden</td><td>Que la balanza cuadre</td><td>Sí</td></tr>
+  <tr><td>Pólizas completas y cuadradas</td><td>Que ninguna esté incompleta</td><td>Sí</td></tr>
+  <tr><td>No hay operaciones esperando póliza</td><td>Que nada del mes quedara sin contabilizar</td><td>Sí</td></tr>
+  <tr><td>Todos los módulos llegaron al libro mayor</td><td>Que ningún módulo quedara fuera</td><td>Sí</td></tr>
+  <tr><td>Conciliación bancaria del mes</td><td>Que cada cuenta activa tenga conciliación <strong>cerrada</strong></td><td>Configurable</td></tr>
+  <tr><td>Las pólizas llegaron al mayor externo</td><td>Que la bandeja de salida esté vacía</td><td>Sí, sólo en modo espejo</td></tr>
+  <tr><td>Existe una conciliación de referencia</td><td>Que haya una revisión inicial confirmada</td><td>No, advierte</td></tr>
+</table>
+
+<div class="nota sec"><span class="rot">Mensaje «No se pudo medir»</span>
+  <p>No debe ignorarse. Indica que una consulta del diagnóstico falló y que, en consecuencia,
+  los resultados favorables restantes no son fiables: lo que no pudo medirse es un bloqueo con
+  nombre, no una aprobación. El motivo consta en el registro del servidor.</p></div>
+
+<h4>Las tres confirmaciones humanas</h4>
+
+<ol>
+  <li>Revisé bancos, cajas y partidas en tránsito.</li>
+  <li>Revisé el IVA contra los comprobantes disponibles.</li>
+  <li>No faltan ventas, compras, nómina ni documentos del mes.</li>
+</ol>
+
+<p>
+  El campo de <strong>notas</strong> recoge qué se revisó. Queda incorporado a la evidencia del
+  cierre y es la explicación que alguien consultará en el futuro.
+</p>
+
+<p>
+  <strong>El respaldo no se firma.</strong> Lo toma el sistema al cerrar, verifica que el
+  archivo esté íntegro y conserva su huella criptográfica. Si el respaldo falla, el mes
+  <strong>no</strong> se cierra.
+</p>
+
+<h4>Secuencia del cierre</h4>
+
+<ol class="pasos">
+  <li><b>Respaldo y verificación</b><br>Si falla, el proceso se detiene aquí.</li>
+  <li><b>Nueva ejecución de los controles</b><br>La información pudo cambiar desde la fotografía inicial.</li>
+  <li><b>Protección de las pólizas del periodo</b></li>
+  <li><b>Registro de la evidencia</b><br>Diagnóstico, confirmaciones, notas y datos del respaldo.</li>
+</ol>
+
+<h4>Reapertura</h4>
+
+<figure>
+  <img src="img/24-cierre-reapertura.jpg" alt="Reapertura de un periodo">
+  <figcaption><b>Ver / reabrir.</b> Un periodo cerrado muestra la fecha de cierre y ofrece la
+  reapertura con <b>motivo obligatorio</b>. La reapertura no elimina el cierre anterior: queda
+  registrada en la bitácora. Es una operación excepcional y debe resultar visible.</figcaption>
+</figure>
+
+<div class="nota tenue"><span class="rot">Ejercicio 8</span>
+  <p>Seleccionar un mes terminado y pulsar «Revisar para cerrar» sin cerrarlo. Anotar qué
+  controles resultan bloqueantes y por qué. Si el bloqueo es la conciliación bancaria, cargar el
+  estado de cuenta de ese mes —o marcarlo como mes sin movimientos—, cerrarlo y pulsar «Volver a
+  calcular». Ese ciclo constituye el cierre mensual completo.</p></div>

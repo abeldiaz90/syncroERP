@@ -1,0 +1,423 @@
+<h2><span class="cap">Capítulo 4</span>Compras</h2>
+
+<p class="roles-cab"><span class="rol">almacenista</span> <span class="rol">comprador</span> <span class="rol">gerencia</span> <span class="rol">dirección</span> <span class="rol">tesorería</span></p>
+
+<h3>4.1 · Qué resuelve, y por qué son cinco manos</h3>
+
+<p>
+  El ciclo de compra convierte una necesidad en mercancía pagada. Atraviesa cinco decisiones
+  distintas —pedir, autorizar, elegir proveedor, recibir y pagar— y el sistema impide
+  activamente que las tome la misma persona. No es burocracia: es la única forma de que
+  ninguna persona pueda, por sí sola, sacar dinero de la empresa hacia un proveedor elegido
+  por ella.
+</p>
+
+<div class="cinta">
+  <div><span class="q">almacenista</span><b>Requisición</b>«Necesito esto»: producto y cantidad. Sin precios.</div>
+  <div><span class="q">quien manda</span><b>Autorización</b>Aprueba o rechaza con motivo escrito.</div>
+  <div><span class="q">comprador</span><b>Cotización</b>Captura propuestas y adjudica.</div>
+  <div><span class="q">quien manda</span><b>Adjudicación</b>Aprueba a qué proveedor se compra.</div>
+  <div><span class="q">comprador</span><b>Orden de compra</b>Se emite y se envía al proveedor.</div>
+  <div><span class="q">almacenista</span><b>Recepción</b>Ingresa lo que llegó realmente.</div>
+  <div><span class="q">tesorería</span><b>Pago</b>Se paga contra lo recibido.</div>
+</div>
+
+<h4>Matriz de segregación</h4>
+
+<table>
+  <thead><tr><th style="width:30%">Acción</th><th style="width:22%">Quién puede</th><th>Restricción que impone el sistema</th></tr></thead>
+  <tr><td>Levantar requisición</td><td>almacenista, comprador, cualquier usuario con departamento</td><td>Requiere departamento asignado.</td></tr>
+  <tr><td>Autorizar requisición</td><td>quien la matriz designe por nivel</td><td><strong>El solicitante nunca puede firmar su propia requisición</strong>, ni siquiera como suplente.</td></tr>
+  <tr><td>Capturar cotizaciones</td><td>comprador</td><td>Una cotización por proveedor y requisición: índice único.</td></tr>
+  <tr><td>Solicitar adjudicación</td><td>comprador</td><td>Exige motivo de selección escrito.</td></tr>
+  <tr><td>Aprobar adjudicación</td><td>quien la matriz designe</td><td>No puede ser quien la solicitó.</td></tr>
+  <tr><td>Recibir mercancía</td><td>almacenista</td><td>El comprador no tiene acceso a la recepción.</td></tr>
+  <tr><td>Pagar</td><td>tesorería</td><td>El comprador no tiene acceso al pago. Sólo se pagan órdenes recibidas.</td></tr>
+</table>
+
+<h3>4.2 · Requisitos previos del módulo</h3>
+
+<table>
+  <thead><tr><th style="width:30%">Requisito</th><th style="width:20%">Quién lo crea</th><th>Consecuencia de su ausencia</th></tr></thead>
+  <tr><td><strong>Departamento del solicitante</strong></td><td>administrador, en Usuarios</td><td>La requisición no se guarda. El mensaje lo dice con nombre y explica de quién es el pendiente.</td></tr>
+  <tr><td><strong>Ruta de aprobación del departamento</strong></td><td>se crea al arrancar; se ajusta en Flujos de aprobación</td><td>Sin niveles configurados, la requisición nace lista para cotizar sin pasar por firma.</td></tr>
+  <tr><td><strong>Firmante activo en cada nivel</strong></td><td>gobierno</td><td>La requisición se rechaza al guardarse, indicando qué nivel se quedó sin quien lo firme.</td></tr>
+  <tr><td><strong>Categoría en cada producto que mueve inventario</strong></td><td>comprador</td><td>La recepción entra y la póliza queda encolada.</td></tr>
+  <tr><td><strong>Proveedores activos</strong></td><td>comprador</td><td>No hay a quién cotizar.</td></tr>
+  <tr><td><strong>Cuenta bancaria o caja con saldo</strong></td><td>tesorería</td><td>No se puede registrar el pago.</td></tr>
+</table>
+
+<div class="nota sec"><span class="rot">El departamento gobierna la ruta</span>
+  <p>La ruta de aprobación se resuelve <strong>por departamento</strong>, sin alternativa
+  global. Un usuario sin departamento no puede levantar requisiciones, y el mensaje que recibe
+  no le pide hacer algo que no está en su mano: indica que el administrador debe asignárselo en
+  Usuarios.</p></div>
+
+<h3>4.3 · Requisición</h3>
+
+<p><strong>Compras › Requisiciones › Nueva requisición.</strong></p>
+
+<figure>
+  <img src="img/06-compras-requisiciones.jpg" alt="Requisiciones">
+  <figcaption><b>Requisiciones.</b> Los cuatro contadores superiores describen el estado del
+  ciclo: total, pendientes de firma, en cotización y recibidas. En la lista, cada renglón
+  indica su estado y, cuando espera firma, <b>de quién</b> la espera.</figcaption>
+</figure>
+
+<h4>Campos que se capturan</h4>
+
+<table>
+  <thead><tr><th style="width:24%">Campo</th><th style="width:12%"></th><th>Qué es y qué regla lo gobierna</th></tr></thead>
+  <tr><td class="campo">detalles[]</td><td><span class="ob">OBLIGATORIO</span></td><td>Al menos un renglón. Un mismo producto <strong>no puede aparecer dos veces</strong> en la misma requisición.</td></tr>
+  <tr><td class="campo">detalles[].productoId</td><td><span class="ob">OBLIGATORIO</span></td><td>Producto activo y de la misma empresa. Si uno no cumple, se rechaza la requisición completa indicando la causa.</td></tr>
+  <tr><td class="campo">detalles[].cantidadSolicitada</td><td><span class="ob">OBLIGATORIO</span></td><td>Mayor que cero. Admite decimales (mínimo 0.0001) para unidades fraccionables.</td></tr>
+  <tr><td class="campo">detalles[].notas</td><td><span class="op">opcional</span></td><td>Precisión del renglón: marca preferida, especificación técnica.</td></tr>
+  <tr><td class="campo">prioridad</td><td><span class="op">opcional</span></td><td><span class="campo">BAJA · NORMAL · ALTA · URGENTE</span>. Por omisión NORMAL. Ordena el trabajo del comprador; no altera la ruta de firmas.</td></tr>
+  <tr><td class="campo">fechaRequerida</td><td><span class="op">opcional</span></td><td>Cuándo se necesita. Es el dato que el comprador usa para priorizar.</td></tr>
+  <tr><td class="campo">notas</td><td><span class="op">opcional</span></td><td>Justificación general de la solicitud.</td></tr>
+</table>
+
+<h4>Qué no se captura, y por qué</h4>
+
+<table>
+  <thead><tr><th style="width:24%">Dato ausente</th><th>Motivo</th></tr></thead>
+  <tr><td><strong>Precios</strong></td><td>Una requisición pide cantidad, no dinero. Quien necesita un producto no tiene por qué conocer su costo, y si lo escribe condiciona la negociación del comprador.</td></tr>
+  <tr><td><strong>Proveedor</strong></td><td>Elegir proveedor es una decisión posterior y de otra persona. Sugerirlo desde la requisición vacía de contenido la cotización.</td></tr>
+  <tr><td><strong>Almacén de destino</strong></td><td>Se fija en la recepción, que es cuando se sabe dónde cabe.</td></tr>
+  <tr><td><strong>Importe estimado</strong></td><td>Lo calcula el sistema. Ver el apartado siguiente.</td></tr>
+</table>
+
+<h4>Cómo se valúa y qué decide la firma</h4>
+
+<p>
+  Al guardar, el sistema calcula el importe estimado multiplicando cada cantidad por el
+  <strong>último costo de compra conocido</strong> del producto
+  (<span class="campo">precioCompra</span>). Ese importe se compara con los rangos
+  <span class="campo">montoDesde</span> / <span class="campo">montoHasta</span> de los niveles
+  configurados en la matriz, y determina cuántas firmas se exigen.
+</p>
+
+<p>
+  Un producto del que aún no se conoce el costo <strong>vale cero</strong> en ese cálculo, lo
+  que empuja el importe hacia abajo. Es deliberado: lo desconocido no escala por sí solo a la
+  dirección. El umbral se elige sabiendo esto.
+</p>
+
+<div class="nota"><span class="rot">Estimación, no presupuesto</span>
+  <p>El importe estimado no pretende ser exacto: sólo necesita acertar el orden de magnitud,
+  que es lo único que el umbral requiere. El importe real aparece con las cotizaciones.</p></div>
+
+<h4>Resolución del firmante</h4>
+
+<p>
+  Para cada nivel configurado, el sistema busca quién debe firmarlo recorriendo cuatro escalones
+  en este orden:
+</p>
+
+<table>
+  <thead><tr><th style="width:10%">Orden</th><th style="width:34%">Escalón</th><th>Cuándo se usa</th></tr></thead>
+  <tr><td>1</td><td>La persona que la ruta nombra</td><td>Si sigue activa.</td></tr>
+  <tr><td>2</td><td>Cualquier usuario con el rol que la ruta exige</td><td>Si la ruta apunta a un rol, o si la persona nombrada se dio de baja.</td></tr>
+  <tr><td>3</td><td>Quien tenga el rol que la persona dada de baja tenía</td><td>Suplencia por rol heredado.</td></tr>
+  <tr><td>4</td><td>Administración</td><td>Último recurso, para que el documento no se detenga.</td></tr>
+</table>
+
+<p>
+  <strong>El solicitante queda excluido de los cuatro escalones.</strong> La suplencia cubre
+  ausencias; no relaja la separación de funciones. Si ningún escalón produce firmante, la
+  requisición <strong>no se guarda</strong> y el mensaje indica qué nivel quedó sin cubrir.
+</p>
+
+<h4>Estados de la requisición</h4>
+
+<table>
+  <thead><tr><th style="width:24%">Estado</th><th>Significado y qué lo hace avanzar</th></tr></thead>
+  <tr><td class="campo">PENDIENTE</td><td>Espera firma. Nace así cuando el importe supera algún umbral.</td></tr>
+  <tr><td class="campo">COTIZANDO</td><td>Autorizada o sin umbral aplicable. El comprador puede trabajarla.</td></tr>
+  <tr><td class="campo">APROBADA</td><td>Firmada en todos sus niveles.</td></tr>
+  <tr><td class="campo">RECHAZADA</td><td>Un nivel la negó, con motivo escrito.</td></tr>
+  <tr><td class="campo">CONVERTIDA</td><td>Se generó cotización a partir de ella.</td></tr>
+  <tr><td class="campo">ORDEN_GENERADA</td><td>Existe orden de compra.</td></tr>
+  <tr><td class="campo">RECIBIDA</td><td>La mercancía llegó completa.</td></tr>
+  <tr><td class="campo">CON_INCIDENCIAS</td><td>Llegó con faltantes o rechazos.</td></tr>
+  <tr><td class="campo">CANCELADA</td><td>Anulada antes de convertirse.</td></tr>
+</table>
+
+<h4>Errores frecuentes</h4>
+
+<table>
+  <thead><tr><th style="width:38%">Síntoma</th><th>Causa real</th></tr></thead>
+  <tr><td>«Tu usuario todavía no tiene departamento asignado»</td><td>Falta el departamento en Usuarios. Lo resuelve el administrador, no quien captura.</td></tr>
+  <tr><td>«Un producto no puede aparecer más de una vez»</td><td>Se agregó el mismo artículo en dos renglones. Se suman las cantidades en uno solo.</td></tr>
+  <tr><td>«Uno o más productos no existen, están inactivos o pertenecen a otra empresa»</td><td>Producto dado de baja después de que la pantalla cargó el catálogo. Recargar y volver a elegir.</td></tr>
+  <tr><td>«El nivel N de la ruta se quedó sin nadie que pueda firmarlo»</td><td>La matriz apunta a un rol sin usuarios activos, o a una persona dada de baja. Lo corrige gobierno en Flujos de aprobación.</td></tr>
+  <tr><td>Toda requisición pide firma, incluso las pequeñas</td><td>Los umbrales por importe están implementados pero llegan sin configurar. Hasta que se fijen los rangos, todo nivel aplica desde cero.</td></tr>
+</table>
+
+<h3>4.4 · Autorización de la requisición</h3>
+
+<p><strong>Aprobaciones › Bandeja de aprobaciones.</strong></p>
+
+<p>
+  La bandeja muestra únicamente <strong>el siguiente nivel asignado al usuario o a su
+  rol</strong>: no la cola completa. Cada solicitud presenta qué se pide, para cuándo, quién lo
+  pide y el importe estimado.
+</p>
+
+<table>
+  <thead><tr><th style="width:24%">Acción</th><th style="width:14%">Campo</th><th>Regla</th></tr></thead>
+  <tr><td><strong>Aprobar</strong></td><td class="campo">comentario <span class="op">opcional</span></td><td>Pasa al siguiente nivel o, si era el último, a COTIZANDO.</td></tr>
+  <tr><td><strong>Rechazar</strong></td><td class="campo">comentario <span class="ob">OBLIGATORIO</span></td><td>Mínimo 3 caracteres. El motivo es lo único que indica al solicitante qué debe cambiar.</td></tr>
+</table>
+
+<h4>Validaciones al firmar</h4>
+
+<table>
+  <thead><tr><th style="width:44%">Mensaje</th><th>Qué comprueba</th></tr></thead>
+  <tr><td>«Esta aprobación está asignada a otro usuario»</td><td>El nivel corresponde a otra persona.</td></tr>
+  <tr><td>«Esta aprobación ya fue resuelta»</td><td>Alguien firmó antes; la pantalla estaba desactualizada.</td></tr>
+  <tr><td>«Debe resolverse primero el nivel de aprobación anterior»</td><td>Las firmas son secuenciales.</td></tr>
+  <tr><td>«La requisición ya no está pendiente; estado: …»</td><td>Cambió de estado mientras la pantalla estaba abierta.</td></tr>
+  <tr><td>«La requisición cambió de estado durante la aprobación»</td><td>Dos firmas simultáneas. Recargar y reintentar.</td></tr>
+</table>
+
+<h3>4.5 · Cotización</h3>
+
+<p><strong>Compras › Cotizaciones.</strong></p>
+
+<figure>
+  <img src="img/07-compras-cotizaciones.jpg" alt="Gestión de cotizaciones">
+  <figcaption><b>Compras › Cotizaciones.</b> Lista las requisiciones autorizadas que esperan
+  precio, con el número de partidas. <b>Capturar</b> abre el registro de propuestas por
+  proveedor; <b>Ver</b> muestra la comparación.</figcaption>
+</figure>
+
+<h4>Campos por propuesta</h4>
+
+<table>
+  <thead><tr><th style="width:24%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">requisicionId</td><td><span class="ob">OBLIGATORIO</span></td><td>Requisición que se está cotizando.</td></tr>
+  <tr><td class="campo">proveedorId</td><td><span class="ob">OBLIGATORIO</span></td><td>Proveedor que propone. <strong>Un proveedor sólo puede cotizar una vez la misma requisición</strong>: existe un índice único sobre empresa, requisición y proveedor.</td></tr>
+  <tr><td class="campo">detalles[].productoId</td><td><span class="ob">OBLIGATORIO</span></td><td>Producto cotizado.</td></tr>
+  <tr><td class="campo">detalles[].cantidad</td><td><span class="ob">OBLIGATORIO</span></td><td>Mayor que cero.</td></tr>
+  <tr><td class="campo">detalles[].precioUnitario</td><td><span class="ob">OBLIGATORIO</span></td><td>Precio ofrecido. Admite cero para partidas bonificadas.</td></tr>
+  <tr><td class="campo">tasaIva</td><td><span class="op">opcional</span></td><td>Entre 0 y 1. Si se omite, cada partida usa el impuesto de su producto.</td></tr>
+  <tr><td class="campo">subtotal · impuestoTotal · total</td><td><span class="op">opcional</span></td><td>Se aceptan pero <strong>el sistema recalcula</strong>. Nunca son fuente de verdad.</td></tr>
+  <tr><td class="campo">notas</td><td><span class="op">opcional</span></td><td>Condiciones: tiempo de entrega, vigencia de la oferta, forma de pago.</td></tr>
+</table>
+
+<h4>Estados de la cotización</h4>
+
+<table>
+  <thead><tr><th style="width:26%">Estado</th><th>Significado</th></tr></thead>
+  <tr><td class="campo">PENDIENTE</td><td>Capturada, sin proponerse para adjudicación.</td></tr>
+  <tr><td class="campo">PENDIENTE_APROBACION</td><td>El comprador la propuso; espera firma.</td></tr>
+  <tr><td class="campo">APROBADA</td><td>Firmada. De aquí nace la orden de compra.</td></tr>
+  <tr><td class="campo">SELECCIONADA</td><td>Elegida por el comprador.</td></tr>
+  <tr><td class="campo">RECHAZADA</td><td>Alguien la negó, <strong>con motivo y con nombre</strong>.</td></tr>
+  <tr><td class="campo">DESCARTADA</td><td>No fue la elegida. <strong>No es lo mismo que rechazada.</strong></td></tr>
+</table>
+
+<div class="nota sec"><span class="rot">Rechazada y descartada no son sinónimos</span>
+  <p>A una propuesta <em>rechazada</em> alguien le dijo que no, con motivo escrito y con
+  nombre. Una <em>descartada</em> simplemente no fue la elegida. Confundirlas deja al proveedor
+  marcado como reprobado cuando sólo cotizó más caro, y es la primera pregunta que surge al
+  auditar por qué se adjudicó a otro.</p></div>
+
+<h3>4.6 · Adjudicación</h3>
+
+<p>
+  Adjudicar es <strong>decidir a quién se le entrega el dinero</strong>. Por eso es el punto del
+  ciclo con control más estricto: lo propone el comprador y lo firma otra persona.
+</p>
+
+<ol class="pasos">
+  <li><b>Solicitar la adjudicación</b> <span class="quien">comprador</span><br>
+  Campo <span class="campo">motivoSeleccion</span> <span class="ob">OBLIGATORIO</span>, hasta
+  1000 caracteres. Es la justificación de por qué esa propuesta y no otra: precio, plazo de
+  entrega, condiciones de pago, calidad. La cotización pasa a
+  <span class="campo">PENDIENTE_APROBACION</span>.</li>
+  <li><b>Aprobar o rechazar</b> <span class="quien">quien designe la matriz</span><br>
+  Aprobar admite <span class="campo">comentario</span> opcional. <strong>Rechazar lo
+  exige</strong>, con mínimo 3 caracteres: «Al rechazar la adjudicación hay que decir por
+  qué». Al aprobarse, la elegida pasa a <span class="campo">APROBADA</span> y las demás
+  propuestas de esa requisición pasan a <span class="campo">DESCARTADA</span>.</li>
+</ol>
+
+<div class="nota"><span class="rot">Trazabilidad de la firma</span>
+  <p>El documento conserva por separado quién solicitó la adjudicación
+  (<span class="campo">solicitadoAprobacionPorId</span>) y quién la aprobó
+  (<span class="campo">aprobadoPorId</span>), además del motivo de selección y del comentario
+  de aprobación. Los cuatro datos son los que se piden en una auditoría de compras.</p></div>
+
+<h3>4.7 · Orden de compra</h3>
+
+<figure>
+  <img src="img/08-compras-ordenes.jpg" alt="Órdenes de compra">
+  <figcaption><b>Compras › Órdenes de compra.</b> Historial de documentos emitidos a
+  proveedores con folio, proveedor, importe total y estado. El icono de impresión genera el
+  documento para el proveedor.</figcaption>
+</figure>
+
+<p>
+  La orden se genera <strong>a partir de la cotización aprobada</strong>: el único campo que se
+  captura es <span class="campo">cotizacionId</span>. Todo lo demás —proveedor, partidas,
+  precios, impuestos y total— se hereda. Esto garantiza que lo que se ordena es exactamente lo
+  que se aprobó.
+</p>
+
+<h4>Tres estados que avanzan por separado</h4>
+
+<p>
+  Ésta es la parte del módulo que más se malinterpreta. La orden lleva <strong>dos estados
+  reales y uno derivado</strong>:
+</p>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:26%">Valores</th><th>Qué lo hace avanzar</th></tr></thead>
+  <tr><td class="campo">estadoRecepcion</td><td class="campo">PENDIENTE · PARCIAL · COMPLETA</td><td>Únicamente las recepciones.</td></tr>
+  <tr><td class="campo">estadoPago</td><td class="campo">PENDIENTE · PARCIAL · PAGADA</td><td>Únicamente los pagos.</td></tr>
+  <tr><td class="campo">estado</td><td class="campo">PENDIENTE · ENVIADA · RECIBIDA · CON_INCIDENCIAS · PARCIALMENTE_PAGADA · PAGADA · CANCELADA</td><td><strong>Derivado.</strong> Resume los dos anteriores en la etiqueta que compras reconoce. Se recalcula solo.</td></tr>
+</table>
+
+<p>
+  La consecuencia práctica: una orden puede estar <em>recibida completa</em> y <em>sin
+  pagar</em>, o <em>parcialmente recibida</em> y <em>parcialmente pagada</em>. La etiqueta
+  resumida no contradice esos dos hechos, los sintetiza. Ante una duda, los campos que mandan
+  son <span class="campo">estadoRecepcion</span> y <span class="campo">estadoPago</span>.
+</p>
+
+<p>
+  La orden mantiene además <span class="campo">totalPagado</span> y
+  <span class="campo">saldoPendiente</span>, que son los que alimentan la pantalla de pago a
+  proveedores.
+</p>
+
+<h3>4.8 · Recepción de mercancía</h3>
+
+<p><strong>Almacenes › Recepciones › Recibir mercancía</strong>, o desde la orden.</p>
+
+<figure>
+  <img src="img/09-recepciones.jpg" alt="Recepción de mercancía">
+  <figcaption><b>Recepción de mercancía.</b> Dos pestañas: <b>Por recibir</b> —órdenes enviadas
+  que esperan llegada— e <b>Historial completo</b>. Los contadores superiores indican cuántas
+  están en tránsito y cuántas se recibieron.</figcaption>
+</figure>
+
+<h4>Campos de la recepción</h4>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es y qué regla lo gobierna</th></tr></thead>
+  <tr><td class="campo">claveIdempotencia</td><td><span class="ob">OBLIGATORIO</span></td><td>Identificador único de esta captura, generado por la pantalla. Es lo que impide que un doble clic reciba dos veces: está respaldado por un índice único en la base de datos.</td></tr>
+  <tr><td class="campo">almacenId</td><td><span class="ob">OBLIGATORIO</span></td><td>Almacén que recibe. Determina dónde sube la existencia.</td></tr>
+  <tr><td class="campo">detalles[]</td><td><span class="ob">OBLIGATORIO</span></td><td>Al menos un renglón.</td></tr>
+  <tr><td class="campo">detalles[].id</td><td><span class="ob">OBLIGATORIO</span></td><td>Renglón de la orden que se está recibiendo.</td></tr>
+  <tr><td class="campo">detalles[].cantidadRecibidaOk</td><td><span class="ob">OBLIGATORIO</span></td><td>Lo que llegó <strong>en condiciones</strong>. Es lo que entra al inventario.</td></tr>
+  <tr><td class="campo">detalles[].cantidadRechazada</td><td><span class="ob">OBLIGATORIO</span></td><td>Lo que llegó y se devuelve al transportista. No entra al inventario. Si es cero, se captura cero.</td></tr>
+  <tr><td class="campo">detalles[].motivoRechazo</td><td><span class="op">opcional</span></td><td>Hasta 255 caracteres. Se captura siempre que haya rechazo: es lo que sustenta la reclamación al proveedor.</td></tr>
+  <tr><td class="campo">detalles[].ubicacionId</td><td><span class="ob">OBLIGATORIO</span></td><td>Posición exacta donde se guarda. El desplegable prioriza las posiciones ya asignadas al producto.</td></tr>
+  <tr><td class="campo">detalles[].lote</td><td><span class="op">opcional</span></td><td>Hasta 100 caracteres. Obligatorio en la práctica para productos con caducidad o trazabilidad.</td></tr>
+  <tr><td class="campo">detalles[].fechaCaducidad</td><td><span class="op">opcional</span></td><td>Permite la rotación por caducidad.</td></tr>
+  <tr><td class="campo">detalles[].equivalenciaId</td><td><span class="op">opcional</span></td><td>Unidad en la que llegó, si difiere de la de compra —cajas en lugar de piezas—. El sistema convierte.</td></tr>
+</table>
+
+<h4>La distinción entre lo pedido y lo llegado</h4>
+
+<p>
+  Se captura <strong>lo que llegó realmente</strong>, no lo que decía la orden. Si llegó menos,
+  la orden queda en <span class="campo">estadoRecepcion = PARCIAL</span> y espera el resto.
+  Capturar lo pedido en lugar de lo llegado es el error más costoso del módulo, porque
+  descuadra simultáneamente el inventario y las cuentas por pagar, y el desajuste no se
+  manifiesta hasta el conteo o la conciliación.
+</p>
+
+<h4>Efectos automáticos de la recepción</h4>
+
+<table>
+  <thead><tr><th style="width:30%">Efecto</th><th>Detalle</th></tr></thead>
+  <tr><td><strong>Existencia</strong></td><td>Sube <span class="campo">cantidadRecibidaOk</span> en el almacén, la ubicación y el lote indicados.</td></tr>
+  <tr><td><strong>Costo del producto</strong></td><td>Se actualiza <span class="campo">precioCompra</span> con el precio de la orden.</td></tr>
+  <tr><td><strong>Precio de venta</strong></td><td>Si el producto tiene margen configurado, se recalcula desde el costo nuevo. Ejemplo real: costo 100 y margen 35 % dan precio 135; al subir el costo a 137, el precio pasa a 185 sin recapturar nada.</td></tr>
+  <tr><td><strong>Póliza</strong></td><td>Asiento de entrada contra la cuenta de inventario de la categoría y la cuenta de proveedores.</td></tr>
+  <tr><td><strong>Estado de la orden</strong></td><td><span class="campo">estadoRecepcion</span> pasa a PARCIAL o COMPLETA y se recalcula el estado derivado.</td></tr>
+  <tr><td><strong>Valuación futura</strong></td><td>El costo nuevo valúa la siguiente requisición del mismo producto, y por tanto puede cambiar cuántas firmas exige.</td></tr>
+</table>
+
+<div class="nota sec"><span class="rot">Verificación obligada después de recibir</span>
+  <p>Si el producto carece de cuenta de inventario, la mercancía entra y <strong>la póliza no se
+  genera</strong>, sin que nada lo indique en la pantalla de recepción. Revisar
+  <strong>Finanzas › Asientos pendientes</strong> después de cada jornada de recepción. El
+  cierre mensual también lo detecta, pero con tres semanas de retraso.</p></div>
+
+<h3>4.9 · Pago a proveedor</h3>
+
+<p><strong>Compras › Pago a proveedores.</strong></p>
+
+<figure>
+  <img src="img/10-pago-proveedores.jpg" alt="Pago a proveedores">
+  <figcaption><b>Pago a proveedores.</b> Sólo aparecen las órdenes <b>recibidas</b>: no se paga
+  lo que no ha llegado. El importe total por pagar encabeza la pantalla, con filtros por estado
+  —por pagar, entrega incompleta, pago parcial, pagadas—.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th style="width:26%">Campo</th><th style="width:12%"></th><th>Qué es</th></tr></thead>
+  <tr><td class="campo">claveIdempotencia</td><td><span class="ob">OBLIGATORIO</span></td><td>Impide el pago duplicado por doble envío.</td></tr>
+  <tr><td class="campo">montoPagado</td><td><span class="ob">OBLIGATORIO</span></td><td>Mayor que cero. Puede ser inferior al saldo: el pago parcial es válido.</td></tr>
+  <tr><td class="campo">cuentaBancariaId</td><td><span class="ob">OBLIGATORIO</span></td><td>De dónde sale el dinero: banco, caja o terminal.</td></tr>
+  <tr><td class="campo">referencia</td><td><span class="op">opcional</span></td><td>Hasta 120 caracteres: número de transferencia, cheque, comprobante. Es lo que permite conciliar después.</td></tr>
+  <tr><td class="campo">fechaPago</td><td><span class="op">opcional</span></td><td>Si se omite, la fecha del día. Determina en qué periodo contable cae.</td></tr>
+</table>
+
+<h4>Efectos automáticos del pago</h4>
+
+<table>
+  <thead><tr><th style="width:30%">Efecto</th><th>Detalle</th></tr></thead>
+  <tr><td><strong>Saldo de la cuenta</strong></td><td>Baja el importe pagado y se recalcula el saldo acumulado de la cuenta.</td></tr>
+  <tr><td><strong>Movimiento de tesorería</strong></td><td>Egreso con <span class="campo">tipoDocumento = PAGO_PROVEEDOR</span>. Queda marcado como «del documento» y <strong>no se cancela desde Tesorería</strong>.</td></tr>
+  <tr><td><strong>Póliza</strong></td><td>Cargo a Proveedores, abono a Banco o Caja.</td></tr>
+  <tr><td><strong>Estado de la orden</strong></td><td><span class="campo">estadoPago</span> pasa a PARCIAL o PAGADA; se actualizan <span class="campo">totalPagado</span> y <span class="campo">saldoPendiente</span>.</td></tr>
+</table>
+
+<h4>Estado contable del pago</h4>
+
+<table>
+  <thead><tr><th style="width:26%">Estado</th><th>Significado</th></tr></thead>
+  <tr><td class="campo">PENDIENTE</td><td>Registrado; su póliza aún no se ha generado.</td></tr>
+  <tr><td class="campo">GENERADO</td><td>Contabilizado.</td></tr>
+  <tr><td class="campo">FALLIDO</td><td>La póliza no pudo generarse. Aparece en Asientos pendientes con su motivo.</td></tr>
+  <tr><td class="campo">REVERTIDO</td><td>Reservado para la reversa de pago, función que el ERP aún no expone.</td></tr>
+</table>
+
+<h3>4.10 · Devolución a proveedor</h3>
+
+<p>
+  <strong>Compras › Devoluciones a proveedor.</strong> Es la compra invertida: salen piezas del
+  almacén, baja la cuenta por pagar y se genera la póliza inversa. Se registra
+  <strong>contra una recepción</strong>, no contra la orden, porque sólo puede devolverse lo que
+  efectivamente entró. Estados: <span class="campo">REGISTRADA</span> y
+  <span class="campo">CANCELADA</span>.
+</p>
+
+<h3>4.11 · Errores frecuentes del ciclo completo</h3>
+
+<table>
+  <thead><tr><th style="width:38%">Situación</th><th>Causa y solución</th></tr></thead>
+  <tr><td>La requisición no avanza y nadie la ve en su bandeja</td><td>El nivel apunta a un rol sin usuarios activos. Se corrige en Flujos de aprobación; el diagnóstico del nivel lo señala en rojo.</td></tr>
+  <tr><td>El aprobador es la misma persona que solicita</td><td>El sistema rechaza la solicitud al guardarse. Hay que enrutar el nivel a otro rol o dar de alta un segundo firmante.</td></tr>
+  <tr><td>Un proveedor no aparece para cotizar</td><td>Está inactivo, o ya cotizó esa misma requisición.</td></tr>
+  <tr><td>La orden figura como pagada pero la mercancía no llegó</td><td>Se pagó una orden marcada como recibida sin haberla recibido físicamente. Revisar <span class="campo">estadoRecepcion</span>, que es el dato real.</td></tr>
+  <tr><td>La existencia subió pero no hay póliza</td><td>Producto sin categoría o categoría sin cuentas. Se ve en Asientos pendientes.</td></tr>
+  <tr><td>Se recibió dos veces la misma entrega</td><td>No puede ocurrir por doble clic: la clave de idempotencia lo impide. Si aparece duplicado, son dos capturas distintas y una debe corregirse con devolución.</td></tr>
+</table>
+
+<div class="nota tenue"><span class="rot">Ejercicio 4 — el ciclo completo</span>
+  <p>Con tres usuarios distintos: levantar una requisición de dos productos; autorizarla con el
+  segundo usuario; capturar dos cotizaciones de proveedores distintos; solicitar la adjudicación
+  con motivo y aprobarla con el tercero; generar la orden; recibirla <strong>parcialmente</strong>,
+  con una cantidad rechazada y su motivo; y pagarla parcialmente.</p>
+  <p>Verificar después: la existencia subió sólo en lo recibido en condiciones; la orden quedó
+  con <span class="campo">estadoRecepcion = PARCIAL</span> y
+  <span class="campo">estadoPago = PARCIAL</span>; el costo del producto cambió; las cotizaciones
+  no elegidas quedaron DESCARTADA y no RECHAZADA; y en el libro diario hay dos pólizas
+  nuevas.</p></div>
