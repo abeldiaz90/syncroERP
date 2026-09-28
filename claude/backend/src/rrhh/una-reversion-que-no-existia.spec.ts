@@ -83,19 +83,32 @@ describe('una reversión que no existía', () => {
     expect(g.fechaRechazo).toBeInstanceOf(Date);
   });
 
-  it('no revierte si el periodo de nómina ya se calculó', async () => {
-    for (const estado of [
-      EstadoPeriodo.CALCULADO,
-      EstadoPeriodo.APROBADO,
-      EstadoPeriodo.EN_REVISION,
-    ]) {
-      const { s, guardadas } = servicio(aprobada(), [{ estado }]);
-      await expect(
-        s.revertirIncidencia('i1', 'Se aprobó por error', 'u9', 'e1'),
-      ).rejects.toBeInstanceOf(ConflictException);
-      // Y sobre todo: no escribe nada.
-      expect(guardadas).toHaveLength(0);
-    }
+  it('no revierte la que el cálculo ya usó', async () => {
+    /*
+     * La pregunta correcta no es en qué estado está el PERIODO, sino si ESTA
+     * incidencia ya se usó. La primera versión miraba el periodo y negaba en
+     * todos los casos con «ya movió un recibo», que es falso cuando la
+     * incidencia se capturó DESPUÉS del cálculo: se midió en vivo con el periodo
+     * 18 pagado y una incidencia creada después. Ahora el cálculo marca
+     * `APLICADA` las que usa, así que la respuesta se sabe.
+     */
+    const { s, guardadas } = servicio({
+      ...aprobada(),
+      estadoAprobacion: 'APLICADA',
+    });
+    await expect(
+      s.revertirIncidencia('i1', 'Se aprobó por error', 'u9', 'e1'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(guardadas).toHaveLength(0);
+  });
+
+  it('sí revierte una aprobada aunque su periodo esté pagado, si no se usó', async () => {
+    const { s, guardadas } = servicio(aprobada(), [
+      { estado: EstadoPeriodo.PAGADO },
+    ]);
+    await s.revertirIncidencia('i1', 'Se capturó después del cálculo', 'u9', 'e1');
+    expect(guardadas).toHaveLength(1);
+    expect(guardadas[0].estadoAprobacion).toBe('CANCELADA');
   });
 
   it('sólo se revierte lo aprobado', async () => {

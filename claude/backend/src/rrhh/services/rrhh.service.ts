@@ -41,6 +41,7 @@ import {
   Asistencia,
   ConceptoNomina,
   Empleado,
+  ESTADOS_INCIDENCIA_RESUELTA,
   EstadoEmpleado,
   EstadoPeriodo,
   Incidencia,
@@ -1089,37 +1090,21 @@ export class RrhhService {
     }
 
     /*
-     * Los estados en los que el periodo ya tomo la incidencia. ABIERTO no esta:
-     * ahi todavia no se ha calculado nada y revertir es inocuo.
+     * La pregunta correcta no es en que estado esta el PERIODO, sino si esta
+     * incidencia ya se uso. Antes se miraba el periodo -CALCULADO, APROBADO,
+     * PAGADO...- y se negaba en todos los casos con «ya movio un recibo», que es
+     * falso cuando la incidencia se capturo DESPUES del calculo: el periodo esta
+     * pagado y esa incidencia no movio nada.
+     *
+     * Ahora el calculo marca `APLICADA` las que usa, asi que la respuesta se
+     * sabe: si esta APLICADA se niega, y si no, se revierte. Un candado que
+     * distingue vale mas que uno que se cubre las espaldas negando todo.
      */
-    const YA_CALCULADO = [
-      EstadoPeriodo.CALCULANDO,
-      EstadoPeriodo.CALCULADO,
-      EstadoPeriodo.CON_ALERTAS,
-      EstadoPeriodo.EN_REVISION,
-      EstadoPeriodo.APROBADO,
-      EstadoPeriodo.CFDI_PREPARADO,
-      EstadoPeriodo.TIMBRADO,
-      EstadoPeriodo.DISPERSION_GENERADA,
-      EstadoPeriodo.EN_DISPERSION,
-      EstadoPeriodo.PAGADO,
-      EstadoPeriodo.CONTABILIZADO,
-      EstadoPeriodo.CERRADO,
-    ];
-    const periodos = await this.periodos.find({
-      where: {
-        empresaId,
-        fechaInicio: LessThanOrEqual(i.fechaFin),
-        fechaFin: MoreThanOrEqual(i.fechaInicio),
-      },
-    });
-    const tocado = periodos.find((p) => YA_CALCULADO.includes(p.estado));
-    if (tocado) {
+    if ((i.estadoAprobacion as string) === 'APLICADA') {
       throw new ConflictException(
-        `El periodo de nomina que contiene esta incidencia ya esta en ${tocado.estado}, ` +
-          'asi que la incidencia ya movio un recibo. Revierte primero el periodo ' +
-          'y vuelve a intentarlo: retirarla ahora dejaria el recibo y la ' +
-          'incidencia diciendo cosas distintas.',
+        'Esta incidencia ya se uso en el calculo de la nomina, asi que movio un ' +
+          'recibo. Revierte primero el periodo y vuelve a intentarlo: retirarla ' +
+          'ahora dejaria el recibo y la incidencia diciendo cosas distintas.',
       );
     }
 
@@ -1465,7 +1450,9 @@ export class RrhhService {
         this.parametrosNomina.count({ where: { empresaId, activo: true } }),
         this.incidencias.createQueryBuilder('i')
           .where('i.empresaId = :empresaId', { empresaId })
-          .andWhere("i.estadoAprobacion NOT IN ('APROBADA','RECHAZADA','CANCELADA')")
+          .andWhere('i.estadoAprobacion NOT IN (:...resueltas)', {
+            resueltas: [...ESTADOS_INCIDENCIA_RESUELTA],
+          })
           .getCount(),
         this.periodos.createQueryBuilder('p')
           .where('p.empresaId = :empresaId', { empresaId })

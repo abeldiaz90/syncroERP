@@ -11,6 +11,7 @@ import { DataSource, EntityManager, In } from 'typeorm';
 import {
   ConceptoNomina,
   Empleado,
+  ESTADOS_INCIDENCIA_RESUELTA,
   EstadoPeriodo,
   Incidencia,
   JornadaLaboral,
@@ -190,6 +191,21 @@ export class NominaCalculoService {
         periodo,
         empresaId,
       );
+      /*
+       * Queda escrito que estas incidencias ya movieron un recibo. `APLICADA`
+       * existía en el código y nadie la escribía, así que la reversión no podía
+       * distinguir «aprobada y todavía sin usar» de «aprobada y ya cobrada», y
+       * tenía que negarse en los dos casos con un motivo que en el primero era
+       * falso.
+       */
+      if (incidencias.length) {
+        await queryRunner.manager
+          .getRepository(Incidencia)
+          .update(
+            { id: In(incidencias.map((i) => i.id)) },
+            { estadoAprobacion: 'APLICADA' },
+          );
+      }
       const conceptosEmpleado = await this.obtenerConceptosEmpleado(
         queryRunner.manager,
         periodo,
@@ -541,7 +557,9 @@ export class NominaCalculoService {
         inicio: periodo.fechaInicio,
         fin: periodo.fechaFin,
       })
-      .andWhere("i.estadoAprobacion NOT IN ('APROBADA','RECHAZADA','CANCELADA')")
+      .andWhere('i.estadoAprobacion NOT IN (:...resueltas)', {
+        resueltas: [...ESTADOS_INCIDENCIA_RESUELTA],
+      })
       .getCount();
     if (pendientes > 0) {
       throw new ConflictException(
@@ -554,7 +572,16 @@ export class NominaCalculoService {
       .createQueryBuilder('i')
       .where('i.empresaId = :empresaId', { empresaId })
       .andWhere('i.aprobada = true')
-      .andWhere("i.estadoAprobacion = 'APROBADA'")
+      /*
+       * APROBADA o APLICADA. `APLICADA` la escribe este mismo cálculo al
+       * terminar, para que se sepa que esa incidencia ya movió un recibo —el
+       * dato que la reversión necesita—. Si aquí se pidiera sólo APROBADA, un
+       * RECÁLCULO del periodo dejaría fuera las incidencias que el cálculo
+       * anterior marcó, y el segundo recibo saldría sin las faltas del primero.
+       */
+      .andWhere('i.estadoAprobacion IN (:...usables)', {
+        usables: ['APROBADA', 'APLICADA'],
+      })
       .andWhere('i.fechaInicio <= :fin AND i.fechaFin >= :inicio', {
         inicio: periodo.fechaInicio,
         fin: periodo.fechaFin,

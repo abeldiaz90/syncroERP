@@ -63,6 +63,23 @@ export enum EstadoEmpleado {
   BAJA = 'BAJA',
 }
 
+/**
+ * Estados en los que una incidencia ya está resuelta: nadie tiene que hacer
+ * nada más con ella. Vive aquí porque lo preguntan tres sitios —el cálculo de
+ * nómina, el tablero de RRHH y la reversión— y una lista escrita tres veces es
+ * una lista que un día dirá tres cosas.
+ *
+ * `APLICADA` es la que faltaba: existía en el código desde siempre y NADIE la
+ * escribía, así que no había manera de saber si una incidencia aprobada ya
+ * había movido un recibo o sólo estaba esperando. La escribe el cálculo.
+ */
+export const ESTADOS_INCIDENCIA_RESUELTA = [
+  'APROBADA',
+  'APLICADA',
+  'RECHAZADA',
+  'CANCELADA',
+] as const;
+
 export enum TipoIncidencia {
   FALTA = 'FALTA',
   RETARDO = 'RETARDO',
