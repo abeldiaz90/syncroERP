@@ -42,7 +42,14 @@ interface IAdjudicacion {
     id: string;
     requisicionId: string;
     total: number;
-    proveedor?: { razonSocial?: string; nombreComercial?: string };
+    /*
+     * `nombre` es el campo OBLIGATORIO de la entidad Proveedor y es el que
+     * llena el alta rápida; `razonSocial` es opcional y `nombreComercial` no
+     * existe en la entidad. El tipo declaraba justo los dos que no sirven, que
+     * es cómo la tarjeta acabó diciendo «Proveedor no disponible» con el dato
+     * ahí al lado.
+     */
+    proveedor?: { nombre?: string; razonSocial?: string };
     requisicion?: { id: string; usuarioSolicitante?: { nombreCompleto?: string } };
   };
 }
