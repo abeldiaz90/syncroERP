@@ -226,6 +226,21 @@ export class RrhhController {
     return this.svc.aprobarIncidencia(id, usuarioId, empresaId);
   }
 
+  /**
+   * Retira una incidencia YA APROBADA. Lo que `rechazar` nombraba y no existia.
+   * Exige motivo, igual que el rechazo: retirar lo que alguien aprobo no puede
+   * ser anonimo.
+   */
+  @Patch('incidencias/:id/revertir')
+  revertirIncidencia(
+    @Param('id', ParseSqlServerGuidPipe) id: string,
+    @Body() dto: RechazarIncidenciaDto,
+    @ActiveUser('id') usuarioId: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
+    return this.svc.revertirIncidencia(id, dto.motivo, usuarioId, empresaId);
+  }
+
   @Patch('incidencias/:id/rechazar')
   rechazar(
     @Param('id', ParseSqlServerGuidPipe) id: string,

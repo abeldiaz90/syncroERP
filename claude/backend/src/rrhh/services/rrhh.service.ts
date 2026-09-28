@@ -35,7 +35,7 @@ import {
   verDatosDeNomina,
 } from '../utils/datos-de-nomina.util';
 import { rolAutorizado } from '../../iam/utils/roles.util';
-import { Between, DataSource, EntityManager, In, Repository } from 'typeorm';
+import { Between, DataSource, EntityManager, In, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
 
 import {
   Asistencia,
@@ -1052,6 +1052,82 @@ export class RrhhService {
     i.rechazadaPorId = undefined;
     i.fechaRechazo = undefined;
     i.motivoRechazo = undefined;
+    return this.incidencias.save(i);
+  }
+
+  /**
+   * ==========================================================================
+   * Una reversion que no existia
+   * --------------------------------------------------------------------------
+   * `rechazarIncidencia` contesta, con toda razon aparente, que «una incidencia
+   * aprobada debe cancelarse mediante reversion, no rechazarse». Y la reversion
+   * NO EXISTIA: ni endpoint, ni metodo. El mensaje mandaba a una puerta que no
+   * esta en la pared.
+   *
+   * Es la familia de siempre vista del reves: no un boton que lleva a un no,
+   * sino un no que nombra un remedio inexistente. Y aqui cuesta dinero de
+   * alguien: una falta de cinco dias aprobada por error le quita cinco dias de
+   * sueldo a un trabajador, y no habia forma de deshacerlo sin entrar a la base
+   * de datos.
+   *
+   * La regla al revertir es la misma que gobierna el resto del modulo: si el
+   * periodo de nomina que la contiene YA SE CALCULO, la incidencia ya movio un
+   * recibo, y retirarla por detras dejaria el recibo diciendo una cosa y la
+   * incidencia otra. Entonces no se revierte: se dice que primero hay que
+   * revertir el periodo, que es exactamente lo que contesta el calculo cuando
+   * alguien intenta recalcular un periodo aprobado.
+   * ==========================================================================
+   */
+  async revertirIncidencia(id: string, motivo: string, usuarioId: string, empresaId: string) {
+    const i = await this.incidencias.findOne({ where: { id, empresaId } });
+    if (!i) throw new NotFoundException('La incidencia no existe.');
+    if (i.estadoAprobacion !== 'APROBADA') {
+      throw new ConflictException(
+        `Solo se revierte una incidencia APROBADA; esta esta en ${i.estadoAprobacion}. ` +
+          'Una incidencia capturada se rechaza.',
+      );
+    }
+
+    /*
+     * Los estados en los que el periodo ya tomo la incidencia. ABIERTO no esta:
+     * ahi todavia no se ha calculado nada y revertir es inocuo.
+     */
+    const YA_CALCULADO = [
+      EstadoPeriodo.CALCULANDO,
+      EstadoPeriodo.CALCULADO,
+      EstadoPeriodo.CON_ALERTAS,
+      EstadoPeriodo.EN_REVISION,
+      EstadoPeriodo.APROBADO,
+      EstadoPeriodo.CFDI_PREPARADO,
+      EstadoPeriodo.TIMBRADO,
+      EstadoPeriodo.DISPERSION_GENERADA,
+      EstadoPeriodo.EN_DISPERSION,
+      EstadoPeriodo.PAGADO,
+      EstadoPeriodo.CONTABILIZADO,
+      EstadoPeriodo.CERRADO,
+    ];
+    const periodos = await this.periodos.find({
+      where: {
+        empresaId,
+        fechaInicio: LessThanOrEqual(i.fechaFin),
+        fechaFin: MoreThanOrEqual(i.fechaInicio),
+      },
+    });
+    const tocado = periodos.find((p) => YA_CALCULADO.includes(p.estado));
+    if (tocado) {
+      throw new ConflictException(
+        `El periodo de nomina que contiene esta incidencia ya esta en ${tocado.estado}, ` +
+          'asi que la incidencia ya movio un recibo. Revierte primero el periodo ' +
+          'y vuelve a intentarlo: retirarla ahora dejaria el recibo y la ' +
+          'incidencia diciendo cosas distintas.',
+      );
+    }
+
+    i.aprobada = false;
+    i.estadoAprobacion = 'CANCELADA';
+    i.rechazadaPorId = usuarioId;
+    i.fechaRechazo = new Date();
+    i.motivoRechazo = motivo.trim();
     return this.incidencias.save(i);
   }
 
