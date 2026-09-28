@@ -107,3 +107,47 @@ describeSiHayFrontend('Bandeja de aprobaciones · quien firma ve el nombre', () 
     expect(asignacion).not.toMatch(/nombreComercial/);
   });
 });
+
+/**
+ * ============================================================================
+ * Y la que ganó no decía que había ganado
+ * ----------------------------------------------------------------------------
+ * Segunda mitad de la misma corrida. Firmada la propuesta de Proveedor A, la
+ * pantalla dejó a la perdedora marcada DESCARTADA —correcto— y a la GANADORA
+ * sin nada: ni estado, ni botón, ni rastro de que fuera la elegida. Parecía
+ * una propuesta intacta.
+ *
+ * El motivo: el botón «Generar Orden de Compra» va dentro de `<PuedeCrear>`, y
+ * gerencia no crea órdenes —eso es de compras, y ese reparto está bien—. Pero
+ * `PuedeCrear` esconde y no pone nada en su lugar, así que la única señal de
+ * que la adjudicación se firmó desaparecía justo para quien acababa de
+ * firmarla.
+ *
+ * Es la misma familia que el botón «Enviar» de transferencias, del revés: allí
+ * se ofrecía una acción imposible, aquí se ocultaba el hecho consumado. En los
+ * dos casos la pantalla deja de contar lo que pasó.
+ *
+ * El componente YA aceptaba una `alternativa`; simplemente no se usaba.
+ * ============================================================================
+ */
+describeSiHayFrontend('Comparativo · la adjudicación ganadora se anuncia', () => {
+  const pagina = () =>
+    readFileSync(
+      join(
+        FRONTEND!,
+        'app/dashboard/compras/cotizaciones/requisicion/[id]/page.tsx',
+      ),
+      'utf8',
+    );
+
+  it('quien no puede generar la orden igual ve que está adjudicada', () => {
+    const texto = pagina();
+    const inicio = texto.indexOf("cot.estado === 'APROBADA'");
+    expect(inicio).toBeGreaterThan(-1);
+    const rama = texto.slice(inicio, inicio + 2200);
+
+    expect(rama).toMatch(/<PuedeCrear/);
+    expect(rama).toMatch(/alternativa=/);
+    expect(rama).toMatch(/Adjudicada/);
+  });
+});

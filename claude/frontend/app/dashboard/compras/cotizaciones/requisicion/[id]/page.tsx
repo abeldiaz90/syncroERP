@@ -376,7 +376,30 @@ export default function CotizacionesRequisicionPage() {
                       </ProtectedElement>
                     </div>
                   ) : cot.estado === 'APROBADA' ? (
-                    <PuedeCrear ruta="/api/compras/ordenes">
+                    /*
+                     * La adjudicación ganadora tiene que DECIR que ganó, aunque
+                     * quien la mire no pueda generar la orden.
+                     *
+                     * Medido el 28-sep-2026 con la sesión de gerencia: firmada
+                     * la propuesta de Proveedor A, su tarjeta se quedó sin nada
+                     * —ni estado ni botón—, mientras la perdedora sí mostraba
+                     * DESCARTADA. Desde esta pantalla no se podía saber cuál
+                     * había ganado: la que ganó parecía intacta.
+                     *
+                     * El motivo es que `PuedeCrear` esconde el botón y no
+                     * ponía nada en su lugar, y gerencia no crea órdenes —eso
+                     * es de compras, y el reparto es correcto—. Lo que faltaba
+                     * era la `alternativa`, que el componente ya aceptaba y
+                     * aquí no se usaba.
+                     */
+                    <PuedeCrear
+                      ruta="/api/compras/ordenes"
+                      alternativa={
+                        <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm border border-emerald-200">
+                          <CheckCircle className="w-4 h-4" /> Adjudicada · la orden de compra la genera compras
+                        </span>
+                      }
+                    >
                       <button onClick={() => handleGenerarOrden(cot)} disabled={procesandoId === cot.id}
                         className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-all font-bold shadow-lg shadow-emerald-200 active:scale-95 text-sm">
                         {procesandoId === cot.id ? <><Loader2 className="w-4 h-4 animate-spin" /> Generando OC...</> : <><DollarSign className="w-4 h-4" /> Generar Orden de Compra</>}
