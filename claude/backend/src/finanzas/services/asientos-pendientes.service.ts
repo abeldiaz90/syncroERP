@@ -30,7 +30,16 @@ import { esViolacionUnicidad } from '../../common/database/errores-sql';
  * lo resuelva. La operación de negocio nunca se bloquea.
  *
  * ESPERA CRECIENTE
- * 1 min → 5 min → 15 min → 1 h → 4 h, y después se marca FALLIDO.
+ * Cinco intentos, con cuatro esperas entre ellos:
+ *
+ *     intento 1 · 1 min · intento 2 · 5 min · intento 3 · 15 min ·
+ *     intento 4 · 1 h · intento 5 → FALLIDO
+ *
+ * La escala decía «1 min → 5 min → 15 min → 1 h → 4 h» y la espera se elegía
+ * con el número de intentos YA consumidos, así que la primera espera real era
+ * de 5 minutos y la de 4 h no llegaba a usarse nunca: quedaba un peldaño
+ * escrito que ningún asiento pisaba. Son cuatro esperas y aquí están las
+ * cuatro.
  *
  * Un error de configuración — una categoría sin cuenta contable — no se
  * arregla solo por reintentar, y machacar la base cada minuto no ayuda a
@@ -40,8 +49,8 @@ import { esViolacionUnicidad } from '../../common/database/errores-sql';
  * ============================================================================
  */
 
-const ESPERAS_MINUTOS = [1, 5, 15, 60, 240];
-const MAX_INTENTOS = ESPERAS_MINUTOS.length;
+const ESPERAS_MINUTOS = [1, 5, 15, 60];
+const MAX_INTENTOS = ESPERAS_MINUTOS.length + 1;
 
 /**
  * ══════════════════════════════════════════════════════════════════════════
@@ -125,6 +134,27 @@ export class AsientosPendientesService {
           existente.folioDocumento = folioDocumento;
           existente.estado = EstadoAsiento.PENDIENTE;
           existente.proximoIntento = new Date();
+          /*
+           * `intentos` vuelve a cero. Es un evento NUEVO —otro periodo, otra
+           * corrida, el mismo documento recalculado— y el payload que se acaba
+           * de sobrescribir lo confirma. Conservar el contador significaba que
+           * una fila que ya había agotado la escalera renaciera con el
+           * contador a tope: el primer intento del cron la devolvía a FALLIDO
+           * sin haber esperado un solo peldaño, y el desgaste del periodo
+           * viejo se cobraba sobre el periodo nuevo.
+           *
+           * El error que se limpia no se tira: queda por escrito de dónde
+           * venía esta fila, porque es lo único que explica por qué el mismo
+           * documento vuelve a encolarse.
+           */
+          if (existente.ultimoError) {
+            existente.notaResolucion =
+              `Reencolado con datos nuevos. Error previo: ${existente.ultimoError}`.slice(
+                0,
+                500,
+              );
+          }
+          existente.intentos = 0;
           existente.ultimoError = null;
           return repo.save(existente);
         }
@@ -144,6 +174,60 @@ export class AsientosPendientesService {
         proximoIntento: new Date(),
       }),
     );
+  }
+
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * Un peldaño de la escalera
+   * --------------------------------------------------------------------------
+   * La espera creciente que promete la cabecera —1 min → 5 → 15 → 1 h → 4 h, y
+   * después FALLIDO— estaba escrita una sola vez, dentro del `catch` del cron.
+   * Y el cron era justamente el camino que casi nunca llegaba a ver la fila:
+   * cada módulo encola dentro de su transacción y llama a `reintentarAhora` en
+   * cuanto confirma, que es lo correcto —el usuario merece saber en el acto si
+   * su póliza se hizo—, pero ese camino marcaba FALLIDO a la primera falla y
+   * ponía `proximoIntento` en nulo. Como el cron sólo recoge PENDIENTE, un
+   * bloqueo de un segundo bastaba para dejar el asiento muerto en la cola
+   * esperando a que una persona abriera la bandeja.
+   *
+   * Aquí está la escalera, una sola vez, y la suben los tres caminos.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  private aplicarPeldano(
+    asiento: AsientoPendiente,
+    mensaje: string,
+  ): EstadoAsiento.PENDIENTE | EstadoAsiento.FALLIDO {
+    asiento.intentos += 1;
+    asiento.ultimoError = mensaje.slice(0, 1000);
+    asiento.fechaUltimoIntento = new Date();
+
+    if (asiento.intentos >= MAX_INTENTOS) {
+      asiento.estado = EstadoAsiento.FALLIDO;
+      asiento.proximoIntento = null;
+    } else {
+      asiento.estado = EstadoAsiento.PENDIENTE;
+      // `intentos - 1`: la espera que toca es la que sigue al intento que
+      // acaba de fallar. Indexando por `intentos` se saltaba el primer peldaño.
+      asiento.proximoIntento = new Date(
+        Date.now() + ESPERAS_MINUTOS[asiento.intentos - 1] * 60_000,
+      );
+    }
+
+    return asiento.estado as
+      | EstadoAsiento.PENDIENTE
+      | EstadoAsiento.FALLIDO;
+  }
+
+  /** Cuánto falta para el siguiente intento, en palabras. */
+  private esperaEnPalabras(asiento: AsientoPendiente): string {
+    if (asiento.estado === EstadoAsiento.FALLIDO) {
+      return 'Agotó los reintentos automáticos y requiere revisión manual.';
+    }
+    const minutos =
+      ESPERAS_MINUTOS[asiento.intentos - 1] ?? ESPERAS_MINUTOS[0];
+    const cuando =
+      minutos >= 60 ? `${minutos / 60} h` : `${minutos} min`;
+    return `Sigue en la cola: se reintentará solo en ${cuando}.`;
   }
 
   /**
@@ -186,8 +270,14 @@ export class AsientosPendientesService {
             },
           });
           if (existente) {
-            existente.ultimoError = mensaje.slice(0, 1000);
-            existente.fechaUltimoIntento = new Date();
+            /*
+             * La fila previa no sólo recibe el error nuevo: avanza un peldaño
+             * y vuelve a la cola. Antes se le escribía el mensaje y se la
+             * dejaba en el estado en que estuviera; si estaba FALLIDA seguía
+             * FALLIDA y sin `proximoIntento`, así que el evento nuevo nacía ya
+             * descartado y nadie lo reintentaba jamás.
+             */
+            this.aplicarPeldano(existente, mensaje);
             const guardado = await this.repo.save(existente);
             return { estado: 'PENDIENTE', asientoPendienteId: guardado.id };
           }
@@ -417,23 +507,15 @@ export class AsientosPendientesService {
           `Asiento ${asiento.tipo} ${asiento.folioDocumento ?? asiento.id} generado en el reintento ${asiento.intentos + 1}`,
         );
       } catch (e) {
-        asiento.intentos += 1;
-        asiento.ultimoError = (
-          e instanceof Error ? e.message : String(e)
-        ).slice(0, 1000);
-        asiento.fechaUltimoIntento = new Date();
+        const desenlace = this.aplicarPeldano(
+          asiento,
+          e instanceof Error ? e.message : String(e),
+        );
 
-        if (asiento.intentos >= MAX_INTENTOS) {
-          asiento.estado = EstadoAsiento.FALLIDO;
-          asiento.proximoIntento = null;
+        if (desenlace === EstadoAsiento.FALLIDO) {
           this.logger.error(
             `Asiento ${asiento.tipo} ${asiento.folioDocumento ?? asiento.id} agotó los ` +
               `${MAX_INTENTOS} intentos. Requiere revisión manual: ${asiento.ultimoError}`,
-          );
-        } else {
-          asiento.estado = EstadoAsiento.PENDIENTE;
-          asiento.proximoIntento = new Date(
-            Date.now() + ESPERAS_MINUTOS[asiento.intentos] * 60_000,
           );
         }
 
@@ -551,16 +633,20 @@ export class AsientosPendientesService {
         mensaje: 'El asiento se generó correctamente.',
       };
     } catch (e) {
-      a.intentos += 1;
-      a.ultimoError = (e instanceof Error ? e.message : String(e)).slice(
-        0,
-        1000,
-      );
-      a.fechaUltimoIntento = new Date();
-      a.proximoIntento = null;
-      a.estado = EstadoAsiento.FALLIDO;
+      /*
+       * Éste es el camino que toman TODOS los módulos en su primer intento, en
+       * línea, justo después de confirmar la operación. Marcar FALLIDO aquí a
+       * la primera falla era saltarse la escalera entera: el cron sólo recoge
+       * PENDIENTE, así que la fila quedaba fuera de la cola desde el segundo
+       * uno. Ahora sube un peldaño como cualquier otro intento; sólo el último
+       * la marca FALLIDA.
+       */
+      this.aplicarPeldano(a, e instanceof Error ? e.message : String(e));
       await this.repo.save(a);
-      return { generado: false, mensaje: a.ultimoError };
+      return {
+        generado: false,
+        mensaje: `${a.ultimoError} ${this.esperaEnPalabras(a)}`,
+      };
     }
   }
 
