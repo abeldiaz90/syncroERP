@@ -877,6 +877,12 @@ export class AltaEmpresasService {
         rfc: e.rfc,
         activo: e.activo,
         modo: cfg?.modo ?? ModoCartera.APAGADO,
+        /*
+         * Los DOS modos, no sólo el de cartera. La fila decía «ERP + core ·
+         * modo APAGADO» para una empresa que espeja contabilidad, que se lee
+         * como una avería y es su contratación.
+         */
+        modoContabilidad: cfg?.modoContabilidad ?? ModoContabilidad.APAGADO,
         // Los dos ejes; ver `usaRegistroExterno` y por qué mirar uno engañaba.
         usaFineract: AltaEmpresasService.usaRegistroExterno(cfg),
         tenant: tenants.find((t) => t.empresaId === e.id)?.identificador ?? null,

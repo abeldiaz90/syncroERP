@@ -243,6 +243,72 @@ describe('los tres modos de contratación', () => {
     });
   });
 
+  describe('una empresa que espeja contabilidad y no cartera', () => {
+    /*
+     * Los dos ejes son independientes por diseño: hay quien contrata el
+     * registro externo SÓLO para el espejo contable. La consola preguntaba por
+     * la cartera y nada más, así que una empresa así salía como «sólo ERP»
+     * —teniendo inquilino asignado y publicando pólizas— y su lista decía «No
+     * aplica: opera sólo con el ERP» en el mismo renglón donde la fila enseñaba
+     * su inquilino. Dos afirmaciones contrarias a la vez.
+     *
+     * No hace falta un cliente raro para llegar ahí: basta con que una empresa
+     * ERP+core baje su cartera a APAGADO mientras concilia.
+     */
+    function conConfig(cfg: Cualquiera, tenant: Cualquiera | null = null) {
+      const s = Object.create(AltaEmpresasService.prototype) as Cualquiera;
+      s.empresas = {
+        findOne: () => Promise.resolve({ id: 'e1', nombreComercial: 'X', rfc: null, activo: true }),
+      };
+      s.configs = { findOne: () => Promise.resolve(cfg) };
+      s.reserva = {
+        findOne: () => Promise.resolve(tenant),
+        count: () => Promise.resolve(0),
+      };
+      s.productos = { find: () => Promise.resolve([{ id: 'p1' }]) };
+      s.usuarios = { find: () => Promise.resolve([]) };
+      return s as unknown as AltaEmpresasService;
+    }
+
+    const leer = async (s: AltaEmpresasService) =>
+      (await s.estado('e1')) as unknown as {
+        servicios: { fineract: boolean };
+        puntos: Array<{ clave: string; listo: boolean; detalle: string; accion: string | null }>;
+      };
+
+    it('se reconoce como empresa del core aunque su cartera esté apagada', async () => {
+      const r = await leer(
+        conConfig(
+          { modo: ModoCartera.APAGADO, modoContabilidad: ModoContabilidad.ESPEJO },
+          { identificador: 't001' },
+        ),
+      );
+      expect(r.servicios.fineract).toBe(true);
+      const inquilino = r.puntos.find((p) => p.clave === 'tenant')!;
+      // Y su inquilino cuenta, en vez de darse por «no aplica».
+      expect(inquilino.detalle).toMatch(/t001/);
+      expect(inquilino.listo).toBe(true);
+    });
+
+    it('y no se le ordena subir una cartera que no contrató', async () => {
+      const r = await leer(
+        conConfig({ modo: ModoCartera.APAGADO, modoContabilidad: ModoContabilidad.ESPEJO }),
+      );
+      const conciliacion = r.puntos.find((p) => p.clave === 'conciliacion')!;
+      expect(conciliacion.listo).toBe(true);
+      expect(conciliacion.accion).toBeNull();
+      expect(conciliacion.detalle).toMatch(/espeja contabilidad y NO cartera/i);
+    });
+
+    it('con los dos ejes apagados sigue siendo una empresa de sólo ERP', async () => {
+      const r = await leer(
+        conConfig({ modo: ModoCartera.APAGADO, modoContabilidad: ModoContabilidad.APAGADO }),
+      );
+      expect(r.servicios.fineract).toBe(false);
+      expect(r.puntos.find((p) => p.clave === 'tenant')!.detalle).toMatch(/sólo con el ERP/);
+    });
+  });
+
   describe('un consejo que no tenía puerta', () => {
     /*
      * «Reponer la reserva en la próxima ventana de mantenimiento y asignar
