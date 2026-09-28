@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>SyncroERP + Apache Fineract · Manual de curso</title>
+<style>
+  @page { size: Letter; margin: 18mm 16mm 20mm 16mm; }
+
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 10pt; line-height: 1.6; color: #1e2430; margin: 0;
+  }
+
+  /* ── Portada ─────────────────────────────────────────────────────────── */
+  .portada {
+    height: 240mm; width: 100%; page-break-after: always;
+    background-color: #111c34;
+    background-image: linear-gradient(150deg, #0f172a 0%, #1e293b 55%, #312e81 100%);
+    color: #fff; padding: 26mm 20mm; position: relative; border-radius: 4px;
+  }
+  .portada .sello { font-size: 8.5pt; letter-spacing: .32em; text-transform: uppercase; color: #a5b4fc; }
+  .portada h1 { font-size: 32pt; line-height: 1.08; margin: 8mm 0 4mm; font-weight: 700; color:#fff; }
+  .portada h2 { font-size: 14pt; font-weight: 400; color: #cbd5e1; margin: 0 0 12mm; line-height: 1.4; page-break-before: auto; border: 0; padding: 0; }
+  .portada .linea { width: 46mm; height: 3px; background: #818cf8; margin-bottom: 10mm; }
+  .portada .para { font-size: 10.5pt; color: #e2e8f0; max-width: 130mm; }
+  .portada .pie { position: absolute; bottom: 18mm; left: 20mm; right: 20mm;
+    font-size: 9pt; color: #94a3b8; border-top: 1px solid #334155; padding-top: 5mm;
+    display: flex; justify-content: space-between; }
+  .portada .modos { margin-top: 12mm; display: flex; gap: 5mm; }
+  .portada .modo { border: 1px solid #475569; border-radius: 6px; padding: 5mm 6mm; flex: 1; }
+  .portada .modo b { display: block; font-size: 11pt; color: #fff; margin-bottom: 2mm; }
+  .portada .modo span { font-size: 8.5pt; color: #94a3b8; line-height: 1.45; display: block; }
+
+  /* ── Estructura ──────────────────────────────────────────────────────── */
+  .parte { page-break-before: always; page-break-after: always;
+    height: 240mm; display: flex; flex-direction: column; justify-content: center; }
+  .parte .num { font-size: 9pt; letter-spacing: .3em; text-transform: uppercase; color: #6366f1; }
+  .parte h1 { font-size: 30pt; line-height: 1.1; margin: 4mm 0 6mm; color: #0f172a; }
+  .parte p { font-size: 11pt; color: #475569; max-width: 140mm; }
+  .parte ol { font-size: 10pt; color: #475569; margin-top: 8mm; }
+
+  h2 { page-break-before: always; font-size: 17pt; color: #0f172a; margin: 0 0 1mm;
+       padding-bottom: 2.5mm; border-bottom: 2px solid #6366f1; }
+  h2 .cap { display: block; font-size: 8.5pt; letter-spacing: .22em; text-transform: uppercase;
+            color: #6366f1; margin-bottom: 1.5mm; font-weight: 600; }
+  h3 { font-size: 12.5pt; color: #1e293b; margin: 7mm 0 2mm; page-break-after: avoid; }
+  h4 { font-size: 10.5pt; color: #334155; margin: 5mm 0 1.5mm; page-break-after: avoid; }
+  p { margin: 2mm 0; orphans: 2; widows: 2; }
+  ul, ol { margin: 2.5mm 0; padding-left: 6mm; }
+  li { margin: 1.2mm 0; }
+  strong { color: #0f172a; font-weight: 650; }
+  code { font-family: Consolas, "Cascadia Mono", monospace; font-size: .88em;
+         background: #eef2f7; padding: .1em .35em; border-radius: 3px; color: #1e293b; }
+
+  /* ── Tablas ──────────────────────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; font-size: 8.8pt; margin: 3mm 0; }
+  thead { display: table-header-group; }
+  th, td { border: 1px solid #d5dbe4; padding: 1.8mm 2.4mm; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; font-weight: 650; color: #0f172a; }
+  tr { page-break-inside: avoid; }
+  td.n { white-space: nowrap; }
+
+  /* ── Figuras ─────────────────────────────────────────────────────────── */
+  figure { margin: 4mm 0 5mm; page-break-inside: avoid; }
+  figure img { width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; display: block; }
+  figcaption { font-size: 8.2pt; color: #64748b; margin-top: 1.5mm; line-height: 1.45; }
+  figcaption b { color: #334155; }
+
+  /* ── Cajas ───────────────────────────────────────────────────────────── */
+  .caja { border-left: 3px solid; padding: 3mm 4mm; margin: 4mm 0; border-radius: 0 4px 4px 0;
+          page-break-inside: avoid; font-size: 9.2pt; }
+  .caja p:first-child { margin-top: 0; } .caja p:last-child { margin-bottom: 0; }
+  .caja .rot { display: block; font-size: 8pt; letter-spacing: .14em; text-transform: uppercase;
+               font-weight: 700; margin-bottom: 1.5mm; }
+  .dep   { border-color:#6366f1; background:#eef2ff; } .dep .rot   { color:#4338ca; }
+  .ojo   { border-color:#d97706; background:#fffbeb; } .ojo .rot   { color:#b45309; }
+  .auto  { border-color:#059669; background:#ecfdf5; } .auto .rot  { color:#047857; }
+  .nota  { border-color:#64748b; background:#f6f8fa; } .nota .rot  { color:#475569; }
+  .ejerc { border-color:#0891b2; background:#ecfeff; } .ejerc .rot { color:#0e7490; }
+
+  /* ── Flujo en pasos ──────────────────────────────────────────────────── */
+  .flujo { display: table; width: 100%; margin: 4mm 0; page-break-inside: avoid;
+           border: 1px solid #d5dbe4; border-radius: 5px; overflow: hidden; }
+  .flujo > div { display: table-cell; width: 1%; padding: 3mm 3mm; border-right: 1px solid #e2e8f0;
+                 font-size: 8.5pt; vertical-align: top; background: #fbfcfe; }
+  .flujo > div:last-child { border-right: 0; }
+  .flujo .q { display: block; font-size: 7.5pt; letter-spacing: .1em; text-transform: uppercase;
+              color: #6366f1; font-weight: 700; margin-bottom: 1mm; }
+  .flujo b { display: block; color: #0f172a; font-size: 9.2pt; margin-bottom: .8mm; }
+
+  .paso { margin: 4mm 0; padding-left: 9mm; position: relative; page-break-inside: avoid; }
+  .paso .n { position: absolute; left: 0; top: .2mm; width: 6.5mm; height: 6.5mm;
+             background: #4f46e5; color: #fff; border-radius: 50%; font-size: 8.5pt;
+             font-weight: 700; text-align: center; line-height: 6.5mm; }
+  .paso b.t { display: block; color: #0f172a; font-size: 10.5pt; margin-bottom: .8mm; }
+
+  .quien { font-size: 8pt; text-transform: uppercase; letter-spacing: .1em; font-weight: 700;
+           color: #fff; background: #475569; padding: .6mm 2mm; border-radius: 3px;
+           display: inline-block; vertical-align: 1.5px; }
+
+  .indice { font-size: 9.5pt; }
+  .indice .l1 { font-weight: 650; color: #0f172a; margin-top: 3.5mm; }
+  .indice .l2 { padding-left: 6mm; color: #475569; }
+  .indice .l0 { font-size: 11pt; font-weight: 700; color: #4338ca; margin-top: 7mm;
+                border-top: 1px solid #cbd5e1; padding-top: 2.5mm; }
+</style>
+</head>
+<body>

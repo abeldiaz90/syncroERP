@@ -1,0 +1,296 @@
+<section class="parte">
+  <div class="num">Parte III</div>
+  <h1>ERP + Fineract</h1>
+  <p>Qué cambia cuando los dos sistemas trabajan juntos. Esta parte no repite las
+  anteriores: sólo explica lo que es distinto y dónde se mira.</p>
+  <ol>
+    <li>21 · Qué cambia, en resumen</li>
+    <li>22 · Cómo viaja la información</li>
+    <li>23 · El espejo contable</li>
+    <li>24 · Avisos del core</li>
+    <li>25 · Identidad y correspondencia de roles</li>
+    <li>26 · El cierre mensual en modo espejo</li>
+    <li>27 · Cuando los dos no dicen lo mismo</li>
+  </ol>
+</section>
+
+<h2><span class="cap">Capítulo 21</span>Qué cambia, en resumen</h2>
+
+<p>
+  Menos de lo que la gente teme. <strong>Quien opera el ERP sigue operando igual</strong>: vende,
+  cobra, compra y contabiliza en las mismas pantallas de la Parte I. Lo que aparece son cuatro
+  cosas nuevas, y todas son de <em>control</em>, no de captura.
+</p>
+
+<table>
+  <tr><th style="width:30%">Novedad</th><th style="width:20%">Dónde</th><th>Quién la mira</th></tr>
+  <tr><td><strong>Productos de crédito con columna «externo»</strong></td><td>Crédito → Productos de crédito</td><td>crédito</td></tr>
+  <tr><td><strong>Avisos del core</strong></td><td>Crédito → Avisos del core</td><td>crédito, dirección</td></tr>
+  <tr><td><strong>Espejo contable</strong></td><td>Finanzas → Espejo contable</td><td>contador, finanzas</td></tr>
+  <tr><td><strong>Un control más en el cierre</strong></td><td>Finanzas → Cierre mensual</td><td>contador</td></tr>
+</table>
+
+<p>Y en el menú lateral, al pie, un <strong>enlace al portal de Fineract</strong> para los roles
+que lo necesitan.</p>
+
+<h3>21.1 · Quién manda sobre qué</h3>
+
+<p>Ésta es la tabla que evita el 90 % de las discusiones:</p>
+
+<table>
+  <tr><th style="width:30%">Decisión</th><th style="width:22%">Quién decide</th><th>Por qué</th></tr>
+  <tr><td>¿Tiene línea disponible este cliente?</td><td><strong>El ERP</strong></td><td>En modo SOMBRA la decisión vive donde vive la transacción. Preguntar a un sistema remoto dentro de la venta rompe la garantía que impide vender dos veces el último disponible.</td></tr>
+  <tr><td>¿Cuánto debe y cuándo vence?</td><td><strong>El ERP</strong>, y el core lo replica</td><td>Mismo motivo.</td></tr>
+  <tr><td>¿Cuál es el asiento contable de una venta?</td><td><strong>El ERP</strong></td><td>Es el único que conoce el IVA, el catálogo SAT y el CFDI.</td></tr>
+  <tr><td>¿Cuál es el historial financiero del cliente?</td><td><strong>El core</strong></td><td>Es su función: acumula, clasifica y provisiona.</td></tr>
+  <tr><td>¿Cómo se clasifica la mora?</td><td><strong>El core</strong></td><td>Tiene el motor de clasificación y provisión.</td></tr>
+</table>
+
+<div class="caja nota"><span class="rot">La frase que resume el modo</span>
+  <p><strong>El ERP decide y el core registra.</strong> El core no es un sustituto del ERP ni
+  al revés: es el libro donde queda la historia financiera, y el sitio donde esa historia se
+  clasifica y se provisiona con reglas que el ERP no tiene.</p></div>
+
+<h2><span class="cap">Capítulo 22</span>Cómo viaja la información</h2>
+
+<h3>22.1 · La bandeja de salida</h3>
+
+<p>
+  Cuando ocurre un hecho que el core tiene que conocer —se da de alta un cliente, se origina un
+  crédito, se registra un cobro, se contabiliza una póliza— el ERP <strong>no llama al core en
+  ese momento</strong>. Lo anota en una bandeja de salida y sigue.
+</p>
+
+<div class="flujo">
+  <div><span class="q">1</span><b>Ocurre el hecho</b>La venta se guarda y el usuario recibe su ticket.</div>
+  <div><span class="q">2</span><b>Se anota el evento</b>En la misma transacción, para que no se pierda.</div>
+  <div><span class="q">3</span><b>Se despacha</b>Después, en segundo plano o a mano.</div>
+  <div><span class="q">4</span><b>Se enlaza</b>La respuesta del core deja un vínculo entre los dos identificadores.</div>
+</div>
+
+<p>Tres consecuencias prácticas que hay que saber:</p>
+
+<ul>
+  <li><strong>Si el core está caído, la empresa sigue operando.</strong> Lo que se acumula es la
+  bandeja.</li>
+  <li><strong>Los eventos de contabilidad y los de cartera se despachan por separado.</strong>
+  Apagar un eje no puede quedar bloqueado por eventos del otro.</li>
+  <li><strong>Un rechazo del core no es un «no sé si llegó».</strong> Sólo unos pocos casos
+  —tiempo agotado, conflicto, demasiadas peticiones y errores del servidor— dejan el vínculo en
+  duda; un rechazo por datos es un no, y se trata como tal.</li>
+</ul>
+
+<h3>22.2 · Los vínculos</h3>
+
+<p>
+  Cada objeto que existe en los dos lados guarda su pareja. En el core, esa pareja se ve como
+  <strong>referencia externa</strong>:
+</p>
+
+<figure>
+  <img src="img/56-fineract-clientes.jpg" alt="Referencia externa en el core">
+  <figcaption><b>La columna «Referencia externa» del directorio de clientes del core.</b> Valores
+  como <code>syncro:cliente:…</code> son el puente: dicen que ese cliente del core es el reflejo
+  de un cliente concreto del ERP. Un cliente <em>sin</em> referencia externa nació en el core y
+  el ERP no lo conoce — y eso es exactamente lo que el capítulo 24 viene a resolver.</figcaption>
+</figure>
+
+<h3>22.3 · Productos de crédito</h3>
+
+<p>
+  Un producto de crédito del ERP tiene que existir <strong>también en el core</strong> y calcular
+  lo mismo, o el crédito que se origine aquí no se podrá reflejar allá. Por eso la pantalla de
+  productos de crédito tiene, en este modo, dos columnas más:
+</p>
+
+<table>
+  <tr><th style="width:26%">Columna</th><th>Qué dice</th></tr>
+  <tr><td><strong>EXTERNO</strong></td><td>Si el producto ya existe en el core y está verificado.</td></tr>
+  <tr><td><strong>PARA VENDER FALTA</strong></td><td>Qué le falta para poder venderse. Si dice «nada, se puede vender», está listo.</td></tr>
+</table>
+
+<p>
+  El botón <strong>Sembrar catálogo</strong> crea en el core los productos que el ERP tiene, y
+  <strong>Sincronizar</strong> comprueba que siguen coincidiendo.
+</p>
+
+<h2><span class="cap">Capítulo 23</span>El espejo contable</h2>
+
+<p><span class="quien">contador</span> &nbsp;<span class="quien">finanzas</span></p>
+
+<p>
+  En modo <code>ESPEJO</code>, cada póliza que el ERP registra se envía también al mayor del
+  core. <strong>El asiento lo calcula siempre el ERP</strong>; el core recibe el reflejo. Para
+  que ese reflejo sea posible, cada cuenta contable del ERP tiene que tener su equivalente en el
+  plan de cuentas del core.
+</p>
+
+<figure>
+  <img src="img/27-espejo-contable.jpg" alt="Espejo contable">
+  <figcaption><b>Finanzas → Espejo contable.</b> Cuatro números arriba: <b>cuentas sin
+  corresponder</b> (las que ya se usaron en una póliza y no tienen equivalencia),
+  <b>previstas por configuración</b> (las que faltarían en su primer uso), <b>pólizas sin
+  espejar</b> y el estado del <b>enlace</b>. Debajo, las tres herramientas: corresponder cuentas,
+  despachar la cola y comparar las dos contabilidades.</figcaption>
+</figure>
+
+<h3>23.1 · Las tres herramientas</h3>
+
+<div class="paso"><span class="n">1</span><b class="t">Cuentas por corresponder</b>
+  Mientras una cuenta no tenga equivalencia, su póliza no se manda: un asiento a medias en el
+  mayor externo es peor que ninguno. <strong>Crear y corresponder</strong> las da de alta en el
+  core y las enlaza. La casilla <em>incluir las previstas</em> añade las que todavía no se han
+  usado pero se van a usar — es la forma de adelantarse.</div>
+
+<div class="paso"><span class="n">2</span><b class="t">Pólizas que no llegaron al mayor externo</b>
+  Están registradas y son válidas en el ERP; lo único que falta es su reflejo.
+  <strong>Despachar la cola</strong> las reintenta.</div>
+
+<div class="paso"><span class="n">3</span><b class="t">¿Las dos contabilidades dicen lo mismo?</b>
+  <strong>Comparar ahora</strong> recorre las pólizas del periodo y contrasta cada una contra el
+  asiento del mayor externo. Las discrepancias salen con su código y su explicación — por
+  ejemplo, una reversa hecha directamente en el core, o un vínculo que quedó incompleto.</div>
+
+<div class="caja ojo"><span class="rot">Ojo · el orden de trabajo</span>
+  <p>Siempre el mismo: <strong>primero corresponder cuentas, después despachar, y sólo entonces
+  comparar</strong>. Comparar con cuentas sin corresponder produce una lista de discrepancias que
+  son todas el mismo problema.</p></div>
+
+<h2><span class="cap">Capítulo 24</span>Avisos del core</h2>
+
+<p><span class="quien">credito</span> &nbsp;<span class="quien">direccion</span></p>
+
+<p>
+  El flujo del capítulo 22 va del ERP al core. <strong>Éste va al revés.</strong> Cuando algo
+  ocurre <em>en el core</em> —alguien da de alta un cliente allá, aprueba un préstamo allá,
+  registra un pago allá— el core avisa, y el ERP tiene que decidir qué hace con esa noticia.
+</p>
+
+<figure>
+  <img src="img/40-avisos-del-core.jpg" alt="Avisos del core">
+  <figcaption><b>Crédito → Avisos del core.</b> Arriba, cuántos avisos piden una decisión y
+  cuántos son de recursos que el ERP no conoce. Las pestañas separan <b>Piden algo</b>,
+  <b>Fallaron</b>, <b>Resueltos</b>, <b>Descartados</b> y <b>Eco del ERP</b> — este último son
+  los avisos que rebotan de algo que el propio ERP hizo, y no requieren nada.</figcaption>
+</figure>
+
+<h3>24.1 · Los dos grupos</h3>
+
+<h4>Sin correspondencia en el ERP</h4>
+
+<p>
+  El core avisa de un cliente o un préstamo que el ERP <strong>no conoce</strong>: se creó
+  directamente allá. Y aquí el sistema hace algo que conviene entender:
+  <strong>no enseña el contenido del aviso</strong>. La razón está escrita en la propia pantalla:
+  un aviso de una empresa atribuible podría describir a un cliente de otro inquilino, y enseñarlo
+  sería una fuga entre instituciones.
+</p>
+
+<p>
+  Tampoco se pueden cerrar desde aquí: no hay a quién atribuir la decisión. La salida correcta
+  es <strong>dar de alta ese recurso en el ERP</strong>, o aceptar que vive sólo en el core.
+</p>
+
+<h4>Piden algo</h4>
+
+<p>
+  Avisos sobre recursos que el ERP <strong>sí</strong> conoce y que necesitan una acción. Cada
+  uno trae el motivo y dos o tres botones:
+</p>
+
+<table>
+  <tr><th style="width:22%">Botón</th><th>Qué significa</th></tr>
+  <tr><td><strong>Ya lo reflejé</strong></td><td>Lo que el core pedía ya está hecho en el ERP. Cierra el aviso.</td></tr>
+  <tr><td><strong>No aplica</strong></td><td>La decisión es no hacer nada, y queda registrada como tal. No es lo mismo que ignorarlo.</td></tr>
+  <tr><td><strong>Abrir el crédito</strong> / <strong>Abrir…</strong></td><td>Lleva al documento del ERP para resolverlo.</td></tr>
+</table>
+
+<div class="caja ojo"><span class="rot">Ojo</span>
+  <p>Un aviso sin atender no rompe nada hoy, y ése es el problema: se acumula en silencio y
+  aparece en la comparación contable o en la conciliación de cartera tres semanas después.
+  <strong>Es una bandeja, y se vacía como una bandeja.</strong></p></div>
+
+<h2><span class="cap">Capítulo 25</span>Identidad y correspondencia de roles</h2>
+
+<p>
+  Un usuario tiene <strong>una identidad</strong> —la de SUMA— y <strong>dos juegos de
+  permisos</strong>: los del ERP y los de Fineract. No se deducen uno del otro, y pretender que
+  sí es de donde salen los «entro pero no puedo hacer nada».
+</p>
+
+<figure>
+  <img src="img/47-correspondencia-fineract.jpg" alt="Correspondencia con el registro externo">
+  <figcaption><b>Administración → Roles y permisos → Correspondencia con Fineract.</b> Rol por
+  rol del ERP, a qué rol del core corresponde y cuáles están «sin permisos». Arriba: cuántos
+  roles del ERP tienen plantilla, cuántos están <b>sin correspondencia</b> y cuántos usuarios
+  tienen algo pendiente.</figcaption>
+</figure>
+
+<p>
+  La regla está escrita en la pantalla y vale la pena leerla dos veces: <strong>un rol no puede
+  corresponder a varios del otro lado; lo que sí puede es corresponder a ninguno</strong>. Un
+  usuario que entra y no puede hacer nada al otro lado es peor que uno que no entra: el segundo
+  sabe que le falta algo, el primero cree que el sistema está roto.
+</p>
+
+<h3>25.1 · Quién necesita acceso al core</h3>
+
+<table>
+  <tr><th style="width:24%">Rol del ERP</th><th>¿Necesita entrar al portal?</th></tr>
+  <tr><td><strong>credito</strong></td><td>Sí. Es quien consulta el historial y la clasificación del cliente en el core.</td></tr>
+  <tr><td><strong>cobranza</strong></td><td>Normalmente sí, en consulta.</td></tr>
+  <tr><td><strong>contador</strong> / <strong>finanzas</strong></td><td>Sólo si hay que revisar el mayor externo. La comparación se hace desde el ERP.</td></tr>
+  <tr><td><strong>direccion</strong></td><td>Sí, en lectura.</td></tr>
+  <tr><td>El resto</td><td>No. Y no dárselo es lo correcto.</td></tr>
+</table>
+
+<h2><span class="cap">Capítulo 26</span>El cierre mensual en modo espejo</h2>
+
+<p>
+  El cierre del capítulo 8 sigue igual, con <strong>un control más</strong>:
+  «Las pólizas llegaron al mayor externo». Cuenta lo que quedó sin entregar en la bandeja de
+  salida, y bloquea.
+</p>
+
+<p>
+  Cuenta lo no entregado en <strong>los tres estados</strong>: lo que falló, lo que se va a
+  reintentar y lo que sigue pendiente. Contar sólo lo fallido dejaría pasar el caso peor —un
+  asiento que se envió y del que nunca se supo la respuesta—, que es justamente la divergencia
+  de la que nadie se entera.
+</p>
+
+<h4>Si ese control sale rojo</h4>
+
+<div class="paso"><span class="n">1</span><b class="t">Ir a Finanzas → Espejo contable</b>
+  Mirar primero <em>cuentas sin corresponder</em>. Es la causa número uno, con diferencia.</div>
+<div class="paso"><span class="n">2</span><b class="t">Crear y corresponder las cuentas que falten</b></div>
+<div class="paso"><span class="n">3</span><b class="t">Despachar la cola</b></div>
+<div class="paso"><span class="n">4</span><b class="t">Volver al cierre y pulsar «Volver a calcular»</b></div>
+
+<p>
+  Cerrar el mes con asientos sin entregar dejaría los dos libros distintos, y el cierre es
+  precisamente la afirmación de que los números son los definitivos. En modo espejo, eso incluye
+  los del otro lado.
+</p>
+
+<h2><span class="cap">Capítulo 27</span>Cuando los dos no dicen lo mismo</h2>
+
+<p>Un guion de diagnóstico, en el orden en que se recorre.</p>
+
+<table>
+  <tr><th style="width:30%">Síntoma</th><th>Dónde mirar, en este orden</th></tr>
+  <tr><td>Un crédito existe en el ERP y no en el core</td><td>(1) <em>Crédito → Avisos del core</em>, pestaña «Fallaron». (2) Si no está ahí, el evento quedó pendiente: se despacha. (3) Comprobar que el producto de crédito está sincronizado.</td></tr>
+  <tr><td>Un cliente existe en el core y no en el ERP</td><td><em>Avisos del core</em> → «Sin correspondencia». Se decide si se da de alta en el ERP o vive sólo allá.</td></tr>
+  <tr><td>El saldo del cliente no coincide</td><td>El del <strong>ERP es el bueno</strong> en modo SOMBRA. Revisar qué cobros no se replicaron y despacharlos.</td></tr>
+  <tr><td>Una póliza no está en el mayor externo</td><td><em>Finanzas → Espejo contable</em>: cuentas sin corresponder → despachar la cola → comparar.</td></tr>
+  <tr><td>El cierre bloquea por el mayor externo</td><td>Capítulo 26.</td></tr>
+  <tr><td>Un usuario entra al portal y no puede hacer nada</td><td><em>Roles y permisos → Correspondencia con Fineract</em>: su rol está «sin permisos» al otro lado.</td></tr>
+  <tr><td>El core no responde</td><td>Comprobar el estado del enlace en <em>Espejo contable</em> y en <em>Mi jornada</em> del portal. Mientras tanto, <strong>el ERP sigue operando</strong>: lo que se acumula es la bandeja.</td></tr>
+</table>
+
+<div class="caja ejerc"><span class="rot">Ejercicio Parte III</span>
+  <p>Haz una venta a crédito en el ERP. Después busca a ese cliente en el portal del core: mira
+  su <em>referencia externa</em> y comprueba que el crédito aparece en su Cliente 360 con el
+  mismo importe. Luego entra a <em>Finanzas → Espejo contable</em> y pulsa «Comparar ahora» para
+  el mes en curso: deberías ver la póliza de esa venta contrastada contra el asiento del mayor
+  externo.</p></div>

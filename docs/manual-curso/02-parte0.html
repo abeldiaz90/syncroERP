@@ -1,0 +1,347 @@
+<section class="parte">
+  <div class="num">Parte 0</div>
+  <h1>Antes de empezar</h1>
+  <p>Qué es cada pieza, cómo se hablan entre sí, cómo se entra y cómo está
+  organizada la pantalla. Cuarenta minutos que ahorran una semana de dudas.</p>
+  <ol>
+    <li>0.1 · Qué es un ERP y qué es un core financiero</li>
+    <li>0.2 · Las piezas del sistema</li>
+    <li>0.3 · Los tres modos de contratación</li>
+    <li>0.4 · Cómo se entra: la identidad vive en SUMA</li>
+    <li>0.5 · Cómo está organizada la pantalla</li>
+    <li>0.6 · Los trece roles</li>
+  </ol>
+</section>
+
+<h2><span class="cap">Capítulo 0.1</span>Qué es un ERP y qué es un core financiero</h2>
+
+<p>
+  Son dos cosas distintas que la gente confunde el primer día, y confundirlas hace que se
+  busquen las funciones en el sitio equivocado durante semanas.
+</p>
+
+<h3>SyncroERP — el sistema de gestión de la empresa</h3>
+
+<p>
+  Un ERP registra <strong>lo que la empresa hace</strong>: qué compra, qué vende, qué tiene
+  en el almacén, a quién le debe, quién le debe, cuánto paga de nómina y cómo queda todo eso
+  en la contabilidad. Su unidad de trabajo es el <strong>documento</strong>: una requisición,
+  una orden de compra, una recepción, un ticket de venta, una póliza.
+</p>
+
+<p>
+  La idea central, y la que hay que llevarse del curso entero, es ésta:
+  <strong>cada documento que alguien firma dispara por su cuenta todo lo que ese hecho
+  implica</strong>. Recibir mercancía no es sólo anotar que llegó: sube la existencia,
+  actualiza el costo del producto, recalcula su precio de venta y genera el asiento contable.
+  Nadie teclea eso cuatro veces. Y por eso mismo, un documento mal capturado se propaga a
+  cuatro sitios.
+</p>
+
+<h3>Apache Fineract — el core financiero</h3>
+
+<p>
+  Un <em>core bancario</em> registra <strong>productos financieros y su vida</strong>: un
+  cliente, un préstamo con su tabla de amortización, sus pagos, su mora, su castigo, y el
+  asiento contable que cada uno de esos hechos produce. Es lo que usa una institución
+  financiera —una sofom, una caja, una financiera— donde el negocio <em>es</em> prestar.
+</p>
+
+<p>
+  Apache Fineract es un core financiero de código abierto, usado en instituciones de
+  microfinanzas en todo el mundo. En esta instalación corre como servicio aparte, con su
+  propia base de datos y sus propios usuarios.
+</p>
+
+<h3>Dónde se solapan, y por qué existen los tres modos</h3>
+
+<table>
+  <tr><th style="width:30%"></th><th>SyncroERP</th><th>Apache Fineract</th></tr>
+  <tr><td class="n">Inventario, compras, ventas</td><td>Sí</td><td>No</td></tr>
+  <tr><td class="n">Nómina, activos fijos, CFDI</td><td>Sí</td><td>No</td></tr>
+  <tr><td class="n">Crédito a clientes</td><td>Sí, crédito comercial</td><td>Sí, crédito financiero completo</td></tr>
+  <tr><td class="n">Tabla de amortización, mora, castigo</td><td>Básico</td><td>Completo y configurable</td></tr>
+  <tr><td class="n">Contabilidad</td><td>Sí, con catálogo SAT y CFDI</td><td>Sí, contabilidad propia</td></tr>
+  <tr><td class="n">Ahorro, depósitos, cuentas</td><td>No</td><td>Sí</td></tr>
+  <tr><td class="n">Multi-oficina / multi-inquilino</td><td>Multi-empresa</td><td>Multi-inquilino</td></tr>
+</table>
+
+<p>
+  La zona de solape es <strong>el crédito y la contabilidad</strong>. Por eso el producto se
+  vende de tres formas, y por eso el capítulo 0.3 es el más importante de esta parte: define
+  qué pantallas existen en tu instalación y cuáles ni siquiera aparecen.
+</p>
+
+<h2><span class="cap">Capítulo 0.2</span>Las piezas del sistema</h2>
+
+<p>
+  El sistema no es un programa: son varios servicios que se hablan entre sí. Conviene saber
+  cuáles son, porque los mensajes de error los nombran.
+</p>
+
+<table>
+  <tr><th style="width:24%">Pieza</th><th style="width:12%">Dirección</th><th>Qué hace</th></tr>
+  <tr><td><strong>SyncroERP</strong> · aplicación</td><td class="n">puerto 3000</td><td>Lo que ve y usa la gente de la empresa. Es la pantalla.</td></tr>
+  <tr><td><strong>SyncroERP</strong> · servidor</td><td class="n">puerto 4000</td><td>Donde viven las reglas. La pantalla no decide nada: pregunta aquí.</td></tr>
+  <tr><td><strong>Base de datos</strong> del ERP</td><td class="n">PostgreSQL</td><td>Todo lo que la empresa registra.</td></tr>
+  <tr><td><strong>Keycloak</strong></td><td class="n">servicio de SUMA</td><td>Quién eres. Las contraseñas viven aquí y sólo aquí.</td></tr>
+  <tr><td><strong>Portal Fineract</strong></td><td class="n">puerto 3002</td><td>La pantalla del core financiero. <em>Sólo en modos con core.</em></td></tr>
+  <tr><td><strong>Apache Fineract</strong></td><td class="n">puerto 8443</td><td>El core financiero y su base de datos. <em>Sólo en modos con core.</em></td></tr>
+  <tr><td><strong>Consola SUMA</strong></td><td class="n">puerto 3010</td><td>Donde SUMA da de alta a sus empresas cliente. <strong>No es del cliente.</strong></td></tr>
+</table>
+
+<h3>Cómo se hablan</h3>
+
+<p>
+  La regla, que se repite en todo el manual: <strong>el ERP nunca llama al core dentro de la
+  operación que el usuario está haciendo</strong>. Cuando registras una venta a crédito, el
+  ERP decide, guarda y te contesta; lo que hay que contarle al core se deja anotado en una
+  <em>bandeja de salida</em> y se despacha después.
+</p>
+
+<p>
+  Eso tiene una consecuencia práctica que hay que interiorizar: <strong>si el core está caído,
+  la empresa sigue vendiendo</strong>. Lo que se acumula es la bandeja, y se despacha cuando
+  vuelve. El capítulo 18 de la Parte III explica cómo se mira esa bandeja.
+</p>
+
+<h2><span class="cap">Capítulo 0.3</span>Los tres modos de contratación</h2>
+
+<p>
+  Esto no es una preferencia ni una configuración cosmética: <strong>define qué pantallas
+  existen</strong>. Una empresa que no contrató el core no ve las pantallas del core —no
+  vacías, no deshabilitadas: no aparecen—. La razón es simple: enseñar una puerta que no se
+  compró genera llamadas a soporte y expectativas falsas.
+</p>
+
+<h3>Dos ejes independientes</h3>
+
+<p>
+  La contratación no es un interruptor, son <strong>dos ejes que se mueven por separado</strong>.
+  Una empresa puede tener uno sin el otro.
+</p>
+
+<table>
+  <tr><th style="width:22%">Eje</th><th style="width:20%">Valores</th><th>Qué significa</th></tr>
+  <tr>
+    <td><strong>Cartera</strong><br><code>ModoCartera</code></td>
+    <td><code>APAGADO</code><br><code>SOMBRA</code></td>
+    <td>
+      <strong>APAGADO</strong> — el crédito a clientes se lleva entero en el ERP. El core no
+      existe para esta empresa.<br>
+      <strong>SOMBRA</strong> — cada hecho del crédito se replica al core y se concilia a
+      diario, pero <em>las decisiones las sigue tomando el ERP</em>: el disponible, el bloqueo
+      y el saldo salen de la base del ERP. Es el modo con el que se entra a producción.
+    </td>
+  </tr>
+  <tr>
+    <td><strong>Contabilidad</strong><br><code>ModoContabilidad</code></td>
+    <td><code>APAGADO</code><br><code>ESPEJO</code></td>
+    <td>
+      <strong>APAGADO</strong> — la contabilidad vive sólo en el ERP.<br>
+      <strong>ESPEJO</strong> — cada póliza que el ERP registra se envía también al mayor del
+      core. <em>El asiento lo calcula siempre el ERP</em>, porque es el único que conoce el
+      IVA, el catálogo SAT y el CFDI; el core recibe el reflejo.
+    </td>
+  </tr>
+</table>
+
+<div class="caja nota"><span class="rot">Por qué no hay un modo en el que el core mande</span>
+  <p>Existió un tercer grado en el eje de cartera —«el core decide»— y está retirado. Poner a
+  un sistema remoto a decidir <em>dentro</em> de la transacción que reserva una línea de
+  crédito rompe la única garantía que impide vender dos veces el último disponible. Una
+  institución que quiera que el core sea el dueño del crédito no quiere un grado más de este
+  eje: quiere operar en el core, que es el modo «sólo Fineract».</p></div>
+
+<h3>Cómo se combinan en los tres modos comerciales</h3>
+
+<table>
+  <tr><th style="width:22%">Modo</th><th style="width:14%">Cartera</th><th style="width:14%">Contabilidad</th><th>Quién es el cliente típico</th></tr>
+  <tr><td><strong>Sólo ERP</strong></td><td>APAGADO</td><td>APAGADO</td><td>Comercio, distribuidora, hotel, manufactura ligera. Vende, compra, controla inventario y lleva su contabilidad.</td></tr>
+  <tr><td><strong>ERP + Fineract</strong></td><td>SOMBRA</td><td>ESPEJO <em>(o APAGADO)</em></td><td>Empresa que además financia a sus clientes y quiere el historial y el cálculo del core, sin dejar de operar en el ERP.</td></tr>
+  <tr><td><strong>Sólo Fineract</strong></td><td colspan="2" style="text-align:center">no aplica</td><td>Institución financiera. Su negocio es la cartera; no tiene inventario que controlar.</td></tr>
+</table>
+
+<h3>La regla del techo</h3>
+
+<p>
+  La instalación entera tiene un <strong>techo</strong> y cada empresa tiene <strong>su
+  decisión</strong>. El techo limita; no arrastra. Dicho de otra forma: si la instalación
+  permite el espejo contable, eso <em>no</em> enciende el espejo para nadie — cada empresa
+  tiene que pedirlo. Y si la instalación lo tiene apagado, ninguna empresa puede encenderlo
+  por su cuenta.
+</p>
+
+<h3>Qué cambia en la pantalla</h3>
+
+<table>
+  <tr><th style="width:34%">Pantalla</th><th style="width:22%">Sólo aparece si…</th><th>Dónde está</th></tr>
+  <tr><td><strong>Espejo contable</strong></td><td>Contabilidad = ESPEJO</td><td>Finanzas → Control</td></tr>
+  <tr><td><strong>Avisos del core</strong></td><td>Cualquiera de los dos ejes encendido</td><td>Crédito y cobranza → Configuración</td></tr>
+  <tr><td><strong>Flujo de verificación</strong></td><td>Verificación de identidad contratada</td><td>Crédito y cobranza → Configuración</td></tr>
+  <tr><td><strong>Enlace al portal Fineract</strong></td><td>Cartera encendida <em>y</em> el rol corresponde</td><td>Pie del menú lateral</td></tr>
+  <tr><td><strong>Control «Las pólizas llegaron al mayor externo»</strong></td><td>Contabilidad = ESPEJO</td><td>Cierre mensual</td></tr>
+</table>
+
+<div class="caja ojo"><span class="rot">Ojo</span>
+  <p>Si estás siguiendo este manual y una de esas pantallas no te aparece, <strong>no la
+  busques</strong>: tu empresa no contrató ese eje. Y si crees que sí lo contrató, es una
+  pregunta para SUMA, no para el administrador de tu empresa — el modo se fija en el alta.</p></div>
+
+<h2><span class="cap">Capítulo 0.4</span>Cómo se entra</h2>
+
+<p>
+  <strong>La identidad no vive en el ERP.</strong> Vive en Keycloak, el directorio de SUMA. El
+  ERP no pide contraseñas, no las guarda y no las cambia: cuando entras, te manda a SUMA, SUMA
+  comprueba quién eres y le devuelve al ERP un pase firmado.
+</p>
+
+<h3>Qué significa esto en el día a día</h3>
+
+<table>
+  <tr><th style="width:38%">Situación</th><th>Dónde se resuelve</th></tr>
+  <tr><td>Olvidé mi contraseña</td><td><strong>En SUMA</strong>, no en el ERP. El ERP no tiene pantalla de recuperación, y no es un olvido: es la consecuencia de que la contraseña no sea suya.</td></tr>
+  <tr><td>Quiero cambiar mi contraseña</td><td>En SUMA.</td></tr>
+  <tr><td>Segundo factor</td><td>En SUMA.</td></tr>
+  <tr><td>Alta de un empleado nuevo</td><td>Se da de alta en <strong>RRHH → Empleados</strong>; el sistema prepara su identidad en el directorio y le llega el correo desde ahí.</td></tr>
+  <tr><td>Cambiar el rol de alguien</td><td>En el ERP: <strong>Administración → Usuarios</strong>. El rol es del ERP; la identidad es de SUMA.</td></tr>
+  <tr><td>Dar de baja a alguien</td><td>Las dos cosas: desactivar el usuario en el ERP y la identidad en SUMA.</td></tr>
+</table>
+
+<figure>
+  <img src="img/53-fineract-login.jpg" alt="Acceso al portal de Fineract">
+  <figcaption><b>Acceso al portal del core.</b> Una sola puerta: la identidad de SUMA. No hay
+  campo de usuario ni de contraseña, y no es que falte — es que el acceso por usuario y
+  contraseña de Fineract está deshabilitado a propósito.</figcaption>
+</figure>
+
+<div class="caja nota"><span class="rot">Para el portal de Fineract es igual</span>
+  <p>El portal del core <strong>no acepta usuario y contraseña</strong>. El único camino es la
+  misma identidad de SUMA. Si alguien te pasa un usuario y contraseña de Fineract, no va a
+  funcionar, y eso es deliberado.</p></div>
+
+<h2><span class="cap">Capítulo 0.5</span>Cómo está organizada la pantalla</h2>
+
+<p>
+  El ERP tiene más de ochenta pantallas. Nadie usa ochenta. La interfaz está construida para
+  que veas <strong>las tuyas</strong>.
+</p>
+
+<figure>
+  <img src="img/00-panel-principal.jpg" alt="Panel principal">
+  <figcaption><b>Panel principal.</b> Lo primero al entrar: los indicadores del día arriba, y
+  debajo los módulos a los que tu rol llega, cada uno con cuántas secciones tiene. Un módulo
+  que no aparece aquí no está en tu perfil.</figcaption>
+</figure>
+
+<h3>Las cuatro zonas</h3>
+
+<table>
+  <tr><th style="width:24%">Zona</th><th>Qué es</th></tr>
+  <tr><td><strong>Menú lateral</strong></td><td>Los módulos que tu rol atiende. Al entrar en uno se despliega con sus secciones agrupadas (Operación, Control, Configuración…).</td></tr>
+  <tr><td><strong>Migas</strong> (arriba)</td><td><em>Panel › Módulo › Pantalla</em>. Sirven para volver sin perder el sitio.</td></tr>
+  <tr><td><strong>Cabecera del módulo</strong></td><td>Dice en qué módulo estás y ofrece <strong>las acciones frecuentes</strong> de ese módulo a la derecha, para no tener que buscarlas en el menú.</td></tr>
+  <tr><td><strong>Cuerpo</strong></td><td>La pantalla en sí.</td></tr>
+</table>
+
+<h3>El centro de trabajo</h3>
+
+<p>
+  Cada módulo tiene una portada llamada <strong>centro de trabajo</strong>: no tiene datos
+  propios, es el índice del módulo con las acciones del día arriba y todas sus pantallas
+  agrupadas debajo. Es el sitio natural al que volver cuando te pierdes.
+</p>
+
+<figure>
+  <img src="img/51-centro-trabajo-finanzas.jpg" alt="Centro de trabajo de Finanzas">
+  <figcaption><b>Centro de trabajo de Finanzas.</b> Arriba las cuatro acciones que un contador
+  hace casi todos los días; debajo, el módulo entero ordenado por etapa: Configuración,
+  Registro, Estados financieros, Fiscal y Control. Al final, los procesos de otros módulos con
+  los que este se relaciona.</figcaption>
+</figure>
+
+<div class="caja ojo"><span class="rot">Ojo · «Esta sección no está en tu perfil»</span>
+  <p>Si escribes una dirección a mano o sigues un enlace de un compañero con otro rol, puede
+  salirte ese mensaje. <strong>No es un fallo ni un error de datos</strong>: es que esa
+  pantalla no es tuya. Se pide al administrador de la empresa, que puede concederla desde
+  Administración → Roles y permisos.</p></div>
+
+<h2><span class="cap">Capítulo 0.6</span>Los trece roles</h2>
+
+<p>
+  El acceso no se reparte pantalla por pantalla —serían más de mil decisiones— sino por
+  <strong>módulos</strong>, y cada rol tiene una plantilla. Un rol atiende unos módulos por
+  completo, otros sólo en consulta, y el resto no los ve.
+</p>
+
+<table>
+  <tr><th style="width:18%">Rol</th><th>En una frase</th></tr>
+  <tr><td><strong>empleado</strong></td><td>Vende en mostrador: punto de venta, clientes, facturación.</td></tr>
+  <tr><td><strong>almacenista</strong></td><td>Recibe, cuenta, ubica y transfiere mercancía.</td></tr>
+  <tr><td><strong>comprador</strong></td><td>Requisiciones, cotizaciones, órdenes y proveedores.</td></tr>
+  <tr><td><strong>tesoreria</strong></td><td>Paga, cobra, concilia el banco y arquea la caja.</td></tr>
+  <tr><td><strong>contador</strong></td><td>Pólizas, estados financieros, IVA y cierre mensual.</td></tr>
+  <tr><td><strong>finanzas</strong></td><td>Lo del contador, más crédito, nómina y activos fijos.</td></tr>
+  <tr><td><strong>credito</strong></td><td>Línea de crédito, verificación del cliente, originación.</td></tr>
+  <tr><td><strong>cobranza</strong></td><td>Recuperación de cartera vencida.</td></tr>
+  <tr><td><strong>rrhh</strong></td><td>Plantilla, nómina, asistencia, incidencias.</td></tr>
+  <tr><td><strong>hoteleria</strong></td><td>Rack, reservas, folios, city ledger, recetas.</td></tr>
+  <tr><td><strong>gerencia</strong></td><td>Ve casi todo, escribe casi nada.</td></tr>
+  <tr><td><strong>direccion</strong></td><td>Igual que gerencia, con la última firma.</td></tr>
+  <tr><td><strong>gobierno</strong></td><td>Define quién aprueba qué. <strong>No firma ninguna aprobación.</strong></td></tr>
+</table>
+
+<p>
+  Más <strong>administrador</strong>, que no pasa por la tabla de permisos y entra a todo. No
+  es un puesto: es una llave de mantenimiento, y conviene que la tengan una o dos personas.
+</p>
+
+<figure>
+  <img src="img/46-roles-permisos.jpg" alt="Roles y permisos">
+  <figcaption><b>Administración → Roles y permisos.</b> A la izquierda los roles con cuántas
+  acciones tiene cada uno; a la derecha, módulo por módulo, si el rol lo tiene
+  <em>completo</em>, <em>sólo consulta</em> o <em>sin acceso</em>. El ajuste fino por acción
+  existe para los casos raros y queda marcado como «Ajustado a mano».</figcaption>
+</figure>
+
+<h3>Dos reglas de diseño que explican casi todo</h3>
+
+<p>
+  <strong>1 · Quien supervisa no captura.</strong> Gerencia y dirección alcanzan casi todas
+  las pantallas, y casi todas en consulta. No es una limitación: la supervisión no necesita
+  permisos de captura, y dárselos borra el rastro de quién hizo qué.
+</p>
+
+<p>
+  <strong>2 · Quien escribe las reglas no las ejecuta.</strong> El rol <strong>gobierno</strong>
+  define la matriz de firmas —quién aprueba qué y a partir de qué importe— y tiene la acción
+  de resolver aprobaciones <em>explícitamente vedada</em>. Si algún día ese rol pudiera firmar,
+  dejaría de ser un control y pasaría a ser un aprobador con poder para reescribir las reglas:
+  el peor de los dos mundos.
+</p>
+
+<h3>Cuánto alcanza cada rol, medido</h3>
+
+<table>
+  <tr><th style="width:18%">Rol</th><th style="width:14%">Pantallas</th><th>Dónde se concentra</th></tr>
+  <tr><td>gerencia</td><td>80</td><td>RRHH (12), finanzas (12), hotelería (8), reportes (6)</td></tr>
+  <tr><td>finanzas</td><td>56</td><td>finanzas (15), RRHH (8), compras (5), créditos (5)</td></tr>
+  <tr><td>contador</td><td>44</td><td>finanzas (15), RRHH (5), compras (4), tesorería (4)</td></tr>
+  <tr><td>tesoreria</td><td>37</td><td>finanzas (12, casi todo consulta), compras (5), créditos (5)</td></tr>
+  <tr><td>almacenista</td><td>21</td><td>inventario (8), almacenes (3), compras (3)</td></tr>
+  <tr><td>rrhh</td><td>20</td><td>RRHH (16)</td></tr>
+  <tr><td>credito</td><td>16</td><td>créditos (6), reportes (3)</td></tr>
+  <tr><td>comprador</td><td>16</td><td>compras (3), inventario (3), productos (2)</td></tr>
+  <tr><td>gobierno</td><td>5</td><td>aprobaciones y su configuración</td></tr>
+</table>
+
+<p>
+  Que tesorería vea doce pantallas de finanzas <em>en consulta</em> es deliberado: quien paga
+  tiene que poder ver qué paga; no tiene que poder contabilizarlo.
+</p>
+
+<div class="caja ejerc"><span class="rot">Ejercicio 0</span>
+  <p>Entra con tu usuario. Anota: (1) qué módulos te aparecen en el menú lateral, (2) cuáles de
+  los de la tabla del capítulo 0.3 ves y cuáles no —eso te dice en qué modo está tu empresa—,
+  y (3) abre el centro de trabajo de tu módulo principal y localiza sus cuatro acciones
+  frecuentes.</p></div>

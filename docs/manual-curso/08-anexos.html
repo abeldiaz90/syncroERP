@@ -1,0 +1,217 @@
+<section class="parte">
+  <div class="num">Anexos</div>
+  <h1>Material de consulta</h1>
+  <p>Lo que se busca después del curso: qué alcanza cada rol, qué depende de qué,
+  qué significa cada mensaje y qué quiere decir cada palabra.</p>
+  <ol>
+    <li>A · Qué alcanza cada rol, módulo por módulo</li>
+    <li>B · Matriz de dependencias: qué necesita qué</li>
+    <li>C · Mensajes del sistema y qué significan</li>
+    <li>D · Glosario</li>
+    <li>E · Rutina recomendada: día, semana y mes</li>
+  </ol>
+</section>
+
+<h2><span class="cap">Anexo A</span>Qué alcanza cada rol, módulo por módulo</h2>
+
+<p>
+  Esta tabla es el reparto real que trae el sistema. <strong>Completo</strong> es ver, crear,
+  modificar y eliminar; <strong>consulta</strong> es sólo leer. Es una sugerencia, no una jaula:
+  el administrador puede subir o bajar cualquier módulo en <em>Administración → Roles y
+  permisos</em>.
+</p>
+
+<table>
+  <tr><th style="width:15%">Rol</th><th style="width:33%">Completo</th><th style="width:33%">Consulta</th><th>Vedado</th></tr>
+  <tr><td><strong>empleado</strong><br><span style="font-size:7.8pt;color:#64748b">Mostrador: vende, cobra, factura y lleva su cartera comercial.</span></td>
+      <td>ventas, clientes, facturación, caja, CRM</td>
+      <td>inventario, precios, crédito</td><td>—</td></tr>
+  <tr><td><strong>almacenista</strong><br><span style="font-size:7.8pt;color:#64748b">El almacén entero: existencias, movimientos, WMS y recepción.</span></td>
+      <td>inventario, almacenes</td>
+      <td>compras, proveedores</td><td>precios, finanzas, recetas</td></tr>
+  <tr><td><strong>comprador</strong><br><span style="font-size:7.8pt;color:#64748b">Requisiciones, cotizaciones, órdenes y padrón de proveedores.</span></td>
+      <td>compras, proveedores</td>
+      <td>inventario, precios, aprobaciones</td><td>—</td></tr>
+  <tr><td><strong>tesoreria</strong><br><span style="font-size:7.8pt;color:#64748b">Saldos, movimientos, traspasos, conciliación y caja.</span></td>
+      <td>tesorería, caja, aprobaciones</td>
+      <td>finanzas, crédito, catálogos, compras, proveedores, gobierno de aprobaciones</td><td>—</td></tr>
+  <tr><td><strong>contador</strong><br><span style="font-size:7.8pt;color:#64748b">Pólizas, cierres, CFDI, activos y catálogos SAT.</span></td>
+      <td>finanzas, facturación, activos, catálogos</td>
+      <td>ventas, compras, tesorería, precios, caja, aprobaciones, gobierno de aprobaciones</td><td>—</td></tr>
+  <tr><td><strong>finanzas</strong><br><span style="font-size:7.8pt;color:#64748b">Contabilidad, tesorería, facturación, activos y catálogos financieros.</span></td>
+      <td>finanzas, tesorería, facturación, activos, catálogos, precios, aprobaciones</td>
+      <td>ventas, compras, clientes, proveedores, crédito, caja, gobierno de aprobaciones</td><td>—</td></tr>
+  <tr><td><strong>credito</strong><br><span style="font-size:7.8pt;color:#64748b">Línea de crédito, verificación del cliente y originación.</span></td>
+      <td>crédito, clientes, aprobaciones</td>
+      <td>ventas, facturación, integración, gobierno de aprobaciones</td><td>—</td></tr>
+  <tr><td><strong>cobranza</strong><br><span style="font-size:7.8pt;color:#64748b">Cartera, cobros, estados de cuenta y city ledger.</span></td>
+      <td>crédito, clientes, city ledger</td>
+      <td>ventas, facturación, caja</td><td>hotelería</td></tr>
+  <tr><td><strong>hoteleria</strong><br><span style="font-size:7.8pt;color:#64748b">Disponibilidad, ama de llaves, city ledger, recetas y auditoría nocturna.</span></td>
+      <td>hotelería, city ledger, recetas, clientes, aprobaciones</td>
+      <td>inventario, ventas, gobierno de aprobaciones</td><td>—</td></tr>
+  <tr><td><strong>rrhh</strong><br><span style="font-size:7.8pt;color:#64748b">Empleados, puestos, asistencia, incidencias, vacaciones y nómina.</span></td>
+      <td>RRHH, aprobaciones</td>
+      <td>tablero, gobierno de aprobaciones</td><td>—</td></tr>
+  <tr><td><strong>gerencia</strong><br><span style="font-size:7.8pt;color:#64748b">Aprueba y mira todo lo operativo, sin tocar la configuración del sistema.</span></td>
+      <td>aprobaciones, tablero</td>
+      <td>ventas, clientes, compras, proveedores, crédito, inventario, almacenes, precios, finanzas, tesorería, caja, CRM, RRHH, hotelería, city ledger, facturación, activos, gobierno de aprobaciones</td><td>—</td></tr>
+  <tr><td><strong>direccion</strong><br><span style="font-size:7.8pt;color:#64748b">Lo mismo que gerencia, más la lectura de la integración con el core.</span></td>
+      <td>aprobaciones, tablero</td>
+      <td>todo lo de gerencia, más catálogos, recetas e <strong>integración</strong></td><td>—</td></tr>
+  <tr><td><strong>gobierno</strong><br><span style="font-size:7.8pt;color:#64748b">Define quién aprueba qué, desde qué monto y en qué orden. <strong>No firma ninguno.</strong></span></td>
+      <td>gobierno de aprobaciones</td>
+      <td>aprobaciones, tablero</td><td>resolver aprobaciones</td></tr>
+</table>
+
+<p>
+  Más <strong>administrador</strong>, que no pasa por esta tabla y entra a todo. No es un puesto
+  del organigrama: es una llave de mantenimiento.
+</p>
+
+<h2><span class="cap">Anexo B</span>Matriz de dependencias: qué necesita qué</h2>
+
+<p>
+  La causa número uno de «no me deja» es un paso previo que no se dio. Esta tabla se lee de
+  izquierda a derecha: <em>para hacer esto, antes tiene que existir aquello</em>.
+</p>
+
+<table>
+  <tr><th style="width:30%">Para poder…</th><th>Antes tiene que existir</th></tr>
+  <tr><td><strong>Vender en mostrador</strong></td><td>Producto con precio en una lista activa · almacén con existencia · forma de pago · <strong>turno de caja abierto</strong> · cliente (aunque sea Público General)</td></tr>
+  <tr><td><strong>Facturar (CFDI)</strong></td><td>Datos fiscales de la empresa · <strong>ClaveProdServ y ClaveUnidad</strong> del producto · impuesto del producto · RFC y régimen fiscal del cliente</td></tr>
+  <tr><td><strong>Vender a crédito</strong></td><td>Producto de crédito · cliente con <strong>línea autorizada</strong> y disponible suficiente · expediente de verificación según la política</td></tr>
+  <tr><td><strong>Levantar una requisición</strong></td><td><strong>Área</strong> del solicitante · ruta de aprobación del área · categoría en cada producto que mueve inventario</td></tr>
+  <tr><td><strong>Que una requisición avance</strong></td><td>Al menos un firmante activo en cada nivel, <strong>distinto del solicitante</strong></td></tr>
+  <tr><td><strong>Recibir mercancía</strong></td><td>Orden de compra enviada · almacén con ubicaciones dadas de alta</td></tr>
+  <tr><td><strong>Que la recepción contabilice</strong></td><td><strong>Categoría del producto con sus cuentas contables</strong></td></tr>
+  <tr><td><strong>Pagar a un proveedor</strong></td><td>Orden de compra en estado <strong>RECIBIDA</strong> · cuenta bancaria o caja con saldo</td></tr>
+  <tr><td><strong>Registrar una póliza manual</strong></td><td>Cuentas de <strong>nivel detalle</strong> que no sean de auxiliar · periodo abierto · fecha no futura</td></tr>
+  <tr><td><strong>Cerrar el mes</strong></td><td>Conciliación bancaria <strong>cerrada</strong> de cada cuenta activa · cero asientos pendientes · balanza cuadrada · <em>(en modo espejo)</em> bandeja de salida vacía</td></tr>
+  <tr><td><strong>Calcular la nómina</strong></td><td><strong>Configuración patronal completa</strong> · puestos con tabulador · conceptos con su cuenta contable · incidencias del periodo capturadas</td></tr>
+  <tr><td><strong>Dispersar la nómina</strong></td><td>Periodo aprobado con todas sus firmas · cuentas bancarias de los empleados <strong>validadas por alguien distinto de quien las capturó</strong></td></tr>
+  <tr><td><strong>Correr la depreciación</strong></td><td>Activos con categoría, costo, método y fecha de inicio</td></tr>
+  <tr><td><strong>Espejar la contabilidad</strong></td><td>Modo ESPEJO contratado · <strong>cada cuenta usada con su equivalencia en el core</strong></td></tr>
+  <tr><td><strong>Originar un crédito en el core</strong></td><td>Cliente <strong>activo</strong> en el core · producto de crédito sincronizado · oficina y moneda</td></tr>
+</table>
+
+<h2><span class="cap">Anexo C</span>Mensajes del sistema y qué significan</h2>
+
+<p>
+  Casi ningún mensaje de este sistema es un error: la mayoría son decisiones. Esta tabla dice
+  cuál es cuál.
+</p>
+
+<table>
+  <tr><th style="width:42%">Lo que ves</th><th>Qué significa y qué hacer</th></tr>
+  <tr><td>«Esta sección no está en tu perfil»</td><td><strong>Correcto.</strong> Tu rol no la incluye. Se pide al administrador.</td></tr>
+  <tr><td>«Quien solicita no puede resolver este nivel»</td><td><strong>Correcto.</strong> Lo pediste tú; firma otra persona.</td></tr>
+  <tr><td>«Existe un nivel anterior pendiente»</td><td><strong>Correcto.</strong> Las firmas van en orden.</td></tr>
+  <tr><td>«Una misma persona no puede resolver más de un nivel»</td><td><strong>Correcto.</strong> Dos niveles, dos personas.</td></tr>
+  <tr><td>«Esta firma es de finanzas» <em>(o de otro rol)</em></td><td>El nivel pendiente es de otro rol. No te toca.</td></tr>
+  <tr><td>«El motivo es obligatorio para rechazar»</td><td>Escribe por qué. Es lo único que le sirve a quien lo pidió.</td></tr>
+  <tr><td>«El cálculo cambió después de preparar la aprobación»</td><td>Se tocó la nómina después de pedir firmas y las firmas se cayeron. Vuelve a preparar. <strong>No es un fallo</strong>: es que nadie firme una cifra y se pague otra.</td></tr>
+  <tr><td>«El período N/AAAA está cerrado»</td><td><strong>Correcto.</strong> Para tocarlo hay que reabrirlo con motivo.</td></tr>
+  <tr><td>«No se pudo comprobar si el período está cerrado»</td><td>El sistema prefirió no hacer nada antes que arriesgarse a escribir en un mes cerrado. Avisa a soporte con el código de traza.</td></tr>
+  <tr><td>«No se puede registrar una póliza con fecha futura»</td><td><strong>Correcto.</strong> La contabilidad registra lo que ya ocurrió.</td></tr>
+  <tr><td>«Esta cuenta la lleva un auxiliar»</td><td>Bancos, clientes, proveedores o inventario. Registra la operación en su módulo.</td></tr>
+  <tr><td>«Este movimiento no se registró a mano: lo generó…»</td><td><strong>Correcto.</strong> Se deshace desde el documento que lo originó, y el mensaje dice cuál y dónde.</td></tr>
+  <tr><td>«Revierte esas corridas de depreciación…»</td><td>Ese campo cambia la base de cálculo de meses ya asentados. El camino que sí existe está en el propio mensaje.</td></tr>
+  <tr><td>«No se pudo medir: …» <em>(en el cierre)</em></td><td><strong>No lo ignores.</strong> Una consulta del diagnóstico falló; los demás verdes no son de fiar.</td></tr>
+  <tr><td>Recuadro <strong>ámbar</strong> en una aprobación de crédito</td><td>El expediente de validación no concluyó. <strong>Nadie más va a revisarlo</strong>: si firmas, la línea se autoriza con eso.</td></tr>
+  <tr><td>«Este nivel tiene un solo firmante» <em>(flujos)</em></td><td>Aviso para quien gobierna la matriz: ese nivel se traba si lo pide esa misma persona.</td></tr>
+  <tr><td>Un combo obligatorio vacío</td><td><strong>Avísalo.</strong> Eso sí es un defecto, no una configuración.</td></tr>
+  <tr><td>«No se pudo completar la operación en la base de datos»</td><td>Error del servidor. El detalle está en su log, con un código de traza que hay que reportar.</td></tr>
+</table>
+
+<h2><span class="cap">Anexo D</span>Glosario</h2>
+
+<table>
+  <tr><th style="width:24%">Término</th><th>Qué es</th></tr>
+  <tr><td><strong>Asiento pendiente</strong></td><td>Operación registrada cuya póliza no se pudo generar. Se revisa en Finanzas.</td></tr>
+  <tr><td><strong>Auxiliar</strong></td><td>El detalle de una cuenta de mayor: el saldo de cada cliente, de cada proveedor, de cada cuenta bancaria. Tiene que coincidir con el mayor.</td></tr>
+  <tr><td><strong>Bandeja de salida</strong></td><td>La cola de eventos que el ERP tiene pendientes de contarle al core.</td></tr>
+  <tr><td><strong>Castigo</strong> <em>(write-off)</em></td><td>Reconocer que un crédito no se va a cobrar y llevarlo al gasto.</td></tr>
+  <tr><td><strong>Centro de trabajo</strong></td><td>La portada de un módulo: sus acciones frecuentes y todas sus pantallas.</td></tr>
+  <tr><td><strong>CFDI</strong></td><td>Comprobante Fiscal Digital por Internet: la factura electrónica mexicana.</td></tr>
+  <tr><td><strong>City ledger</strong></td><td>Crédito hotelero: convenios con empresas y agencias que consumen contra una línea.</td></tr>
+  <tr><td><strong>Conteo ciego</strong></td><td>Contar sin ver lo que dicen los libros. Es el único que sirve para valuar.</td></tr>
+  <tr><td><strong>Devengo</strong></td><td>Reconocer un ingreso o un gasto cuando ocurre, no cuando se cobra o se paga.</td></tr>
+  <tr><td><strong>Disponible</strong> <em>(inventario)</em></td><td>Físico menos reservado. Es lo que se puede vender.</td></tr>
+  <tr><td><strong>Escandallo</strong></td><td>La receta de un platillo en materia prima, con su costo.</td></tr>
+  <tr><td><strong>Espejo contable</strong></td><td>Enviar al mayor del core cada póliza que el ERP registra.</td></tr>
+  <tr><td><strong>Folio</strong> <em>(hotel)</em></td><td>La cuenta del huésped: todo lo que consume durante su estancia.</td></tr>
+  <tr><td><strong>Idempotencia</strong></td><td>Que repetir una operación no la duplique. Por eso un doble clic no recibe dos veces.</td></tr>
+  <tr><td><strong>Inquilino</strong> <em>(tenant)</em></td><td>Una institución dentro de una instalación multi-institución del core.</td></tr>
+  <tr><td><strong>Maker-checker</strong></td><td>Quien captura no confirma. El control de cuatro ojos del core.</td></tr>
+  <tr><td><strong>Matriz de firmas</strong></td><td>Quién aprueba qué, desde qué monto y en qué orden.</td></tr>
+  <tr><td><strong>Modo SOMBRA</strong></td><td>El core registra la cartera pero el ERP sigue decidiendo.</td></tr>
+  <tr><td><strong>Originación</strong></td><td>El proceso de crear un crédito: solicitud, aprobación y desembolso.</td></tr>
+  <tr><td><strong>Partida</strong></td><td>Cada renglón de una póliza: una cuenta con su cargo o su abono.</td></tr>
+  <tr><td><strong>Póliza</strong></td><td>El asiento contable: un conjunto de partidas que cuadran.</td></tr>
+  <tr><td><strong>Provisión</strong></td><td>Reserva contable por la cartera que probablemente no se cobre.</td></tr>
+  <tr><td><strong>Reversa</strong></td><td>La póliza que deshace otra invirtiendo cargos y abonos. Una póliza nunca se borra.</td></tr>
+  <tr><td><strong>Referencia externa</strong></td><td>El identificador que enlaza un objeto del core con su equivalente en el ERP.</td></tr>
+  <tr><td><strong>Requisición</strong></td><td>La petición interna de compra: producto y cantidad, sin precios.</td></tr>
+  <tr><td><strong>Turno de caja</strong></td><td>El periodo entre abrir y cerrar la caja. Todo movimiento de efectivo cuelga de uno.</td></tr>
+  <tr><td><strong>Ubicación</strong></td><td>La dirección de un producto dentro del almacén: pasillo-estante-nivel.</td></tr>
+  <tr><td><strong>WMS</strong></td><td><em>Warehouse Management System</em>: la gestión del almacén por ubicaciones.</td></tr>
+</table>
+
+<h2><span class="cap">Anexo E</span>Rutina recomendada</h2>
+
+<p>
+  Un sistema de gestión no se opera por impulsos: se opera por rutina. Esta es la mínima que
+  evita que los problemas se descubran tarde.
+</p>
+
+<h3>Todos los días</h3>
+
+<table>
+  <tr><th style="width:24%">Quién</th><th>Qué</th></tr>
+  <tr><td><strong>mostrador</strong></td><td>Abrir turno con fondo; cerrar turno con arqueo y observaciones si hay diferencia.</td></tr>
+  <tr><td><strong>almacén</strong></td><td>Recibir lo que llegó el mismo día; no acumular recepciones.</td></tr>
+  <tr><td><strong>gerencia</strong></td><td>Panel ejecutivo: las tres alertas de atención.</td></tr>
+  <tr><td><strong>crédito</strong> <em>(con core)</em></td><td>Vaciar la bandeja de <em>Avisos del core</em>.</td></tr>
+</table>
+
+<h3>Todas las semanas</h3>
+
+<table>
+  <tr><th style="width:24%">Quién</th><th>Qué</th></tr>
+  <tr><td><strong>contador</strong></td><td><strong>Asientos pendientes.</strong> Es la revisión que más disgustos ahorra.</td></tr>
+  <tr><td><strong>tesorería</strong></td><td>Movimientos sin conciliar por cuenta.</td></tr>
+  <tr><td><strong>cobranza</strong></td><td>Recalcular antigüedad y trabajar el tramo 1–30, que es el que todavía se recupera.</td></tr>
+  <tr><td><strong>compras</strong></td><td>Requisiciones detenidas esperando firma.</td></tr>
+  <tr><td><strong>contador</strong> <em>(con core)</em></td><td><em>Espejo contable</em>: cuentas sin corresponder y cola sin despachar.</td></tr>
+</table>
+
+<h3>Todos los meses</h3>
+
+<div class="flujo">
+  <div><span class="q">1</span><b>Tesorería</b>Cargar estados de cuenta y <strong>cerrar</strong> la conciliación de cada cuenta activa.</div>
+  <div><span class="q">2</span><b>Finanzas</b>Correr la depreciación del mes.</div>
+  <div><span class="q">3</span><b>RRHH y Finanzas</b>Cerrar y contabilizar los periodos de nómina.</div>
+  <div><span class="q">4</span><b>Contador</b>Vaciar asientos pendientes y revisar el IVA.</div>
+  <div><span class="q">5</span><b>Contador</b>Revisar para cerrar, confirmar y <strong>cerrar el mes</strong>.</div>
+</div>
+
+<h3>Una vez, al empezar</h3>
+
+<ol>
+  <li>Wizard financiero: catálogo de cuentas, fecha de control y saldos iniciales.</li>
+  <li>Catálogos base: productos con categoría y claves SAT, clientes, proveedores.</li>
+  <li>Almacenes, ubicaciones y existencias iniciales.</li>
+  <li>Configuración patronal, puestos y conceptos de nómina.</li>
+  <li>Matriz de firmas de cada proceso, con <strong>umbrales por monto</strong>.</li>
+  <li>Usuarios con su rol y su <strong>área</strong>.</li>
+  <li>Conciliación inicial de referencia.</li>
+  <li><em>(Con core)</em> Correspondencia de cuentas y sincronización de productos de crédito.</li>
+</ol>
+
+<div class="caja nota"><span class="rot">Última idea, la que más vale</span>
+  <p>Este sistema está construido sobre una premisa: <strong>cada hecho se registra una sola
+  vez, donde ocurre, y el sistema propaga sus consecuencias</strong>. Por eso vale la pena
+  capturar bien el documento y no «arreglarlo después en la contabilidad»: arreglar el reflejo
+  sin arreglar el hecho es cómo dos subsistemas acaban diciendo cosas distintas, cada uno
+  coherente por dentro, y nadie se entera hasta que es caro.</p></div>

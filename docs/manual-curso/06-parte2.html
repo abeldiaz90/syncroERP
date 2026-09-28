@@ -1,0 +1,372 @@
+<section class="parte">
+  <div class="num">Parte II</div>
+  <h1>Apache Fineract</h1>
+  <p>El core financiero: qué es, cómo piensa, y cómo se opera desde el portal.
+  Esta parte se aplica a las instituciones que operan el core, con o sin ERP.</p>
+  <ol>
+    <li>16 · El modelo: cómo piensa un core financiero</li>
+    <li>17 · El portal: recorrido por procesos</li>
+    <li>18 · El ciclo del crédito</li>
+    <li>19 · Contabilidad del core</li>
+    <li>20 · Control: maker-checker, día operativo y procesos</li>
+  </ol>
+</section>
+
+<h2><span class="cap">Capítulo 16</span>El modelo: cómo piensa un core financiero</h2>
+
+<p>
+  Antes de tocar una pantalla hay que entender los sustantivos. Un ERP piensa en
+  <em>documentos</em>; un core financiero piensa en <strong>cuentas y su ciclo de vida</strong>.
+  Un préstamo no es un documento que se emite: es una cuenta que <em>nace, se aprueba, se
+  desembolsa, se paga, se atrasa y se cierra</em>, y cada uno de esos pasos es un hecho con
+  fecha y con asiento contable.
+</p>
+
+<h3>16.1 · La jerarquía institucional</h3>
+
+<table>
+  <tr><th style="width:22%">Concepto</th><th>Qué es</th></tr>
+  <tr><td><strong>Oficina</strong></td><td>La unidad organizativa. Forman un árbol: <em>Head Office</em> arriba y sucursales debajo. <strong>Todo cuelga de una oficina</strong> — clientes, préstamos, cajas, asientos— y la jerarquía determina qué ve cada usuario.</td></tr>
+  <tr><td><strong>Personal</strong> <em>(staff)</em></td><td>Los empleados de una oficina: asesores, cajeros, supervisores. Un cliente y un préstamo pueden tener responsable asignado.</td></tr>
+  <tr><td><strong>Cliente</strong></td><td>Persona o entidad. Tiene ciclo de vida propio: <em>pendiente → activo → cerrado</em>, y no puede tener préstamos si no está activo.</td></tr>
+  <tr><td><strong>Grupo</strong> y <strong>Centro</strong></td><td>Agrupaciones de clientes para metodología grupal —banca comunal, grupos solidarios—. Un grupo puede tener préstamos propios y reuniones.</td></tr>
+</table>
+
+<h3>16.2 · Producto y cuenta: la distinción que hay que aprender</h3>
+
+<p>
+  <strong>El producto es la plantilla; la cuenta es el caso.</strong> Se define una vez el
+  producto «Crédito simple a 30 días» —con su plazo, su tasa, su moneda, sus cargos y sus
+  cuentas contables— y a partir de ahí cada crédito que se origina es una <em>cuenta</em> de ese
+  producto, que hereda sus reglas y puede desviarse sólo donde el producto lo permita.
+</p>
+
+<table>
+  <tr><th style="width:26%">En el producto se define…</th><th>Qué controla</th></tr>
+  <tr><td>Principal mínimo, por omisión y máximo</td><td>Cuánto se puede prestar.</td></tr>
+  <tr><td>Número de pagos y frecuencia</td><td>El plazo y el ritmo: cada mes, cada 30 días, semanal.</td></tr>
+  <tr><td>Tasa y su periodicidad</td><td>Nominal mensual, anual, fija o variable.</td></tr>
+  <tr><td>Método de amortización</td><td>Cuota fija (francés) o principal igual.</td></tr>
+  <tr><td>Cargos y comisiones</td><td>De apertura, por pago tardío, por administración.</td></tr>
+  <tr><td>Moneda</td><td>Y sus decimales.</td></tr>
+  <tr><td><strong>Cuentas contables</strong></td><td>Contra qué cuentas se asienta cada hecho del préstamo. Sin esto el producto existe pero no contabiliza.</td></tr>
+</table>
+
+<h3>16.3 · Los estados de un préstamo</h3>
+
+<div class="flujo">
+  <div><span class="q">1</span><b>Solicitud</b><em>Submitted and pending approval.</em> Existe, no compromete dinero.</div>
+  <div><span class="q">2</span><b>Aprobado</b><em>Approved.</em> Decidido, no entregado.</div>
+  <div><span class="q">3</span><b>Activo</b><em>Active.</em> Desembolsado; corre el calendario.</div>
+  <div><span class="q">4</span><b>Cerrado</b>Liquidado, castigado, sobrepagado o retirado.</div>
+</div>
+
+<p>
+  Los estados importan porque <strong>las acciones disponibles dependen del estado</strong>: un
+  préstamo aprobado se puede desembolsar o deshacer la aprobación; uno activo se puede pagar,
+  reprogramar, condonar interés o castigar; uno cerrado, casi nada. El portal enseña sólo las
+  acciones que ese estado permite, y ése es el mejor mapa del ciclo.
+</p>
+
+<h3>16.4 · Multi-inquilino</h3>
+
+<p>
+  Fineract es <strong>multi-inquilino</strong>: una sola instalación atiende a varias
+  instituciones, cada una con su propio esquema de base de datos, completamente separado. El
+  inquilino se identifica en cada petición y aparece arriba a la derecha del portal
+  (<em>Tenant: default</em>).
+</p>
+
+<div class="caja ojo"><span class="rot">Ojo · los inquilinos no se crean al vuelo</span>
+  <p>Fineract construye el esquema de un inquilino <strong>al arrancar</strong>. Crear uno nuevo
+  obliga a reiniciar el servicio, con todas las instituciones operando. Por eso se preparan por
+  lote en una ventana de mantenimiento y se entregan ya listos.</p></div>
+
+<h2><span class="cap">Capítulo 17</span>El portal: recorrido por procesos</h2>
+
+<p>
+  El portal está organizado <strong>por proceso, no por endpoint</strong>: el menú no reproduce
+  la API de Fineract sino el día de quien trabaja. Cinco bloques.
+</p>
+
+<figure>
+  <img src="img/55-fineract-jornada.jpg" alt="Mi jornada">
+  <figcaption><b>Mi jornada.</b> La portada: clientes registrados, cartera colocada, cartera
+  vencida y el estado del core. Debajo, <b>atajos de operación</b> por proceso —personas,
+  crédito, captación, operaciones, caja y control— y los tres pasos del día: atiende a la
+  persona, ejecuta la operación, controla y audita.</figcaption>
+</figure>
+
+<table>
+  <tr><th style="width:20%">Bloque</th><th style="width:26%">Pantallas</th><th>Para qué</th></tr>
+  <tr><td><strong>Inicio</strong></td><td>Mi jornada · Mis pendientes · Notificaciones · Búsqueda global</td><td>Por dónde se empieza y qué espera decisión.</td></tr>
+  <tr><td><strong>Personas</strong></td><td>Clientes · Grupos · Centros</td><td>El expediente de quien opera contigo.</td></tr>
+  <tr><td><strong>Crédito</strong></td><td>Cartera y originación · Cobranza · Cartera vencida · Mora y provisiones</td><td>El negocio.</td></tr>
+  <tr><td><strong>Captación</strong></td><td>Centro de captación</td><td>Ahorro, depósitos y productos del cliente.</td></tr>
+  <tr><td><strong>Operación</strong></td><td>Centro de operaciones · Caja y tesorería</td><td>Transferencias, instrucciones permanentes, cajas y efectivo del día.</td></tr>
+  <tr><td><strong>Control</strong></td><td>Mesa de control · Reportes · Contabilidad</td><td>Maker-checker, auditoría, procesos automáticos y los libros.</td></tr>
+</table>
+
+<h3>17.1 · Clientes</h3>
+
+<figure>
+  <img src="img/56-fineract-clientes.jpg" alt="Directorio de clientes">
+  <figcaption><b>Clientes.</b> Directorio con número de cuenta, nombre, <b>referencia
+  externa</b>, oficina y estado. La referencia externa es el puente con el sistema de origen y
+  es la columna que hay que mirar cuando hay ERP (Parte III).</figcaption>
+</figure>
+
+<h3>17.2 · Cliente 360</h3>
+
+<figure>
+  <img src="img/62-fineract-cliente360.jpg" alt="Cliente 360">
+  <figcaption><b>Cliente 360.</b> Todo lo del cliente en una pantalla: su ficha y estado a la
+  izquierda con las acciones que su ciclo de vida permite; a la derecha sus <b>créditos</b> con
+  producto y estado, su <b>captación</b>, y su expediente <b>KYC</b>. Arriba, las pestañas
+  Resumen, Crédito, Captación, KYC y Documentos, y los botones de alta: <b>+ Ahorro</b> y
+  <b>+ Crédito</b>.</figcaption>
+</figure>
+
+<p>
+  El recuadro <strong>«Atención operativa»</strong> señala lo que le falta a ese cliente para
+  operar con normalidad — en el ejemplo, que no tiene responsable asignado. Y el
+  <strong>Ciclo de vida</strong> de abajo a la izquierda enseña sólo las acciones que el estado
+  real permite: si «Cerrar cliente» no está, es porque tiene cuentas vivas.
+</p>
+
+<h2><span class="cap">Capítulo 18</span>El ciclo del crédito</h2>
+
+<h3>18.1 · Productos y cartera</h3>
+
+<figure>
+  <img src="img/57-fineract-cartera.jpg" alt="Cartera y originación">
+  <figcaption><b>Cartera y originación.</b> Arriba los productos de crédito disponibles con su
+  principal base, su interés y su número de pagos. Abajo la cartera reciente con cuenta,
+  cliente, producto, principal y estado. El aviso de la cabecera dice la regla: <b>para
+  originar un crédito se abre primero el cliente desde Cliente 360</b> — el crédito es del
+  cliente, no al revés.</figcaption>
+</figure>
+
+<h3>18.2 · Originar</h3>
+
+<div class="paso"><span class="n">1</span><b class="t">Abrir el cliente y pulsar «+ Crédito»</b>
+  Se elige el producto. El portal precarga el principal, el plazo, la tasa y la frecuencia
+  desde el producto; lo que el producto permita variar, se puede variar dentro de sus
+  límites.</div>
+
+<div class="paso"><span class="n">2</span><b class="t">Revisar el calendario propuesto</b>
+  Antes de guardar, Fineract calcula la tabla de amortización. Es el momento de comprobar que
+  el plazo y la primera fecha de pago son los que se acordaron.</div>
+
+<div class="paso"><span class="n">3</span><b class="t">Aprobar</b>
+  Decisión distinta de la solicitud, y normalmente de otra persona. Si la institución tiene
+  <em>maker-checker</em> activo para esta acción, la aprobación queda pendiente en la mesa de
+  control hasta que un segundo usuario la confirme.</div>
+
+<div class="paso"><span class="n">4</span><b class="t">Desembolsar</b>
+  Es el acto que <strong>mueve dinero</strong> y el que fija el calendario definitivo. Desde
+  aquí el préstamo está <em>Activo</em>.</div>
+
+<h3>18.3 · La pantalla del crédito</h3>
+
+<figure>
+  <img src="img/63-fineract-credito-detalle.jpg" alt="Detalle de un crédito">
+  <figcaption><b>Detalle de un crédito.</b> Arriba: principal, saldo pendiente y pagado.
+  <b>Siguiente acción</b> enseña sólo lo que el estado y tus permisos habilitan —aquí registrar
+  pago, condonar interés, liquidar por anticipado y castigar—. Debajo, las <b>condiciones</b>
+  (tasa, número de pagos, frecuencia, fechas de solicitud, aprobación y desembolso) y el
+  <b>resumen financiero</b> (principal desembolsado, pagado y pendiente; interés cargado y
+  pendiente; repago esperado). Al final, el <b>calendario de pagos</b> cuota por cuota, y las
+  transacciones.</figcaption>
+</figure>
+
+<table>
+  <tr><th style="width:26%">Acción</th><th>Qué hace y cuándo se usa</th></tr>
+  <tr><td><strong>Registrar pago</strong></td><td>Aplica un abono con su fecha valor. Fineract lo reparte entre cargos, interés y principal según la configuración del producto — no a criterio de quien captura.</td></tr>
+  <tr><td><strong>Condonar interés</strong></td><td>Perdona interés devengado. Deja rastro y asiento propio.</td></tr>
+  <tr><td><strong>Liquidar por anticipado</strong></td><td>Calcula el monto para cerrar hoy y cierra la cuenta.</td></tr>
+  <tr><td><strong>Castigar crédito</strong> <em>(write-off)</em></td><td>Reconoce que no se va a cobrar: saca el saldo de la cartera vigente y lo lleva al gasto. <strong>Es una decisión contable, no operativa.</strong></td></tr>
+  <tr><td><strong>Reprogramación</strong></td><td>Cambia el calendario de un préstamo vivo: prórroga, cambio de fecha, reestructura.</td></tr>
+</table>
+
+<div class="caja ojo"><span class="rot">Ojo · la fecha valor</span>
+  <p>Casi toda operación de un core pide <strong>una fecha</strong>, y no es la de hoy por
+  omisión ni un adorno: es la fecha con la que el hecho entra en la contabilidad y con la que
+  se recalcula el interés. Poner mal la fecha de un pago cambia el interés devengado y la mora,
+  y corregirlo después obliga a deshacer la transacción.</p></div>
+
+<h3>18.4 · Cobranza y cartera vencida</h3>
+
+<figure>
+  <img src="img/60-fineract-cartera-vencida.jpg" alt="Cartera vencida en el core">
+  <figcaption><b>Cartera vencida.</b> Lo que Fineract considera vencido, agrupado por
+  antigüedad: sin días (cierre pendiente), 1–30, 31–60, 61–90 y más de 90. Arriba, cartera
+  activa y atraso máximo. El desplegable <b>«De dónde salen estos números»</b> explica el
+  cálculo, que es justo lo que se pregunta en la primera revisión de cartera.</figcaption>
+</figure>
+
+<p>
+  <strong>Mora y provisiones</strong> es el paso siguiente: clasifica la cartera en tramos de
+  riesgo y calcula la provisión que corresponde a cada tramo, según la política que la
+  institución configure. Ese cálculo es el que produce el asiento de estimación preventiva.
+</p>
+
+<h3>18.5 · Caja y tesorería</h3>
+
+<figure>
+  <img src="img/64-fineract-caja.jpg" alt="Cajas y ventanillas">
+  <figcaption><b>Caja y tesorería.</b> Cajas configuradas por oficina con su periodo de
+  vigencia, y la <b>fecha operativa</b> arriba. Sobre cada caja se asignan cajeros y se
+  registran asignaciones y liquidaciones de efectivo.</figcaption>
+</figure>
+
+<p>
+  El modelo es de <em>teller</em> bancario: una <strong>caja</strong> pertenece a una oficina y
+  tiene vigencia; un <strong>cajero</strong> se asigna a la caja por un periodo; el efectivo se
+  le <strong>asigna</strong> al empezar y se le <strong>liquida</strong> al terminar. Las
+  operaciones en ventanilla se registran contra esa asignación, de modo que al final del día la
+  caja cuadra o no cuadra, y se sabe de quién.
+</p>
+
+<h2><span class="cap">Capítulo 19</span>Contabilidad del core</h2>
+
+<figure>
+  <img src="img/58-fineract-contabilidad.jpg" alt="Contabilidad general de Fineract">
+  <figcaption><b>Contabilidad general.</b> Cinco procesos: <b>pólizas y asientos</b> (consultar
+  movimientos, registrar asientos manuales, revertir), <b>cierres contables</b>, <b>reglas
+  contables</b>, <b>devengo periódico</b> y <b>saldos iniciales</b>. Debajo, el <b>plan
+  contable</b>.</figcaption>
+</figure>
+
+<h3>19.1 · El plan de cuentas</h3>
+
+<p>
+  Las cuentas de Fineract tienen <strong>tipo</strong> (activo, pasivo, capital, ingreso,
+  gasto), <strong>uso</strong> (detalle o encabezado) y una marca de si admiten
+  <strong>asientos manuales</strong>. Las cuentas que el core usa automáticamente —cartera,
+  interés por cobrar, ingreso por interés, castigos— normalmente se marcan como no manuales,
+  por la misma razón que en el ERP: un asiento manual contra la cartera separa el mayor del
+  auxiliar.
+</p>
+
+<h3>19.2 · Cómo contabiliza un préstamo</h3>
+
+<p>
+  Fineract no contabiliza «préstamos»: contabiliza <strong>cada transacción</strong> del
+  préstamo, con las cuentas que el producto declara. El mapeo típico:
+</p>
+
+<table>
+  <tr><th style="width:26%">Hecho</th><th>Asiento</th></tr>
+  <tr><td><strong>Desembolso</strong></td><td>Dr. Cartera de crédito / Cr. Fondos (banco o caja)</td></tr>
+  <tr><td><strong>Devengo de interés</strong></td><td>Dr. Interés por cobrar / Cr. Ingreso por interés</td></tr>
+  <tr><td><strong>Pago</strong></td><td>Dr. Fondos / Cr. Cartera e interés por cobrar, en la proporción que toque</td></tr>
+  <tr><td><strong>Cargo o comisión</strong></td><td>Dr. Cargos por cobrar / Cr. Ingreso por cargos</td></tr>
+  <tr><td><strong>Castigo</strong></td><td>Dr. Gasto por castigos / Cr. Cartera</td></tr>
+  <tr><td><strong>Provisión</strong></td><td>Dr. Gasto por estimación / Cr. Estimación preventiva</td></tr>
+</table>
+
+<h3>19.3 · Caja o devengado</h3>
+
+<p>
+  Cada producto declara si contabiliza en <strong>base efectivo</strong> —sólo cuando el dinero
+  se mueve— o en <strong>base devengado</strong>, y en este último caso si el devengo es
+  <em>periódico</em> —lo corre un proceso programado— o <em>al vencimiento</em>. Es la decisión
+  contable más importante del producto y no se cambia con cartera viva sin consecuencias.
+</p>
+
+<p>
+  El proceso <strong>Devengo periódico</strong> de la pantalla de contabilidad es el que ejecuta
+  ese reconocimiento hasta una fecha dada.
+</p>
+
+<h3>19.4 · Cierres contables y saldos iniciales</h3>
+
+<p>
+  Un <strong>cierre contable</strong> en Fineract bloquea la contabilización retroactiva por
+  oficina y fecha: después del cierre no se pueden registrar asientos con fecha anterior. Los
+  <strong>saldos iniciales</strong> definen la posición de apertura por oficina y moneda antes
+  de iniciar movimientos — se capturan una sola vez, al arrancar la institución.
+</p>
+
+<h3>19.5 · Reglas contables</h3>
+
+<p>
+  Son plantillas de débito y crédito para operaciones repetitivas: en vez de teclear el asiento,
+  se elige la regla y se capturan los importes. Reducen el error de captura en lo que se hace
+  todos los días.
+</p>
+
+<h2><span class="cap">Capítulo 20</span>Control: maker-checker, día operativo y procesos</h2>
+
+<figure>
+  <img src="img/59-fineract-mesa-control.jpg" alt="Mesa de control">
+  <figcaption><b>Mesa de control.</b> El tablero institucional: autorizaciones pendientes de
+  maker-checker, procesos con error, <b>fecha operativa</b> y trazabilidad (últimos movimientos
+  registrados). Abajo, la bandeja de autorizaciones y los procesos automáticos que necesitan
+  seguimiento.</figcaption>
+</figure>
+
+<h3>20.1 · Maker-checker</h3>
+
+<p>
+  Es la separación de funciones del core: para las acciones que la institución elija,
+  <strong>quien las captura no las confirma</strong>. La operación queda pendiente y un segundo
+  usuario con permiso la aprueba o la rechaza desde la bandeja.
+</p>
+
+<p>
+  Se configura acción por acción. La regla práctica: se activa en lo que mueve dinero o cambia
+  condiciones —desembolso, condonación, castigo, reprogramación, alta de producto— y no en lo
+  que sólo consulta.
+</p>
+
+<h3>20.2 · El día operativo</h3>
+
+<table>
+  <tr><th style="width:26%">Concepto</th><th>Qué hace</th></tr>
+  <tr><td><strong>Fecha operativa</strong></td><td>Cuando está activada, el core sólo acepta operaciones con esa fecha. Es lo que impide capturar de ayer o de mañana por descuido.</td></tr>
+  <tr><td><strong>Cierre de día</strong></td><td>Avanza la fecha operativa y deja el día anterior en firme.</td></tr>
+  <tr><td><strong>Programador</strong> <em>(scheduler)</em></td><td>Corre los procesos automáticos: devengo, clasificación de mora, provisiones, intereses de ahorro, recordatorios.</td></tr>
+</table>
+
+<div class="caja ojo"><span class="rot">Ojo · los procesos con error</span>
+  <p>El contador de <strong>procesos con error</strong> de la mesa de control es el que hay que
+  mirar cada mañana. Un proceso de devengo que falló no avisa a nadie por su cuenta: se nota
+  semanas después, cuando el estado de resultados no cuadra con la cartera.</p></div>
+
+<h3>20.3 · Reportes</h3>
+
+<figure>
+  <img src="img/61-fineract-reportes.jpg" alt="Reportes institucionales">
+  <figcaption><b>Reportes.</b> El catálogo real de Fineract, con ejecución parametrizada y
+  exportación. El aviso de abajo importa: <b>la ejecución respeta la jerarquía de oficina</b> de
+  quien ejecuta, así que dos usuarios pueden correr el mismo reporte y obtener cifras
+  distintas — y las dos correctas.</figcaption>
+</figure>
+
+<p>
+  Los datos se calculan <strong>en el core, no en el portal</strong>: el reporte es el de
+  Fineract, con sus parámetros, y el portal sólo lo ejecuta y lo presenta.
+</p>
+
+<h3>20.4 · Usuarios, roles y permisos del core</h3>
+
+<p>
+  Fineract tiene su propio modelo de permisos, independiente del ERP: <strong>roles</strong> que
+  agrupan <strong>permisos</strong> por entidad y acción, y usuarios que pertenecen a una
+  oficina. El alcance de un usuario es su oficina <em>y las que cuelgan de ella</em>.
+</p>
+
+<p>
+  El acceso al portal es por la identidad de SUMA (capítulo 0.4), y Fineract conserva los
+  permisos bancarios y operativos: <strong>quién eres lo dice SUMA; qué puedes hacer lo dice
+  Fineract.</strong>
+</p>
+
+<div class="caja ejerc"><span class="rot">Ejercicio Parte II</span>
+  <p>Abre un cliente en Cliente 360 y origina un crédito de un producto a plazo simple. Revisa
+  el calendario propuesto antes de guardar. Apruébalo, desembólsalo y registra un pago parcial
+  con fecha de hace tres días. Después ve a Contabilidad → Pólizas y asientos y localiza los
+  asientos del desembolso y del pago. Por último, mira en Cartera vencida si ese crédito aparece
+  en algún tramo y por qué.</p></div>
