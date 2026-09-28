@@ -169,6 +169,24 @@ export class AdminPermisosController {
     return { rutas };
   }
 
+  /**
+   * Las ACCIONES del propio rol, para que una pantalla sepa qué botones
+   * ofrecer. Misma lógica de seguridad que `mis-rutas`: sólo revela lo que el
+   * propio JWT ya concede, y por eso no pide permiso para consultarse.
+   */
+  @SkipPermisos()
+  @Get('mis-acciones')
+  async misAcciones(
+    @ActiveUser('rol') rol: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
+    const acciones = await this.permisosService.obtenerAccionesPermitidas(
+      rol,
+      empresaId,
+    );
+    return { acciones };
+  }
+
   @Get('plantillas')
   async obtenerPlantillas(@ActiveUser('rol') rol: string) {
     if (!esRolAdministrador(rol)) throw new ForbiddenException();

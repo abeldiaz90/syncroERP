@@ -1458,6 +1458,59 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
   }
 
   /**
+   * ==========================================================================
+   * Las acciones que este rol tiene concedidas
+   * --------------------------------------------------------------------------
+   * `obtenerRutasPermitidas` contesta «¿a qué PANTALLAS puedo entrar?», y con
+   * eso una pantalla sabe si abrirse. Lo que no sabe es cuáles de sus BOTONES
+   * puede pulsar, y ésa es una pregunta distinta: una pantalla se concede
+   * entera y sus acciones no.
+   *
+   * MEDIDO EL 28-SEP-2026, con la sesión de gerencia. La transferencia
+   * TRF-20260928192033-BD48E8 quedó AUTORIZADA y la pantalla ofreció el botón
+   * de «Enviar». El servidor contestó 403, dos veces. Y es el servidor el que
+   * tiene razón: enviar la mercancía es el acto físico del almacén de origen
+   * —lo hace el almacenista—, mientras que autorizar y recibir son la firma de
+   * supervisión —las hace gerencia o dirección—. Ese reparto es lo que
+   * sostiene el tercer control de cuatro ojos: quien envía no recibe.
+   *
+   * El defecto no era el 403: era ofrecer el botón. Un botón que siempre
+   * contesta que no es la misma familia de fallo que una pantalla que abre y
+   * dice «no puedes»; este proyecto ya la persiguió en requisiciones y en la
+   * bandeja de aprobaciones.
+   *
+   * Por eso esto existe: para que una pantalla pueda preguntar por sus botones
+   * y no adivinar. El administrador recibe `['*']`, igual que en las rutas.
+   * ==========================================================================
+   */
+  async obtenerAccionesPermitidas(
+    rol: string,
+    empresaId: string,
+  ): Promise<string[]> {
+    if (esRolAdministrador(rol)) return ['*'];
+
+    const filas: Array<{ metodo: string; ruta: string }> =
+      await this.permisoRepo
+        .createQueryBuilder('p')
+        .innerJoin(Endpoint, 'e', 'e.id = p.endpointId')
+        .where('p.empresaId = :empresaId', { empresaId })
+        .andWhere(this.consultaRolNormalizado('p'), {
+          rolNormalizado: normalizarRol(rol),
+        })
+        .andWhere('p.permitido = :si', { si: true })
+        .andWhere('e.activo = :activo', { activo: true })
+        .select('e.metodo', 'metodo')
+        .addSelect('e.ruta', 'ruta')
+        .getRawMany();
+
+    return Array.from(
+      new Set(
+        filas.map((f) => `${String(f.metodo).toUpperCase()} ${f.ruta}`),
+      ),
+    );
+  }
+
+  /**
    * Resumen por rol, para que la pantalla de administracion pueda hablar de
    * roles y no de endpoints.
    *

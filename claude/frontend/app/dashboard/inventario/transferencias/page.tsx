@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRightLeft, Check, PackageCheck, Truck, X, MapPin, ClipboardCheck, RefreshCw } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
+import { useAcciones } from '@/hooks/use-acciones';
 import { Boton, Modal, SinDatos, useAvisos } from '@/components/ui';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
@@ -11,6 +12,7 @@ type Transferencia={id:string;folio:string;estado:string;motivo:string;fechaCrea
 export default function TransferenciasPage(){
  const {avisar}=useAvisos();
  const [productos,setProductos]=useState<any[]>([]),[almacenes,setAlmacenes]=useState<any[]>([]),[transferencias,setTransferencias]=useState<Transferencia[]>([]); const [cargando,setCargando]=useState(true);
+ const puedo=useAcciones();
  const [form,setForm]=useState({productoId:'',almacenOrigenId:'',almacenDestinoId:'',ubicacionOrigenId:'',cantidad:'',motivo:''});
  const [stockFisico,setStockFisico]=useState<any[]>([]),[ubicacionesDestino,setUbicacionesDestino]=useState<any[]>([]);
  const [intento,setIntento]=useState(false),[guardando,setGuardando]=useState(false);
@@ -64,10 +66,24 @@ const [p,a,t]=await Promise.all([api.get<any>('/catalogo/productos',{query:{limi
             */}
             {t.estado==='SOLICITADA'&&(t.usuarioId&&t.usuarioId===usuarioId
               ? <span title="Quien solicita una transferencia no puede autorizarla: la firma otra persona del almacén." className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500">Espera autorización</span>
-              : <button title="Autorizar" onClick={()=>accion(t,'autorizar')} className="p-2 bg-blue-50 rounded-lg"><Check size={17}/></button>)}{t.estado==='AUTORIZADA'&&<button title="Enviar" onClick={()=>accion(t,'enviar')} className="p-2 bg-violet-50 rounded-lg"><Truck size={17}/></button>}{/* Y lo mismo al recibir: quien envía la mercancía no registra su llegada. */}
+              : puedo('PATCH /catalogo/wms/transferencias/:id/autorizar')
+                ? <button title="Autorizar" onClick={()=>accion(t,'autorizar')} className="p-2 bg-blue-50 rounded-lg"><Check size={17}/></button>
+                : <span title="La autorización de una transferencia es una firma de supervisión." className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500">Espera autorización</span>)}{/*
+              Enviar NO es una firma: es el acto físico del almacén de origen, y
+              lo hace quien tiene el almacén. Autorizar y recibir son la firma de
+              supervisión. Ese reparto es lo que sostiene «quien envía no
+              recibe», así que aquí se pregunta en vez de ofrecer un botón que el
+              servidor va a negar —medido el 28-sep-2026 con gerencia: dos clics,
+              dos 403—.
+            */}
+            {t.estado==='AUTORIZADA'&&(puedo('PATCH /catalogo/wms/transferencias/:id/enviar')
+              ? <button title="Enviar" onClick={()=>accion(t,'enviar')} className="p-2 bg-violet-50 rounded-lg"><Truck size={17}/></button>
+              : <span title="Enviar la mercancía lo hace el almacén de origen; tu perfil autoriza y recibe." className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500">Autorizada · la envía el almacén</span>)}{/* Y lo mismo al recibir: quien envía la mercancía no registra su llegada. */}
             {t.estado==='EN_TRANSITO'&&(t.enviadoPor&&t.enviadoPor===usuarioId
               ? <span title="Quien envía la mercancía no puede registrar su recepción: la recibe quien está en el almacén destino." className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500">En tránsito · la recibe el destino</span>
-              : <button title="Recibir" onClick={()=>accion(t,'recibir')} className="p-2 bg-emerald-50 rounded-lg"><PackageCheck size={17}/></button>)}{['SOLICITADA','AUTORIZADA'].includes(t.estado)&&<button title="Cancelar" onClick={()=>accion(t,'cancelar')} className="p-2 bg-rose-50 rounded-lg"><X size={17}/></button>}</div></td></tr>)}</tbody></table>}</div>
+              : puedo('PATCH /catalogo/wms/transferencias/:id/recibir')
+                ? <button title="Recibir" onClick={()=>accion(t,'recibir')} className="p-2 bg-emerald-50 rounded-lg"><PackageCheck size={17}/></button>
+                : <span title="Registrar la recepción es una firma de supervisión." className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500">En tránsito · la recibe el destino</span>)}{['SOLICITADA','AUTORIZADA'].includes(t.estado)&&<button title="Cancelar" onClick={()=>accion(t,'cancelar')} className="p-2 bg-rose-50 rounded-lg"><X size={17}/></button>}</div></td></tr>)}</tbody></table>}</div>
   </div>
   <Modal abierto={Boolean(recepcion)} onCerrar={()=>setRecepcion(null)} titulo={`Recibir ${recepcion?.transferencia?.folio??''}`} descripcion="Asigna la posición física destino de cada partida antes de confirmar." ancho={760} pie={<><Boton onClick={()=>setRecepcion(null)}>Cancelar</Boton><Boton variante="primario" cargando={guardando} onClick={()=>void confirmarRecepcion()}>Confirmar recepción</Boton></>}>{recepcion&&<div className="space-y-4"><label className="text-sm">Observaciones<textarea className="entrada mt-1 min-h-20 w-full py-2" value={recepcion.observaciones} onChange={(e)=>setRecepcion({...recepcion,observaciones:e.target.value})}/></label>{recepcion.transferencia.detalles.map((d:any)=><div key={d.id} className="grid items-center gap-3 rounded-xl border p-3 md:grid-cols-[1fr_300px]"><div><b>{d.producto?.nombre||'Producto'}</b><p className="text-xs text-slate-500">Cantidad enviada: {Number(d.cantidadEnviada||d.cantidadSolicitada||d.cantidad)}</p></div><BuscadorSeleccion valor={recepcion.destinos[d.id]??''} onChange={(id)=>setRecepcion({...recepcion,destinos:{...recepcion.destinos,[d.id]:id}})} opciones={recepcion.ubicaciones.map((u:any)=>({valor:u.id,etiqueta:u.codigo,detalle:[u.zona,u.pasillo,u.rack,u.nivel,u.posicion].filter(Boolean).join(' / ')}))} placeholder="Ubicación destino…"/></div>)}</div>}</Modal>
  </div>
