@@ -135,6 +135,20 @@ const DOCUMENTOS_DE_ORIGEN: Record<string, { que: string; donde: string }> = {
     que: 'la merma de una devolución',
     donde: 'Se atiende junto con la devolución que la produjo.',
   },
+  /*
+   * El único documento de esta tabla que tesorería genera para sí misma. Un
+   * traspaso son DOS movimientos y UNA sola póliza con los dos lados; cancelar
+   * una pierna sola deja la otra en pie y la póliza intacta.
+   */
+  TRASPASO_TESORERIA: {
+    que: 'un traspaso entre cuentas',
+    donde:
+      'Un traspaso son dos movimientos y una sola póliza: cancelar éste dejaría la otra mitad ' +
+      'en pie y la póliza afirmando que el traspaso se hizo entero —el mismo importe duplicado ' +
+      'o desaparecido, según qué mitad se cancele—. El ERP todavía no tiene reversa de ' +
+      'traspasos, así que lo que corresponde es registrar el traspaso contrario, con su ' +
+      'explicación.',
+  },
 };
 
 const SIGNO: Record<TipoMovimiento, 1 | -1> = {
@@ -621,6 +635,11 @@ export class TesoreriaService {
           importe: dto.importe,
           concepto: dto.concepto,
           origen: OrigenMovimiento.TRASPASO,
+          /*
+           * Las dos piernas nacen marcadas. Sin esto `cancelar()` las trata
+           * como capturadas a mano y deja cancelar media transferencia.
+           */
+          tipoDocumento: 'TRASPASO_TESORERIA',
         },
         empresaId,
         usuarioId,
@@ -636,6 +655,9 @@ export class TesoreriaService {
           concepto: dto.concepto,
           origen: OrigenMovimiento.TRASPASO,
           referencia: salida?.folio,
+          tipoDocumento: 'TRASPASO_TESORERIA',
+          // La salida es la que lleva la póliza del traspaso: las dos apuntan a ella.
+          documentoId: salida?.id,
         },
         empresaId,
         usuarioId,
