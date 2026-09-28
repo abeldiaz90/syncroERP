@@ -37,12 +37,12 @@ import {
 } from 'lucide-react';
 
 import { MODULOS, detectarModulo, detectarItem, agruparItems, RUTAS_CONTENEDOR } from './module-config';
-import { usePermiso } from '@/hooks/use-permisos';
 import { api, token, intentar } from '@/lib/api';
 import { leerSesion, sesionVigente, iniciales, puedeEntrar, puedeVerEnlace, type Sesion } from '@/lib/session';
 import PaletaComandos from '@/components/PaletaComandos';
 import { esRolAdministrador } from '@/lib/roles';
 import { PermisosProvider } from '@/app/context/PermisosContext';
+import { EnlaceAlCore } from '@/components/navigation/enlace-al-core';
 import { BarraContextualModulo } from '@/components/navigation/BarraContextualModulo';
 import { useI18n } from '@/components/I18nProvider';
 import { cerrarSesionKeycloak } from '@/lib/keycloak';
@@ -162,7 +162,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   /* ── Acceso ────────────────────────────────────────────────────────────── */
 
-  const { tienePermiso } = usePermiso();
+  /*
+   * Aquí NO se llama a `usePermiso()`, y no es un descuido.
+   *
+   * Este componente es el que monta `<PermisosProvider>` más abajo, y un
+   * provider de React no sirve a su propio componente: el hook resolvía contra
+   * el contexto por omisión —`{ permisos: {}, cargando: true }`— y
+   * `tienePermiso` devolvía `false` para todo, siempre. Lo único que dependía de
+   * él era el enlace al core, que por eso no aparecía para NADIE; ahora vive en
+   * `components/navigation/enlace-al-core.tsx`, que sí es hijo del provider.
+   *
+   * Lo que este componente usa para decidir accesos es `permisos`, la lista de
+   * RUTAS que pide aparte unas líneas arriba. Si algún día hace falta preguntar
+   * por un ENDPOINT en el menú, la pregunta va en un componente hijo.
+   */
 
   const accesoDenegado = useMemo(() => {
     if (permisos === null) return false;
@@ -316,36 +329,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               );
             })}
 
-            {/* Fineract conserva su propia autorización. Keycloak aporta SSO,
-                pero SyncroERP nunca traduce ni suplanta sus permisos bancarios.
-
-                Solo aparece si la empresa lo contrató —una que solo usa el ERP
-                no tiene nada al otro lado de ese enlace— y solo para quien
-                tiene algo que hacer allí. Sin esa segunda condición el enlace
-                se le pintaba a todos: el almacenista lo veía en su menú, lo
-                abría y aterrizaba en un login del core que lo rechazaba. Un
-                enlace que siempre termina en un error no es una función, es
-                una trampa. */}
-            {plan?.usaRegistroExterno && tienePermiso('GET', '/api/integracion/estado') && (
-            <>
-            <div className="h-px bg-white/[0.06] my-2" />
-            <a
-              href={FINERACT_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={t('Fineract')}
-              className="flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[12.5px] text-slate-400 hover:text-white hover:bg-white/[0.05] transition-colors"
-            >
-              <Landmark className="w-4 h-4 shrink-0 text-emerald-400" />
-              {!colapsado && (
-                <>
-                  <span className="truncate">{t('Fineract')}</span>
-                  <ExternalLink className="ml-auto w-3 h-3 shrink-0 text-slate-500" />
-                </>
-              )}
-            </a>
-            </>
-            )}
+            {/*
+              El enlace al core vive en su propio componente, y no por orden:
+              este componente es el que monta `<PermisosProvider>`, así que el
+              `usePermiso()` de aquí arriba resolvía contra el contexto por
+              omisión —`cargando: true`— y `tienePermiso` decía `false` para
+              todo, siempre. El enlace no aparecía para nadie. Ver
+              `components/navigation/enlace-al-core.tsx`.
+            */}
+            <EnlaceAlCore
+              url={FINERACT_URL}
+              contratado={plan?.usaRegistroExterno === true}
+              colapsado={colapsado}
+              etiqueta={t('Fineract')}
+            />
           </nav>
 
           {/* Colapsar */}
