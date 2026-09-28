@@ -295,6 +295,14 @@ export class AltaEmpresasController {
     return this.identidades.resumen(empresaId);
   }
 
+  /**
+   * Qué le falta a una empresa para poder operar, todo en una respuesta.
+   *
+   * La identidad se junta AQUÍ y no dentro del servicio de alta para no atar el
+   * módulo de integración al de identidades por una lectura. Se junta, eso sí:
+   * que la consola tenga que hacer dos llamadas y unirlas a mano es justo el
+   * trabajo que esta pantalla existe para quitar.
+   */
   @Public()
   @Get(':id/estado')
   async estado(
@@ -302,6 +310,40 @@ export class AltaEmpresasController {
     @Headers('x-aprovisionamiento') clave?: string,
   ) {
     this.exigirServicio(clave);
-    return this.alta.estado(id);
+    const estado = await this.alta.estado(id);
+    let identidad: Awaited<ReturnType<IdentidadEmpresaService['resumen']>> | null =
+      null;
+    let motivoIdentidad: string | null = null;
+    try {
+      identidad = await this.identidades.resumen(id);
+    } catch (error) {
+      motivoIdentidad = error instanceof Error ? error.message : String(error);
+    }
+    return { ...estado, identidad, motivoIdentidad };
+  }
+
+  /**
+   * Siembra el catálogo de una empresa que se quedó sin él.
+   *
+   * El alta lo siembra FUERA de su transacción a propósito —deshacer el alta
+   * entera por un catálogo dejaría un inquilino de la reserva consumido y
+   * perdido—, así que puede fallar con la empresa ya creada. Antes eso sólo
+   * constaba en el registro del servidor; ahora el alta lo dice y esto lo
+   * arregla sin que nadie entre al ERP de la empresa a capturar productos.
+   */
+  @Public()
+  @Post(':id/catalogo')
+  async sembrarCatalogo(
+    @Headers('x-aprovisionamiento') clave: string | undefined,
+    @Param('id') id: string,
+    @Body() cuerpo: { solicitadoPor?: string },
+  ) {
+    this.exigirServicio(clave);
+    if (!cuerpo?.solicitadoPor?.trim()) {
+      throw new ForbiddenException(
+        'Falta indicar quién autoriza la siembra del catálogo (solicitadoPor).',
+      );
+    }
+    return this.alta.sembrarCatalogoDe(id);
   }
 }

@@ -76,14 +76,49 @@ export class AltaEmpresasService {
       this.reserva.count({ where: { estado: EstadoTenantReserva.RETIRADO } }),
     ]);
     /*
-     * Qué inquilinos conoce el core, para que quien registre no teclee a
-     * ciegas. Si no se puede leer, la pantalla lo dice en vez de romperse: es
-     * información de apoyo, y el registro ya se niega por su cuenta.
+     * ──────────────────────────────────────────────────────────────────────
+     * EL INVENTARIO, NO LA LISTA
+     *
+     * Antes se devolvían los identificadores que el core conoce, a secas, y la
+     * consola los imprimía para que alguien los volviera a TECLEAR en una caja
+     * de texto. Dos problemas, y los dos costaban trabajo a quien opera:
+     *
+     *  · Teclear lo que el sistema ya sabe es trabajo que el sistema debería
+     *    hacerse a sí mismo, y cada letra es una oportunidad de equivocarse.
+     *  · La lista no distinguía cuáles están libres, cuáles ya se registraron y
+     *    cuáles se entregaron a una empresa. Así que lo normal era escribir uno
+     *    ya asignado y recibir una negativa por algo que la pantalla podía
+     *    haber sabido antes de que nadie escribiera nada.
+     *
+     * Ahora se devuelve el ESTADO de cada uno, y la consola ofrece registrar
+     * los que faltan de un golpe. `empresaId` va sin resolver a nombre: la
+     * consola ya tiene la lista de empresas y cruzarlo allí ahorra una consulta
+     * por inquilino.
+     * ──────────────────────────────────────────────────────────────────────
      */
-    let conocidosPorElCore: string[] | null = null;
+    let inventarioDelCore:
+      | Array<{
+          identificador: string;
+          estado: EstadoTenantReserva | 'SIN_REGISTRAR';
+          empresaId: string | null;
+        }>
+      | null = null;
+    let sinRegistrar: string[] = [];
     let motivoRegistro: string | null = null;
     try {
-      conocidosPorElCore = await this.tenantsDelCore();
+      const conocidos = await this.tenantsDelCore();
+      const anotados = await this.reserva.find({ where: { proveedor: 'fineract' } });
+      inventarioDelCore = conocidos.map((identificador) => {
+        const fila = anotados.find((a) => a.identificador === identificador);
+        return {
+          identificador,
+          estado: fila?.estado ?? ('SIN_REGISTRAR' as const),
+          empresaId: fila?.empresaId ?? null,
+        };
+      });
+      sinRegistrar = inventarioDelCore
+        .filter((x) => x.estado === 'SIN_REGISTRAR')
+        .map((x) => x.identificador);
     } catch (error) {
       motivoRegistro = error instanceof Error ? error.message : String(error);
     }
@@ -92,7 +127,8 @@ export class AltaEmpresasService {
       disponibles,
       asignados,
       retirados,
-      conocidosPorElCore,
+      inventarioDelCore,
+      sinRegistrar,
       motivoRegistro,
       /*
        * El aviso llega ANTES de quedarse sin, porque reponer exige una ventana
@@ -392,13 +428,23 @@ export class AltaEmpresasService {
        * que deshacer el alta entera por un catálogo dejaría un inquilino de la
        * reserva consumido y perdido.
        */
+      /*
+       * Y SE DICE si falló. La primera versión lo escribía en el registro del
+       * servidor y devolvía el alta como si nada: la consola contestaba «LISTO
+       * · Creada» y la empresa quedaba sin productos de crédito, cosa que nadie
+       * descubre hasta que alguien intenta vender a crédito semanas después.
+       * Un fallo que sólo consta en un log es un fallo que nadie lee.
+       */
+      const catalogo: { sembrados: number; error: string | null } = {
+        sembrados: 0,
+        error: null,
+      };
       try {
-        await this.sembrarCatalogo(resultado.empresa.id);
+        catalogo.sembrados = await this.sembrarCatalogo(resultado.empresa.id);
       } catch (error) {
+        catalogo.error = error instanceof Error ? error.message : String(error);
         this.logger.error(
-          `La empresa ${resultado.empresa.id} quedó creada sin catálogo: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          `La empresa ${resultado.empresa.id} quedó creada sin catálogo: ${catalogo.error}`,
         );
       }
       /*
@@ -423,8 +469,25 @@ export class AltaEmpresasService {
         resultado: 'OK',
       });
 
-      return resultado;
+      return { ...resultado, catalogo };
     });
+  }
+
+  /**
+   * Siembra el catálogo de una empresa que se quedó sin él.
+   *
+   * Es el remedio del fallo de arriba, y existe porque nombrarlo sin ofrecerlo
+   * sería mandar a alguien a una puerta que no está en la pared: la única
+   * alternativa era entrar al ERP con una cuenta de esa empresa a crear los
+   * productos a mano. Es idempotente —salta los códigos que ya existen— así
+   * que pulsarlo dos veces no duplica nada.
+   */
+  async sembrarCatalogoDe(empresaId: string): Promise<{ sembrados: number; total: number }> {
+    const empresa = await this.empresas.findOne({ where: { id: empresaId } });
+    if (!empresa) throw new NotFoundException('La empresa no existe.');
+    const sembrados = await this.sembrarCatalogo(empresaId);
+    const total = await this.productos.count({ where: { empresaId } });
+    return { sembrados, total };
   }
 
   // ── Estado de una empresa ─────────────────────────────────────────────────
@@ -451,7 +514,11 @@ export class AltaEmpresasService {
      * «no se pudo contar»: el error real —el nombre no correspondía— quedaba
      * escondido detrás de un mensaje que parecía un problema de permisos.
      */
-    const totalUsuarios = await this.usuarios.count({ where: { empresaId } });
+    const cuentas = await this.usuarios.find({
+      where: { empresaId },
+      order: { email: 'ASC' },
+    });
+    const totalUsuarios = cuentas.length;
 
     const usaFineract = (cfg?.modo ?? ModoCartera.APAGADO) !== ModoCartera.APAGADO;
 
@@ -468,6 +535,26 @@ export class AltaEmpresasService {
         modo: cfg?.modo ?? ModoCartera.APAGADO,
         modoContabilidad: cfg?.modoContabilidad ?? ModoContabilidad.APAGADO,
       },
+      /*
+       * Quiénes pueden entrar, por nombre. El punto de la lista decía «2
+       * usuario(s)» y con eso no se puede hacer nada: para reenviarle la
+       * invitación a alguien hay que saber a quién, y la consola no tenía de
+       * dónde sacarlo salvo preguntándole a la empresa. No va el hash ni nada
+       * que se le parezca; sólo lo que hace falta para actuar.
+       */
+      cuentas: cuentas.map((u) => ({
+        id: u.id,
+        email: u.email,
+        nombreCompleto: u.nombreCompleto,
+        rol: u.rol,
+        activo: u.activo,
+        /*
+         * Una cuenta creada por el alta no tiene acceso local: su contraseña
+         * vive en el directorio. Se dice, porque explica por qué «reenviar la
+         * invitación» es la única forma de que esa persona entre.
+         */
+        accesoLocal: !String(u.passwordHash ?? '').startsWith('sin-acceso-local:'),
+      })),
       puntos: [
         {
           clave: 'catalogo',
@@ -476,7 +563,16 @@ export class AltaEmpresasService {
           detalle: catalogo.length
             ? `${catalogo.length} producto(s).`
             : 'Sin productos: no se puede vender a crédito.',
-          accion: catalogo.length ? null : 'Sembrar el catálogo por omisión desde Productos de crédito.',
+          accion: catalogo.length
+            ? null
+            : 'Sembrar el catálogo por omisión. Son los productos ya probados; los que capture la empresa nacen en borrador y pasan por verificación.',
+          /*
+           * Lo que la consola puede hacer por quien opera, en vez de explicarle
+           * a dónde ir. Cada clave tiene su ruta de servicio; una acción sin
+           * ruta no se declara aquí, porque un botón que no lleva a ningún
+           * sitio es peor que una instrucción.
+           */
+          accionAutomatica: catalogo.length ? null : 'SEMBRAR_CATALOGO',
         },
         {
           clave: 'usuarios',
@@ -488,6 +584,7 @@ export class AltaEmpresasService {
           accion: totalUsuarios
             ? null
             : 'Invitar al administrador. Recibe un enlace y define su propia contraseña; nadie más la ve.',
+          accionAutomatica: totalUsuarios ? null : 'DAR_ADMINISTRADOR',
         },
         {
           clave: 'tenant',
@@ -502,6 +599,13 @@ export class AltaEmpresasService {
             usaFineract && !tenant
               ? 'Reponer la reserva en la próxima ventana de mantenimiento y asignar uno.'
               : null,
+          /*
+           * Sin acción automática, y no por falta de ganas: el inquilino lo
+           * construye el core al arrancar, así que no hay nada que un botón de
+           * aquí pueda hacer. Decirlo es más honesto que ofrecer un botón que
+           * contestaría siempre «no hay».
+           */
+          accionAutomatica: null,
         },
         /*
          * Este punto exigía AUTORIDAD para darse por hecho, y AUTORIDAD ya no
@@ -533,6 +637,7 @@ export class AltaEmpresasService {
             (cfg?.modo ?? ModoCartera.APAGADO) === ModoCartera.APAGADO
               ? 'Subir el modo de cartera a SOMBRA.'
               : null,
+          accionAutomatica: null,
         },
       ],
     };

@@ -40,6 +40,10 @@ const JUSTIFICADOS: Record<string, string> = {
     'Rechaza explícitamente si falta `solicitadoPor`, antes de cualquier efecto.',
   'integracion/controllers/alta-empresas.controller.ts:suspenderIdentidad':
     'Rechaza explícitamente si falta `solicitadoPor`, antes de cualquier efecto.',
+  'integracion/controllers/alta-empresas.controller.ts:sembrarCatalogo':
+    'Rechaza explícitamente si falta `solicitadoPor`, antes de cualquier efecto; no hay ningún otro campo que validar.',
+  'integracion/controllers/alta-empresas.controller.ts:asignarInquilino':
+    'Rechaza explícitamente si falta `solicitadoPor`, antes de cualquier efecto; cuál inquilino se entrega lo decide la reserva, nunca el cuerpo.',
   'integracion/controllers/integracion.controller.ts:aprovisionarCuentas':
     'Acepta las banderas por cuerpo o por cadena de consulta y valida el alcance contra una lista cerrada en el propio manejador.',
 };
