@@ -67,6 +67,34 @@ export class AltaEmpresasService {
     private readonly usuarios: Repository<Usuario>,
   ) {}
 
+  /**
+   * ¿Esta empresa usa el registro externo?
+   *
+   * LOS DOS EJES, NO UNO. Esta pregunta se hacía en tres sitios de esta clase
+   * mirando sólo la cartera. Hay empresas que contratan el registro externo
+   * SÓLO para espejar contabilidad y no mueven cartera —los dos ejes son
+   * independientes por diseño, y `IntegracionModoService.usaRegistroExterno`
+   * ya pregunta por los dos—. Con la pregunta a medias, una empresa así salía
+   * en la consola como «sólo ERP», su punto del inquilino decía «No aplica:
+   * opera sólo con el ERP» teniendo uno asignado, y la fila lo enseñaba al
+   * lado: dos afirmaciones contrarias en el mismo renglón.
+   *
+   * Y es un estado alcanzable sin hacer nada raro: basta con que una empresa
+   * ERP+core baje su cartera a APAGADO mientras concilia. Con la pregunta a
+   * medias, la consola la daba por desligada del core mientras el espejo
+   * contable seguía publicando.
+   *
+   * Es estático para que las tres respuestas sean literalmente la misma.
+   */
+  private static usaRegistroExterno(
+    cfg?: { modo?: ModoCartera | null; modoContabilidad?: ModoContabilidad | null } | null,
+  ): boolean {
+    return (
+      (cfg?.modo ?? ModoCartera.APAGADO) !== ModoCartera.APAGADO ||
+      (cfg?.modoContabilidad ?? ModoContabilidad.APAGADO) !== ModoContabilidad.APAGADO
+    );
+  }
+
   // ── Reserva ───────────────────────────────────────────────────────────────
 
   async estadoReserva() {
@@ -502,7 +530,7 @@ export class AltaEmpresasService {
     if (!empresa) throw new NotFoundException('La empresa no existe.');
 
     const cfg = await this.configs.findOne({ where: { empresaId } });
-    if (!cfg || cfg.modo === ModoCartera.APAGADO) {
+    if (!AltaEmpresasService.usaRegistroExterno(cfg)) {
       /*
        * Una empresa que no contrató el registro externo no debe consumir un
        * inquilino: son escasos —reponerlos exige reiniciar el core— y el suyo
@@ -624,7 +652,27 @@ export class AltaEmpresasService {
     });
     const totalUsuarios = cuentas.length;
 
-    const usaFineract = (cfg?.modo ?? ModoCartera.APAGADO) !== ModoCartera.APAGADO;
+    /*
+     * ──────────────────────────────────────────────────────────────────────
+     * LOS DOS EJES, NO UNO
+     *
+     * Esto miraba sólo la cartera. Hay empresas que contratan el registro
+     * externo SÓLO para espejar contabilidad y no mueven cartera —los dos ejes
+     * son independientes por diseño, y `usaRegistroExterno` en el ERP ya
+     * pregunta por los dos—. Con la pregunta a medias, una empresa así salía
+     * en la consola como «sólo ERP», su punto del inquilino decía «No aplica:
+     * opera sólo con el ERP» teniendo uno asignado, y la fila la enseñaba al
+     * lado: dos afirmaciones contrarias en el mismo renglón.
+     *
+     * Y es un estado alcanzable sin hacer nada raro: basta con que una empresa
+     * ERP+core baje su cartera a APAGADO durante una conciliación. Con la
+     * pregunta a medias, la consola la daba por desligada del core mientras el
+     * espejo contable seguía publicando.
+     * ──────────────────────────────────────────────────────────────────────
+     */
+    const usaFineract = AltaEmpresasService.usaRegistroExterno(cfg);
+    const espejaContabilidad =
+      (cfg?.modoContabilidad ?? ModoContabilidad.APAGADO) !== ModoContabilidad.APAGADO;
     /* Si hay algo que entregar, el consejo cambia; ver el punto del inquilino. */
     const librePorEntregar = await this.reserva.count({
       where: { estado: EstadoTenantReserva.DISPONIBLE },
@@ -731,22 +779,37 @@ export class AltaEmpresasService {
          * SOMBRA: desde ahí se publica, se refleja y se concilia. Se marca eso,
          * y el detalle explica el grado siguiente sin fingir que está a mano.
          */
+        /*
+         * Este punto habla de la CARTERA, así que pregunta por su eje y no por
+         * el conjunto. Lo que sí cambió es qué se dice cuando está apagada:
+         * antes ordenaba «Súbela a SOMBRA» a cualquiera que tocara el core, y
+         * una empresa que contrató SÓLO el espejo contable no tiene ninguna
+         * cartera que subir. Ordenarle un cambio de modo que nadie compró es
+         * la misma avería de siempre vista al revés: una lista que manda a
+         * hacer algo que no toca se deja de leer entera.
+         */
         {
           clave: 'conciliacion',
           titulo: 'Cartera enlazada con el registro externo',
           listo:
             !usaFineract ||
-            (cfg?.modo ?? ModoCartera.APAGADO) !== ModoCartera.APAGADO,
+            (cfg?.modo ?? ModoCartera.APAGADO) !== ModoCartera.APAGADO ||
+            espejaContabilidad,
           detalle: !usaFineract
             ? 'No aplica: esta empresa opera sólo con el ERP.'
-            : (cfg?.modo ?? ModoCartera.APAGADO) === ModoCartera.APAGADO
-              ? 'La cartera no se publica ni se concilia. Súbela a SOMBRA.'
-              : 'En SOMBRA: se publica, se refleja y se concilia, el registro ' +
+            : (cfg?.modo ?? ModoCartera.APAGADO) !== ModoCartera.APAGADO
+              ? 'En SOMBRA: se publica, se refleja y se concilia, el registro ' +
                 'externo es la fuente de verdad del registro y la decisión de ' +
                 'vender a crédito se toma en el ERP. Es el modo integrado y no ' +
-                'hay otro por encima: AUTORIDAD está retirada.',
+                'hay otro por encima: AUTORIDAD está retirada.'
+              : espejaContabilidad
+                ? 'Esta empresa espeja contabilidad y NO cartera: sus créditos ' +
+                  'viven enteros en el ERP y no se publican. Es una contratación ' +
+                  'legítima, no un pendiente.'
+                : 'La cartera no se publica ni se concilia. Súbela a SOMBRA.',
           accion:
             usaFineract &&
+            !espejaContabilidad &&
             (cfg?.modo ?? ModoCartera.APAGADO) === ModoCartera.APAGADO
               ? 'Subir el modo de cartera a SOMBRA.'
               : null,
@@ -814,7 +877,8 @@ export class AltaEmpresasService {
         rfc: e.rfc,
         activo: e.activo,
         modo: cfg?.modo ?? ModoCartera.APAGADO,
-        usaFineract: (cfg?.modo ?? ModoCartera.APAGADO) !== ModoCartera.APAGADO,
+        // Los dos ejes; ver `usaRegistroExterno` y por qué mirar uno engañaba.
+        usaFineract: AltaEmpresasService.usaRegistroExterno(cfg),
         tenant: tenants.find((t) => t.empresaId === e.id)?.identificador ?? null,
         usuarios: porEmpresa.get(e.id) ?? 0,
       };
