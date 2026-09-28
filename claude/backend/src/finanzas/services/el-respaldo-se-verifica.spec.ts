@@ -44,11 +44,27 @@ describe('Respaldo del cierre · se verifica lo que quedó en disco', () => {
     process.env = { ...entornoOriginal };
   });
 
-  /** Un comando que escribe lo que se le diga en el archivo destino. */
+  /**
+   * Un comando que escribe lo que se le diga en el archivo destino.
+   *
+   * Se usa NODE y no `cp`: `cp` no existe en Windows, y esta prueba fallaba
+   * siempre en la máquina de desarrollo con «"cp" no se reconoce como un
+   * comando interno o externo» —un rojo permanente que no dice nada del
+   * producto y que acaba enseñando a ignorar la suite—. `process.execPath` es
+   * el mismo Node que está corriendo jest, así que existe por definición en
+   * cualquier plataforma donde esto se ejecute.
+   *
+   * Las dos rutas van como argumentos sueltos y las lee `process.argv`: así el
+   * intérprete de turno —cmd.exe o sh— se encarga de las comillas, y ninguna
+   * ruta de Windows con barras invertidas acaba dentro de una cadena de
+   * JavaScript.
+   */
   function comandoQueEscribe(contenido: string) {
     const fuente = join(carpeta, 'fuente.txt');
     writeFileSync(fuente, contenido);
-    process.env.CIERRE_RESPALDO_COMANDO = `cp "${fuente}" "{{archivo}}"`;
+    process.env.CIERRE_RESPALDO_COMANDO =
+      `"${process.execPath}" -e "require('fs').copyFileSync(process.argv[1], process.argv[2])"` +
+      ` "${fuente}" "{{archivo}}"`;
   }
 
   it('acepta un volcado completo y devuelve su tamaño y su huella', async () => {

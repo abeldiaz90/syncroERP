@@ -64,6 +64,15 @@ describe('Consultas · una lista vacía no se rellena con un centinela', () => {
     for (const ruta of fuentes) {
       const lineas = readFileSync(ruta, 'utf8').split('\n');
       lineas.forEach((linea, i) => {
+        /*
+         * Los comentarios quedan fuera: esta misma prueba nació de un defecto
+         * cuyo arreglo lo explica citando la forma mala, y acusar a la
+         * explicación de ser el defecto es cómo una prueba se vuelve ruido.
+         */
+        const limpia = linea.trim();
+        if (limpia.startsWith('*') || limpia.startsWith('//') || limpia.startsWith('/*')) {
+          return;
+        }
         if (!/\bIn\(/.test(linea) && !/\.concat\(/.test(linea)) return;
         for (const { patron, motivo } of CENTINELAS) {
           if (!patron.test(linea)) continue;
