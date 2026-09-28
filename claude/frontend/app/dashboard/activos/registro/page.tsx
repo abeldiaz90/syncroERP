@@ -106,10 +106,40 @@ export default function RegistroActivosPage() {
 
   const sinCategorias = !categorias.cargando && (categorias.datos?.length ?? 0) === 0;
 
-  const totalFiltrado = useMemo(
-    () => (activos.datos ?? []).reduce((s, a) => s + Number(a.valorEnLibros), 0),
-    [activos.datos],
-  );
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * «En libros» es lo que la empresa todavía tiene
+   * ----------------------------------------------------------------------------
+   * El pie sumaba el valor en libros de TODAS las filas visibles y lo etiquetaba
+   * «en libros», bajas y ventas incluidas. Medido el 28-sep-2026 con la sesión
+   * del contador: la tarjeta de arriba decía «Valor en libros $35,400.00» y el
+   * pie de la misma tabla, dos centímetros más abajo, decía «3 activos ·
+   * $586,600.00 en libros». Los otros dos activos —la camioneta y el servidor—
+   * estaban VENDIDOS.
+   *
+   * La tarjeta tenía razón: el backend excluye BAJA y VENDIDO al calcular el
+   * resumen, porque un activo vendido ya no es de la empresa y no tiene valor
+   * en libros. «En libros» no es una manera de decir «la suma de la columna»:
+   * es un término contable, y es la primera cifra que alguien copia a un
+   * estado financiero.
+   *
+   * Se conservan las dos sumas porque las dos sirven —filtrar por «Vendido» y
+   * ver cuánto se dio de baja es legítimo—, pero cada una con su nombre.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const RETIRADOS = ['BAJA', 'VENDIDO'];
+  const { enLibros, retirado } = useMemo(() => {
+    let enLibros = 0;
+    let retirado = 0;
+    for (const a of activos.datos ?? []) {
+      if (RETIRADOS.includes(String(a.estado).toUpperCase())) {
+        retirado += Number(a.valorEnLibros);
+      } else {
+        enLibros += Number(a.valorEnLibros);
+      }
+    }
+    return { enLibros, retirado };
+  }, [activos.datos]);
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
@@ -192,7 +222,10 @@ export default function RegistroActivosPage() {
             </Seleccion>
           </div>
           <p className="text-[12px] text-slate-500 cifra">
-            {activos.datos?.length ?? 0} activos · {dinero(totalFiltrado)} en libros
+            {activos.datos?.length ?? 0} activos · {dinero(enLibros)} en libros
+            {retirado > 0 && (
+              <> · {dinero(retirado)} en activos ya vendidos o dados de baja, que no cuentan en libros</>
+            )}
           </p>
         </div>
 
