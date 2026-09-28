@@ -438,13 +438,51 @@ export class CrmService {
 
       await repoOpp.save(oportunidad);
 
-      // Ganar convierte al prospecto en cliente; es el punto de traspaso al ERP.
+      /*
+       * ══════════════════════════════════════════════════════════════════════
+       * El traspaso al ERP era una línea en el log del servidor
+       * ----------------------------------------------------------------------
+       * Aquí decía «ganar convierte al prospecto en cliente; es el punto de
+       * traspaso al ERP», y lo único que hacía era un `logger.log` diciendo que
+       * el prospecto «está listo para darse de alta como cliente». Nadie lee el
+       * log del servidor. `prospecto.clienteId` no se asigna en NINGÚN sitio del
+       * sistema, así que el traspaso no existía: la oportunidad se ganaba, la
+       * pantalla decía «Oportunidad movida de etapa» y el cliente nunca nacía.
+       * Un embudo que termina en el vacío.
+       *
+       * No se da de alta el cliente automáticamente, y es deliberado: un cliente
+       * necesita RFC, régimen fiscal y domicilio para poder facturarle, y eso lo
+       * exige —con razón— la pantalla de alta. Inventarlos aquí para que el
+       * traspaso «funcione» sería crear un cliente que no se puede facturar.
+       *
+       * Lo que sí se hace es DECIRLO, y decírselo a quien está mirando: la
+       * respuesta lleva el prospecto que quedó por dar de alta, con su nombre y
+       * sus datos de contacto, para que la pantalla lo ponga delante en vez de
+       * dejarlo en un log.
+       * ══════════════════════════════════════════════════════════════════════
+       */
+      let prospectoPorDarDeAlta:
+        | {
+            id: string;
+            nombre: string;
+            empresa?: string | null;
+            email?: string | null;
+            telefono?: string | null;
+          }
+        | null = null;
       if (destino.tipo === TipoEtapa.GANADA && oportunidad.prospectoId) {
         const repoPros = manager.getRepository(Prospecto);
         const prospecto = await repoPros.findOne({
           where: { id: oportunidad.prospectoId },
         });
         if (prospecto && !prospecto.clienteId) {
+          prospectoPorDarDeAlta = {
+            id: prospecto.id,
+            nombre: prospecto.nombre,
+            empresa: prospecto.empresa ?? null,
+            email: prospecto.email ?? null,
+            telefono: prospecto.telefono ?? null,
+          };
           this.logger.log(
             `Oportunidad ${oportunidad.folio} ganada. El prospecto ${prospecto.nombre} ` +
               `está listo para darse de alta como cliente.`,
@@ -456,6 +494,7 @@ export class CrmService {
         oportunidad,
         etapaAnterior: nombreEtapaAnterior,
         etapaNueva: destino.nombre,
+        prospectoPorDarDeAlta,
       };
     });
   }

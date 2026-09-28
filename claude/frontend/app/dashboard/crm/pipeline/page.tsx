@@ -12,7 +12,9 @@
 import { useState } from 'react';
 import { Briefcase, Clock, Plus, TrendingUp } from 'lucide-react';
 
+import Link from 'next/link';
 import { api } from '@/lib/api';
+import { solicitarTexto } from '@/components/ui/dialogos';
 import { dinero, dineroCorto, fecha } from '@/lib/format';
 import { useAccion, useDatos } from '@/hooks/use-datos';
 import {
@@ -22,6 +24,8 @@ import {
 
 interface Etapa {
   id: string; nombre: string; color: string; probabilidad: number; diasAlerta: number;
+  /** ABIERTA, GANADA o PERDIDA. Decide qué hace falta para llegar a ella. */
+  tipo?: 'ABIERTA' | 'GANADA' | 'PERDIDA';
 }
 
 interface Oportunidad {
@@ -52,6 +56,10 @@ interface Prospecto { id: string; nombre: string; empresa?: string }
 export default function PipelinePage() {
   const { avisar } = useAvisos();
   const [modalAbierto, setModalAbierto] = useState(false);
+  /** Lo que quedó pendiente al ganar: el prospecto que todavía no es cliente. */
+  const [porDarDeAlta, setPorDarDeAlta] = useState<
+    { id: string; nombre: string; empresa?: string | null } | null
+  >(null);
 
   const pipeline = useDatos<Pipeline>(() => api.get('/crm/pipeline'), []);
   const etapas = useDatos<Etapa[]>(() => api.get('/crm/etapas'), []);
@@ -65,9 +73,54 @@ export default function PipelinePage() {
     return o;
   });
 
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Dos cosas que faltaban en el mismo botón
+   * --------------------------------------------------------------------------
+   * 1. Mover a una etapa PERDIDA contestaba 400 siempre. El servidor exige el
+   *    motivo —«es lo que permite mejorar el proceso»— y aquí se mandaba sólo
+   *    `{ etapaId }`. Perder oportunidades es más frecuente que ganarlas: era el
+   *    camino más transitado del módulo y estaba cerrado con cualquier rol.
+   *
+   * 2. Ganar no decía nada de lo que quedaba pendiente. El servidor apunta el
+   *    prospecto que hay que dar de alta como cliente —antes lo escribía sólo en
+   *    el log— y esta pantalla despachaba con «Oportunidad movida de etapa». El
+   *    embudo terminaba en el vacío: el cliente no nacía nunca.
+   *
+   * El alta del cliente no se hace sola a propósito: necesita RFC, régimen
+   * fiscal y domicilio para poder facturarle. Lo que se hace es decirlo con
+   * nombre y mandar a la pantalla que sí sabe pedirlo.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
   const mover = useAccion(async (id: string, etapaId: string) => {
-    await api.patch(`/crm/oportunidades/${id}/etapa`, { etapaId });
-    avisar('Oportunidad movida de etapa.', 'exito');
+    const destino = (etapas.datos ?? []).find((e) => e.id === etapaId);
+    const cuerpo: { etapaId: string; motivoPerdida?: string } = { etapaId };
+
+    if (destino?.tipo === 'PERDIDA') {
+      const motivo = await solicitarTexto(
+        `¿Por qué se perdió? Queda en el historial de «${destino.nombre}» y es lo que ` +
+          'permite mejorar el proceso.',
+        { titulo: 'Motivo de la pérdida', obligatorio: true },
+      );
+      if (!motivo?.trim()) return;
+      cuerpo.motivoPerdida = motivo.trim();
+    }
+
+    const r = await api.patch<{
+      prospectoPorDarDeAlta?: { id: string; nombre: string; empresa?: string | null } | null;
+    }>(`/crm/oportunidades/${id}/etapa`, cuerpo);
+
+    const pendiente = r?.prospectoPorDarDeAlta;
+    if (pendiente) {
+      setPorDarDeAlta(pendiente);
+      avisar(
+        `Oportunidad ganada. Falta dar de alta a ${pendiente.nombre} como cliente ` +
+          'para poder facturarle.',
+        'alerta',
+      );
+    } else {
+      avisar(`Oportunidad movida a ${destino?.nombre ?? 'otra etapa'}.`, 'exito');
+    }
     void pipeline.recargar();
   });
 
@@ -111,6 +164,39 @@ export default function PipelinePage() {
           </Boton>
         }
       />
+
+      {/*
+        Lo que queda pendiente al ganar, delante y con el enlace.
+        Antes esto era una linea en el log del servidor: la oportunidad se
+        ganaba y el cliente no nacia nunca.
+      */}
+      {porDarDeAlta && (
+        <div className="panel p-4 mb-4 border-l-[3px] border-l-amber-500">
+          <p className="text-[13px] font-semibold text-slate-900">
+            Falta dar de alta a {porDarDeAlta.nombre}
+            {porDarDeAlta.empresa ? ` (${porDarDeAlta.empresa})` : ''} como cliente
+          </p>
+          <p className="text-[12.5px] text-slate-500 mt-0.5">
+            La oportunidad quedó ganada, pero el prospecto todavía no es cliente:
+            sin RFC, régimen fiscal y domicilio no se le puede facturar. El alta
+            los pide.
+          </p>
+          <div className="mt-2 flex items-center gap-3">
+            <Link
+              href="/dashboard/clientes"
+              className="text-[12.5px] font-semibold text-indigo-600 hover:underline"
+            >
+              Dar de alta el cliente →
+            </Link>
+            <button
+              onClick={() => setPorDarDeAlta(null)}
+              className="text-[12px] text-slate-400 hover:text-slate-600"
+            >
+              Ocultar
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador
