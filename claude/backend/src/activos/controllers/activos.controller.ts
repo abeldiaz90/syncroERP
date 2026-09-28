@@ -23,7 +23,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { ActivosService } from '../services/activos.service';
-import {
+import { ActualizarActivoDto,
   BajaActivoDto,
   CrearActivoDto,
   CrearCategoriaActivoDto,
@@ -144,6 +144,28 @@ export class ActivosController {
   @Get(':id')
   obtener(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
     return this.svc.obtener(id, empresaId);
+  }
+
+  /**
+   * Corrige la ficha de un activo.
+   *
+   * El módulo sabía dar de alta y dar de baja, y nada en medio: un número de
+   * serie mal capturado sólo se arreglaba dando de baja el activo —con su
+   * póliza— y creando otro con código nuevo. El código va pegado en una
+   * etiqueta física.
+   *
+   * Qué se puede tocar lo decide el servicio, porque depende de si ya se
+   * deprecio: la ficha descriptiva siempre, la base de cálculo sólo mientras no
+   * haya corridas vigentes.
+   */
+  @Patch(':id')
+  @ApiOperation({ summary: 'Corrige la ficha de un activo' })
+  actualizar(
+    @Param('id') id: string,
+    @Body() dto: ActualizarActivoDto,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
+    return this.svc.actualizar(id, dto, empresaId);
   }
 
   @Patch(':id/baja')

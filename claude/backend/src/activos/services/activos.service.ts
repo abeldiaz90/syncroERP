@@ -40,7 +40,7 @@ import {
   MetodoDepreciacion,
   MotivoBaja,
 } from '../entities/activo-fijo.entity';
-import { CrearActivoDto } from '../dto/activos.dto';
+import { ActualizarActivoDto, CrearActivoDto } from '../dto/activos.dto';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { Poliza } from '../../finanzas/entities/poliza.entity';
 import { CuentaContable } from '../../finanzas/entities/cuenta-contable.entity';
@@ -293,6 +293,147 @@ export class ActivosService {
       ),
       proyeccion: this.proyectar(activo),
     };
+  }
+
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * Corregir la ficha de un activo
+   * --------------------------------------------------------------------------
+   * El módulo sabía dar de alta un activo y darlo de baja, y NADA en medio. Si
+   * alguien capturaba mal el número de serie, la ubicación o el responsable, la
+   * única salida era darlo de baja —que escribe una póliza y lo saca del
+   * inventario— y volverlo a crear con otro código. Y el código va pegado en
+   * una etiqueta física: por un dedazo había que ir al almacén a despegarla.
+   *
+   * LO QUE SE PUEDE TOCAR DEPENDE DE SI YA SE DEPRECIÓ
+   *
+   * La ficha descriptiva —nombre, serie, marca, ubicación, responsable— no
+   * cambia ningún número ya asentado, así que se corrige siempre.
+   *
+   * La BASE DE CÁLCULO —costo, residual, método, tasa, vida útil, fecha de
+   * inicio, categoría— sí. Cambiarla con depreciaciones ya corridas dejaría los
+   * meses viejos calculados con una base y los nuevos con otra, y la
+   * `depreciacionAcumulada` sería la suma de dos cosas distintas; el balance y
+   * la cédula del ejercicio dirían números que no se pueden reconstruir. Así
+   * que se niega, y se dice qué hacer: revertir las corridas que lo tocaron
+   * —cosa que el propio módulo sabe hacer—, corregir, y volver a correrlas.
+   *
+   * Un activo DADO DE BAJA no se edita: su ficha es la bitácora de lo que fue,
+   * y su baja ya está asentada.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  async actualizar(
+    id: string,
+    dto: ActualizarActivoDto,
+    empresaId: string,
+  ): Promise<ActivoFijo> {
+    const activo = await this.activos.findOne({ where: { id, empresaId } });
+    if (!activo) throw new NotFoundException('El activo no existe.');
+
+    /*
+     * BAJA y VENDIDO son la MISMA cosa vista de dos maneras: `darDeBaja` escribe
+     * VENDIDO cuando el motivo es venta y BAJA en los demás casos, y su propia
+     * guarda pregunta por los dos. Preguntar aquí sólo por BAJA dejaba editable
+     * un activo ya vendido —incluido su costo, que es parte de la utilidad o
+     * pérdida ya asentada en la póliza de la baja—. Se vio en la instalación:
+     * de tres activos, dos están en VENDIDO.
+     */
+    if (
+      activo.estado === EstadoActivo.BAJA ||
+      activo.estado === EstadoActivo.VENDIDO
+    ) {
+      throw new ConflictException(
+        `«${activo.codigo}» ya fue dado de baja: su ficha es el registro de lo que fue, y la baja ` +
+          'ya está asentada con su utilidad o pérdida. Si el bien volvió, se da de alta uno nuevo.',
+      );
+    }
+
+    /* Lo que toca la base de cálculo, con su nombre tal como se ve. */
+    const BASE: Array<[keyof ActualizarActivoDto, string]> = [
+      ['categoriaId', 'la categoría'],
+      ['fechaAdquisicion', 'la fecha de adquisición'],
+      ['costoAdquisicion', 'el costo de adquisición'],
+      ['valorResidual', 'el valor residual'],
+      ['metodo', 'el método'],
+      ['tasaAnual', 'la tasa anual'],
+      ['vidaUtilMeses', 'la vida útil'],
+      ['inicioDepreciacion', 'el inicio de la depreciación'],
+    ];
+    const tocaLaBase = BASE.filter(([campo]) => dto[campo] !== undefined);
+
+    if (tocaLaBase.length) {
+      /*
+       * Se pregunta por las depreciaciones VIGENTES, no por `mesesDepreciados`:
+       * una corrida revertida deja el contador en cero y sus filas canceladas,
+       * y en ese estado la base sí se puede corregir —que es justo el camino
+       * que esta negativa recomienda—.
+       */
+      const corridas = await this.depreciaciones.count({
+        where: { activoId: id, empresaId, cancelada: false },
+      });
+      if (corridas > 0) {
+        throw new ConflictException(
+          `«${activo.codigo}» ya tiene ${corridas} mes(es) de depreciación corridos, así que no se ` +
+            `puede cambiar ${tocaLaBase.map(([, nombre]) => nombre).join(', ')}: los meses ya ` +
+            'asentados quedarían calculados con una base y los nuevos con otra, y la depreciación ' +
+            'acumulada sería la suma de dos cosas distintas. Revierte esas corridas desde ' +
+            'Activos → Depreciación, corrige la ficha y vuelve a correrlas.',
+        );
+      }
+      if (dto.categoriaId && dto.categoriaId !== activo.categoriaId) {
+        const categoria = await this.categorias.findOne({
+          where: { id: dto.categoriaId, empresaId },
+        });
+        if (!categoria) {
+          throw new BadRequestException('Esa categoría no existe en esta empresa.');
+        }
+      }
+    }
+
+    /*
+     * El residual no puede superar al costo: un activo no puede valer al final
+     * más de lo que costó, y si lo hiciera la depreciación saldría negativa. Se
+     * comprueba contra lo que va a quedar, no contra lo que había.
+     */
+    const costoFinal = dto.costoAdquisicion ?? activo.costoAdquisicion;
+    const residualFinal = dto.valorResidual ?? activo.valorResidual;
+    if (aCentavos(residualFinal) > aCentavos(costoFinal)) {
+      throw new BadRequestException(
+        'El valor residual no puede superar al costo de adquisición: la depreciación saldría negativa.',
+      );
+    }
+
+    const antes = { ...activo };
+    Object.assign(activo, {
+      ...(dto.nombre !== undefined && { nombre: dto.nombre }),
+      ...(dto.descripcion !== undefined && { descripcion: dto.descripcion }),
+      ...(dto.numeroSerie !== undefined && { numeroSerie: dto.numeroSerie }),
+      ...(dto.marca !== undefined && { marca: dto.marca }),
+      ...(dto.modelo !== undefined && { modelo: dto.modelo }),
+      ...(dto.ubicacion !== undefined && { ubicacion: dto.ubicacion }),
+      ...(dto.responsableId !== undefined && { responsableId: dto.responsableId }),
+      ...(dto.departamentoId !== undefined && { departamentoId: dto.departamentoId }),
+      ...(dto.proveedorId !== undefined && { proveedorId: dto.proveedorId }),
+      ...(dto.facturaCompra !== undefined && { facturaCompra: dto.facturaCompra }),
+      ...(dto.categoriaId !== undefined && { categoriaId: dto.categoriaId }),
+      ...(dto.fechaAdquisicion !== undefined && {
+        fechaAdquisicion: new Date(dto.fechaAdquisicion),
+      }),
+      ...(dto.costoAdquisicion !== undefined && { costoAdquisicion: dto.costoAdquisicion }),
+      ...(dto.valorResidual !== undefined && { valorResidual: dto.valorResidual }),
+      ...(dto.metodo !== undefined && { metodo: dto.metodo }),
+      ...(dto.tasaAnual !== undefined && { tasaAnual: dto.tasaAnual }),
+      ...(dto.vidaUtilMeses !== undefined && { vidaUtilMeses: dto.vidaUtilMeses }),
+      ...(dto.inicioDepreciacion !== undefined && {
+        inicioDepreciacion: new Date(dto.inicioDepreciacion),
+      }),
+    });
+
+    const guardado = await this.activos.save(activo);
+    this.logger.log(
+      `Activo ${antes.codigo} corregido: ${Object.keys(dto).join(', ') || 'nada'}`,
+    );
+    return guardado;
   }
 
   /* ── Corrida de depreciación ───────────────────────────────────────────── */

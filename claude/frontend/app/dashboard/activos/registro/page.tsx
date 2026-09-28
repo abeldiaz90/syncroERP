@@ -6,7 +6,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Building, Plus, Search } from 'lucide-react';
+import { Building, Pencil, Plus, Search } from 'lucide-react';
 
 import { api } from '@/lib/api';
 import { dinero, fecha, porcentaje } from '@/lib/format';
@@ -28,6 +28,12 @@ interface Activo {
   tasaAnual: number;
   estado: string;
   ubicacion?: string;
+  descripcion?: string;
+  numeroSerie?: string;
+  marca?: string;
+  modelo?: string;
+  /* Con esto en cero, la base de cálculo todavía se puede corregir. */
+  depreciacionAcumulada: number;
 }
 
 interface Categoria { id: string; clave: string; nombre: string; tasaAnual: number }
@@ -61,6 +67,8 @@ export default function RegistroActivosPage() {
   const [busqueda, setBusqueda] = useState('');
   const [estado, setEstado] = useState('');
   const [modalAbierto, setModalAbierto] = useState(false);
+  /* Qué activo se está corrigiendo. Null es «ninguno». */
+  const [aCorregir, setACorregir] = useState<Activo | null>(null);
 
   const activos = useDatos<Activo[]>(
     () => api.get('/activos', { query: { busqueda, estado } }),
@@ -76,6 +84,15 @@ export default function RegistroActivosPage() {
     void activos.recargar();
     void resumen.recargar();
     return creado;
+  });
+
+  const corregir = useAccion(async (id: string, datos: Record<string, unknown>) => {
+    const r = await api.patch<Activo>(`/activos/${id}`, datos);
+    avisar(`Ficha de ${r.codigo} corregida.`, 'exito');
+    setACorregir(null);
+    void activos.recargar();
+    void resumen.recargar();
+    return r;
   });
 
   const sembrar = useAccion(async () => {
@@ -216,6 +233,7 @@ export default function RegistroActivosPage() {
                   <th className="text-right">Depreciado</th>
                   <th className="text-right">En libros</th>
                   <th>Estado</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -239,6 +257,29 @@ export default function RegistroActivosPage() {
                         {ETIQUETA_ESTADO[a.estado] ?? a.estado}
                       </Distintivo>
                     </td>
+                    <td>
+                      {/*
+                        * Corregir la ficha. Antes no existía: un número de serie
+                        * mal capturado sólo se arreglaba dando de baja el activo
+                        * —con su póliza— y creando otro con código nuevo, y el
+                        * código va pegado en una etiqueta física.
+                        *
+                        * Un activo ya dado de baja no se ofrece: su ficha es
+                        * el registro de lo que fue, y el servidor lo niega.
+                        * VENDIDO es dado de baja: es lo que escribe la baja
+                        * cuando el motivo es venta.
+                        */}
+                      {a.estado !== 'BAJA' && a.estado !== 'VENDIDO' && (
+                        <button
+                          type="button"
+                          className="btn btn-fantasma btn-sm btn-icono"
+                          title="Corregir la ficha"
+                          onClick={() => setACorregir(a)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -246,6 +287,13 @@ export default function RegistroActivosPage() {
           </div>
         )}
       </Panel>
+
+      <ModalCorregirActivo
+        activo={aCorregir}
+        guardando={corregir.ejecutando}
+        onCerrar={() => setACorregir(null)}
+        onGuardar={(d) => void corregir.ejecutar(aCorregir!.id, d)}
+      />
 
       <ModalNuevoActivo
         abierto={modalAbierto}
@@ -385,6 +433,152 @@ function ModalNuevoActivo({
         <Campo etiqueta="Ubicación" ayuda="Dónde está físicamente">
           <Entrada value={form.ubicacion} onChange={(e) => cambiar('ubicacion', e.target.value)} placeholder="Almacén central" />
         </Campo>
+      </div>
+    </Modal>
+  );
+}
+
+/* ── Corregir la ficha ────────────────────────────────────────────────────── */
+
+/**
+ * ============================================================================
+ * Corregir, que no es dar de baja
+ * ----------------------------------------------------------------------------
+ * El módulo sabía dar de alta y dar de baja, y nada en medio. Una serie mal
+ * capturada o un responsable que cambió de puesto sólo se arreglaban dando de
+ * baja el activo —con su póliza y su cálculo de utilidad o pérdida— y creando
+ * otro con código nuevo. El código va pegado en una etiqueta física.
+ *
+ * LA BASE DE CÁLCULO SÓLO SE OFRECE CUANDO SE PUEDE CAMBIAR. En cuanto el
+ * activo tiene depreciación acumulada, el servidor niega tocar costo, residual
+ * o vida útil —los meses viejos quedarían calculados con una base y los nuevos
+ * con otra—, así que esta pantalla no los enseña: un campo que se puede llenar
+ * y que el servidor va a rechazar es un formulario que lleva a un no.
+ *
+ * Y en su lugar se dice el camino que sí existe, que además es una función que
+ * el propio módulo tiene: revertir la corrida, corregir, volver a correrla.
+ * ============================================================================
+ */
+function ModalCorregirActivo({
+  activo, guardando, onCerrar, onGuardar,
+}: {
+  activo: Activo | null;
+  guardando: boolean;
+  onCerrar: () => void;
+  onGuardar: (datos: Record<string, unknown>) => void;
+}) {
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [listo, setListo] = useState<string | null>(null);
+
+  /* Se rellena con lo que hay cuando cambia el activo elegido. */
+  if (activo && listo !== activo.id) {
+    setListo(activo.id);
+    setForm({
+      nombre: activo.nombre ?? '',
+      descripcion: activo.descripcion ?? '',
+      numeroSerie: activo.numeroSerie ?? '',
+      marca: activo.marca ?? '',
+      modelo: activo.modelo ?? '',
+      ubicacion: activo.ubicacion ?? '',
+      costoAdquisicion: String(activo.costoAdquisicion ?? ''),
+    });
+  }
+
+  if (!activo) return null;
+
+  const yaSeDeprecio = Number(activo.depreciacionAcumulada ?? 0) > 0;
+  const cambiar = (campo: string, valor: string) =>
+    setForm((f) => ({ ...f, [campo]: valor }));
+
+  const enviar = () => {
+    /*
+     * Sólo lo que CAMBIÓ. Mandar el formulario entero haría que corregir la
+     * ubicación contara como «tocar el costo», y el servidor lo negaría con
+     * toda la razón en cuanto el activo tuviera un mes corrido.
+     */
+    const datos: Record<string, unknown> = {};
+    const original: Record<string, string> = {
+      nombre: activo.nombre ?? '',
+      descripcion: activo.descripcion ?? '',
+      numeroSerie: activo.numeroSerie ?? '',
+      marca: activo.marca ?? '',
+      modelo: activo.modelo ?? '',
+      ubicacion: activo.ubicacion ?? '',
+      costoAdquisicion: String(activo.costoAdquisicion ?? ''),
+    };
+    for (const [campo, valor] of Object.entries(form)) {
+      if (valor === original[campo]) continue;
+      if (campo === 'costoAdquisicion') {
+        if (yaSeDeprecio) continue;
+        const n = parseFloat(valor);
+        if (Number.isFinite(n) && n > 0) datos.costoAdquisicion = n;
+        continue;
+      }
+      datos[campo] = valor;
+    }
+    if (!Object.keys(datos).length) {
+      onCerrar();
+      return;
+    }
+    onGuardar(datos);
+  };
+
+  return (
+    <Modal
+      abierto={!!activo}
+      onCerrar={onCerrar}
+      titulo={`Corregir ${activo.codigo}`}
+      descripcion="Se guarda sólo lo que cambies. El código no se toca: es el que está pegado en la etiqueta."
+      ancho={620}
+      pie={
+        <>
+          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
+          <Boton variante="primario" onClick={enviar} cargando={guardando}>Guardar cambios</Boton>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-3.5">
+        <div className="col-span-2">
+          <Campo etiqueta="Nombre del activo">
+            <Entrada value={form.nombre ?? ''} onChange={(e) => cambiar('nombre', e.target.value)} />
+          </Campo>
+        </div>
+        <div className="col-span-2">
+          <Campo etiqueta="Descripción">
+            <Entrada value={form.descripcion ?? ''} onChange={(e) => cambiar('descripcion', e.target.value)} />
+          </Campo>
+        </div>
+        <Campo etiqueta="Marca"><Entrada value={form.marca ?? ''} onChange={(e) => cambiar('marca', e.target.value)} /></Campo>
+        <Campo etiqueta="Modelo"><Entrada value={form.modelo ?? ''} onChange={(e) => cambiar('modelo', e.target.value)} /></Campo>
+        <Campo etiqueta="Número de serie"><Entrada value={form.numeroSerie ?? ''} onChange={(e) => cambiar('numeroSerie', e.target.value)} /></Campo>
+        <Campo etiqueta="Ubicación" ayuda="Dónde está físicamente">
+          <Entrada value={form.ubicacion ?? ''} onChange={(e) => cambiar('ubicacion', e.target.value)} />
+        </Campo>
+
+        {yaSeDeprecio ? (
+          <div className="col-span-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+            <p className="text-[12.5px] text-amber-900">
+              <strong>El costo y la vida útil ya no se corrigen aquí:</strong> este activo lleva{' '}
+              {dinero(activo.depreciacionAcumulada)} depreciados. Cambiar la base dejaría los meses
+              ya asentados calculados con una base y los nuevos con otra.
+            </p>
+            <p className="text-[12px] text-amber-800 mt-1">
+              Si de verdad está mal, revierte esas corridas en <em>Activos → Depreciación</em>,
+              corrige la ficha y vuelve a correrlas.
+            </p>
+          </div>
+        ) : (
+          <Campo
+            etiqueta="Costo de adquisición"
+            ayuda="Todavía se puede corregir: este activo no tiene depreciación corrida"
+          >
+            <Entrada
+              type="number" step="0.01" min="0"
+              value={form.costoAdquisicion ?? ''}
+              onChange={(e) => cambiar('costoAdquisicion', e.target.value)}
+            />
+          </Campo>
+        )}
       </div>
     </Modal>
   );
