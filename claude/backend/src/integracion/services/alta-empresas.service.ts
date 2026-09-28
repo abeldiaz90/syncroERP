@@ -474,6 +474,110 @@ export class AltaEmpresasService {
   }
 
   /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * Dar inquilino a una empresa que contrató el core y no tiene
+   * --------------------------------------------------------------------------
+   * Pasa por dos caminos reales: el alta se hizo cuando la reserva estaba
+   * vacía y se optó por crear la empresa sólo con el ERP, o —el de esta misma
+   * instalación— la empresa se configuró a mano antes de que existiera la
+   * consola. En los dos casos la empresa queda diciendo que usa el registro
+   * externo y sin inquilino, y la lista de pendientes lo marcaba con esta
+   * acción: «Reponer la reserva y asignar uno».
+   *
+   * ASIGNAR UNO NO SE PODÍA. No había endpoint, ni método, ni pantalla: la
+   * reserva sólo entregaba inquilinos dentro del alta. El consejo mandaba a una
+   * puerta que no estaba en la pared, y la única salida real era escribir en la
+   * base de datos a mano.
+   *
+   * Las mismas garantías que en el alta, porque es la misma entrega: se toma
+   * con `FOR UPDATE SKIP LOCKED` para que dos asignaciones simultáneas no se
+   * lleven el mismo renglón, y se escribe el inquilino TAMBIÉN en la
+   * configuración de la empresa, que es de donde lo lee el despachador. Anotar
+   * sólo la reserva dejaría a la empresa publicando sin inquilino: exactamente
+   * el estado del que venimos.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  async asignarInquilino(empresaId: string, solicitadoPor: string) {
+    const empresa = await this.empresas.findOne({ where: { id: empresaId } });
+    if (!empresa) throw new NotFoundException('La empresa no existe.');
+
+    const cfg = await this.configs.findOne({ where: { empresaId } });
+    if (!cfg || cfg.modo === ModoCartera.APAGADO) {
+      /*
+       * Una empresa que no contrató el registro externo no debe consumir un
+       * inquilino: son escasos —reponerlos exige reiniciar el core— y el suyo
+       * se lo estaría quitando a un cliente que sí lo compró.
+       */
+      throw new ConflictException(
+        `«${empresa.nombreComercial}» no tiene contratado el registro externo, así que no necesita ` +
+          'inquilino. Los inquilinos son escasos: dárselo sería quitárselo a un cliente que sí lo contrató.',
+      );
+    }
+
+    const yaTiene = await this.reserva.findOne({
+      where: { empresaId, estado: EstadoTenantReserva.ASIGNADO },
+    });
+    if (yaTiene) {
+      throw new ConflictException(
+        `«${empresa.nombreComercial}» ya tiene el inquilino ${yaTiene.identificador}. ` +
+          'Un inquilino usado no se cambia: el core conserva la cartera de quien lo usó.',
+      );
+    }
+
+    return this.ds.transaction(async (em) => {
+      const [fila] = await em.query(
+        `SELECT id FROM integracion_tenants_reserva
+          WHERE proveedor = $1 AND estado = 'DISPONIBLE'
+          ORDER BY fechacreacion
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1`,
+        ['fineract'],
+      );
+      if (!fila?.id) {
+        throw new ConflictException(
+          'No hay inquilinos disponibles en la reserva. Hay que reponerla en la próxima ventana de ' +
+            'mantenimiento del core: sólo construye el esquema de un inquilino al arrancar.',
+        );
+      }
+      const tenant = await em.findOne(TenantReserva, { where: { id: fila.id } });
+      if (!tenant) throw new ConflictException('No se pudo tomar el inquilino de la reserva.');
+      tenant.estado = EstadoTenantReserva.ASIGNADO;
+      tenant.empresaId = empresaId;
+      tenant.asignadoEn = new Date();
+      tenant.nota = `Asignado a «${empresa.nombreComercial}» a solicitud de ${solicitadoPor}.`;
+      await em.save(tenant);
+
+      const configuracion = await em.findOne(ConfiguracionIntegracionEmpresa, {
+        where: { empresaId },
+      });
+      if (configuracion) {
+        configuracion.parametrosProveedor = {
+          ...(configuracion.parametrosProveedor ?? {}),
+          tenant: tenant.identificador,
+        };
+        await em.save(configuracion);
+      }
+
+      await this.auditoria.registrar({
+        empresaId,
+        usuarioEmail: solicitadoPor,
+        accion: 'ACTUALIZAR',
+        entidad: 'TenantReserva',
+        registroId: tenant.id,
+        valorNuevo: {
+          inquilino: tenant.identificador,
+          empresa: empresa.nombreComercial,
+          solicitadoPor,
+          origen: 'consola de aprovisionamiento de SUMA',
+        },
+        resultado: 'OK',
+      });
+
+      return { empresa: { id: empresa.id, nombreComercial: empresa.nombreComercial }, tenant: tenant.identificador };
+    });
+  }
+
+  /**
    * Siembra el catálogo de una empresa que se quedó sin él.
    *
    * Es el remedio del fallo de arriba, y existe porque nombrarlo sin ofrecerlo
@@ -521,6 +625,10 @@ export class AltaEmpresasService {
     const totalUsuarios = cuentas.length;
 
     const usaFineract = (cfg?.modo ?? ModoCartera.APAGADO) !== ModoCartera.APAGADO;
+    /* Si hay algo que entregar, el consejo cambia; ver el punto del inquilino. */
+    const librePorEntregar = await this.reserva.count({
+      where: { estado: EstadoTenantReserva.DISPONIBLE },
+    });
 
     return {
       empresa: {
@@ -595,17 +703,22 @@ export class AltaEmpresasService {
             : tenant
               ? `Asignado: ${tenant.identificador}.`
               : 'Contrató el registro externo y no tiene inquilino.',
+          /*
+           * El consejo depende de si HAY inquilinos, y antes no: decía siempre
+           * «reponer la reserva y asignar uno» aunque hubiera cinco libres, y
+           * asignar uno era justamente lo que no se podía hacer desde ninguna
+           * parte. Ahora, si hay, se entrega de un clic; si no hay, se dice que
+           * el core tiene que construirlos al arrancar, que es la verdad y no
+           * tiene botón.
+           */
           accion:
             usaFineract && !tenant
-              ? 'Reponer la reserva en la próxima ventana de mantenimiento y asignar uno.'
+              ? librePorEntregar
+                ? 'Entregarle uno de los que están libres en la reserva.'
+                : 'La reserva está vacía: hay que preparar inquilinos nuevos en la próxima ventana de mantenimiento del core, que sólo construye el esquema al arrancar.'
               : null,
-          /*
-           * Sin acción automática, y no por falta de ganas: el inquilino lo
-           * construye el core al arrancar, así que no hay nada que un botón de
-           * aquí pueda hacer. Decirlo es más honesto que ofrecer un botón que
-           * contestaría siempre «no hay».
-           */
-          accionAutomatica: null,
+          accionAutomatica:
+            usaFineract && !tenant && librePorEntregar ? 'ASIGNAR_INQUILINO' : null,
         },
         /*
          * Este punto exigía AUTORIDAD para darse por hecho, y AUTORIDAD ya no
