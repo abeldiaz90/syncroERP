@@ -208,9 +208,27 @@ export default function AprobacionesPage() {
                     item.fechaVencimiento &&
                       new Date(item.fechaVencimiento).getTime() < Date.now(),
                   );
+                  /*
+                   * Quien firma ve el NOMBRE. Esto leía `razonSocial` y
+                   * `nombreComercial`, y de esos dos uno es opcional —casi
+                   * nunca se captura en un alta rápida— y el otro no existe en
+                   * la entidad. El resultado, medido el 28-sep-2026 con la
+                   * sesión de gerencia: las dos adjudicaciones que esperaban
+                   * firma decían «Proveedor no disponible» y sólo se
+                   * distinguían por el importe. Se pedía firmar A QUIÉN SE LE
+                   * COMPRA sin decir a quién, con el dato ahí al lado.
+                   *
+                   * Y el texto mentía dos veces: «no disponible» se lee como
+                   * proveedor dado de baja o bloqueado, que en este ERP es un
+                   * estado real y uno que impide adjudicar.
+                   *
+                   * Se prefiere la razón social —es el nombre fiscal, y para
+                   * una firma es el bueno— pero la caída llega al campo
+                   * obligatorio antes que a un aviso.
+                   */
                   const prov =
-                    item.cotizacion.proveedor?.razonSocial ??
-                    item.cotizacion.proveedor?.nombreComercial ??
+                    item.cotizacion.proveedor?.razonSocial?.trim() ||
+                    item.cotizacion.proveedor?.nombre?.trim() ||
                     'Proveedor no disponible';
                   return (
                     <li
