@@ -788,7 +788,36 @@ export class WmsService {
             polizaId,
         };
     }
-    async listarConteos(empresaId: string) { return this.conteos.find({ where: { empresaId }, relations: ['almacen'], order: { fechaCreacion: 'DESC' } }); }
+    /**
+     * ========================================================================
+     * Un conteo que decía tener cero posiciones
+     * ------------------------------------------------------------------------
+     * Esto traía `relations: ['almacen']` y nada más, así que `detalles` no
+     * venía y la pantalla —que imprime `detalles?.length || 0`— escribía cero
+     * en TODAS las filas. Medido el 28-sep-2026: un conteo recién abierto con
+     * su partida dentro (Termo de acero 1 L, posición N-01-01) aparecía como
+     * «0 posiciones/lotes», igual que los tres conteos cerrados anteriores,
+     * dos de los cuales habían aplicado ajustes.
+     *
+     * No era un dato pobre: era un dato falso. Desde esa lista el almacenista
+     * decide si el conteo que abrió cubre lo que quería contar, y un cero en
+     * todas partes no distingue «lo abrí mal y está vacío» de «tiene cuarenta
+     * posiciones».
+     *
+     * Se CUENTA, no se trae. Cargar los detalles de todos los conteos para
+     * escribir una cifra por fila cambiaría una lista barata por una cara;
+     * `loadRelationCountAndMap` lo resuelve en la misma consulta.
+     * ========================================================================
+     */
+    async listarConteos(empresaId: string) {
+        return this.conteos
+            .createQueryBuilder('conteo')
+            .leftJoinAndSelect('conteo.almacen', 'almacen')
+            .loadRelationCountAndMap('conteo.partidas', 'conteo.detalles')
+            .where('conteo.empresaId = :empresaId', { empresaId })
+            .orderBy('conteo.fechaCreacion', 'DESC')
+            .getMany();
+    }
     /**
      * ========================================================================
      * Un conteo ciego que no era ciego

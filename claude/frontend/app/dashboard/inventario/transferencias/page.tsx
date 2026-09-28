@@ -32,12 +32,25 @@ const [p,a,t]=await Promise.all([api.get<any>('/catalogo/productos',{query:{limi
  return <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
   <div className="flex flex-wrap justify-between gap-4"><div><h1 className="text-3xl font-black flex items-center gap-3"><ArrowRightLeft/>Transferencias WMS</h1><p className="text-slate-500">Solicitud, autorización, tránsito y recepción física.</p></div><div className="flex gap-2"><Link href="/dashboard/inventario/conteos" className="px-4 py-2 rounded-xl border flex gap-2 items-center"><ClipboardCheck size={18}/>Conteos</Link><Link href="/dashboard/inventario/ubicaciones" className="px-4 py-2 rounded-xl border flex gap-2 items-center"><MapPin size={18}/>Ubicaciones</Link><Link href="/dashboard/inventario/reubicaciones" className="px-4 py-2 rounded-xl border flex gap-2 items-center"><ArrowRightLeft size={18}/>Reubicar</Link></div></div>
   <form onSubmit={crear} noValidate className="bg-white border rounded-3xl p-6 grid md:grid-cols-6 gap-4 shadow-sm">
-   {intento&&Object.values(errores).some(Boolean)&&<div className="md:col-span-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">Corrige los campos marcados antes de crear la transferencia.</div>}
+   {/*
+     * El aviso NOMBRA lo que falta. Decía «corrige los campos marcados» y no
+     * marcaba nada: de los seis campos, sólo el motivo escribía su mensaje y
+     * sólo la posición cambiaba de color. Medido el 28-sep-2026 con la sesión
+     * del almacenista: con producto, origen, destino, cantidad y motivo
+     * puestos y la posición sin elegir, la pantalla pedía corregir «los
+     * campos marcados» sin marcar ninguno. Un aviso que no dice qué es un
+     * aviso que obliga a adivinar entre seis.
+     */}
+   {intento&&Object.values(errores).some(Boolean)&&<div className="md:col-span-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"><b className="font-semibold">Falta esto para crear la transferencia:</b><ul className="mt-1 list-disc pl-5 font-medium">{Object.values(errores).filter(Boolean).map((m)=><li key={m}>{m}</li>)}</ul></div>}
    <BuscadorSeleccion valor={form.productoId} onChange={(productoId)=>setForm({...form,productoId,ubicacionOrigenId:''})} opciones={productos.map(p=>({valor:p.id,etiqueta:`${p.sku} · ${p.nombre}`,busqueda:p.sku}))} placeholder="Buscar producto…"/>
    <BuscadorSeleccion valor={form.almacenOrigenId} onChange={(almacenOrigenId)=>setForm({...form,almacenOrigenId,ubicacionOrigenId:'',almacenDestinoId:form.almacenDestinoId===almacenOrigenId?'':form.almacenDestinoId})} opciones={almacenes.map(a=>({valor:a.id,etiqueta:a.nombre}))} placeholder="Almacén origen…"/>
    <BuscadorSeleccion valor={form.almacenDestinoId} onChange={(almacenDestinoId)=>setForm({...form,almacenDestinoId})} opciones={almacenes.filter(a=>a.id!==form.almacenOrigenId).map(a=>({valor:a.id,etiqueta:a.nombre}))} placeholder="Almacén destino…"/>
-   <select className={`p-3 border rounded-xl ${intento&&errores.ubicacionOrigenId?'border-rose-400':'border-slate-300'}`} value={form.ubicacionOrigenId} onChange={e=>setForm({...form,ubicacionOrigenId:e.target.value})}><option value="">Posición origen</option>{stockFisico.map(x=><option key={x.id} value={x.ubicacionId}>{x.ubicacion?.codigo} · disp. {Number(x.cantidad||0)-Number(x.reservado||0)}</option>)}</select>
-   <input required min="0.0001" step="0.0001" type="number" className="p-3 border rounded-xl" placeholder={`Cantidad ${producto?.unidadMedida||''}`} value={form.cantidad} onChange={e=>setForm({...form,cantidad:e.target.value})}/>
+   <div><select className={`w-full p-3 border rounded-xl ${intento&&errores.ubicacionOrigenId?'border-rose-400':'border-slate-300'}`} value={form.ubicacionOrigenId} onChange={e=>setForm({...form,ubicacionOrigenId:e.target.value})}><option value="">Posición origen</option>{stockFisico.map(x=><option key={x.id} value={x.ubicacionId}>{x.ubicacion?.codigo} · disp. {Number(x.cantidad||0)-Number(x.reservado||0)}</option>)}</select>{/*
+     * Un desplegable vacío no explica nada, y aquí se vacía por un motivo muy
+     * concreto: ese producto no tiene existencia localizada en ese almacén. Sin
+     * esta línea el formulario puede ser imposible de satisfacer y no decirlo.
+     */}{form.productoId&&form.almacenOrigenId&&!stockFisico.length&&<p className="mt-1 text-xs font-semibold text-amber-700">Este producto no tiene existencia localizada en el almacén origen.</p>}{intento&&errores.ubicacionOrigenId&&<p className="mt-1 text-xs font-semibold text-rose-600">{errores.ubicacionOrigenId}</p>}</div>
+   <div><input required min="0.0001" step="0.0001" type="number" className={`w-full p-3 border rounded-xl ${intento&&errores.cantidad?'border-rose-400':'border-slate-300'}`} placeholder={`Cantidad ${producto?.unidadMedida||''}`} value={form.cantidad} onChange={e=>setForm({...form,cantidad:e.target.value})}/>{intento&&errores.cantidad&&<p className="mt-1 text-xs font-semibold text-rose-600">{errores.cantidad}</p>}</div>
    <button disabled={guardando} className="bg-slate-900 text-white rounded-xl font-bold disabled:opacity-50">{guardando?'Guardando...':'Crear solicitud'}</button>
    <div className="md:col-span-5"><input className={`w-full p-3 border rounded-xl ${intento&&errores.motivo?'border-rose-400':'border-slate-300'}`} placeholder="Motivo, pedido o referencia logística" value={form.motivo} onChange={e=>setForm({...form,motivo:e.target.value})}/>{intento&&errores.motivo&&<p className="mt-1 text-xs font-semibold text-rose-600">{errores.motivo}</p>}</div>
   </form>

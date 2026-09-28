@@ -19,6 +19,13 @@ export class ConteoInventario {
  @Column({type: 'timestamptz',nullable:true}) fechaApertura?: Date;
  @Column({type: 'timestamptz',nullable:true}) fechaCierre?: Date;
  @OneToMany(()=>ConteoInventarioDetalle,d=>d.conteo,{cascade:true}) detalles!: ConteoInventarioDetalle[];
+
+  /**
+   * Cuántas partidas tiene el conteo. No es columna: la llena
+   * `loadRelationCountAndMap` en la lista, para no arrastrar todos los
+   * detalles de todos los conteos sólo para escribir una cifra por fila.
+   */
+  partidas?: number;
  @CreateDateColumn() fechaCreacion!: Date;
  @UpdateDateColumn() fechaActualizacion!: Date;
 }
