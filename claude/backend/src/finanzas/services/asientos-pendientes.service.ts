@@ -43,6 +43,51 @@ import { esViolacionUnicidad } from '../../common/database/errores-sql';
 const ESPERAS_MINUTOS = [1, 5, 15, 60, 240];
 const MAX_INTENTOS = ESPERAS_MINUTOS.length;
 
+/**
+ * ══════════════════════════════════════════════════════════════════════════
+ * Los documentos que esperan a su asiento
+ * --------------------------------------------------------------------------
+ * QUÉ PASÓ, medido el 28-sep-2026 contra la instalación
+ *
+ * El cobro de City Ledger de $1,200 estaba así: `estadoContable: 'PENDIENTE'`,
+ * `polizaId: null`. Y su asiento —`a1a4f6be…`— estaba **GENERADO**, con su
+ * póliza `d2b2a408…`. La contabilidad se hizo; el cobro no se enteró nunca.
+ *
+ * El motivo: cada módulo escribe el resultado en su documento en el MISMO sitio
+ * donde llama a `reintentarAhora` justo después de confirmar la operación. Si
+ * ese primer intento falla —y el de este cobro falló: la cuenta bancaria no
+ * tenía cuenta contable enlazada— el asiento se queda en la cola y se genera
+ * después, por el cron o por el botón de «Asientos pendientes». **Y ahí ya no
+ * hay nadie que vuelva a tocar el documento.** Se queda en PENDIENTE para
+ * siempre.
+ *
+ * No es cosmético: `COBROS_CITY_LEDGER_SIN_CONTABILIZAR` es un hallazgo de
+ * severidad CRÍTICA del diagnóstico de integridad, y con él la instalación
+ * entera salía **BLOQUEADO**. Un control que no se puede satisfacer se acaba
+ * ignorando, y el día que haya un cobro de verdad sin contabilizar se verá
+ * igual que ayer.
+ *
+ * LA REGLA: quien pone el asiento en GENERADO avisa al documento. Aquí, en un
+ * solo sitio, y no repartido por cada módulo —que es lo que dejó el hueco—.
+ *
+ * Se declara a mano porque la relación no está en el código: cada tabla nombra
+ * sus columnas a su manera —`importaciones_inventario` las lleva con guión
+ * bajo— y deducirlo sería adivinar. Son cinco.
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+const DOCUMENTOS_QUE_ESPERAN: ReadonlyArray<{
+  tabla: string;
+  asiento: string;
+  estado: string;
+  poliza: string;
+}> = [
+  { tabla: 'hoteleria_city_ledger_cobros', asiento: 'asientopendienteid', estado: 'estadocontable', poliza: 'polizaid' },
+  { tabla: 'folios', asiento: 'asientopendienteid', estado: 'estadocontable', poliza: 'polizaid' },
+  { tabla: 'pagos_proveedor', asiento: 'asientopendienteid', estado: 'estadocontable', poliza: 'polizaid' },
+  { tabla: 'pagos_cobranza', asiento: 'asientopendienteid', estado: 'estadocontable', poliza: 'polizaid' },
+  { tabla: 'importaciones_inventario', asiento: 'asiento_pendiente_id', estado: 'estado_contable', poliza: 'poliza_id' },
+];
+
 @Injectable()
 export class AsientosPendientesService {
   private readonly logger = new Logger(AsientosPendientesService.name);
@@ -366,6 +411,7 @@ export class AsientosPendientesService {
             )
           : 'Resuelto automáticamente.';
         await this.repo.save(asiento);
+        await this.avisarAlDocumento(asiento);
 
         this.logger.log(
           `Asiento ${asiento.tipo} ${asiento.folioDocumento ?? asiento.id} generado en el reintento ${asiento.intentos + 1}`,
@@ -448,8 +494,17 @@ export class AsientosPendientesService {
     if (!a) throw new NotFoundException('El asiento pendiente no existe.');
 
     if (a.estado === EstadoAsiento.GENERADO) {
+      /*
+       * Y se le vuelve a avisar al documento. Es justo el caso que dejó el
+       * cobro de $1,200 en PENDIENTE con su póliza hecha: el asiento se generó
+       * por otra vía y el documento no se enteró. Sin esto, el botón contestaba
+       * «ya estaba generado» y no arreglaba nada, que es lo más parecido a no
+       * tener botón.
+       */
+      await this.avisarAlDocumento(a);
       return {
         generado: true,
+        polizaId: a.polizaId ?? undefined,
         mensaje: 'El asiento ya había sido generado. No se duplicó la póliza.',
       };
     }
@@ -489,6 +544,7 @@ export class AsientosPendientesService {
         ? `Resuelto manualmente. Error previo: ${errorPrevio}`.slice(0, 500)
         : 'Resuelto manualmente.';
       await this.repo.save(a);
+      await this.avisarAlDocumento(a);
       return {
         generado: true,
         polizaId: a.polizaId ?? undefined,
@@ -505,6 +561,42 @@ export class AsientosPendientesService {
       a.estado = EstadoAsiento.FALLIDO;
       await this.repo.save(a);
       return { generado: false, mensaje: a.ultimoError };
+    }
+  }
+
+  /**
+   * Le dice al documento que su asiento ya se generó.
+   *
+   * Se llama desde los DOS sitios que ponen un asiento en GENERADO —el cron y
+   * el botón manual—, que es lo que faltaba: el aviso vivía sólo en el intento
+   * en línea de cada módulo, así que un asiento generado más tarde dejaba al
+   * documento diciendo PENDIENTE para siempre.
+   *
+   * NO LANZA. El asiento ya está generado y su póliza existe: tirar por esto
+   * dejaría la cola peor de lo que estaba. Pero tampoco calla: lo que no se
+   * pudo escribir se registra, y el diagnóstico de integridad lo seguirá
+   * viendo, que es exactamente para lo que está.
+   */
+  private async avisarAlDocumento(asiento: AsientoPendiente): Promise<void> {
+    for (const doc of DOCUMENTOS_QUE_ESPERAN) {
+      try {
+        await this.repo.manager.query(
+          `UPDATE ${doc.tabla}
+              SET ${doc.estado} = 'GENERADO', ${doc.poliza} = COALESCE($1, ${doc.poliza})
+            WHERE empresaid = $2 AND ${doc.asiento} = $3 AND ${doc.estado} <> 'GENERADO'`,
+          [asiento.polizaId ?? null, asiento.empresaId, asiento.id],
+        );
+      } catch (e) {
+        /*
+         * Una tabla que todavía no existe en esta instalación es normal —las
+         * migraciones las crean por etapas— y no es un fallo de este asiento.
+         * Se anota y se sigue con las demás.
+         */
+        this.logger.warn(
+          `No se pudo avisar a ${doc.tabla} de que el asiento ${asiento.id} ya se generó: ` +
+            `${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     }
   }
 
