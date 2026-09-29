@@ -14,6 +14,8 @@ describe('CuentasBancariasService', () => {
   let repo: any;
   let bancos: any;
   let cuentasContables: any;
+  let almacenes: any;
+  let listasPrecio: any;
 
   beforeEach(() => {
     datos = [];
@@ -61,10 +63,16 @@ describe('CuentasBancariasService', () => {
         esAfectable: true,
       })),
     };
+    // Los dos últimos son el almacén y la lista de precios contra los que se
+    // valida el contexto de venta de una caja; estas pruebas no lo ejercitan.
+    almacenes = { findOne: jest.fn(async () => null) };
+    listasPrecio = { findOne: jest.fn(async () => null) };
     servicio = new CuentasBancariasService(
       repo,
       bancos,
       cuentasContables,
+      almacenes,
+      listasPrecio,
     );
   });
 

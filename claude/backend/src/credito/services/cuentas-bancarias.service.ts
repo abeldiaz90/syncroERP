@@ -12,6 +12,8 @@ import {
 } from '../entities/cuenta-bancaria.entity';
 import { Banco } from '../../catalogo/entities/banco.entity';
 import { CuentaContable } from '../../finanzas/entities/cuenta-contable.entity';
+import { Almacen } from '../../catalogo/entities/almacen.entity';
+import { ListaPrecio } from '../../catalogo/entities/lista-precio.entity';
 import { CrearCuentaBancariaDto } from '../dto/crear-cuenta-bancaria.dto';
 import { ActualizarCuentaBancariaDto } from '../dto/actualizar-cuenta-bancaria.dto';
 import {
@@ -28,6 +30,10 @@ export class CuentasBancariasService {
     private readonly bancos: Repository<Banco>,
     @InjectRepository(CuentaContable)
     private readonly cuentasContables: Repository<CuentaContable>,
+    @InjectRepository(Almacen)
+    private readonly almacenes: Repository<Almacen>,
+    @InjectRepository(ListaPrecio)
+    private readonly listasPrecio: Repository<ListaPrecio>,
   ) {}
 
   async crear(dto: CrearCuentaBancariaDto, empresaId: string) {
@@ -66,12 +72,25 @@ export class CuentasBancariasService {
    *
    * Esto es esa vista: el nombre de la caja y su tipo, que es lo que el cajero
    * necesita nombrar. Ni CLABE, ni número de cuenta, ni cuenta contable.
+   *
+   * Desde el 29-sep-2026 lleva además el CONTEXTO DE VENTA de cada caja —su
+   * almacén y su lista de precios—, porque el punto de venta tiene que
+   * obedecerlo: elegir la caja es lo que decide desde qué mostrador se vende.
+   * Son dos identificadores que nombran un almacén y una lista que esa misma
+   * pantalla ya puede ver; no abren nada nuevo.
    * ==========================================================================
    */
   async obtenerParaCobro(empresaId: string) {
     const cuentas = await this.repo.find({
       where: { empresaId, activo: true },
-      select: { id: true, nombre: true, tipo: true, esPorDefecto: true },
+      select: {
+        id: true,
+        nombre: true,
+        tipo: true,
+        esPorDefecto: true,
+        almacenId: true,
+        listaPrecioId: true,
+      },
       order: { tipo: 'ASC', nombre: 'ASC' },
     });
     return cuentas.map((c) => ({
@@ -79,6 +98,8 @@ export class CuentasBancariasService {
       nombre: c.nombre,
       tipo: c.tipo,
       esPorDefecto: c.esPorDefecto,
+      almacenId: c.almacenId ?? null,
+      listaPrecioId: c.listaPrecioId ?? null,
     }));
   }
 
@@ -116,6 +137,16 @@ export class CuentasBancariasService {
             ? cb.cuentaContableId
             : dto.cuentaContableId,
         esPorDefecto: dto.esPorDefecto ?? cb.esPorDefecto,
+        /*
+         * `=== undefined` y no `??`: `null` es una respuesta —«esta caja ya no
+         * tiene almacén asignado»— y con `??` se habría confundido con «no me
+         * lo mandaron», dejando imposible DESconfigurar una caja.
+         */
+        almacenId: dto.almacenId === undefined ? cb.almacenId : dto.almacenId,
+        listaPrecioId:
+          dto.listaPrecioId === undefined
+            ? cb.listaPrecioId
+            : dto.listaPrecioId,
       },
       empresaId,
     );
@@ -146,12 +177,51 @@ export class CuentasBancariasService {
       clabe: dto.clabe?.trim() || null,
       cuentaContableId: dto.cuentaContableId || null,
       esPorDefecto: dto.esPorDefecto ?? false,
+      almacenId: dto.almacenId || null,
+      listaPrecioId: dto.listaPrecioId || null,
     };
 
     if (datos.tipo === TipoCuentaBancaria.CAJA) {
       datos.numeroCuenta = null;
       datos.bancoId = null;
       datos.clabe = null;
+    } else {
+      /*
+       * El contexto de venta es de una CAJA. Una cuenta de banco o un TPV no
+       * despachan mercancía de ninguna bodega, y dejarles el dato puesto sería
+       * guardar una configuración que nada lee: la clase de dato que dentro de
+       * un año alguien interpreta como una decisión.
+       */
+      datos.almacenId = null;
+      datos.listaPrecioId = null;
+    }
+
+    /*
+     * Que el almacén y la lista EXISTAN y sean de esta empresa. La llave
+     * foránea sólo garantiza que la fila exista; no que sea de quien la
+     * nombra. Sin esto, una caja podía quedar apuntando al almacén de otra
+     * empresa y el punto de venta descontaría existencias ajenas.
+     */
+    if (datos.almacenId) {
+      const almacen = await this.almacenes.findOne({
+        where: { id: datos.almacenId, empresaId },
+      });
+      if (!almacen) {
+        throw new BadRequestException(
+          'El almacén seleccionado no existe en esta empresa.',
+        );
+      }
+    }
+
+    if (datos.listaPrecioId) {
+      const lista = await this.listasPrecio.findOne({
+        where: { id: datos.listaPrecioId, empresaId },
+      });
+      if (!lista) {
+        throw new BadRequestException(
+          'La lista de precios seleccionada no existe en esta empresa.',
+        );
+      }
     }
 
     if (datos.tipo === TipoCuentaBancaria.TPV) {

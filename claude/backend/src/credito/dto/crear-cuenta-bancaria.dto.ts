@@ -50,6 +50,22 @@ export class CrearCuentaBancariaDto {
   @IsSqlServerGuid()
   cuentaContableId?: string | null;
 
+  /*
+   * El contexto de venta de una CAJA: de qué almacén sale la mercancía y con
+   * qué lista se cobra. Opcionales porque una cuenta de BANCO no tiene
+   * ninguno de los dos, y una caja sin configurar sigue vendiendo con el
+   * predeterminado de la empresa.
+   */
+  @IsOptional()
+  @Transform(vacioANull)
+  @IsSqlServerGuid()
+  almacenId?: string | null;
+
+  @IsOptional()
+  @Transform(vacioANull)
+  @IsSqlServerGuid()
+  listaPrecioId?: string | null;
+
   @IsOptional()
   @IsBoolean()
   esPorDefecto?: boolean;

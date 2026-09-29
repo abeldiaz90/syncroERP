@@ -868,6 +868,28 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
        * cada pantalla a la que ese rol entra.
        */
       'GET /finanzas/cuentas-contables',
+      /*
+       * EL CONTEXTO DE VENTA DE UNA CAJA, en lectura.
+       *
+       * Desde el 29-sep-2026 una cuenta de caja lleva además de qué almacén
+       * despacha y con qué lista de precios cobra: se le quitaron esos dos
+       * desplegables al mostrador —permitían rebajar una venta cambiando de
+       * lista, sin dejar rastro de descuento— y se pasaron a la caja, que se
+       * configura UNA vez.
+       *
+       * Se configura en esta misma pantalla, que es de este rol. Sin poder
+       * leer los dos catálogos, los desplegables salen vacíos y la caja se
+       * guarda sin contexto: la pantalla abre y no deja terminar. Es el mismo
+       * callejón que el catálogo de cuentas de arriba, y se cierra igual.
+       *
+       * Las dos son las vistas CORTAS —id y nombre—, las mismas que ya usa el
+       * mostrador. No se le concede el módulo de inventario ni el de precios:
+       * lo que necesita es NOMBRAR un almacén y una lista, no administrarlos.
+       *
+       * Medido el 29-sep-2026 por pantalla, con la sesión de `credito`.
+       */
+      'GET /catalogo/almacenes/para-venta',
+      'GET /catalogo/listas-precio',
       // El tablero de pendientes: cuentas, no documentos.
       ACCION_TABLERO_PENDIENTES,
       'POST /integracion/validacion/ejecutar',

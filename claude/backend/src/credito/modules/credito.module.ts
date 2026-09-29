@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { CuentaBancaria } from '../entities/cuenta-bancaria.entity';
+import { Almacen } from '../../catalogo/entities/almacen.entity';
+import { ListaPrecio } from '../../catalogo/entities/lista-precio.entity';
 import { CreditoCliente } from '../entities/credito-cliente.entity';
 import { AmortizacionCuota } from '../entities/amortizacion-cuota.entity';
 import { PagoCobranza } from '../entities/pago-cobranza.entity';
@@ -47,6 +49,9 @@ import { CarteraReflejoService } from '../services/cartera-reflejo.service';
       ProductoCredito,
       Banco,
       CuentaContable,
+      // La caja valida contra ellos su contexto de venta (almacén y lista).
+      Almacen,
+      ListaPrecio,
       ConfiguracionIntegracionEmpresa,
     ]),
     FinanzasModule,

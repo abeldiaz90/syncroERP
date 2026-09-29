@@ -55,7 +55,17 @@ interface IItemCarrito {
 }
 interface ICliente { id: string; nombre: string; email?: string; rfc?: string; limiteCredito?: number; diasCredito?: number; }
 interface IPoliticaCredito { limite:number; utilizado:number; disponible:number; vencido:number; diasCredito:number; puedeComprarCredito:boolean; razonBloqueo?:string|null; }
-interface ICuentaBancaria { id: string; nombre: string; tipo: string; esPorDefecto: boolean; }
+interface ICuentaBancaria {
+  id: string; nombre: string; tipo: string; esPorDefecto: boolean;
+  /**
+   * El contexto de venta que esta caja impone: desde qué almacén despacha y
+   * con qué lista de precios cobra. Se configura en Crédito y cobranza →
+   * Cuentas bancarias. Nulo cuando no se ha configurado, y entonces rige el
+   * predeterminado de la empresa.
+   */
+  almacenId?: string | null;
+  listaPrecioId?: string | null;
+}
 interface IListaPrecio { id: string; nombre: string; esPorDefecto: boolean; }
 interface ICuota { numeroCuota: number; fechaVencimiento: string; montoCuota: number; montoCapital: number; montoInteres: number; saldoRestante: number; }
 /**
@@ -237,6 +247,55 @@ export default function TerminalPos() {
                 || cuentasBancarias.find(c=>c.tipo===tipo);
     if (match) setCuentaBancariaId(match.id);
   }, [metodoPago, cuentasBancarias, enganche]);
+
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * El punto de venta obedece a la caja
+   * --------------------------------------------------------------------------
+   * La caja elegida es la que dice desde qué almacén se despacha y con qué
+   * lista se cobra. Antes lo elegía el cajero en dos desplegables de la
+   * cabecera; ahora lo trae la caja, configurado una vez por quien administra
+   * las cuentas.
+   *
+   * Sólo se obedece lo que está CONFIGURADO: una caja sin almacén no borra el
+   * almacén vigente, deja el predeterminado. Configurar es una mejora, no un
+   * requisito para cobrar, y una instalación que nunca lo configure sigue
+   * funcionando exactamente igual que antes.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const cajaElegida = cuentasBancarias.find(c => c.id === cuentaBancariaId) ?? null;
+
+  useEffect(() => {
+    if (!cajaElegida) return;
+    if (cajaElegida.almacenId && cajaElegida.almacenId !== almacenId) {
+      setAlmacenId(cajaElegida.almacenId);
+    }
+    if (cajaElegida.listaPrecioId && cajaElegida.listaPrecioId !== listaPrecioId) {
+      setListaPrecioId(cajaElegida.listaPrecioId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cajaElegida?.id, cajaElegida?.almacenId, cajaElegida?.listaPrecioId]);
+
+  /**
+   * Cambiar de caja con el carrito lleno puede cambiar el almacén y los
+   * precios por debajo de una venta ya armada —el mismo accidente que se
+   * cerró quitándole los desplegables al mostrador, entrando por otra puerta—.
+   * Se niega y se dice por qué. Si la caja nueva vende igual, no estorba.
+   */
+  const cambiarCaja = (valor: string) => {
+    const nueva = cuentasBancarias.find(c => c.id === valor) ?? null;
+    const cambiaContexto = Boolean(
+      nueva &&
+      ((nueva.almacenId && nueva.almacenId !== almacenId) ||
+       (nueva.listaPrecioId && nueva.listaPrecioId !== listaPrecioId)),
+    );
+    if (carrito.length > 0 && cambiaContexto) {
+      setErrorMsg('Vacía el carrito antes de cambiar de caja: ésta vende desde otro almacén o con otra lista de precios, y el stock y los precios ya fueron confirmados.');
+      setTimeout(() => setErrorMsg(''), 6000);
+      return;
+    }
+    setCuentaBancariaId(valor);
+  };
 
   // ── Buscar productos ────────────────────────────────────────────
   useEffect(() => {
@@ -1071,7 +1130,7 @@ export default function TerminalPos() {
             {/* Cuenta bancaria activa */}
             {cuentasBancarias.length>0&&(!esCredito(metodoPago)||(esCredito(metodoPago)&&n(enganche)>0))&&(
               <div className="mt-2">
-                <select value={cuentaBancariaId} onChange={e=>setCuentaBancariaId(e.target.value)}
+                <select value={cuentaBancariaId} onChange={e=>cambiarCaja(e.target.value)}
                   className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
                   <option value="">— Cuenta bancaria —</option>
                   {cuentasBancarias.filter(c=>{

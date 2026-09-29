@@ -154,9 +154,42 @@ export default function ListasPrecioPage() {
                   <div className="space-y-2">
                     <label className={`flex items-start gap-3 p-3 border rounded-md cursor-pointer transition-colors ${modo === 'MANUAL' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}`}>
                       <input type="radio" name="modo" checked={modo === 'MANUAL'} onChange={() => setModo('MANUAL')} className="mt-0.5 w-4 h-4 text-emerald-600 focus:ring-emerald-500" />
+                      {/*
+                        * ────────────────────────────────────────────────────
+                        * Aquí decía «Lo captura Ventas»
+                        * ----------------------------------------------------
+                        * MEDIDO EL 29-SEP-2026, preguntado por quien lee la
+                        * pantalla: «¿existe un rol de Ventas?».
+                        *
+                        * No existe. Los puestos de esta instalación son
+                        * mostrador, almacén, compras, finanzas, contabilidad,
+                        * tesorería, crédito, cobranza, hotelería, RRHH,
+                        * gerencia, dirección y gobierno. Ninguno se llama
+                        * «Ventas».
+                        *
+                        * Y el que más se le parece —el mostrador— es
+                        * precisamente el que NO puede: el módulo de precios lo
+                        * tiene en CONSULTA. Quien escribe listas de precio es
+                        * FINANZAS, y es el único.
+                        *
+                        * Así que la etiqueta mandaba a pedirle el precio a un
+                        * departamento que no existe, y si existiera recibiría
+                        * un 403. Peor todavía desde hoy: el mostrador tampoco
+                        * elige con qué lista cobra, justo para que no pueda
+                        * rebajar una venta sin dejar rastro.
+                        *
+                        * Las dos opciones contrastan de dónde SALE el número
+                        * —tecleado a mano o calculado desde el costo—, no quién
+                        * lo teclea. La etiqueta dice eso, y aparte dice quién
+                        * puede, que es el dato que hacía falta.
+                        * ────────────────────────────────────────────────────
+                        */}
                       <div>
-                        <span className="block text-sm font-semibold text-slate-800">Lo captura Ventas</span>
-                        <span className="block text-xs text-slate-500">Un precio tecleado para cada artículo.</span>
+                        <span className="block text-sm font-semibold text-slate-800">Se captura a mano</span>
+                        <span className="block text-xs text-slate-500">
+                          Un precio tecleado para cada artículo. Lo captura Finanzas, que es
+                          quien administra las listas de precio.
+                        </span>
                       </div>
                     </label>
                     <label className={`flex items-start gap-3 p-3 border rounded-md cursor-pointer transition-colors ${modo === 'MARGEN' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}`}>

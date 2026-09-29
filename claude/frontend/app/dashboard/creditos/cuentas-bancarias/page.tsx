@@ -10,11 +10,15 @@ import { PuedeCrear, PuedeEditar } from '@/app/components/ProtectedElement';
 
 interface ICuentaContable { id: string; numeroCuenta: string; nombre: string; tipo?: string; }
 interface IBanco { id: string; clave: string | null; nombre: string; activo: boolean; }
+interface IAlmacen { id: string; nombre: string; }
+interface IListaPrecio { id: string; nombre: string; esPorDefecto?: boolean; }
 interface ICuentaBancaria {
   id: string; nombre: string; tipo: string;
   numeroCuenta: string | null; cuentaContableId: string | null;
   bancoId: string | null; clabe: string | null; banco?: IBanco;
   cuentaContable?: ICuentaContable; esPorDefecto: boolean; activo: boolean;
+  /** El contexto de venta de una caja: desde dónde vende y con qué tarifa. */
+  almacenId: string | null; listaPrecioId: string | null;
 }
 
 const TIPOS = [
@@ -31,7 +35,7 @@ const TIPO_STYLE: Record<string, string> = {
 
 const FORM_VACIO = {
   nombre:'', tipo:'CAJA', numeroCuenta:'', bancoId:'', clabe:'',
-  cuentaContableId:'', esPorDefecto: false,
+  cuentaContableId:'', esPorDefecto: false, almacenId:'', listaPrecioId:'',
 };
 
 const esClabeValida = (valor: string) => {
@@ -52,6 +56,8 @@ export default function CuentasBancariasPage() {
   const [cuentas, setCuentas]       = useState<ICuentaBancaria[]>([]);
   const [ctasContables, setCtasContables] = useState<ICuentaContable[]>([]);
   const [bancos, setBancos]         = useState<IBanco[]>([]);
+  const [almacenes, setAlmacenes]   = useState<IAlmacen[]>([]);
+  const [listasPrecio, setListasPrecio] = useState<IListaPrecio[]>([]);
   const [cargando, setCargando]     = useState(true);
   const [errorCarga, setErrorCarga] = useState('');
   const [modal, setModal]           = useState(false);
@@ -67,10 +73,17 @@ export default function CuentasBancariasPage() {
   const cargar = async () => {
     setCargando(true);
     const h = { Authorization: `Bearer ${tok()}` };
-    const [rCB, rCC, rBancos] = await Promise.all([
+    const [rCB, rCC, rBancos, rAlm, rLP] = await Promise.all([
       fetch(`${api}/credito/cuentas-bancarias`, { headers: h }),
       fetch(`${api}/finanzas/cuentas-contables?soloAfectables=true`, { headers: h }),
       fetch(`${api}/catalogos/bancos`, { headers: h }),
+      /*
+        El contexto de venta de una caja. Se piden las vistas CORTAS —las
+        mismas que usa el mostrador— porque aquí sólo hacen falta el nombre y
+        el identificador, y son las que más roles pueden leer.
+      */
+      fetch(`${api}/catalogo/almacenes/para-venta`, { headers: h }),
+      fetch(`${api}/catalogo/listas-precio`, { headers: h }),
     ]);
     /*
       Tres consultas de tres módulos. El catálogo de cuentas contables es de
@@ -83,6 +96,14 @@ export default function CuentasBancariasPage() {
     else { setCtasContables([]); }
     if (rBancos.ok) { setBancos(await rBancos.json()); }
     else { setBancos([]); }
+    /*
+      Si estos dos no se pueden leer, la caja se sigue dando de alta: su
+      contexto de venta queda sin configurar y el punto de venta usa el
+      predeterminado, que es lo que hacía antes de que esto existiera. No se
+      bloquea el alta de una cuenta por un catálogo que este rol no tiene.
+    */
+    if (rAlm.ok) { setAlmacenes(await rAlm.json()); } else { setAlmacenes([]); }
+    if (rLP.ok)  { setListasPrecio(await rLP.json()); } else { setListasPrecio([]); }
     const caidas = [
       !rCB.ok ? 'las cuentas bancarias' : '',
       !rCC.ok ? 'el catálogo de cuentas contables' : '',
@@ -100,7 +121,8 @@ export default function CuentasBancariasPage() {
     setEditando(c);
     setForm({ nombre: c.nombre, tipo: c.tipo, numeroCuenta: c.numeroCuenta??'',
       bancoId: c.bancoId??'', clabe: c.clabe??'',
-      cuentaContableId: c.cuentaContableId??'', esPorDefecto: c.esPorDefecto });
+      cuentaContableId: c.cuentaContableId??'', esPorDefecto: c.esPorDefecto,
+      almacenId: c.almacenId??'', listaPrecioId: c.listaPrecioId??'' });
     setModal(true);
   };
 
@@ -140,6 +162,13 @@ export default function CuentasBancariasPage() {
         clabe: form.tipo === 'BANCO' ? form.clabe : null,
         cuentaContableId: form.cuentaContableId || null,
         esPorDefecto: form.esPorDefecto,
+        /*
+          El contexto de venta es de una CAJA. Se manda explícitamente en NULO
+          para los demás tipos, no se omite: omitirlo dejaría el valor anterior
+          si alguien convierte una caja en banco.
+        */
+        almacenId: form.tipo === 'CAJA' ? (form.almacenId || null) : null,
+        listaPrecioId: form.tipo === 'CAJA' ? (form.listaPrecioId || null) : null,
       }),
     });
     setGuardando(false);
@@ -437,6 +466,70 @@ export default function CuentasBancariasPage() {
                 </select>
                 <p className="text-xs text-slate-400 mt-1">Solo cuentas de Activo. Es obligatoria: sin ella, ninguna operación con esta caja o banco podrá generar su póliza.</p>
               </div>
+
+              {/*
+                * ────────────────────────────────────────────────────────────
+                * Desde dónde vende esta caja, y con qué tarifa
+                * ------------------------------------------------------------
+                * Esto se configura AQUÍ, una vez, y no en la cabecera del
+                * punto de venta, que es donde estaba. Allí lo elegía quien
+                * vendía, y eso permitía rebajar cualquier venta cambiando de
+                * lista —sin que quedara registrado un solo descuento— y
+                * descuadrar el inventario de una bodega ajena cambiando de
+                * almacén. Las dos cosas salen «bien» en el ticket.
+                *
+                * Los dos son opcionales: una caja sin configurar sigue
+                * vendiendo con el predeterminado de la empresa, que es lo que
+                * ya se venía usando.
+                * ────────────────────────────────────────────────────────────
+                */}
+              {form.tipo === 'CAJA' && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-bold text-slate-800">Desde dónde vende esta caja</p>
+                  <p className="text-xs text-slate-500 mt-0.5 mb-3">
+                    El punto de venta lo obedece: quien cobra por esta caja no
+                    elige almacén ni lista de precios.
+                  </p>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
+                        Almacén
+                      </label>
+                      <select value={form.almacenId} onChange={e=>setForm(f=>({...f,almacenId:e.target.value}))}
+                        disabled={!almacenes.length}
+                        className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100">
+                        <option value="">— Usar el predeterminado —</option>
+                        {almacenes.map(a=>(<option key={a.id} value={a.id}>{a.nombre}</option>))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
+                        Lista de precios
+                      </label>
+                      <select value={form.listaPrecioId} onChange={e=>setForm(f=>({...f,listaPrecioId:e.target.value}))}
+                        disabled={!listasPrecio.length}
+                        className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100">
+                        <option value="">— Usar la predeterminada —</option>
+                        {listasPrecio.map(l=>(
+                          <option key={l.id} value={l.id}>{l.nombre}{l.esPorDefecto?' · Predeterminada':''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {(!almacenes.length || !listasPrecio.length) && (
+                    <p className="text-xs text-amber-700 mt-2">
+                      {!almacenes.length && !listasPrecio.length
+                        ? 'Ni el catálogo de almacenes ni el de listas de precio están en tu perfil, así que esta caja se guardará sin contexto de venta y el punto de venta usará el predeterminado.'
+                        : !almacenes.length
+                          ? 'El catálogo de almacenes no está en tu perfil: esta caja se guardará sin almacén y el punto de venta usará el predeterminado.'
+                          : 'El catálogo de listas de precio no está en tu perfil: esta caja se guardará sin lista y el punto de venta usará la predeterminada.'}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Por defecto */}
               <label className="flex items-center gap-3 p-3 bg-indigo-50 border border-indigo-200 rounded-xl cursor-pointer">
