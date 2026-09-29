@@ -21,6 +21,18 @@ type CuentaCaja = {
   activo: boolean;
 };
 
+/**
+ * Lo que devuelve `GET /credito/cuentas-bancarias/para-cobro`: nombre y tipo,
+ * sin CLABE ni número de cuenta. Ya viene filtrado a las activas, así que no
+ * trae `activo`.
+ */
+type CuentaParaCobro = {
+  id: string;
+  nombre: string;
+  tipo: 'CAJA' | 'BANCO' | 'TPV';
+  esPorDefecto?: boolean;
+};
+
 type Turno = {
   id: string;
   cuentaCajaId: string;
@@ -70,6 +82,64 @@ const moneda = new Intl.NumberFormat('es-MX', {
 function mensaje(error: unknown) {
   if (error instanceof ApiError) return error.mensajeParaPantalla();
   return error instanceof Error ? error.message : 'No se pudo completar la operación.';
+}
+
+/**
+ * ============================================================================
+ * Quien cobra no podía contar su propia caja
+ * ----------------------------------------------------------------------------
+ * MEDIDO EL 29-SEP-2026, por pantalla, con la sesión de `empleado`
+ *
+ * Esta pantalla pedía `GET /credito/cuentas-bancarias` —el catálogo completo,
+ * con CLABE y números de cuenta—. A `empleado` ese endpoint le está VEDADO a
+ * propósito y por escrito en la plantilla de permisos:
+ *
+ *     accionesVedadas: ['GET /credito/cuentas-bancarias']
+ *     «No necesita las cuentas bancarias de la empresa […]: números de cuenta
+ *      y CLABE a la vista de quien atiende al público.»
+ *
+ * Esa decisión es correcta. Lo que estaba mal es que esta pantalla no pedía
+ * otra cosa. Resultado: el mostrador —el único rol que cobra en efectivo, y el
+ * que tiene el módulo `caja` concedido— abría «Caja, corte y arqueo», leía
+ * «El catálogo de cajas no está en tu perfil» y no podía ABRIR el turno, ni
+ * registrar una entrada o un retiro, ni CERRARLO. El corte de caja era
+ * imposible justo para quien maneja el efectivo.
+ *
+ * Y la salida existía desde antes: `…/para-cobro` da id, nombre y tipo y nada
+ * más —es el endpoint que la plantilla ya declara irrenunciable para el
+ * mostrador, porque sin él el punto de venta no puede ni elegir caja—.
+ *
+ * Así que la pantalla pide lo poco que necesita, no el catálogo entero. No se
+ * le concede nada nuevo a nadie: se deja de exigir de más. El respaldo al
+ * catálogo completo se conserva para los roles que ya lo tienen y que podrían
+ * no tener el corto.
+ * ============================================================================
+ */
+async function cargarCajas(): Promise<{ vedado: boolean; cajas: CuentaCaja[] }> {
+  const corta = await conPermiso(
+    api.get<CuentaParaCobro[]>('/credito/cuentas-bancarias/para-cobro'),
+  );
+
+  if (!corta.vedado) {
+    const lista = Array.isArray(corta.valor) ? corta.valor : [];
+    return {
+      vedado: false,
+      // `para-cobro` ya filtró por activas; marcarlas aquí evita que el filtro
+      // de abajo las descarte por un campo que ese endpoint no envía.
+      cajas: lista
+        .filter((cuenta) => cuenta.tipo === 'CAJA')
+        .map((cuenta) => ({ ...cuenta, activo: true })),
+    };
+  }
+
+  const completa = await conPermiso(
+    api.get<CuentaCaja[]>('/credito/cuentas-bancarias'),
+  );
+  const lista = Array.isArray(completa.valor) ? completa.valor : [];
+  return {
+    vedado: completa.vedado,
+    cajas: lista.filter((cuenta) => cuenta.activo && cuenta.tipo === 'CAJA'),
+  };
 }
 
 export default function CajaPage() {
@@ -148,8 +218,8 @@ export default function CajaPage() {
        * dice con esas palabras en vez de dejar un vacío que parece una avería.
        * ──────────────────────────────────────────────────────────────────────
        */
-      const [cuentasRes, abiertos, contables] = await Promise.all([
-        conPermiso(api.get<CuentaCaja[]>('/credito/cuentas-bancarias')),
+      const [cajasRes, abiertos, contables] = await Promise.all([
+        cargarCajas(),
         api.get<Turno[]>('/caja/turnos/abiertos'),
         /*
          * El catálogo de cuentas es de Contabilidad, y esta pantalla también la
@@ -161,8 +231,7 @@ export default function CajaPage() {
          */
         conPermiso(api.get<CuentaContable[]>('/finanzas/cuentas-contables')),
       ]);
-      setCuentasVedadas(cuentasRes.vedado);
-      const listaCuentas = cuentasRes.valor ?? [];
+      setCuentasVedadas(cajasRes.vedado);
       setContablesVedadas(contables.vedado);
       const listaContables = contables.valor ?? [];
       setCuentasContables(
@@ -170,7 +239,7 @@ export default function CajaPage() {
           (cuenta) => cuenta.permiteMovimientoManual !== false,
         ),
       );
-      const cajas = listaCuentas.filter((cuenta) => cuenta.activo && cuenta.tipo === 'CAJA');
+      const cajas = cajasRes.cajas;
       setCuentas(cajas);
       setTurnos(abiertos);
       setCuentaNueva((actual) =>

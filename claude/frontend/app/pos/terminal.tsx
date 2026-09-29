@@ -11,6 +11,7 @@ import {
 import type { MetodoPagoVenta } from '@/lib/ventas/metodos-pago';
 import { METODOS_CREDITO as METODOS_CREDITO_CONTRATO } from '@/lib/ventas/metodos-pago';
 import { api, ApiError, API_URL, intentar } from '@/lib/api';
+import { useAcciones } from '@/hooks/use-acciones';
 
 const n   = (v: any): number => Number(v) || 0;
 /*
@@ -110,6 +111,14 @@ export default function TerminalPos() {
   const [clientes,          setClientes]          = useState<ICliente[]>([]);
   const [metodoPago,        setMetodoPago]        = useState<MetodoPago>('EFECTIVO');
   const [montoRecibido,     setMontoRecibido]     = useState('');
+  /*
+   * Quién puede cambiar el contexto de venta. No es el que vende: ver el
+   * comentario largo junto a los dos desplegables, más abajo.
+   */
+  const puede = useAcciones();
+  const puedeElegirAlmacen = puede('POST /catalogo/almacenes');
+  const puedeElegirLista   = puede('POST /catalogo/listas-precio');
+
   const [almacenes,         setAlmacenes]         = useState<any[]>([]);
   /** No hay ningun almacen que ofrecer: la caja no puede vender y lo dice. */
   const [faltaAlmacen,      setFaltaAlmacen]      = useState(false);
@@ -712,18 +721,79 @@ export default function TerminalPos() {
               className="w-full pl-10 pr-10 py-2.5 bg-slate-100 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white font-medium text-slate-800"/>
             {busqueda&&<button onClick={()=>{setBusqueda('');searchRef.current?.focus()}} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><X className="w-4 h-4"/></button>}
           </div>
-          {almacenes.length>1&&(
-            <select value={almacenId} onChange={e=>cambiarContextoVenta('almacén',e.target.value)}
-              className="px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {almacenes.map((a:any)=><option key={a.id} value={a.id}>{a.nombre}</option>)}
-            </select>
+          {/*
+            * ──────────────────────────────────────────────────────────────────
+            * El que vende no elige de dónde sale ni a cuánto
+            * ------------------------------------------------------------------
+            * MEDIDO EL 29-SEP-2026, preguntado por quien mira la pantalla:
+            * «¿por qué hay dos listas ahí?».
+            *
+            * Aquí había dos desplegables idénticos, pegados y sin una palabra
+            * que dijera cuál era cuál. El primero elige DE DÓNDE SALE la
+            * mercancía —el almacén, y con él las existencias que se descuentan—
+            * y el segundo A CUÁNTO SE VENDE —la lista de precios—.
+            *
+            * Ponerles etiqueta no era el arreglo: era describir mejor el
+            * problema. El problema es que estuvieran ahí. Quien atiende el
+            * mostrador de una ferretería no decide de qué bodega sale el
+            * martillo ni con qué tarifa se cobra; eso lo configura quien
+            * administra la tienda, una vez, y el mostrador vende. Es así en
+            * cualquier ERP moderno, y por un motivo de control, no de gusto:
+            * un vendedor que puede cambiar la lista de precios puede rebajar
+            * cualquier venta sin dejar rastro de descuento, y uno que puede
+            * cambiar de almacén descuadra el inventario de una bodega que no
+            * es la suya, y las dos cosas salen «bien» en el ticket.
+            *
+            * Así que los selectores sólo se ofrecen a quien administra esos
+            * catálogos —quien puede dar de alta un almacén o una lista—. A los
+            * demás se les muestra el contexto en el que están vendiendo, que sí
+            * necesitan ver, como dato fijo. El servidor sigue siendo quien
+            * decide: esto sólo deja de ofrecer lo que no toca.
+            *
+            * PENDIENTE, y está anotado: el amarre definitivo va en la CAJA
+            * —cada cuenta de caja con su almacén y su lista—, porque el punto
+            * de venta ya obliga a elegir caja en todo cobro de contado. Eso
+            * lleva migración y no se hace el día de la entrega. Mientras tanto
+            * rige el predeterminado, que es lo que ya se estaba usando.
+            * ──────────────────────────────────────────────────────────────────
+            */}
+          {almacenes.length>0&&(
+            puedeElegirAlmacen&&almacenes.length>1 ? (
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">Almacén</span>
+                <select value={almacenId} onChange={e=>cambiarContextoVenta('almacén',e.target.value)}
+                  aria-label="Almacén del que sale la mercancía"
+                  className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {almacenes.map((a:any)=><option key={a.id} value={a.id}>{a.nombre}</option>)}
+                </select>
+              </label>
+            ) : (
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">Almacén</span>
+                <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-600">
+                  {almacenes.find((a:any)=>a.id===almacenId)?.nombre ?? '—'}
+                </div>
+              </div>
+            )
           )}
           {listasPrecio.length>0&&(
-            <select value={listaPrecioId} onChange={e=>cambiarContextoVenta('lista de precios',e.target.value)}
-              title="Lista de precios aplicable"
-              className="max-w-48 px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {listasPrecio.map(lista=><option key={lista.id} value={lista.id}>{lista.nombre}{lista.esPorDefecto?' · Predeterminada':''}</option>)}
-            </select>
+            puedeElegirLista&&listasPrecio.length>1 ? (
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">Lista de precios</span>
+                <select value={listaPrecioId} onChange={e=>cambiarContextoVenta('lista de precios',e.target.value)}
+                  aria-label="Lista de precios aplicable"
+                  className="max-w-48 px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {listasPrecio.map(lista=><option key={lista.id} value={lista.id}>{lista.nombre}{lista.esPorDefecto?' · Predeterminada':''}</option>)}
+                </select>
+              </label>
+            ) : (
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">Lista de precios</span>
+                <div className="max-w-48 truncate px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-600">
+                  {listasPrecio.find(l=>l.id===listaPrecioId)?.nombre ?? '—'}
+                </div>
+              </div>
+            )
           )}
         </div>
         <div className="flex-1 overflow-y-auto p-4">
