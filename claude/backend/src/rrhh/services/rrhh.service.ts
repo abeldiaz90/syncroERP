@@ -82,6 +82,7 @@ import { ConfiguracionAprobacion } from '../../compras/entities/configuracion-ap
 import { AprobacionDocumento } from '../../compras/entities/aprobacion-documento.entity';
 import { construirCuentaBancaria } from '../utils/cuenta-bancaria-de-alta.util';
 import { Banco } from '../../catalogo/entities/banco.entity';
+import { descansosEnRango } from '../data/descanso-obligatorio';
 
 const aCent = (v: number | string) => Math.round(Number(v ?? 0) * 100);
 const aPesos = (c: number) => Math.round(c) / 100;
@@ -2064,6 +2065,33 @@ export class RrhhService {
     const mapa = new Map(
       excepciones.map((d) => [this.fechaIsoLocal(d.fecha), d.laborable]),
     );
+
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * Los días que la ley ordena descansar
+     * ------------------------------------------------------------------------
+     * Antes esta cuenta decía, en una línea: «laborable = no es domingo». Eso
+     * cubre el art. 69 —un descanso semanal— y se olvidaba del art. 74, que
+     * fija días de descanso OBLIGATORIO que no se negocian.
+     *
+     * Medido el 30-sep-2026: unas vacaciones que cruzaran el 16 de septiembre
+     * le consumían al trabajador un día que por ley no debía consumirse. Lo
+     * mismo el 1 de enero, el 1 de mayo o el 25 de diciembre. La tabla de
+     * excepciones existía para eso y **no había pantalla ni endpoint que la
+     * llenara**, así que nadie podía cargarlos.
+     *
+     * El orden de precedencia importa y es éste:
+     *   1. lo que la empresa declaró en su calendario  ← manda siempre
+     *   2. los descansos obligatorios de la ley
+     *   3. el domingo
+     *
+     * La empresa sigue mandando: la que de verdad opera el 1 de mayo marca ese
+     * día como laborable y la ley se aparta. Lo que cambió es el punto de
+     * partida.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const obligatorios = descansosEnRango(inicio, fin);
+
     let dias = 0;
     for (
       let fecha = new Date(inicio);
@@ -2072,10 +2100,73 @@ export class RrhhService {
     ) {
       const clave = this.fechaIsoLocal(fecha);
       const excepcion = mapa.get(clave);
-      const laborable = excepcion !== undefined ? excepcion : fecha.getDay() !== 0;
+      const laborable =
+        excepcion !== undefined
+          ? excepcion
+          : !obligatorios.has(clave) && fecha.getDay() !== 0;
       if (laborable) dias += 1;
     }
     return dias;
+  }
+
+  /**
+   * El desglose de por qué un rango cuenta los días que cuenta.
+   *
+   * La pantalla decía «5 días naturales seleccionados» y el servidor contestaba
+   * «4 laborables», sin decir cuál se había caído ni por qué. Para quien aprueba
+   * vacaciones esa diferencia es un día de descanso de alguien; merece verse.
+   */
+  async explicarDiasLaborables(
+    empresaId: string,
+    inicio: Date,
+    fin: Date,
+  ): Promise<{
+    laborables: number;
+    naturales: number;
+    noLaborables: Array<{ fecha: string; motivo: string }>;
+  }> {
+    const excepciones = await this.calendarioLaboral.find({
+      where: { empresaId, fecha: Between(inicio, fin), activo: true },
+    });
+    const mapa = new Map(
+      excepciones.map((d) => [
+        this.fechaIsoLocal(d.fecha),
+        { laborable: d.laborable, descripcion: d.descripcion },
+      ]),
+    );
+    const obligatorios = descansosEnRango(inicio, fin);
+
+    const noLaborables: Array<{ fecha: string; motivo: string }> = [];
+    let laborables = 0;
+    let naturales = 0;
+
+    for (
+      let fecha = new Date(inicio);
+      fecha <= fin;
+      fecha = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate() + 1)
+    ) {
+      naturales += 1;
+      const clave = this.fechaIsoLocal(fecha);
+      const excepcion = mapa.get(clave);
+
+      if (excepcion !== undefined) {
+        if (excepcion.laborable) laborables += 1;
+        else noLaborables.push({ fecha: clave, motivo: excepcion.descripcion });
+        continue;
+      }
+      const obligatorio = obligatorios.get(clave);
+      if (obligatorio) {
+        noLaborables.push({ fecha: clave, motivo: `${obligatorio} (LFT art. 74)` });
+        continue;
+      }
+      if (fecha.getDay() === 0) {
+        noLaborables.push({ fecha: clave, motivo: 'Domingo' });
+        continue;
+      }
+      laborables += 1;
+    }
+
+    return { laborables, naturales, noLaborables };
   }
 
   private fechaIsoLocal(fecha: Date | string): string {
