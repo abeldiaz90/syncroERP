@@ -829,3 +829,201 @@ describe('generarAsientoDeInventarioInicial', () => {
     expect(guardadas).toHaveLength(0);
   });
 });
+
+// ═══════════════════ ANULACIÓN DE VENTA ═══════════════════
+
+/**
+ * ============================================================================
+ * Anular una venta con IVA: el camino que nunca corrió
+ * ----------------------------------------------------------------------------
+ * MEDIDO EL 30-SEP-2026, contra la base del UAT
+ *
+ * `generarAsientoDeCancelacionVenta` —el asiento que produce anular una venta—
+ * **no tenía una sola prueba**. Ninguna. Y en la instalación de pruebas sólo
+ * se había ejercitado dos veces, con las ventas #11 y #13, que resultaron
+ * tener `impuestoTotal = 0`:
+ *
+ *     folio 11 · subtotal 120.00 · impuestototal 0.00 · total 120.00
+ *     folio 13 · subtotal 120.00 · impuestototal 0.00 · total 120.00
+ *
+ * Sus pólizas movieron sólo dos cuentas —Ventas contra Caja— y por eso
+ * parecían incompletas al lado de una devolución, que sí separa el IVA. No lo
+ * estaban: no había IVA que devolver.
+ *
+ * Pero eso dejaba una pregunta sin responder, y es de las que cuestan dinero:
+ * **¿qué pasa al anular una venta que SÍ lleva IVA?** Si el asiento no
+ * reversa `IVA trasladado`, el impuesto de una venta que nunca ocurrió se le
+ * sigue debiendo al SAT, la declaración sale inflada, y nadie lo nota hasta
+ * que alguien cuadra el mes.
+ *
+ * El código lo hace bien —se leyó línea por línea—. Lo que faltaba era que
+ * alguien lo midiera. Un camino correcto que nadie ejercita es un camino que
+ * el siguiente cambio puede romper sin que nada avise: eso es justo lo que
+ * estas pruebas existen para impedir.
+ *
+ * Se cubren los tres casos que se comportan distinto:
+ *  · CONTADO con IVA        → reversa contra `IVA trasladado COBRADO` (208)
+ *  · CRÉDITO con IVA        → reversa contra `IVA trasladado NO COBRADO` (209)
+ *  · tasa cero              → no inventa una partida de IVA en cero
+ * ============================================================================
+ */
+describe('generarAsientoDeCancelacionVenta · el IVA también se reversa', () => {
+  const anulacion = (extra: Partial<any> = {}) => ({
+    ventaId: 'v-anul',
+    folio: '205',
+    fecha: new Date('2026-09-30'),
+    empresaId: 'emp-1',
+    motivo: 'El cliente canceló antes de llevarse la mercancía.',
+    detalles: [
+      {
+        productoId: 'prod-1',
+        cantidad: 2,
+        subtotal: 200,
+        impuestoMonto: 32,
+        costoTotal: 200,
+      },
+    ],
+    ...extra,
+  });
+
+  /** La póliza de ingreso es la de tipo EGRESO; la de costo es DIARIO. */
+  const ingresoDe = (guardadas: PolizaGuardada[]) =>
+    guardadas.find((g) => g.poliza.tipo === TipoPoliza.EGRESO)!;
+  const costoDe = (guardadas: PolizaGuardada[]) =>
+    guardadas.find((g) => g.poliza.tipo === TipoPoliza.DIARIO)!;
+
+  it('CONTADO: reversa ventas, IVA cobrado y caja, y las dos pólizas cuadran', async () => {
+    const { servicio, guardadas } = crearArnes();
+
+    await servicio.generarAsientoDeCancelacionVenta(
+      anulacion({ metodoPago: 'EFECTIVO' }),
+    );
+
+    expect(guardadas).toHaveLength(2);
+    guardadas.forEach(esperarCuadre);
+
+    const ingreso = ingresoDe(guardadas);
+
+    /*
+     * Lo que esta prueba impide de verdad: que desaparezca esta línea. Sin
+     * ella el asiento seguiría cuadrando —Ventas 232 contra Caja 232— y nadie
+     * se enteraría hasta la declaración.
+     */
+    expect(ingreso.partidas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ cuentaContableId: 'cta-iva-tras', cargo: 32 }),
+      ]),
+    );
+    expect(ingreso.partidas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ cuentaContableId: 'cta-ventas', cargo: 200 }),
+      ]),
+    );
+    // Y a caja se le devuelve el total, IVA incluido.
+    expect(ingreso.partidas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ cuentaContableId: 'cta-caja', abono: 232 }),
+      ]),
+    );
+  });
+
+  it('CRÉDITO: el IVA vuelve a «no cobrado», no a «cobrado»', async () => {
+    /*
+     * Una venta a crédito nunca cobró el IVA: vive en el 209. Reversarlo
+     * contra el 208 dejaría el 209 abonado para siempre y el 208 cargado —el
+     * mismo error que el comentario del propio servicio describe para la
+     * cuenta de ingresos.
+     */
+    const { servicio, guardadas } = crearArnes();
+
+    await servicio.generarAsientoDeCancelacionVenta(
+      anulacion({ metodoPago: 'CREDITO_30D' }),
+    );
+
+    const ingreso = ingresoDe(guardadas);
+
+    expect(ingreso.partidas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ cuentaContableId: 'cta-iva-pend', cargo: 32 }),
+      ]),
+    );
+    expect(
+      ingreso.partidas.some((p: any) => p.cuentaContableId === 'cta-iva-tras'),
+    ).toBe(false);
+    // Y lo que se reversa es la cuenta por cobrar, no la caja.
+    expect(ingreso.partidas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ cuentaContableId: 'cta-cxc', abono: 232 }),
+      ]),
+    );
+  });
+
+  it('tasa cero: no se inventa una partida de IVA en cero', async () => {
+    /*
+     * Es el caso de las dos anulaciones reales del UAT. Una partida en cero no
+     * es inocua: ensucia la póliza y hace creer que hubo impuesto.
+     */
+    const { servicio, guardadas } = crearArnes();
+
+    await servicio.generarAsientoDeCancelacionVenta(
+      anulacion({
+        metodoPago: 'EFECTIVO',
+        detalles: [
+          {
+            productoId: 'prod-tasa-cero',
+            cantidad: 2,
+            subtotal: 200,
+            impuestoMonto: 0,
+            costoTotal: 100,
+          },
+        ],
+      }),
+    );
+
+    const ingreso = ingresoDe(guardadas);
+
+    expect(
+      ingreso.partidas.some(
+        (p: any) =>
+          p.cuentaContableId === 'cta-iva-tras' ||
+          p.cuentaContableId === 'cta-iva-pend',
+      ),
+    ).toBe(false);
+    expect(ingreso.partidas).toHaveLength(2);
+    esperarCuadre(ingreso);
+  });
+
+  it('el costo vuelve al inventario, y sale del costo de ventas', async () => {
+    const { servicio, guardadas } = crearArnes();
+
+    await servicio.generarAsientoDeCancelacionVenta(
+      anulacion({ metodoPago: 'EFECTIVO' }),
+    );
+
+    const costo = costoDe(guardadas);
+
+    expect(costo.partidas).toEqual([
+      expect.objectContaining({ cuentaContableId: 'cta-inv', cargo: 200 }),
+      expect.objectContaining({ cuentaContableId: 'cta-costo', abono: 200 }),
+    ]);
+  });
+
+  it('sin cuenta de IVA configurada, se NIEGA en vez de asentar de menos', async () => {
+    /*
+     * La salida fácil sería omitir la partida y seguir: la póliza cuadraría
+     * igual y el impuesto quedaría perdido. El servicio prefiere fallar.
+     */
+    const { servicio, guardadas } = crearArnes({ sinCuentas: ['PASIVO|208'] });
+
+    await expect(
+      servicio.generarAsientoDeCancelacionVenta(
+        anulacion({ metodoPago: 'EFECTIVO' }),
+      ),
+    ).rejects.toThrow(/IVA trasladado/i);
+
+    // Y no deja a medias la póliza de ingreso.
+    expect(
+      guardadas.some((g) => g.poliza.tipo === TipoPoliza.EGRESO),
+    ).toBe(false);
+  });
+});
