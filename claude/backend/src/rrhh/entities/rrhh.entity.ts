@@ -286,6 +286,29 @@ export class Incidencia {
   @Column({ type: 'varchar', length: 40, nullable: true })
   folioIncapacidad?: string;
 
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Quién la capturó
+   * --------------------------------------------------------------------------
+   * La incidencia guardaba `aprobadaPorId` desde el primer día y NO guardaba
+   * quién la había registrado: `crearIncidencia` ni siquiera recibía el
+   * usuario. Con eso faltan las dos cosas que hacen falta para controlar un
+   * dato que mueve dinero:
+   *
+   *  · no se podía impedir que la misma persona capturara y aprobara —medido
+   *    el 30-sep-2026: con la sesión de `rrhh` se registraron 12 horas extra y
+   *    se aprobaron en dos clics, sin un segundo par de ojos—;
+   *  · y después NO SE PODÍA AUDITAR, que es lo peor: una vez aprobada, la
+   *    fila no conservaba de dónde había salido. Preguntar «¿quién capturó
+   *    estas doce horas?» no tenía respuesta en ninguna parte.
+   *
+   * Guardarlo no decide la política —quién aprueba a quién es del organigrama
+   * del cliente— pero sin este dato ninguna política se puede aplicar ni
+   * comprobar. Es el requisito previo.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  @Column({ type: 'uuid', nullable: true }) registradaPorId?: string;
+
   @Column({ default: false }) aprobada!: boolean;
   @Column({ type: 'varchar', length: 20, default: 'CAPTURADA' }) estadoAprobacion!: string;
   @Column({ type: 'uuid', nullable: true }) aprobadaPorId?: string;

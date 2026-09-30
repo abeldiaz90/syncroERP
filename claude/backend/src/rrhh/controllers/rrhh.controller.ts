@@ -213,8 +213,9 @@ export class RrhhController {
   crearIncidencia(
     @Body() dto: CrearIncidenciaDto,
     @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('id') usuarioId: string,
   ) {
-    return this.svc.crearIncidencia(dto, empresaId);
+    return this.svc.crearIncidencia(dto, empresaId, usuarioId);
   }
 
   @Patch('incidencias/:id/aprobar')

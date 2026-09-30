@@ -954,7 +954,11 @@ export class RrhhService {
 
   /* ══ INCIDENCIAS ═════════════════════════════════════════════════════════ */
 
-  async crearIncidencia(dto: CrearIncidenciaDto, empresaId: string) {
+  async crearIncidencia(
+    dto: CrearIncidenciaDto,
+    empresaId: string,
+    usuarioId?: string,
+  ) {
     const empleado = await this.resolverEmpleado(dto.empleadoId, empresaId);
     const inicio = this.fechaSql(dto.fechaInicio);
     const fin = this.fechaSql(dto.fechaFin);
@@ -999,6 +1003,9 @@ export class RrhhService {
         fechaFin: fin,
         dias: dto.dias || dias,
         pagada: dto.pagada ?? !noPagadas.includes(dto.tipo),
+        // Quién la capturó. Sin esto no hay cuatro ojos posible ni auditoría:
+        // ver el comentario de `registradaPorId` en la entidad.
+        registradaPorId: usuarioId ?? null,
         aprobada: false,
         estadoAprobacion: 'CAPTURADA',
       }),
