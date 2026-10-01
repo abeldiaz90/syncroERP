@@ -40,7 +40,8 @@ interface IRolExterno { id: string; nombre: string; descripcion?: string; creado
 interface IMapeo { rolErp: string; rolesExternos: string[]; descripcionExterna?: string | null; activo?: boolean }
 
 type Accion = 'NINGUNA' | 'MAPEAR_ROL' | 'DAR_DE_ALTA' | 'CORREGIR_ROLES'
-  | 'SIN_OFICINA' | 'OTRA_OFICINA' | 'NO_EXISTE_EN_DIRECTORIO' | 'CORE_NO_DISPONIBLE';
+  | 'SIN_OFICINA' | 'OTRA_OFICINA' | 'NO_EXISTE_EN_DIRECTORIO' | 'CORE_NO_DISPONIBLE'
+  | 'ROL_SIN_PERMISOS';
 
 interface IDiagnostico {
   usuarioId: string; email: string; rolErp: string;
@@ -48,6 +49,7 @@ interface IDiagnostico {
   rolesExternos: string[]; accion: Accion;
   oficinaExterna?: string | null; oficinaEsperada?: string | null;
   enDirectorio?: boolean | null; habilitadoEnDirectorio?: boolean | null;
+  rolesSinPermisos?: string[];
 }
 
 const ACCIONES: Record<Accion, { nombre: string; que: string; clase: string }> = {
@@ -85,6 +87,19 @@ const ACCIONES: Record<Accion, { nombre: string; que: string; clase: string }> =
     nombre: 'No existe en SUMA',
     que: 'Está dado de alta en el ERP pero no en el directorio. No puede entrar a ninguno de los dos sistemas hasta que alguien le cree la identidad en SUMA.',
     clase: 'bg-rose-50 text-rose-800 border-rose-200',
+  },
+  /*
+   * El estado que el diagnóstico no miraba y por eso nadie encontraba.
+   *
+   * Los roles espejo nacen SIN permisos a propósito —el ERP no adivina qué
+   * permisos bancarios necesita cada rol— así que esto no es una avería: es un
+   * trámite que nadie terminó. Pero se reportaba como «Listo», y el operador
+   * entraba al portal del core y no veía una sola pantalla.
+   */
+  ROL_SIN_PERMISOS: {
+    nombre: 'Su rol allá no habilita nada',
+    que: 'Existe, está mapeado y tiene su rol asignado, pero ese rol del core no concede ni un permiso: entra y todas las pantallas lo rechazan. Los roles espejo nacen así; los permisos se asignan dentro del core.',
+    clase: 'bg-amber-50 text-amber-800 border-amber-200',
   },
   OTRA_OFICINA: {
     nombre: 'Está en otra oficina',
@@ -395,6 +410,23 @@ export default function CorrespondenciaRolesPage() {
                           )}
                         </p>
                         <p className="text-xs text-slate-500 mt-1">{a.que}</p>
+                        {/*
+                          Y CUÁL es el rol inerte, por su nombre. «Le falta
+                          algo» obliga a ir a buscarlo; nombrarlo es la
+                          diferencia entre un aviso y una instrucción.
+                        */}
+                        {(u.rolesSinPermisos?.length ?? 0) > 0 && (
+                          <p className="text-xs text-amber-700 mt-1">
+                            Sin permisos en el core:{' '}
+                            <b>
+                              {u.rolesSinPermisos!
+                                .map((id) =>
+                                  rolesExternos.find((r) => String(r.id) === String(id))?.nombre ?? id,
+                                )
+                                .join(', ')}
+                            </b>
+                          </p>
+                        )}
                         {/*
                           Los tres sistemas de un vistazo. «?» no es un adorno:
                           significa que no se pudo preguntar al directorio, y eso

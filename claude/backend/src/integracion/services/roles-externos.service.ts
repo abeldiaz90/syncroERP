@@ -46,6 +46,12 @@ export interface EstadoUsuarioExterno {
   /** La oficina que le toca a esta empresa. Null si nadie la ha configurado. */
   oficinaEsperada?: string | null;
   /**
+   * Los roles que tiene asignados y que no conceden ni un permiso. Se nombran
+   * porque lo que hay que hacer es ir a ESE rol del core y dárselos; decir
+   * sólo «le falta algo» obliga a buscarlo.
+   */
+  rolesSinPermisos?: string[];
+  /**
    * Qué habría que hacer para que este usuario opere en los dos sistemas.
    *
    * `SIN_OFICINA` y `OTRA_OFICINA` no son estados de trámite, son avisos: en el
@@ -60,7 +66,21 @@ export interface EstadoUsuarioExterno {
     | 'SIN_OFICINA'
     | 'OTRA_OFICINA'
     | 'NO_EXISTE_EN_DIRECTORIO'
-    | 'CORE_NO_DISPONIBLE';
+    | 'CORE_NO_DISPONIBLE'
+    /*
+     * El rol existe allá, está mapeado y asignado… y no concede un solo
+     * permiso. El operador entra al portal del core y toda pantalla lo
+     * rechaza.
+     *
+     * Es el estado en que NACEN todos los roles espejo —a propósito: el ERP
+     * no adivina qué permisos bancarios necesita un «Almacenista»— así que no
+     * es una avería, es un trámite que nadie terminó. Lo grave era que este
+     * diagnóstico lo reportaba como `NINGUNA`: «todo en orden». Preguntado
+     * por Abel el 1-oct-2026 —«¿por qué gerencia no puede entrar a
+     * Fineract?»— y ésta era la tercera de las tres razones, la única que el
+     * sistema tenía forma de ver y no miraba.
+     */
+    | 'ROL_SIN_PERMISOS';
 }
 
 /**
@@ -258,6 +278,8 @@ export class RolesExternosService {
     const oficinaEsperada = cfg?.oficinaContableExterna ?? null;
 
     const salida: EstadoUsuarioExterno[] = [];
+    /** Permisos por rol externo: `null` es «no se pudo preguntar». */
+    const permisosPorRol = new Map<string, number | null>();
 
     for (const u of usuarios) {
       const rolErp = normalizarRol(u.rol);
@@ -304,6 +326,19 @@ export class RolesExternosService {
         esperados.length > 0 &&
         esperados.every((r) => rolesActuales.includes(r));
 
+      /*
+       * Y si esos roles habilitan algo. Se cachea por id porque varios
+       * usuarios comparten rol y preguntar cuesta una llamada por rol: el
+       * catálogo de permisos de Fineract pasa de mil filas.
+       */
+      const sinPermisos: string[] = [];
+      for (const idRol of rolesActuales) {
+        if (!permisosPorRol.has(idRol)) {
+          permisosPorRol.set(idRol, await this.externos.permisosDeRol(idRol));
+        }
+        if (permisosPorRol.get(idRol) === 0) sinPermisos.push(idRol);
+      }
+
       salida.push({
         usuarioId: u.id,
         email: u.email,
@@ -316,6 +351,7 @@ export class RolesExternosService {
         habilitadoEnDirectorio,
         oficinaExterna,
         oficinaEsperada,
+        rolesSinPermisos: sinPermisos,
         /*
          * El orden importa: primero lo que impide operar bien, después lo que
          * impide operar. Un operador que existe pero en otra oficina es peor
@@ -333,9 +369,18 @@ export class RolesExternosService {
                   ? 'MAPEAR_ROL'
                   : !existe
                     ? 'DAR_DE_ALTA'
-                    : rolesCoinciden
-                      ? 'NINGUNA'
-                      : 'CORREGIR_ROLES',
+                    : !rolesCoinciden
+                      ? 'CORREGIR_ROLES'
+                      /*
+                       * Lo último que se mira, y por eso se veía lo último: un
+                       * operador con todo en su sitio y un rol que no habilita
+                       * nada. Va después de `CORREGIR_ROLES` porque si los
+                       * roles están mal, arreglar los permisos del rol
+                       * equivocado no sirve de nada.
+                       */
+                      : sinPermisos.length > 0
+                        ? 'ROL_SIN_PERMISOS'
+                        : 'NINGUNA',
       });
     }
 

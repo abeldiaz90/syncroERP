@@ -64,6 +64,21 @@ export interface PuertoUsuariosExternos {
    */
   crearRol(datos: { nombre: string; descripcion?: string }): Promise<string>;
 
+  /**
+   * Cuántos permisos tiene concedidos ese rol del otro lado.
+   *
+   * `null` es «no se pudo preguntar», que no es lo mismo que cero. La
+   * diferencia importa: cero significa «ese rol existe y no habilita nada»,
+   * y es el estado en que nacen todos los roles espejo.
+   *
+   * Hace falta porque el diagnóstico de operadores decía «todo en orden» de
+   * un usuario que existía, estaba mapeado y tenía su rol asignado —y al que
+   * el portal del core le rechazaba todas las pantallas, porque ese rol no
+   * concede un solo permiso. Un diagnóstico que no mira esto deja el problema
+   * exactamente donde más cuesta encontrarlo.
+   */
+  permisosDeRol(idRolExterno: string): Promise<number | null>;
+
   /** Usuario por nombre de usuario. Null si no existe. */
   buscarUsuario(usuario: string): Promise<UsuarioExterno | null>;
 
@@ -90,6 +105,9 @@ export class UsuariosExternosNoConfigurado implements PuertoUsuariosExternos {
   }
   async rolesDisponibles(): Promise<RolExterno[]> {
     return [];
+  }
+  async permisosDeRol(): Promise<number | null> {
+    return null;
   }
   async buscarUsuario(): Promise<UsuarioExterno | null> {
     return null;

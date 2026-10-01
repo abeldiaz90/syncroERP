@@ -12,6 +12,7 @@ import {
   EntityManager,
   ILike,
   In,
+  Raw,
   Repository,
 } from 'typeorm';
 import { Producto, TipoProducto } from '../entities/producto.entity';
@@ -444,6 +445,27 @@ export class ProductosService {
     categoriaId?: string,
     marcaId?: string,
     soloConStock?: boolean,
+    /*
+     * ========================================================================
+     * El buscador dejaba de obedecer a los filtros
+     * ------------------------------------------------------------------------
+     * La pantalla de productos tenía DOS caminos: sin texto llamaba a este
+     * listado —que filtra por categoría, marca y existencia, y pagina— y en
+     * cuanto se escribía una letra se iba a `/productos/buscar`, que no
+     * conoce ninguna de esas cosas.
+     *
+     * Lo que se veía: los chips de «Categoría: Ferretería» seguían pintados
+     * en la pantalla, el resultado no los respetaba, y «cargar más» repetía
+     * la misma lista porque ese endpoint tampoco pagina. Nada fallaba; el
+     * catálogo simplemente contestaba otra pregunta.
+     *
+     * El listado acepta ahora el texto, así que la pantalla no tiene que
+     * cambiar de puerta. `/productos/buscar` se queda como está: es el de la
+     * caja, devuelve otra forma —con existencia por almacén— y ahí sí se
+     * busca sin filtros a propósito.
+     * ========================================================================
+     */
+    q?: string,
   ) {
     const skip = (pagina - 1) * limite;
 
@@ -458,8 +480,63 @@ export class ProductosService {
       whereClause.marcaId = marcaId;
     }
 
+    /*
+     * ========================================================================
+     * «Sólo con stock» filtraba DESPUÉS de paginar
+     * ------------------------------------------------------------------------
+     * La consulta traía la página —veinte productos— y recién entonces
+     * descartaba los que no tenían existencia. Con un catálogo de veinticinco
+     * artículos y cinco con stock repartidos entre las dos páginas, la
+     * pantalla enseñaba los de la primera y anunciaba «total: 3, 1 página».
+     *
+     * O sea: no es que faltara un filtro, es que el TOTAL y el número de
+     * páginas se calculaban sobre lo que quedó de una sola página. La pantalla
+     * no decía «hay más»: decía que ésos eran todos los que tienen existencia.
+     * Para quien busca qué puede vender hoy, eso es inventario que no se
+     * ofrece porque el sistema dice que no está.
+     *
+     * Se resuelve donde se tenía que resolver: la base decide qué productos
+     * tienen existencia ANTES de paginar.
+     * ========================================================================
+     */
+    if (soloConStock) {
+      const conExistencia = await this.dataSource
+        .getRepository(StockPorAlmacen)
+        .createQueryBuilder('s')
+        .select('s.productoId', 'productoId')
+        .where('s.empresaId = :empresaId', { empresaId })
+        .groupBy('s.productoId')
+        /* Suma, no «alguna fila»: un almacén en negativo no da existencia. */
+        .having('COALESCE(SUM(s.cantidad), 0) > 0')
+        .getRawMany<{ productoId: string }>();
+
+      if (conExistencia.length === 0) {
+        return { productos: [], total: 0, paginaActual: pagina, totalPaginas: 0 };
+      }
+      whereClause.id = In(conExistencia.map((x) => x.productoId));
+    }
+
+    /*
+     * El texto, si lo hay, se compara contra los cuatro campos buscables, y
+     * sin acentos: «cafe» tiene que encontrar «Café» aquí igual que en la
+     * caja. Un arreglo de condiciones es un OR en TypeORM, y cada rama lleva
+     * los filtros base para que buscar no abra la puerta a otra empresa ni
+     * desactive la categoría elegida.
+     */
+    const texto = String(q ?? '').trim();
+    const patron = patronDeBusqueda(texto);
+    const condiciones = texto
+      ? ['nombre', 'sku', 'codigoBarras', 'codigoBarras2'].map((campo) => ({
+          ...whereClause,
+          [campo]: Raw(
+            (alias) => `${columnaSinAcentos(alias)} LIKE :patron`,
+            { patron },
+          ),
+        }))
+      : whereClause;
+
     const [productos, total] = await this.productoRepository.findAndCount({
-      where: whereClause, // <--- Aquí inyectamos los filtros
+      where: condiciones,
       relations: [
         'categoria',
         'imagenes',
@@ -485,23 +562,20 @@ export class ProductosService {
     );
 
     // 3. Mapear los productos con su stock
-    let productosMapeados = productos.map((p) => ({
+    const productosMapeados = productos.map((p) => ({
       ...p,
       stockActual: stockMap.get(p.id) ?? 0,
     }));
 
-    // 4. Aplicar filtro de "Solo con stock" si está activado
-    if (soloConStock) {
-      productosMapeados = productosMapeados.filter((p) => p.stockActual > 0);
-    }
-
+    /*
+     * `total` ya viene de la base con el filtro aplicado, así que cuenta todo
+     * el catálogo que cumple y no lo que sobrevivió a una página.
+     */
     return {
       productos: productosMapeados,
-      total: soloConStock ? productosMapeados.length : total,
+      total,
       paginaActual: pagina,
-      totalPaginas: Math.ceil(
-        (soloConStock ? productosMapeados.length : total) / limite,
-      ),
+      totalPaginas: Math.ceil(total / limite),
     };
   }
 

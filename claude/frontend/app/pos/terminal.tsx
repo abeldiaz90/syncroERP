@@ -132,6 +132,27 @@ export default function TerminalPos() {
   const [almacenes,         setAlmacenes]         = useState<any[]>([]);
   /** No hay ningun almacen que ofrecer: la caja no puede vender y lo dice. */
   const [faltaAlmacen,      setFaltaAlmacen]      = useState(false);
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * El turno se pregunta al entrar, no al cobrar
+   * --------------------------------------------------------------------------
+   * Medido el 1-oct-2026 vendiendo de verdad: la caja dejaba buscar tres
+   * productos, armar el carrito, elegir forma de pago y capturar el efectivo
+   * recibido — y al pulsar «Cobrar» contestaba «No existe un turno abierto
+   * para la caja seleccionada».
+   *
+   * El servidor hace bien en negarse: sin turno no hay dónde registrar el
+   * efectivo. Lo que está mal es CUÁNDO se entera el cajero, con el cliente
+   * esperando y el trabajo hecho. Es el mismo defecto que este proyecto lleva
+   * corrigiendo desde el primer día —un botón que lleva a una negativa— pero
+   * en la pantalla donde más caro sale.
+   *
+   * Los turnos abiertos se consultan igual que el almacén y las cajas: al
+   * cargar la terminal. Y se vuelven a consultar al cerrar una venta, porque
+   * un turno puede cerrarse desde Tesorería mientras la caja está abierta.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const [cajasConTurno,     setCajasConTurno]     = useState<string[] | null>(null);
   const [almacenId,         setAlmacenId]         = useState('');
   const [listasPrecio,      setListasPrecio]      = useState<IListaPrecio[]>([]);
   const [listaPrecioId,     setListaPrecioId]     = useState('');
@@ -237,7 +258,14 @@ export default function TerminalPos() {
       // Cuánto descuento admite el perfil de quien está en la caja. Sin
       // respuesta se asume cero: no se ofrece lo que no se sabe si se puede.
       intentar(api.get<{ topePorcentaje:number }>('/ventas/tope-descuento'), { topePorcentaje: 0 }),
-    ]).then(([alm, cb, listas, prodsCredito, tope]) => {
+      /*
+       * Qué cajas tienen turno abierto. `null` si no se pudo preguntar: el
+       * mostrador no debe quedarse sin vender porque esta consulta falle, así
+       * que en ese caso no se afirma nada y el servidor sigue siendo quien
+       * decide al cobrar.
+       */
+      intentar(api.get<{ cuentaCajaId:string }[]>('/caja/turnos/abiertos'), null),
+    ]).then(([alm, cb, listas, prodsCredito, tope, turnos]) => {
       setAlmacenes(alm);
       if (alm.length>0) setAlmacenId(alm[0].id);
       /*
@@ -254,6 +282,9 @@ export default function TerminalPos() {
       if (def) setCuentaBancariaId(def.id);
       setProductosCredito(prodsCredito);
       setTopeDescuento(Math.min(100, Math.max(0, n(tope?.topePorcentaje))));
+      setCajasConTurno(
+        Array.isArray(turnos) ? turnos.map((t) => t.cuentaCajaId) : null,
+      );
     });
     searchRef.current?.focus();
   }, []);
@@ -639,6 +670,16 @@ export default function TerminalPos() {
             : null,
         discrepancias: data.discrepanciasPrecio ?? [],
       });
+      /*
+       * Y se vuelve a preguntar por los turnos. Uno puede cerrarse desde
+       * Tesorería mientras la caja sigue abierta —es lo normal al terminar el
+       * día—, y el cajero no tiene por qué enterarse en la siguiente venta,
+       * con el carrito armado otra vez.
+       */
+      void api
+        .get<{ cuentaCajaId: string }[]>('/caja/turnos/abiertos')
+        .then((t) => setCajasConTurno(Array.isArray(t) ? t.map((x) => x.cuentaCajaId) : null))
+        .catch(() => {/* no se afirma nada si no se pudo preguntar */});
     } catch (error) {
       // Errores de validación son definitivos y permiten una nueva solicitud.
       // En red/5xx la clave se conserva para consultar la misma venta al reintentar.
@@ -702,7 +743,26 @@ export default function TerminalPos() {
   const requiereCuenta = ['EFECTIVO', 'TARJETA', 'TRANSFERENCIA', 'CHEQUE', 'MSI_BANCO', 'OTRO'].includes(metodoPago)
     || (esCredito(metodoPago) && n(enganche)>0);
   const contextoCompleto = Boolean(almacenId && listaPrecioId && (!requiereCuenta || cuentaBancariaId));
-  const puedeVender = carrito.length>0 && contextoCompleto && creditoPermitido && (metodoPago!=='EFECTIVO'||(!!montoRecibido&&n(montoRecibido)>=totalEfectivo));
+  /*
+   * ¿La caja elegida tiene turno abierto?
+   *
+   * `null` en `cajasConTurno` significa que no se pudo preguntar, y entonces
+   * no se afirma nada: el mostrador no debe quedarse sin vender porque una
+   * consulta falle, y el servidor sigue siendo quien decide al cobrar. Se
+   * bloquea sólo cuando SE SABE que no hay turno.
+   *
+   * Y sólo para el efectivo. Una tarjeta o una transferencia no tocan el
+   * cajón: exigirles turno sería inventar una regla que el servidor no tiene.
+   */
+  const efectivoEnJuego = metodoPago === 'EFECTIVO'
+    || (esCredito(metodoPago) && n(enganche) > 0 && cajaElegida?.tipo === 'CAJA');
+  const sinTurnoAbierto = Boolean(
+    efectivoEnJuego
+    && cuentaBancariaId
+    && cajasConTurno !== null
+    && !cajasConTurno.includes(cuentaBancariaId),
+  );
+  const puedeVender = carrito.length>0 && contextoCompleto && creditoPermitido && !sinTurnoAbierto && (metodoPago!=='EFECTIVO'||(!!montoRecibido&&n(montoRecibido)>=totalEfectivo));
 
   const cambiarContextoVenta = (
     tipo: 'almacén' | 'lista de precios',
@@ -1215,6 +1275,17 @@ export default function TerminalPos() {
             {requiereCuenta&&!cuentaBancariaId&&carrito.length>0&&(
               <p className="text-center text-xs text-amber-600 font-medium mt-2 flex items-center justify-center gap-1">
                 <AlertCircle className="w-3.5 h-3.5"/> Configura o selecciona la cuenta de cobro correspondiente
+              </p>
+            )}
+            {/*
+              El aviso que faltaba. Va ARRIBA de los demás porque es el único
+              que se puede resolver sin salir de la caja —se abre el turno en
+              Tesorería y se vuelve— y porque es el que, callado, deja al
+              cajero con el carrito armado y el cliente esperando.
+            */}
+            {sinTurnoAbierto&&(
+              <p className="text-center text-xs text-rose-600 font-medium mt-2 flex items-center justify-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5"/> Esta caja no tiene turno abierto: ábrelo en Tesorería → Caja, corte y arqueo antes de cobrar en efectivo.
               </p>
             )}
             {faltaAlmacen&&(

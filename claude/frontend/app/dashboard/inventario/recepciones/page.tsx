@@ -232,7 +232,9 @@ export default function ListaRecepcionesPage() {
                     : `${sinDespachar} órdenes de compra todavía no las despacha Compras; aparecerán aquí cuando las envíen.`
                   : totalOrdenes === 0
                     ? 'No hay ninguna orden de compra registrada.'
-                    : `Las ${totalOrdenes} órdenes registradas están fuera de esta bandeja.`}
+                    : totalOrdenes === 1
+                      ? 'La única orden registrada está fuera de esta bandeja.'
+                      : `Las ${totalOrdenes} órdenes registradas están fuera de esta bandeja.`}
             </p>
           </div>
         ) : (

@@ -158,8 +158,13 @@ export class ProductosController {
     @Query('categoriaId') categoriaId?: string,
     @Query('marcaId') marcaId?: string,
     @Query('soloConStock') soloConStock?: string,
+    /*
+     * El texto del buscador. Antes la pantalla se iba a `/buscar` en cuanto
+     * se escribía una letra, y ese endpoint no conoce filtros ni paginación:
+     * los chips seguían pintados y el resultado no los respetaba.
+     */
+    @Query('q') q?: string,
   ) {
-    // Pásalos al servicio
     return this.productosService.obtenerProductos(
       req.user.empresaId,
       pagina,
@@ -167,6 +172,7 @@ export class ProductosController {
       categoriaId,
       marcaId,
       soloConStock === 'true',
+      q,
     );
   }
   @Get(':id')

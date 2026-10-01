@@ -205,8 +205,21 @@ export default function ProductosPage() {
       if (cf.marcaId) params.append('marcaId', cf.marcaId);
       if (cf.soloConStock) params.append('soloConStock', 'true');
 
-      let url = `${apiUrl}/catalogo/productos?${params}`;
-      if (cb.trim()) { params.append('q', cb.trim()); url = `${apiUrl}/catalogo/productos/buscar?${params}`; }
+      /*
+       * Una sola puerta.
+       *
+       * Antes, al escribir una letra la pantalla se iba a
+       * `/catalogo/productos/buscar`, que no conoce categoría, marca,
+       * existencia ni página: los chips de filtro seguían pintados arriba, el
+       * resultado no los respetaba y «cargar más» repetía la misma lista.
+       * Nada fallaba — el catálogo contestaba otra pregunta.
+       *
+       * El listado acepta ahora el texto, así que buscar y filtrar son la
+       * misma consulta. `/buscar` sigue siendo el de la caja, que necesita
+       * otra forma de respuesta.
+       */
+      if (cb.trim()) params.append('q', cb.trim());
+      const url = `${apiUrl}/catalogo/productos?${params}`;
 
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {

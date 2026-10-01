@@ -158,7 +158,7 @@ export default function StockInicialPage() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4 text-sm">
           <Dato titulo="Avance" valor={`${job.porcentaje.toFixed(1)}%`}/><Dato titulo="Procesadas" valor={job.procesadas}/><Dato titulo="Correctas" valor={job.correctas}/><Dato titulo="Errores" valor={job.conError}/><Dato titulo="Omitidas" valor={job.omitidas}/>
         </div>
-        {terminales.includes(job.estado) && job.procesadas === 0 && <p className="mt-4 text-sm text-rose-700 bg-rose-50 border border-rose-200 p-3 rounded-lg"><b>No se aplicó stock.</b> El archivo terminó sin filas procesadas. Corrige el archivo o vuelve a cargarlo después de aplicar el hotfix.</p>}
+        {terminales.includes(job.estado) && job.procesadas === 0 && <p className="mt-4 text-sm text-rose-700 bg-rose-50 border border-rose-200 p-3 rounded-lg"><b>No se aplicó stock.</b> El archivo terminó sin filas procesadas. Revisa los errores de abajo, corrige el archivo y vuelve a cargarlo.</p>}
         {job.mensajeError && <p className="mt-4 text-sm text-amber-700 bg-amber-50 p-3 rounded-lg">{job.mensajeError}</p>}
         {job.estadoContable && <p className="mt-3 text-sm">Estado contable: <b>{job.estadoContable}</b></p>}
       </div>}

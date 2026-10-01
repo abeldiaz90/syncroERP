@@ -98,6 +98,39 @@ export class FineractUsuariosAdapter implements PuertoUsuariosExternos {
     }
   }
 
+  /**
+   * Cuántos permisos tiene concedidos un rol de Fineract.
+   *
+   * `/v1/roles/{id}/permissions` devuelve el catálogo ENTERO —más de mil
+   * filas— con un `selected` por cada una. Se cuentan las seleccionadas y se
+   * tira el resto: lo que el diagnóstico necesita saber es si el rol habilita
+   * algo o está inerte.
+   *
+   * Devuelve `null` si no se pudo preguntar, para no confundir «no sé» con
+   * «ninguno». El diagnóstico trata las dos cosas distinto a propósito.
+   */
+  async permisosDeRol(idRolExterno: string): Promise<number | null> {
+    try {
+      const respuesta = await this.http.get<{
+        permissionUsageData?: { selected?: boolean }[];
+      }>(`/v1/roles/${idRolExterno}/permissions`, this.comoUsuario);
+      const filas = respuesta?.permissionUsageData;
+      if (!Array.isArray(filas)) return null;
+      return filas.filter((p) => p?.selected === true).length;
+    } catch (error) {
+      /*
+       * No se traduce ni se propaga: un diagnóstico que se cae por no poder
+       * contar permisos deja de contestar lo demás, que sí sabía.
+       */
+      this.logger.warn(
+        `No se pudieron leer los permisos del rol ${idRolExterno}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    }
+  }
+
   async buscarUsuario(usuario: string): Promise<UsuarioExterno | null> {
     try {
       // Fineract no expone búsqueda por nombre de usuario; se lista y se filtra.

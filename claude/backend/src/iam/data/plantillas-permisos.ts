@@ -329,6 +329,26 @@ const ACCIONES_NOMINA_FINANZAS = [
   'PATCH /rrhh/nomina-avanzada/cuentas-bancarias/:id/validar',
 ];
 
+/*
+ * ============================================================================
+ * Ver que el core existe no es operarlo
+ * ----------------------------------------------------------------------------
+ * `GET /integracion/estado` es lo único que hace falta para que aparezca el
+ * enlace al registro financiero externo en el menú (ver `enlace-al-core.tsx`:
+ * sin este permiso devuelve `null` y el enlace no se dibuja).
+ *
+ * Preguntado por Abel el 1-oct-2026: «¿por qué gerencia y otros roles no
+ * pueden entrar a Fineract?». La primera de las tres razones era ésta —no veía
+ * la puerta—, y arreglarla dándole `ACCIONES_ESPEJO_CONTABLE` entero habría
+ * sido pasarse de largo: ahí dentro van el mapeo de cuentas, el
+ * aprovisionamiento y el despacho de la cola, que son operaciones del espejo y
+ * siguen siendo de contabilidad y finanzas.
+ *
+ * Esto es la lectura mínima: saber que el core está contratado y en línea.
+ * ============================================================================
+ */
+const VER_QUE_HAY_CORE = 'GET /integracion/estado';
+
 const ACCIONES_ESPEJO_CONTABLE = [
   'GET /integracion/estado',
   'GET /integracion/cuentas/pendientes',
@@ -424,6 +444,18 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
        * poder hacerlo sin que nada lo dijera.
        */
       'GET /ventas/tope-descuento',
+      /*
+       * Y qué cajas tienen turno abierto. La terminal lo pregunta al cargar
+       * para avisar ANTES de que el cajero arme el carrito: sin turno no se
+       * puede cobrar en efectivo, y hasta el 1-oct-2026 eso se descubría al
+       * pulsar «Cobrar», con los $800 del cliente ya capturados.
+       *
+       * Va declarado y no heredado del módulo `caja` a propósito: que hoy
+       * funcione porque la ruta cae en un módulo que el rol trae es una
+       * coincidencia que un veto futuro deshace en silencio, y el síntoma
+       * —un aviso que deja de salir— no señala a la causa.
+       */
+      'GET /caja/turnos/abiertos',
     ],
     accionesVedadas: ['GET /credito/cuentas-bancarias'],
   },
@@ -884,6 +916,12 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     accionesIrrenunciables: [
       // El tablero de pendientes: cuentas, no documentos.
       ACCION_TABLERO_PENDIENTES,
+      /*
+       * Y la puerta al registro financiero externo. Tesorería concilia contra
+       * saldos que viven allá; no verlo siquiera la obligaba a pedir capturas
+       * de pantalla a contabilidad.
+       */
+      VER_QUE_HAY_CORE,
       'PATCH /compras/ordenes/:id/pagar',
       // La acción sin la consulta no sirve: la pantalla de pago abre vacía si
       // no puede listar ni abrir la orden. Pasó con el almacenista —podía ver
@@ -1201,6 +1239,20 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * para los tres roles que la usan.
      */
     accionesIrrenunciables: [
+      /*
+       * La puerta al registro financiero externo.
+       *
+       * Preguntado por Abel el 1-oct-2026: «¿por qué gerencia no puede entrar
+       * a Fineract?». Una de las tres razones era que no veía ni la puerta:
+       * el enlace del menú sólo se dibuja para quien puede leer el estado de
+       * la integración, y esta plantilla no lo concedía. Quien autoriza
+       * compras y créditos que acaban asentados allá tiene que poder ir a
+       * verlos.
+       *
+       * Sólo la lectura del estado. El mapeo de cuentas, el aprovisionamiento
+       * y el despacho de la cola siguen siendo de contabilidad y finanzas.
+       */
+      VER_QUE_HAY_CORE,
       /*
        * Anular una venta. `ROLES_AUTORIZADORES_ANULACION` designa a GERENCIA y
        * DIRECCION —y el umbral es cero a propósito: anular elimina la venta
