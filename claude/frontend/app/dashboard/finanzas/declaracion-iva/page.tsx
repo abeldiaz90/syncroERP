@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
-import { fechaCorta } from '@/lib/fechas';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { fechaCorta, diaISO } from '@/lib/fechas';
 import {
   Receipt, Calendar, RefreshCw, Printer, CheckCircle2,
   AlertCircle, TrendingUp, TrendingDown, Minus, Info,
@@ -23,7 +23,12 @@ interface IDeclaracion {
   detalleAcreditable: IMovimiento[];
 }
 
-const HOY  = new Date();
+/*
+ * `HOY` se resolvía a nivel de módulo, una sola vez al cargar el chunk —en
+ * producción, horneado en el build de Next—. En esta pantalla eso significa que
+ * la declaración abre con OTRO MES preseleccionado, y el mes es justamente lo
+ * que el contador viene a declarar. Ahora se pregunta al abrir.
+ */
 const fmt$ = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
 const fmtFecha = (s: string) =>
@@ -36,17 +41,19 @@ function primerDia(y: number, m: number) {
   return `${y}-${String(m+1).padStart(2,'0')}-01`;
 }
 function ultimoDia(y: number, m: number) {
-  return new Date(y, m+1, 0).toISOString().split('T')[0];
+  /* Partes locales, no `toISOString()`: ver la nota de `diaISO` en lib/fechas. */
+  return diaISO(new Date(y, m+1, 0));
 }
 
 export default function DeclaracionIVAPage() {
   const [datos, setDatos]         = useState<IDeclaracion | null>(null);
   const [cargando, setCargando]   = useState(false);
-  const [mes, setMes]             = useState(HOY.getMonth());
-  const [anio, setAnio]           = useState(HOY.getFullYear());
+  const HOY = useMemo(() => new Date(), []);
+  const [mes, setMes]             = useState(() => new Date().getMonth());
+  const [anio, setAnio]           = useState(() => new Date().getFullYear());
   const [modoRango, setModoRango] = useState(false);
-  const [desde, setDesde]         = useState(primerDia(HOY.getFullYear(), HOY.getMonth()));
-  const [hasta, setHasta]         = useState(ultimoDia(HOY.getFullYear(), HOY.getMonth()));
+  const [desde, setDesde]         = useState(() => primerDia(new Date().getFullYear(), new Date().getMonth()));
+  const [hasta, setHasta]         = useState(() => ultimoDia(new Date().getFullYear(), new Date().getMonth()));
   const [detalleOpen, setDetalleOpen] = useState<'trasladado'|'acreditable'|null>(null);
   /*
     Una declaración de IVA que no se pudo consultar se veía igual que un mes sin

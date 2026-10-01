@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
-import { fechaCorta } from '@/lib/fechas';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { fechaCorta, diaISO, mesEnCurso } from '@/lib/fechas';
 import { Search, CheckCircle2, AlertCircle, Calendar, X, Printer } from 'lucide-react';
 
 interface IBalanza {
@@ -20,25 +20,40 @@ const TIPO_LABEL: Record<string, string> = {
   '1':'Activo','2':'Pasivo','3':'Capital','4':'Ingreso','5':'Costo','6':'Gasto'
 };
 
-const HOY = new Date();
-const fmt  = (d: Date) => d.toISOString().split('T')[0];
+/*
+ * Los rangos se calculan AL ABRIR la pantalla, no al cargar el módulo.
+ *
+ * Aquí había `const HOY = new Date()` a nivel de módulo: se evalúa una sola vez,
+ * cuando el navegador carga el chunk. Medido el 1-oct-2026 en el Libro Diario,
+ * que tenía el mismo defecto: el filtro decía 01/09–30/09 y el reporte anunciaba
+ * «✅ Cuadrado» sin los movimientos de ese mismo día. En producción es peor,
+ * porque Next prerenderiza y el mes queda horneado en el build.
+ *
+ * `diaISO` arma la fecha con las partes LOCALES del reloj. El `toISOString()`
+ * que estaba aquí convierte a UTC antes de recortar, y la medianoche local de
+ * cualquier huso al este de Greenwich ya es el día anterior en UTC. En México no
+ * muerde —por eso sobrevivió—, pero el huso del negocio es configurable.
+ */
 const fmtLabel = (s: string) => s ? fechaCorta(s) : '';
-const primerDiaMes = fmt(new Date(HOY.getFullYear(), HOY.getMonth(), 1));
-const ultimoDiaMes = fmt(new Date(HOY.getFullYear(), HOY.getMonth() + 1, 0));
-const RANGOS = [
-  { label: 'Este mes',     desde: primerDiaMes, hasta: ultimoDiaMes },
-  { label: 'Mes anterior', desde: fmt(new Date(HOY.getFullYear(), HOY.getMonth()-1, 1)), hasta: fmt(new Date(HOY.getFullYear(), HOY.getMonth(), 0)) },
-  { label: 'Este año',     desde: fmt(new Date(HOY.getFullYear(), 0, 1)), hasta: fmt(new Date(HOY.getFullYear(), 11, 31)) },
-  { label: 'Histórico',    desde: '', hasta: '' },
-];
+const rangosDeHoy = () => {
+  const hoy = new Date();
+  const mes = mesEnCurso(hoy);
+  return [
+    { label: 'Este mes',     desde: mes.desde, hasta: mes.hasta },
+    { label: 'Mes anterior', desde: diaISO(new Date(hoy.getFullYear(), hoy.getMonth()-1, 1)), hasta: diaISO(new Date(hoy.getFullYear(), hoy.getMonth(), 0)) },
+    { label: 'Este año',     desde: diaISO(new Date(hoy.getFullYear(), 0, 1)), hasta: diaISO(new Date(hoy.getFullYear(), 11, 31)) },
+    { label: 'Histórico',    desde: '', hasta: '' },
+  ];
+};
 const fmt$ = (n: number) => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(n);
 
 export default function BalanzaComprobacionPage() {
   const [cuentas, setCuentas]         = useState<IBalanza[]>([]);
   const [cargando, setCargando]       = useState(true);
   const [busqueda, setBusqueda]       = useState('');
-  const [fechaDesde, setFechaDesde]   = useState(primerDiaMes);
-  const [fechaHasta, setFechaHasta]   = useState(ultimoDiaMes);
+  const RANGOS = useMemo(rangosDeHoy, []);
+  const [fechaDesde, setFechaDesde]   = useState(() => RANGOS[0].desde);
+  const [fechaHasta, setFechaHasta]   = useState(() => RANGOS[0].hasta);
   const [rangoActivo, setRangoActivo] = useState('Este mes');
   /*
     Una balanza vacía cuadra sola: cero cargos contra cero abonos. Como la
@@ -93,15 +108,10 @@ export default function BalanzaComprobacionPage() {
   const totalAbonos = filtradas.reduce((s,c) => s + c.abonos, 0);
   const cuadrada    = Math.abs(totalCargos - totalAbonos) < 0.01;
 
-  /*
-   * Agrupar por TIPO y no por el primer dígito: con los dígitos 1 a 6 el
-   * resumen se dejaba fuera las cuentas 7xx —resultados financieros del
-   * catálogo SAT—, así que la balanza cuadraba arriba y el resumen no sumaba
-   * lo mismo, sin decir de qué renglones se había olvidado.
-   */
-  const grupos = ['ACTIVO','PASIVO','CAPITAL','INGRESO','COSTO','GASTO'].map(t => ({
-    digito: t,
-    cuentas: filtradas.filter(c => ((c as any).tipo ?? '') === t),
+  // Agrupar por tipo para resumen
+  const grupos = ['1','2','3','4','5','6'].map(d => ({
+    digito: d,
+    cuentas: filtradas.filter(c => c.numeroCuenta.startsWith(d)),
   })).filter(g => g.cuentas.length > 0);
 
   const periodoLabel = rangoActivo === 'Histórico' ? 'Histórico completo'

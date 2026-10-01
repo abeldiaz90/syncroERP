@@ -1,10 +1,19 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { hoyISO } from '@/lib/fechas';
 import { Receipt, RefreshCw, DollarSign } from 'lucide-react';
 import { ExportBar } from '../../../components/export-bar';
 
 const fmt$ = (n: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
-const HOY  = new Date().toISOString().split('T')[0];
+/*
+ * El día se resuelve AL ABRIR la pantalla, no al cargar el módulo: a nivel de
+ * módulo `new Date()` se evalúa una sola vez y el valor queda congelado —en
+ * producción, horneado en el build de Next—. Aquí eso significa que el corte de
+ * caja abriría con la fecha de otro día y el botón «Hoy» marcaría ese otro día
+ * como si fuera hoy. Y `diaISO` arma la fecha con las partes locales del reloj,
+ * sin pasar por UTC, que es donde se pierde un día en los husos al este de
+ * Greenwich.
+ */
 
 const COLUMNAS_CAJA = [
   { key: 'folio',          label: 'Folio',   fmt: (v: number) => '#' + String(v).padStart(5,'0') },
@@ -17,6 +26,7 @@ const COLUMNAS_CAJA = [
 export default function CorteCajaPage() {
   const [ventas, setVentas]   = useState<any[]>([]);
   const [pagos, setPagos]     = useState<any[]>([]);
+  const HOY = useMemo(() => hoyISO(), []);
   const [fecha, setFecha]     = useState(HOY);
   const [cargando, setCargando] = useState(false);
   /*

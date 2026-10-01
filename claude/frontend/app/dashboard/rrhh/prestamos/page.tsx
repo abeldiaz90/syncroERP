@@ -3,12 +3,23 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { dinero, fecha } from '@/lib/format';
+import { hoyISO } from '@/lib/fechas';
 
 type Empleado={id:string;numeroEmpleado:string;nombres:string;apellidoPaterno:string;apellidoMaterno?:string};
 type Prestamo={id:string;empleadoId:string;tipo:string;montoOriginal:number;saldo:number;descuentoPeriodo:number;fechaInicio:string;estado:string;referencia?:string};
 type Obligacion={id:string;empleadoId:string;tipo:string;referencia:string;modalidad:string;valor:number;saldo:number;prioridad:number;activo:boolean};
 function lista<T>(x:unknown):T[]{if(Array.isArray(x))return x as T[];if(x&&typeof x==='object'&&Array.isArray((x as {data?:unknown}).data))return (x as {data:T[]}).data;return []}
-const hoy=()=>new Date().toISOString().slice(0,10);
+/*
+ * `hoyISO()` arma la fecha con las partes locales del reloj.
+ *
+ * Aquí decía `new Date().toISOString().slice(0, 10)`, que convierte a UTC
+ * antes de recortar: en México (UTC-6), a partir de las 18:00 eso devuelve EL
+ * DÍA SIGUIENTE. Es el mismo defecto que ya costó una corrección en las fechas
+ * de las pólizas —medido el 30-sep-2026: una compra de las 18:13 quedó
+ * fechada el 1-oct—, ahora del lado del navegador y proponiendo la fecha por
+ * omisión de un documento que alguien va a aceptar sin mirar.
+ */
+const hoy = () => hoyISO();
 
 export default function PrestamosObligacionesPage(){
  const [empleados,setEmpleados]=useState<Empleado[]>([]),[prestamos,setPrestamos]=useState<Prestamo[]>([]),[obligaciones,setObligaciones]=useState<Obligacion[]>([]);

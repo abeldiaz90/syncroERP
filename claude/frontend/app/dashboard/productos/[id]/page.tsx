@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { hoyISO } from '@/lib/fechas';
 import { 
   ArrowLeft, History, Package, ArrowUpRight, ArrowDownRight, 
   Warehouse, Download, TrendingUp, TrendingDown, Layers, Globe,
@@ -201,7 +202,7 @@ export default function KardexPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Kardex_Filtrado_${id}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `Kardex_Filtrado_${id}_${hoyISO()}.csv`);
     document.body.appendChild(link);
     link.click(); document.body.removeChild(link);
   };

@@ -68,3 +68,81 @@ export function fechaLarga(valor: string | Date | null | undefined): string {
     year: 'numeric',
   });
 }
+
+/*
+ * ============================================================================
+ * Rangos que se calculan al abrir la pantalla, no al cargar el módulo
+ * ----------------------------------------------------------------------------
+ * Medido el 1-oct-2026 abriendo el Libro Diario: el filtro decía 01/09–30/09 y
+ * la pantalla anunciaba «3 pólizas · Debe = Haber · ✅ Cuadrado» sin la póliza
+ * de ese mismo día. Nada falló, nada avisó. Un libro contable completo,
+ * cuadrado, y sin los movimientos de hoy.
+ *
+ * La causa estaba escrita así, FUERA del componente:
+ *
+ *     const HOY   = new Date();
+ *     const DESDE = new Date(HOY.getFullYear(), HOY.getMonth(), 1)
+ *                     .toISOString().split('T')[0];
+ *
+ * Dos defectos distintos en tres líneas:
+ *
+ *   1. A nivel de módulo, `new Date()` se evalúa UNA VEZ: cuando el navegador
+ *      carga ese trozo de JavaScript. No cuando se abre la pantalla. En
+ *      desarrollo basta un chunk de ayer para que el mes se quede congelado;
+ *      en producción Next prerenderiza y el valor queda horneado EN EL BUILD,
+ *      así que un ERP desplegado en septiembre abre el libro en septiembre
+ *      hasta el siguiente despliegue. Era lo que estaba pasando.
+ *
+ *   2. `toISOString()` convierte a UTC antes de recortar. `new Date(2026, 9, 1)`
+ *      es medianoche LOCAL; en cualquier huso al este de Greenwich eso ya es el
+ *      día anterior en UTC y el rango arranca un día antes. En México no muerde
+ *      —por eso sobrevivió— pero `BUSINESS_TIMEZONE` es configurable, y un
+ *      defecto que sólo se comporta bien en un huso es un defecto que espera.
+ *
+ * De ahí las dos reglas de este bloque: las fechas se arman con las partes
+ * locales del reloj —nunca con `toISOString()`— y el cálculo vive DENTRO del
+ * componente, así que cada vez que alguien abre la pantalla se vuelve a
+ * preguntar qué día es.
+ * ============================================================================
+ */
+
+/** `2026-10-01` a partir de las partes LOCALES del reloj, sin pasar por UTC. */
+export function diaISO(fecha: Date = new Date()): string {
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  const dia = String(fecha.getDate()).padStart(2, '0');
+  return `${fecha.getFullYear()}-${mes}-${dia}`;
+}
+
+/** Hoy, en el reloj de quien mira la pantalla. */
+export function hoyISO(): string {
+  return diaISO();
+}
+
+/**
+ * El primer y el último día del mes en curso.
+ *
+ * Se llama DENTRO del componente —en un `useState(() => mesEnCurso())` o en un
+ * `useMemo`— para que el mes se resuelva al abrir la pantalla. Llamarla a nivel
+ * de módulo devuelve lo correcto una vez y lo congela.
+ */
+export function mesEnCurso(hoy: Date = new Date()): {
+  desde: string;
+  hasta: string;
+} {
+  /* Día 0 del mes siguiente es el último del actual, y respeta los bisiestos. */
+  return {
+    desde: diaISO(new Date(hoy.getFullYear(), hoy.getMonth(), 1)),
+    hasta: diaISO(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)),
+  };
+}
+
+/** Del primer día del mes a HOY, para los reportes que no miran al futuro. */
+export function mesHastaHoy(hoy: Date = new Date()): {
+  desde: string;
+  hasta: string;
+} {
+  return {
+    desde: diaISO(new Date(hoy.getFullYear(), hoy.getMonth(), 1)),
+    hasta: diaISO(hoy),
+  };
+}

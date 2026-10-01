@@ -1,42 +1,49 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
-import { fechaLarga } from '@/lib/fechas';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { fechaLarga, diaISO, mesEnCurso } from '@/lib/fechas';
 import { Scale, Calendar, X, Printer, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface ICuenta {
   id: string; numeroCuenta: string; nombre: string;
-  tipo?: string; naturaleza?: string;
   cargos: number; abonos: number; saldoFinal: number;
 }
 
-const HOY = new Date();
-const fmt  = (d: Date) => d.toISOString().split('T')[0];
+/*
+ * Los rangos se calculan AL ABRIR la pantalla, no al cargar el módulo.
+ *
+ * Aquí había `const HOY = new Date()` a nivel de módulo: se evalúa una sola vez,
+ * cuando el navegador carga el chunk. Medido el 1-oct-2026 en el Libro Diario,
+ * que tenía el mismo defecto: el filtro decía 01/09–30/09 y el reporte anunciaba
+ * «✅ Cuadrado» sin los movimientos de ese mismo día. En producción es peor,
+ * porque Next prerenderiza y el mes queda horneado en el build.
+ *
+ * `diaISO` arma la fecha con las partes LOCALES del reloj. El `toISOString()`
+ * que estaba aquí convierte a UTC antes de recortar, y la medianoche local de
+ * cualquier huso al este de Greenwich ya es el día anterior en UTC. En México no
+ * muerde —por eso sobrevivió—, pero el huso del negocio es configurable.
+ */
 const fmtLabel = (s: string) =>
   s ? fechaLarga(s) : '';
 
-const RANGOS = [
-  { label: 'Este mes',    desde: fmt(new Date(HOY.getFullYear(), HOY.getMonth(), 1)),     hasta: fmt(new Date(HOY.getFullYear(), HOY.getMonth()+1, 0)) },
-  { label: 'Este año',    desde: fmt(new Date(HOY.getFullYear(), 0, 1)),                  hasta: fmt(new Date(HOY.getFullYear(), 11, 31)) },
-  { label: 'Histórico',   desde: '', hasta: '' },
-];
+const rangosDeHoy = () => {
+  const hoy = new Date();
+  const mes = mesEnCurso(hoy);
+  return [
+    { label: 'Este mes',    desde: mes.desde,                                        hasta: mes.hasta },
+    { label: 'Este año',    desde: diaISO(new Date(hoy.getFullYear(), 0, 1)),         hasta: diaISO(new Date(hoy.getFullYear(), 11, 31)) },
+    { label: 'Histórico',   desde: '', hasta: '' },
+  ];
+};
 
-/*
- * Con `Math.abs` una contra-cuenta se imprimía como si sumara: la
- * depreciación acumulada aparecía como «$480,000.00» en el activo, con el
- * mismo aspecto que un edificio. El total sí la restaba, así que la columna no
- * sumaba lo que decía sumar y no había manera de ver por qué. El signo va.
- */
 const fmt$ = (n: number) =>
-  new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN' }).format(n ?? 0);
-/** Para los totales, que siempre son positivos por construcción. */
-const fmtAbs$ = (n: number) =>
-  new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN' }).format(Math.abs(n ?? 0));
+  new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN' }).format(Math.abs(n));
 
 export default function BalanceGeneralPage() {
   const [cuentas, setCuentas]         = useState<ICuenta[]>([]);
   const [cargando, setCargando]       = useState(true);
-  const [fechaDesde, setFechaDesde]   = useState(RANGOS[2].desde);
-  const [fechaHasta, setFechaHasta]   = useState(RANGOS[2].hasta);
+  const RANGOS = useMemo(rangosDeHoy, []);
+  const [fechaDesde, setFechaDesde]   = useState(() => RANGOS[2].desde);
+  const [fechaHasta, setFechaHasta]   = useState(() => RANGOS[2].hasta);
   const [rangoActivo, setRangoActivo] = useState('Histórico');
   /*
     Un reporte financiero vacío parece un reporte en orden: todo en cero y la
@@ -82,55 +89,23 @@ export default function BalanceGeneralPage() {
     fetchDatos(r.desde, r.hasta);
   };
 
-  /*
-   * ══════════════════════════════════════════════════════════════════════════
-   * Las cuentas se clasifican por su TIPO, no por su primer dígito
-   * --------------------------------------------------------------------------
-   * Aquí ponía `numeroCuenta.startsWith('1')` para activo, '2' pasivo, '3'
-   * capital, '4' ingresos, '5' costos y '6' gastos. El catálogo SAT no cabe en
-   * esa regla: los resultados financieros son 701 gastos financieros, 702
-   * productos financieros, 703 otros gastos y 704 otros productos. Ninguno
-   * empieza por 4, 5 ni 6, así que NO ENTRABAN EN NINGUNA PARTE del balance.
-   *
-   * Medido el 26-sep-2026: `703.21` tenía un cargo de $15 y la pantalla llevaba
-   * «Descuadrado $15.00» de forma permanente, sin ninguna manera de averiguar
-   * de dónde salía. Un balance general que nunca cuadra deja de ser un control.
-   *
-   * El tipo viene ahora en cada renglón de la balanza, que lo lee del catálogo.
-   * ══════════════════════════════════════════════════════════════════════════
-   */
-  const de = (tipo: string) => cuentas.filter(c => (c.tipo ?? '') === tipo);
-
-  /*
-   * Y dentro de cada grupo, una cuenta aporta en contra si su naturaleza es la
-   * contraria a la del grupo: es lo que hace que la depreciación acumulada
-   * RESTE del activo en vez de sumarle.
-   */
-  const natural: Record<string, string> = {
-    ACTIVO: 'DEUDORA', COSTO: 'DEUDORA', GASTO: 'DEUDORA',
-    PASIVO: 'ACREEDORA', CAPITAL: 'ACREEDORA', INGRESO: 'ACREEDORA',
-  };
-  const aporte = (c: ICuenta) =>
-    (c.naturaleza ?? natural[c.tipo ?? ''] ?? 'DEUDORA') === natural[c.tipo ?? '']
-      ? c.saldoFinal
-      : -c.saldoFinal;
-  const sumar = (lista: ICuenta[]) =>
-    Math.round(lista.reduce((s, c) => s + aporte(c), 0) * 100) / 100;
-
-  const conSaldo = (lista: ICuenta[]) => lista.filter(c => c.saldoFinal !== 0);
-  const activo   = conSaldo(de('ACTIVO'));
-  const pasivo   = conSaldo(de('PASIVO'));
-  const capital  = conSaldo(de('CAPITAL'));
+  // Clasificar cuentas por tipo (primer dígito del número)
+  const activo   = cuentas.filter(c => c.numeroCuenta.startsWith('1') && c.saldoFinal !== 0);
+  const pasivo   = cuentas.filter(c => c.numeroCuenta.startsWith('2') && c.saldoFinal !== 0);
+  const capital  = cuentas.filter(c => c.numeroCuenta.startsWith('3') && c.saldoFinal !== 0);
 
   // Ingresos - Costos - Gastos = Utilidad del período (va a Capital)
-  const ingresos = de('INGRESO');
-  const costos   = de('COSTO');
-  const gastos   = de('GASTO');
-  const utilidadPeriodo = Math.round((sumar(ingresos) - sumar(costos) - sumar(gastos)) * 100) / 100;
+  const ingresos = cuentas.filter(c => c.numeroCuenta.startsWith('4'));
+  const costos   = cuentas.filter(c => c.numeroCuenta.startsWith('5'));
+  const gastos   = cuentas.filter(c => c.numeroCuenta.startsWith('6'));
+  const utilidadPeriodo =
+    ingresos.reduce((s,c) => s + c.saldoFinal, 0) -
+    costos.reduce((s,c) => s + c.saldoFinal, 0) -
+    gastos.reduce((s,c) => s + c.saldoFinal, 0);
 
-  const totalActivo  = sumar(activo);
-  const totalPasivo  = sumar(pasivo);
-  const totalCapital = Math.round((sumar(capital) + utilidadPeriodo) * 100) / 100;
+  const totalActivo  = activo.reduce((s,c) => s + c.saldoFinal, 0);
+  const totalPasivo  = pasivo.reduce((s,c) => s + c.saldoFinal, 0);
+  const totalCapital = capital.reduce((s,c) => s + c.saldoFinal, 0) + utilidadPeriodo;
   /* Sin datos no hay nada que cuadre: un balance vacío cuadra solo. */
   const cuadra       = !error && Math.abs(totalActivo - (totalPasivo + totalCapital)) < 1;
 
@@ -206,24 +181,24 @@ export default function BalanceGeneralPage() {
           }`}>
             <div className="text-center">
               <p className="text-xs font-bold uppercase text-slate-500">Activo</p>
-              <p className="text-2xl font-black text-blue-700">{fmtAbs$(totalActivo)}</p>
+              <p className="text-2xl font-black text-blue-700">{fmt$(totalActivo)}</p>
             </div>
             <span className="text-2xl font-black text-slate-400">=</span>
             <div className="text-center">
               <p className="text-xs font-bold uppercase text-slate-500">Pasivo</p>
-              <p className="text-2xl font-black text-rose-700">{fmtAbs$(totalPasivo)}</p>
+              <p className="text-2xl font-black text-rose-700">{fmt$(totalPasivo)}</p>
             </div>
             <span className="text-2xl font-black text-slate-400">+</span>
             <div className="text-center">
               <p className="text-xs font-bold uppercase text-slate-500">Capital</p>
-              <p className="text-2xl font-black text-emerald-700">{fmtAbs$(totalCapital)}</p>
+              <p className="text-2xl font-black text-emerald-700">{fmt$(totalCapital)}</p>
             </div>
             <div className="flex items-center gap-2 ml-4">
               {error
                 ? <><AlertCircle className="w-5 h-5 text-slate-500" /><span className="text-sm font-bold text-slate-600">Sin datos: no se pudo consultar</span></>
                 : cuadra
                 ? <><CheckCircle2 className="w-5 h-5 text-emerald-600" /><span className="text-sm font-bold text-emerald-700">Balance cuadrado</span></>
-                : <><AlertCircle className="w-5 h-5 text-rose-600" /><span className="text-sm font-bold text-rose-700">Descuadrado {fmtAbs$(totalActivo - totalPasivo - totalCapital)}</span></>
+                : <><AlertCircle className="w-5 h-5 text-rose-600" /><span className="text-sm font-bold text-rose-700">Descuadrado ${fmt$(Math.abs(totalActivo - totalPasivo - totalCapital))}</span></>
               }
             </div>
           </div>
@@ -255,7 +230,7 @@ export default function BalanceGeneralPage() {
                           <span className="font-mono text-xs text-slate-400 mr-2">{c.numeroCuenta}</span>
                           {c.nombre}
                         </span>
-                        <span className="font-mono font-semibold text-slate-800">{fmt$(aporte(c))}</span>
+                        <span className="font-mono font-semibold text-slate-800">{fmt$(c.saldoFinal)}</span>
                       </div>
                     ))}
                   </div>
@@ -263,7 +238,7 @@ export default function BalanceGeneralPage() {
 
                 <div className="flex justify-between items-center pt-3 border-t-2 border-blue-600 mt-4">
                   <span className="text-sm font-black uppercase tracking-wide text-blue-800">Total Activo</span>
-                  <span className="font-mono font-black text-lg text-blue-800">{fmtAbs$(totalActivo)}</span>
+                  <span className="font-mono font-black text-lg text-blue-800">{fmt$(totalActivo)}</span>
                 </div>
               </div>
 
@@ -284,14 +259,14 @@ export default function BalanceGeneralPage() {
                           <span className="font-mono text-xs text-slate-400 mr-2">{c.numeroCuenta}</span>
                           {c.nombre}
                         </span>
-                        <span className="font-mono font-semibold text-slate-800">{fmt$(aporte(c))}</span>
+                        <span className="font-mono font-semibold text-slate-800">{fmt$(c.saldoFinal)}</span>
                       </div>
                     ))}
                   </div>
                 )}
                 <div className="flex justify-between items-center pt-2 border-t border-rose-200 mb-6">
                   <span className="text-xs font-bold uppercase text-rose-700">Total Pasivo</span>
-                  <span className="font-mono font-bold text-rose-700">{fmtAbs$(totalPasivo)}</span>
+                  <span className="font-mono font-bold text-rose-700">{fmt$(totalPasivo)}</span>
                 </div>
 
                 {/* CAPITAL */}
@@ -305,7 +280,7 @@ export default function BalanceGeneralPage() {
                         <span className="font-mono text-xs text-slate-400 mr-2">{c.numeroCuenta}</span>
                         {c.nombre}
                       </span>
-                      <span className="font-mono font-semibold text-slate-800">{fmt$(aporte(c))}</span>
+                      <span className="font-mono font-semibold text-slate-800">{fmt$(c.saldoFinal)}</span>
                     </div>
                   ))}
                   {/* Utilidad del período (calculada) */}
@@ -314,19 +289,19 @@ export default function BalanceGeneralPage() {
                       Utilidad del período
                     </span>
                     <span className={`font-mono font-semibold ${utilidadPeriodo >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                      {fmt$(utilidadPeriodo)}
+                      {utilidadPeriodo >= 0 ? '' : '-'}{fmt$(utilidadPeriodo)}
                     </span>
                   </div>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-emerald-200 mb-4">
                   <span className="text-xs font-bold uppercase text-emerald-700">Total Capital</span>
-                  <span className="font-mono font-bold text-emerald-700">{fmtAbs$(totalCapital)}</span>
+                  <span className="font-mono font-bold text-emerald-700">{fmt$(totalCapital)}</span>
                 </div>
 
                 {/* Total Pasivo + Capital */}
                 <div className="flex justify-between items-center pt-3 border-t-2 border-slate-800 mt-2">
                   <span className="text-sm font-black uppercase tracking-wide text-slate-800">Total Pasivo + Capital</span>
-                  <span className="font-mono font-black text-lg text-slate-900">{fmtAbs$(totalPasivo + totalCapital)}</span>
+                  <span className="font-mono font-black text-lg text-slate-900">{fmt$(totalPasivo + totalCapital)}</span>
                 </div>
               </div>
             </div>

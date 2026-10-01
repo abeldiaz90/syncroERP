@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
-import { fechaCorta } from '@/lib/fechas';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { fechaCorta, mesEnCurso } from '@/lib/fechas';
 import Link from 'next/link';
 import {
   BookOpen, FileText, Search, X, Plus,
@@ -42,9 +42,6 @@ const fmt$ = (n: number) =>
 const fmtFecha = (s: string) =>
   fechaCorta(s);
 
-const HOY   = new Date();
-const DESDE = new Date(HOY.getFullYear(), HOY.getMonth(), 1).toISOString().split('T')[0];
-const HASTA = new Date(HOY.getFullYear(), HOY.getMonth() + 1, 0).toISOString().split('T')[0];
 
 const POR_PAGINA = 20;
 
@@ -54,8 +51,23 @@ export default function LibroDiarioPage() {
   const [errorCarga, setErrorCarga] = useState('');
   const [busqueda, setBusqueda]     = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
-  const [desde, setDesde]           = useState(DESDE);
-  const [hasta, setHasta]           = useState(HASTA);
+  /*
+   * El mes se resuelve AL ABRIR la pantalla, no al cargar el módulo.
+   *
+   * Aquí estaba `const HOY = new Date()` a nivel de módulo, evaluado una sola
+   * vez cuando el navegador carga el chunk. Medido el 1-oct-2026: el filtro
+   * decía 01/09–30/09 y el libro anunciaba «✅ Cuadrado» sin la póliza de ese
+   * mismo día. En producción es peor: Next prerenderiza y el mes queda horneado
+   * en el build, así que un ERP desplegado en septiembre abre el libro en
+   * septiembre hasta el siguiente despliegue.
+   *
+   * El inicializador perezoso de `useState` corre una vez POR MONTAJE, que es
+   * exactamente lo que hace falta: se vuelve a preguntar qué día es cada vez
+   * que alguien entra, y no se recalcula en cada tecleo del filtro.
+   */
+  const MES = useMemo(() => mesEnCurso(), []);
+  const [desde, setDesde]           = useState(MES.desde);
+  const [hasta, setHasta]           = useState(MES.hasta);
   const [pagina, setPagina]         = useState(1);
   const [detalle, setDetalle]       = useState<IPoliza | null>(null);
   // ── cancelación ──
@@ -232,8 +244,8 @@ export default function LibroDiarioPage() {
             </select>
           </div>
           {/* Reset */}
-          {(busqueda || filtroTipo || desde !== DESDE || hasta !== HASTA) && (
-            <button onClick={() => { setBusqueda(''); setFiltroTipo(''); setDesde(DESDE); setHasta(HASTA); setPagina(1); }}
+          {(busqueda || filtroTipo || desde !== MES.desde || hasta !== MES.hasta) && (
+            <button onClick={() => { setBusqueda(''); setFiltroTipo(''); setDesde(MES.desde); setHasta(MES.hasta); setPagina(1); }}
               className="px-3 py-2.5 text-slate-500 hover:text-slate-700 text-sm flex items-center gap-1 bg-slate-100 rounded-xl">
               <X className="w-3.5 h-3.5"/> Limpiar
             </button>

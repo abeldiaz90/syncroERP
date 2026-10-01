@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
-import { fechaCorta } from '@/lib/fechas';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { fechaCorta, mesHastaHoy } from '@/lib/fechas';
 import {
   User, FileText, RefreshCw,
   AlertCircle, CheckCircle2
@@ -28,9 +28,14 @@ const fmt$ = (n: number) =>
 const fmtFecha = (s: string) =>
   fechaCorta(s);
 
-const HOY = new Date();
-const DESDE = new Date(HOY.getFullYear(), HOY.getMonth(), 1).toISOString().split('T')[0];
-const HASTA = HOY.toISOString().split('T')[0];
+/*
+ * El rango se calcula AL ABRIR la pantalla, no al cargar el módulo: a nivel de
+ * módulo `new Date()` se evalúa una sola vez y queda congelado —en producción,
+ * horneado en el build de Next—, así que el reporte abriría con el mes de
+ * entonces y nadie lo notaría, porque un reporte corto parece un reporte. Y
+ * `mesHastaHoy` arma las fechas con las partes locales del reloj, sin pasar por
+ * UTC, que es donde se pierde un día en los husos al este de Greenwich.
+ */
 
 const COLUMNAS_EC = [
   { key: 'fecha', label: 'Fecha', fmt: (v: string) => new Date(v + 'T12:00:00').toLocaleDateString('es-MX') },
@@ -46,8 +51,9 @@ export default function EstadoCuentaClientePage() {
   const [clientes, setClientes] = useState<ICliente[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [clienteId, setClienteId] = useState('');
-  const [desde, setDesde] = useState(DESDE);
-  const [hasta, setHasta] = useState(HASTA);
+  const RANGO = useMemo(() => mesHastaHoy(), []);
+  const [desde, setDesde] = useState(RANGO.desde);
+  const [hasta, setHasta] = useState(RANGO.hasta);
   const [datos, setDatos] = useState<IEstadoCuenta | null>(null);
   const [cargando, setCargando] = useState(false);
   /*

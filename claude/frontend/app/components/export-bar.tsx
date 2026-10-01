@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { mensajeElegante } from "@/components/ui/dialogos";
 import { Printer, FileSpreadsheet, Loader2 } from "lucide-react";
+import { hoyISO } from '@/lib/fechas';
 
 interface IColumna {
   key: string; // propiedad del objeto
@@ -81,7 +82,7 @@ export function ExportBar({
       );
       const enlace = document.createElement("a");
       enlace.href = url;
-      enlace.download = `${titulo.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().slice(0, 10)}.xls`;
+      enlace.download = `${titulo.replace(/[^a-zA-Z0-9]/g, "_")}_${hoyISO()}.xls`;
       enlace.click();
       URL.revokeObjectURL(url);
     } catch (e) {

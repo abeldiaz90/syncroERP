@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { diaISO, mesHastaHoy } from '@/lib/fechas';
 import { BarChart2, RefreshCw, TrendingUp, DollarSign, ShoppingBag, CreditCard } from 'lucide-react';
 import { ExportBar } from '../../../components/export-bar';
 
@@ -21,9 +22,14 @@ const METODO_LABEL: Record<string, string> = {
   CREDITO_90D: 'Crédito 90d', MENSUALIDADES: 'Mensualidades',
 };
 
-const HOY   = new Date();
-const DESDE = new Date(HOY.getFullYear(), HOY.getMonth(), 1).toISOString().split('T')[0];
-const HASTA = HOY.toISOString().split('T')[0];
+/*
+ * El rango se calcula AL ABRIR la pantalla, no al cargar el módulo: a nivel de
+ * módulo `new Date()` se evalúa una sola vez y queda congelado —en producción,
+ * horneado en el build de Next—, así que el reporte abriría con el mes de
+ * entonces y nadie lo notaría, porque un reporte corto parece un reporte. Y
+ * `mesHastaHoy` arma las fechas con las partes locales del reloj, sin pasar por
+ * UTC, que es donde se pierde un día en los husos al este de Greenwich.
+ */
 
 const COLUMNAS_VENTAS = [
   { key: 'folio',           label: 'Folio',     fmt: (v: number) => '#' + String(v).padStart(5,'0') },
@@ -44,8 +50,17 @@ export default function ReporteVentasPage() {
     como un periodo sin movimiento, que es la conclusión contraria.
   */
   const [error, setError] = useState('');
-  const [desde, setDesde]       = useState(DESDE);
-  const [hasta, setHasta]       = useState(HASTA);
+  const RANGO = useMemo(() => mesHastaHoy(), []);
+  const ATAJOS = useMemo(() => {
+    const hoy = new Date();
+    return [
+      { label: 'Hoy',          d: RANGO.hasta, h: RANGO.hasta },
+      { label: 'Este mes',     d: RANGO.desde, h: RANGO.hasta },
+      { label: 'Mes anterior', d: diaISO(new Date(hoy.getFullYear(), hoy.getMonth()-1, 1)), h: diaISO(new Date(hoy.getFullYear(), hoy.getMonth(), 0)) },
+    ];
+  }, [RANGO]);
+  const [desde, setDesde]       = useState(RANGO.desde);
+  const [hasta, setHasta]       = useState(RANGO.hasta);
   const [agrupacion, setAgrupacion] = useState<'dia' | 'metodo' | 'cliente'>('dia');
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
@@ -157,11 +172,7 @@ export default function ReporteVentasPage() {
           </select>
         </div>
         {/* Accesos rápidos */}
-        {[
-          { label: 'Hoy', d: HASTA, h: HASTA },
-          { label: 'Este mes', d: DESDE, h: HASTA },
-          { label: 'Mes anterior', d: new Date(HOY.getFullYear(), HOY.getMonth()-1, 1).toISOString().split('T')[0], h: new Date(HOY.getFullYear(), HOY.getMonth(), 0).toISOString().split('T')[0] },
-        ].map(q => (
+        {ATAJOS.map(q => (
           <button key={q.label} onClick={() => { setDesde(q.d); setHasta(q.h); }}
             className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${desde === q.d && hasta === q.h ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
             {q.label}

@@ -20,6 +20,7 @@ import {
   ArrowRightLeft,
 } from "lucide-react";
 import { fechaCorta } from "@/lib/fechas";
+import { hoyISO } from '@/lib/fechas';
 
 interface IHotel {
   id: string;
@@ -299,7 +300,7 @@ export default function ReservacionesPage() {
                             <Ban className="h-3.5 w-3.5" />
                           </button>
                           {r.fechaEntrada <=
-                            new Date().toISOString().slice(0, 10) && (
+                            hoyISO() && (
                             <button
                               onClick={() =>
                                 setModalEstado({

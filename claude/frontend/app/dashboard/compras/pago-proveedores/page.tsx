@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import { FOLIO, folioDe } from '@/lib/folios';
+import { hoyISO } from '@/lib/fechas';
 import {
   Truck, Search, DollarSign, CheckCircle2, AlertCircle,
   X, Save, Banknote, ArrowLeftRight, Building2, RefreshCw, Filter
@@ -83,7 +84,7 @@ export default function PagoProveedoresPage() {
   const [montoPago, setMontoPago]           = useState('');
   const [cuentaBancariaId, setCuentaBancariaId] = useState('');
   const [referencia, setReferencia]         = useState('');
-  const [fechaPago, setFechaPago]           = useState(new Date().toISOString().split('T')[0]);
+  const [fechaPago, setFechaPago]           = useState(hoyISO());
   const [claveIdempotencia, setClaveIdempotencia] = useState('');
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
@@ -125,7 +126,7 @@ export default function PagoProveedoresPage() {
     setOrdenSeleccionada(orden);
     // Se precarga lo pagable, no el total: es lo que el servidor va a aceptar.
     setMontoPago(String(saldoPagable(orden)));
-    setFechaPago(new Date().toISOString().split('T')[0]);
+    setFechaPago(hoyISO());
     setReferencia('');
     const storageKey = `syncro_pago_proveedor_idempotencia_${orden.id}`;
     const existente = sessionStorage.getItem(storageKey);

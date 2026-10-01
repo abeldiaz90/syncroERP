@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Undo2, RefreshCw, PackageMinus } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useAvisos } from '@/components/ui';
-import { fechaNumerica } from '@/lib/fechas';
+import { fechaNumerica, hoyISO } from '@/lib/fechas';
 import { FOLIO, folioDe } from '@/lib/folios';
 
 /**
@@ -46,7 +46,17 @@ type Devolucion = {
 };
 type Almacen = { id: string; nombre: string };
 
-const hoy = () => new Date().toISOString().slice(0, 10);
+/*
+ * `hoyISO()` arma la fecha con las partes locales del reloj.
+ *
+ * Aquí decía `new Date().toISOString().slice(0, 10)`, que convierte a UTC
+ * antes de recortar: en México (UTC-6), a partir de las 18:00 eso devuelve EL
+ * DÍA SIGUIENTE. Es el mismo defecto que ya costó una corrección en las fechas
+ * de las pólizas —medido el 30-sep-2026: una compra de las 18:13 quedó
+ * fechada el 1-oct—, ahora del lado del navegador y proponiendo la fecha por
+ * omisión de un documento que alguien va a aceptar sin mirar.
+ */
+const hoy = () => hoyISO();
 const dinero = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
 

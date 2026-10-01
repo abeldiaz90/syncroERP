@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Indicador } from '@/components/ui';
 import { TableroVerificaciones } from '@/components/verificaciones/tablero-verificaciones';
+import { hoyISO } from '@/lib/fechas';
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 export interface ICliente {
@@ -1042,7 +1043,7 @@ export default function ClientesPage() {
                                             <Campo label="Fecha de nacimiento" name="fechaNacimiento" error={errors.fechaNacimiento} touched={touched.fechaNacimiento}>
                                                 <input type="date" name="fechaNacimiento" value={formData.fechaNacimiento || ''}
                                                     onChange={handleChange} onBlur={handleBlur}
-                                                    max={new Date().toISOString().slice(0,10)}
+                                                    max={hoyISO()}
                                                     className={inputCls(errors.fechaNacimiento, touched.fechaNacimiento)}/>
                                             </Campo>
                                             <Campo label="Género" name="genero" error={errors.genero} touched={touched.genero}>

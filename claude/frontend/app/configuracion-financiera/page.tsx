@@ -21,6 +21,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
+import { hoyISO } from '@/lib/fechas';
 
 type EstadoActivacion = {
   estado: string;
@@ -117,7 +118,7 @@ const PASOS = [
 const inicial: Formulario = {
   modo: "GUIADO",
   empresaEnOperacion: false,
-  fechaInicioContable: new Date().toISOString().substring(0, 10),
+  fechaInicioContable: hoyISO(),
   manejaInventario: true,
   vendeCredito: false,
   compraCredito: false,

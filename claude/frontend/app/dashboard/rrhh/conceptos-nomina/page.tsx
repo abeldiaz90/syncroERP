@@ -6,13 +6,24 @@ import { api, ApiError, conPermiso } from '@/lib/api';
 import { usePermiso } from '@/hooks/use-permisos';
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
 import { Boton, Campo, Cargando, Distintivo, EncabezadoPantalla, Entrada, Panel, Seleccion, SinDatos, useAvisos } from '@/components/ui';
+import { hoyISO } from '@/lib/fechas';
 
 type Concepto = { id: string; clave: string; nombre: string; naturaleza: 'PERCEPCION'|'DEDUCCION'|'OTRO_PAGO'; claveSat?: string; gravaIsr: boolean; integraSbc: boolean; esFijo: boolean; activo: boolean; cuentaContableId?: string };
 type Cuenta = { id: string; numeroCuenta?: string; nombre?: string };
 const claveDe = (c: Cuenta) => c.numeroCuenta ?? '';
 type Empleado = { id: string; numeroEmpleado: string; nombreCompleto?: string; nombres?: string; apellidoPaterno?: string };
 type Asignacion = { id: string; empleadoId: string; conceptoId: string; valor: number; tipoValor: string; vigenciaDesde: string; vigenciaHasta?: string; activo: boolean; observaciones?: string };
-const hoy = () => new Date().toISOString().slice(0, 10);
+/*
+ * `hoyISO()` arma la fecha con las partes locales del reloj.
+ *
+ * Aquí decía `new Date().toISOString().slice(0, 10)`, que convierte a UTC
+ * antes de recortar: en México (UTC-6), a partir de las 18:00 eso devuelve EL
+ * DÍA SIGUIENTE. Es el mismo defecto que ya costó una corrección en las fechas
+ * de las pólizas —medido el 30-sep-2026: una compra de las 18:13 quedó
+ * fechada el 1-oct—, ahora del lado del navegador y proponiendo la fecha por
+ * omisión de un documento que alguien va a aceptar sin mirar.
+ */
+const hoy = () => hoyISO();
 const lista = <T,>(v: unknown): T[] => Array.isArray(v) ? v as T[] : v && typeof v === 'object' && Array.isArray((v as {data?:unknown}).data) ? (v as {data:T[]}).data : [];
 
 export default function ConceptosNominaPage() {

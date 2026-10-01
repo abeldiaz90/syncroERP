@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { hoyISO } from '@/lib/fechas';
 import {
   Plus, Trash2, CheckCircle2, AlertCircle, X,
   BookOpen, Save, RefreshCw, Calculator
@@ -27,7 +28,7 @@ export default function PolizaManualPage() {
   const router = useRouter();
   const [cuentas, setCuentas]     = useState<ICuentaContable[]>([]);
   const [tipo, setTipo]           = useState('DIARIO');
-  const [fecha, setFecha]         = useState(new Date().toISOString().split('T')[0]);
+  const [fecha, setFecha]         = useState(hoyISO());
   const [concepto, setConcepto]   = useState('');
   const [lineas, setLineas]       = useState<ILinea[]>([
     { id: 1, cuentaId: '', cuentaNombre: '', cargo: 0, abono: 0, referencia: '' },

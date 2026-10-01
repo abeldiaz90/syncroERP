@@ -5,8 +5,8 @@ import {
   Database, Save, CheckCircle2, AlertCircle, Info, RefreshCw, Search, Lock,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
-import { fechaNumerica } from '@/lib/fechas';
 import { useAvisos } from '@/components/ui';
+import { hoyISO } from '@/lib/fechas';
 
 /**
  * ============================================================================
@@ -86,7 +86,7 @@ export default function SaldosInicialesPage() {
   const { avisar } = useAvisos();
   const [cuentas, setCuentas] = useState<ICuenta[]>([]);
   const [saldos, setSaldos] = useState<Record<string, number>>({});
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [fecha, setFecha] = useState(hoyISO());
   const [busqueda, setBusqueda] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [cargando, setCargando] = useState(true);
@@ -223,7 +223,7 @@ export default function SaldosInicialesPage() {
           <div>
             <p className="font-bold mb-1">Esta empresa ya tiene apertura</p>
             <p className="text-xs">
-              Póliza <b>{estado.apertura?.folio}</b> del {fechaNumerica(estado.apertura?.fecha)} por {fmt$(estado.apertura?.total ?? 0)}.
+              Póliza <b>{estado.apertura?.folio}</b> del {new Date(estado.apertura?.fecha).toLocaleDateString('es-MX')} por {fmt$(estado.apertura?.total ?? 0)}.
               Cargarla otra vez duplica el balance entero, y no se nota hasta el primer cierre.
               Si hay que corregirla, cancela esa póliza desde el libro diario.
             </p>

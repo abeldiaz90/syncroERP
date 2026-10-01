@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
-import { fechaCorta } from '@/lib/fechas';
+import { fechaCorta, hoyISO } from '@/lib/fechas';
 import {
   DollarSign, Search, ChevronDown, CheckCircle2, AlertCircle,
   X, Save, Clock, User, Calendar, CreditCard, Banknote,
@@ -65,7 +65,7 @@ export default function CobranzaPage() {
   const [metodoPago, setMetodoPago]       = useState('EFECTIVO');
   const [cuentaBancariaId, setCuentaBancariaId] = useState('');
   const [referencia, setReferencia]       = useState('');
-  const [fechaPago, setFechaPago]         = useState(new Date().toISOString().split('T')[0]);
+  const [fechaPago, setFechaPago]         = useState(hoyISO());
   /** Identifica este intento de cobro. Cambia al abrir el modal, no al reintentar. */
   const [claveIntento, setClaveIntento]   = useState('');
 
@@ -104,7 +104,7 @@ export default function CobranzaPage() {
     // Pre-llenar con el monto de la cuota o el saldo pendiente
     const monto = cuota ? (cuota.montoCuota - cuota.montoPagado) : credito.saldoPendiente;
     setMontoPago(String(Math.round(monto*100)/100));
-    setFechaPago(new Date().toISOString().split('T')[0]);
+    setFechaPago(hoyISO());
     setReferencia('');
     setClaveIntento(
       typeof crypto !== 'undefined' && 'randomUUID' in crypto
