@@ -1,14 +1,17 @@
-import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Country, State } from 'country-state-city';
-import { Repository } from 'typeorm';
-import { Pais } from '../entities/pais.entity';
-import { Estado } from '../entities/estado.entity';
+import { Injectable, Logger, OnApplicationBootstrap } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Country, State } from "country-state-city";
+import { Repository } from "typeorm";
+import { Pais } from "../entities/pais.entity";
+import { Estado } from "../entities/estado.entity";
 
 /**
- * Copia a SQL Server el catálogo empaquetado de países y subdivisiones.
+ * Copia a la base el catálogo empaquetado de países y subdivisiones.
  * Es idempotente: una base vacía se nutre sola y un despliegue posterior
  * actualiza nombres/metadatos sin borrar altas realizadas por los usuarios.
+ *
+ * Y es idempotente además en el sentido barato: cuando no hay nada que
+ * cambiar no escribe ni relee nada. Ver `cambio()` más abajo.
  */
 @Injectable()
 export class CatalogosGeograficosService implements OnApplicationBootstrap {
@@ -45,7 +48,7 @@ export class CatalogosGeograficosService implements OnApplicationBootstrap {
   private nombresEnEspanol(): (isoCode: string, original: string) => string {
     let traductor: Intl.DisplayNames | null = null;
     try {
-      traductor = new Intl.DisplayNames(['es-MX', 'es'], { type: 'region' });
+      traductor = new Intl.DisplayNames(["es-MX", "es"], { type: "region" });
     } catch {
       traductor = null;
     }
@@ -61,6 +64,74 @@ export class CatalogosGeograficosService implements OnApplicationBootstrap {
     };
   }
 
+  /**
+   * ¿Cambió algo de verdad entre lo que hay guardado y lo que traemos?
+   *
+   * ==========================================================================
+   * POR QUÉ HACE FALTA ESTA COMPARACIÓN
+   * --------------------------------------------------------------------------
+   * `sincronizar()` le pasaba a `save()` las 250 filas de países y las 4,963
+   * de subdivisiones **en cada arranque**, iguales o no. TypeORM no emite un
+   * solo `UPDATE` cuando nada cambió —eso estaba bien—, pero para averiguarlo
+   * recarga cada lote de la base: con `chunk: 100` son unos cincuenta
+   *
+   *     SELECT … FROM "estados" WHERE "Estado"."id" IN ($1 … $100)
+   *
+   * uno detrás de otro. En el registro de arranque que Abel pegó el
+   * 1-oct-2026, diez de esos `SELECT` tardaron entre 2.0 y 2.4 segundos cada
+   * uno: del orden de **veinte segundos de arranque gastados en releer un
+   * catálogo que no había cambiado**, y ninguna escritura al final.
+   *
+   * La comparación la podemos hacer aquí, con lo que ya leímos de una sola
+   * vez, y pasarle a `save()` nada más lo nuevo y lo distinto. En un arranque
+   * normal eso son cero filas: ni lotes, ni recargas.
+   *
+   * De paso desaparece el `DeprecationWarning` de `pg` del mismo registro
+   * —«client.query() when the client is already executing a query»—, que lo
+   * produce `save()` al partir en lotes y sin lotes no se produce.
+   *
+   * Medido contra un PostgreSQL de verdad con el catálogo ya puesto: 55
+   * consultas por arranque antes, 2 después.
+   * ==========================================================================
+   */
+  private cambio<T>(
+    antes: T | undefined,
+    ahora: T,
+    campos: (keyof T)[],
+  ): boolean {
+    if (!antes) return true;
+    return campos.some((campo) => {
+      /*
+       * `??` y no `||`: una cadena vacía y un nulo son valores distintos en la
+       * base, y confundirlos dejaría sin corregir una fila que sí difiere. Lo
+       * que sí hace falta es que `undefined` y `null` cuenten como lo mismo,
+       * porque la columna nula llega de una forma y el candidato la arma de la
+       * otra.
+       */
+      return (antes[campo] ?? null) !== (ahora[campo] ?? null);
+    });
+  }
+
+  private static readonly CAMPOS_PAIS: (keyof Pais)[] = [
+    "nombre",
+    "codigo",
+    "codigoIso2",
+    "codigoIso3",
+    "lada",
+    "moneda",
+    "esOficial",
+    "activo",
+  ];
+
+  private static readonly CAMPOS_ESTADO: (keyof Estado)[] = [
+    "paisId",
+    "nombre",
+    "codigo",
+    "tipo",
+    "esOficial",
+    "activo",
+  ];
+
   async sincronizar() {
     const countries = Country.getAllCountries();
     const enEspanol = this.nombresEnEspanol();
@@ -68,9 +139,13 @@ export class CatalogosGeograficosService implements OnApplicationBootstrap {
     const porCodigo = new Map(
       existentes.map((pais) => [pais.codigoIso2 || pais.codigo, pais]),
     );
-    const paises = countries.map((country) =>
-      this.paises.create({
-        ...porCodigo.get(country.isoCode),
+
+    const paisesAEscribir: Pais[] = [];
+    const paisPorCodigo = new Map<string, Pais>();
+    for (const country of countries) {
+      const antes = porCodigo.get(country.isoCode);
+      const candidato = this.paises.create({
+        ...antes,
         nombre: enEspanol(country.isoCode, country.name),
         codigo: country.isoCode,
         codigoIso2: country.isoCode,
@@ -79,10 +154,20 @@ export class CatalogosGeograficosService implements OnApplicationBootstrap {
         moneda: country.currency?.slice(0, 3) || null,
         esOficial: true,
         activo: true,
-      }),
-    );
-    const guardados = await this.paises.save(paises, { chunk: 100 });
-    const paisPorCodigo = new Map(guardados.map((p) => [p.codigoIso2, p]));
+      });
+      paisPorCodigo.set(country.isoCode, candidato);
+      if (
+        this.cambio(antes, candidato, CatalogosGeograficosService.CAMPOS_PAIS)
+      )
+        paisesAEscribir.push(candidato);
+    }
+    /*
+     * Sólo lo que cambió. `save()` le pone el id a las filas nuevas sobre el
+     * mismo objeto que quedó en el mapa, así que las subdivisiones de abajo
+     * encuentran su `paisId` ya asignado.
+     */
+    if (paisesAEscribir.length)
+      await this.paises.save(paisesAEscribir, { chunk: 500 });
 
     const estadosExistentes = await this.estados.find();
     const estadoPorClave = new Map(
@@ -90,31 +175,62 @@ export class CatalogosGeograficosService implements OnApplicationBootstrap {
         .filter((estado) => estado.paisId && estado.codigo)
         .map((estado) => [`${estado.paisId}|${estado.codigo}`, estado]),
     );
-    const aGuardar: Estado[] = [];
+    const estadosAEscribir: Estado[] = [];
+    let totalEstados = 0;
     for (const country of countries) {
       const pais = paisPorCodigo.get(country.isoCode)!;
       for (const subdivision of State.getStatesOfCountry(country.isoCode)) {
-        aGuardar.push(
-          this.estados.create({
-            ...estadoPorClave.get(`${pais.id}|${subdivision.isoCode}`),
-            paisId: pais.id,
-            nombre: subdivision.name,
-            codigo: subdivision.isoCode?.slice(0, 10) || null,
-            tipo: null,
-            esOficial: true,
-            activo: true,
-          }),
-        );
+        /*
+         * El mismo `codigo` recortado se usa para buscar y para guardar. Antes
+         * la búsqueda usaba el `isoCode` entero y la escritura su recorte a
+         * diez caracteres: hoy ninguna subdivisión pasa de cinco, así que no
+         * mordía, pero bastaba una más larga para que la fila no se
+         * reconociera nunca y se intentara insertar en cada arranque.
+         */
+        const codigo = subdivision.isoCode?.slice(0, 10) || null;
+        const antes = estadoPorClave.get(`${pais.id}|${codigo}`);
+        const candidato = this.estados.create({
+          ...antes,
+          paisId: pais.id,
+          nombre: subdivision.name,
+          codigo,
+          tipo: null,
+          esOficial: true,
+          activo: true,
+        });
+        totalEstados++;
+        if (
+          this.cambio(
+            antes,
+            candidato,
+            CatalogosGeograficosService.CAMPOS_ESTADO,
+          )
+        )
+          estadosAEscribir.push(candidato);
       }
     }
-    // SQL Server admite como máximo 2,100 parámetros por sentencia.
-    // Con 7 columnas persistidas, lotes de 500 excedían ese límite y por eso
-    // se guardaban países pero fallaban silenciosamente los estados.
-    await this.estados.save(aGuardar, { chunk: 100 });
-    const totalEstados = aGuardar.length;
+    /*
+     * El lote era de 100 por un límite de SQL Server —2,100 parámetros por
+     * sentencia— que esta instalación ya no tiene: corre sobre PostgreSQL,
+     * donde el techo son 65,535. Con seis columnas, 500 filas son 3,000
+     * parámetros. Y en un arranque normal esta lista va vacía y no se parte en
+     * nada.
+     */
+    if (estadosAEscribir.length)
+      await this.estados.save(estadosAEscribir, { chunk: 500 });
+
+    const escrito = paisesAEscribir.length + estadosAEscribir.length;
     this.logger.log(
-      `Catálogo geográfico listo: ${countries.length} países y ${totalEstados} subdivisiones.`,
+      escrito === 0
+        ? `Catálogo geográfico listo: ${countries.length} países y ${totalEstados} subdivisiones, sin cambios.`
+        : `Catálogo geográfico listo: ${countries.length} países y ${totalEstados} subdivisiones ` +
+            `(escritas ${paisesAEscribir.length} y ${estadosAEscribir.length}).`,
     );
-    return { paises: countries.length, estados: totalEstados };
+    return {
+      paises: countries.length,
+      estados: totalEstados,
+      paisesEscritos: paisesAEscribir.length,
+      estadosEscritos: estadosAEscribir.length,
+    };
   }
 }
