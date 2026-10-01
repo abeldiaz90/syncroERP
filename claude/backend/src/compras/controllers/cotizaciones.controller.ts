@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import { ConsultarHistorialAprobacionesDto } from '../../aprobaciones/dto/consultar-historial-aprobaciones.dto';
 import { CotizacionesService } from '../services/cotizaciones.service';
 import { CrearCotizacionDto } from '../dto/crear-cotizacion.dto';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
@@ -24,6 +25,22 @@ export class CotizacionesController {
     @ActiveUser('empresaId') empresaId: string,
   ) {
     return this.service.adjudicacionesPendientesDe(usuarioId, rol, empresaId);
+  }
+
+  /** Lo que esta persona ya firmó del lado de las adjudicaciones. */
+  @Get('aprobaciones/historial')
+  historialDeAdjudicaciones(
+    @Query() query: ConsultarHistorialAprobacionesDto,
+    @ActiveUser('id') usuarioId: string,
+    @ActiveUser('rol') rol: string,
+    @ActiveUser('empresaId') empresaId: string,
+  ) {
+    return this.service.historialDeAdjudicaciones(
+      usuarioId,
+      rol,
+      empresaId,
+      query.limite,
+    );
   }
 
   @Get('requisicion/:id')

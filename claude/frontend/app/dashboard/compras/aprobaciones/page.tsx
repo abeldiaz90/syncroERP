@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   CheckCircle2, XCircle, Eye, Clock, Package, User,
   Calendar, MessageSquare, AlertTriangle, RefreshCw,
-  Flag, ChevronDown, ChevronUp, Bell, Inbox
+  Flag, ChevronDown, ChevronUp, Bell, Inbox, History, Ban
 } from 'lucide-react';
 import { ProtectedElement } from '@/app/components/ProtectedElement';
 import { FOLIO, folioDe } from '@/lib/folios';
@@ -55,6 +55,74 @@ interface IAdjudicacion {
   };
 }
 
+/*
+ * ============================================================================
+ * EL HISTORIAL: LO QUE YA FIRMÉ
+ * ----------------------------------------------------------------------------
+ * Esta pantalla sólo mostraba lo pendiente. En cuanto alguien aprobaba o
+ * rechazaba, el documento desaparecía y no volvía a aparecer en ningún lado:
+ * quien firma no podía ver qué firmó, ni cuándo, ni con qué comentario.
+ *
+ * Una firma de aprobación compromete dinero de la empresa. Quien la da
+ * necesita poder volver sobre ella —para contestar «¿tú autorizaste esto?»,
+ * para recordar por qué rechazó algo, para revisar qué dejó pasar antes de que
+ * llegue la factura—. Sin historial, del acto sólo queda el efecto.
+ *
+ * Las dos mitades de la bandeja tienen su historial, y se leen juntas en una
+ * segunda pestaña: requisiciones y adjudicaciones de cotización.
+ * ============================================================================
+ */
+interface IAprobacionResuelta {
+  id: string;
+  orden: number;
+  estado: string;
+  comentario?: string | null;
+  fechaResolucion?: string | null;
+  fechaCreacion: string;
+  requisicion: IRequisicion;
+  usuario?: { nombreCompleto?: string };
+}
+
+interface IAdjudicacionResuelta {
+  aprobacionId: string;
+  ciclo: number;
+  nivel: number;
+  estado: string;
+  /** La resolvió quien pregunta, o se cerró sin él. No es la misma frase. */
+  resueltaPorMi: boolean;
+  resueltaPor?: string | null;
+  solicitadaPor?: string;
+  fechaResolucion?: string | null;
+  fechaCreacion: string;
+  comentario?: string | null;
+  importeSolicitado: number;
+  cotizacion: {
+    id: string;
+    requisicionId: string;
+    total: number;
+    proveedor?: { nombre?: string; razonSocial?: string };
+  } | null;
+}
+
+/**
+ * Cómo se pinta cada desenlace.
+ *
+ * `CANCELADA` existe y no es un adorno: cuando alguien rechaza un nivel, los
+ * demás niveles pendientes de ese ciclo se cancelan. Para quien tenía uno de
+ * ésos asignado, el documento se le fue de la bandeja sin que él hiciera nada,
+ * y eso es justo lo que un historial tiene que poder explicar.
+ */
+const DESENLACE: Record<
+  string,
+  { label: string; cls: string; Icono: typeof CheckCircle2 }
+> = {
+  APROBADO:  { label: 'Aprobada',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', Icono: CheckCircle2 },
+  APROBADA:  { label: 'Aprobada',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', Icono: CheckCircle2 },
+  RECHAZADO: { label: 'Rechazada', cls: 'bg-rose-50 text-rose-700 border-rose-200',          Icono: XCircle },
+  RECHAZADA: { label: 'Rechazada', cls: 'bg-rose-50 text-rose-700 border-rose-200',          Icono: XCircle },
+  CANCELADA: { label: 'Cancelada', cls: 'bg-slate-100 text-slate-600 border-slate-200',      Icono: Ban },
+};
+
 const PRIORIDAD_CONFIG: Record<string, { label: string; cls: string; dot: string }> = {
   URGENTE: { label: 'URGENTE', cls: 'bg-red-100 text-red-700 border-red-300',     dot: 'bg-red-500' },
   ALTA:    { label: 'Alta',    cls: 'bg-orange-100 text-orange-700 border-orange-200', dot: 'bg-orange-400' },
@@ -65,6 +133,26 @@ const PRIORIDAD_CONFIG: Record<string, { label: string; cls: string; dot: string
 const fmtFecha = (s: string) =>
   new Date(s).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 
+/*
+ * En el historial importa la hora, no sólo el día: «lo aprobé el martes» y «lo
+ * aprobé el martes a las 19:40, después de que cerrara almacén» son respuestas
+ * distintas a la misma pregunta.
+ *
+ * Y si la fila no trae resolución —las que existían antes de registrarla— se
+ * dice que no consta, en vez de inventar una fecha o enseñar «Invalid Date».
+ */
+const fmtMomento = (s?: string | null) =>
+  s
+    ? new Date(s).toLocaleString('es-MX', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      })
+    : 'fecha no registrada';
+
+const fmtDinero = (n: number) =>
+  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' })
+    .format(Number(n || 0));
+
 export default function AprobacionesPage() {
   const [aprobaciones, setAprobaciones] = useState<IAprobacion[]>([]);
   const [adjudicaciones, setAdjudicaciones] = useState<IAdjudicacion[]>([]);
@@ -74,6 +162,18 @@ export default function AprobacionesPage() {
   const [expandidos, setExpandidos]     = useState<Record<string, boolean>>({});
   const [procesando, setProcesando]     = useState<string | null>(null);
   const [toast, setToast]               = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const [pestana, setPestana]           = useState<'pendientes' | 'historial'>('pendientes');
+  const [histReq, setHistReq]           = useState<IAprobacionResuelta[]>([]);
+  const [histAdj, setHistAdj]           = useState<IAdjudicacionResuelta[]>([]);
+  const [cargandoHist, setCargandoHist] = useState(false);
+  const [errorHist, setErrorHist]       = useState('');
+  /*
+   * Si no se ha pedido nunca, «no has firmado nada» es una conclusión que
+   * todavía no se puede sacar. Es el mismo cuidado que ya tenía la bandeja de
+   * pendientes: un vacío sin consulta de respaldo afirma sobre el mundo.
+   */
+  const [histPedido, setHistPedido]     = useState(false);
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const tok = () => localStorage.getItem('syncro_token') ?? '';
@@ -116,7 +216,41 @@ export default function AprobacionesPage() {
     setCargando(false);
   }, []);
 
+  /*
+   * El historial se pide cuando se abre su pestaña, no al cargar la pantalla.
+   * Quien entra aquí viene a firmar lo que espera; traer de paso quinientos
+   * documentos resueltos retrasaría justamente eso.
+   */
+  const cargarHistorial = useCallback(async () => {
+    setCargandoHist(true);
+    const [r, ra] = await Promise.all([
+      fetch(`${api}/compras/requisiciones/aprobaciones/historial`, { headers: h() }),
+      fetch(`${api}/compras/cotizaciones/aprobaciones/historial`, { headers: h() }),
+    ]);
+    setHistReq(r.ok ? await r.json() : []);
+    setHistAdj(ra.ok ? await ra.json() : []);
+    /*
+     * Igual que en pendientes: un 403 es «esto no te toca» y no es un fallo
+     * —hay roles que firman requisiciones y no adjudicaciones—; cualquier otro
+     * error sí, porque entonces el historial está incompleto y no se sabe.
+     */
+    const caidas = [
+      !r.ok && r.status !== 403 ? 'las requisiciones' : '',
+      !ra.ok && ra.status !== 403 ? 'las adjudicaciones' : '',
+    ].filter(Boolean);
+    setErrorHist(
+      caidas.length
+        ? `No se pudo leer el historial de ${caidas.join(' ni ')}. Lo que ves abajo está incompleto.`
+        : '',
+    );
+    setHistPedido(true);
+    setCargandoHist(false);
+  }, []);
+
   useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => {
+    if (pestana === 'historial' && !histPedido) cargarHistorial();
+  }, [pestana, histPedido, cargarHistorial]);
 
   const resolver = async (id: string, estado: 'APROBADO' | 'RECHAZADO') => {
     if (estado === 'RECHAZADO' && !comentarios[id]?.trim()) {
@@ -131,6 +265,13 @@ export default function AprobacionesPage() {
     if (r.ok) {
       toast$(estado === 'APROBADO' ? '✓ Requisición aprobada' : '✗ Requisición rechazada', estado === 'APROBADO');
       setAprobaciones(prev => prev.filter(a => a.id !== id));
+      /*
+       * Lo que acaba de salir de pendientes pertenece ya al historial. Marcarlo
+       * como no pedido obliga a releerlo la próxima vez que se abra esa
+       * pestaña: si no, quien firma cambia de pestaña a los dos segundos y no
+       * encuentra lo que acaba de firmar.
+       */
+      setHistPedido(false);
     } else {
       /*
        * «Error al procesar» borraba la unica pista util.
@@ -167,21 +308,64 @@ export default function AprobacionesPage() {
           <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Compras</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
             <Bell className="w-8 h-8 text-indigo-500"/>
-            Aprobaciones Pendientes
+            Aprobaciones
             {aprobaciones.length + adjudicaciones.length > 0 && (
               <span className="text-sm font-bold bg-rose-500 text-white px-2.5 py-1 rounded-full">
                 {aprobaciones.length + adjudicaciones.length}
               </span>
             )}
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Lo que espera tu firma en compras: requisiciones y adjudicaciones de cotización.</p>
+          <p className="text-slate-500 text-sm mt-1">
+            {pestana === 'pendientes'
+              ? 'Lo que espera tu firma en compras: requisiciones y adjudicaciones de cotización.'
+              : 'Lo que ya firmaste: qué decidiste, cuándo y con qué comentario.'}
+          </p>
         </div>
-        <button onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm">
+        <button
+          onClick={() => (pestana === 'pendientes' ? cargar() : cargarHistorial())}
+          className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm"
+          title="Actualizar"
+        >
           <RefreshCw className="w-4 h-4"/>
         </button>
       </div>
 
-      {cargando ? (
+      {/* Pestañas */}
+      <div className="mb-6 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm w-fit">
+        {([
+          { id: 'pendientes', texto: 'Pendientes', Icono: Inbox },
+          { id: 'historial',  texto: 'Historial',  Icono: History },
+        ] as const).map(({ id, texto, Icono }) => (
+          <button
+            key={id}
+            onClick={() => setPestana(id)}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-colors ${
+              pestana === id
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            <Icono className="h-4 w-4" />
+            {texto}
+            {id === 'pendientes' && aprobaciones.length + adjudicaciones.length > 0 && (
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                pestana === id ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-600'
+              }`}>
+                {aprobaciones.length + adjudicaciones.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {pestana === 'historial' ? (
+        <HistorialDeFirmas
+          cargando={cargandoHist}
+          error={errorHist}
+          requisiciones={histReq}
+          adjudicaciones={histAdj}
+        />
+      ) : cargando ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
           <p className="text-slate-400 text-sm">Cargando aprobaciones...</p>
@@ -436,6 +620,194 @@ export default function AprobacionesPage() {
             })}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * ============================================================================
+ * Historial de firmas
+ * ----------------------------------------------------------------------------
+ * Una sola lista con las dos mitades de la bandeja —requisiciones y
+ * adjudicaciones— ordenadas por lo más reciente, porque quien pregunta «¿qué
+ * aprobé?» no piensa en qué tabla vive cada cosa.
+ *
+ * Cada fila dice las cuatro cosas por las que se vuelve a un historial: QUÉ
+ * documento, QUÉ se decidió, CUÁNDO y CON QUÉ comentario. El comentario sobre
+ * todo: es lo único que explica un rechazo, y era lo que se perdía al
+ * desaparecer el documento de la pantalla.
+ * ============================================================================
+ */
+function HistorialDeFirmas({
+  cargando,
+  error,
+  requisiciones,
+  adjudicaciones,
+}: {
+  cargando: boolean;
+  error: string;
+  requisiciones: IAprobacionResuelta[];
+  adjudicaciones: IAdjudicacionResuelta[];
+}) {
+  if (cargando) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
+        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-slate-400 text-sm">Buscando lo que has firmado...</p>
+      </div>
+    );
+  }
+
+  /*
+   * Se mezclan las dos listas y se ordenan por el momento de la resolución.
+   * Las filas sin fecha registrada —las anteriores a que se guardara— caen al
+   * final en vez de arriba, que es donde las pondría un `undefined` tratado
+   * como cero.
+   */
+  const momento = (s?: string | null) => (s ? new Date(s).getTime() : -Infinity);
+  const filas = [
+    ...requisiciones.map((r) => ({ tipo: 'REQ' as const, cuando: momento(r.fechaResolucion), dato: r })),
+    ...adjudicaciones.map((a) => ({ tipo: 'ADJ' as const, cuando: momento(a.fechaResolucion), dato: a })),
+  ].sort((a, b) => b.cuando - a.cuando);
+
+  if (!filas.length && !error) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
+        <History className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+        <p className="font-bold text-xl text-slate-700">Todavía no has firmado nada</p>
+        <p className="text-slate-400 text-sm mt-1">
+          Aquí van a quedar las requisiciones y adjudicaciones que apruebes o rechaces.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {error && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <p className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+            <AlertTriangle className="h-4 w-4" /> {error}
+          </p>
+        </div>
+      )}
+
+      {filas.map((fila) => {
+        if (fila.tipo === 'REQ') {
+          const ap = fila.dato;
+          const d = DESENLACE[ap.estado] ?? DESENLACE.CANCELADA;
+          return (
+            <article key={`req-${ap.id}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <span className="font-mono font-black text-indigo-600">
+                      {folioDe(ap.requisicion, FOLIO.REQUISICION)}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${d.cls}`}>
+                      <d.Icono className="h-3 w-3" /> {d.label}
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Requisición · nivel {ap.orden}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-600">
+                    Pedida por{' '}
+                    <strong className="font-semibold text-slate-800">
+                      {ap.requisicion?.usuarioSolicitante?.nombreCompleto ?? '—'}
+                    </strong>
+                    {' · '}
+                    {ap.requisicion?.detalles?.length ?? 0} producto(s)
+                  </p>
+                  {ap.comentario && (
+                    <p className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs italic text-slate-600">
+                      «{ap.comentario}»
+                    </p>
+                  )}
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="flex items-center justify-end gap-1.5 text-xs font-semibold text-slate-500">
+                    <Clock className="h-3.5 w-3.5" /> {fmtMomento(ap.fechaResolucion)}
+                  </p>
+                  <ProtectedElement metodo="GET" ruta="/api/compras/requisiciones/:id">
+                    <Link
+                      href={`/dashboard/compras/requisiciones/${ap.requisicion?.id}`}
+                      className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800"
+                    >
+                      <Eye className="h-3.5 w-3.5" /> Ver documento
+                    </Link>
+                  </ProtectedElement>
+                </div>
+              </div>
+            </article>
+          );
+        }
+
+        const adj = fila.dato;
+        const d = DESENLACE[adj.estado] ?? DESENLACE.CANCELADA;
+        const prov =
+          adj.cotizacion?.proveedor?.razonSocial?.trim() ||
+          adj.cotizacion?.proveedor?.nombre?.trim() ||
+          'Proveedor sin nombre capturado';
+        return (
+          <article key={`adj-${adj.aprobacionId}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <span className="font-black text-slate-900">{prov}</span>
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${d.cls}`}>
+                    <d.Icono className="h-3 w-3" /> {d.label}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Adjudicación · ciclo {adj.ciclo} · nivel {adj.nivel}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600">
+                  Pedida por{' '}
+                  <strong className="font-semibold text-slate-800">
+                    {adj.solicitadaPor ?? 'alguien de compras'}
+                  </strong>
+                </p>
+                {/*
+                  * Que lo haya cerrado otro no se esconde: era un paso a mi
+                  * nombre y alguien más lo resolvió. Decirlo es la diferencia
+                  * entre un historial y una lista de cosas que pasaron.
+                  */}
+                {!adj.resueltaPorMi && (
+                  <p className="mt-1 text-xs font-semibold text-amber-700">
+                    {adj.estado === 'CANCELADA'
+                      ? 'Se canceló al resolverse otro nivel del mismo ciclo.'
+                      : `Lo resolvió ${adj.resueltaPor ?? 'alguien más'}, no tú.`}
+                  </p>
+                )}
+                {adj.comentario && (
+                  <p className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs italic text-slate-600">
+                    «{adj.comentario}»
+                  </p>
+                )}
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-lg font-black text-slate-900">{fmtDinero(adj.importeSolicitado)}</p>
+                <p className="flex items-center justify-end gap-1.5 text-xs font-semibold text-slate-500">
+                  <Clock className="h-3.5 w-3.5" /> {fmtMomento(adj.fechaResolucion)}
+                </p>
+                {adj.cotizacion ? (
+                  <Link
+                    href={`/dashboard/compras/cotizaciones/requisicion/${adj.cotizacion.requisicionId}`}
+                    className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800"
+                  >
+                    <Eye className="h-3.5 w-3.5" /> Ver comparativo
+                  </Link>
+                ) : (
+                  <p className="mt-2 text-[11px] font-semibold text-slate-400">
+                    La cotización ya no existe
+                  </p>
+                )}
+              </div>
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
 }

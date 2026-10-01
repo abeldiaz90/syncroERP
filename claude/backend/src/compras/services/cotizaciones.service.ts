@@ -22,6 +22,7 @@ import { Proveedor } from '../../proveedores/entities/proveedor.entity';
 import { Producto } from '../../catalogo/entities/producto.entity';
 import { esViolacionUnicidad } from '../../common/database/errores-sql';
 import { esRolAdministrador, normalizarRol } from '../../iam/utils/roles.util';
+import { veTrazaCompleta } from '../../aprobaciones/services/traza-completa.util';
 
 @Injectable()
 export class CotizacionesService implements OnApplicationBootstrap {
@@ -674,6 +675,133 @@ export class CotizacionesService implements OnApplicationBootstrap {
         };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
+  }
+
+  /**
+   * ==========================================================================
+   * EL HISTORIAL DE ADJUDICACIONES
+   * --------------------------------------------------------------------------
+   * La otra mitad de la bandeja de compras. `adjudicacionesPendientesDe`
+   * devuelve lo que espera firma; esto, lo que ya se firmó.
+   *
+   * Tres decisiones que no son obvias:
+   *
+   *   · **Se incluye `CANCELADA`.** Cuando alguien rechaza un nivel, los demás
+   *     niveles pendientes de ese ciclo pasan a `CANCELADA`. Para quien tenía
+   *     uno de ésos asignado, el documento desapareció de su bandeja sin que él
+   *     hiciera nada, y «desapareció» es justo lo que un historial tiene que
+   *     poder explicar.
+   *   · **Se mira `resueltoPorId` Y `usuarioAprobadorId`.** El historial
+   *     contesta «qué firmé yo», pero un nivel que estaba a mi nombre y cerró
+   *     otro —un administrador, una escalación— también es parte de mi rastro.
+   *     Aparece, y la respuesta dice con `resueltaPorMi` cuál de los dos casos
+   *     es: «aprobaste» y «se resolvió sin ti» no son la misma frase delante de
+   *     quien firma.
+   *   · **Las cotizaciones y los nombres se cargan por lote**, no una consulta
+   *     por fila. El arranque de este ERP enseñó esta misma mañana lo que
+   *     cuesta una consulta por elemento cuando la lista crece.
+   * ==========================================================================
+   */
+  async historialDeAdjudicaciones(
+    usuarioId: string,
+    rol: string,
+    empresaId: string,
+    limite = 100,
+  ) {
+    /*
+     * Un límite que no es un número positivo vuelve al valor por omisión, NO
+     * se recorta a 1: `Math.max(1, -5)` daría una sola fila y quien la mira
+     * concluiría que sólo firmó una cosa. Un parámetro mal escrito tiene que
+     * dar el comportamiento normal o un error, nunca una verdad a medias.
+     */
+    const pedido = Number(limite);
+    const tope =
+      Number.isFinite(pedido) && pedido > 0
+        ? Math.min(500, Math.floor(pedido))
+        : 100;
+
+    const consulta = this.aprobacionRepo
+      .createQueryBuilder('a')
+      .where('a.empresaId = :empresaId', { empresaId })
+      .andWhere('a.proceso = :proceso', { proceso: 'COTIZACION' })
+      .andWhere('a.estado IN (:...estados)', {
+        estados: ['APROBADA', 'RECHAZADA', 'CANCELADA'],
+      });
+
+    if (!veTrazaCompleta(rol)) {
+      consulta.andWhere(
+        '(a.resueltoPorId = :usuarioId OR a.usuarioAprobadorId = :usuarioId)',
+        { usuarioId },
+      );
+    }
+
+    const pasos = await consulta
+      .orderBy('a.fechaResolucion', 'DESC')
+      .addOrderBy('a.fechaCreacion', 'DESC')
+      .take(tope)
+      .getMany();
+    if (!pasos.length) return [];
+
+    const cotizaciones = await this.cotizacionRepo.find({
+      where: {
+        empresaId,
+        id: In([...new Set(pasos.map((p) => p.documentoId))]),
+      },
+      relations: ['proveedor', 'requisicion'],
+    });
+    const porId = new Map(cotizaciones.map((c) => [c.id, c]));
+
+    const personas = [
+      ...new Set(
+        pasos
+          .flatMap((p) => [p.solicitadoPorId, p.resueltoPorId])
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const usuarios = personas.length
+      ? await this.dataSource.getRepository(Usuario).find({
+          where: { id: In(personas) },
+          select: ['id', 'nombreCompleto'],
+        })
+      : [];
+    const nombrePorId = new Map(usuarios.map((u) => [u.id, u.nombreCompleto]));
+
+    return pasos.map((paso) => {
+      const cot = porId.get(paso.documentoId);
+      return {
+        aprobacionId: paso.id,
+        ciclo: paso.ciclo,
+        nivel: paso.nivel,
+        estado: paso.estado,
+        resueltaPorMi: paso.resueltoPorId === usuarioId,
+        resueltaPor: paso.resueltoPorId
+          ? (nombrePorId.get(paso.resueltoPorId) ?? 'Alguien de la empresa')
+          : null,
+        solicitadaPor:
+          nombrePorId.get(paso.solicitadoPorId) ?? 'Alguien de compras',
+        fechaResolucion: paso.fechaResolucion ?? null,
+        fechaCreacion: paso.fechaCreacion,
+        comentario: paso.comentario ?? null,
+        importeSolicitado: Number(paso.importeSolicitado ?? cot?.total ?? 0),
+        /*
+         * La cotización pudo borrarse. Devolver `null` y que la pantalla lo
+         * diga es mejor que esconder la fila: el paso ocurrió.
+         */
+        cotizacion: cot
+          ? {
+              id: cot.id,
+              requisicionId: cot.requisicionId,
+              total: cot.total,
+              proveedor: cot.proveedor
+                ? {
+                    nombre: cot.proveedor.nombre,
+                    razonSocial: cot.proveedor.razonSocial,
+                  }
+                : undefined,
+            }
+          : null,
+      };
+    });
   }
 
   async rechazar(id: string, empresaId: string, usuarioId: string, rol: string, comentario?: string) {

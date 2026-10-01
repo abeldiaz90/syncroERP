@@ -901,23 +901,61 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
   }
 
   /**
-   * Conserva el acceso de los roles que ya atendían la bandeja central.
-   * El historial es parte de la misma pantalla y no debe exigir volver a
-   * configurar todas las matrices al desplegar esta versión.
+   * ==========================================================================
+   * EL HISTORIAL HEREDA EL PERMISO DE LOS PENDIENTES
+   * --------------------------------------------------------------------------
+   * Conserva el acceso de los roles que ya atendían una bandeja. El historial
+   * es la otra pestaña de la misma pantalla, y no debe exigir volver a
+   * configurar todas las matrices al desplegar.
+   *
+   * Sin esto, el efecto práctico de agregar un historial es que nadie lo ve:
+   * la ruta nace sin permisos, la pestaña contesta 403 y quien firma concluye
+   * que la función no existe. Es la forma más silenciosa de entregar algo que
+   * no sirve.
+   *
+   * Son tres pares, y el bucle existe justamente porque antes era uno solo
+   * escrito a mano: la bandeja central, el historial de requisiciones y el de
+   * adjudicaciones de compras. El cuarto que se agregue va en la lista, no en
+   * una copia del método.
+   * ==========================================================================
    */
+  private static readonly HISTORIALES_QUE_HEREDAN: Array<{
+    pendientes: string;
+    historial: string;
+  }> = [
+    { pendientes: '/aprobaciones/pendientes', historial: '/aprobaciones/historial' },
+    {
+      pendientes: '/compras/requisiciones/aprobaciones/pendientes',
+      historial: '/compras/requisiciones/aprobaciones/historial',
+    },
+    {
+      pendientes: '/compras/cotizaciones/aprobaciones/pendientes',
+      historial: '/compras/cotizaciones/aprobaciones/historial',
+    },
+  ];
+
   private async sincronizarPermisoHistorialAprobaciones() {
+    for (const par of PermisosDinamicosService.HISTORIALES_QUE_HEREDAN) {
+      await this.heredarPermisoDeBandeja(par.pendientes, par.historial);
+    }
+  }
+
+  private async heredarPermisoDeBandeja(
+    rutaPendientes: string,
+    rutaHistorial: string,
+  ) {
     const [pendientes, historial] = await Promise.all([
       this.endpointRepo.findOne({
         where: {
           metodo: 'GET',
-          ruta: '/aprobaciones/pendientes',
+          ruta: rutaPendientes,
           activo: true,
         },
       }),
       this.endpointRepo.findOne({
         where: {
           metodo: 'GET',
-          ruta: '/aprobaciones/historial',
+          ruta: rutaHistorial,
           activo: true,
         },
       }),

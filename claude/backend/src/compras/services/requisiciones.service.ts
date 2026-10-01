@@ -29,6 +29,7 @@ import {
 } from '../utils/email-templates';
 import { esRolAdministrador, normalizarRol } from '../../iam/utils/roles.util';
 import { resolverFirmante } from '../utils/rutas-aprobacion.util';
+import { veTrazaCompleta } from '../../aprobaciones/services/traza-completa.util';
 
 /**
  * ============================================================================
@@ -540,6 +541,97 @@ export class RequisicionesService {
       if (anterior === 0) visibles.push(ap);
     }
     return visibles;
+  }
+
+  // ====================== HISTORIAL DE APROBACIONES ======================
+  /**
+   * ==========================================================================
+   * LO QUE YA FIRMÉ TAMBIÉN ES PARTE DE MI TRABAJO
+   * --------------------------------------------------------------------------
+   * La bandeja de compras sólo mostraba lo PENDIENTE. En cuanto alguien
+   * aprobaba o rechazaba, el documento desaparecía de su pantalla y no volvía a
+   * aparecer en ninguna otra: quien firma no tenía forma de ver qué había
+   * firmado, ni cuándo, ni con qué comentario.
+   *
+   * Eso no es un adorno. Una firma de aprobación es un acto con consecuencias
+   * —compromete dinero de la empresa— y quien la da necesita poder volver sobre
+   * ella: para contestar «¿tú autorizaste esto?», para recordar por qué rechazó
+   * algo, para revisar qué dejó pasar antes de que llegue la factura. Sin
+   * historial, del acto sólo queda el efecto; el rastro vive en la base y no lo
+   * ve nadie.
+   *
+   * La bandeja central (`GET /aprobaciones/historial`) ya resolvía esto para
+   * crédito y convenios de hotel. Compras se había quedado sin su mitad.
+   *
+   * QUIÉN VE QUÉ
+   *
+   * Se reutiliza `veTrazaCompleta` de la bandeja central en vez de inventar una
+   * regla nueva: administrador y `gobierno` ven todo lo resuelto de la empresa;
+   * cualquier otro rol ve **lo suyo**, lo que esa persona resolvió. Dos motivos
+   * para no escribir otra regla aquí: que el ERP se comporte igual en las dos
+   * bandejas, y que esa función ya tiene prueba y resuelve la trampa de
+   * normalizar el rol en los dos lados —que es exactamente donde se equivocó la
+   * primera versión de la bandeja central, con la regla escrita, la prueba en
+   * verde y el comportamiento al revés—.
+   * ==========================================================================
+   */
+  async obtenerHistorialAprobaciones(
+    usuarioId: string,
+    empresaId: string,
+    rol?: string,
+    limite = 100,
+  ) {
+    /*
+     * El tope se acota por los dos extremos: un `limite` de cero o negativo
+     * devolvería una lista vacía que se leería como «no has firmado nada», y
+     * uno sin techo deja que una pantalla pida la historia entera de la empresa
+     * en una sola consulta.
+     */
+    /*
+     * Un límite que no es un número positivo vuelve al valor por omisión, NO
+     * se recorta a 1: `Math.max(1, -5)` daría una sola fila y quien la mira
+     * concluiría que sólo firmó una cosa. Un parámetro mal escrito tiene que
+     * dar el comportamiento normal o un error, nunca una verdad a medias.
+     */
+    const pedido = Number(limite);
+    const tope =
+      Number.isFinite(pedido) && pedido > 0
+        ? Math.min(500, Math.floor(pedido))
+        : 100;
+
+    const consulta = this.aprobacionRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.requisicion', 'r')
+      .leftJoinAndSelect('r.usuarioSolicitante', 'solicitante')
+      .leftJoinAndSelect('a.usuario', 'aprobador')
+      .where('r.empresaId = :empresaId', { empresaId })
+      /*
+       * Resueltas, y nombradas una por una en vez de «distinto de PENDIENTE»:
+       * si mañana aparece otro estado —caducada, anulada— no se cuela aquí sin
+       * que nadie lo haya decidido.
+       */
+      .andWhere('a.estado IN (:...estados)', {
+        estados: ['APROBADO', 'RECHAZADO'],
+      });
+
+    if (!veTrazaCompleta(rol)) {
+      consulta.andWhere('a.usuarioId = :usuarioId', { usuarioId });
+    }
+
+    return (
+      consulta
+        /*
+         * Por fecha de resolución, que es la del acto. Ordenar por
+         * `fechaCreacion` pondría arriba la aprobación más vieja aunque se
+         * hubiera firmado ayer, y lo que esta pantalla contesta es «qué he
+         * firmado últimamente». El desempate existe para filas antiguas que
+         * puedan no tener resolución registrada.
+         */
+        .orderBy('a.fechaResolucion', 'DESC')
+        .addOrderBy('a.fechaCreacion', 'DESC')
+        .take(tope)
+        .getMany()
+    );
   }
 
   // ====================== RESOLVER APROBACIÓN (ATÓMICO) ======================

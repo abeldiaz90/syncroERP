@@ -1,5 +1,15 @@
-import { Controller, Get, Post, Patch, Param, Body, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+  Res,
+} from '@nestjs/common';
 import type { Response } from 'express';
+import { ConsultarHistorialAprobacionesDto } from '../../aprobaciones/dto/consultar-historial-aprobaciones.dto';
 import {
   RequisicionesService,
   alcanceDeRequisiciones,
@@ -56,6 +66,34 @@ export class RequisicionesController {
     return this.requisicionesService.obtenerAprobacionesPendientes(
       usuarioId,
       empresaId,
+    );
+  }
+
+  /**
+   * Lo que esta persona ya firmó.
+   *
+   * Va declarado junto a `pendientes` y las dos antes de `:id`. Hoy no chocan
+   * —`aprobaciones/historial` son dos segmentos y `:id` uno— pero Nest resuelve
+   * por orden de declaración, y mantener juntas las rutas de la bandeja evita
+   * que la siguiente que se agregue caiga del lado equivocado.
+   *
+   * Se declara `@Navegable` con la MISMA pantalla que `pendientes`: no es una
+   * pantalla nueva, es la otra pestaña de la misma. Declararla como pantalla
+   * aparte habría puesto una entrada de menú que no existe.
+   */
+  @Navegable('/dashboard/compras/aprobaciones', 'Aprobaciones Pendientes', 5)
+  @Get('aprobaciones/historial')
+  async obtenerHistorialAprobaciones(
+    @Query() query: ConsultarHistorialAprobacionesDto,
+    @ActiveUser('id') usuarioId: string,
+    @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('rol') rol: string,
+  ) {
+    return this.requisicionesService.obtenerHistorialAprobaciones(
+      usuarioId,
+      empresaId,
+      rol,
+      query.limite,
     );
   }
 

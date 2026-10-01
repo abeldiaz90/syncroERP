@@ -89,15 +89,23 @@ export const ENDPOINTS_POR_PROCESO: Record<string, Array<{ metodo: string; ruta:
     { metodo: 'GET', ruta: '/aprobaciones/historial' },
     { metodo: 'PATCH', ruta: '/aprobaciones/:id/resolver' },
   ],
+  /*
+   * El historial va junto a los pendientes en los dos procesos de compras.
+   * Quien puede firmar tiene que poder volver sobre lo que firmó: es la misma
+   * pantalla, la otra pestaña. Separarlo en la matriz sólo produciría
+   * instalaciones donde alguien aprueba y no puede revisar su propia decisión.
+   */
   REQUISICION: [
     { metodo: 'GET', ruta: '/compras/requisiciones' },
     { metodo: 'GET', ruta: '/compras/requisiciones/:id' },
     { metodo: 'GET', ruta: '/compras/requisiciones/aprobaciones/pendientes' },
+    { metodo: 'GET', ruta: '/compras/requisiciones/aprobaciones/historial' },
     { metodo: 'PATCH', ruta: '/compras/requisiciones/aprobaciones/:id' },
   ],
   COTIZACION: [
     { metodo: 'GET', ruta: '/compras/cotizaciones/:id' },
     { metodo: 'GET', ruta: '/compras/cotizaciones/requisicion/:id' },
+    { metodo: 'GET', ruta: '/compras/cotizaciones/aprobaciones/historial' },
     { metodo: 'PATCH', ruta: '/compras/cotizaciones/:id/aprobar' },
     { metodo: 'PATCH', ruta: '/compras/cotizaciones/:id/rechazar' },
   ],

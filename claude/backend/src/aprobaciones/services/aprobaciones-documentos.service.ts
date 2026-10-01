@@ -31,46 +31,23 @@ import { CarteraPublicadorService } from '../../integracion/services/cartera-pub
 import { EstadoEjecucion } from '../../integracion/validacion/validacion.constants';
 import { MotorValidacionService } from '../../integracion/validacion/services/motor-validacion.service';
 
+import {
+  ROLES_CON_TRAZA_COMPLETA,
+  veTrazaCompleta,
+} from './traza-completa.util';
+
 export const PROCESOS_APROBACION_CENTRAL =
   PROCESOS_FINANCIEROS_CENTRALES;
 
 export type ProcesoAprobacionCentral = ProcesoFinancieroCentral;
 
-/**
- * Roles que ven la traza completa sin ser administradores.
- *
- * Uno solo, y no por casualidad: `gobierno` es el rol que escribe la matriz de
- * aprobacion y tiene vedado `PATCH /aprobaciones/:id/resolver`. No se puede
- * gobernar lo que no se ve —el expediente de Maria Fernanda estuvo tres dias
- * parado y nadie lo miraba— y es seguro darselo precisamente porque no puede
- * actuar sobre nada de lo que ve. Esa es la posicion del auditor.
- *
- * Quien agregue un rol a esta lista esta ampliando quien lee expedientes
- * crediticios ajenos: nombre, RFC, limite y nivel de riesgo. Que sea un rol
- * que no pueda firmar nada no es un detalle, es la condicion.
+/*
+ * La regla de quién ve la traza completa vive ahora en su propio archivo
+ * —`traza-completa.util.ts`— porque la necesita también el historial de
+ * compras, y hacer que aquel servicio importe éste arrastraría medio árbol de
+ * dependencias. Se reexporta para que nada de lo que ya la importaba cambie.
  */
-export const ROLES_CON_TRAZA_COMPLETA = ['gobierno'] as const;
-
-/**
- * ¿Este rol ve la traza entera?
- *
- * Compara con `normalizarRol` en LOS DOS lados. La primera version comparaba
- * la lista en minusculas contra el rol ya normalizado —que sale en
- * MAYUSCULAS— asi que no acertaba nunca: `gobierno` entraba a su bandeja y el
- * historial le salia vacio, con la regla escrita, la prueba en verde y el
- * comportamiento al reves del disenado.
- *
- * Es literalmente el error contra el que avisa el comentario del guardia de
- * roles —«comparar literalmente haria que encender esto dejara gente fuera por
- * una mayuscula»— cometido un archivo mas alla. Por eso esto es una funcion
- * con su prueba y no una comparacion suelta en medio de una consulta.
- */
-export function veTrazaCompleta(rol?: string): boolean {
-  if (esRolAdministrador(rol)) return true;
-  const mio = normalizarRol(rol);
-  if (!mio) return false;
-  return ROLES_CON_TRAZA_COMPLETA.map(normalizarRol).includes(mio);
-}
+export { ROLES_CON_TRAZA_COMPLETA, veTrazaCompleta };
 
 type PrepararAprobacionInput = {
   proceso: ProcesoAprobacionCentral;
