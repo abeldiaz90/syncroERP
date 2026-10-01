@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { FOLIO, folioDe } from '@/lib/folios';
 import { 
   ShoppingCart, Search, Loader2, FileText, 
   Eye, Printer, PackageSearch
@@ -12,6 +13,8 @@ import {
 // ==========================================
 export interface IOrdenCompra {
   id: string;
+  /* El folio que reserva el servidor. Nulo si la migración no corrió. */
+  folio?: string | null;
   proveedor?: { nombre: string };
   total: number;
   estado: 'PENDIENTE' | 'ENVIADA' | 'RECIBIDA' | 'CANCELADA' | string;
@@ -147,7 +150,7 @@ export default function OrdenesCompraPage() {
                   <tr key={oc.id} className="group hover:bg-slate-50/80 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="font-bold text-indigo-600 tracking-tight">OC-{oc.id.substring(0, 8).toUpperCase()}</span>
+                        <span className="font-bold text-indigo-600 tracking-tight">{folioDe(oc, FOLIO.ORDEN_COMPRA)}</span>
                         <span className="text-xs text-slate-500 font-medium mt-0.5">
                           {new Date(oc.fechaCreacion).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}
                         </span>

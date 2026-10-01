@@ -5,6 +5,7 @@ import { Undo2, RefreshCw, PackageMinus } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useAvisos } from '@/components/ui';
 import { fechaNumerica } from '@/lib/fechas';
+import { FOLIO, folioDe } from '@/lib/folios';
 
 /**
  * ============================================================================
@@ -25,7 +26,7 @@ import { fechaNumerica } from '@/lib/fechas';
 
 /* El proveedor se llama `nombre` en la entidad; `nombreComercial` no existe y
    pintaba «Proveedor» en todos los renglones. */
-type Orden = { id: string; estado: string; total: number; proveedor?: { nombre?: string } };
+type Orden = { id: string; folio?: string | null; estado: string; total: number; proveedor?: { nombre?: string } };
 type Partida = {
   detalleOrdenId: string; productoId: string; producto: string | null; sku: string | null;
   recibido: number; devuelto: number; disponible: number; costoUnitario: number; tasaIva: number;
@@ -190,7 +191,7 @@ export default function DevolucionesProveedorPage() {
               <option value="">Elige la orden recibida…</option>
               {ordenes.map((o) => (
                 <option key={o.id} value={o.id}>
-                  OC-{o.id.slice(0, 8).toUpperCase()} · {o.proveedor?.nombre ?? 'Proveedor'} · {dinero(Number(o.total))} · {o.estado}
+                  {folioDe(o, FOLIO.ORDEN_COMPRA)} · {o.proveedor?.nombre ?? 'Proveedor'} · {dinero(Number(o.total))} · {o.estado}
                 </option>
               ))}
             </select>

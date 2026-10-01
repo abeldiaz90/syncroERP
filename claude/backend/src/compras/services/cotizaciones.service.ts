@@ -5,6 +5,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
+import {
+  FoliosService,
+  TIPOS_DE_FOLIO,
+} from '../../common/services/folios.service';
 import { Cotizacion } from '../entities/cotizacion.entity';
 import { DetalleCotizacion } from '../entities/detalle-cotizacion.entity';
 import { Requisicion } from '../entities/requisicion.entity';
@@ -31,6 +35,7 @@ export class CotizacionesService implements OnApplicationBootstrap {
     @InjectRepository(Proveedor) private readonly proveedorRepo: Repository<Proveedor>,
     @InjectRepository(Producto) private readonly productoRepo: Repository<Producto>,
     private readonly dataSource: DataSource,
+    private readonly folios: FoliosService,
   ) {}
 
   private readonly logger = new Logger(CotizacionesService.name);
@@ -198,13 +203,33 @@ export class CotizacionesService implements OnApplicationBootstrap {
     const total = redondear(subtotal + impuestoTotal);
 
     try {
-      const cotizacion = await this.cotizacionRepo.save(this.cotizacionRepo.create({
-        empresaId, requisicionId: dto.requisicionId, proveedorId: dto.proveedorId,
-        subtotal, impuestoTotal, total, notas: dto.notas, estado: 'PENDIENTE',
-      }));
-      await this.detalleRepo.save(partidas.map(partida => this.detalleRepo.create({
-        cotizacionId: cotizacion.id, ...partida,
-      })));
+      /*
+       * Las dos escrituras pasan a una transacción.
+       *
+       * Hacía falta para el folio —que se reserva aquí dentro, de modo que si
+       * el alta falla el número se devuelve y la numeración no queda con
+       * huecos—, pero cierra además un agujero que ya estaba: la cotización se
+       * guardaba primero y sus partidas después, así que un fallo en las
+       * partidas dejaba una cotización sin renglones, con total pactado y nada
+       * que lo sustente.
+       */
+      const cotizacion = await this.dataSource.transaction(async (em) => {
+        const cotizaciones = em.getRepository(Cotizacion);
+        const detalles = em.getRepository(DetalleCotizacion);
+        const folio = await this.folios.siguiente(
+          TIPOS_DE_FOLIO.COTIZACION,
+          empresaId,
+          em,
+        );
+        const guardada = await cotizaciones.save(cotizaciones.create({
+          empresaId, folio, requisicionId: dto.requisicionId, proveedorId: dto.proveedorId,
+          subtotal, impuestoTotal, total, notas: dto.notas, estado: 'PENDIENTE',
+        }));
+        await detalles.save(partidas.map(partida => detalles.create({
+          cotizacionId: guardada.id, ...partida,
+        })));
+        return guardada;
+      });
       return this.obtenerPorId(cotizacion.id, empresaId);
     } catch (e: any) {
       if (esViolacionUnicidad(e)) {

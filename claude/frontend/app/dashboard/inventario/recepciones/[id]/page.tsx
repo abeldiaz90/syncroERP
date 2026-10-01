@@ -12,6 +12,7 @@ import { usePermiso } from '@/hooks/use-permisos';
 import { ProtectedElement } from "@/app/components/ProtectedElement"; // ← NUEVO
 import { useAvisos } from '@/components/ui';
 import { confirmarElegante } from '@/components/ui/dialogos';
+import { FOLIO, folioDe } from '@/lib/folios';
 
 interface ICaptura {
   cantidadRecibidaOk: number;
@@ -306,7 +307,7 @@ export default function RecepcionDetallePage() {
               <div className="p-3 bg-emerald-100 rounded-2xl text-emerald-600"><Truck className="w-6 h-6" /></div>
               Manifiesto de Recepción
             </h1>
-            <p className="text-slate-500 mt-2 font-bold font-mono text-lg">OC-{oc.id.substring(0, 8).toUpperCase()}</p>
+            <p className="text-slate-500 mt-2 font-bold font-mono text-lg">{folioDe(oc, FOLIO.ORDEN_COMPRA)}</p>
           </div>
           <span className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest ${recepcionCompleta ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : oc.estadoRecepcion === 'PARCIAL' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
             {recepcionCompleta ? 'Recepción completa' : oc.estadoRecepcion === 'PARCIAL' ? 'Entrega incompleta' : 'Por recibir'}

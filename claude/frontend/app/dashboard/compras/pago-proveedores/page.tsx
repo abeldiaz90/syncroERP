@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { FOLIO, folioDe } from '@/lib/folios';
 import {
   Truck, Search, DollarSign, CheckCircle2, AlertCircle,
   X, Save, Banknote, ArrowLeftRight, Building2, RefreshCw, Filter
@@ -7,7 +8,7 @@ import {
 
 interface IProveedor { id: string; nombre: string; rfc?: string; }
 interface IOrden {
-  id: string; estado: string; total: number; fechaCreacion: string;
+  id: string; folio?: string | null; estado: string; total: number; fechaCreacion: string;
   /** Los dos ejes reales del documento. `estado` es sólo su resumen. */
   estadoRecepcion?: 'PENDIENTE' | 'PARCIAL' | 'COMPLETA';
   estadoPago?: 'PENDIENTE' | 'PARCIAL' | 'PAGADA';
@@ -284,7 +285,7 @@ export default function PagoProveedoresPage() {
                   <tr key={o.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4">
                       <span className="font-mono text-xs text-indigo-600 font-bold">
-                        OC-{o.id.slice(0,8).toUpperCase()}
+                        {folioDe(o, FOLIO.ORDEN_COMPRA)}
                       </span>
                     </td>
                     <td className="px-5 py-4">
@@ -331,7 +332,7 @@ export default function PagoProveedoresPage() {
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
               <h2 className="font-bold flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-indigo-400"/>
-                Pago — OC-{ordenSeleccionada.id.slice(0,8).toUpperCase()}
+                Pago — {folioDe(ordenSeleccionada, FOLIO.ORDEN_COMPRA)}
               </h2>
               <button onClick={()=>setModal(false)} className="p-1.5 text-slate-400 hover:text-white">
                 <X className="w-5 h-5"/>

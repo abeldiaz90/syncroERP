@@ -62,18 +62,35 @@ describe('Contabilidad · una póliza nombra el documento que sí existe', () =>
      * El concepto no puede nombrar lo que nadie le pasa. Si alguien quita este
      * campo, la póliza vuelve a hablar sólo de la recepción y la prueba de
      * arriba seguiría pasando.
+     *
+     * Se mide la PROPIEDAD —que el campo lleva el folio de la ORDEN, no el de
+     * la recepción— y no la expresión que lo produce. La primera versión de
+     * esta prueba exigía literalmente `OC-${oc.id.slice(0, 8)...}` y se cayó
+     * sola el día que los documentos de compras recibieron folio de verdad:
+     * el comportamiento mejoró y la prueba lo reportó como una rotura.
      */
     const i = ordenes.indexOf('TipoAsiento.COMPRA');
     expect(i).toBeGreaterThan(-1);
-    const bloque = ordenes.slice(i, i + 900);
-    expect(bloque).toMatch(/folioOrden:\s*`OC-\$\{oc\.id\.slice\(0, 8\)\.toUpperCase\(\)\}`/);
+    const bloque = ordenes.slice(i, i + 1200);
+    const campo = /folioOrden:\s*([^,\n]+)/.exec(bloque);
+    expect(campo).not.toBeNull();
+    /* Viene de la orden… */
+    expect(campo![1]).toMatch(/\boc\b/);
+    /* …y no de la recepción, que es el defecto original. */
+    expect(campo![1]).not.toMatch(/recepcion/i);
   });
 
-  it('el prefijo coincide con el que enseña la pantalla de órdenes', () => {
+  it('el folio del asiento se saca de donde lo saca la pantalla', () => {
     /*
-     * La pantalla arma el folio visible igual: `OC-` + los ocho primeros del
-     * identificador en mayúsculas. Si una de las dos cambia, el asiento vuelve
-     * a mandar a buscar un documento con otro nombre.
+     * Lo que importa es que la póliza y la pantalla nombren el documento
+     * IGUAL. Antes coincidían porque dos archivos distintos armaban la misma
+     * cadena a mano —`OC-` más ocho caracteres del uuid—, que es un acuerdo
+     * que se rompe en silencio en cuanto alguien toca uno de los dos.
+     *
+     * Desde el 1-oct-2026 coinciden por construcción: los dos leen el folio
+     * guardado a través de su `folioDe`, y el prefijo vive en un solo lugar de
+     * cada lado. Esta prueba vigila que siga siendo así y no que la cadena sea
+     * una cadena concreta.
      */
     const RAIZ = join(SRC, '..', '..');
     const candidatos = [
@@ -90,7 +107,11 @@ describe('Contabilidad · una póliza nombra el documento que sí existe', () =>
       })
       .find((t) => t.length > 0);
     if (!pantalla) return;
-    expect(pantalla).toMatch(/OC-\{oc\.id\.substring\(0, 8\)\.toUpperCase\(\)\}/);
+    expect(pantalla).toMatch(/folioDe\(oc, FOLIO\.ORDEN_COMPRA\)/);
+    /* Y el servidor, por su lado, usa el suyo. */
+    expect(ordenes).toMatch(/folioDe\(oc, TIPOS_DE_FOLIO\.ORDEN_COMPRA\)/);
+    /* Ninguno de los dos vuelve a armar el folio a mano. */
+    expect(pantalla).not.toMatch(/OC-\{oc\.id/);
   });
 
   it('los asientos de crédito nombran el crédito por su folio', () => {

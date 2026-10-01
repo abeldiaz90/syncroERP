@@ -15,6 +15,8 @@ describe('RequisicionesService - integridad del flujo', () => {
     {} as any,
     {} as any,
     {} as any,
+    /* FoliosService: este archivo prueba transiciones de estado, no el alta. */
+    {} as any,
   );
 
   beforeEach(() => {

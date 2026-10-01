@@ -1,4 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import {
+  TIPOS_DE_FOLIO,
+  folioDe,
+} from '../common/services/folios.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual, Between } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -107,13 +111,13 @@ export class NotificacionesService {
   // ══════════════════════════════════════════════════════════════════════════
   async notificarOrdenCompraProveedor(oc: any, proveedor: any): Promise<void> {
     if (!proveedor?.email) {
-      this.logger.warn(`OC ${oc.id?.slice(0, 8)}: proveedor sin email`);
+      this.logger.warn(`${folioDe(oc, TIPOS_DE_FOLIO.ORDEN_COMPRA)}: proveedor sin email`);
       return;
     }
     try {
       await this.mailService.enviarCorreo({
         destinatario: proveedor.email,
-        asunto: `📦 Nueva Orden de Compra OC-${oc.id?.slice(0, 8).toUpperCase()} — Syncro ERP`,
+        asunto: `📦 Nueva Orden de Compra ${folioDe(oc, TIPOS_DE_FOLIO.ORDEN_COMPRA)} — Syncro ERP`,
         cuerpo: `Estimado ${proveedor.nombre}, has recibido una nueva orden de compra.`,
         cuerpoHtml: htmlOrdenCompraProveedor(oc, proveedor),
       });

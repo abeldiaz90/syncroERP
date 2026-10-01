@@ -40,6 +40,8 @@ describe('adjudicaciones que esperan mi firma', () => {
       {} as any,
       {} as any,
       dataSource as any,
+      /* FoliosService: esta prueba no da de alta cotizaciones. */
+      {} as any,
     );
   }
 

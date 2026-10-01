@@ -8,6 +8,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import {
+  FoliosService,
+  TIPOS_DE_FOLIO,
+} from '../../common/services/folios.service';
+import {
   EstadoRequisicion,
   Requisicion,
 } from '../entities/requisicion.entity';
@@ -145,6 +149,7 @@ export class RequisicionesService {
     private readonly productoRepo: Repository<Producto>,
     private readonly mailService: MailService,
     private readonly dataSource: DataSource,
+    private readonly folios: FoliosService,
   ) {}
 
   // ====================== CREAR REQUISICIÓN ======================
@@ -313,9 +318,19 @@ export class RequisicionesService {
       const requisiciones = em.getRepository(Requisicion);
       const detallesRepo = em.getRepository(DetalleRequisicion);
       const aprobacionesRepo = em.getRepository(Aprobacion);
+      /*
+       * El folio se reserva DENTRO de esta transacción, así que si el alta
+       * falla el número se devuelve y la numeración no queda con un hueco.
+       */
+      const folio = await this.folios.siguiente(
+        TIPOS_DE_FOLIO.REQUISICION,
+        empresaId,
+        em,
+      );
       const guardada = await requisiciones.save(
         requisiciones.create({
           empresaId,
+          folio,
           usuarioSolicitanteId,
           notas: dto.notas,
           prioridad: dto.prioridad ?? 'NORMAL',

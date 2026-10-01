@@ -3,6 +3,7 @@
 import FormValidationGuard from "@/app/components/FormValidationGuard";
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { FOLIO, folioDe } from '@/lib/folios';
 import { 
   Receipt, X, AlertCircle, CheckCircle2, Building2, 
   FileText, DollarSign, Calculator, Search, Loader2, Eye
@@ -20,7 +21,7 @@ export interface IProveedor {
   estadoHomologacion?: string;
 }
 export interface IRequisicion {
-  id: string; fechaSolicitud: string; estado: string;
+  id: string; folio?: string | null; fechaSolicitud: string; estado: string;
   usuarioSolicitante?: { nombreCompleto?: string; nombre?: string };
   detalles: any[];
 }
@@ -318,7 +319,7 @@ export default function CotizacionesPage() {
                   <tr key={req.id} className="group hover:bg-slate-50/80 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="font-bold text-indigo-600 tracking-tight">REQ-{req.id.substring(0, 8).toUpperCase()}</span>
+                        <span className="font-bold text-indigo-600 tracking-tight">{folioDe(req, FOLIO.REQUISICION)}</span>
                         <span className="text-xs text-slate-500 font-medium mt-0.5">{new Date(req.fechaSolicitud).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                       </div>
                     </td>
@@ -366,7 +367,7 @@ export default function CotizacionesPage() {
                   Nueva Cotización
                 </h2>
                 <p className="text-sm text-slate-500 font-medium mt-1 ml-12">
-                  Referencia: <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">REQ-{selectedReq.id.substring(0,8).toUpperCase()}</span>
+                  Referencia: <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">{folioDe(selectedReq, FOLIO.REQUISICION)}</span>
                 </p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-2 bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-full transition-colors">

@@ -4,12 +4,15 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Printer, FileText, ChevronLeft, Building2, Calendar, FileBox } from 'lucide-react';
+import { FOLIO, folioDe } from '@/lib/folios';
 
 // ==========================================
 // INTERFACES TYPESCRIPT
 // ==========================================
 export interface IDetalleCotizacion {
   id: string;
+  /* El folio que reserva el servidor. Nulo si la migración no corrió. */
+  folio?: string | null;
   producto?: { nombre: string };
   productoId?: string;
   cantidad: number;
@@ -31,7 +34,7 @@ export interface ICotizacion {
   impuestoTotal: number;
   total: number;
   detalles: IDetalleCotizacion[];
-  requisicion?: { id: string };
+  requisicion?: { id: string; folio?: string | null };
 }
 
 // ==========================================
@@ -111,7 +114,7 @@ export default function PdfCotizacionPage() {
           <div className="text-right mt-6 md:mt-0">
             <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Folio</p>
             <p className="text-3xl font-black text-indigo-600 print:text-slate-900">
-              COT-{cotizacion.id.substring(0, 8).toUpperCase()}
+              {folioDe(cotizacion, FOLIO.COTIZACION)}
             </p>
             <div className="flex items-center justify-end gap-2 text-slate-600 mt-2 font-medium">
               <Calendar className="w-4 h-4" />
@@ -144,7 +147,7 @@ export default function PdfCotizacionPage() {
             {cotizacion.requisicion ? (
               <>
                 <p className="font-medium text-slate-600">Basado en Requisición:</p>
-                <p className="font-black text-2xl text-slate-800 mt-1">REQ-{cotizacion.requisicion.id.substring(0,6).toUpperCase()}</p>
+                <p className="font-black text-2xl text-slate-800 mt-1">{folioDe(cotizacion.requisicion, FOLIO.REQUISICION)}</p>
               </>
             ) : (
               <p className="font-bold text-slate-500 italic bg-slate-100 px-4 py-2 rounded-lg print:bg-transparent print:border">

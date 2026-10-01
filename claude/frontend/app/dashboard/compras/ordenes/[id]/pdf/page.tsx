@@ -4,12 +4,15 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Printer, ChevronLeft, Building2, ShoppingCart, Calendar, MapPin } from 'lucide-react';
+import { FOLIO, folioDe } from '@/lib/folios';
 
 // ==========================================
 // INTERFACES TYPESCRIPT
 // ==========================================
 export interface IDetalleOC {
   id: string;
+  /* El folio que reserva el servidor. Nulo si la migración no corrió. */
+  folio?: string | null;
   producto?: { nombre: string; sku?: string };
   cantidad: number;
   precioUnitario: number;
@@ -112,7 +115,7 @@ export default function PdfOCPage() {
           <div className="text-right mt-6 md:mt-0">
             <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Folio (PO Number)</p>
             <p className="text-3xl font-black text-indigo-600 print:text-slate-900">
-              OC-{oc.id.substring(0, 8).toUpperCase()}
+              {folioDe(oc, FOLIO.ORDEN_COMPRA)}
             </p>
             <div className="flex items-center justify-end gap-2 text-slate-600 mt-2 font-medium">
               <Calendar className="w-4 h-4" />

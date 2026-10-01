@@ -7,6 +7,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import {
+  TIPOS_DE_FOLIO,
+  folioDe,
+} from '../../common/services/folios.service';
 
 import {
   DevolucionProveedor,
@@ -59,8 +63,9 @@ export class DevolucionesProveedorService {
     private readonly asientos: AsientosPendientesService,
   ) {}
 
-  private folioDeOrden(oc: { id: string }) {
-    return `OC-${oc.id.slice(0, 8).toUpperCase()}`;
+  private folioDeOrden(oc: { id: string; folio?: string | null }) {
+    /* El folio guardado; el recorte del uuid sólo si la migración no corrió. */
+    return folioDe(oc, TIPOS_DE_FOLIO.ORDEN_COMPRA);
   }
 
   /**

@@ -1,5 +1,6 @@
 import { decimalNumberTransformer } from '../../common/database/decimal-number.transformer';
 import {
+  Index,
   Entity,
   PrimaryGeneratedColumn,
   Column,
@@ -34,10 +35,26 @@ export const ESTADOS_OC = [
 
 export type EstadoOC = (typeof ESTADOS_OC)[number];
 
+@Index(['empresaId', 'folio'], { unique: true, where: 'folio IS NOT NULL' })
 @Entity('ordenes_compra')
 export class OrdenCompra {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  /*
+   * El folio que una persona puede decir por teléfono.
+   *
+   * Hasta el 1-oct-2026 este documento no tenía folio: la pantalla recortaba
+   * los primeros ocho caracteres del uuid y lo llamaba así. Eso no se puede
+   * dictar, no se puede ordenar, y —ocho hexadecimales son 32 bits— no es
+   * único: a los ~10,000 documentos dos distintos empiezan a coincidir.
+   *
+   * Nulo en la columna porque las instalaciones existentes se rellenan por
+   * migración, no por un `NOT NULL` que tumbaría el arranque. El servicio
+   * siempre lo escribe al crear.
+   */
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  folio?: string;
 
   @Column({ type: 'uuid' })
   empresaId: string;

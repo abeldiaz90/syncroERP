@@ -1,3 +1,7 @@
+import {
+  TIPOS_DE_FOLIO,
+  folioDe,
+} from '../common/services/folios.service';
 // ─── Plantillas HTML para SyncroERP ──────────────────────────────────────────
 // Base de diseño: header oscuro, contenido limpio, footer de marca
 
@@ -246,7 +250,7 @@ export function htmlOrdenCompraProveedor(oc: any, proveedor: any): string {
     <p>Estimado proveedor <strong>${proveedor?.nombre ?? ''}</strong>,<br>
     hemos generado una nueva orden de compra. Por favor confirma la recepción y fecha de entrega.</p>
     <div class="highlight">
-      <strong>Folio OC:</strong> OC-${oc.id?.slice(0, 8).toUpperCase()} &nbsp;·&nbsp;
+      <strong>Folio OC:</strong> ${folioDe(oc, TIPOS_DE_FOLIO.ORDEN_COMPRA)} &nbsp;·&nbsp;
       <strong>Fecha:</strong> ${new Date(oc.fechaCreacion).toLocaleDateString('es-MX')}
     </div>
     <table class="table">
@@ -257,7 +261,7 @@ export function htmlOrdenCompraProveedor(oc: any, proveedor: any): string {
       </tfoot>
     </table>
     <p>Para confirmar esta orden o reportar alguna observación, responde este correo o comunícate con el área de compras.</p>
-    <p style="color:#64748b;font-size:12px">Referencia: OC-${oc.id?.slice(0, 8).toUpperCase()}</p>
+    <p style="color:#64748b;font-size:12px">Referencia: ${folioDe(oc, TIPOS_DE_FOLIO.ORDEN_COMPRA)}</p>
   `,
   );
 }

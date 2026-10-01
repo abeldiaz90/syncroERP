@@ -165,7 +165,24 @@ describe('CotizacionesService · el impuesto se calcula, no se cree', () => {
           { id: 'p-exento', impuesto: { porcentaje: 0 } },
         ],
       } as any,
-      {} as any,
+      /*
+       * `dataSource`. El alta de cotización pasó a una transacción cuando se
+       * le puso folio, así que el doble tiene que entregar un `EntityManager`
+       * que devuelva estos mismos repositorios falsos. Lo que esta prueba mide
+       * —el IVA que se guarda en cada partida— no cambia: sigue leyéndose de
+       * `guardadas`, que es lo que escribe `detalleRepo.save`.
+       */
+      {
+        transaction: async (fn: any) =>
+          fn({
+            getRepository: (entidad: any) =>
+              String(entidad?.name).includes('Detalle')
+                ? detalleRepo
+                : cotizacionRepo,
+          }),
+      } as any,
+      /* FoliosService */
+      { siguiente: async () => 'COT-2026-000001' } as any,
     );
   };
 

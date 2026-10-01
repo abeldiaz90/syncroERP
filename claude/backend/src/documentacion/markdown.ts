@@ -161,6 +161,36 @@ function esSeparadorDeTabla(linea: string): boolean {
 /** Renderiza un bloque de líneas que ya no contiene tablas ni código. */
 function bloques(lineas: string[], enlaces: EnlaceInterno[], indice: EntradaIndice[]): string {
   const salida: string[] = [];
+  /*
+   * ==========================================================================
+   * Dos secciones con el mismo título no pueden compartir ancla
+   * --------------------------------------------------------------------------
+   * `anclaDe()` sólo depende del texto, así que un documento con dos
+   * encabezados iguales —«Los pasos», «¿Qué te va a negar el sistema?», que en
+   * el manual de curso se repiten una vez por rol— producía el MISMO `id` dos
+   * veces.
+   *
+   * El aviso que se ve en la consola del navegador —«Encountered two children
+   * with the same key»— es el síntoma menor. El defecto es que **el índice
+   * lateral miente**: `id` repetido es HTML inválido, el navegador salta
+   * siempre al primero, y quien hace clic en «Los pasos» de Compras acaba
+   * leyendo «Los pasos» de Ventas sin que nada le avise de que se movió de
+   * sección. Un índice que lleva a otra parte es peor que no tener índice.
+   *
+   * El contador vive aquí, en el renderizado, porque es el único punto donde
+   * el `id` del encabezado y la entrada del índice salen del MISMO valor. Si
+   * se resolviera en la pantalla —poniendo la posición en la `key` de React—
+   * el aviso desaparecería y los enlaces seguirían rotos.
+   * ==========================================================================
+   */
+  const anclasUsadas = new Map<string, number>();
+  const anclaUnica = (texto: string): string => {
+    const base = anclaDe(texto);
+    const vistas = anclasUsadas.get(base) ?? 0;
+    anclasUsadas.set(base, vistas + 1);
+    /* La primera conserva el ancla limpia: los enlaces que ya existan siguen sirviendo. */
+    return vistas === 0 ? base : `${base}-${vistas + 1}`;
+  };
   let i = 0;
 
   const cerrarLista = (pila: string[]) => {
@@ -180,7 +210,7 @@ function bloques(lineas: string[], enlaces: EnlaceInterno[], indice: EntradaIndi
     if (enc) {
       const nivel = enc[1].length;
       const texto = enc[2].trim();
-      const ancla = anclaDe(texto);
+      const ancla = anclaUnica(texto);
       if (nivel <= 3) indice.push({ nivel, texto, ancla });
       salida.push(
         `<h${nivel} id="${escapar(ancla)}">${enLinea(texto, enlaces)}</h${nivel}>`,

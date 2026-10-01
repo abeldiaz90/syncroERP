@@ -6,6 +6,11 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import {
+  FoliosService,
+  TIPOS_DE_FOLIO,
+  folioDe,
+} from '../../common/services/folios.service';
+import {
   EstadoOC,
   OrdenCompra,
   estadoDerivadoOC,
@@ -65,6 +70,7 @@ export class OrdenesCompraService {
     private readonly tesoreria: TesoreriaService,
     private readonly notificaciones: NotificacionesService,
     private readonly caja: CajaService,
+    private readonly folios: FoliosService,
   ) {}
 
   async crearDesdeCotizacion(cotizacionId: string, empresaId: string) {
@@ -144,8 +150,17 @@ export class OrdenesCompraService {
         .getOne();
       if (otraOrden) throw new BadRequestException('La requisición ya tiene una orden de compra generada.');
 
+      /*
+       * El folio se reserva dentro de esta transacción: si la orden no llega a
+       * guardarse, el número se devuelve y la numeración no queda con huecos.
+       */
+      const folioOC = await this.folios.siguiente(
+        TIPOS_DE_FOLIO.ORDEN_COMPRA,
+        empresaId,
+        qr.manager,
+      );
       const oc = await qr.manager.save(qr.manager.create(OrdenCompra, {
-        empresaId, cotizacionId: cotizacion.id, proveedorId: cotizacion.proveedorId,
+        empresaId, folio: folioOC, cotizacionId: cotizacion.id, proveedorId: cotizacion.proveedorId,
         total: Number(cotizacion.total), totalPagado: 0, saldoPendiente: Number(cotizacion.total),
       }));
       /*
@@ -277,7 +292,7 @@ export class OrdenesCompraService {
          * información útil para quien está decidiendo cómo registrar el caso.
          */
         throw new BadRequestException(
-          `La orden OC-${oc.id.slice(0, 8).toUpperCase()} ya tiene mercancía ` +
+          `La orden ${folioDe(oc, TIPOS_DE_FOLIO.ORDEN_COMPRA)} ya tiene mercancía ` +
             'recibida, así que ' +
             'cancelarla dejaría existencias sin documento que las respalde. ' +
             'Regístrala en Compras → Devoluciones a proveedor: de ahí sale la ' +
@@ -460,9 +475,15 @@ export class OrdenesCompraService {
       if (!actual) throw new NotFoundException('Orden de compra no encontrada');
       oc = actual;
 
+      const folioRecepcion = await this.folios.siguiente(
+        TIPOS_DE_FOLIO.RECEPCION,
+        empresaId,
+        qr.manager,
+      );
       const recepcion = await qr.manager.save(
         qr.manager.create(RecepcionCompra, {
           empresaId,
+          folio: folioRecepcion,
           ordenCompraId: oc.id,
           almacenId,
           detalleJson: JSON.stringify(detallesFront),
@@ -600,7 +621,7 @@ export class OrdenesCompraService {
             det.productoId,
             almacenId,
             recibidaCaptura,
-            `Recepción OC #${oc.id.slice(0, 8).toUpperCase()}`,
+            `Recepción ${folioDe(oc, TIPOS_DE_FOLIO.ORDEN_COMPRA)}`,
             empresaId,
             captura.lote,
             captura.fechaCaducidad,
@@ -697,13 +718,13 @@ export class OrdenesCompraService {
           TipoAsiento.COMPRA,
           {
             compraId: recepcionId,
-            folio: recepcionId.slice(0, 8).toUpperCase(),
+            folio: folioDe(recepcion, TIPOS_DE_FOLIO.RECEPCION),
             /*
              * Y cómo se llama la orden en Compras. Sin esto la póliza decía
              * «Orden #<id de la recepción>» y mandaba a buscar un documento
              * que no existe con ese número.
              */
-            folioOrden: `OC-${oc.id.slice(0, 8).toUpperCase()}`,
+            folioOrden: folioDe(oc, TIPOS_DE_FOLIO.ORDEN_COMPRA),
             fecha: fechaContableNegocio(),
             empresaId,
             detalles: detallesContables,
@@ -990,9 +1011,15 @@ export class OrdenesCompraService {
               )
           : 0;
 
+      const folioPago = await this.folios.siguiente(
+        TIPOS_DE_FOLIO.PAGO_PROVEEDOR,
+        empresaId,
+        em,
+      );
       const pago = await em.save(
         em.create(PagoProveedor, {
           empresaId,
+          folio: folioPago,
           ordenCompraId: id,
           monto,
           ivaReclasificado,
@@ -1011,7 +1038,7 @@ export class OrdenesCompraService {
           fecha: diaPago,
           tipo: TipoMovimiento.EGRESO,
           importe: monto,
-          concepto: `Pago a proveedor OC-${id.slice(0, 8).toUpperCase()}`,
+          concepto: `Pago a proveedor ${folioDe(oc, TIPOS_DE_FOLIO.ORDEN_COMPRA)}`,
           origen: OrigenMovimiento.PAGO_PROVEEDOR,
           referencia: dto.referencia,
           documentoId: pago.id,
@@ -1042,7 +1069,7 @@ export class OrdenesCompraService {
             naturaleza: NaturalezaMovimientoCaja.SALIDA,
             tipo: TipoMovimientoCaja.RETIRO,
             importe: monto,
-            concepto: `Pago a proveedor OC-${id.slice(0, 8).toUpperCase()}`,
+            concepto: `Pago a proveedor ${folioDe(oc, TIPOS_DE_FOLIO.ORDEN_COMPRA)}`,
             referencia: dto.referencia,
             documentoId: pago.id,
             tipoDocumento: 'PAGO_PROVEEDOR',
@@ -1058,7 +1085,7 @@ export class OrdenesCompraService {
         {
           ocId: id,
           pagoId: pago.id,
-          folio: id.slice(0, 8).toUpperCase(),
+          folio: folioDe(pago, TIPOS_DE_FOLIO.PAGO_PROVEEDOR),
           fecha: fechaPago,
           empresaId,
           montoPagado: monto,
@@ -1179,7 +1206,7 @@ export class OrdenesCompraService {
     if (correosValidos.length === 0) return;
 
     const destinatariosStr = [...new Set(correosValidos)].join(', ');
-    const ocCorta = `OC-${orden.id.substring(0, 8).toUpperCase()}`;
+    const ocCorta = folioDe(orden, TIPOS_DE_FOLIO.ORDEN_COMPRA);
     const fechaActual = new Date().toLocaleDateString('es-MX', {
       year: 'numeric',
       month: 'long',

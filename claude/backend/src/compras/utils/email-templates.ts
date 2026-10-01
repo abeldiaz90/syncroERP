@@ -1,3 +1,7 @@
+import {
+  TIPOS_DE_FOLIO,
+  folioDe,
+} from '../../common/services/folios.service';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 // Layout base para mantener consistencia visual
@@ -34,7 +38,7 @@ export function htmlNuevaRequisicion(
 
   const content = `
     <p>Hola <strong>${nombreDestinatario}</strong>,</p>
-    <p>Se ha generado una nueva requisición <strong>#${requisicion.id.slice(0, 8).toUpperCase()}</strong> que requiere tu revisión y aprobación.</p>
+    <p>Se ha generado una nueva requisición <strong>${folioDe(requisicion, TIPOS_DE_FOLIO.REQUISICION)}</strong> que requiere tu revisión y aprobación.</p>
     
     <table style="width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #e5e7eb; border-radius: 8px;">
       <thead style="background: #f9fafb;">
@@ -64,7 +68,7 @@ export function htmlRechazoRequisicion(
 ): string {
   const enlace = `${FRONTEND_URL}/dashboard/compras/requisiciones/${requisicion.id}`;
   const content = `
-    <p>Te informamos que tu requisición <strong>#${requisicion.id.slice(0, 8).toUpperCase()}</strong> ha sido rechazada.</p>
+    <p>Te informamos que tu requisición <strong>${folioDe(requisicion, TIPOS_DE_FOLIO.REQUISICION)}</strong> ha sido rechazada.</p>
     <div style="background: #fef2f2; padding: 16px; border-left: 4px solid #ef4444; margin: 20px 0;">
       <p style="margin: 0; color: #991b1b;"><strong>Comentario del aprobador:</strong><br>${comentario || 'Sin comentarios'}</p>
     </div>
@@ -81,7 +85,7 @@ export function htmlAprobadaRequisicion(requisicion: any): string {
   const enlace = `${FRONTEND_URL}/dashboard/compras/requisiciones/${requisicion.id}`;
   const content = `
     <p>¡Buenas noticias!</p>
-    <p>Tu requisición <strong>#${requisicion.id.slice(0, 8).toUpperCase()}</strong> ha sido completamente aprobada y está lista para el siguiente paso.</p>
+    <p>Tu requisición <strong>${folioDe(requisicion, TIPOS_DE_FOLIO.REQUISICION)}</strong> ha sido completamente aprobada y está lista para el siguiente paso.</p>
     <div style="text-align: center; margin-top: 30px;">
       <a href="${enlace}" style="background: #10b981; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">
         Ver Detalle
