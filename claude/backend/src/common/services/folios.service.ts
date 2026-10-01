@@ -65,6 +65,30 @@ export const TIPOS_DE_FOLIO = {
 
 export type TipoDeFolio = (typeof TIPOS_DE_FOLIO)[keyof typeof TIPOS_DE_FOLIO];
 
+/**
+ * Las series que NO reinician por ejercicio.
+ *
+ * Son cuatro documentos que ya existían con su propio formato cuando se
+ * construyó este servicio: la oportunidad de CRM, el activo fijo, la devolución
+ * a proveedor y el movimiento de tesorería. Su numeración es corrida desde el
+ * primero y así está impresa y referida; cambiarles la forma habría exigido
+ * renumerarlos, y lo que estaba roto en ellos no era el formato.
+ *
+ * `anio = 0` es el ejercicio con el que se guardan en `folio_secuencias`. Es un
+ * centinela, sí, pero uno que no puede confundirse con un dato: no existe el
+ * ejercicio cero, y la llave primaria exige un entero. La alternativa —una
+ * columna nula— rompería la llave.
+ */
+export const SIN_EJERCICIO = 0;
+
+/** Los prefijos de esas series corridas, para que vivan en un solo sitio. */
+export const TIPOS_CORRIDOS = {
+  OPORTUNIDAD: 'OPP',
+  ACTIVO_FIJO: 'AF',
+  DEVOLUCION_PROVEEDOR: 'DP',
+  MOVIMIENTO_TESORERIA: 'TM',
+} as const;
+
 /** Los dígitos del consecutivo. Seis aguanta un millón de documentos al año. */
 const DIGITOS = 6;
 
@@ -128,7 +152,31 @@ export class FoliosService {
     instante: Date = new Date(),
   ): Promise<string> {
     const anio = Number(fechaCalendarioNegocio(instante).slice(0, 4));
+    const consecutivo = await this.siguienteConsecutivo(
+      tipo,
+      empresaId,
+      manager,
+      anio,
+    );
+    return formatearFolio(tipo, anio, consecutivo);
+  }
 
+  /**
+   * El número siguiente de una serie, reservado de forma atómica.
+   *
+   * Lo usan los dos caminos: el folio con ejercicio de arriba y las cuatro
+   * series corridas que conservan su formato de siempre. Devuelve el número y
+   * no la cadena, porque cada serie se escribe distinto y unificar la FORMA no
+   * era lo que estaba roto: lo que estaba roto era contar.
+   *
+   * @param anio el ejercicio, o `SIN_EJERCICIO` para una serie corrida.
+   */
+  async siguienteConsecutivo(
+    tipo: string,
+    empresaId: string,
+    manager: EntityManager,
+    anio: number,
+  ): Promise<number> {
     const filas = (await manager.query(
       `INSERT INTO folio_secuencias (empresaid, tipo, anio, ultimo)
        VALUES ($1, $2, $3, 1)
@@ -151,6 +199,6 @@ export class FoliosService {
       );
     }
 
-    return formatearFolio(tipo, anio, consecutivo);
+    return consecutivo;
   }
 }

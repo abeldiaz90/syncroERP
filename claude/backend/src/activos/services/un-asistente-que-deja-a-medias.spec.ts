@@ -87,6 +87,8 @@ function crear(opciones: { existentes?: any[]; sinCuentas?: string[] } = {}) {
     {} as any,
     dataSource,
     {} as any,
+    /* FoliosService: el sembrado de categorías no numera activos. */
+    {} as any,
   );
   return { servicio, guardadas };
 }

@@ -115,6 +115,10 @@ export class Prospecto {
 /* ── Oportunidad ──────────────────────────────────────────────────────────── */
 
 @Entity('crm_oportunidades')
+/* Dos documentos con el mismo folio es lo que la base tiene que impedir:
+ * una carrera entre dos altas simultáneas no da error sin este índice,
+ * da dos documentos con el mismo número en silencio. */
+@Index(['empresaId', 'folio'], { unique: true, where: 'folio IS NOT NULL' })
 @Index(['empresaId', 'etapaId'])
 @Index(['empresaId', 'responsableId'])
 export class Oportunidad {

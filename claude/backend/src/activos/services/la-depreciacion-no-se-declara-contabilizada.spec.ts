@@ -83,6 +83,8 @@ describe('correrDepreciación · el estado contable dice la verdad', () => {
       repoDep,
       dataSource,
       asientos,
+      /* FoliosService: esta prueba no da de alta activos. */
+      {} as any,
     );
     return { servicio, asientos, activo, repoActivos, dataSource };
   }

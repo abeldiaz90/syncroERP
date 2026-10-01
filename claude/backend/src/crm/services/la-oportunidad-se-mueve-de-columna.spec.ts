@@ -112,6 +112,8 @@ function crear() {
     {} as never,
     {} as never,
     dataSource as never,
+    /* FoliosService: mover de columna no crea oportunidades. */
+    {} as never,
   );
   return { servicio, guardadas, historial };
 }

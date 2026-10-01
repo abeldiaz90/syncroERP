@@ -6,8 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import {
+  FoliosService,
+  SIN_EJERCICIO,
+  TIPOS_CORRIDOS,
   TIPOS_DE_FOLIO,
   folioDe,
 } from '../../common/services/folios.service';
@@ -61,6 +64,7 @@ export class DevolucionesProveedorService {
     private readonly dataSource: DataSource,
     private readonly inventario: InventarioService,
     private readonly asientos: AsientosPendientesService,
+    private readonly folios: FoliosService,
   ) {}
 
   private folioDeOrden(oc: { id: string; folio?: string | null }) {
@@ -157,15 +161,32 @@ export class DevolucionesProveedorService {
     });
   }
 
-  private async siguienteFolio(empresaId: string): Promise<string> {
-    const fila = await this.devoluciones
-      .createQueryBuilder('d')
-      .select('MAX(CAST(SUBSTRING(d.folio, 4, 10) AS INT))', 'maximo')
-      .where('d.empresaId = :empresaId', { empresaId })
-      .andWhere("d.folio ~ '^DP-[0-9]{1,10}$'")
-      .getRawOne<{ maximo: number | string | null }>();
-    /* `Number()` siempre: ver `un-bigint-llega-como-texto`. */
-    return `DP-${String(Number(fila?.maximo ?? 0) + 1).padStart(6, '0')}`;
+  /*
+   * ==========================================================================
+   * Contar no es leer el máximo y sumarle uno
+   * --------------------------------------------------------------------------
+   * El `SELECT MAX(...) + 1` que había aquí tiene una ventana entre leer y
+   * escribir: dos devoluciones capturadas a la vez se llevan el mismo folio. Y
+   * `devoluciones_proveedor` no tenía índice único sobre el folio, así que no
+   * daba error: daban dos devoluciones con el mismo número, cada una con su
+   * asiento, y una nota de crédito del proveedor que ya no se sabe a cuál
+   * corresponde. La migración que acompaña a este cambio añade el índice.
+   *
+   * Se reserva con una sola sentencia atómica, y se le pasa el manager para
+   * que el número se devuelva si el alta falla. El formato no cambia.
+   * ==========================================================================
+   */
+  private async siguienteFolio(
+    empresaId: string,
+    manager: EntityManager = this.devoluciones.manager,
+  ): Promise<string> {
+    const consecutivo = await this.folios.siguienteConsecutivo(
+      TIPOS_CORRIDOS.DEVOLUCION_PROVEEDOR,
+      empresaId,
+      manager,
+      SIN_EJERCICIO,
+    );
+    return `DP-${String(consecutivo).padStart(6, '0')}`;
   }
 
   async crear(
@@ -209,7 +230,11 @@ export class DevolucionesProveedorService {
     }
 
     const salida = await this.dataSource.transaction(async (manager) => {
-      const folio = await this.siguienteFolio(empresaId);
+      /*
+       * Con el manager de ESTA transacción: si el alta de la devolución falla
+       * el número se devuelve y la numeración no queda con huecos.
+       */
+      const folio = await this.siguienteFolio(empresaId, manager);
       const cabecera = manager.create(DevolucionProveedor, {
         empresaId,
         folio,

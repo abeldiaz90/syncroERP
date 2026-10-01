@@ -30,6 +30,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import {
+  FoliosService,
+  SIN_EJERCICIO,
+  TIPOS_CORRIDOS,
+} from '../../common/services/folios.service';
 import { createHash } from 'crypto';
 
 import {
@@ -88,6 +93,7 @@ export class ActivosService {
     private readonly depreciaciones: Repository<DepreciacionMensual>,
     private readonly dataSource: DataSource,
     private readonly asientos: AsientosPendientesService,
+    private readonly folios: FoliosService,
   ) {}
 
   /* ── Cálculo ───────────────────────────────────────────────────────────── */
@@ -228,15 +234,34 @@ export class ActivosService {
     return this.activos.save(activo);
   }
 
+  /*
+   * ==========================================================================
+   * Contar no es leer el máximo y sumarle uno
+   * --------------------------------------------------------------------------
+   * Aquí había un `SELECT MAX(...) + 1`. Entre la lectura y la escritura hay
+   * una ventana: dos altas simultáneas leen el mismo máximo y se llevan el
+   * mismo número. No se nota en pruebas —hace falta que dos personas guarden
+   * en el mismo instante— y se nota el día que una sucursal entera captura a
+   * la vez.
+   *
+   * `siguienteConsecutivo` lo resuelve con un `INSERT ... ON CONFLICT DO
+   * UPDATE ... RETURNING`, que en Postgres es UNA SOLA sentencia atómica: la
+   * segunda transacción espera a que la primera suelte la fila y lee el valor
+   * ya incrementado. No hay ventana porque no hay dos pasos.
+   *
+   * El FORMATO no cambia: esta serie ya estaba impresa y referida así, y lo
+   * que estaba roto no era la forma, era la cuenta. Va sin ejercicio, como
+   * siempre: es una numeración corrida desde el primero.
+   * ==========================================================================
+   */
   private async siguienteCodigo(empresaId: string): Promise<string> {
-    const { maximo } = (await this.activos
-      .createQueryBuilder('a')
-      .select('MAX(CAST(SUBSTRING(a.codigo, 4, 10) AS INT))', 'maximo')
-      .where('a.empresaId = :empresaId', { empresaId })
-      .andWhere("a.codigo LIKE 'AF-%'")
-      .getRawOne<{ maximo: number | null }>()) ?? { maximo: null };
-
-    return `AF-${String((maximo ?? 0) + 1).padStart(6, '0')}`;
+    const consecutivo = await this.folios.siguienteConsecutivo(
+      TIPOS_CORRIDOS.ACTIVO_FIJO,
+      empresaId,
+      this.activos.manager,
+      SIN_EJERCICIO,
+    );
+    return `AF-${String(consecutivo).padStart(6, '0')}`;
   }
 
   /* ── Consulta ──────────────────────────────────────────────────────────── */

@@ -83,6 +83,8 @@ describe('Baja de activo · la póliza se intenta y el estado se dice', () => {
       {} as any,
       dataSource,
       asientos,
+      /* FoliosService: esta prueba no da de alta activos. */
+      {} as any,
     );
     return { servicio, asientos, activo };
   }

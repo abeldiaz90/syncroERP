@@ -28,6 +28,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, DataSource, EntityManager, Repository } from 'typeorm';
+import {
+  FoliosService,
+  SIN_EJERCICIO,
+  TIPOS_CORRIDOS,
+} from '../../common/services/folios.service';
 
 import {
   EstadoCierre,
@@ -177,6 +182,7 @@ export class TesoreriaService {
     private readonly cuentas: Repository<CuentaBancaria>,
     private readonly dataSource: DataSource,
     private readonly asientos: AsientosPendientesService,
+    private readonly folios: FoliosService,
   ) {}
 
   /* ══ MOVIMIENTOS ═════════════════════════════════════════════════════════ */
@@ -353,22 +359,40 @@ export class TesoreriaService {
    * sobre el texto, para que 'TM-00000009' no parezca mayor que 'TM-00000010'.
    * ══════════════════════════════════════════════════════════════════════════
    */
+  /*
+   * ==========================================================================
+   * Contar no es leer el máximo y sumarle uno
+   * --------------------------------------------------------------------------
+   * Este folio ya tuvo un defecto —el BIGINT que llegaba como texto y hacía
+   * `'1' + 1 = '11'`, documentado arriba— y le quedaba otro debajo: entre el
+   * `SELECT MAX(...)` y el `INSERT` hay una ventana en la que dos altas
+   * simultáneas leen el mismo máximo y se llevan el mismo folio.
+   *
+   * Aquí eso no da un error: `tesoreria_movimientos` no tiene índice único
+   * sobre el folio, así que el resultado son DOS MOVIMIENTOS DE DINERO CON EL
+   * MISMO NÚMERO, en silencio, y una conciliación que no cuadra sin que nadie
+   * sepa por qué. La migración que acompaña a este cambio añade ese índice.
+   *
+   * `siguienteConsecutivo` lo reserva con un `INSERT ... ON CONFLICT DO UPDATE
+   * ... RETURNING`: una sola sentencia atómica, sin ventana entre leer y
+   * escribir. Se le pasa el manager del repositorio —que en las dos llamadas
+   * es el de la transacción en curso— para que el número se devuelva si el
+   * movimiento no llega a guardarse.
+   *
+   * El formato no cambia: ocho dígitos corridos, como está impreso.
+   * ==========================================================================
+   */
   private async siguienteFolio(
     empresaId: string,
     repo: Repository<MovimientoTesoreria>,
   ): Promise<string> {
-    const fila = await repo
-      .createQueryBuilder('m')
-      .select('MAX(CAST(SUBSTRING(m.folio, 4, 12) AS BIGINT))', 'maximo')
-      .where('m.empresaId = :empresaId', { empresaId })
-      .andWhere("m.folio LIKE 'TM-%'")
-      /* Los folios rotos de antes del arreglo no pueden marcar el siguiente. */
-      .andWhere("m.folio ~ '^TM-[0-9]{1,12}$'")
-      .getRawOne<{ maximo: number | string | null }>();
-
-    const maximo = Number(fila?.maximo ?? 0);
-    const siguiente = Number.isFinite(maximo) && maximo > 0 ? maximo + 1 : 1;
-    return `TM-${String(siguiente).padStart(8, '0')}`;
+    const consecutivo = await this.folios.siguienteConsecutivo(
+      TIPOS_CORRIDOS.MOVIMIENTO_TESORERIA,
+      empresaId,
+      repo.manager,
+      SIN_EJERCICIO,
+    );
+    return `TM-${String(consecutivo).padStart(8, '0')}`;
   }
 
   /**

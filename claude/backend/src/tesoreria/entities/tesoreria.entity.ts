@@ -62,6 +62,10 @@ export enum EstadoCierre {
 /* ── Movimiento propio ────────────────────────────────────────────────────── */
 
 @Entity('tesoreria_movimientos')
+/* Dos documentos con el mismo folio es lo que la base tiene que impedir:
+ * una carrera entre dos altas simultáneas no da error sin este índice,
+ * da dos documentos con el mismo número en silencio. */
+@Index(['empresaId', 'folio'], { unique: true, where: 'folio IS NOT NULL' })
 @Index(['empresaId', 'fecha'])
 @Index(['cuentaBancariaId', 'estadoConciliacion'])
 export class MovimientoTesoreria {

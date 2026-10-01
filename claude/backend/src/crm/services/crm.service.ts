@@ -25,6 +25,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, DataSource, In, Repository } from 'typeorm';
+import {
+  FoliosService,
+  SIN_EJERCICIO,
+  TIPOS_CORRIDOS,
+} from '../../common/services/folios.service';
 
 import {
   Actividad,
@@ -57,6 +62,7 @@ export class CrmService {
     @InjectRepository(HistorialEtapa)
     private readonly historial: Repository<HistorialEtapa>,
     private readonly dataSource: DataSource,
+    private readonly folios: FoliosService,
   ) {}
 
   /* ══ ETAPAS ══════════════════════════════════════════════════════════════ */
@@ -262,15 +268,34 @@ export class CrmService {
     return oportunidad;
   }
 
+  /*
+   * ==========================================================================
+   * Contar no es leer el máximo y sumarle uno
+   * --------------------------------------------------------------------------
+   * Aquí había un `SELECT MAX(...) + 1`. Entre la lectura y la escritura hay
+   * una ventana: dos altas simultáneas leen el mismo máximo y se llevan el
+   * mismo número. No se nota en pruebas —hace falta que dos personas guarden
+   * en el mismo instante— y se nota el día que una sucursal entera captura a
+   * la vez.
+   *
+   * `siguienteConsecutivo` lo resuelve con un `INSERT ... ON CONFLICT DO
+   * UPDATE ... RETURNING`, que en Postgres es UNA SOLA sentencia atómica: la
+   * segunda transacción espera a que la primera suelte la fila y lee el valor
+   * ya incrementado. No hay ventana porque no hay dos pasos.
+   *
+   * El FORMATO no cambia: esta serie ya estaba impresa y referida así, y lo
+   * que estaba roto no era la forma, era la cuenta. Va sin ejercicio, como
+   * siempre: es una numeración corrida desde el primero.
+   * ==========================================================================
+   */
   private async siguienteFolio(empresaId: string): Promise<string> {
-    const fila = await this.oportunidades
-      .createQueryBuilder('o')
-      .select('MAX(CAST(SUBSTRING(o.folio, 5, 10) AS INT))', 'maximo')
-      .where('o.empresaId = :empresaId', { empresaId })
-      .andWhere("o.folio LIKE 'OPP-%'")
-      .getRawOne<{ maximo: number | null }>();
-
-    return `OPP-${String((fila?.maximo ?? 0) + 1).padStart(6, '0')}`;
+    const consecutivo = await this.folios.siguienteConsecutivo(
+      TIPOS_CORRIDOS.OPORTUNIDAD,
+      empresaId,
+      this.oportunidades.manager,
+      SIN_EJERCICIO,
+    );
+    return `OPP-${String(consecutivo).padStart(6, '0')}`;
   }
 
   async listarOportunidades(
