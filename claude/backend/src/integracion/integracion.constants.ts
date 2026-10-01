@@ -53,9 +53,28 @@ export enum ModoCartera {
 }
 
 /** Qué entidad del ERP representa un identificador del registro externo. */
+/*
+ * ============================================================================
+ * Un tipo de vínculo que nadie crea promete una replicación que no existe
+ * ----------------------------------------------------------------------------
+ * Aquí había dos miembros que ninguna línea del sistema escribía nunca:
+ *
+ *   · `PROVEEDOR`. Los proveedores no se replican, y no tendría sentido que lo
+ *     hicieran: el registro externo es un core de crédito, no conoce
+ *     proveedores. El miembro prometía una sincronización que nadie iba a
+ *     construir.
+ *   · `CUENTA_CONTABLE`. Las cuentas SÍ se corresponden con las del mayor
+ *     externo, pero por su propia tabla —`integracion_mapeo_cuentas`— que
+ *     guarda además el sentido y la validación. Este miembro sugería un segundo
+ *     mecanismo para lo mismo, y dos mecanismos para una cosa son uno que se
+ *     mantiene y otro que se queda atrás.
+ *
+ * Se quitan en vez de dejarlos «por si acaso»: un catálogo de lo que se
+ * replica es, para quien lo lee, la lista de lo que está replicado.
+ * ============================================================================
+ */
 export enum TipoVinculo {
   CLIENTE = 'CLIENTE',
-  PROVEEDOR = 'PROVEEDOR',
   CREDITO = 'CREDITO',
   PAGO_COBRANZA = 'PAGO_COBRANZA',
   PRODUCTO_CREDITO = 'PRODUCTO_CREDITO',
@@ -64,8 +83,6 @@ export enum TipoVinculo {
   AJUSTE_DEVOLUCION_EXTERNA = 'AJUSTE_DEVOLUCION_EXTERNA',
   /** Póliza del ERP ↔ asiento del mayor externo. */
   POLIZA = 'POLIZA',
-  /** Cuenta contable del ERP ↔ cuenta del mayor externo. */
-  CUENTA_CONTABLE = 'CUENTA_CONTABLE',
   /** Operador del ERP ↔ usuario del registro externo. */
   USUARIO = 'USUARIO',
 }

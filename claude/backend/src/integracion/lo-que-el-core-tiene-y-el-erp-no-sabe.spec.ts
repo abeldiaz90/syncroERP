@@ -262,3 +262,87 @@ describe('Y por fin se puede leer', () => {
     expect(pantalla).toMatch(/obligatorio: true/);
   });
 });
+
+describe('El catálogo de lo que se replica es la lista de lo replicado', () => {
+  /*
+   * ==========================================================================
+   * La segunda mitad de la pregunta de Abel: «valida si hay otros catálogos
+   * que debieran sincronizarse solos».
+   *
+   * `TipoVinculo` es, para quien lo lee, la lista de lo que el ERP y el core
+   * mantienen en correspondencia. Tenía dos miembros que ninguna línea del
+   * sistema escribía nunca:
+   *
+   *   · `PROVEEDOR`, que prometía una replicación que nadie iba a construir
+   *     —el registro externo es un core de crédito y no conoce proveedores—;
+   *   · `CUENTA_CONTABLE`, cuando las cuentas ya se corresponden por su propia
+   *     tabla, `integracion_mapeo_cuentas`, que además guarda el sentido y la
+   *     validación. Dos mecanismos para lo mismo son uno que se mantiene y
+   *     otro que se queda atrás.
+   *
+   * Es el mismo defecto que los tres interruptores muertos de la ficha del
+   * producto, en el catálogo que un desarrollador consulta para saber qué está
+   * integrado.
+   * ==========================================================================
+   */
+  const constantes = fuente('integracion', 'integracion.constants.ts');
+
+  const miembros = (() => {
+    const bloque = constantes.slice(
+      constantes.indexOf('export enum TipoVinculo {'),
+      constantes.indexOf('}', constantes.indexOf('export enum TipoVinculo {')),
+    );
+    return [...bloque.matchAll(/^\s*([A-Z_]+) =/gm)].map((m) => m[1]);
+  })();
+
+  it('el enum se encontró', () => {
+    expect(miembros.length).toBeGreaterThan(3);
+  });
+
+  it('`PROVEEDOR` y `CUENTA_CONTABLE` ya no se prometen', () => {
+    expect(miembros).not.toContain('PROVEEDOR');
+    expect(miembros).not.toContain('CUENTA_CONTABLE');
+  });
+
+  it('CADA tipo que queda lo escribe alguien', () => {
+    /*
+     * La regla, no los dos casos. Se busca quién CREA un vínculo de ese tipo,
+     * no quién lo nombra: el propio enum y los diagnósticos que los listan no
+     * cuentan como uso. El día que alguien declare un tipo nuevo «para luego»,
+     * esto se cae y lo nombra.
+     */
+    const { readdirSync, statSync } = require('fs') as typeof import('fs');
+    const archivos: string[] = [];
+    const caminar = (dir: string) => {
+      for (const nombre of readdirSync(dir)) {
+        const completo = join(dir, nombre);
+        if (statSync(completo).isDirectory()) caminar(completo);
+        else if (completo.endsWith('.ts') && !completo.endsWith('.spec.ts'))
+          archivos.push(completo);
+      }
+    };
+    caminar(SRC);
+
+    const codigo = archivos
+      .filter((f) => !f.endsWith('integracion.constants.ts'))
+      .map((f) => sinComentarios(readFileSync(f, 'utf8')))
+      .join('\n');
+
+    const huerfanos = miembros.filter(
+      (m) => !codigo.includes(`TipoVinculo.${m}`),
+    );
+    expect(huerfanos).toEqual([]);
+  });
+
+  it('las cuentas contables siguen teniendo su propio mapeo', () => {
+    /*
+     * La prueba en el otro sentido: quitar el miembro del enum no podía
+     * significar que las cuentas dejaran de corresponderse. Se corresponden,
+     * por otra tabla y mejor.
+     */
+    const entidad = fuente(
+      'integracion', 'entities', 'mapeo-cuenta-externa.entity.ts',
+    );
+    expect(entidad).toMatch(/@Entity\('integracion_mapeo_cuentas'\)/);
+  });
+});
