@@ -388,15 +388,33 @@ describe('La migración rellena hacia atrás sin pisar nada', () => {
     expect(migracion).toMatch(/PARTITION BY d\.empresaid, \$\{anioDe\('d'\)\}/);
   });
 
-  it('el año sale de la zona del negocio, no de UTC', () => {
+  it('el año sale de la zona del negocio con UN SOLO `AT TIME ZONE`', () => {
     /*
-     * Tiene que coincidir con lo que hace el servidor al crear, o el folio de
-     * un documento de las 19:00 del 31 de diciembre quedaría en un ejercicio
-     * distinto según quién lo escribió.
+     * ========================================================================
+     * Esta prueba estuvo mal, y de la peor manera: PASABA.
+     *
+     * Exigía `… AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City'`, que es
+     * lo que la migración hacía y que está MAL. Estas columnas son
+     * `timestamptz`: sobre ellas, el primer `AT TIME ZONE 'UTC'` ya devuelve un
+     * `timestamp` sin zona y el segundo lo INTERPRETA como hora de México en
+     * vez de convertirlo a ella, así que suma seis horas donde había que
+     * restarlas. El año del folio salía mal justo en el cruce de ejercicio, que
+     * es lo único que ese cálculo existe para acertar.
+     *
+     * Y cuando se corrigió la migración, la prueba SIGUIÓ PASANDO, porque la
+     * expresión vieja aparecía en el comentario que explica el defecto: estaba
+     * midiendo la prosa, no el código. Es el mismo error que ya se cometió con
+     * `MAX(` y con `getFullYear()`, y por eso aquí se mide sobre el código sin
+     * comentarios.
+     *
+     * Se descubrió corriendo la migración contra un PostgreSQL de verdad con
+     * datos a ambos lados del 31 de diciembre. Ninguna prueba estática lo
+     * habría visto: sólo ejecutarla.
+     * ========================================================================
      */
-    expect(migracion).toMatch(
-      /AT TIME ZONE 'UTC' AT TIME ZONE 'America\/Mexico_City'/,
-    );
+    const codigo = sinComentarios(migracion);
+    expect(codigo).toMatch(/AT TIME ZONE 'America\/Mexico_City'/);
+    expect(codigo).not.toMatch(/AT TIME ZONE 'UTC'/);
   });
 
   it('se puede volver a correr si se interrumpió', () => {
@@ -503,5 +521,81 @@ describe('La etiqueta del asiento lleva el folio, y no es la llave', () => {
     expect(servicio).toMatch(/where: \{ empresaId, tipo, documentoId \}/);
     /* La etiqueta no participa en la búsqueda del existente. */
     expect(servicio).not.toMatch(/where: \{[^}]*folioDocumento/);
+  });
+});
+
+describe('Y el año mal calculado se corrige donde ya se aplicó', () => {
+  /*
+   * ==========================================================================
+   * La migración original ya corrió en la base de Abel con la expresión mala,
+   * así que corregirla no basta: una instalación que ya la pasó no la repite.
+   * `ElAnioDelFolioEnLaZonaDelNegocio` es para ésas.
+   *
+   * Se verificó contra un PostgreSQL de verdad reproduciendo el daño exacto:
+   * dos órdenes del 31 de diciembre por la tarde con folio de 2027. La
+   * correctora las devolvió a 2026 y dejó intacta la del 1 de enero.
+   * ==========================================================================
+   */
+  const correctora = fuente(
+    'database',
+    'migrations',
+    'postgres',
+    '1790830000000-ElAnioDelFolioEnLaZonaDelNegocio.ts',
+  );
+  const codigo = sinComentarios(correctora);
+
+  it('compara el año del folio contra el año real', () => {
+    expect(codigo).toMatch(/SUBSTRING\(d\.folio FROM '\^\$\{tipo\}-\(\[0-9\]\{4\}\)-'\)::int/);
+    expect(codigo).toMatch(/AT TIME ZONE 'America\/Mexico_City'/);
+    expect(codigo).not.toMatch(/AT TIME ZONE 'UTC'/);
+  });
+
+  it('toca SÓLO los que están mal', () => {
+    /*
+     * Lo que separa esta migración de un renumerado general. Renumerar la serie
+     * entera dejaría la numeración coherente y le cambiaría el folio a
+     * documentos que ya se imprimieron o se dictaron por teléfono. Entre un
+     * hueco explicable y un folio que cambia debajo de quien ya lo usó, el
+     * hueco.
+     */
+    expect(codigo).toMatch(/<> \$\{anioOk\}/);
+  });
+
+  it('arranca desde el máximo que ya hay en el año correcto', () => {
+    /* Si no, el folio corregido chocaría con uno existente de ese año. */
+    expect(codigo).toMatch(/\+ COALESCE\(p\.ultimo, 0\)\)::text, 6, '0'\)/);
+  });
+
+  it('resiembra las secuencias aunque no corrija ninguna fila', () => {
+    /*
+     * Las sembró la migración original con los años mal calculados: puede
+     * haber una fila de un ejercicio que no existe y faltar la del que sí.
+     */
+    expect(codigo).toMatch(/INSERT INTO folio_secuencias/);
+    expect(codigo).toMatch(/GREATEST\(folio_secuencias\.ultimo, EXCLUDED\.ultimo\)/);
+  });
+
+  it('castea la empresa, que en una de las tablas es varchar', () => {
+    /*
+     * `devoluciones_proveedor.empresaid` es `varchar(36)` y las demás `uuid`.
+     * Sin el casteo, PostgreSQL aborta con «column empresaid is of type uuid
+     * but expression is of type character varying» y revierte la migración
+     * entera. Pasó la primera vez que se corrió, sobre la base de Abel.
+     */
+    expect(codigo).toMatch(/d\.empresaid::uuid/);
+    const contar = fuente(
+      'database', 'migrations', 'postgres', '1790810000000-ContarNoEsLeerElMaximo.ts',
+    );
+    expect(sinComentarios(contar)).toMatch(/SELECT empresaid::uuid,/);
+  });
+
+  it('no se deshace', () => {
+    /*
+     * Devolver un folio a su año equivocado no es un estado al que nadie
+     * quiera volver, y las filas corregidas ya no se distinguen de las que
+     * siempre estuvieron bien.
+     */
+    expect(correctora).toMatch(/public async down\(\): Promise<void> \{/);
+    expect(codigo).not.toMatch(/down[\s\S]*DROP|down[\s\S]*DELETE/);
   });
 });

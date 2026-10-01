@@ -124,9 +124,30 @@ export class ContarNoEsLeerElMaximo1790810000000 implements MigrationInterface {
       }
 
       /* La semilla: el consecutivo más alto ya usado por cada empresa. */
+      /*
+       * ======================================================================
+       * El `::uuid` no es decorativo
+       * ----------------------------------------------------------------------
+       * `folio_secuencias.empresaid` es `uuid`, y de las cuatro tablas tres
+       * guardan la empresa como `uuid`… pero `devoluciones_proveedor` la
+       * guarda como `varchar(36)`. Sin el casteo, PostgreSQL aborta con
+       *
+       *     column "empresaid" is of type uuid but expression is of type
+       *     character varying
+       *
+       * y la migración entera revierte. Pasó la primera vez que se corrió,
+       * sobre la base de Abel.
+       *
+       * El casteo vale para los dos casos —un `uuid::uuid` no hace nada— así
+       * que esto deja de depender de qué tipo eligió cada tabla. Que una de
+       * las cuatro tenga la empresa en varchar es una incoherencia del esquema
+       * que conviene mirar aparte: ahí cabe un identificador que no es un uuid
+       * y que ninguna otra tabla aceptaría.
+       * ======================================================================
+       */
       await queryRunner.query(`
         INSERT INTO folio_secuencias (empresaid, tipo, anio, ultimo)
-        SELECT empresaid, '${tipo}', 0, MAX(${numero})::int
+        SELECT empresaid::uuid, '${tipo}', 0, MAX(${numero})::int
         FROM ${tabla}
         WHERE ${soloBienFormados}
         GROUP BY empresaid

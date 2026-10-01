@@ -110,9 +110,37 @@ export class UnFolioQueSePuedaDecir1790800000000 implements MigrationInterface {
        * servidor, y tiene que coincidir o el año del folio viejo no cuadraría
        * con el del nuevo.
        */
-      /** El año del documento en la zona del negocio, calificado por alias. */
+      /**
+       * El año del documento en la zona del negocio, calificado por alias.
+       *
+       * ========================================================================
+       * UN `AT TIME ZONE` DE MÁS VA EN LA DIRECCIÓN CONTRARIA
+       * ------------------------------------------------------------------------
+       * Aquí ponía `… AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City'`,
+       * razonando que la primera lo interpreta como UTC y la segunda lo lleva a
+       * la zona. Eso es cierto para un `timestamp` SIN zona.
+       *
+       * Estas columnas son `timestamptz` —las convirtió la migración
+       * `FechasConZonaHoraria`—. Sobre un `timestamptz`, el primer
+       * `AT TIME ZONE 'UTC'` devuelve un `timestamp` sin zona, y el segundo lo
+       * INTERPRETA como hora de México en vez de convertirlo a ella. El
+       * resultado suma seis horas donde había que restarlas:
+       *
+       *     guardado 2026-12-31 23:00+00  →  daba 2027-01-01 05:00
+       *                                   →  correcto 2026-12-31 17:00
+       *
+       * Es decir, el año del folio salía mal justo en el cruce de ejercicio,
+       * que es lo único que esta función existe para acertar.
+       *
+       * Sobre un `timestamptz` basta un `AT TIME ZONE`, y es lo que hace falta.
+       *
+       * Se descubrió corriendo la migración contra un PostgreSQL de verdad, con
+       * datos a ambos lados del 31 de diciembre. `tsc` no lo ve —es una cadena
+       * SQL— y ninguna prueba estática lo habría visto: sólo ejecutarla.
+       * ========================================================================
+       */
       const anioDe = (alias: string) =>
-        `EXTRACT(YEAR FROM (${alias}.${fecha} AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City'))::int`;
+        `EXTRACT(YEAR FROM (${alias}.${fecha} AT TIME ZONE 'America/Mexico_City'))::int`;
 
       await queryRunner.query(`
         WITH ya_tienen AS (
