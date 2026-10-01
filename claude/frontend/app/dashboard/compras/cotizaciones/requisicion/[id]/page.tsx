@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { PuedeCrear, ProtectedElement } from "@/app/components/ProtectedElement"; // ← NUEVO
 import { confirmarElegante, solicitarTexto } from '@/components/ui/dialogos';
+import { FOLIO, folioDe } from '@/lib/folios';
 
 export interface ICotizacion {
   id: string; fechaCotizacion: string;
@@ -187,7 +188,7 @@ export default function CotizacionesRequisicionPage() {
               <div>
                 <h1 className="text-3xl font-black text-slate-900 tracking-tight">Propuestas Recibidas</h1>
                 <p className="text-slate-500 font-medium mt-0.5">
-                  Referencia: <span className="font-mono text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-lg">REQ-{requisicionId.substring(0,8).toUpperCase()}</span>
+                  Referencia: <span className="font-mono text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-lg">{folioDe(requisicion ?? { id: requisicionId }, FOLIO.REQUISICION)}</span>
                 </p>
               </div>
             </div>

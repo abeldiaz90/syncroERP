@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Printer } from 'lucide-react';
+import { FOLIO, folioDe } from '@/lib/folios';
 
 export default function PdfRequisicionPage() {
   const { id } = useParams();
@@ -45,7 +46,7 @@ export default function PdfRequisicionPage() {
           </div>
           <div className="text-right">
             <p className="text-sm font-bold text-slate-500 uppercase">Folio</p>
-            <p className="text-2xl font-black text-indigo-600">REQ-{requisicion.id.substring(0,6).toUpperCase()}</p>
+            <p className="text-2xl font-black text-indigo-600">{folioDe(requisicion, FOLIO.REQUISICION)}</p>
           </div>
         </div>
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { FOLIO, folioDe } from '@/lib/folios';
 import { 
   Truck, Search, PackageCheck, Clock, CheckCircle2, 
   AlertCircle, Loader2, ChevronRight, Building2, Calendar
@@ -262,7 +263,7 @@ export default function ListaRecepcionesPage() {
                             <Truck className="w-5 h-5 text-slate-500" />
                           </div>
                           <div>
-                            <p className="font-bold text-slate-900 font-mono">OC-{oc.id.substring(0,8).toUpperCase()}</p>
+                            <p className="font-bold text-slate-900 font-mono">{folioDe(oc, FOLIO.ORDEN_COMPRA)}</p>
                             <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
                               <Calendar className="w-3 h-3" /> {new Date(oc.fechaCreacion).toLocaleDateString('es-MX')}
                             </p>

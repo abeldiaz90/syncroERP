@@ -9,6 +9,7 @@ import {
   Calendar, Flag, Package
 } from 'lucide-react';
 import { PuedeCrear, ProtectedElement } from '@/app/components/ProtectedElement';
+import { FOLIO, folioDe } from '@/lib/folios';
 
 interface IProducto { id: string; nombre: string; sku: string; }
 interface IDetalle { productoId: string; nombre: string; cantidadSolicitada: number; notas?: string; }
@@ -338,7 +339,7 @@ export default function RequisicionesPage() {
                   return (
                     <tr key={req.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-4">
-                        <p className="font-mono font-bold text-indigo-600">REQ-{req.id.slice(0,6).toUpperCase()}</p>
+                        <p className="font-mono font-bold text-indigo-600">{folioDe(req, FOLIO.REQUISICION)}</p>
                         <p className="text-xs text-slate-400 mt-0.5">{fmtFecha(req.fechaSolicitud)}</p>
                       </td>
                       <td className="px-5 py-4 text-slate-700 font-medium">

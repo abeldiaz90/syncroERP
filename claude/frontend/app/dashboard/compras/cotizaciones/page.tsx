@@ -65,6 +65,35 @@ export default function CotizacionesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
+  /*
+   * ==========================================================================
+   * Las cotizaciones de una requisición ya adjudicada no se veían
+   * --------------------------------------------------------------------------
+   * Reportado por Abel el 30-sep-2026: «¿por qué no se logran ver las
+   * cotizaciones que hizo el comprador, con administrador y con los demás
+   * roles?».
+   *
+   * No era permisos. Esta pantalla filtraba `estado === 'COTIZANDO'`, así que
+   * en cuanto una requisición se adjudicaba desaparecía de la lista **y con
+   * ella el único enlace a sus cotizaciones**. La pantalla de detalle existe
+   * —/cotizaciones/requisicion/[id]— pero no había manera de llegar a ella sin
+   * conocer el identificador de memoria.
+   *
+   * Y es justo la pregunta que importa en compras: «¿contra qué cotizaciones
+   * se adjudicó esta orden?». Comparar ofertas es el control entero; que sólo
+   * se pueda mirar mientras la decisión está abierta lo deja sin auditoría.
+   *
+   * El mensaje vacío tampoco mentía —«Ninguna requisición está esperando
+   * cotización» era cierto— y por eso nadie lo leía como un defecto. Una
+   * bandeja que dice la verdad sobre su cola, y calla que hay un archivo
+   * entero detrás, contesta bien a otra pregunta.
+   *
+   * Se separan las dos cosas, como ya hace la bandeja de recepciones: la cola
+   * de trabajo y el histórico.
+   * ==========================================================================
+   */
+  const [pestana, setPestana] = useState<'cola' | 'historial'>('cola');
+  const [historial, setHistorial] = useState<IRequisicion[]>([]);
   const [formData, setFormData] = useState<ICotizacionFormData>({
     proveedorId: '', subtotal: 0, impuestoTotal: 0, tasaIva: 0.16, total: 0, notas: '', detalles: [],
   });
@@ -105,6 +134,17 @@ export default function CotizacionesPage() {
         setRequisiciones(data.filter((r: IRequisicion) => r.estado === 'COTIZANDO'));
         setEsperandoAutorizacion(
           data.filter((r: IRequisicion) => r.estado === 'PENDIENTE').length,
+        );
+        /*
+         * El histórico: todo lo que ya pasó por cotización. `PENDIENTE` queda
+         * fuera porque todavía no tiene nada que enseñar —espera firma, no
+         * cotizaciones— y ya se cuenta aparte.
+         */
+        setHistorial(
+          data.filter(
+            (r: IRequisicion) =>
+              r.estado !== 'COTIZANDO' && r.estado !== 'PENDIENTE',
+          ),
         );
         setErrorCarga('');
       } else {
@@ -233,10 +273,25 @@ export default function CotizacionesPage() {
     finally { setGuardando(false); }
   };
 
-  const requisicionesFiltradas = requisiciones.filter(r =>
-    r.id.toLowerCase().includes(busqueda.toLowerCase()) ||
-    (r.usuarioSolicitante?.nombreCompleto || '').toLowerCase().includes(busqueda.toLowerCase())
-  );
+  /*
+   * El buscador decía «Buscar por folio o solicitante» y buscaba en `r.id`: el
+   * uuid. Teclear REQ-2026-000001 —el número que la propia tabla enseña— no
+   * devolvía nada, y la pantalla contestaba «ninguna coincide», que se lee como
+   * «no existe».
+   */
+  const coincide = (r: IRequisicion) => {
+    const texto = busqueda.trim().toLowerCase();
+    if (!texto) return true;
+    return (
+      folioDe(r, FOLIO.REQUISICION).toLowerCase().includes(texto) ||
+      r.id.toLowerCase().includes(texto) ||
+      (r.usuarioSolicitante?.nombreCompleto || '')
+        .toLowerCase()
+        .includes(texto)
+    );
+  };
+  const requisicionesFiltradas = (pestana === 'cola' ? requisiciones : historial)
+    .filter(coincide);
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto text-slate-800">
@@ -264,6 +319,28 @@ export default function CotizacionesPage() {
         </div>
       </div>
 
+      <div className="flex items-center gap-2 mb-4">
+        {([
+          { id: 'cola' as const, etiqueta: 'Por cotizar', cuantas: requisiciones.length },
+          { id: 'historial' as const, etiqueta: 'Historial', cuantas: historial.length },
+        ]).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setPestana(t.id)}
+            className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${
+              pestana === t.id
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+            }`}
+          >
+            {t.etiqueta}
+            <span className={`ml-2 text-xs ${pestana === t.id ? 'text-indigo-100' : 'text-slate-400'}`}>
+              {t.cuantas}
+            </span>
+          </button>
+        ))}
+      </div>
+
       <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 mb-6 flex items-center focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
         <div className="relative w-full md:w-1/2 lg:w-1/3">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -285,6 +362,8 @@ export default function CotizacionesPage() {
             <p className="text-lg font-bold text-slate-700">
               {busqueda
                 ? 'Ninguna coincide con tu búsqueda'
+                : pestana === 'historial'
+                ? 'Todavía no hay nada cotizado'
                 : esperandoAutorizacion > 0
                   ? 'Nada por cotizar todavía'
                   : alcance === 'propias-y-firmadas'
@@ -293,7 +372,9 @@ export default function CotizacionesPage() {
             </p>
             <p className="text-sm mt-1">
               {busqueda
-                ? `Hay ${requisiciones.length} en estado Cotizando; ninguna dice «${busqueda}».`
+                ? `Hay ${pestana === 'cola' ? requisiciones.length : historial.length} en esta pestaña; ninguna dice «${busqueda}».`
+                : pestana === 'historial'
+                ? 'Aquí aparecerán las requisiciones que ya pasaron por cotización, con las ofertas que se compararon.'
                 : esperandoAutorizacion > 0
                   ? esperandoAutorizacion === 1
                     ? '1 requisición espera autorización. Baja aquí en cuanto se firme.'
@@ -302,6 +383,21 @@ export default function CotizacionesPage() {
                     ? 'Esta pantalla te muestra las tuyas y las que firmaste. El estado del área de compras lo ve Compras.'
                     : 'Ninguna requisición está esperando cotización.'}
             </p>
+            {/*
+              * Lo que faltaba decir. La cola vacía era cierta y por eso nadie
+              * la leía como un problema; lo que callaba es que las
+              * cotizaciones ya adjudicadas siguen ahí, en la otra pestaña.
+              */}
+            {pestana === 'cola' && !busqueda && historial.length > 0 && (
+              <button
+                onClick={() => setPestana('historial')}
+                className="mt-4 text-sm font-semibold text-indigo-600 hover:text-indigo-700 underline underline-offset-4"
+              >
+                {historial.length === 1
+                  ? 'Hay 1 requisición ya cotizada. Ver su historial'
+                  : `Hay ${historial.length} requisiciones ya cotizadas. Ver el historial`}
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -311,6 +407,9 @@ export default function CotizacionesPage() {
                   <th className="px-6 py-4">Folio / Fecha</th>
                   <th className="px-6 py-4 hidden sm:table-cell">Solicitante</th>
                   <th className="px-6 py-4 text-center">Partidas</th>
+                  {pestana === 'historial' && (
+                    <th className="px-6 py-4 text-center">Estado</th>
+                  )}
                   <th className="px-6 py-4 text-center">Acciones</th>
                 </tr>
               </thead>
@@ -334,14 +433,27 @@ export default function CotizacionesPage() {
                     <td className="px-6 py-4 text-center">
                       <span className="inline-flex items-center justify-center bg-white text-slate-600 font-bold px-3 py-1 rounded-lg border border-slate-200 shadow-sm">{req.detalles?.length || 0} items</span>
                     </td>
+                    {pestana === 'historial' && (
+                      <td className="px-6 py-4 text-center">
+                        <span className="inline-flex items-center justify-center bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">
+                          {String(req.estado).replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-6 py-4">
                       <div className="flex justify-center items-center gap-3">
-                        {/* ✅ Solo aparece si tiene POST /api/compras/cotizaciones */}
+                        {/*
+                          * Capturar sólo en la cola. En el histórico la
+                          * requisición ya se adjudicó, y el servidor lo
+                          * rechazaría: ofrecer el botón sería llevar a un no.
+                          */}
+                        {pestana === 'cola' && (
                         <PuedeCrear ruta="/api/compras/cotizaciones">
                           <button onClick={() => abrirModalCotizacion(req)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-semibold transition-all shadow-sm active:scale-95">
                             <Calculator className="w-4 h-4" /> Capturar
                           </button>
                         </PuedeCrear>
+                        )}
                         {/* Ver siempre visible — es GET */}
                         <Link href={`/dashboard/compras/cotizaciones/requisicion/${req.id}`} className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-indigo-600 rounded-xl font-semibold transition-all shadow-sm active:scale-95">
                           <Eye className="w-4 h-4" /> Ver

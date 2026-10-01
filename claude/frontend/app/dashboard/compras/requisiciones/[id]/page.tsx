@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { useAvisos } from '@/components/ui';
+import { FOLIO, folioDe } from '@/lib/folios';
 
 // ==========================================
 // INTERFACES TYPESCRIPT
@@ -304,7 +305,7 @@ export default function DetalleRequisicionPage() {
             Expediente de Requisición
           </h1>
           <p className="text-slate-500 mt-2 font-medium flex items-center gap-2 text-lg">
-            Folio Oficial: <span className="font-mono text-indigo-600 font-bold bg-indigo-50 px-3 py-0.5 rounded">REQ-{requisicion.id.substring(0,8).toUpperCase()}</span>
+            Folio Oficial: <span className="font-mono text-indigo-600 font-bold bg-indigo-50 px-3 py-0.5 rounded">{folioDe(requisicion, FOLIO.REQUISICION)}</span>
           </p>
         </div>
         <div className="text-right w-full md:w-auto">

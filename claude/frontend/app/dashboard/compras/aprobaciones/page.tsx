@@ -7,6 +7,7 @@ import {
   Flag, ChevronDown, ChevronUp, Bell, Inbox
 } from 'lucide-react';
 import { ProtectedElement } from '@/app/components/ProtectedElement';
+import { FOLIO, folioDe } from '@/lib/folios';
 
 interface IProducto { nombre: string; sku?: string; }
 interface IDetalle { productoId: string; cantidadSolicitada: number; producto?: IProducto; }
@@ -331,7 +332,7 @@ export default function AprobacionesPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-2">
                           <span className="font-mono font-black text-indigo-600">
-                            REQ-{req.id.slice(0, 6).toUpperCase()}
+                            {folioDe(req, FOLIO.REQUISICION)}
                           </span>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${prioridadCfg.cls}`}>
                             {prioridadCfg.label}

@@ -281,24 +281,75 @@ describe('Nadie vuelve a armar el folio a mano', () => {
     }
   });
 
-  it('ni las pantallas', () => {
+  it('ni las pantallas: NINGUNA, no una lista de ellas', () => {
+    /*
+     * ========================================================================
+     * La primera versión de esta prueba recorría siete rutas escritas a mano.
+     * Pasaba en verde mientras SIETE PANTALLAS MÁS seguían armando el folio
+     * con un recorte del uuid, incluida la lista de requisiciones y su PDF
+     * —que dice «Folio Oficial» sobre seis caracteres hexadecimales— y la
+     * ficha de propuestas, donde Abel vio «Referencia: REQ-E0E02C9A» el
+     * 30-sep-2026 mientras verificábamos este mismo arreglo.
+     *
+     * Una prueba que vigila una lista sólo vigila lo que alguien se acordó de
+     * apuntar, y da exactamente la tranquilidad que impide buscar el resto.
+     * Ahora recorre el frontend entero.
+     * ========================================================================
+     */
+    if (!FRONTEND) return;
+
+    const { readdirSync, statSync } = require('fs') as typeof import('fs');
+    const archivos: string[] = [];
+    const caminar = (dir: string) => {
+      for (const nombre of readdirSync(dir)) {
+        if (nombre === 'node_modules' || nombre === '.next') continue;
+        const completo = join(dir, nombre);
+        if (statSync(completo).isDirectory()) caminar(completo);
+        else if (/\.tsx?$/.test(completo)) archivos.push(completo);
+      }
+    };
+    for (const carpeta of ['app', 'components', 'lib']) {
+      const dir = join(FRONTEND, carpeta);
+      if (existsSync(dir)) caminar(dir);
+    }
+    expect(archivos.length).toBeGreaterThan(50);
+
+    const culpables: string[] = [];
+    for (const archivo of archivos) {
+      const texto = sinComentarios(readFileSync(archivo, 'utf8'));
+      /* `OC-{algo}` en JSX: el folio armado a mano desde un identificador. */
+      const malos = texto.match(/\b(OC|REQ|COT|REC|PP)-\{/g);
+      if (malos) culpables.push(`${archivo.replace(FRONTEND, '')} · ${malos.join(' ')}`);
+    }
+    expect(culpables).toEqual([]);
+  });
+
+  it('y las pantallas de compras leen el folio guardado', () => {
+    /*
+     * La otra mitad: que no armen el folio a mano no basta, tienen que estar
+     * leyéndolo. Una pantalla que simplemente dejó de enseñar el folio también
+     * pasaría la prueba de arriba.
+     */
     if (!FRONTEND) return;
     const PANTALLAS = [
       'app/dashboard/compras/ordenes/page.tsx',
+      'app/dashboard/compras/ordenes/[id]/page.tsx',
       'app/dashboard/compras/ordenes/[id]/pdf/page.tsx',
       'app/dashboard/compras/cotizaciones/page.tsx',
       'app/dashboard/compras/cotizaciones/[id]/pdf/page.tsx',
+      'app/dashboard/compras/cotizaciones/requisicion/[id]/page.tsx',
+      'app/dashboard/compras/requisiciones/page.tsx',
+      'app/dashboard/compras/requisiciones/[id]/page.tsx',
+      'app/dashboard/compras/requisiciones/[id]/pdf/page.tsx',
+      'app/dashboard/compras/aprobaciones/page.tsx',
       'app/dashboard/compras/pago-proveedores/page.tsx',
       'app/dashboard/compras/devoluciones/page.tsx',
+      'app/dashboard/inventario/recepciones/page.tsx',
       'app/dashboard/inventario/recepciones/[id]/page.tsx',
     ];
     for (const ruta of PANTALLAS) {
-      const texto = sinComentarios(pantalla(ruta));
+      const texto = pantalla(ruta);
       if (!texto) continue;
-      expect([ruta, /(OC|REQ|COT|REC|PP)-\{/.test(texto)]).toEqual([
-        ruta,
-        false,
-      ]);
       expect([ruta, texto.includes('folioDe(')]).toEqual([ruta, true]);
     }
   });
