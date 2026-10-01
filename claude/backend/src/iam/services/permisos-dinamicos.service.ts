@@ -300,11 +300,64 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     private readonly dataSource: DataSource,
   ) {}
 
+  /**
+   * ==========================================================================
+   * EL ARRANQUE SE PUEDE SALTAR ESTA RECONCILIACIÓN
+   * --------------------------------------------------------------------------
+   * `sincronizarControladoresYEndpoints()` reconcilia en la base los 561
+   * handlers del sistema y, después, el contrato de permisos de cada rol en
+   * cada empresa. Lo hace **en cada arranque**, y una sola consulta por
+   * endpoint: `findOne` por ruta, más los recorridos por empresa y rol de
+   * `aplicarContratoDeRoles()`. Son cientos de idas y vueltas en serie contra
+   * la base, siempre, aunque nada haya cambiado.
+   *
+   * Mientras la base responde en milisegundos eso se nota poco. En la máquina
+   * de Abel, el 1-oct-2026, consultas de este tamaño estaban tardando dos
+   * segundos, y el arranque dejó de terminar: la consola se quedaba callada
+   * justo después de «Sincronizando controladores y endpoints...».
+   *
+   * Lo que falta de fondo es que esta reconciliación no haga una consulta por
+   * endpoint: leer de una vez y comparar en memoria, como ya se corrigió en el
+   * catálogo geográfico. Eso es trabajo de cirugía sobre el servicio más
+   * delicado del sistema —si se equivoca, deja gente fuera del ERP— y no se
+   * hace con prisa.
+   *
+   * Entretanto, esta bandera permite arrancar sin pagarlo:
+   *
+   *     IAM_SYNC_AL_ARRANCAR=false
+   *
+   * Por omisión sigue activada, así que una instalación que no la configure se
+   * comporta igual que siempre. Apagada, el arranque no reconcilia nada y lo
+   * dice; la reconciliación se pide a mano cuando convenga:
+   *
+   *     POST /api/admin-permisos/sincronizar
+   *
+   * OJO: en una base nueva, o después de agregar pantallas, los permisos y el
+   * menú salen de esta reconciliación. Apagarla y no correrla deja el menú
+   * como estaba —en una base vacía, vacío—. Es un atajo para desarrollar, no
+   * una configuración para producción.
+   * ==========================================================================
+   */
   async onApplicationBootstrap() {
+    if (process.env.IAM_SYNC_AL_ARRANCAR === 'false') {
+      this.logger.warn(
+        'Reconciliación de permisos omitida en el arranque ' +
+          '(IAM_SYNC_AL_ARRANCAR=false). El menú y los permisos quedan como ' +
+          'estaban en la base. Para reconciliar: POST /api/admin-permisos/sincronizar',
+      );
+      return;
+    }
     await this.sincronizarControladoresYEndpoints();
   }
 
   async sincronizarControladoresYEndpoints() {
+    /*
+     * El tiempo se mide y se informa. Antes esto era una línea al empezar y
+     * nada al terminar: el costo del arranque existía y no se veía en ninguna
+     * parte, que es como un arranque de veinte segundos pasa un año sin que
+     * nadie lo mire.
+     */
+    const arranque = Date.now();
     this.logger.log('Sincronizando controladores y endpoints...');
     await this.limpiarMetodosNumericos();
 
@@ -608,9 +661,22 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     await this.apagarPermisosQueElGuardiaDeRolesVeta();
     await this.migrarPermisosDeMetodosIntercambiados();
     this.cache.clear();
+    const segundos = ((Date.now() - arranque) / 1000).toFixed(1);
     this.logger.log(
-      `Sincronizacion completada: ${clavesDescubiertas.size} endpoints activos, ${obsoletos} obsoletos desactivados`,
+      `Sincronizacion completada en ${segundos}s: ${clavesDescubiertas.size} endpoints activos, ${obsoletos} obsoletos desactivados`,
     );
+    /*
+     * Y si tardó de más, se dice en voz alta con la salida. Un arranque lento
+     * que no se queja es un arranque lento que nadie arregla.
+     */
+    if (Date.now() - arranque > 5000) {
+      this.logger.warn(
+        `La reconciliación de permisos tardó ${segundos}s. Hace una consulta por ` +
+          `endpoint y recorre cada empresa y rol, así que crece con la base. ` +
+          `Para arrancar sin pagarlo: IAM_SYNC_AL_ARRANCAR=false, y reconciliar ` +
+          `a mano con POST /api/admin-permisos/sincronizar`,
+      );
+    }
   }
 
   /**

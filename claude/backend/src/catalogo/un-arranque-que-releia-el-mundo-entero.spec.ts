@@ -39,8 +39,8 @@
  * cada `npm test` en vez de ser la prueba que todo el mundo se salta.
  * ============================================================================
  */
-import { CatalogosGeograficosService } from "./services/catalogos-geograficos.service";
-import { Country, State } from "country-state-city";
+import { CatalogosGeograficosService } from './services/catalogos-geograficos.service';
+import { Country, State } from 'country-state-city';
 
 type Fila = Record<string, any>;
 
@@ -83,8 +83,8 @@ class RepoFalso {
 }
 
 const nuevoServicio = () => {
-  const paises = new RepoFalso("pais");
-  const estados = new RepoFalso("estado");
+  const paises = new RepoFalso('pais');
+  const estados = new RepoFalso('estado');
   const servicio = new CatalogosGeograficosService(
     paises as any,
     estados as any,
@@ -104,8 +104,8 @@ const cuantasSubdivisiones = Country.getAllCountries().reduce(
   0,
 );
 
-describe("El catálogo geográfico no se reescribe en cada arranque", () => {
-  it("el primer arranque llena la base", async () => {
+describe('El catálogo geográfico no se reescribe en cada arranque', () => {
+  it('el primer arranque llena la base', async () => {
     const { servicio, paises, estados } = nuevoServicio();
     const resultado = await servicio.sincronizar();
 
@@ -118,7 +118,7 @@ describe("El catálogo geográfico no se reescribe en cada arranque", () => {
     expect(cuantasSubdivisiones).toBeGreaterThan(1000);
   });
 
-  it("el segundo arranque no llama a save() ni una vez", async () => {
+  it('el segundo arranque no llama a save() ni una vez', async () => {
     const { servicio, paises, estados } = nuevoServicio();
     await servicio.sincronizar();
 
@@ -140,7 +140,7 @@ describe("El catálogo geográfico no se reescribe en cada arranque", () => {
     expect(resultado.estados).toBe(cuantasSubdivisiones);
   });
 
-  it("un tercer y cuarto arranque tampoco escriben, y la tabla no crece", async () => {
+  it('un tercer y cuarto arranque tampoco escriben, y la tabla no crece', async () => {
     const { servicio, paises, estados } = nuevoServicio();
     await servicio.sincronizar();
     await servicio.sincronizar();
@@ -157,13 +157,13 @@ describe("El catálogo geográfico no se reescribe en cada arranque", () => {
     expect(estados.filas).toHaveLength(cuantasSubdivisiones);
   });
 
-  it("una subdivisión con el nombre cambiado se corrige, y sólo ésa", async () => {
+  it('una subdivisión con el nombre cambiado se corrige, y sólo ésa', async () => {
     const { servicio, estados } = nuevoServicio();
     await servicio.sincronizar();
 
     const victima = estados.filas.find((f) => f.codigo)!;
     const nombreBueno = victima.nombre;
-    victima.nombre = "Nombre Equivocado";
+    victima.nombre = 'Nombre Equivocado';
 
     estados.llamadasASave = 0;
     estados.filasEscritas = 0;
@@ -177,7 +177,7 @@ describe("El catálogo geográfico no se reescribe en cada arranque", () => {
     expect(estados.filas).toHaveLength(cuantasSubdivisiones);
   });
 
-  it("un país desactivado a mano vuelve a activo, y sólo ése", async () => {
+  it('un país desactivado a mano vuelve a activo, y sólo ése', async () => {
     const { servicio, paises } = nuevoServicio();
     await servicio.sincronizar();
 
@@ -192,7 +192,7 @@ describe("El catálogo geográfico no se reescribe en cada arranque", () => {
     expect(paises.filas.find((f) => f.id === victima.id)!.activo).toBe(true);
   });
 
-  it("una fila a la que le falta una columna opcional se reconoce igual", async () => {
+  it('una fila a la que le falta una columna opcional se reconoce igual', async () => {
     /*
      * Una base vieja puede tener la columna en NULL donde el candidato arma
      * `null`, o traer la propiedad ausente. Si eso contara como diferencia, el
@@ -206,7 +206,7 @@ describe("El catálogo geográfico no se reescribe en cada arranque", () => {
     expect(resultado.estadosEscritos).toBe(0);
   });
 
-  it("la cadena vacía no se confunde con el nulo", async () => {
+  it('la cadena vacía no se confunde con el nulo', async () => {
     /*
      * El contrapeso de la prueba anterior: `??` trata `undefined` y `null`
      * como lo mismo, que es lo que hace falta, pero `''` es un valor que
@@ -216,14 +216,14 @@ describe("El catálogo geográfico no se reescribe en cada arranque", () => {
     const { servicio, estados } = nuevoServicio();
     await servicio.sincronizar();
     const victima = estados.filas.find((f) => f.codigo)!;
-    victima.tipo = "";
+    victima.tipo = '';
 
     const resultado = await servicio.sincronizar();
     expect(resultado.estadosEscritos).toBe(1);
     expect(estados.filas.find((f) => f.id === victima.id)!.tipo).toBeNull();
   });
 
-  it("el catálogo real no produce códigos repetidos dentro de un país", async () => {
+  it('el catálogo real no produce códigos repetidos dentro de un país', async () => {
     const { servicio, estados } = nuevoServicio();
     await servicio.sincronizar();
 
@@ -235,7 +235,7 @@ describe("El catálogo geográfico no se reescribe en cada arranque", () => {
     expect(claves.size).toBe(estados.filas.length);
   });
 
-  it("un código más largo que la columna sigue reconociéndose en el segundo arranque", async () => {
+  it('un código más largo que la columna sigue reconociéndose en el segundo arranque', async () => {
     /*
      * ======================================================================
      * EL DEFECTO QUE NO MORDÍA TODAVÍA
@@ -255,27 +255,27 @@ describe("El catálogo geográfico no se reescribe en cada arranque", () => {
      * ======================================================================
      */
     const unPais = {
-      isoCode: "ZZ",
-      name: "Zedlandia",
-      phonecode: "999",
-      currency: "ZZD",
+      isoCode: 'ZZ',
+      name: 'Zedlandia',
+      phonecode: '999',
+      currency: 'ZZD',
     };
     const unaSubdivision = {
-      isoCode: "ZZ-LARGUISIMO",
-      name: "Provincia Larga",
+      isoCode: 'ZZ-LARGUISIMO',
+      name: 'Provincia Larga',
     };
 
     const todosLosPaises = jest
-      .spyOn(Country, "getAllCountries")
+      .spyOn(Country, 'getAllCountries')
       .mockReturnValue([unPais] as any);
     const subdivisiones = jest
-      .spyOn(State, "getStatesOfCountry")
+      .spyOn(State, 'getStatesOfCountry')
       .mockReturnValue([unaSubdivision] as any);
     try {
       const { servicio, estados } = nuevoServicio();
       await servicio.sincronizar();
       expect(estados.filas).toHaveLength(1);
-      expect(estados.filas[0].codigo).toBe("ZZ-LARGUIS"); // recortado a la columna
+      expect(estados.filas[0].codigo).toBe('ZZ-LARGUIS'); // recortado a la columna
 
       const resultado = await servicio.sincronizar();
       expect(resultado.estadosEscritos).toBe(0);

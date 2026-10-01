@@ -1,9 +1,9 @@
-import { Injectable, Logger, OnApplicationBootstrap } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Country, State } from "country-state-city";
-import { Repository } from "typeorm";
-import { Pais } from "../entities/pais.entity";
-import { Estado } from "../entities/estado.entity";
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Country, State } from 'country-state-city';
+import { Repository } from 'typeorm';
+import { Pais } from '../entities/pais.entity';
+import { Estado } from '../entities/estado.entity';
 
 /**
  * Copia a la base el catálogo empaquetado de países y subdivisiones.
@@ -48,7 +48,7 @@ export class CatalogosGeograficosService implements OnApplicationBootstrap {
   private nombresEnEspanol(): (isoCode: string, original: string) => string {
     let traductor: Intl.DisplayNames | null = null;
     try {
-      traductor = new Intl.DisplayNames(["es-MX", "es"], { type: "region" });
+      traductor = new Intl.DisplayNames(['es-MX', 'es'], { type: 'region' });
     } catch {
       traductor = null;
     }
@@ -113,23 +113,23 @@ export class CatalogosGeograficosService implements OnApplicationBootstrap {
   }
 
   private static readonly CAMPOS_PAIS: (keyof Pais)[] = [
-    "nombre",
-    "codigo",
-    "codigoIso2",
-    "codigoIso3",
-    "lada",
-    "moneda",
-    "esOficial",
-    "activo",
+    'nombre',
+    'codigo',
+    'codigoIso2',
+    'codigoIso3',
+    'lada',
+    'moneda',
+    'esOficial',
+    'activo',
   ];
 
   private static readonly CAMPOS_ESTADO: (keyof Estado)[] = [
-    "paisId",
-    "nombre",
-    "codigo",
-    "tipo",
-    "esOficial",
-    "activo",
+    'paisId',
+    'nombre',
+    'codigo',
+    'tipo',
+    'esOficial',
+    'activo',
   ];
 
   async sincronizar() {
