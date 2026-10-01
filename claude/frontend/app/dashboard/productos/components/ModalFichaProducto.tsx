@@ -941,13 +941,32 @@ export default function ModalFichaProducto({
                 </div>
                 <div className={sec}>
                   <h3 className={stit}><AlertCircle className="w-4 h-4 text-blue-500" /> Políticas de Inventario</h3>
+                  {/*
+                    * Sólo se ofrecen los interruptores que el sistema HONRA.
+                    *
+                    * Este panel tenía cinco y tres no hacían nada: «Producto a
+                    * Granel», «Número de Serie» y «Permitir Venta en Negativo»
+                    * —éste último descrito como «Genera backorders», y la
+                    * palabra «backorder» no aparece en ninguna línea del
+                    * sistema—. Se guardaban en la base y nadie los leía nunca.
+                    *
+                    * Un interruptor que no hace nada es peor que no tenerlo: el
+                    * encargado lo activa, cree que el producto ya se puede
+                    * vender sin existencia, y el mostrador se lo niega delante
+                    * del cliente. La promesa no está en la base de datos, está
+                    * en esta pantalla, y es aquí donde se deja de hacer.
+                    *
+                    * Las columnas se quedan en la entidad y en la plantilla de
+                    * importación —no se destruye nada, ni lo ya capturado—: el
+                    * día que el motor de inventario las lea, el interruptor
+                    * vuelve con significado. Mientras tanto, abajo se dice qué
+                    * hace el sistema hoy, que es lo que el encargado necesita
+                    * saber para decidir.
+                    */}
                   <div className="space-y-3">
                     {[
-                      { key: 'esGranel', label: 'Producto a Granel', desc: 'Venta por peso variable', locked: !!productoEditandoId },
-                      { key: 'requiereLote', label: 'Control por Lotes', desc: 'Exige número de lote en movimientos', locked: !!productoEditandoId },
-                      { key: 'requiereCaducidad', label: 'Manejo de Caducidad', desc: 'FEFO para alimentos/farmacia', locked: !!productoEditandoId },
-                      { key: 'requiereNumeroSerie', label: 'Número de Serie', desc: 'Cada unidad tiene ID único', locked: !!productoEditandoId },
-                      { key: 'permiteVentaSinStock', label: 'Permitir Venta en Negativo', desc: 'Genera backorders', locked: false },
+                      { key: 'requiereLote', label: 'Control por Lotes', desc: 'Exige número de lote al recibir mercancía', locked: !!productoEditandoId },
+                      { key: 'requiereCaducidad', label: 'Manejo de Caducidad', desc: 'Exige fecha al recibir y surte por FEFO', locked: !!productoEditandoId },
                     ].map(({ key, label, desc, locked }) => (
                       <label key={key} className={`flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-md transition-colors ${locked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50'}`}>
                         <input type="checkbox" checked={!!(fd[key])} onChange={(e) => handleCheckbox(key, e.target.checked)}
@@ -960,6 +979,12 @@ export default function ModalFichaProducto({
                     ))}
                   </div>
                   <MensajeError campo="requiereLote" />
+                  <p className="mt-3 text-xs text-slate-500 leading-relaxed">
+                    Ningún producto se vende por debajo de su existencia: el
+                    almacén rechaza la salida y el mostrador avisa antes de
+                    cobrar. El control por número de serie y la venta en
+                    negativo con backorder no están en vigor todavía.
+                  </p>
                 </div>
                 {!productoEditandoId && (
                   <div className="bg-emerald-50 p-5 rounded-lg border border-emerald-200">

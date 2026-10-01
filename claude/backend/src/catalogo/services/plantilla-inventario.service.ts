@@ -62,6 +62,16 @@ export class PlantillaInventarioService {
     'condicionAlmacen: AMBIENTE, REFRIGERADO, CONGELADO, CONTROLADO, INFLAMABLE',
     'Los campos booleanos aceptan SI o NO.',
     '',
+    /*
+     * La otra puerta a la misma promesa. El interruptor salió de la ficha del
+     * producto por no estar honrado por el motor de inventario, pero la columna
+     * sigue aquí —para no romper los archivos que el cliente ya tenga armados—
+     * y una columna que se acepta en silencio se lee como una columna que hace
+     * algo. Se acepta, y se dice que todavía no rige.
+     */
+    'permiteVentaSinStock se guarda pero AÚN NO RIGE: hoy ningún producto se',
+    'vende por debajo de su existencia, lo pongas en SI o en NO.',
+    '',
     'Este archivo carga únicamente el catálogo. Las existencias iniciales se cargan desde Inventario para generar sus movimientos y póliza.',
   ];
 
