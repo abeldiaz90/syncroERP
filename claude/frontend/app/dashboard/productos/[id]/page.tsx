@@ -32,6 +32,12 @@ export default function KardexPage() {
   const id = params?.id as string;
   
   const [movimientos, setMovimientos] = useState<IMovimiento[]>([]);
+  /*
+   * `null` mientras no se sabe: un contrato viejo que no mande `saldoActual`
+   * no debe hacer que la pantalla invente un saldo, y tampoco que enseñe cero
+   * —que se leería como «no hay nada».
+   */
+  const [saldoReal, setSaldoReal] = useState<number | null>(null);
   const [cargando, setCargando] = useState(true);
 
   // ESTADOS DE LOS FILTROS
@@ -70,6 +76,15 @@ export default function KardexPage() {
               : [];
 
         setMovimientos(lista);
+        /*
+         * La existencia REAL, la que suma `stock_por_almacen` y cuadra contra
+         * la cuenta contable. Antes esta pantalla la calculaba sumando los
+         * movimientos recibidos —la primera página— y la titulaba «global».
+         */
+        const cuerpo = Array.isArray(respuesta) ? null : (respuesta?.data?.saldoActual !== undefined ? respuesta.data : respuesta);
+        setSaldoReal(
+          typeof cuerpo?.saldoActual === 'number' ? cuerpo.saldoActual : null,
+        );
       } catch (error) {
         console.error("Error al cargar kardex", error);
       } finally {
@@ -90,18 +105,34 @@ export default function KardexPage() {
   };
 
   // Calculamos la historia matemática ANTES de los filtros
+  /*
+   * El saldo corrido se calcula HACIA ATRÁS desde la existencia real.
+   *
+   * Sumar hacia adelante desde cero exige tener el primer movimiento del
+   * producto, y en la página dos no se tiene: la columna arrancaba en cero en
+   * el movimiento cincuenta, como si antes no hubiera pasado nada.
+   *
+   * Desde el saldo de hoy sí se puede: el movimiento más reciente dejó ese
+   * saldo, y el anterior se deduce deshaciéndolo. Cada fila dice la verdad
+   * aunque se esté viendo la página tres.
+   *
+   * Si el servidor no mandó el saldo —contrato viejo— no se pinta la columna
+   * en vez de pintarla mal.
+   */
   const movimientosProcesados = useMemo(() => {
     if (!movimientos.length) return [];
-    let acumuladoGlobal = 0;
-    const clon = [...movimientos].reverse();
-    const resultado = clon.map(m => {
+    if (saldoReal === null) {
+      return movimientos.map(m => ({ ...m, saldoGlobal: undefined }));
+    }
+    let saldo = saldoReal;
+    /* `movimientos` viene del más reciente al más antiguo. */
+    return movimientos.map(m => {
+      const fila = { ...m, saldoGlobal: saldo };
       const cant = Math.abs(m.cantidad);
-      if (esMovimientoEntrada(m)) acumuladoGlobal += cant;
-      else acumuladoGlobal -= cant;
-      return { ...m, saldoGlobal: acumuladoGlobal };
+      saldo = esMovimientoEntrada(m) ? saldo - cant : saldo + cant;
+      return fila;
     });
-    return resultado.reverse();
-  }, [movimientos]);
+  }, [movimientos, saldoReal]);
 
   // ==========================================
   // MOTOR DE FILTROS AVANZADOS
@@ -142,7 +173,8 @@ export default function KardexPage() {
     else totalSalidas += cant;
   });
 
-  const saldoGlobalActual = movimientosProcesados.length > 0 ? movimientosProcesados[0].saldoGlobal : 0;
+  /* La existencia real, no la suma de una página. */
+  const saldoGlobalActual = saldoReal;
 
   const limpiarFiltros = () => {
     setBusqueda(''); setFiltroAlmacen(''); setFiltroTipo(''); setFechaInicio(''); setFechaFin('');
@@ -278,8 +310,10 @@ export default function KardexPage() {
 
             <div className="bg-white p-5 rounded-xl border border-indigo-200 shadow-md flex items-center justify-between bg-gradient-to-br from-white to-indigo-50/50">
               <div>
-                <p className="text-[11px] font-bold text-indigo-500 uppercase tracking-widest mb-1">Stock Histórico Global</p>
-                <p className="text-3xl font-black text-indigo-700">{saldoGlobalActual}</p>
+                <p className="text-[11px] font-bold text-indigo-500 uppercase tracking-widest mb-1">Existencia actual</p>
+                <p className="text-3xl font-black text-indigo-700">
+                  {saldoGlobalActual === null ? '—' : saldoGlobalActual}
+                </p>
               </div>
               <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
                 <Globe className="w-6 h-6" />
@@ -376,7 +410,7 @@ export default function KardexPage() {
                         </td>
 
                         <td className="px-5 py-3 text-center bg-indigo-50/10 border-r border-slate-100 font-mono">
-                          <span className="font-black text-indigo-700">{m.saldoGlobal}</span>
+                          <span className="font-black text-indigo-700">{m.saldoGlobal === undefined ? '—' : m.saldoGlobal}</span>
                         </td>
                         
                         <td className="px-5 py-3 text-slate-500 italic text-xs max-w-xs truncate" title={m.motivo}>

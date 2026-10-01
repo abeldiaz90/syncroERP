@@ -886,7 +886,47 @@ export class InventarioService {
     if (almacenId) qb.andWhere('m.almacenId = :almacenId', { almacenId });
     qb.orderBy('m.fechaMovimiento', 'DESC').skip((page - 1) * take).take(take);
     const [data, total] = await qb.getManyAndCount();
-    return { data, total, pagina: page, limite: take, paginas: Math.ceil(total / take) };
+
+    /*
+     * ========================================================================
+     * El saldo del kardex no se suma en el navegador
+     * ------------------------------------------------------------------------
+     * La pantalla pintaba «Stock Histórico Global» sumando y restando los
+     * movimientos QUE HABÍA RECIBIDO — la primera página, cincuenta— y lo
+     * llamaba global. Con un producto de rotación normal, a la semana ese
+     * número deja de ser el inventario y nadie lo nota: sigue siendo un
+     * número verosímil al lado de los demás.
+     *
+     * Y la columna de saldo corrido arrastraba el mismo error: arrancaba en
+     * cero en el movimiento número cincuenta, como si antes no hubiera
+     * pasado nada.
+     *
+     * Se manda la existencia REAL —la que suma `stock_por_almacen`, la misma
+     * que cuadra contra la cuenta contable— y la pantalla pinta la columna
+     * hacia atrás desde ahí: el último movimiento deja el saldo actual, el
+     * anterior se deduce deshaciéndolo. Así cada fila dice la verdad aunque
+     * se esté viendo la página tres.
+     *
+     * Respeta el almacén filtrado: si se mira el kardex de una sucursal, el
+     * saldo que corresponde es el de esa sucursal, no el de la empresa.
+     * ========================================================================
+     */
+    const existencia = await this.stockRepository
+      .createQueryBuilder('s')
+      .select('COALESCE(SUM(s.cantidad), 0)', 'total')
+      .where('s.productoId = :productoId', { productoId })
+      .andWhere('s.empresaId = :empresaId', { empresaId })
+      .andWhere(almacenId ? 's.almacenId = :almacenId' : '1=1', { almacenId })
+      .getRawOne<{ total: string }>();
+
+    return {
+      data,
+      total,
+      pagina: page,
+      limite: take,
+      paginas: Math.ceil(total / take),
+      saldoActual: Number(existencia?.total ?? 0),
+    };
   }
 
   async obtenerStockEnAlmacen(
