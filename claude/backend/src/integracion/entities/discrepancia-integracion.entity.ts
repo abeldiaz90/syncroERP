@@ -25,7 +25,17 @@ export class DiscrepanciaIntegracion {
   /** Concepto comparado: SALDO_CLIENTE, SALDO_CREDITO, VENCIDO_CLIENTE… */
   @Column({ type: 'varchar', length: 40 }) concepto!: string;
 
-  @Column({ type: 'uuid', nullable: true }) entidadId!: string | null;
+  /*
+   * Texto y no `uuid`: desde que la conciliación mira también el sentido
+   * externo → ERP, hay hallazgos cuya única identidad es la del core. En
+   * Fineract eso es un entero, no un uuid, y ésa es justamente la noticia: un
+   * cliente que existe allá y aquí no tiene entidad a la que apuntar.
+   *
+   * Fabricar un uuid a partir del id externo para que entrara en la columna
+   * habría guardado igual de bien un identificador que no corresponde a nada.
+   */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  entidadId!: string | null;
 
   @Column({
     type: 'decimal',

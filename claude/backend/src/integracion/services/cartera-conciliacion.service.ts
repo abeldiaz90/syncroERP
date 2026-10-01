@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { fechaContableNegocio } from '../../common/utils/business-time.util';
 import { omitirTareaProgramada } from '../../common/utils/tareas-programadas.util';
 import {
   PREFIJO_REFERENCIA_ERP,
@@ -69,7 +70,29 @@ export class CarteraConciliacionService {
 
     const cfg = await this.configEmpresa.findOne({ where: { empresaId } });
     const tolerancia = Number(cfg?.toleranciaConciliacion ?? 1);
-    const fechaCorte = new Date();
+    /*
+     * ========================================================================
+     * La fecha de corte, en el día del negocio
+     * ------------------------------------------------------------------------
+     * `fechaCorte` es `@Column({ type: 'date' })`, y TypeORM escribe una
+     * columna `date` usando los getters LOCALES DEL PROCESO. Con `new Date()`
+     * la fecha de corte depende de la zona horaria del servidor, no del
+     * negocio.
+     *
+     * Y esta tarea corre a las `30 5 * * *` UTC, que en México son las 23:30:
+     * justo dentro de la franja en la que las dos fechas no coinciden. En un
+     * servidor en hora de México queda bien; en uno en UTC —que es lo que hace
+     * cualquier nube— la conciliación de la noche del día D queda fechada D+1,
+     * y el informe del cierre busca los cortes del mes y no encuentra el
+     * último.
+     *
+     * No lo vi fallar aquí, porque el backend de pruebas corre en hora de
+     * México. Se corrige igual: es el mismo defecto que ya costó ocho
+     * generadores de póliza, y depender de la zona del servidor es depender de
+     * dónde se despliegue.
+     * ========================================================================
+     */
+    const fechaCorte = fechaContableNegocio();
 
     let revisados = 0;
     let encontradas = 0;
@@ -279,6 +302,66 @@ export class CarteraConciliacionService {
           valorExterno: 0,
           detalle: error instanceof Error ? error.message : String(error),
         });
+        encontradas += 1;
+      }
+    }
+
+    /*
+     * ========================================================================
+     * El sentido que faltaba mirar
+     * ------------------------------------------------------------------------
+     * Todo lo de arriba recorre lo que el ERP conoce: sus clientes vinculados y
+     * sus créditos vivos. Es la mitad de la pregunta.
+     *
+     * Un cliente creado DIRECTAMENTE en el core no tiene vínculo, así que no
+     * entra en ningún bucle, no genera discrepancia, y la empresa puede
+     * promoverse a AUTORIDAD con el informe «sin discrepancias abiertas»
+     * mientras allá hay cartera que el ERP no sabe que existe. Preguntado por
+     * Abel el 30-sep-2026: «¿por qué los clientes que están en Fineract no
+     * existen en el ERP si son de la misma empresa?».
+     *
+     * La respuesta era que la replicación va en un solo sentido a propósito
+     * —el padrón es del ERP, que es donde viven el RFC, el régimen fiscal y la
+     * política de crédito—, pero eso no justificaba el silencio. Es el mismo
+     * agujero que tenía el diagnóstico de roles: un instrumento que decide si
+     * algo está listo mirando sólo el lado que ya conocía.
+     *
+     * Esto NO importa nada. Dar de alta ese cliente en el ERP, o reconocer que
+     * allá sobra, es una decisión de quien opera.
+     * ========================================================================
+     */
+    const delExterno = await this.externa.clientesDelExterno(empresaId);
+    if (delExterno !== null) {
+      /* Los ids externos que el ERP sí reconoce como suyos. */
+      const conocidos = new Set(
+        (await this.vinculos.clientesVinculados(empresaId))
+          .map((v) => v.idExterno)
+          .filter((id): id is string => Boolean(id)),
+      );
+
+      for (const ajeno of delExterno) {
+        if (conocidos.has(ajeno.idExterno)) continue;
+        revisados += 1;
+        await this.registrar(empresaId, fechaCorte, vigentes, {
+          concepto: 'SOLO_EN_EXTERNO',
+          /*
+           * La entidad es el id EXTERNO, porque del lado del ERP no hay
+           * ninguna: es justamente lo que se está reportando. `cerrarResueltas`
+           * sólo cierra lo que esta pasada revisó, y este id entra en
+           * `vigentes` como cualquier otro hallazgo, así que se cierra solo el
+           * día que el cliente se dé de alta y se vincule.
+           */
+          entidadId: ajeno.idExterno,
+          valorErp: 0,
+          valorExterno: 1,
+          detalle:
+            `«${ajeno.nombre}» existe en el registro externo y el ERP no lo conoce. ` +
+            `La replicación va del ERP al core, nunca al revés: el padrón de clientes ` +
+            `es del ERP, que es donde viven el RFC, el régimen fiscal y la política de ` +
+            `crédito, y un cliente nacido en el core no trae nada de eso. Dalo de alta ` +
+            `en Clientes para que se replique, o retíralo del core si no debía estar.`,
+        });
+        revisadas.add(ajeno.idExterno);
         encontradas += 1;
       }
     }

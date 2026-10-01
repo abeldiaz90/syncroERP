@@ -403,6 +403,32 @@ export interface PuertoCarteraExterna {
     idExterno: string,
   ): Promise<TransaccionCreditoExterna[] | null>;
 
+  /**
+   * ==========================================================================
+   * Los clientes que el registro externo tiene y el ERP no conoce
+   * --------------------------------------------------------------------------
+   * Todas las demás operaciones de este puerto van en un solo sentido —el ERP
+   * manda y el core obedece— y eso es correcto: el padrón de clientes es del
+   * ERP, que es donde viven el RFC, el régimen fiscal, la lista de precios y
+   * la política de crédito. Un cliente nacido en el core no trae nada de eso.
+   *
+   * Pero que el ERP sea la autoridad no significa que pueda ignorar lo que hay
+   * del otro lado. La conciliación de cartera recorre los clientes VINCULADOS,
+   * así que uno creado directamente en el core no entra en el bucle, no genera
+   * discrepancia, y la empresa puede promoverse a AUTORIDAD con el informe
+   * «sin discrepancias abiertas» mientras allá hay cartera que el ERP no sabe
+   * que existe.
+   *
+   * Esto no sirve para importar: sirve para DECIRLO. El remedio —dar de alta
+   * ese cliente en el ERP, o reconocer que allá hay algo que no debería— es
+   * una decisión de quien opera, no de un sincronizador automático.
+   *
+   * Devuelve null si no se pudo preguntar. Null no es cero: sobre un «no sé»
+   * no se acusa a nadie, igual que en `permisosDeRol`.
+   * ==========================================================================
+   */
+  clientesDelExterno(empresaId: string): Promise<ClienteDelExterno[] | null>;
+
   /** Exposición consolidada del cliente. Es lo que consulta el POS. */
   resumenCliente(
     clienteIdExterno: string,
@@ -444,6 +470,14 @@ export interface PuertoCarteraExterna {
  * Implementación por omisión cuando no hay proveedor configurado.
  * Falla en cerrado: nada se publica y nada se consulta.
  */
+/** Un cliente tal como lo conoce el registro externo. */
+export interface ClienteDelExterno {
+  idExterno: string;
+  nombre: string;
+  /** La referencia con la que el ERP lo selló, si la trae. */
+  referencia?: string | null;
+}
+
 export class CarteraExternaNoConfigurada implements PuertoCarteraExterna {
   readonly proveedor = 'ninguno';
 
@@ -509,6 +543,10 @@ export class CarteraExternaNoConfigurada implements PuertoCarteraExterna {
     this.negar();
   }
 
+  async clientesDelExterno(): Promise<ClienteDelExterno[] | null> {
+    /* Sin proveedor no se sabe: null, no una lista vacía que diría «no hay». */
+    return null;
+  }
   async resumenCliente(): Promise<ResumenCarteraCliente> {
     this.negar();
   }

@@ -111,6 +111,24 @@ const NOMBRARLO_NO_ES_EJERCERLO = [
    * es justo lo que se le pedía.
    */
   'finanzas/services/cierre-contable.service.ts',
+  /*
+   * El puerto de cartera la nombra al explicar por qué existe
+   * `clientesDelExterno`: un cliente creado directamente en el core no tiene
+   * vínculo, no entra en la conciliación, y la empresa podría promoverse a
+   * AUTORIDAD con el informe «sin discrepancias abiertas» mientras allá hay
+   * cartera que el ERP no conoce. Es la razón de la operación, no su ejercicio:
+   * el puerto declara una consulta de sólo lectura y no decide ningún modo.
+   *
+   * Esta prueba lo señaló en cuanto se escribió, que es justo lo que se le
+   * pedía.
+   */
+  'integracion/ports/cartera-externa.port.ts',
+  /*
+   * El catálogo de pantallas navegables la nombra al explicar por qué la
+   * conciliación de cartera merece una pantalla: es lo que impide subir a
+   * AUTORIDAD. Es una tabla de rutas; no decide ningún modo.
+   */
+  'iam/data/endpoints-navegables.ts',
 ];
 
 describe('un modo que no cambia nada', () => {

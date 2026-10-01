@@ -499,6 +499,18 @@ export const MODULOS: ModuleConfig[] = [
         requiereCore: "cualquiera",
       },
       {
+        /*
+         * El instrumento que decide si la integración está lista: mientras
+         * tenga diferencias abiertas, la empresa no sube de SOMBRA a AUTORIDAD.
+         * Corría sola cada noche desde hace meses y no tenía pantalla: sus
+         * hallazgos sólo se podían ver pegándole al API a mano.
+         */
+        label: "Conciliación de cartera",
+        href: "/dashboard/integracion/conciliacion-cartera",
+        grupo: "Configuración",
+        requiereCore: "cartera",
+      },
+      {
         label: "Cuentas bancarias",
         href: "/dashboard/creditos/cuentas-bancarias",
         grupo: "Configuración",

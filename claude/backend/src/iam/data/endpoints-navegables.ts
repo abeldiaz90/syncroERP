@@ -854,6 +854,22 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     ordenMenu: 32,
   },
   /*
+   * La conciliación de cartera es el instrumento que decide si la integración
+   * está lista —mientras tenga diferencias abiertas, la empresa no sube de
+   * SOMBRA a AUTORIDAD— y hasta hoy NO TENÍA PANTALLA: corría sola cada noche,
+   * escribía sus hallazgos y la única forma de verlos era pegarle al API a
+   * mano. Un control que acierta y que nadie puede leer no es un control.
+   *
+   * La llave es la consulta, no `conciliacion/ejecutar`: mirar las diferencias
+   * es de quien lleva la cartera; forzar una corrida es administración y el
+   * controlador ya la restringe aparte.
+   */
+  'GET /integracion/conciliacion': {
+    rutaFrontend: '/dashboard/integracion/conciliacion-cartera',
+    titulo: 'Conciliación de cartera',
+    ordenMenu: 33,
+  },
+  /*
    * La ayuda la ve todo el mundo, y por eso esta entrada importa: el endpoint
    * lleva `@SkipPermisos()`, asi que no se da de alta en la tabla de permisos y
    * sin esta linea la pantalla quedaria fuera del perfil de todos —la accion

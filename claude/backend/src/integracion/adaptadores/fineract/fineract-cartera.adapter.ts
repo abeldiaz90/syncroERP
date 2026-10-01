@@ -8,6 +8,7 @@ import {
 } from '../../entities/vinculo-integracion.entity';
 import { TipoVinculo } from '../../integracion.constants';
 import {
+  ClienteDelExterno,
   AjusteDevolucionExterno,
   CancelarCreditoExterno,
   ClienteExterno,
@@ -846,6 +847,82 @@ export class FineractCarteraAdapter implements PuertoCarteraExterna {
     } catch (error) {
       if (this.esNoEncontrado(error)) return null;
       throw this.traducir(error);
+    }
+  }
+
+  /**
+   * ==========================================================================
+   * Lo que el core tiene y el ERP no sabe
+   * --------------------------------------------------------------------------
+   * Se consulta por OFICINA, que en Fineract es lo que separa las carteras. Sin
+   * ese filtro se traerían los clientes de todas las empresas que comparten
+   * inquilino, y la conciliación de una acusaría a la otra de tener clientes de
+   * más: el mismo defecto que ya costó una corrección al replicar clientes a la
+   * oficina 1 por omisión.
+   *
+   * Si la empresa no tiene oficina configurada se devuelve null —«no se pudo
+   * preguntar»— en vez de lanzar: la conciliación tiene mucho más que revisar y
+   * no puede caerse entera por esto.
+   * ==========================================================================
+   */
+  async clientesDelExterno(
+    empresaId: string,
+  ): Promise<ClienteDelExterno[] | null> {
+    try {
+      const oficina = (await this.parametros(empresaId)).oficinaId;
+      if (!oficina) return null;
+
+      const porPagina = 200;
+      const encontrados: ClienteDelExterno[] = [];
+      let desde = 0;
+
+      /*
+       * Paginado con tope. Un core con decenas de miles de clientes no puede
+       * tumbar la conciliación nocturna, y veinte páginas son cuatro mil
+       * clientes: más que suficiente para detectar que algo sobra, que es para
+       * lo único que sirve esta lista.
+       */
+      for (let pagina = 0; pagina < 20; pagina += 1) {
+        const respuesta = await this.http.get<{
+          totalFilteredRecords?: number;
+          pageItems?: {
+            id?: number;
+            displayName?: string;
+            externalId?: string | null;
+          }[];
+        }>(
+          `/v1/clients?officeId=${oficina}&offset=${desde}&limit=${porPagina}`,
+        );
+
+        const filas = respuesta?.pageItems;
+        if (!Array.isArray(filas) || filas.length === 0) break;
+
+        for (const fila of filas) {
+          if (!fila?.id) continue;
+          encontrados.push({
+            idExterno: String(fila.id),
+            nombre: String(fila.displayName ?? '').trim() || `#${fila.id}`,
+            referencia: fila.externalId ?? null,
+          });
+        }
+
+        if (filas.length < porPagina) break;
+        desde += porPagina;
+      }
+
+      return encontrados;
+    } catch (error) {
+      /*
+       * No se traduce ni se lanza: esta consulta es un extra de la
+       * conciliación. Que falle no puede impedir que se revise todo lo demás,
+       * y null ya significa «no se pudo preguntar».
+       */
+      this.logger.warn(
+        `No se pudieron listar los clientes del registro externo: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
     }
   }
 
