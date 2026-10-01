@@ -735,7 +735,14 @@ export class OrdenesCompraService {
             ),
           },
           empresaId,
-          `RECEPCION-${recepcionId.slice(0, 8)}`,
+          /*
+           * La ETIQUETA del asiento, no su llave. El dedupe se hace con el
+           * índice único (empresaId, tipo, documentoId) sobre el uuid entero;
+           * esto es lo que se lee en el tablero del cierre contable y en los
+           * mensajes de error, así que tiene que ser el folio que el
+           * almacenista ve en su pantalla y no un recorte del identificador.
+           */
+          folioDe(recepcion, TIPOS_DE_FOLIO.RECEPCION),
           recepcionId,
         );
         asientoRecepcionId = evento.id;
@@ -1094,14 +1101,19 @@ export class OrdenesCompraService {
         },
         empresaId,
         /*
-         * El folio del asiento es un FOLIO, no un identificador: aquí se
-         * metía el uuid entero y `PAGO-OC-` + 36 caracteres da 44, contra una
-         * columna de 40. PostgreSQL abortaba la transacción con «Alguno de los
-         * valores excede la longitud permitida», un mensaje que no nombra el
-         * campo, y el pago a proveedor no se podía registrar NUNCA. La
-         * recepción, dos pasos antes, ya usaba los primeros ocho.
+         * El folio del asiento es un FOLIO, no un identificador. Aquí se metía
+         * el uuid entero y `PAGO-OC-` + 36 caracteres da 44, contra una columna
+         * de 40: PostgreSQL abortaba la transacción con «Alguno de los valores
+         * excede la longitud permitida» —un mensaje que no nombra el campo— y
+         * el pago a proveedor no se podía registrar NUNCA. Se cambió por los
+         * ocho primeros, que cabían pero no se podían decir en voz alta.
+         *
+         * Desde que el pago tiene folio propio, aquí va el suyo: `PP-2026-000001`
+         * son 14 caracteres y es el número que aparece en la pantalla de pagos.
+         * Es una ETIQUETA, no una llave —el dedupe va por el índice único sobre
+         * el uuid completo—, así que cambiarla no toca la idempotencia.
          */
-        `PAGO-OC-${pago.id.slice(0, 8).toUpperCase()}`,
+        folioDe(pago, TIPOS_DE_FOLIO.PAGO_PROVEEDOR),
         pago.id,
       );
       pago.asientoPendienteId = eventoContable.id;

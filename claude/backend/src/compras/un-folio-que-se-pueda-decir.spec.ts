@@ -393,3 +393,64 @@ describe('La migración rellena hacia atrás sin pisar nada', () => {
     expect(migracion).toMatch(/if \(!\(await this\.existe\(queryRunner, tabla\)\)\) continue;/);
   });
 });
+
+describe('La etiqueta del asiento lleva el folio, y no es la llave', () => {
+  const ordenes = fuente('compras', 'services', 'ordenes-compra.service.ts');
+
+  it('la recepción y el pago etiquetan su asiento con su folio', () => {
+    /*
+     * `folioDocumento` es lo que se lee en el tablero del cierre contable y en
+     * los mensajes de error cuando un asiento falla. Decía
+     * `RECEPCION-95692DBB`: un recorte del uuid que no corresponde a ningún
+     * número que el almacenista tenga en su pantalla, así que un asiento
+     * atorado no se podía amarrar a su documento sin consultar la base.
+     */
+    const limpio = sinComentarios(ordenes);
+    expect(limpio).toMatch(/folioDe\(recepcion, TIPOS_DE_FOLIO\.RECEPCION\),/);
+    expect(limpio).toMatch(/folioDe\(pago, TIPOS_DE_FOLIO\.PAGO_PROVEEDOR\),/);
+    expect(limpio).not.toMatch(/`RECEPCION-\$\{/);
+    expect(limpio).not.toMatch(/`PAGO-OC-\$\{/);
+  });
+
+  it('y cabe en la columna, que es lo que ya rompió una vez', () => {
+    /*
+     * `folioDocumento` es varchar(40). Antes se metía ahí `PAGO-OC-` + el uuid
+     * entero: 44 caracteres. PostgreSQL abortaba la transacción con un mensaje
+     * que no nombra el campo y el pago a proveedor no se podía registrar
+     * NUNCA. `PP-2026-000001` son 14; incluso con seis dígitos desbordados
+     * sobran veinte.
+     */
+    const entidad = fuente('finanzas', 'entities', 'asiento-pendiente.entity.ts');
+    expect(entidad).toMatch(/@Column\(\{ type: 'varchar', length: 40, nullable: true \}\)\s*\n\s*folioDocumento/);
+    expect(formatearFolio('PP', 2026, 1).length).toBeLessThan(40);
+    expect(formatearFolio('RECEPCION', 2026, 1234567).length).toBeLessThan(40);
+  });
+
+  it('el dedupe sigue siendo por documento, NO por la etiqueta', () => {
+    /*
+     * ========================================================================
+     * El invariante que de verdad importa, y la razón de que cambiar la
+     * etiqueta sea seguro.
+     *
+     * La idempotencia del motor contable vive en el índice único
+     * (empresaId, tipo, documentoId) sobre el uuid COMPLETO del documento. Si
+     * alguien «simplificara» esto deduplicando por `folioDocumento` —que es
+     * texto, y hasta hoy era un recorte de uuid de 32 bits— dos documentos
+     * distintos empezarían a parecer el mismo reintento y el segundo asiento
+     * se descartaría EN SILENCIO: una póliza que nunca se genera, sin error,
+     * sin aviso, y detectable sólo al no cuadrar el mes.
+     * ========================================================================
+     */
+    const entidad = fuente('finanzas', 'entities', 'asiento-pendiente.entity.ts');
+    expect(entidad).toMatch(
+      /\['empresaId', 'tipo', 'documentoId'\],\s*\{ unique: true, where: 'documentoId IS NOT NULL' \}/,
+    );
+
+    const servicio = sinComentarios(
+      fuente('finanzas', 'services', 'asientos-pendientes.service.ts'),
+    );
+    expect(servicio).toMatch(/where: \{ empresaId, tipo, documentoId \}/);
+    /* La etiqueta no participa en la búsqueda del existente. */
+    expect(servicio).not.toMatch(/where: \{[^}]*folioDocumento/);
+  });
+});
