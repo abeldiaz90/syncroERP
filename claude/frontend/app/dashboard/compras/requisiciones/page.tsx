@@ -90,10 +90,24 @@ export default function RequisicionesPage() {
     trabajo que quizá ya existe.
   */
   const [errorCarga, setErrorCarga] = useState('');
+  /*
+    Y «Sin requisiciones» tampoco es una afirmación sobre la empresa. El
+    servidor devuelve SÓLO las de quien pregunta salvo que sea Compras o
+    administrador, y lo dice en la cabecera `X-Alcance`. Medido el 30-sep-2026
+    con el contador: la pantalla invitaba a «crear tu primera» mientras había
+    12 en la empresa. La pantalla no concluye: repite el alcance que le dieron.
+  */
+  const [alcance, setAlcance] = useState<'todas'|'propias-y-firmadas'|null>(null);
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
       const res = await fetch(`${api}/compras/requisiciones`, { headers: h() });
+      const cabecera = res.headers.get('X-Alcance');
+      setAlcance(
+        cabecera === 'todas' || cabecera === 'propias-y-firmadas'
+          ? cabecera
+          : null,
+      );
       if (res.ok) { setRequisiciones(await res.json()); setErrorCarga(''); }
       else {
         setRequisiciones([]);
@@ -283,9 +297,23 @@ export default function RequisicionesPage() {
         ) : filtradas.length === 0 ? (
           <div className="p-16 text-center">
             <ClipboardList className="w-12 h-12 text-slate-200 mx-auto mb-3"/>
-            <p className="font-semibold text-slate-600">Sin requisiciones</p>
+            <p className="font-semibold text-slate-600">
+              {filtroEstado
+                ? `Ninguna de las ${requisiciones.length} requisiciones que ves está en estado "${filtroEstado}"`
+                : alcance === 'propias-y-firmadas'
+                  ? 'No tienes requisiciones a tu nombre ni pendientes de firmar'
+                  : 'No hay requisiciones registradas'}
+            </p>
             <p className="text-sm text-slate-400 mt-1">
-              {filtroEstado ? `No hay requisiciones en estado "${filtroEstado}"` : 'Crea tu primera requisición'}
+              {filtroEstado ? (
+                <button onClick={() => setFiltroEstado('')} className="underline hover:text-slate-600">
+                  Quitar el filtro y ver las {requisiciones.length}
+                </button>
+              ) : alcance === 'propias-y-firmadas' ? (
+                'Esta pantalla te muestra las que tú solicitaste y las que te tocó firmar. Las demás las ve Compras.'
+              ) : (
+                'Crea la primera requisición.'
+              )}
             </p>
           </div>
         ) : (

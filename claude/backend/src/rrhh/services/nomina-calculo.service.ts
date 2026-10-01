@@ -186,11 +186,8 @@ export class NominaCalculoService {
         );
       }
 
-      const incidencias = await this.obtenerIncidencias(
-        queryRunner.manager,
-        periodo,
-        empresaId,
-      );
+      const { delPeriodo: incidencias, retroactivas } =
+        await this.obtenerIncidencias(queryRunner.manager, periodo, empresaId);
       /*
        * Queda escrito que estas incidencias ya movieron un recibo. `APLICADA`
        * existía en el código y nadie la escribía, así que la reversión no podía
@@ -198,12 +195,18 @@ export class NominaCalculoService {
        * tenía que negarse en los dos casos con un motivo que en el primero era
        * falso.
        */
-      if (incidencias.length) {
+      const consumidas = [...incidencias, ...retroactivas];
+      if (consumidas.length) {
         await queryRunner.manager
           .getRepository(Incidencia)
           .update(
-            { id: In(incidencias.map((i) => i.id)) },
-            { estadoAprobacion: 'APLICADA' },
+            { id: In(consumidas.map((i) => i.id)) },
+            /*
+             * Y en QUÉ periodo. Sin la segunda mitad, una incidencia atrasada
+             * que se cobra aquí la volvería a tomar cualquier otro periodo que
+             * se recalculara y cuyo rango la cubriera.
+             */
+            { estadoAprobacion: 'APLICADA', periodoAplicadoId: periodo.id },
           );
       }
       const conceptosEmpleado = await this.obtenerConceptosEmpleado(
@@ -236,6 +239,7 @@ export class NominaCalculoService {
       );
 
       const incidenciasPorEmpleado = this.agruparPorEmpleado(incidencias);
+      const retroactivasPorEmpleado = this.agruparPorEmpleado(retroactivas);
       const conceptosPorEmpleado = this.agruparPorEmpleado(conceptosEmpleado);
       const prestamosPorEmpleado = this.agruparPorEmpleado(prestamos);
       const obligacionesPorEmpleado = this.agruparPorEmpleado(obligaciones);
@@ -252,6 +256,7 @@ export class NominaCalculoService {
             empleado,
             configuracion,
             incidencias: incidenciasPorEmpleado.get(empleado.id) ?? [],
+            incidenciasRetroactivas: retroactivasPorEmpleado.get(empleado.id) ?? [],
             conceptosEmpleado: conceptosPorEmpleado.get(empleado.id) ?? [],
             prestamos: prestamosPorEmpleado.get(empleado.id) ?? [],
             obligaciones: obligacionesPorEmpleado.get(empleado.id) ?? [],
@@ -548,7 +553,7 @@ export class NominaCalculoService {
     manager: EntityManager,
     periodo: PeriodoNomina,
     empresaId: string,
-  ): Promise<Incidencia[]> {
+  ): Promise<{ delPeriodo: Incidencia[]; retroactivas: Incidencia[] }> {
     const pendientes = await manager
       .getRepository(Incidencia)
       .createQueryBuilder('i')
@@ -567,7 +572,7 @@ export class NominaCalculoService {
       );
     }
 
-    return manager
+    const delPeriodo = await manager
       .getRepository(Incidencia)
       .createQueryBuilder('i')
       .where('i.empresaId = :empresaId', { empresaId })
@@ -582,11 +587,90 @@ export class NominaCalculoService {
       .andWhere('i.estadoAprobacion IN (:...usables)', {
         usables: ['APROBADA', 'APLICADA'],
       })
+      /*
+       * Pero sólo las que no se aplicaron en OTRO periodo. Sin esto, recalcular
+       * un periodo que se solapa con aquel que ya la consumió la cobra dos
+       * veces. Las filas anteriores a esta versión tienen el campo nulo y se
+       * comportan como siempre.
+       */
+      .andWhere('(i.periodoAplicadoId IS NULL OR i.periodoAplicadoId = :periodoId)', {
+        periodoId: periodo.id,
+      })
       .andWhere('i.fechaInicio <= :fin AND i.fechaFin >= :inicio', {
         inicio: periodo.fechaInicio,
         fin: periodo.fechaFin,
       })
       .getMany();
+
+    return { delPeriodo, retroactivas: await this.obtenerRetroactivas(manager, periodo, empresaId) };
+  }
+
+  /**
+   * ==========================================================================
+   * Las que llegaron tarde
+   * --------------------------------------------------------------------------
+   * Una falta se entera tarde. Es lo más normal de una empresa: el jefe avisa
+   * el lunes de un viernes que ya se pagó. Hasta el 30-sep-2026 el ERP la
+   * aceptaba, la dejaba aprobar, la contaba en el indicador «Días no pagados»
+   * de la pantalla... y NO la aplicaba nunca, porque el cálculo sólo mira las
+   * incidencias cuyo rango cae dentro del periodo. Se quedaba APROBADA para
+   * siempre y ese día de sueldo no se descontaba a nadie.
+   *
+   * Por decisión de Abel del 30-sep-2026 se aplican retroactivamente en el
+   * siguiente periodo que se calcule, que es lo que hacen SAP, Business
+   * Central y Workday.
+   *
+   * DOS CANDADOS, y los dos importan:
+   *
+   *  1. Sólo las que NO se han aplicado en ningún periodo (`periodoAplicadoId`
+   *     nulo y estado `APROBADA`, nunca `APLICADA`). Una que ya movió un recibo
+   *     no vuelve a moverlo.
+   *
+   *  2. Sólo las que YA NO TIENEN periodo propio donde caer. Si existe un
+   *     periodo que las cubre y todavía se puede calcular —ABIERTO o
+   *     CALCULANDO—, la incidencia es de ESE periodo y traerla aquí se la
+   *     robaría: el suyo saldría sin ella. Se queda donde le toca.
+   *
+   * Lo que no se trae: nada del futuro. `fechaFin < inicio del periodo` es
+   * estricto; una incidencia posterior al periodo no es un atraso, es una del
+   * periodo que viene.
+   * ==========================================================================
+   */
+  private async obtenerRetroactivas(
+    manager: EntityManager,
+    periodo: PeriodoNomina,
+    empresaId: string,
+  ): Promise<Incidencia[]> {
+    const candidatas = await manager
+      .getRepository(Incidencia)
+      .createQueryBuilder('i')
+      .where('i.empresaId = :empresaId', { empresaId })
+      .andWhere('i.aprobada = true')
+      .andWhere('i.estadoAprobacion = :aprobada', { aprobada: 'APROBADA' })
+      .andWhere('i.periodoAplicadoId IS NULL')
+      .andWhere('i.fechaFin < :inicio', { inicio: periodo.fechaInicio })
+      .orderBy('i.fechaInicio', 'ASC')
+      .getMany();
+
+    if (!candidatas.length) return [];
+
+    const calculables = await manager
+      .getRepository(PeriodoNomina)
+      .createQueryBuilder('p')
+      .where('p.empresaId = :empresaId', { empresaId })
+      .andWhere('p.id <> :periodoId', { periodoId: periodo.id })
+      .andWhere('p.estado IN (:...abiertos)', {
+        abiertos: [EstadoPeriodo.ABIERTO, EstadoPeriodo.CALCULANDO],
+      })
+      .getMany();
+
+    if (!calculables.length) return candidatas;
+
+    const cae = (i: Incidencia, p: PeriodoNomina) =>
+      this.soloFecha(i.fechaInicio) <= this.soloFecha(p.fechaFin) &&
+      this.soloFecha(i.fechaFin) >= this.soloFecha(p.fechaInicio);
+
+    return candidatas.filter((i) => !calculables.some((p) => cae(i, p)));
   }
 
   private obtenerConceptosEmpleado(
@@ -667,6 +751,8 @@ export class NominaCalculoService {
     empleado: Empleado;
     configuracion: ConfiguracionPatronal;
     incidencias: Incidencia[];
+    /** Aprobadas de periodos ya cerrados que nunca se aplicaron. */
+    incidenciasRetroactivas: Incidencia[];
     conceptosEmpleado: ConceptoEmpleado[];
     prestamos: PrestamoEmpleado[];
     obligaciones: ObligacionEmpleado[];
@@ -678,6 +764,7 @@ export class NominaCalculoService {
       empleado,
       configuracion,
       incidencias,
+      incidenciasRetroactivas,
       conceptosEmpleado,
       prestamos,
       obligaciones,
@@ -729,6 +816,54 @@ export class NominaCalculoService {
       prioridad: 10,
     });
 
+    /*
+     * ========================================================================
+     * Lo que llegó tarde se cobra aparte, no escondido en el sueldo
+     * ------------------------------------------------------------------------
+     * Los días no pagados DEL PERIODO reducen `diasPagados`, así que el recibo
+     * dice «15 días» en vez de 16 y la falta se lee en la cantidad.
+     *
+     * Con una falta de un periodo YA PAGADO eso no sirve: restarla de los días
+     * de octubre haría que el recibo de octubre dijera 15 días trabajados, que
+     * es falso, y el trabajador no tendría forma de saber de dónde salió el
+     * descuento. Va como una deducción con su propio renglón y su propio texto,
+     * que es como lo presentan SAP y Business Central.
+     *
+     * `D003 Faltas` ya existe en el catálogo sembrado y ya trae su clave SAT,
+     * así que esto no inventa un concepto nuevo ni exige un mapeo contable
+     * nuevo: usa el que corresponde.
+     * ========================================================================
+     */
+    const diasNoPagadosRetro = incidenciasRetroactivas
+      .filter((i) => !i.pagada)
+      .reduce((acc, i) => acc + this.diasCompletosDeIncidencia(i), 0);
+    if (diasNoPagadosRetro > 0) {
+      const descuento = money(Number(empleado.salarioDiario) * diasNoPagadosRetro);
+      const periodos = this.rangosDeIncidencias(
+        incidenciasRetroactivas.filter((i) => !i.pagada),
+      );
+      partidas.push({
+        clave: 'D003',
+        concepto: `Faltas de periodos anteriores (${periodos})`,
+        naturaleza: NaturalezaConcepto.DEDUCCION,
+        cantidad: diasNoPagadosRetro,
+        importeGravado: 0,
+        importeExento: 0,
+        importe: descuento,
+        prioridad: 55,
+      });
+      alertas.push(
+        `Se aplican ${diasNoPagadosRetro} día(s) no pagado(s) de periodos ya ` +
+          `cerrados (${periodos}), por $${descuento.toFixed(2)}. Se capturaron ` +
+          'después de que su periodo se calculó.',
+      );
+    }
+
+    /*
+     * Las horas extra atrasadas se pagan con la regla de su PROPIA semana —el
+     * corte de nueve horas del art. 68 de la LFT es semanal— así que se calculan
+     * sobre su propio rango y no sobre el del periodo que las cobra.
+     */
     const horasExtra = this.calcularHorasExtra(
       empleado,
       periodo,
@@ -739,9 +874,35 @@ export class NominaCalculoService {
     partidas.push(...horasExtra.partidas);
     alertas.push(...horasExtra.alertas);
 
-    const diasVacaciones = incidencias
-      .filter((i) => i.tipo === TipoIncidencia.VACACIONES && i.pagada)
-      .reduce((s, i) => s + this.diasIncidenciaEnPeriodo(i, periodo), 0);
+    const horasExtraRetro = this.calcularHorasExtra(
+      empleado,
+      periodo,
+      incidenciasRetroactivas.filter((i) => i.tipo === TipoIncidencia.HORAS_EXTRA),
+      salarioMinimo,
+      tarifas.umaDiaria,
+      true,
+    );
+    for (const partida of horasExtraRetro.partidas) {
+      partida.concepto = `${partida.concepto} de periodos anteriores`;
+      partidas.push(partida);
+    }
+    alertas.push(...horasExtraRetro.alertas);
+
+    /*
+     * Las vacaciones atrasadas no devuelven días de sueldo —esos ya se pagaron
+     * como días normales en su periodo— pero sí la PRIMA VACACIONAL, que es lo
+     * único que se quedó sin pagar. Entra con sus días completos al mismo
+     * cálculo, para que el tope exento anual de 15 UMA siga contándose una sola
+     * vez en el año.
+     */
+    const diasVacaciones = money(
+      incidencias
+        .filter((i) => i.tipo === TipoIncidencia.VACACIONES && i.pagada)
+        .reduce((s, i) => s + this.diasIncidenciaEnPeriodo(i, periodo), 0) +
+        incidenciasRetroactivas
+          .filter((i) => i.tipo === TipoIncidencia.VACACIONES && i.pagada)
+          .reduce((s, i) => s + this.diasCompletosDeIncidencia(i), 0),
+    );
     if (diasVacaciones > 0) {
       const prima = money(
         Number(empleado.salarioDiario) *
@@ -1119,21 +1280,38 @@ export class NominaCalculoService {
     incidencias: Incidencia[],
     salarioMinimo: number,
     umaDiaria: number,
+    /*
+     * Retroactivas: se recortaban contra el rango del periodo, y una incidencia
+     * anterior a él daba cero horas —el descuento silencioso que esto viene a
+     * quitar—. Además el corte de nueve horas del art. 68 de la LFT es SEMANAL,
+     * así que una hora extra de septiembre debe medirse contra su semana de
+     * septiembre y no contra la quincena que la paga.
+     */
+    retroactivas = false,
   ): { partidas: PartidaCalculada[]; alertas: string[] } {
     if (!incidencias.length) return { partidas: [], alertas: [] };
     const horasPorSemana = new Map<string, number>();
     const horasPorDia = new Map<string, number>();
     for (const incidencia of incidencias) {
-      const dias = Math.max(1, this.diasIncidenciaEnPeriodo(incidencia, periodo));
+      const dias = Math.max(
+        1,
+        retroactivas
+          ? this.diasCompletosDeIncidencia(incidencia)
+          : this.diasIncidenciaEnPeriodo(incidencia, periodo),
+      );
       const horasDia = Number(incidencia.horas ?? 0) / dias;
-      const inicio = this.maxFecha(
-        this.soloFecha(incidencia.fechaInicio),
-        this.soloFecha(periodo.fechaInicio),
-      );
-      const fin = this.minFecha(
-        this.soloFecha(incidencia.fechaFin),
-        this.soloFecha(periodo.fechaFin),
-      );
+      const inicio = retroactivas
+        ? this.soloFecha(incidencia.fechaInicio)
+        : this.maxFecha(
+            this.soloFecha(incidencia.fechaInicio),
+            this.soloFecha(periodo.fechaInicio),
+          );
+      const fin = retroactivas
+        ? this.soloFecha(incidencia.fechaFin)
+        : this.minFecha(
+            this.soloFecha(incidencia.fechaFin),
+            this.soloFecha(periodo.fechaFin),
+          );
       for (let fecha = inicio; fecha <= fin; fecha = new Date(fecha.getTime() + MS_DIA)) {
         const dia = this.fechaIso(fecha);
         const semana = this.fechaIso(this.inicioSemana(fecha));
@@ -1481,6 +1659,37 @@ export class NominaCalculoService {
       periodo.diasPeriodo,
       Math.floor((fin.getTime() - inicio.getTime()) / MS_DIA) + 1,
     );
+  }
+
+  /**
+   * Los días de la incidencia COMPLETA, sin recortar contra ningún periodo.
+   *
+   * `diasIncidenciaEnPeriodo` devuelve la parte que cae dentro del periodo, que
+   * para una incidencia atrasada es cero. Al cobrarla retroactivamente lo que
+   * se debe es toda ella.
+   */
+  private diasCompletosDeIncidencia(incidencia: Incidencia): number {
+    const capturados = Number(incidencia.dias ?? 0);
+    if (capturados > 0) return money(capturados);
+    const inicio = this.soloFecha(incidencia.fechaInicio);
+    const fin = this.soloFecha(incidencia.fechaFin);
+    if (fin < inicio) return 0;
+    return money(Math.floor((fin.getTime() - inicio.getTime()) / MS_DIA) + 1);
+  }
+
+  /**
+   * «16 sep – 30 sep» para que el trabajador lea en su recibo de qué fechas
+   * viene el descuento. Un ajuste sin fecha es un ajuste que hay que ir a
+   * preguntar.
+   */
+  private rangosDeIncidencias(incidencias: Incidencia[]): string {
+    return incidencias
+      .map((i) => {
+        const inicio = this.fechaIso(this.soloFecha(i.fechaInicio));
+        const fin = this.fechaIso(this.soloFecha(i.fechaFin));
+        return inicio === fin ? inicio : `${inicio} a ${fin}`;
+      })
+      .join('; ');
   }
 
   private diasIncidenciaEnPeriodo(

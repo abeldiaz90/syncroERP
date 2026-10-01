@@ -60,6 +60,14 @@ export default function LibroDiarioPage() {
   const [detalle, setDetalle]       = useState<IPoliza | null>(null);
   // ── cancelación ──
   const [motivo, setMotivo]         = useState('');
+  /*
+   * Rehacer la póliza del documento que la originó.
+   *
+   * Encendido por defecto porque es lo que casi siempre se quiere: se cancela
+   * para corregir, no para dejar una recepción o una venta sin contabilidad.
+   * Apagarlo es la decisión rara, y por eso es la que exige un clic.
+   */
+  const [regenerar, setRegenerar]   = useState(true);
   const [cancelando, setCancelando] = useState(false);
   const [errCancel, setErrCancel]   = useState<string | null>(null);
   const [okCancel, setOkCancel]     = useState<string | null>(null);
@@ -113,14 +121,23 @@ export default function LibroDiarioPage() {
       const r = await fetch(`${api}/finanzas/polizas/${detalle.id}/cancelar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
-        body: JSON.stringify({ motivo }),
+        body: JSON.stringify({ motivo, regenerar }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
         const msg = Array.isArray(data?.message) ? data.message.join('. ') : data?.message;
         throw new Error(msg || 'No se pudo cancelar la póliza');
       }
-      setOkCancel(data.mensaje ?? 'Póliza cancelada.');
+      /*
+       * El servidor dice qué pasó con el documento del que nació la póliza.
+       * Callarlo dejaba a quien cancela creyendo que había terminado.
+       */
+      const extra = data.regenerada
+        ? ' Su documento vuelve a la cola: la póliza se rehace con la fecha correcta.'
+        : data.documentoSinPoliza
+          ? ` Ojo: ${data.documentoSinPoliza} se queda sin póliza vigente.`
+          : '';
+      setOkCancel((data.mensaje ?? 'Póliza cancelada.') + extra);
       setMotivo('');
       await cargar();
       setDetalle(null);
@@ -132,7 +149,7 @@ export default function LibroDiarioPage() {
   };
 
   const abrirDetalle = (p: IPoliza) => {
-    setDetalle(p); setMotivo(''); setErrCancel(null); setOkCancel(null);
+    setDetalle(p); setMotivo(''); setRegenerar(true); setErrCancel(null); setOkCancel(null);
   };
 
   // Filtros en frontend
@@ -424,6 +441,20 @@ export default function LibroDiarioPage() {
                   Cancelar genera una <b>póliza de reversa</b> con los importes invertidos.
                   La original se conserva en el libro (no se borra ni se edita).
                 </p>
+                <label className="flex items-start gap-2 mb-3 text-xs text-slate-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={regenerar}
+                    onChange={(e) => setRegenerar(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded text-blue-600"
+                  />
+                  <span>
+                    <b>Volver a generar la póliza del documento.</b> Si esta
+                    póliza nació de una recepción, una venta o un cobro, su
+                    asiento vuelve a la cola y se rehace. Sin esto, ese
+                    documento se queda sin contabilidad.
+                  </span>
+                </label>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input value={motivo} onChange={(e) => setMotivo(e.target.value)}
                     placeholder="Motivo de la cancelación (obligatorio)"

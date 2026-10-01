@@ -51,6 +51,25 @@ export default function ListaRecepcionesPage() {
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<'ENVIADA' | 'RECIBIDA'>('ENVIADA');
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'error' | 'info' } | null>(null);
+  /*
+   * ════════════════════════════════════════════════════════════════════════
+   * «No hay entregas pendientes · Todo está al día»
+   * ------------------------------------------------------------------------
+   * Medido el 30-sep-2026 con el almacenista: lo decía con tres órdenes a un
+   * paso. No mentía a propósito —ninguna de las tres había salido del
+   * proveedor todavía—, pero afirmaba sobre el mundo desde una lista que ya
+   * había pasado por dos filtros: el logístico y la pestaña.
+   *
+   * Y cuando la consulta fallaba, la lista quedaba vacía y el aviso duraba
+   * cuatro segundos: después, la misma frase declarando que todo está al día.
+   *
+   * Ahora la pantalla dice qué miró: cuántas órdenes hay, cuántas espera
+   * Compras despachar, y si no pudo consultar, que no pudo.
+   * ════════════════════════════════════════════════════════════════════════
+   */
+  const [totalOrdenes, setTotalOrdenes] = useState(0);
+  const [sinDespachar, setSinDespachar] = useState(0);
+  const [errorCarga, setErrorCarga] = useState('');
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000/api';
 
@@ -73,10 +92,19 @@ export default function ListaRecepcionesPage() {
             ESTADOS_LOGISTICOS.includes(oc.estado),
           );
           setRecepciones(logisticaData);
+          setTotalOrdenes(data.length);
+          setSinDespachar(
+            data.filter((oc: IOrdenCompra) => !ESTADOS_LOGISTICOS.includes(oc.estado)).length,
+          );
+          setErrorCarga('');
         } else {
+          setErrorCarga(res.status === 403
+            ? 'Tu perfil no incluye la consulta de órdenes de compra.'
+            : 'No se pudieron consultar las órdenes de compra.');
           setToast({ mensaje: 'Error al cargar los documentos de tránsito', tipo: 'error' });
         }
       } catch (error) {
+        setErrorCarga('No hay conexión con el servidor.');
         setToast({ mensaje: 'Error de conexión con el servidor', tipo: 'error' });
       } finally {
         setCargando(false);
@@ -178,11 +206,34 @@ export default function ListaRecepcionesPage() {
             <Loader2 className="w-10 h-10 animate-spin text-emerald-500 mx-auto mb-4" />
             <p className="font-bold">Buscando manifiestos de carga...</p>
           </div>
+        ) : errorCarga ? (
+          <div className="p-16 text-center">
+            <p className="text-xl font-bold text-rose-700">{errorCarga}</p>
+            <p className="mt-1 text-slate-500">
+              La bandeja no está vacía: no se pudo consultar.
+            </p>
+          </div>
         ) : recepcionesFiltradas.length === 0 ? (
           <div className="p-16 text-center text-slate-500">
             <PackageCheck className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <p className="text-xl font-bold text-slate-700">No hay entregas pendientes</p>
-            <p className="mt-1">Todo está al día o no hay coincidencias con tu búsqueda.</p>
+            <p className="text-xl font-bold text-slate-700">
+              {busqueda
+                ? 'Ninguna coincide con tu búsqueda'
+                : filtroEstado === 'ENVIADA'
+                  ? 'Ninguna orden viene en camino'
+                  : 'Ninguna orden se ha recibido completa'}
+            </p>
+            <p className="mt-1">
+              {busqueda
+                ? `Ninguna de las ${recepciones.length} órdenes de esta bandeja dice «${busqueda}».`
+                : sinDespachar > 0
+                  ? sinDespachar === 1
+                    ? '1 orden de compra todavía no la despacha Compras; aparecerá aquí cuando la envíen.'
+                    : `${sinDespachar} órdenes de compra todavía no las despacha Compras; aparecerán aquí cuando las envíen.`
+                  : totalOrdenes === 0
+                    ? 'No hay ninguna orden de compra registrada.'
+                    : `Las ${totalOrdenes} órdenes registradas están fuera de esta bandeja.`}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">

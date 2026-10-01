@@ -24,6 +24,7 @@ import {
   EstadoFiscalCobranza,
   PagoCobranza,
 } from '../credito/entities/pago-cobranza.entity';
+import { fechaContableNegocio } from '../common/utils/business-time.util';
 
 type OpcionesCreacionCfdi = {
   tipoComprobante?: 'I' | 'E';
@@ -431,7 +432,43 @@ export class CfdiService implements OnModuleInit {
       throw new BadRequestException('No se puede facturar una venta anulada.');
     }
 
-    const partidas = venta.detalles.map((detalle: DetalleVenta, indice) => {
+    /*
+     * ========================================================================
+     * Se factura lo que el cliente se quedó, no lo que devolvió
+     * ------------------------------------------------------------------------
+     * Aquí se armaban las partidas con `detalle.cantidad` —la cantidad
+     * ORIGINAL— sin restar lo devuelto. Y arriba sólo se rechaza la venta
+     * ANULADA, no la parcialmente devuelta.
+     *
+     * El orden natural del mostrador es facturar primero y devolver después, y
+     * ese camino está bien resuelto: la devolución encuentra el CFDI timbrado,
+     * lo relaciona y genera sola la nota de crédito (tipo 01), dejando la
+     * factura original vigente, que es lo que manda el SAT.
+     *
+     * Pero el orden inverso también ocurre, y mucho: el cliente regresa la
+     * mercancía el martes y pide su factura el viernes. Ahí la devolución NO
+     * encontró factura que relacionar —`facturaOrigenId` se queda nulo— así que
+     * no habrá nota de crédito, y al timbrar se emitía un CFDI por mercancía
+     * que ya había vuelto al almacén. Sin egreso que lo compensara.
+     *
+     * No tiene ningún sentido facturar $1,000 para inmediatamente acreditar
+     * $400 de algo que nunca salió por la puerta. Se factura el neto. Y si no
+     * quedó nada, se dice, en vez de timbrar un comprobante en cero.
+     * ========================================================================
+     */
+    const renglonesFacturables = venta.detalles.filter(
+      (d: DetalleVenta) =>
+        Number(d.cantidad) - Number(d.cantidadDevuelta ?? 0) > 0.0001,
+    );
+    if (!renglonesFacturables.length) {
+      throw new BadRequestException(
+        `La venta #${venta.folio} se devolvió completa: no queda nada que facturar. ` +
+          'Si necesitas el comprobante de la operación original, tenía que timbrarse ' +
+          'antes de la devolución.',
+      );
+    }
+
+    const partidas = renglonesFacturables.map((detalle: DetalleVenta, indice) => {
       const producto = detalle.producto;
       if (!producto?.claveSAT || !producto?.claveUnidadSAT) {
         /*
@@ -453,11 +490,23 @@ export class CfdiService implements OnModuleInit {
           } no se puede facturar: le falta ${falta} del catálogo SAT. Se captura en la ficha del producto, en Costos y precios.`,
         );
       }
-      const cantidad = Number(detalle.cantidad);
-      const subtotal = Number(detalle.subtotal);
-      const descuento = Number(detalle.descuento ?? 0);
-      const bruto = subtotal + descuento;
-      const precioUnitario = cantidad > 0 ? bruto / cantidad : 0;
+      /*
+       * El precio unitario se saca del renglón COMPLETO —bruto entre cantidad
+       * original— y sólo después se multiplica por lo que queda. Hacerlo al
+       * revés, prorrateando el subtotal ya redondeado, arrastraría el error de
+       * redondeo a la base del impuesto.
+       */
+      const cantidadOriginal = Number(detalle.cantidad);
+      const devuelta = Number(detalle.cantidadDevuelta ?? 0);
+      const cantidad = Number((cantidadOriginal - devuelta).toFixed(4));
+      const subtotalOriginal = Number(detalle.subtotal);
+      const descuentoOriginal = Number(detalle.descuento ?? 0);
+      const brutoOriginal = subtotalOriginal + descuentoOriginal;
+      const precioUnitario = cantidadOriginal > 0 ? brutoOriginal / cantidadOriginal : 0;
+      const proporcion = cantidadOriginal > 0 ? cantidad / cantidadOriginal : 0;
+      const bruto = Number((brutoOriginal * proporcion).toFixed(2));
+      const descuento = Number((descuentoOriginal * proporcion).toFixed(2));
+      const subtotal = Number((bruto - descuento).toFixed(2));
       /*
        * ──────────────────────────────────────────────────────────────────────
        * La tasa se lee, no se deduce
@@ -515,8 +564,16 @@ export class CfdiService implements OnModuleInit {
       const tipoFactor = impuesto.tipoFactor ?? 'TASA';
       const objetoImpuesto =
         impuesto.objetoImpuesto ?? (tipoFactor === 'NO_OBJETO' ? '01' : '02');
+      /*
+       * Con el subtotal ORIGINAL, no con el prorrateado. Esta función, cuando
+       * la partida no trae `impuestoPorcentaje` —datos viejos—, deduce la tasa
+       * dividiendo `impuestoMonto / subtotal`. Y `impuestoMonto` es el de la
+       * venta completa: dividirlo entre un subtotal ya recortado por la
+       * devolución daría una tasa inflada, y el PAC rechaza cualquier valor
+       * fuera del catálogo `c_TasaOCuota`.
+       */
       const tasaIVA =
-        tipoFactor === 'TASA' ? this.tasaDePartida(detalle, subtotal) : 0;
+        tipoFactor === 'TASA' ? this.tasaDePartida(detalle, subtotalOriginal) : 0;
       return {
         productoId: detalle.productoId,
         claveSAT: producto.claveSAT,
@@ -1008,7 +1065,7 @@ export class CfdiService implements OnModuleInit {
               tipoRelacion: null,
               serie: configBloqueada.serie,
               folio,
-              fecha: new Date(),
+              fecha: fechaContableNegocio(),
               clienteId: origen.clienteId,
               rfcReceptor: origen.rfcReceptor,
               nombreReceptor: origen.nombreReceptor,

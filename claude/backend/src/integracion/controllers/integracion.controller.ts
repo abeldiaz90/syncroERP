@@ -46,6 +46,8 @@ import { PuertoContabilidadExterna } from '../ports/contabilidad-externa.port';
 import { IntegracionDespachadorService } from '../services/integracion-despachador.service';
 import { IntegracionModoService } from '../services/integracion-modo.service';
 import { IntegracionOutboxService } from '../services/integracion-outbox.service';
+import { ContabilidadPublicadorService } from '../services/contabilidad-publicador.service';
+import { EncolarFaltantesDto } from '../dto/encolar-faltantes.dto';
 import { SincronizacionInicialService } from '../services/sincronizacion-inicial.service';
 import { IntegracionVinculosService } from '../services/integracion-vinculos.service';
 import { DecisionCreditoService } from '../services/decision-credito.service';
@@ -80,6 +82,7 @@ export class IntegracionController {
     private readonly mapeo: MapeoCuentasService,
     private readonly roles: RolesExternosService,
     private readonly acceso: AccesoExternoService,
+    private readonly publicadorContable: ContabilidadPublicadorService,
     @Inject(PUERTO_CONTABILIDAD_EXTERNA)
     private readonly contabilidad: PuertoContabilidadExterna,
     @InjectRepository(ConfiguracionIntegracionEmpresa)
@@ -242,6 +245,55 @@ export class IntegracionController {
   @Roles(...ROLES_ESPEJO_CONTABLE)
   verificar(@ActiveUser('empresaId') empresaId: string) {
     return this.contabilidad.verificarConfiguracion(empresaId);
+  }
+
+  /**
+   * ──────────────────────────────────────────────────────────────────────────
+   * Las pólizas que NADIE intentó mandar
+   * --------------------------------------------------------------------------
+   * La bandeja de salida enseña lo que se intentó y no salió. Esto enseña lo
+   * contrario: pólizas VIGENTES sin un solo evento de espejo, que no están
+   * detenidas en ninguna parte porque nunca se encolaron —nacieron antes del
+   * suscriptor, o con el espejo apagado—.
+   *
+   * Medido el 30-sep-2026: ocho, de los días 13 al 15 de septiembre. No salían
+   * en ninguna pantalla, y el cierre del mes no las veía.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  @Get('contabilidad/polizas-sin-espejo')
+  @Roles(...ROLES_ESPEJO_CONTABLE)
+  async polizasSinEspejo(
+    @ActiveUser('empresaId') empresaId: string,
+    @Query('hasta') hasta?: string,
+  ) {
+    const polizas = await this.publicadorContable.polizasSinEspejo(
+      empresaId,
+      hasta,
+    );
+    return {
+      total: polizas.length,
+      polizas: polizas.map((p) => ({
+        id: p.id,
+        folio: p.folio,
+        fecha: p.fecha,
+        concepto: p.concepto,
+      })),
+    };
+  }
+
+  /**
+   * Las encola. No las despacha: mandar asientos al mayor externo sigue siendo
+   * un acto aparte, porque reconocer que faltaban y mandarlas no son la misma
+   * decisión. Es idempotente —la clave del outbox es `poliza:<id>`—, así que
+   * pulsarlo dos veces no duplica nada.
+   */
+  @Post('contabilidad/encolar-faltantes')
+  @Roles(...ROLES_ESPEJO_CONTABLE)
+  encolarFaltantes(
+    @ActiveUser('empresaId') empresaId: string,
+    @Body() cuerpo: EncolarFaltantesDto,
+  ) {
+    return this.publicadorContable.encolarFaltantes(empresaId, cuerpo?.hasta);
   }
 
   /** Acceso a la interfaz web del registro externo, para las empresas que lo tienen. */

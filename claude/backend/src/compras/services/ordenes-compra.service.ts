@@ -45,6 +45,7 @@ import {
   OrigenMovimiento,
   TipoMovimiento,
 } from '../../tesoreria/entities/tesoreria.entity';
+import { fechaContableNegocio } from '../../common/utils/business-time.util';
 
 @Injectable()
 export class OrdenesCompraService {
@@ -703,7 +704,7 @@ export class OrdenesCompraService {
              * que no existe con ese número.
              */
             folioOrden: `OC-${oc.id.slice(0, 8).toUpperCase()}`,
-            fecha: new Date(),
+            fecha: fechaContableNegocio(),
             empresaId,
             detalles: detallesContables,
             totalGeneral: detallesContables.reduce(

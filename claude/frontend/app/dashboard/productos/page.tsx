@@ -89,7 +89,25 @@ export default function ProductosPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [busquedaDebounced, setBusquedaDebounced] = useState('');
-  const [mostrarCatalogoCompleto, setMostrarCatalogoCompleto] = useState(false);
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * Un catálogo que no se enseña hasta que se lo pides
+   * ──────────────────────────────────────────────────────────────────────────
+   * Esto empezaba en `false`, así que al entrar a Productos no se veía ni un
+   * artículo: sólo «Directorio de Materiales · usa el buscador» y un botón
+   * «Cargar todo el catálogo». Medido el 30-sep-2026 recién cargados 25
+   * productos por Excel: la pantalla se veía VACÍA, y la primera pregunta de
+   * cualquiera es «¿entonces no se guardaron?».
+   *
+   * La cautela se entiende —un catálogo de diez mil artículos no se vuelca de
+   * golpe— pero la consulta YA está paginada: pedirla trae la primera página y
+   * nada más, exactamente lo que cuesta cualquier otra pantalla del ERP. El
+   * botón no estaba protegiendo de nada; sólo escondía el trabajo hecho.
+   *
+   * «Cargar más» sigue ahí para el resto.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  const [mostrarCatalogoCompleto, setMostrarCatalogoCompleto] = useState(true);
   const [filtros, setFiltros] = useState({ categoriaId: '', marcaId: '', soloConStock: false });
 
   const [cargando, setCargando] = useState(false);
@@ -156,6 +174,20 @@ export default function ProductosPage() {
     fetchCatalogos();
   }, [apiUrl, llevaPrecios, tienePermiso]);
 
+  /*
+   * Un filtro puesto es lo que distingue «no hay nada» de «nada coincide».
+   * `mostrarCatalogoCompleto` no cuenta: no es un filtro, es enseñar la lista.
+   */
+  const hayFiltroPuesto =
+    busquedaDebounced.trim() !== '' ||
+    filtros.categoriaId !== '' ||
+    filtros.marcaId !== '' ||
+    filtros.soloConStock;
+  const limpiarFiltros = () => {
+    setFiltros({ categoriaId: '', marcaId: '', soloConStock: false });
+    setBusqueda('');
+    setMostrarCatalogoCompleto(true);
+  };
   const busquedaActiva = busquedaDebounced.trim() !== '' || filtros.categoriaId !== '' || filtros.marcaId !== '' || filtros.soloConStock || mostrarCatalogoCompleto;
 
   // ── Fetch productos ───────────────────────────────────────────
@@ -358,23 +390,76 @@ export default function ProductosPage() {
       categoriaId:           fd.categoriaId           || null,
       marcaId:               fd.marcaId               || null,
       impuestoId:            fd.impuestoId            || null,
-      // Colecciones
-      precios: fd.precios.map(p => ({
-        listaPrecioId: p.listaPrecioId,
-        precio: Number(p.precio || 0),
-      })),
+      /*
+       * ══════════════════════════════════════════════════════════════════════
+       * No mandes una lista completa que no pudiste construir
+       * ──────────────────────────────────────────────────────────────────────
+       * `precios` se arma recorriendo `listasPrecio`, y esa lista queda VACÍA
+       * cuando el perfil no puede leer `/catalogo/listas-precio` —el
+       * almacenista, por ejemplo, que por diseño abre la ficha y no ve
+       * precios—. El resultado era `precios: []`, y el servidor interpreta un
+       * arreglo presente como «ésta es la lista completa»: borra todos los
+       * precios del producto y no inserta ninguno.
+       *
+       * O sea: el almacenista corregía el stock mínimo de un artículo y el
+       * precio de venta desaparecía. En el catálogo salía «Sin precio» y en
+       * caja el producto dejaba de poder cobrarse, sin que nadie relacionara
+       * una cosa con la otra.
+       *
+       * Un arreglo vacío es una orden legítima —«quítale todos los precios»—
+       * así que el arreglo no está en el servidor: está aquí, en no afirmar
+       * nada sobre los precios cuando no se pudieron leer las listas.
+       * ══════════════════════════════════════════════════════════════════════
+       */
+      ...(listasPrecio.length > 0
+        ? {
+            precios: fd.precios.map((p) => ({
+              listaPrecioId: p.listaPrecioId,
+              precio: Number(p.precio || 0),
+            })),
+          }
+        : {}),
       imagenes: fd.imagenes.map(img => ({
         url: img.url,
         principal: Boolean(img.principal),
       })),
+      /*
+       * `padreIdx` es de esta pantalla, no del contrato.
+       *
+       * Se usa aquí para dibujar la jerarquía de empaques —Pieza → Paquete x12
+       * → Caja x10— pero `EquivalenciaDto` no lo declara, y el validador del
+       * servidor rechaza toda propiedad no declarada. Resultado medido:
+       * cualquier producto con un empaque capturado era IMPOSIBLE de guardar;
+       * el toast decía «property padreIdx should not exist» y quitando los
+       * empaques sí guardaba. La pestaña Empaques era una trampa.
+       *
+       * PENDIENTE, y conviene saberlo: la jerarquía tampoco se persiste del
+       * otro lado —la entidad tiene `equivalenciaBaseId` y ningún servicio lo
+       * escribe—, así que al reabrir la ficha los empaques vuelven como raíz.
+       * Eso es una funcionalidad a medias, no un error de guardado, y se
+       * arregla con cabeza y con pruebas, no la víspera de una demostración.
+       */
       equivalencias: fd.equivalencias.map(eq => ({
         nombreEmpaque:    eq.nombreEmpaque,
         factorConversion: Number(eq.factorConversion || 1),
         codigoBarras:     eq.codigoBarras            || null,
-        padreIdx:         (eq as any).padreIdx       ?? null,
       })),
-      // Atributos vienen del modal directamente — ya filtrados
-      atributos: atributosFinales,
+      /*
+       * Y lo mismo con los atributos: las filas que llegan del servidor traen
+       * `id`, `productoId` y `fechaCreacion`, y una plantilla con campos de
+       * lista trae además `opciones`. Nada de eso está en `AtributoDto`, así
+       * que reenviarlo verbatim hacía imposible editar un producto que YA
+       * tuviera atributos. Se manda sólo lo que el contrato declara.
+       */
+      atributos: (atributosFinales ?? []).map((a: any) => ({
+        clave:     a.clave,
+        etiqueta:  a.etiqueta,
+        valor:     a.valor,
+        tipoValor: a.tipoValor ?? 'TEXT',
+        unidad:    a.unidad ?? null,
+        sector:    a.sector ?? null,
+        orden:     a.orden ?? 0,
+      })),
     };
 
     // El stock existente no forma parte de la edición del maestro del producto.
@@ -500,7 +585,13 @@ export default function ProductosPage() {
               <input type="checkbox" checked={filtros.soloConStock} onChange={(e) => setFiltros(f => ({ ...f, soloConStock: e.target.checked }))} className="w-4 h-4 text-blue-600 rounded" />
               <span className="text-sm font-bold text-slate-700">Solo con stock</span>
             </label>
-            <button onClick={() => { setFiltros({ categoriaId: '', marcaId: '', soloConStock: false }); setBusqueda(''); setMostrarCatalogoCompleto(false); }} className="w-full py-2.5 text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
+            {/*
+              Limpiar filtros dejaba `mostrarCatalogoCompleto` en falso, o sea
+              que quitar un filtro ESCONDÍA el catálogo entero y devolvía la
+              pantalla al «usa el buscador». Quitar un filtro es pedir ver más,
+              no ver menos.
+            */}
+            <button onClick={limpiarFiltros} className="w-full py-2.5 text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
               Limpiar filtros
             </button>
           </div>
@@ -555,9 +646,36 @@ export default function ProductosPage() {
               <span className="font-bold">Buscando...</span>
             </div>
           ) : productos.length === 0 ? (
-            <div className="h-full flex flex-col justify-center items-center text-slate-500">
+            /*
+             * «Sin resultados» decía lo mismo en dos situaciones distintas: un
+             * catálogo vacío y un filtro que no encontró nada. La primera pide
+             * crear o importar; la segunda, quitar el filtro. Decirlas igual
+             * deja a quien mira sin saber cuál de las dos le pasó.
+             */
+            <div className="h-full flex flex-col justify-center items-center text-slate-500 text-center">
               <PackageMinus className="w-20 h-20 text-slate-200 mb-4" />
-              <p className="text-2xl font-black text-slate-800">Sin resultados</p>
+              {hayFiltroPuesto ? (
+                <>
+                  <p className="text-2xl font-black text-slate-800">Ningún producto coincide</p>
+                  <p className="text-slate-500 mt-2 max-w-md">
+                    El catálogo tiene productos, pero ninguno pasa los filtros que pusiste.
+                  </p>
+                  <button
+                    onClick={limpiarFiltros}
+                    className="mt-5 px-6 py-3 bg-white border border-slate-200 shadow-sm rounded-xl font-bold text-blue-600 hover:bg-blue-50 transition-colors"
+                  >
+                    Quitar los filtros
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl font-black text-slate-800">El catálogo está vacío</p>
+                  <p className="text-slate-500 mt-2 max-w-md">
+                    Todavía no hay ningún producto dado de alta. Puedes crear uno o cargar
+                    varios de golpe desde un Excel.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <>

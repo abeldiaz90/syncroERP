@@ -243,6 +243,25 @@ const ACCIONES_AUTORIZAR_OPERACION = [
   // Las vacaciones de su gente.
   'GET /rrhh/vacaciones/solicitudes',
   'PATCH /rrhh/vacaciones/solicitudes/:id/resolver',
+  /*
+   * Y sus INCIDENCIAS, que es la misma familia y faltaba.
+   *
+   * Una incidencia mueve dinero: una falta de cinco días le quita cinco días
+   * de sueldo a alguien, y un tiempo extra se los suma. Hasta el 30-sep-2026
+   * el único rol que podía aprobarlas era `rrhh`, que es el mismo que las
+   * captura: la misma persona registraba el descuento y lo autorizaba, sin
+   * que nadie más lo mirara. El sistema ni siquiera guardaba quién lo había
+   * registrado —la columna `registradaPorId` se agregó ese día— así que
+   * tampoco quedaba rastro para auditarlo después.
+   *
+   * Decisión de Abel del 30-sep-2026, misma forma que vacaciones: RRHH
+   * captura, Gerencia autoriza. Por ACCIÓN y no por módulo, porque autorizar
+   * un descuento de nómina no es tener Recursos humanos. El listado ya lo
+   * tienen por `modulosConsulta: ['rrhh']`; lo que faltaba era poder firmar.
+   */
+  'PATCH /rrhh/incidencias/:id/aprobar',
+  'PATCH /rrhh/incidencias/:id/rechazar',
+  'PATCH /rrhh/incidencias/:id/revertir',
 ];
 
 const ACCIONES_FIRMAR_NOMINA = [
@@ -322,6 +341,15 @@ const ACCIONES_ESPEJO_CONTABLE = [
   'POST /integracion/outbox/:id/reencolar',
   'POST /integracion/outbox/despachar',
   /*
+   * Y la otra mitad: las polizas que nunca se encolaron. La bandeja de salida
+   * ensena lo que se intento y no salio; estas dos ensenan lo que nadie
+   * intento, que no esta detenido en ninguna parte y por eso no lo echa de
+   * menos nadie. Quien lleva el espejo tiene que poder verlas y encolarlas, o
+   * el bloqueo del cierre no tiene salida.
+   */
+  'GET /integracion/contabilidad/polizas-sin-espejo',
+  'POST /integracion/contabilidad/encolar-faltantes',
+  /*
    * Contrastar los dos mayores. Sin estas dos, la pantalla ensena que la
    * poliza salio y nadie comprueba nunca que del otro lado haya aterrizado lo
    * mismo. Es la pregunta que justifica todo el espejo.
@@ -375,11 +403,11 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * vender era el unico que no podia cerrar una venta desde la pantalla.
      */
     /*
-     * Las cinco entradas que la caja consulta al abrir, declaradas. Que
-     * funcionen hoy por herencia de modulo no basta: un veto futuro —o un
-     * modulo que se reordena— apaga el boton «Cobrar» sin que nadie relacione
-     * una cosa con la otra. Aqui son explicitas, y una prueba compara esta
-     * lista contra lo que la pantalla realmente pide.
+     * Las entradas que la caja consulta al abrir, declaradas. Que funcionen
+     * hoy por herencia de modulo no basta: un veto futuro —o un modulo que se
+     * reordena— apaga el boton «Cobrar» sin que nadie relacione una cosa con
+     * la otra. Aqui son explicitas, y una prueba compara esta lista contra lo
+     * que la pantalla realmente pide.
      */
     accionesIrrenunciables: [
       'GET /credito/cuentas-bancarias/para-cobro',
@@ -388,6 +416,14 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'GET /credito/productos',
       'GET /catalogo/productos/buscar',
       'GET /clientes',
+      /*
+       * Cuánto descuento admite su perfil. La caja lo pregunta ANTES de
+       * dibujar el campo de descuento, y sin respuesta asume cero. Si la
+       * consulta fallara, el mostrador no ofrecería descuento —el lado
+       * seguro—, pero un perfil al que sí se le autorizó descontar dejaría de
+       * poder hacerlo sin que nada lo dijera.
+       */
+      'GET /ventas/tope-descuento',
     ],
     accionesVedadas: ['GET /credito/cuentas-bancarias'],
   },
@@ -473,6 +509,24 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'POST /compras/requisiciones',
       'GET /compras/requisiciones',
       'GET /compras/requisiciones/:id',
+      /*
+       * Y CANCELAR LA SUYA, que faltaba.
+       *
+       * `cambiarEstado()` contesta «Sólo el solicitante o Compras pueden
+       * cancelar esta requisición» —y comprueba `usuarioSolicitanteId ===
+       * usuarioId`—, o sea que el servicio nombra al almacenista como quien
+       * puede. Pero `/compras` sólo lo tiene en consulta, así que el PATCH le
+       * devolvía 403: el endpoint le negaba lo que su propio mensaje de error
+       * le concedía.
+       *
+       * Medido leyendo el código el 30-sep-2026. El resultado práctico es que
+       * quien se equivoca al levantar una requisición no puede deshacerla y
+       * tiene que pedirle a Compras que le limpie su propio error.
+       *
+       * Conceder la ruta NO le deja cancelar las de otros: la comprobación del
+       * servicio sigue en pie y sólo pasa si la requisición es suya.
+       */
+      'PATCH /compras/requisiciones/:id/cancelar',
     ],
     /*
      * El catálogo de categorías es suyo: las crea, las renombra, las cuelga de
@@ -496,6 +550,37 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
        */
       'GET /compras/requisiciones/aprobaciones/pendientes',
       'PATCH /compras/requisiciones/aprobaciones/:id',
+      /*
+       * ======================================================================
+       * La otra puerta al mismo almacén
+       * ----------------------------------------------------------------------
+       * Mover mercancía entre almacenes tiene un circuito con dos firmas:
+       * SOLICITADA → AUTORIZADA → EN_TRANSITO → RECIBIDA, con dos reglas que
+       * el servicio hace cumplir —«Quien solicita la transferencia no puede
+       * autorizarla» y «Quien envía la mercancía no puede registrar su
+       * recepción»—. Para que ese circuito pudiera recorrerse se le
+       * concedieron a gerencia y dirección las acciones de autorizar y recibir
+       * (ver `ACCIONES_AUTORIZAR_ALMACEN`, arriba).
+       *
+       * Y existía una segunda puerta a la misma habitación:
+       * `POST /catalogo/inventario/productos/transferir` crea la transferencia
+       * YA EN `COMPLETADA`, mueve la existencia y no pide ninguna firma. Cuelga
+       * del módulo `inventario`, que el almacenista tiene con escritura. O sea
+       * que la misma persona a la que el circuito excluye podía mover el mismo
+       * stock entre los mismos almacenes en una sola llamada.
+       *
+       * Un control que se puede rodear es peor que no tenerlo, porque el ERP
+       * aparenta separación de funciones y no la tiene.
+       *
+       * Comprobado el 30-sep-2026: ese endpoint NO lo llama el frontend —la
+       * pantalla de transferencias usa `/catalogo/wms/transferencias`— ni
+       * ningún otro servicio del backend; `transferirStock` tiene un único
+       * consumidor, su propio controlador. Cerrarlo aquí no le quita nada a
+       * nadie: quien necesite una transferencia de un paso la hace como
+       * administrador, y el almacén usa el circuito que sí deja rastro.
+       * ======================================================================
+       */
+      'POST /catalogo/inventario/productos/transferir',
     ],
   },
   {
@@ -1128,6 +1213,25 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'GET /ventas',
       'PATCH /ventas/:id/anular',
       /*
+       * Y DEVOLVER, que es la mitad que se quedó fuera aquel día.
+       *
+       * `ROLES_AUTORIZADORES_DEVOLUCION` designa también a GERENCIA y
+       * DIRECCION por encima de $5,000, y el endpoint estaba en la misma
+       * situación exacta que `anular`: la regla de importe nombraba a un rol
+       * que la capa de permisos rechazaba. Medido el 30-sep-2026 leyendo el
+       * código: en una instalación por omisión, una devolución de $5,000 o más
+       * sólo la podía autorizar el administrador del sistema.
+       *
+       * El mensaje que recibía el cajero —«requiere autorización de
+       * supervisor»— mandaba a pedirle la firma a alguien que tampoco podía
+       * darla. Es literalmente el mismo defecto de anular, un renglón más
+       * abajo y cinco días después.
+       *
+       * Por ACCIÓN, no por módulo: autorizar una devolución no es tener el
+       * mostrador. Gerencia sigue sin poder vender.
+       */
+      'POST /ventas/:id/devoluciones',
+      /*
        * Deshacer una cobranza. `@Roles` nombra a este rol —es de las
        * decisiones que se reservan al mando— y el permiso no estaba: el
        * endpoint contestaba 403 a quien el propio controlador designa.
@@ -1265,6 +1369,25 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
        */
       'GET /ventas',
       'PATCH /ventas/:id/anular',
+      /*
+       * Y DEVOLVER, que es la mitad que se quedó fuera aquel día.
+       *
+       * `ROLES_AUTORIZADORES_DEVOLUCION` designa también a GERENCIA y
+       * DIRECCION por encima de $5,000, y el endpoint estaba en la misma
+       * situación exacta que `anular`: la regla de importe nombraba a un rol
+       * que la capa de permisos rechazaba. Medido el 30-sep-2026 leyendo el
+       * código: en una instalación por omisión, una devolución de $5,000 o más
+       * sólo la podía autorizar el administrador del sistema.
+       *
+       * El mensaje que recibía el cajero —«requiere autorización de
+       * supervisor»— mandaba a pedirle la firma a alguien que tampoco podía
+       * darla. Es literalmente el mismo defecto de anular, un renglón más
+       * abajo y cinco días después.
+       *
+       * Por ACCIÓN, no por módulo: autorizar una devolución no es tener el
+       * mostrador. Gerencia sigue sin poder vender.
+       */
+      'POST /ventas/:id/devoluciones',
       /*
        * La conciliación de cartera: verla, ejecutarla y cerrar una
        * discrepancia. Los tres endpoints nombran a este rol en su `@Roles` y

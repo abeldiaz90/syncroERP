@@ -94,9 +94,13 @@ describe('Búsquedas · quien busca escribe en minúsculas', () => {
 
   it('el buscador del punto de venta no distingue mayúsculas', () => {
     /*
-     * El caso concreto, escrito aparte: es el que se vio en pantalla y el que
-     * el cliente vería el martes. TypeORM tiene `Like` e `ILike` y se
-     * diferencian en una letra; la que va aquí es la segunda.
+     * El caso concreto, escrito aparte: es el que se vio en pantalla.
+     *
+     * Actualizado el 1-oct-2026. La insensibilidad a mayúsculas ya no la da
+     * `ILike` sino el `lower()` de la normalización, que además quita los
+     * acentos —«cafe» tampoco encontraba «Café»—. La propiedad que importa es
+     * la misma y es la que se mide; el mecanismo concreto puede cambiar otra
+     * vez y esta prueba no debe atarse a él.
      */
     const productos = fuentes.find((f) =>
       f.ruta.endsWith('catalogo/services/productos.service.ts'),
@@ -106,7 +110,19 @@ describe('Búsquedas · quien busca escribe en minúsculas', () => {
       productos!.texto.indexOf('async buscarProductos('),
     );
     const cuerpo = buscador.slice(0, buscador.indexOf('\n  }'));
-    expect(cuerpo).toContain('ILike(filtro)');
-    expect(cuerpo).not.toMatch(/[^I]Like\(filtro\)/);
+
+    /* Los dos lados en minúsculas: el término y la columna. */
+    expect(cuerpo).toMatch(/patronDeBusqueda\(/);
+    expect(cuerpo).toMatch(/columnaSinAcentos|sin\('p\./);
+
+    /*
+     * Y ningún LIKE sobre una columna cruda: si quedara uno, volvería a
+     * fallar justo para quien escribe deprisa.
+     */
+    const likes = cuerpo.match(/`[^`]*LIKE :patron`/g) ?? [];
+    expect(likes.length).toBeGreaterThanOrEqual(4);
+    for (const like of likes) {
+      expect(like).toMatch(/^`\$\{sin\('p\.\w+'\)\} LIKE :patron`$/);
+    }
   });
 });

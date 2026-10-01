@@ -375,6 +375,7 @@ export const MODULOS: ModuleConfig[] = [
       { label: "Nuevo producto", href: "/dashboard/productos", descripcion: "Alta y edición del catálogo", principal: true, accion: { metodo: "POST", ruta: "/api/catalogo/productos" } },
       { label: "Listas de precio", href: "/dashboard/listas-precio", descripcion: "Precios y vigencias" },
       { label: "Importar productos", href: "/dashboard/inventario/importar", accion: { metodo: "POST", ruta: "/api/catalogo/importacion/productos" }, descripcion: "Carga inicial desde Excel" },
+      { label: "Qué hay que reponer", href: "/dashboard/productos/reposicion", accion: { metodo: "GET", ruta: "/api/catalogo/productos/reposicion" }, descripcion: "Bajo punto de reorden" },
     ],
     relacionados: [
       { label: "Ver existencias", href: "/dashboard/almacenes/centro", descripcion: "Stock y ubicación física" },
@@ -388,6 +389,7 @@ export const MODULOS: ModuleConfig[] = [
       { label: "Marcas", href: "/dashboard/marcas", grupo: "Catálogo" },
       { label: "Unidades de medida", href: "/dashboard/unidades-medida", grupo: "Catálogo" },
       { label: "Listas de precio", href: "/dashboard/listas-precio", grupo: "Comercial" },
+      { label: "Qué hay que reponer", href: "/dashboard/productos/reposicion", grupo: "Abastecimiento", etiqueta: "Nuevo" },
       { label: "Importar desde Excel", href: "/dashboard/inventario/importar", grupo: "Carga de datos" },
       { label: "Stock inicial", href: "/dashboard/inventario/stock-inicial", grupo: "Carga de datos" },
     ],

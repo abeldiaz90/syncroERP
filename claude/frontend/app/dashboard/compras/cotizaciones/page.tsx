@@ -47,6 +47,15 @@ export default function CotizacionesPage() {
    * peor que una vacia: el comprador deja de venir a mirarla.
    */
   const [esperandoAutorizacion, setEsperandoAutorizacion] = useState(0);
+  /*
+   * «El área de compras está al día» era una afirmación sobre la empresa hecha
+   * desde una consulta que quizá sólo miró un rincón: el servidor devuelve
+   * SÓLO las requisiciones de quien pregunta salvo que sea Compras o
+   * administrador, y lo dice en la cabecera `X-Alcance`. Medido el 30-sep-2026
+   * con el contador: la pantalla lo declaraba al día con una requisición
+   * esperando autorización. La pantalla repite el alcance, no concluye.
+   */
+  const [alcance, setAlcance] = useState<'todas'|'propias-y-firmadas'|null>(null);
   const [proveedores, setProveedores] = useState<IProveedor[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState('');
@@ -84,6 +93,12 @@ export default function CotizacionesPage() {
     const token = localStorage.getItem('syncro_token');
     try {
       const res = await fetch(`${apiUrl}/compras/requisiciones`, { headers: { Authorization: `Bearer ${token}` } });
+      const cabecera = res.headers.get('X-Alcance');
+      setAlcance(
+        cabecera === 'todas' || cabecera === 'propias-y-firmadas'
+          ? cabecera
+          : null,
+      );
       if (res.ok) {
         const data = await res.json();
         setRequisiciones(data.filter((r: IRequisicion) => r.estado === 'COTIZANDO'));
@@ -267,16 +282,24 @@ export default function CotizacionesPage() {
               <Calculator className="w-10 h-10 text-slate-300" />
             </div>
             <p className="text-lg font-bold text-slate-700">
-              {esperandoAutorizacion > 0
-                ? 'Nada por cotizar todavía'
-                : 'No hay requisiciones pendientes'}
+              {busqueda
+                ? 'Ninguna coincide con tu búsqueda'
+                : esperandoAutorizacion > 0
+                  ? 'Nada por cotizar todavía'
+                  : alcance === 'propias-y-firmadas'
+                    ? 'No tienes requisiciones por cotizar'
+                    : 'No hay requisiciones por cotizar'}
             </p>
             <p className="text-sm mt-1">
-              {esperandoAutorizacion > 0
-                ? esperandoAutorizacion === 1
-                  ? '1 requisición espera autorización. Baja aquí en cuanto se firme.'
-                  : `${esperandoAutorizacion} requisiciones esperan autorización. Bajan aquí en cuanto se firmen.`
-                : 'El área de compras está al día.'}
+              {busqueda
+                ? `Hay ${requisiciones.length} en estado Cotizando; ninguna dice «${busqueda}».`
+                : esperandoAutorizacion > 0
+                  ? esperandoAutorizacion === 1
+                    ? '1 requisición espera autorización. Baja aquí en cuanto se firme.'
+                    : `${esperandoAutorizacion} requisiciones esperan autorización. Bajan aquí en cuanto se firmen.`
+                  : alcance === 'propias-y-firmadas'
+                    ? 'Esta pantalla te muestra las tuyas y las que firmaste. El estado del área de compras lo ve Compras.'
+                    : 'Ninguna requisición está esperando cotización.'}
             </p>
           </div>
         ) : (

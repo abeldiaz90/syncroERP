@@ -311,6 +311,24 @@ export class Incidencia {
 
   @Column({ default: false }) aprobada!: boolean;
   @Column({ type: 'varchar', length: 20, default: 'CAPTURADA' }) estadoAprobacion!: string;
+
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * En QUÉ periodo se aplicó
+   * --------------------------------------------------------------------------
+   * `APLICADA` decía que la incidencia ya movió un recibo, pero no cuál. Con
+   * eso, dos periodos que se solapan —o un RECÁLCULO de un periodo distinto al
+   * que la consumió— vuelven a tomarla y la cobran dos veces. No se había
+   * notado porque hasta el 30-sep-2026 ninguna incidencia se aplicaba fuera de
+   * su propio periodo.
+   *
+   * Al traer las incidencias atrasadas de periodos ya cerrados —aplicación
+   * retroactiva, decisión de Abel del 30-sep-2026— eso deja de ser teórico: una
+   * falta de septiembre se cobra en la nómina de octubre, y nada más que ahí.
+   * Este campo es lo que lo garantiza.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  @Column({ type: 'uuid', nullable: true }) periodoAplicadoId?: string;
   @Column({ type: 'uuid', nullable: true }) aprobadaPorId?: string;
   @Column({ type: 'timestamptz', nullable: true }) fechaAprobacion?: Date;
   @Column({ type: 'uuid', nullable: true }) rechazadaPorId?: string;

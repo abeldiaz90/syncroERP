@@ -69,6 +69,28 @@ export class ContabilidadConciliacionService {
      */
     const leidos: { polizaId: string; asientoId: string }[] = [];
     let revisados = 0;
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * Una comparación que se cae no sigue afirmando
+     * ------------------------------------------------------------------------
+     * El cortacircuitos hacia el mayor externo se abre a los cinco fallos
+     * seguidos y se queda abierto veinte segundos. Este bucle recorre las
+     * pólizas una tras otra sin pausa, así que en cuanto se abría, las
+     * CIENTO CINCO restantes fallaban al instante —sin llamar siquiera— y
+     * cada una dejaba su «no se pudo leer el asiento externo».
+     *
+     * Medido en vivo el 30-sep-2026: la comparación devolvió ~110 hallazgos
+     * idénticos de «Circuito abierto hacia Fineract». Tres consecuencias, y
+     * ninguna buena: los cinco fallos de verdad quedaron enterrados entre cien
+     * copias; la bandeja de avisos se llenó de sedimento; y, sobre todo, la
+     * corrida afirmaba ciento diez cosas habiendo medido cinco.
+     *
+     * Ahora, cuando el enlace se cae, la comparación SE DETIENE y lo dice. Lo
+     * que no se miró no se reporta: se cuenta como pendiente.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    let interrumpida: string | null = null;
+    let pendientesDeComparar = 0;
     for (const link of links) {
       const poliza = await this.polizas.findOne({ where: { id: link.entidadId, empresaId }, relations: ['partidas'] });
       const base = { polizaId: link.entidadId, folio: poliza?.folio ?? link.entidadId, asientoId: link.idExterno };
@@ -136,6 +158,18 @@ export class ContabilidadConciliacionService {
           'CONSULTA_FALLIDA',
           `No se pudo leer íntegramente el asiento externo (${causa}). No se supone saldo cero ni coincidencia.`,
         );
+        /*
+         * Si el enlace se cayó, lo que sigue no es información: es el mismo
+         * fallo repetido tantas veces como pólizas queden.
+         */
+        if (!this.externa.disponible()) {
+          interrumpida =
+            `El enlace con el mayor externo se cortó tras revisar ${revisados} ` +
+            `de ${links.length} póliza(s) (${causa}). Las demás no se compararon: ` +
+            'no se sabe nada de ellas hasta la próxima corrida.';
+          pendientesDeComparar = links.length - revisados;
+          break;
+        }
       }
     }
     if (guardarAvisos) {
@@ -184,6 +218,20 @@ export class ContabilidadConciliacionService {
         }).orIgnore().execute();
       }
     }
-    return { fecha: new Date().toISOString(), alcance: 'POLIZAS_VINCULADAS', revisados, discrepancias: hallazgos.length, hallazgos };
+    return {
+      fecha: new Date().toISOString(),
+      alcance: 'POLIZAS_VINCULADAS',
+      revisados,
+      discrepancias: hallazgos.length,
+      hallazgos,
+      /*
+       * `completa` va en el resultado y no se deduce de que no haya hallazgos:
+       * una corrida que se cortó a la tercera póliza y no encontró nada no
+       * dice lo mismo que una que recorrió las ciento diez.
+       */
+      completa: interrumpida === null,
+      interrumpida,
+      pendientesDeComparar,
+    };
   }
 }

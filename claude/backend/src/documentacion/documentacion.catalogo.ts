@@ -55,6 +55,17 @@ export const DOCUMENTOS_PUBLICADOS: ReadonlyArray<DocumentoPublicado> = [
     orden: 20,
   },
   {
+    id: 'flujos-y-procesos',
+    archivo: '07-flujos-y-procesos.md',
+    titulo: 'Flujos y procesos, paso a paso',
+    resumen:
+      'Cada proceso de punta a punta: venta, devolución, anulación, facturación, ' +
+      'transferencias entre almacenes, vacaciones, incidencias y nómina. Con quién firma ' +
+      'cada paso y qué te va a negar el sistema, con el texto exacto y el porqué.',
+    restringido: false,
+    orden: 15,
+  },
+  {
     id: 'instalacion',
     archivo: '01-instalacion-y-puesta-en-marcha.md',
     titulo: 'Instalación y puesta en marcha',

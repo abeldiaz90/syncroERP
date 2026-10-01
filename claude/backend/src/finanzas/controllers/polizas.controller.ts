@@ -156,7 +156,7 @@ export class PolizasController {
   // ══════════════════════════════════════════════════════════════════════════
   // CANCELAR PÓLIZA — genera su reversa. La original nunca se borra.
   // POST /api/finanzas/polizas/:id/cancelar
-  // body: { motivo: string; fechaReverso?: 'AAAA-MM-DD' }
+  // body: { motivo: string; fechaReverso?: 'AAAA-MM-DD'; regenerar?: boolean }
   // ══════════════════════════════════════════════════════════════════════════
   @Post(':id/cancelar')
   async cancelar(
@@ -170,6 +170,7 @@ export class PolizasController {
       motivo: body?.motivo,
       fechaReverso: body?.fechaReverso,
       usuario: email,
+      regenerar: body?.regenerar === true,
     });
   }
 }

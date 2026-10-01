@@ -132,3 +132,41 @@ export function exigirRangoDeFechas(
   finDelDia.setHours(23, 59, 59, 999);
   return { desde: d, hasta: h, hastaFinDelDia: finDelDia };
 }
+
+/**
+ * ============================================================================
+ * La fecha contable de un hecho es el día en que ocurrió, no el instante UTC
+ * ----------------------------------------------------------------------------
+ * Medido en vivo el 1-oct-2026, recorriendo el ciclo de compras con Abel:
+ *
+ *   Recepción de mercancía     30 de septiembre, 18:13 (hora de México)
+ *   Póliza EG-2026-00001        1 de octubre
+ *
+ * El mismo hecho, dos fechas, dos meses. El almacén recibió en septiembre y la
+ * contabilidad asentó el costo y el pasivo en octubre.
+ *
+ * La causa: quien encola el asiento pone `fecha: new Date()`, el proceso del
+ * servidor corre en UTC y la columna `fecha` de la póliza es de tipo `date`,
+ * que TypeORM escribe con los captadores locales del proceso. En UTC-6 eso
+ * significa que **todo lo que pasa después de las 18:00 se contabiliza al día
+ * siguiente**: seis horas de cada día mal fechadas, y el último día del mes,
+ * seis horas de operación que se van al mes que viene y descuadran el cierre
+ * contra el inventario.
+ *
+ * No es un redondeo: es la diferencia entre que un cierre cuadre y que no.
+ *
+ * `fechaCalendarioNegocio` ya resolvía el «qué día es hoy» en la zona de la
+ * empresa, pero devuelve texto y los generadores necesitan un `Date`. Esto es
+ * el par que faltaba: el día de negocio, a medianoche local, listo para que
+ * TypeORM lo escriba como el día que fue.
+ * ============================================================================
+ */
+export function fechaContableNegocio(
+  instante = new Date(),
+  timeZone = DEFAULT_TIME_ZONE,
+): Date {
+  const [anio, mes, dia] = fechaCalendarioNegocio(instante, timeZone)
+    .split('-')
+    .map(Number);
+  return new Date(anio, mes - 1, dia);
+}

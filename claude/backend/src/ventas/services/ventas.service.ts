@@ -32,6 +32,7 @@ import {
   fechaCalendarioNegocio,
   rangoDiaNegocio,
   rangoUltimosDiasNegocio,
+  fechaContableNegocio,
 } from '../../common/utils/business-time.util';
 import { CajaService } from '../../caja/services/caja.service';
 import {
@@ -503,7 +504,7 @@ export class VentasService {
         {
           ventaId: ventaGuardada.id,
           folio,
-          fecha: new Date(),
+          fecha: fechaContableNegocio(),
           empresaId,
           metodoPago: dto.metodoPago,
           cuentaBancariaId: cuentaCobroId ?? undefined,

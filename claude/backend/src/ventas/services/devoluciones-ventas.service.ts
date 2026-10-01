@@ -59,6 +59,11 @@ import { CierreContable } from '../../finanzas/entities/cierre-contable.entity';
 import { fechaCalendarioNegocio } from '../../common/utils/business-time.util';
 import { CajaService } from '../../caja/services/caja.service';
 import {
+  ROLES_AUTORIZADORES_DEVOLUCION,
+  UMBRAL_APROBACION_DEVOLUCION,
+  normalizarRolAutorizador,
+} from '../constants/autorizacion-ventas';
+import {
   NaturalezaMovimientoCaja,
   TipoMovimientoCaja,
 } from '../../caja/entities/movimiento-caja.entity';
@@ -78,22 +83,6 @@ const numeroConfiguracion = (nombre: string, defecto: number, minimo = 0) => {
   return Number.isFinite(valor) && valor >= minimo ? valor : defecto;
 };
 
-const normalizarRol = (rol?: string) =>
-  (rol ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toUpperCase()
-    .replace(/[\s-]+/g, '_');
-
-const rolesAutorizadoresDevolucion = () =>
-  new Set(
-    (process.env.DEVOLUCIONES_ROLES_AUTORIZADORES ??
-      'ADMIN,ADMINISTRADOR,SUPER_ADMIN,GERENTE,SUPERVISOR')
-      .split(',')
-      .map(normalizarRol)
-      .filter(Boolean),
-  );
 
 const diasCalendarioEntre = (desde: string, hasta: string) => {
   const a = Date.parse(`${desde}T00:00:00.000Z`);
@@ -502,15 +491,37 @@ export class DevolucionesVentasService {
       throw new BadRequestException('El importe de la devolución es inválido.');
     }
 
-    const umbralAutorizacion = numeroConfiguracion(
-      'DEVOLUCIONES_MONTO_APROBACION',
-      5000,
-      0,
-    );
+    /*
+     * ========================================================================
+     * La autorización de la devolución vive donde dice que vive
+     * ------------------------------------------------------------------------
+     * `constants/autorizacion-ventas.ts` se escribió para las DOS operaciones
+     * —lo dice su encabezado: «Aquí queda un único punto para ambas»— y este
+     * servicio nunca se conectó a él. Se quedó con una copia privada cuyo
+     * conjunto por defecto era
+     *
+     *     ADMIN, ADMINISTRADOR, SUPER_ADMIN, GERENTE, SUPERVISOR
+     *
+     * y `GERENTE` y `SUPERVISOR` NO EXISTEN como rol en este ERP: los trece
+     * roles reales incluyen `gerencia` y `direccion`, que es justo lo que el
+     * archivo central ya contemplaba y esta copia no.
+     *
+     * Consecuencia en una instalación recién puesta: una devolución de $5,000
+     * o más sólo la podía autorizar el administrador del sistema. Una
+     * ferretería que devuelve una herramienta de seis mil pesos tenía que
+     * llamar a quien instaló el ERP.
+     *
+     * Es la misma historia que anular, corregida el 25-sep-2026 y no
+     * corregida aquí: la regla estaba bien y la población de firmantes era de
+     * uno. Al conectar el archivo central, las dos operaciones comparten
+     * nombres de rol, normalización y variables de entorno.
+     * ========================================================================
+     */
+    const umbralAutorizacion = UMBRAL_APROBACION_DEVOLUCION();
     if (
       umbralAutorizacion > 0 &&
       total >= umbralAutorizacion &&
-      !rolesAutorizadoresDevolucion().has(normalizarRol(rolUsuario))
+      !ROLES_AUTORIZADORES_DEVOLUCION().has(normalizarRolAutorizador(rolUsuario))
     ) {
       throw new ConflictException(
         `La devolución por $${total.toFixed(2)} requiere autorización de supervisor porque supera el umbral de $${umbralAutorizacion.toFixed(2)}.`,

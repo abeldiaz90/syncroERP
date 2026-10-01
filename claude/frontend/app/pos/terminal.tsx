@@ -188,6 +188,25 @@ export default function TerminalPos() {
   const [cargandoAmort,     setCargandoAmort]     = useState(false);
   const [metodoSeccion,     setMetodoSeccion]     = useState<'contado'|'credito'>('contado');
 
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * El descuento que la caja puede dar de verdad
+   * ──────────────────────────────────────────────────────────────────────────
+   * Aquí había un campo «Desc. $» por renglón, sin tope, que el cajero podía
+   * teclear y que el servidor rechazaba al cobrar: el tope del rol `empleado`
+   * es 0. El cliente ya estaba en el mostrador cuando aparecía el «no».
+   *
+   * Así lo resuelven los ERP que sí lo tienen resuelto —SAP Business One con
+   * su «Maximum Discount %» por usuario, Dynamics 365 Commerce con la
+   * propiedad del grupo de permisos del POS, Odoo con el límite por grupo—:
+   * la caja PREGUNTA el tope antes de dibujar el campo. Si es 0, no hay campo.
+   *
+   * `null` mientras no se sabe: tampoco se dibuja. Un campo que aparece medio
+   * segundo después y que quizá no debía estar es peor que uno que tarda.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  const [topeDescuento, setTopeDescuento] = useState<number|null>(null);
+
   const searchRef = useRef<HTMLInputElement>(null);
   const ventaEnCursoRef = useRef(false);
   const idempotenciaVentaRef = useRef<string | null>(null);
@@ -215,7 +234,10 @@ export default function TerminalPos() {
       // Sólo los vendibles: un producto sin verificar contra el registro
       // externo no debe ni aparecer en la pantalla del cajero.
       intentar(api.get<IProductoCredito[]>('/credito/productos', { query: { vendibles: '1' } }), []),
-    ]).then(([alm, cb, listas, prodsCredito]) => {
+      // Cuánto descuento admite el perfil de quien está en la caja. Sin
+      // respuesta se asume cero: no se ofrece lo que no se sabe si se puede.
+      intentar(api.get<{ topePorcentaje:number }>('/ventas/tope-descuento'), { topePorcentaje: 0 }),
+    ]).then(([alm, cb, listas, prodsCredito, tope]) => {
       setAlmacenes(alm);
       if (alm.length>0) setAlmacenId(alm[0].id);
       /*
@@ -231,6 +253,7 @@ export default function TerminalPos() {
       const def = cb.find((c:ICuentaBancaria) => c.esPorDefecto && c.tipo==='CAJA');
       if (def) setCuentaBancariaId(def.id);
       setProductosCredito(prodsCredito);
+      setTopeDescuento(Math.min(100, Math.max(0, n(tope?.topePorcentaje))));
     });
     searchRef.current?.focus();
   }, []);
@@ -458,22 +481,28 @@ export default function TerminalPos() {
   const actualizarCantidad = (id:string, delta:number) =>
     setCarrito(prev=>prev.map(i=>i.productoId!==id?i:{...i,cantidad:Math.max(0,Math.min(i.cantidad+delta,i.stockDisponible))}).filter(i=>i.cantidad>0));
   /*
-   * El descuento se acota al importe del renglón.
+   * El descuento se acota al tope del perfil, y en pesos.
    *
-   * No tenía tope: el campo dice «Desc. $» y está junto al precio, así que
-   * teclear ahí el precio del producto —1500 en un renglón de $150— dejaba el
-   * renglón en −$1,350 y el TOTAL de la venta en negativo, y la venta se podía
-   * enviar. El rechazo, si llegaba, venía del servidor con un mensaje que no
-   * hablaba del descuento.
+   * Antes no tenía tope de ninguna clase: el campo dice «Desc. $» y está junto
+   * al precio, así que teclear ahí el precio del producto —1500 en un renglón
+   * de $150— dejaba el renglón en −$1,350 y el TOTAL de la venta en negativo,
+   * y la venta se podía enviar. Después se acotó al importe del renglón, que
+   * evitaba el total negativo pero seguía dejando teclear un 100% que el
+   * servidor rechaza. Ahora el techo es el mismo número que aplica el
+   * servidor: `tope % × importe`.
    *
-   * Se acota en el estado y no sólo en el campo: el `max` del input no impide
+   * Se acota en el ESTADO y no sólo en el campo: el `max` del input no impide
    * pegar un valor ni escribirlo con el teclado numérico.
    */
+  const descuentoMaximoDe = (item:IItemCarrito):number => {
+    const importe = n(item.cantidad)*n(item.precioUnitario);
+    const tope = n(topeDescuento);
+    return Math.min(importe, (importe*tope)/100);
+  };
   const actualizarDescuento = (id:string, val:string) =>
     setCarrito(prev=>prev.map(i=>{
       if (i.productoId!==id) return i;
-      const importe = n(i.cantidad)*n(i.precioUnitario);
-      return {...i, descuento: Math.min(Math.max(0, n(val)), importe)};
+      return {...i, descuento: Math.min(Math.max(0, n(val)), descuentoMaximoDe(i))};
     }));
   const eliminarItem = (id:string) => setCarrito(prev=>prev.filter(i=>i.productoId!==id));
 
@@ -934,14 +963,30 @@ export default function TerminalPos() {
                         <p className="text-[10px] text-slate-400">${fmt(item.precioUnitario)} c/u {item.tasaIVA>0&&`+IVA`}</p>
                       </div>
                     </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide whitespace-nowrap">Desc. $</label>
-                      <input type="number" min="0" max={n(item.cantidad)*n(item.precioUnitario)} step="0.01" value={item.descuento||''} onChange={e=>actualizarDescuento(item.productoId,e.target.value)}
-                        className="w-full px-2 py-1 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700" placeholder="0.00"/>
-                    </div>
+                    {n(topeDescuento)>0 && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide whitespace-nowrap" htmlFor={`desc-${item.productoId}`}>
+                          Desc. $ <span className="text-slate-300">(máx {n(topeDescuento)}%)</span>
+                        </label>
+                        <input id={`desc-${item.productoId}`} type="number" min="0" max={descuentoMaximoDe(item)} step="0.01" value={item.descuento||''} onChange={e=>actualizarDescuento(item.productoId,e.target.value)}
+                          className="w-full px-2 py-1 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700" placeholder="0.00"/>
+                      </div>
+                    )}
                   </div>
                 );
               })}
+              {/*
+                * Cuando el perfil no descuenta, el campo no está —y se dice por
+                * qué, una vez y al pie, no renglón por renglón. Un campo que
+                * desaparece sin explicación se lee como una falla de la caja.
+                */}
+              {topeDescuento===0 && (
+                <p className="text-[10.5px] text-slate-400 leading-snug px-1">
+                  Los precios salen de la lista de precios vigente. Tu perfil no aplica
+                  descuentos en caja; si este cliente debe pagar menos, pide a Finanzas
+                  una lista de precios para él.
+                </p>
+              )}
             </div>
           )}
         </div>

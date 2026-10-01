@@ -90,6 +90,33 @@ export class ImportacionProductosService {
       const errs = this.validarFila(dto, nFila);
       if (errs.length) errores.push(...errs);
       else validas.push({ fila: nFila, dto });
+      /*
+       * ════════════════════════════════════════════════════════════════════
+       * Un producto sin ClaveProdServ es un producto que no se puede cobrar
+       * --------------------------------------------------------------------
+       * `claveSAT` es obligatoria en CFDI 4.0 y la entidad la declara así. La
+       * plantilla NO la pedía —ni el DTO la leía—, de modo que todo producto
+       * cargado por Excel nacía sin ella. Medido el 30-sep-2026: seis
+       * productos que no se podían timbrar, y la causa parecía captura
+       * descuidada cuando en realidad nadie la había pedido nunca.
+       *
+       * Se avisa, no se rechaza, y es deliberado: una materia prima o un
+       * insumo interno puede vivir sin clave mientras no se venda, y bloquear
+       * la carga entera de un catálogo por eso sería peor. Pero se avisa
+       * RENGLÓN POR RENGLÓN y diciendo la consecuencia, no el campo: quien
+       * lee «falta claveSAT» no sabe qué se rompe; quien lee «no se podrá
+       * facturar» sí.
+       * ════════════════════════════════════════════════════════════════════
+       */
+      if (!dto.claveSAT || String(dto.claveSAT).trim() === '') {
+        advertencias.push({
+          fila: nFila,
+          sku: dto.sku,
+          campo: 'claveSAT',
+          mensaje:
+            'Sin ClaveProdServ del SAT: el producto se carga, pero NO se podrá facturar hasta que se le asigne.',
+        });
+      }
     });
 
     // 3· RESOLVER relaciones por nombre (crea al vuelo lo permitido)
@@ -291,6 +318,7 @@ export class ImportacionProductosService {
       categoria: s('categoria'),
       marca: s('marca'),
       unidadMedida: s('unidadMedida'),
+      claveSAT: s('claveSAT'),
       claveUnidadSAT: s('claveUnidadSAT'),
       impuesto: s('impuesto'),
       precioCompra: n('precioCompra'),
@@ -498,6 +526,7 @@ export class ImportacionProductosService {
       codigoProveedor: d.codigoProveedor,
       descripcion: d.descripcion,
       tipo: d.tipoProducto,
+      claveSAT: d.claveSAT,
       claveUnidadSAT: d.claveUnidadSAT,
       precioCompra: d.precioCompra,
       monedaCosto: d.monedaCosto,

@@ -105,6 +105,31 @@ export class ProductosController {
     return this.productosService.obtenerStockBajo(req.user.empresaId);
   }
 
+  /**
+   * Qué hay que reponer hoy.
+   *
+   * `dashboard/stock-bajo` es un recuadro: los diez peores. Esto es la lista
+   * de trabajo — la que decide la compra del día — y por eso dispara por
+   * PUNTO DE REORDEN y no por mínimo, dice cuánto pedir y no se queda en diez.
+   *
+   * Va bajo `/catalogo/productos` a propósito: quien repone ya tiene el
+   * módulo de inventario, y no hace falta un permiso nuevo que alguien pueda
+   * quitar sin darse cuenta de que apaga la reposición.
+   */
+  @Get('reposicion')
+  reposicion(
+    @Req() req,
+    @Query('categoriaId') categoriaId?: string,
+    @Query('almacenId') almacenId?: string,
+    @Query('soloCriticos') soloCriticos?: string,
+  ) {
+    return this.productosService.analizarReposicion(req.user.empresaId, {
+      categoriaId: categoriaId || undefined,
+      almacenId: almacenId || undefined,
+      soloCriticos: soloCriticos === '1' || soloCriticos === 'true',
+    });
+  }
+
   // ── BÚSQUEDA — también antes de :id ───────────────────────────
 
   @Get('buscar')

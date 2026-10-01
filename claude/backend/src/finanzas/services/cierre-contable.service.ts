@@ -500,7 +500,18 @@ export class CierreContableService {
             (
               SELECT COUNT(*)::int FROM integracion_discrepancias d
                WHERE d.empresaId = $1 AND d.resuelta = false
-            )                                                          AS "carteraAbiertas"
+            )                                                          AS "carteraAbiertas",
+            (
+              SELECT COUNT(*)::int FROM polizas p2
+               WHERE p2.empresaId = $1
+                 AND p2.estatus = 'VIGENTE'
+                 AND p2.fecha <= $3::date
+                 AND NOT EXISTS (
+                       SELECT 1 FROM integracion_eventos ev
+                        WHERE ev.entidadId = p2.id
+                          AND ev.tipo = ANY($2::text[])
+                     )
+            )                                                          AS "sinEncolar"
           FROM integracion_configuracion_empresa c
           LEFT JOIN integracion_eventos e
                  ON e.empresaId = c.empresaId
@@ -595,10 +606,33 @@ export class CierreContableService {
         .trim()
         .toUpperCase() !== 'APAGADO';
     const carteraAbiertas = Number(espejo.carteraAbiertas ?? 0);
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * La otra mitad del espejo: la póliza que NADIE intentó mandar
+     * ------------------------------------------------------------------------
+     * Este control contaba lo que hay en la bandeja de salida sin entregar, y
+     * eso cubre todo lo que se intentó y no salió. No cubría lo que nunca se
+     * encoló: una póliza sin evento no está fallida, no está pendiente, no
+     * está en ninguna parte. No sale en ninguna bandeja y nadie la echa de
+     * menos.
+     *
+     * Medido el 30-sep-2026 contra la instalación: OCHO pólizas VIGENTES del
+     * 13, 14 y 15 de septiembre sin un solo evento de espejo. Septiembre se
+     * habría cerrado en verde con los dos libros distintos — el mismo defecto
+     * que este control vino a impedir, entrando por la otra puerta.
+     *
+     * Se suman a lo mismo porque para quien cierra el mes son lo mismo: un
+     * asiento que el mayor externo no tiene. La descripción sí las distingue,
+     * porque se arreglan distinto: lo detenido se despacha, lo que nunca se
+     * encoló hay que encolarlo primero.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    const espejoSinEncolar = Number(espejo.sinEncolar ?? 0);
     const espejoSinEntregar =
       Number(espejo.fallidos ?? 0) +
       Number(espejo.reintentables ?? 0) +
-      Number(espejo.pendientes ?? 0);
+      Number(espejo.pendientes ?? 0) +
+      espejoSinEncolar;
 
     const controles: DiagnosticoCierre['controles'] = [
       {
@@ -697,14 +731,22 @@ export class CierreContableService {
               titulo: 'Las pólizas llegaron al mayor externo',
               descripcion:
                 espejoSinEntregar === 0
-                  ? 'La bandeja de salida no tiene nada sin entregar: los dos libros dicen lo mismo.'
+                  ? 'Todas las pólizas del período llegaron al mayor externo: los dos libros dicen lo mismo.'
                   : `${espejoSinEntregar} asiento(s) no han llegado al mayor externo ` +
                     `(${Number(espejo.fallidos ?? 0)} fallido(s), ` +
                     `${Number(espejo.reintentables ?? 0)} reintentable(s), ` +
-                    `${Number(espejo.pendientes ?? 0)} pendiente(s)). ` +
-                    'Cerrar así deja los dos libros diferentes. Revísalo en ' +
-                    'Integración › Bandeja de salida: lo más común es una cuenta ' +
-                    'contable sin mapear al mayor externo.',
+                    `${Number(espejo.pendientes ?? 0)} pendiente(s)` +
+                    (espejoSinEncolar > 0
+                      ? `, y ${espejoSinEncolar} que nunca se encolaron`
+                      : '') +
+                    '). Cerrar así deja los dos libros diferentes. ' +
+                    (espejoSinEncolar > 0
+                      ? 'Las que nunca se encolaron no están detenidas en ninguna ' +
+                        'bandeja: nacieron antes del espejo o con él apagado. ' +
+                        'Encólalas desde Integración › Espejo contable y despáchalas. '
+                      : '') +
+                    'Lo detenido se revisa en Integración › Bandeja de salida: lo ' +
+                    'más común es una cuenta contable sin mapear al mayor externo.',
               estado: (espejoSinEntregar === 0
                 ? 'CORRECTO'
                 : 'BLOQUEO') as 'CORRECTO' | 'BLOQUEO',

@@ -25,6 +25,26 @@ const TIMEOUT_MS = 30_000;
 
 /* ── Errores tipados ─────────────────────────────────────────────────────── */
 
+/**
+ * Los 403 que dicen «pide acceso» y nada más.
+ *
+ * Son los que levantan las guardias —PermisoEndpointGuard, RolesGuard— y los
+ * que Nest genera solo. Se comparan en minúsculas y sin el punto final,
+ * porque el mismo texto viaja unas veces con punto y otras sin él.
+ *
+ * Todo 403 que no esté en esta lista es una regla de negocio explicada, y se
+ * enseña tal cual la escribió el servidor.
+ */
+const MENSAJES_DE_GUARDIA = new Set([
+  'no tienes permisos suficientes para esta acción',
+  'no tienes permisos para realizar esta acción',
+  'no fue posible validar el permiso de esta ruta',
+  'usuario no autenticado o sin empresa asociada',
+  'esta operación es de administración y tu perfil no la incluye',
+  'forbidden resource',
+  'forbidden',
+]);
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -37,6 +57,21 @@ export class ApiError extends Error {
 
   get esNoAutorizado() { return this.status === 401; }
   get esSinPermisos()  { return this.status === 403; }
+  /**
+   * Un 403 que NO viene de las guardias de permisos, sino de una regla de
+   * negocio que el servidor se tomó la molestia de explicar.
+   *
+   * Los dos se ven igual en el cable y no lo son. «No tienes permisos
+   * suficientes para esta acción» quiere decir «pide acceso». «Quien solicita
+   * vacaciones no puede aprobarlas» quiere decir «que lo apruebe otra
+   * persona», y quien lo lea correrá a pedirle al administrador un permiso
+   * que ya tiene y que no le va a servir de nada.
+   */
+  get esNegacionDeRegla() {
+    if (this.status !== 403) return false;
+    const texto = this.message.trim().replace(/\.+$/, '').toLowerCase();
+    return texto.length > 0 && !MENSAJES_DE_GUARDIA.has(texto);
+  }
   get esNoEncontrado() { return this.status === 404; }
   get esValidacion()   { return this.status === 400 || this.status === 422; }
   get esServidor()     { return this.status >= 500; }
@@ -48,7 +83,7 @@ export class ApiError extends Error {
    * no se disculpan ni son vagos.
    */
   mensajeParaPantalla(): string {
-    if (this.esSinPermisos) {
+    if (this.esSinPermisos && !this.esNegacionDeRegla) {
       return 'Tu perfil no incluye esta acción. Pide acceso al administrador.';
     }
     if (this.esRed) {
@@ -114,7 +149,13 @@ export async function conPermiso<T>(
   try {
     return { valor: await peticion, vedado: false };
   } catch (error) {
-    if (error instanceof ApiError && error.esSinPermisos) {
+    /*
+     * Sólo se traga la negativa de las guardias —«esto no es de tu rol»—.
+     * Un 403 que explica una regla de negocio sí sube: si se quedara aquí, la
+     * pantalla contaría «no es de tu rol» sobre algo que sí es de su rol y que
+     * el servidor ya había explicado bien.
+     */
+    if (error instanceof ApiError && error.esSinPermisos && !error.esNegacionDeRegla) {
       return { valor: null, vedado: true };
     }
     throw error;

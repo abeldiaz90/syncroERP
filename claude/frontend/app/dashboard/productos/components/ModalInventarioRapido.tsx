@@ -81,9 +81,30 @@ export default function ModalInventarioRapido({ isOpen, onClose, tipo, producto,
       cantidad: Number(cantidad),
       almacenId,
       motivo: motivo || (esEntrada ? 'Ingreso rápido de almacén' : 'Salida rápida de almacén'),
-      // ✅ SOLUCIÓN 2: Renombrado a 'numeroLote' para coincidir con la función del padre
-      numeroLote: producto.requiereLote ? lote : undefined,
-      fechaCaducidad: producto.requiereCaducidad ? fechaCaducidad : undefined,
+      /*
+       * ══════════════════════════════════════════════════════════════════════
+       * El lote es de la ENTRADA, no de la salida
+       * ──────────────────────────────────────────────────────────────────────
+       * Esto decía `producto.requiereLote ? lote : undefined`. En una SALIDA
+       * los campos de lote y caducidad ni siquiera se dibujan —línea 157—, así
+       * que `lote` vale cadena vacía; y una cadena vacía NO es `undefined`, de
+       * modo que la clave viajaba en el JSON. `RegistrarSalidaInventarioDto` no
+       * declara `numeroLote`, y el validador global rechaza lo que no está
+       * declarado: 400 «property numeroLote should not exist».
+       *
+       * O sea: la salida rápida estaba rota EXACTAMENTE para los productos
+       * trazables —los que llevan lote y caducidad: alimentos, farmacia—, que
+       * son los únicos para los que el aviso azul de esta misma ventana promete
+       * que «el sistema aplicará automáticamente FEFO».
+       *
+       * En la salida no se elige lote a mano a propósito: lo elige FEFO. Así
+       * que estos dos campos sólo tienen sentido entrando, y sólo entrando se
+       * mandan.
+       * ══════════════════════════════════════════════════════════════════════
+       */
+      numeroLote: esEntrada && producto.requiereLote ? lote : undefined,
+      fechaCaducidad:
+        esEntrada && producto.requiereCaducidad ? fechaCaducidad : undefined,
       equivalenciaId: equivalenciaId || undefined
     });
   };

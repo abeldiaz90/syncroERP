@@ -18,6 +18,7 @@ import { AnulacionVentasService } from '../services/anulacion-ventas.service';
 import { DevolucionesVentasService } from '../services/devoluciones-ventas.service';
 import { CrearDevolucionVentaDto } from '../dto/crear-devolucion-venta.dto';
 import { AnularVentaDto } from '../dto/anular-venta.dto';
+import { topeDescuentoDeRol } from '../../catalogo/constants/tope-descuento';
 
 @Controller('ventas')
 export class VentasController {
@@ -43,6 +44,22 @@ export class VentasController {
       empresaId,
       Number(dias) || 30,
     );
+  }
+
+  /**
+   * Cuánto puede descontar en el mostrador quien está preguntando.
+   *
+   * La caja lo consulta al abrir. Si es 0, no dibuja el campo de descuento:
+   * un campo que el servidor va a rechazar no es una opción, es una trampa.
+   *
+   * Vive bajo `/ventas` a propósito —el prefijo que ya tiene el rol `empleado`,
+   * que es con el que se vende— para que la caja no dependa de un permiso
+   * aparte que alguien podría retirar sin saber que apaga el mostrador.
+   */
+  @Get('tope-descuento')
+  topeDescuento(@ActiveUser('rol') rolUsuario?: string) {
+    const topePorcentaje = topeDescuentoDeRol(rolUsuario);
+    return { topePorcentaje, puedeDescontar: topePorcentaje > 0 };
   }
 
   @Get('devoluciones')

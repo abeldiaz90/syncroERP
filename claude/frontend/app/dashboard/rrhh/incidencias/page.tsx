@@ -35,7 +35,57 @@ interface Incidencia {
   motivo?: string;
   folioIncapacidad?: string;
   aprobada: boolean;
+  /*
+   * El estado REAL. `aprobada` es un booleano y los estados son cuatro, asi
+   * que `!aprobada` mete en el mismo saco lo que falta por resolver y lo que
+   * ya se resolvio en contra. Ver `ESTADOS_RESUELTA`.
+   */
+  estadoAprobacion?: string;
 }
+
+/*
+ * ============================================================================
+ * Rechazada no es pendiente
+ * ----------------------------------------------------------------------------
+ * La pantalla decidia todo con `!aprobada`. Medido el 30-sep-2026 con la
+ * sesion de Gerencia: una incidencia CANCELADA aparecia como pendiente, se
+ * contaba en «PENDIENTES DE APROBAR 1», sumaba sus dias en «DIAS NO PAGADOS»
+ * y ofrecia un boton «Aprobar» que solo podia contestar 409 —«La incidencia
+ * esta en estado CANCELADA y no puede aprobarse»—.
+ *
+ * El calculo de nomina, que es quien maneja el dinero, ya lo hacia bien: se
+ * bloquea con `estadoAprobacion NOT IN (resueltas)` y solo aplica `aprobada =
+ * true`. Asi que la pantalla y la nomina daban numeros distintos sobre lo
+ * mismo, y quien lee la pantalla antes de correr la nomina persigue un
+ * pendiente que no existe.
+ *
+ * Esta lista es la misma que `ESTADOS_INCIDENCIA_RESUELTA` del backend
+ * (`rrhh.entity.ts`). Si alla se agrega un estado, aqui tambien.
+ * ============================================================================
+ */
+const ESTADOS_RESUELTA = ['APROBADA', 'APLICADA', 'RECHAZADA', 'CANCELADA'];
+
+/*
+ * Cada estado resuelto se nombra por lo que es. «Aprobada» para todo lo que no
+ * estaba pendiente era la otra mitad del mismo error: una incidencia aplicada
+ * en un recibo y una rechazada no son la misma noticia.
+ */
+const ETIQUETA_ESTADO: Record<string, { texto: string; tono: 'exito' | 'alerta' | 'peligro' | 'info' | 'neutro' }> = {
+  APROBADA:  { texto: 'Aprobada',  tono: 'exito'  },
+  APLICADA:  { texto: 'En nomina', tono: 'info'   },
+  RECHAZADA: { texto: 'Rechazada', tono: 'peligro'},
+  CANCELADA: { texto: 'Cancelada', tono: 'neutro' },
+};
+
+/** Falta por resolver: ni aprobada, ni aplicada, ni rechazada, ni cancelada. */
+const estaPendiente = (i: Incidencia): boolean =>
+  i.estadoAprobacion
+    ? !ESTADOS_RESUELTA.includes(i.estadoAprobacion)
+    : !i.aprobada;
+
+/** Resuelta EN CONTRA: no se aprueba ni se descuenta nada por ella. */
+const fueDesechada = (i: Incidencia): boolean =>
+  i.estadoAprobacion === 'RECHAZADA' || i.estadoAprobacion === 'CANCELADA';
 
 const TIPOS = [
   { valor: 'FALTA',             etiqueta: 'Falta',                 pagaPorOmision: false, unidad: 'dias'  },
@@ -99,10 +149,13 @@ export default function IncidenciasPage() {
     const lista = incidencias.datos ?? [];
     return {
       total: lista.length,
-      porAprobar: lista.filter((i) => !i.aprobada).length,
-      diasNoPagados: lista.filter((i) => !i.pagada).reduce((s, i) => s + Number(i.dias), 0),
+      porAprobar: lista.filter(estaPendiente).length,
+      // Una falta cancelada no le quita un dia de sueldo a nadie.
+      diasNoPagados: lista
+        .filter((i) => !i.pagada && !fueDesechada(i))
+        .reduce((s, i) => s + Number(i.dias), 0),
       horasExtra: lista
-        .filter((i) => i.tipo === 'HORAS_EXTRA')
+        .filter((i) => i.tipo === 'HORAS_EXTRA' && !fueDesechada(i))
         .reduce((s, i) => s + Number(i.horas), 0),
     };
   }, [incidencias.datos]);
@@ -216,9 +269,7 @@ export default function IncidenciasPage() {
                       {i.motivo || (i.folioIncapacidad ? `Folio ${i.folioIncapacidad}` : '—')}
                     </td>
                     <td className="text-right">
-                      {i.aprobada ? (
-                        <Distintivo tono="exito">Aprobada</Distintivo>
-                      ) : (
+                      {estaPendiente(i) ? (
                         <button
                           onClick={() => void aprobar.ejecutar(i.id)}
                           disabled={aprobar.ejecutando}
@@ -226,6 +277,10 @@ export default function IncidenciasPage() {
                         >
                           <Check className="w-3.5 h-3.5" /> Aprobar
                         </button>
+                      ) : (
+                        <Distintivo tono={ETIQUETA_ESTADO[i.estadoAprobacion ?? (i.aprobada ? 'APROBADA' : 'PENDIENTE')]?.tono ?? 'neutro'}>
+                          {ETIQUETA_ESTADO[i.estadoAprobacion ?? (i.aprobada ? 'APROBADA' : 'PENDIENTE')]?.texto ?? i.estadoAprobacion}
+                        </Distintivo>
                       )}
                     </td>
                   </tr>

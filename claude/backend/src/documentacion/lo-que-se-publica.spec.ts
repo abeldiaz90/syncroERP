@@ -66,17 +66,30 @@ describe('lo que se publica, y a quién', () => {
   });
 
   describe('quién ve qué', () => {
-    it('un usuario corriente sólo ve los dos manuales', () => {
+    it('un usuario corriente ve exactamente los no restringidos, en su orden', () => {
+      /*
+       * Antes esta prueba y la de abajo llevaban la lista y el número escritos a
+       * mano —«los dos manuales», «los seis»—, así que publicar un documento
+       * nuevo las ponía rojas siendo correcto el cambio. Una prueba que hay que
+       * editar cada vez que el sistema crece bien enseña a editar pruebas en vez
+       * de a pensar.
+       *
+       * Lo que de verdad se quiere fijar es la REGLA: quien no es administrador
+       * ve todo lo no restringido y nada más, en el orden del catálogo.
+       */
+      const esperados = [...DOCUMENTOS_PUBLICADOS]
+        .filter((d) => !d.restringido)
+        .sort((a, b) => a.orden - b.orden)
+        .map((d) => d.id);
       const { documentos } = servicio.listar('contador');
-      expect(documentos.map((d) => d.id)).toEqual([
-        'manual-por-rol',
-        'compras-y-nomina',
-      ]);
+      expect(documentos.map((d) => d.id)).toEqual(esperados);
+      expect(esperados.length).toBeGreaterThan(0);
     });
 
-    it('el administrador ve los seis', () => {
+    it('el administrador los ve todos', () => {
       const { documentos } = servicio.listar('administrador');
-      expect(documentos).toHaveLength(6);
+      expect(documentos).toHaveLength(DOCUMENTOS_PUBLICADOS.length);
+      expect(documentos.some((d) => d.restringido)).toBe(true);
     });
 
     it('sin rol no se ve la documentación técnica', () => {

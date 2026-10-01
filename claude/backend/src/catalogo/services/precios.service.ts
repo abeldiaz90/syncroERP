@@ -12,7 +12,7 @@ import { Producto } from '../entities/producto.entity';
 import { TipoProducto } from '../entities/producto.entity';
 import { ProductoPrecio } from '../entities/producto-precio.entity';
 import { ListaPrecio, ModoListaPrecio } from '../entities/lista-precio.entity';
-import { normalizarRol } from '../../iam/utils/roles.util';
+import { topeDescuentoDeRol } from '../constants/tope-descuento';
 
 /**
  * ============================================================================
@@ -109,18 +109,6 @@ export interface VentaResuelta {
   }>;
 }
 
-/** Tope de descuento por rol, en porcentaje sobre el subtotal del renglón. */
-const TOPE_DESCUENTO: Record<string, number> = {
-  ADMIN: 100,
-  ADMINISTRADOR: 100,
-  SUPER_ADMIN: 100,
-  GERENTE: 20,
-  GERENCIA: 20,
-  SUPERVISOR: 15,
-  CAJERO: 5,
-  VENDEDOR: 5,
-  EMPLEADO: 0,
-};
 
 @Injectable()
 export class PreciosService {
@@ -150,8 +138,6 @@ export class PreciosService {
     opciones: {
       listaPrecioId?: string;
       rolUsuario?: string;
-      /** Autorización explícita para pasar del tope. */
-      descuentoAutorizadoPorId?: string;
     } = {},
     manager?: EntityManager,
   ): Promise<VentaResuelta> {
@@ -193,7 +179,7 @@ export class PreciosService {
       this.cargarLista(listaId, empresaId, manager),
     ]);
 
-    const topeRol = this.topeDescuento(opciones.rolUsuario);
+    const topeRol = topeDescuentoDeRol(opciones.rolUsuario);
     const resueltos: RenglonResuelto[] = [];
     const discrepancias: VentaResuelta['discrepancias'] = [];
 
@@ -266,11 +252,45 @@ export class PreciosService {
 
       const porcentajeDescuento = bruto > 0 ? (descuento / bruto) * 100 : 0;
 
-      if (porcentajeDescuento > topeRol && !opciones.descuentoAutorizadoPorId) {
+      if (porcentajeDescuento > topeRol) {
+        /*
+         * ====================================================================
+         * Un «no» que mandaba a una puerta que no está en la pared
+         * --------------------------------------------------------------------
+         * El mensaje decía «Requiere autorización de un supervisor». Tres cosas
+         * estaban mal, y las tres se comprobaron leyendo el código el
+         * 30-sep-2026:
+         *
+         *  1. NO EXISTE el rol `supervisor` en este ERP. La tabla de topes
+         *     estaba escrita contra CAJERO, VENDEDOR, GERENTE y SUPERVISOR,
+         *     nombres de un esquema de roles que este sistema no usa.
+         *
+         *  2. NO HABÍA FORMA de dar esa autorización. `descuentoAutorizadoPorId`
+         *     era el escape que la saltaría, y NADIE lo escribía: no había un
+         *     solo productor en todo `src/`. Un parámetro que sólo sirve para
+         *     que la regla parezca negociable se borró.
+         *
+         *  3. Y el mostrador vende con el rol `empleado`, cuyo tope es 0: la
+         *     caja enseñaba el campo, dejaba teclearlo, recalculaba el carrito
+         *     —y al cobrar el servidor lo rechazaba.
+         *
+         * Hoy el tope es dato (`catalogo/constants/tope-descuento.ts`), la caja
+         * lo consulta antes de dibujar el campo y este `throw` es el último
+         * cerrojo, no el primer aviso. Cuando aparece es porque alguien llamó
+         * al API por su cuenta, y entonces el mensaje dice el camino real: en
+         * este ERP el precio de venta vive en las listas de precio.
+         * ====================================================================
+         */
+        const sinDescuento =
+          topeRol <= 0
+            ? 'Tu perfil no tiene descuento autorizado. '
+            : `Tu perfil llega hasta ${topeRol}%. `;
         throw new ForbiddenException(
           `El descuento de ${porcentajeDescuento.toFixed(1)}% en ${producto.nombre} ` +
-            `supera el máximo de ${topeRol}% para tu perfil. ` +
-            `Requiere autorización de un supervisor.`,
+            `no se puede aplicar. ${sinDescuento}` +
+            'En este ERP el precio de venta lo fijan las listas de precio: pide a ' +
+            'Finanzas una lista con ese precio para este cliente. No existe una ' +
+            'autorización de descuento en el mostrador.',
         );
       }
 
@@ -471,8 +491,4 @@ export class PreciosService {
     return redondear2(redondeado);
   }
 
-  private topeDescuento(rol?: string): number {
-    if (!rol) return 0;
-    return TOPE_DESCUENTO[normalizarRol(rol)] ?? 0;
-  }
 }

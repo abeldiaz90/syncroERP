@@ -290,14 +290,38 @@ export class IntegracionOutboxService {
    * es el dato que importa: un outbox sin forma de leer por qué falló algo es
    * una caja negra.
    */
+  /**
+   * `estado` admite varios, separados por coma.
+   *
+   * La pantalla del espejo pedía sólo `FALLIDO` y titulaba la tabla «Pólizas
+   * que no llegaron al mayor externo». Son dos cosas distintas: un evento
+   * PENDIENTE tampoco ha llegado, y REINTENTABLE tampoco. Se vio en vivo el
+   * 30-sep-2026 al encolar ocho pólizas que nunca se habían encolado: pasaron
+   * a PENDIENTE y la pantalla se quedó diciendo «nada detenido» con las ocho
+   * esperando. El filtro contestaba exactamente lo que se le pedía; lo que
+   * estaba mal era lo que se le pedía.
+   */
   async listar(
     empresaId: string,
-    filtros: { estado?: EstadoEventoIntegracion; limite?: number } = {},
+    filtros: {
+      estado?: EstadoEventoIntegracion | EstadoEventoIntegracion[] | string;
+      limite?: number;
+    } = {},
   ): Promise<EventoIntegracion[]> {
+    const estados = (
+      Array.isArray(filtros.estado)
+        ? filtros.estado
+        : String(filtros.estado ?? '')
+            .split(',')
+            .map((e) => e.trim())
+    ).filter(Boolean) as EstadoEventoIntegracion[];
+
     return this.repo.find({
       where: {
         empresaId,
-        ...(filtros.estado ? { estado: filtros.estado } : {}),
+        ...(estados.length
+          ? { estado: estados.length === 1 ? estados[0] : In(estados) }
+          : {}),
       },
       order: { fechaCreacion: 'DESC' },
       take: Math.min(filtros.limite ?? 50, 200),

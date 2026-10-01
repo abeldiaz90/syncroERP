@@ -4,7 +4,7 @@ import { EstadoAviso } from '../entities/aviso-integracion.entity';
 
 describe('Conciliación de pólizas vinculadas', () => {
   function escenario() {
-    const externa = { proveedor: 'fineract', configurado: () => true, consultarAsiento: jest.fn().mockResolvedValue({ referencia: 'SYNCRO-IN-1', moneda: 'MXN', reversado: false, movimientos: [{ cuentaIdExterna: '2', cargo: 600, abono: 0 }, { cuentaIdExterna: '4', cargo: 0, abono: 600 }] }) };
+    const externa = { proveedor: 'fineract', configurado: () => true, disponible: () => true, consultarAsiento: jest.fn().mockResolvedValue({ referencia: 'SYNCRO-IN-1', moneda: 'MXN', reversado: false, movimientos: [{ cuentaIdExterna: '2', cargo: 600, abono: 0 }, { cuentaIdExterna: '4', cargo: 0, abono: 600 }] }) };
     const links = { find: jest.fn().mockResolvedValue([{ entidadId: 'p', idExterno: 't' }]) };
     const polizas = { findOne: jest.fn().mockResolvedValue({ folio: 'IN-1', estatus: 'VIGENTE', partidas: [{ cuentaContableId: 'caja', cargo: 600, abono: 0 }, { cuentaContableId: 'ventas', cargo: 0, abono: 600 }] }) };
     const mappings = { find: jest.fn().mockResolvedValue([{ cuentaContableId: 'caja', idExterno: '2' }, { cuentaContableId: 'ventas', idExterno: '4' }]) };

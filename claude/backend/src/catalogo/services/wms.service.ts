@@ -19,6 +19,7 @@ import { LoteInventario } from '../entities/lote-inventario.entity';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
 import { omitirTareaProgramada } from '../../common/utils/tareas-programadas.util';
+import { fechaContableNegocio } from '../../common/utils/business-time.util';
 const n = (v: unknown) => Number(v ?? 0);
 const folio = (prefijo: string) => `${prefijo}-${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}-${randomUUID().slice(0, 6).toUpperCase()}`;
 @Injectable()
@@ -744,7 +745,7 @@ export class WmsService {
                 const asiento = await this.asientos.encolarEnTransaccion(em, TipoAsiento.AJUSTE_INVENTARIO, {
                     ajusteId: c.id,
                     folio: c.folio,
-                    fecha: new Date(),
+                    fecha: fechaContableNegocio(),
                     empresaId,
                     detalles: ajustes,
                 }, empresaId, c.folio, c.id);

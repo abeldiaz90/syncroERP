@@ -1,5 +1,9 @@
-import { Controller, Get, Post, Patch, Param, Body } from '@nestjs/common';
-import { RequisicionesService } from '../services/requisiciones.service';
+import { Controller, Get, Post, Patch, Param, Body, Res } from '@nestjs/common';
+import type { Response } from 'express';
+import {
+  RequisicionesService,
+  alcanceDeRequisiciones,
+} from '../services/requisiciones.service';
 import { CrearRequisicionDto } from '../dto/crear-requisicion.dto';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { Navegable } from '../../iam/decorators/navegable.decorator';
@@ -11,8 +15,21 @@ export class RequisicionesController {
   constructor(private readonly requisicionesService: RequisicionesService) {}
 
   @Navegable('/dashboard/compras/requisiciones', 'Requisiciones', 3)
+  /**
+   * El listado, y CUÁNTO listado es.
+   *
+   * A quien no es Compras ni administrador se le devuelven únicamente sus
+   * requisiciones. La cabecera `X-Alcance` lo dice en voz alta para que la
+   * pantalla no tenga que adivinarlo ni repetir la regla por su cuenta: una
+   * lista vacía con alcance `propias` significa «tú no tienes», no «no hay».
+   */
   @Get()
-  async obtenerTodas(@ActiveUser() usuario: any) {
+  async obtenerTodas(
+    @ActiveUser() usuario: any,
+    @Res({ passthrough: true }) respuesta: Response,
+  ) {
+    respuesta.setHeader('X-Alcance', alcanceDeRequisiciones(usuario.rol));
+    respuesta.setHeader('Access-Control-Expose-Headers', 'X-Alcance');
     return this.requisicionesService.obtenerTodas(
       usuario.empresaId,
       usuario.id,

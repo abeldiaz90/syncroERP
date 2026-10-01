@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsDateString, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { IsSqlServerGuid } from '../../common/validators/sql-server-guid.validator';
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
 export class PartidaPolizaManualDto {
@@ -17,5 +17,10 @@ export class CrearPolizaManualDto {
 export class CancelarPolizaDto {
   @Transform(trim) @IsString() @MinLength(5) @MaxLength(500) motivo!: string;
   @IsOptional() @IsDateString() fechaReverso?: string;
+  /*
+   * Rehacer la póliza del documento que la originó. Opcional: a veces se
+   * cancela porque esa póliza no debía existir. Ver `cancelarPoliza`.
+   */
+  @IsOptional() @IsBoolean() regenerar?: boolean;
 }
 export class DescartarAsientoDto { @Transform(trim) @IsString() @MinLength(5) @MaxLength(1000) nota!: string; }

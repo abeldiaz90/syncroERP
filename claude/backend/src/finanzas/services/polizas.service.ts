@@ -13,6 +13,10 @@ import { PartidaPoliza } from '../entities/partida-poliza.entity';
 import { CrearPolizaDto } from '../dto/crear-poliza.dto';
 import { CuentaContable } from '../entities/cuenta-contable.entity';
 import { diaCalendario } from '../../common/utils/fecha-calendario.util';
+import {
+  AsientoPendiente,
+  EstadoAsiento,
+} from '../entities/asiento-pendiente.entity';
 
 @Injectable()
 export class PolizasService {
@@ -607,7 +611,38 @@ export class PolizasService {
   async cancelarPoliza(
     empresaId: string,
     polizaId: string,
-    datos: { motivo: string; fechaReverso?: string; usuario?: string },
+    datos: {
+      motivo: string;
+      fechaReverso?: string;
+      usuario?: string;
+      /*
+       * ====================================================================
+       * Cancelar una póliza automática deja su documento sin contabilidad
+       * --------------------------------------------------------------------
+       * Una póliza nacida de un documento —una recepción, una venta, un
+       * cobro— tiene su asiento en `asientos_pendientes`, marcado GENERADO y
+       * apuntando a ella. Al cancelarla, ese asiento seguía diciendo
+       * «Generado» y apuntando a una póliza muerta: el documento quedaba sin
+       * contabilidad viva, con el inventario o la cartera ya movidos, y
+       * NADA lo decía. `reintentarAhora` tampoco ayudaba — ve el estado
+       * GENERADO y contesta «ya estaba generado, no se duplicó la póliza»,
+       * que es lo más parecido a no tener botón.
+       *
+       * Encontrado el 1-oct-2026 al ir a corregir una póliza mal fechada: el
+       * camino para corregirla no existía, y el agujero era más grande que
+       * la fecha.
+       *
+       * Con `regenerar`, el asiento vuelve a PENDIENTE y el motor lo rehace
+       * —ahora con la fecha de negocio correcta—. Es opcional a propósito:
+       * a veces se cancela porque esa póliza no debía existir, y entonces
+       * rehacerla sería justo lo contrario de lo que se pide.
+       *
+       * Y cuando NO se pide, no se calla: la respuesta avisa de qué
+       * documento se queda sin póliza.
+       * ====================================================================
+       */
+      regenerar?: boolean;
+    },
   ) {
     const motivo = (datos.motivo ?? '').trim();
     if (motivo.length < 5) {
@@ -733,6 +768,32 @@ export class PolizasService {
         fechaCancelacion: new Date(),
       });
 
+      /* El asiento que la produjo, si vino de un documento. */
+      const asiento = await qr.manager.findOne(AsientoPendiente, {
+        where: { empresaId, polizaId: original.id },
+      });
+
+      let documentoSinPoliza: string | null = null;
+      let regenerada = false;
+
+      if (asiento && datos.regenerar) {
+        await qr.manager.update(AsientoPendiente, asiento.id, {
+          estado: EstadoAsiento.PENDIENTE,
+          polizaId: null,
+          intentos: 0,
+          ultimoError: null,
+          proximoIntento: new Date(),
+          notaResolucion:
+            `Reabierto al cancelar ${original.folio}: ${motivo}`.substring(
+              0,
+              500,
+            ),
+        });
+        regenerada = true;
+      } else if (asiento) {
+        documentoSinPoliza = asiento.folioDocumento ?? asiento.tipo;
+      }
+
       await qr.commitTransaction();
       this.logger.warn(
         `Póliza ${original.folio} cancelada por ${datos.usuario ?? 'sistema'} — reversa ${folio} — motivo: ${motivo}`,
@@ -740,6 +801,15 @@ export class PolizasService {
 
       return {
         mensaje: `Póliza ${original.folio} cancelada. Se generó la reversa ${folio}.`,
+        /* Qué pasó con el documento del que nació, si nació de alguno. */
+        regenerada,
+        /*
+         * No se cancela en silencio una póliza que respalda un documento. Si
+         * no se pidió rehacerla, la respuesta nombra lo que se queda sin
+         * asiento para que quien cancela lo sepa en ese momento y no en el
+         * cierre.
+         */
+        documentoSinPoliza,
         original: {
           id: original.id,
           folio: original.folio,

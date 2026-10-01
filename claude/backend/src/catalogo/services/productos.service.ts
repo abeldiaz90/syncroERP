@@ -6,8 +6,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, ILike, In, Repository } from 'typeorm';
-import { Producto } from '../entities/producto.entity';
+import {
+  Brackets,
+  DataSource,
+  EntityManager,
+  ILike,
+  In,
+  Repository,
+} from 'typeorm';
+import { Producto, TipoProducto } from '../entities/producto.entity';
 import { ImagenProducto } from '../entities/imagen-producto.entity';
 import { ProductoPrecio } from '../entities/producto-precio.entity';
 import { ProductoEquivalencia } from '../entities/producto-equivalencia.entity';
@@ -28,6 +35,11 @@ import {
   ATRIBUTOS_PETROLERO,
   ATRIBUTOS_HOTELERO,
 } from '../entities/producto-atributo.entity';
+import { fechaContableNegocio } from '../../common/utils/business-time.util';
+import {
+  columnaSinAcentos,
+  patronDeBusqueda,
+} from '../../common/utils/texto-busqueda.util';
 
 // Mapa de presets por sector
 const PRESETS_ATRIBUTOS: Record<string, typeof ATRIBUTOS_FARMACEUTICO> = {
@@ -363,7 +375,7 @@ export class ProductosService {
           TipoAsiento.INVENTARIO_INICIAL,
           {
             empresaId,
-            fecha: new Date(),
+            fecha: fechaContableNegocio(),
             detalles: [
               {
                 productoId: guardado.id,
@@ -722,23 +734,38 @@ export class ProductosService {
      * intercalacion por omision ignora mayusculas y `LIKE` bastaba; al mudar
      * el motor la busqueda se volvio literal sin que nadie tocara una linea.
      */
-    const filtro = `%${String(query ?? '').trim()}%`;
-    const productos = await this.productoRepository.find({
-      where: [
-        { empresaId, activo: true, nombre: ILike(filtro) },
-        { empresaId, activo: true, sku: ILike(filtro) },
-        { empresaId, activo: true, codigoBarras: ILike(filtro) },
-        { empresaId, activo: true, codigoBarras2: ILike(filtro) },
-      ],
-      relations: [
-        'imagenes',
-        'preciosProducto',
-        'preciosProducto.listaPrecio',
-        'equivalencias',
-      ],
-      take: Math.min(Math.max(Number(limite) || 15, 1), 100),
-      order: { nombre: 'ASC' },
-    });
+    /*
+     * Y sin acentos, que es la otra mitad del mismo defecto.
+     *
+     * Medido en la caja el 1-oct-2026: «cafe» no devolvía nada y «Café» sí.
+     * Nadie teclea la tilde con un cliente enfrente, y en un catálogo mexicano
+     * eso deja fuera café, azúcar, lámina, jabón, atún… El cajero no concluye
+     * «me faltó el acento», concluye que el producto no existe.
+     *
+     * Se compara el texto sin marcas contra la columna sin marcas. `ILike` ya
+     * no hace falta: `lower()` va dentro de la normalización.
+     */
+    const patron = patronDeBusqueda(String(query ?? ''));
+    const sin = (columna: string) => columnaSinAcentos(columna);
+    const productos = await this.productoRepository
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.imagenes', 'imagenes')
+      .leftJoinAndSelect('p.preciosProducto', 'preciosProducto')
+      .leftJoinAndSelect('preciosProducto.listaPrecio', 'listaPrecio')
+      .leftJoinAndSelect('p.equivalencias', 'equivalencias')
+      .where('p.empresaId = :empresaId', { empresaId })
+      .andWhere('p.activo = true')
+      .andWhere(
+        new Brackets((b) => {
+          b.where(`${sin('p.nombre')} LIKE :patron`, { patron })
+            .orWhere(`${sin('p.sku')} LIKE :patron`)
+            .orWhere(`${sin('p.codigoBarras')} LIKE :patron`)
+            .orWhere(`${sin('p.codigoBarras2')} LIKE :patron`);
+        }),
+      )
+      .orderBy('p.nombre', 'ASC')
+      .take(Math.min(Math.max(Number(limite) || 15, 1), 100))
+      .getMany();
 
     if (productos.length === 0) return [];
 
@@ -785,6 +812,172 @@ export class ProductosService {
       .filter((p) => p.stockActual <= p.stockMinimo)
       .sort((a, b) => a.stockActual - b.stockActual)
       .slice(0, 10);
+  }
+
+  /**
+   * ==========================================================================
+   * QUÉ HAY QUE REPONER
+   * --------------------------------------------------------------------------
+   * `obtenerStockBajo` de arriba es un recuadro de tablero: los diez peores y
+   * nada más. Sirve para mirar, no para trabajar — y, comprobado el
+   * 30-sep-2026, NINGUNA pantalla lo llama. O sea: el ERP ya sabía qué había
+   * que reponer y no se lo decía a nadie.
+   *
+   * Esto es lo otro: la lista con la que un encargado de ferretería o de
+   * abarrotes decide la compra del día. Tres diferencias que importan:
+   *
+   *  1. DISPARA POR PUNTO DE REORDEN, no por mínimo. Son cosas distintas y los
+   *     ERP serios las distinguen: el punto de reorden es «pide ya, porque lo
+   *     que queda se acaba antes de que llegue el pedido»; el mínimo es el
+   *     suelo de seguridad, el que no deberías tocar nunca. Disparar por el
+   *     mínimo es pedir tarde siempre. Cuando no hay punto de reorden se usa
+   *     el mínimo, que es lo único que se sabe.
+   *
+   *  2. DICE CUÁNTO PEDIR. Hasta el máximo si está configurado; si no, lo
+   *     necesario para volver al punto de reorden con un margen. Una lista que
+   *     dice «te falta» y no dice «pide tanto» deja el trabajo a medias, y ese
+   *     trabajo se hace con calculadora al lado.
+   *
+   *  3. NO SE QUEDA EN DIEZ. Una abarrotera tiene cientos de renglones bajo
+   *     mínimo un lunes por la mañana.
+   *
+   * Y respeta el redondeo a múltiplos de compra (`cantidadMinimaPedido`),
+   * porque nadie compra 7 cajas cuando el proveedor vende de 12.
+   * ==========================================================================
+   */
+  async analizarReposicion(
+    empresaId: string,
+    opciones: { categoriaId?: string; almacenId?: string; soloCriticos?: boolean } = {},
+  ) {
+    const consulta = this.dataSource
+      .getRepository(StockPorAlmacen)
+      .createQueryBuilder('s')
+      .select('s.productoId', 'productoId')
+      .addSelect('COALESCE(SUM(s.cantidad), 0)', 'totalStock')
+      .where('s.empresaId = :empresaId', { empresaId });
+    if (opciones.almacenId) {
+      consulta.andWhere('s.almacenId = :almacenId', {
+        almacenId: opciones.almacenId,
+      });
+    }
+    const stocksRaw = await consulta
+      .groupBy('s.productoId')
+      .getRawMany<{ productoId: string; totalStock: string }>();
+    const stockMap = new Map(
+      stocksRaw.map((s) => [s.productoId, Number(s.totalStock)]),
+    );
+
+    const where: Record<string, unknown> = { empresaId, activo: true };
+    if (opciones.categoriaId) where.categoriaId = opciones.categoriaId;
+
+    const productos = await this.productoRepository.find({
+      where,
+      /*
+       * `unidadMedida` es una columna de texto, no una relación: pedir
+       * `unidadMedidaRel` aquí tira la consulta entera con
+       * «Relation was not found» y la pantalla queda en blanco. Lo escribí
+       * así por costumbre y sólo se habría visto en vivo.
+       */
+      relations: ['categoria'],
+      order: { nombre: 'ASC' },
+    });
+
+    /*
+     * Los servicios no entran en ninguna de las dos cuentas: ni se reponen ni
+     * «se quedaron sin evaluar». Meterlos en el total haría que la frase
+     * «se evaluaron N artículos» contara cosas que nunca se miraron.
+     */
+    const reponibles = productos.filter((p) => p.tipo !== TipoProducto.SERVICIO);
+
+    const renglones = productos
+      /*
+       * Un servicio no se repone. Tampoco un producto que nadie configuró:
+       * sin mínimo ni punto de reorden no hay nada contra qué comparar, y
+       * meterlo en la lista con umbral cero lo convertiría en ruido
+       * permanente. Se cuentan aparte para poder decirlo.
+       */
+      .filter((p) => p.tipo !== TipoProducto.SERVICIO)
+      .map((p) => {
+        const stockActual = stockMap.get(p.id) ?? 0;
+        const minimo = Number(p.stockMinimo ?? 0);
+        const reorden = Number(p.puntoReorden ?? 0);
+        /* El disparo es el punto de reorden; a falta de él, el mínimo. */
+        const umbral = reorden > 0 ? reorden : minimo;
+        const objetivo =
+          Number(p.stockMaximo ?? 0) > 0
+            ? Number(p.stockMaximo)
+            : Math.max(umbral * 2, umbral + 1);
+        const faltante = Math.max(0, objetivo - stockActual);
+        const multiplo = Number(p.cantidadMinimaPedido ?? 0);
+        const sugerido =
+          multiplo > 1 ? Math.ceil(faltante / multiplo) * multiplo : faltante;
+        return {
+          id: p.id,
+          sku: p.sku,
+          nombre: p.nombre,
+          categoria: p.categoria?.nombre ?? null,
+          unidad: p.unidadMedida ?? null,
+          codigoProveedor: p.codigoProveedor ?? null,
+          precioCompra: Number(p.precioCompra ?? 0),
+          stockActual,
+          stockMinimo: minimo,
+          puntoReorden: reorden,
+          stockMaximo: Number(p.stockMaximo ?? 0),
+          umbral,
+          sugerido,
+          costoSugerido: this.redondear2(sugerido * Number(p.precioCompra ?? 0)),
+          /*
+           * AGOTADO es distinto de BAJO y se trabaja distinto: uno es una
+           * venta que ya no se pudo hacer; el otro, una que todavía se puede
+           * salvar. Pintarlos igual obliga a leer dos números para saber cuál
+           * es cuál.
+           */
+          estado:
+            stockActual <= 0
+              ? ('AGOTADO' as const)
+              : stockActual <= minimo
+                ? ('CRITICO' as const)
+                : ('BAJO' as const),
+          sinConfigurar: umbral <= 0,
+        };
+      })
+      .filter((r) => !r.sinConfigurar && r.stockActual <= r.umbral)
+      .filter((r) => !opciones.soloCriticos || r.estado !== 'BAJO')
+      .sort((a, b) => {
+        const orden = { AGOTADO: 0, CRITICO: 1, BAJO: 2 };
+        if (orden[a.estado] !== orden[b.estado])
+          return orden[a.estado] - orden[b.estado];
+        return a.stockActual - b.stockActual;
+      });
+
+    const sinConfigurar = reponibles.filter(
+      (p) =>
+        Number(p.puntoReorden ?? 0) <= 0 && Number(p.stockMinimo ?? 0) <= 0,
+    ).length;
+
+    return {
+      renglones,
+      resumen: {
+        total: renglones.length,
+        agotados: renglones.filter((r) => r.estado === 'AGOTADO').length,
+        criticos: renglones.filter((r) => r.estado === 'CRITICO').length,
+        bajos: renglones.filter((r) => r.estado === 'BAJO').length,
+        costoEstimado: this.redondear2(
+          renglones.reduce((a, r) => a + r.costoSugerido, 0),
+        ),
+        /*
+         * Se dice cuántos artículos NO se pudieron evaluar. Una lista de
+         * reposición que calla lo que no miró se lee como «no falta nada más»,
+         * y con la mitad del catálogo sin umbrales configurados eso es falso.
+         */
+        sinUmbralConfigurado: sinConfigurar,
+        productosEvaluados: reponibles.length - sinConfigurar,
+      },
+    };
+  }
+
+  private redondear2(n: number): number {
+    return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
   }
 
   // ─────────────────────────────────────────────────────────────────

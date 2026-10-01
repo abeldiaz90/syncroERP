@@ -161,6 +161,27 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Atributos y variantes',
     ordenMenu: 21,
   },
+  /*
+   * La lista de reposición. No pide un permiso nuevo: es el mismo catálogo
+   * ordenado por urgencia, y quien lo consulta puede leerla. Sin esta entrada
+   * la pantalla existe y no le aparece a nadie salvo al administrador, que es
+   * la forma más silenciosa de no entregar algo. La prueba de coherencia la
+   * atrapó al minuto de añadir el renglón al menú.
+   */
+  'GET /catalogo/productos/reposicion': {
+    rutaFrontend: '/dashboard/productos/reposicion',
+    titulo: 'Qué hay que reponer',
+    /*
+     * Entero. `endpoints.orden_menu` es `int` en la base y el sincronizador
+     * de arranque escribe este valor tal cual: puse 21.5 para colarla entre
+     * dos renglones y Postgres contestó «invalid input syntax for type
+     * integer», dentro de `onApplicationBootstrap`. O sea que la API no
+     * arrancó — un número decimal en una tabla de datos tumbó el sistema
+     * entero. Los empates no son problema: ya hay varios y sólo desempatan
+     * el orden del menú.
+     */
+    ordenMenu: 21,
+  },
   'GET /catalogo/categorias': {
     rutaFrontend: '/dashboard/categorias',
     titulo: 'Categorías',

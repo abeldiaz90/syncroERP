@@ -26,7 +26,10 @@ import {
   OrigenMovimiento,
   TipoMovimiento,
 } from '../../tesoreria/entities/tesoreria.entity';
-import { fechaCalendarioNegocio } from '../../common/utils/business-time.util';
+import {
+  fechaCalendarioNegocio,
+  fechaContableNegocio,
+} from '../../common/utils/business-time.util';
 import { CarteraPublicadorService } from '../../integracion/services/cartera-publicador.service';
 import { CajaService } from '../../caja/services/caja.service';
 import {
@@ -460,7 +463,7 @@ export class AnulacionVentasService {
       const datosReversion = {
         ventaId: venta.id,
         folio: venta.folio,
-        fecha: new Date(),
+        fecha: fechaContableNegocio(),
         empresaId,
         metodoPago: venta.metodoPago,
         motivo,

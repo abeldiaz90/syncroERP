@@ -42,7 +42,10 @@ import { CuentaBancaria } from '../../credito/entities/cuenta-bancaria.entity';
 import { CrearMovimientoTesoreriaDto } from '../dto/tesoreria.dto';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
-import { exigirRangoDeFechas } from '../../common/utils/business-time.util';
+import {
+  exigirRangoDeFechas,
+  fechaContableNegocio,
+} from '../../common/utils/business-time.util';
 
 const aCent = (v: number | string) => Math.round(Number(v ?? 0) * 100);
 const aPesos = (c: number) => Math.round(c) / 100;
@@ -533,7 +536,7 @@ export class TesoreriaService {
           empresaId,
           folio: await this.siguienteFolio(empresaId, repo),
           cuentaBancariaId: original.cuentaBancariaId,
-          fecha: new Date(),
+          fecha: fechaContableNegocio(),
           tipo: inverso[original.tipo],
           origen: original.origen,
           importe: original.importe,

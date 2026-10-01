@@ -51,7 +51,26 @@ export default function VacacionesPage() {
    */
   const sinDerecho = saldo?.tieneDerecho === false ? saldo : null;
 
-  const diasNaturales = useMemo(() => Math.max(0, Math.floor((new Date(`${form.fechaFin}T00:00:00`).getTime() - new Date(`${form.fechaInicio}T00:00:00`).getTime()) / 86400000) + 1), [form.fechaInicio, form.fechaFin]);
+  /*
+   * ==========================================================================
+   * «NaN dias naturales seleccionados.»
+   * --------------------------------------------------------------------------
+   * Eso es lo que decia la pantalla. `Math.max(0, NaN)` es NaN, y un campo de
+   * fecha a medio teclear —o vaciado— da exactamente eso. Visto el 30-sep-2026
+   * escribiendo en el campo «Desde».
+   *
+   * Un numero que no se puede calcular no se enseña como si fuera un numero.
+   * Cuando falta una fecha, o el rango esta al reves, se dice eso y no se
+   * inventa una cuenta.
+   * ==========================================================================
+   */
+  const diasNaturales = useMemo((): number | null => {
+    const inicio = new Date(`${form.fechaInicio}T00:00:00`).getTime();
+    const fin = new Date(`${form.fechaFin}T00:00:00`).getTime();
+    if (!Number.isFinite(inicio) || !Number.isFinite(fin)) return null;
+    if (fin < inicio) return null;
+    return Math.floor((fin - inicio) / 86400000) + 1;
+  }, [form.fechaInicio, form.fechaFin]);
   const visibles = solicitudes.filter((s) => filtro === 'TODAS' || s.estado === filtro);
   async function solicitar() {
     if (!form.empleadoId || form.fechaFin < form.fechaInicio) return avisar('Selecciona empleado y un rango de fechas válido.', 'alerta');
@@ -79,7 +98,7 @@ export default function VacacionesPage() {
           <BuscadorSeleccion valor={form.empleadoId} onChange={(empleadoId) => setForm({ ...form, empleadoId })} opciones={empleados.map((e) => ({ valor: e.id, etiqueta: nombre(e.id), busqueda: e.numeroEmpleado }))} placeholder="Buscar empleado…" />
           <div className="grid grid-cols-2 gap-3"><label className="text-sm">Desde<input type="date" className="entrada mt-1 w-full" value={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })}/></label><label className="text-sm">Hasta<input type="date" className="entrada mt-1 w-full" value={form.fechaFin} min={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaFin: e.target.value })}/></label></div>
           <label className="text-sm">Motivo o referencia<textarea className="entrada mt-1 min-h-20 w-full py-2" maxLength={400} value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })}/></label>
-          <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><b>{diasNaturales} días naturales seleccionados.</b><br/>El backend descontará exclusivamente los días laborables del calendario de la empresa.</div>
+          <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><b>{diasNaturales === null ? 'Elige un rango de fechas válido.' : `${diasNaturales} días naturales seleccionados.`}</b><br/>El backend descontará exclusivamente los días laborables del calendario de la empresa.</div>
           {sinDerecho && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
             <b>Todavía no tiene derecho a vacaciones.</b>
             <p className="mt-1">

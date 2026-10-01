@@ -106,6 +106,13 @@ export interface ResultadoCalculo {
   advertencias: string[];
 }
 
+/**
+ * El rol que autoriza vacaciones cuando la empresa no ha configurado su
+ * matriz de aprobaciones. No puede ser el que captura; el porqué está donde
+ * se usa, en `solicitarVacaciones()`.
+ */
+export const ROL_APROBADOR_VACACIONES_POR_OMISION = 'gerencia';
+
 @Injectable()
 export class RrhhService {
   private readonly logger = new Logger(RrhhService.name);
@@ -1054,6 +1061,29 @@ export class RrhhService {
         `La incidencia está en estado ${i.estadoAprobacion} y no puede aprobarse.`,
       );
     }
+    /*
+     * ========================================================================
+     * Quien registra el descuento no lo autoriza
+     * ------------------------------------------------------------------------
+     * Una incidencia mueve dinero de alguien: una falta de cinco días le quita
+     * cinco días de sueldo, un tiempo extra se los suma. Hasta el 30-sep-2026
+     * la misma persona de Recursos humanos capturaba la incidencia y pulsaba
+     * «Aprobar», y el sistema ni siquiera guardaba quién la había capturado.
+     *
+     * Es el par clásico —registrar y autorizar en las mismas manos— y es el
+     * mismo que vacaciones ya tenía cerrado cuatro pantallas más allá.
+     *
+     * `registradaPorId` es nulo en las incidencias anteriores a ese día. Sin
+     * ese dato no se puede afirmar que sean la misma persona, y una regla que
+     * no puede comprobarse no debe inventarse: esas pasan. Las nuevas todas lo
+     * traen.
+     * ========================================================================
+     */
+    if (i.registradaPorId && i.registradaPorId === usuarioId) {
+      throw new ForbiddenException(
+        'Quien registra una incidencia no puede aprobarla. Debe autorizarla Gerencia u otra persona de Recursos humanos.',
+      );
+    }
     i.aprobada = true;
     i.estadoAprobacion = 'APROBADA';
     i.aprobadaPorId = usuarioId;
@@ -1793,7 +1823,31 @@ export class RrhhService {
       const matriz = await manager.getRepository(ConfiguracionAprobacion).find({
         where: { empresaId, proceso: 'VACACIONES', activo: true }, order: { orden: 'ASC' },
       });
-      const niveles = matriz.length ? matriz : [manager.getRepository(ConfiguracionAprobacion).create({ orden: 1, rolAprobador: 'rrhh', tiempoLimiteHoras: 24 })];
+      /*
+       * ======================================================================
+       * La ruta por omisión no puede apuntar a quien captura
+       * ----------------------------------------------------------------------
+       * Sin matriz configurada, el nivel 1 apuntaba a `rrhh`. Y la solicitud
+       * la captura `rrhh`, desde la pantalla de Vacaciones, porque es el único
+       * rol con el módulo. Cuatro líneas más abajo, `resolverVacaciones()`
+       * rechaza —con razón— que quien solicita apruebe.
+       *
+       * Las dos reglas son correctas y juntas cierran la puerta: recién
+       * instalado el ERP, NINGUNA solicitud de vacaciones puede resolverse
+       * jamás. Medido el 30-sep-2026 por pantalla con la sesión de RRHH:
+       * capturada, EN REVISION, 4 días reservados, 403 al aprobar, y el saldo
+       * disponible bajado para siempre.
+       *
+       * En SAP, Business Central, Odoo y Workday la vacación la autoriza el
+       * jefe; Recursos humanos la tramita y la registra en nómina. Por eso el
+       * nivel por omisión es `gerencia`, que ya tiene concedida la acción
+       * `PATCH /rrhh/vacaciones/solicitudes/:id/resolver` justamente para
+       * esto, y que aprueba sin capturar. Quien quiera otra cosa configura su
+       * matriz de aprobaciones; lo que no puede es que la ruta de fábrica sea
+       * una que nadie puede recorrer.
+       * ======================================================================
+       */
+      const niveles = matriz.length ? matriz : [manager.getRepository(ConfiguracionAprobacion).create({ orden: 1, rolAprobador: ROL_APROBADOR_VACACIONES_POR_OMISION, tiempoLimiteHoras: 24 })];
       await manager.getRepository(AprobacionDocumento).save(niveles.map((nivel) => manager.getRepository(AprobacionDocumento).create({
         empresaId, proceso: 'VACACIONES', documentoId: solicitud.id, nivel: nivel.orden,
         usuarioAprobadorId: nivel.usuarioId, rolAprobador: nivel.rolAprobador,
@@ -1985,7 +2039,32 @@ export class RrhhService {
    * antes de empujarla. Aquí el veredicto se devuelve; quien escribe (la
    * solicitud) sigue negándose, quien sólo pregunta (la consulta) contesta.
    */
-  private evaluarDerechoAVacaciones(empleado: Empleado, al: Date) {
+  private evaluarDerechoAVacaciones(empleado: Empleado, alBruto: Date | string) {
+    /*
+     * ========================================================================
+     * La fecha que la base de datos devuelve NO es una Date
+     * ------------------------------------------------------------------------
+     * `@Column({ type: 'date' }) fechaInicio!: Date` promete una Date; el
+     * driver de Postgres devuelve la cadena '2026-10-19'. La anotación miente
+     * y TypeScript no puede saberlo, porque el valor no pasa por el
+     * compilador: viene del socket.
+     *
+     * Todos los que llaman aquí normalizaban antes con `fechaSql()` —porque
+     * sus fechas venían de un DTO— menos uno: `resolverVacaciones()`, que pasa
+     * `solicitud.fechaInicio` recién leída de la tabla. Ahí `al.getFullYear()`
+     * es «no es una función» y la aprobación contesta 500.
+     *
+     * Y ese camino NO SE HABÍA EJECUTADO NUNCA, porque hasta el 30-sep-2026 la
+     * ruta de aprobación por omisión apuntaba a quien capturaba y ninguna
+     * solicitud llegaba a aprobarse. Arreglar aquella puerta destapó que la
+     * habitación de al lado también estaba rota.
+     *
+     * La normalización se hace AQUÍ, donde se consume, y no en cada llamada:
+     * un contrato que depende de que los siete que llaman se acuerden es un
+     * contrato que se rompe al octavo.
+     * ========================================================================
+     */
+    const al = this.fechaSql(alBruto);
     const ingreso = this.fechaSql(empleado.fechaIngreso);
     const antiguedad = Math.max(
       0,
@@ -2015,9 +2094,11 @@ export class RrhhService {
   private async obtenerOCrearSaldoVacaciones(
     manager: EntityManager,
     empleado: Empleado,
-    al: Date,
+    alBruto: Date | string,
     empresaId: string,
   ): Promise<SaldoVacaciones> {
+    // Misma razón que en `evaluarDerechoAVacaciones`: puede llegar del socket.
+    const al = this.fechaSql(alBruto);
     const ingreso = this.fechaSql(empleado.fechaIngreso);
     const derecho = this.evaluarDerechoAVacaciones(empleado, al);
     if (!derecho.tieneDerecho) {

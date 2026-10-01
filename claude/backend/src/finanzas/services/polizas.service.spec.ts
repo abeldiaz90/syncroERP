@@ -40,17 +40,33 @@ function crearArnes(opts?: {
   /** Períodos cerrados en formato 'mes/anio'. Ej: ['7/2026'] */
   periodosCerrados?: string[];
   fallarGuardadoPartidas?: boolean;
+  /*
+   * El asiento de `asientos_pendientes` que produjo esta póliza, si nació de
+   * un documento. `undefined` = póliza capturada a mano, que es lo que el
+   * doble devolvía siempre antes de que la cancelación supiera mirarlo.
+   */
+  asientoDelDocumento?: any;
 }) {
   const estado = {
     reversa: null as any,
     partidas: null as any[] | null,
     updates: [] as Array<{ id: string; cambios: any }>,
+    asientoBuscado: 0,
     commits: 0,
     rollbacks: 0,
   };
 
   const manager = {
     create: (_entidad: any, obj: any) => obj,
+    /*
+     * La cancelación busca aquí el asiento que produjo la póliza, para poder
+     * devolverlo a la cola o, si no se pidió, nombrar el documento que se
+     * queda sin contabilidad.
+     */
+    findOne: jest.fn(async () => {
+      estado.asientoBuscado++;
+      return opts?.asientoDelDocumento ?? null;
+    }),
     save: jest.fn(async (a: any, b?: any) => {
       if (Array.isArray(b)) {
         if (opts?.fallarGuardadoPartidas)
@@ -490,5 +506,110 @@ describe('cancelarPoliza — transacción', () => {
     expect(estado.rollbacks).toBe(1);
     expect(estado.commits).toBe(0);
     expect(estado.updates).toHaveLength(0); // la original quedó intacta
+  });
+});
+
+// ═══════════════ EL DOCUMENTO NO SE QUEDA SIN CONTABILIDAD ═══════════════
+
+/*
+ * Una póliza nacida de un documento tiene su asiento en `asientos_pendientes`,
+ * marcado GENERADO y apuntando a ella. Al cancelarla, ese asiento seguía
+ * diciendo «Generado» sobre una póliza muerta: el documento se quedaba sin
+ * contabilidad viva —con el inventario ya movido— y nada lo decía.
+ *
+ * Encontrado el 1-oct-2026 al ir a corregir una póliza mal fechada: el camino
+ * para corregirla no existía.
+ */
+describe('cancelarPoliza — el documento que la originó', () => {
+  const asiento = {
+    id: 'asi-1',
+    empresaId: 'emp-1',
+    tipo: 'COMPRA',
+    folioDocumento: 'RECEPCION-85692DBB',
+    polizaId: 'pol-1',
+  };
+
+  it('con `regenerar`: el asiento vuelve a la cola, limpio y con turno', async () => {
+    const { servicio, estado } = crearArnes({ asientoDelDocumento: asiento });
+
+    const r: any = await servicio.cancelarPoliza('emp-1', 'pol-1', {
+      motivo: 'Fecha contable incorrecta',
+      regenerar: true,
+    });
+
+    expect(r.regenerada).toBe(true);
+    expect(r.documentoSinPoliza).toBeNull();
+
+    const reapertura = estado.updates.find((u) => u.id === 'asi-1');
+    expect(reapertura).toBeDefined();
+    expect(reapertura!.cambios).toMatchObject({
+      estado: 'PENDIENTE',
+      polizaId: null,
+      intentos: 0,
+      ultimoError: null,
+    });
+    expect(reapertura!.cambios.proximoIntento).toBeInstanceOf(Date);
+    expect(String(reapertura!.cambios.notaResolucion)).toContain(
+      'Reabierto al cancelar',
+    );
+  });
+
+  it('sin `regenerar`: no se toca el asiento, pero se NOMBRA lo que queda sin póliza', async () => {
+    /*
+     * Lo segundo importa tanto como lo primero. Un sistema que te deja a
+     * medias sin avisar es peor que uno que no te deja.
+     */
+    const { servicio, estado } = crearArnes({ asientoDelDocumento: asiento });
+
+    const r: any = await servicio.cancelarPoliza('emp-1', 'pol-1', {
+      motivo: 'Se capturó por error',
+    });
+
+    expect(r.regenerada).toBe(false);
+    expect(r.documentoSinPoliza).toBe('RECEPCION-85692DBB');
+    expect(estado.updates.find((u) => u.id === 'asi-1')).toBeUndefined();
+  });
+
+  it('sin folio de documento se nombra al menos el tipo, no un hueco', async () => {
+    const { servicio } = crearArnes({
+      asientoDelDocumento: { ...asiento, folioDocumento: null },
+    });
+
+    const r: any = await servicio.cancelarPoliza('emp-1', 'pol-1', {
+      motivo: 'Se capturó por error',
+    });
+
+    expect(r.documentoSinPoliza).toBe('COMPRA');
+  });
+
+  it('una póliza manual no inventa documento ni promete regeneración', async () => {
+    const { servicio, estado } = crearArnes(); // sin asiento ligado
+
+    const r: any = await servicio.cancelarPoliza('emp-1', 'pol-1', {
+      motivo: 'Corrección de captura',
+      regenerar: true,
+    });
+
+    expect(r.regenerada).toBe(false);
+    expect(r.documentoSinPoliza).toBeNull();
+    expect(estado.asientoBuscado).toBe(1);
+  });
+
+  it('la reversa se emite igual: reabrir el asiento no la sustituye', async () => {
+    /*
+     * El efecto contable de la original tiene que quedar revertido SIEMPRE.
+     * La póliza nueva que genere el motor es otra cosa, y puede tardar.
+     */
+    const { servicio, estado } = crearArnes({ asientoDelDocumento: asiento });
+
+    await servicio.cancelarPoliza('emp-1', 'pol-1', {
+      motivo: 'Fecha contable incorrecta',
+      regenerar: true,
+    });
+
+    expect(estado.reversa).toMatchObject({ estatus: 'REVERSA' });
+    expect(estado.partidas).toHaveLength(3);
+    expect(estado.commits).toBe(1);
+    expect(estado.rollbacks).toBe(0);
   });
 });

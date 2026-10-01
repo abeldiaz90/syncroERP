@@ -6,7 +6,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import {
   EstadoRequisicion,
   Requisicion,
@@ -25,6 +25,59 @@ import {
 } from '../utils/email-templates';
 import { esRolAdministrador, normalizarRol } from '../../iam/utils/roles.util';
 import { resolverFirmante } from '../utils/rutas-aprobacion.util';
+
+/**
+ * ============================================================================
+ * Un listado que se recorta en silencio
+ * ----------------------------------------------------------------------------
+ * `obtenerTodas` devuelve SÓLO las requisiciones de quien pregunta, salvo que
+ * sea Compras o administrador. Es la regla correcta —cada quien ve lo suyo—,
+ * pero viajaba escondida dentro del servicio, así que la pantalla recibía una
+ * lista vacía sin manera de saber si el mundo estaba vacío o si sólo lo estaba
+ * su rincón. De ahí salían dos frases medidas el 30-sep-2026 con el contador:
+ *
+ *   «Sin requisiciones · Crea tu primera requisición»  (había 12 en la empresa)
+ *   «El área de compras está al día»                   (había una esperando)
+ *
+ * Ninguna causaba daño, y las dos afirmaban sobre el mundo desde una consulta
+ * que sólo miró un rincón. La regla se saca a la superficie: el servicio dice
+ * cuál fue su alcance, el controlador lo pone en la respuesta y la pantalla
+ * repite exactamente eso en vez de concluir.
+ * ============================================================================
+ */
+export type AlcanceConsulta = 'todas' | 'propias-y-firmadas';
+
+/**
+ * Quién ve el listado completo de la empresa y quién sólo lo suyo.
+ *
+ * ==========================================================================
+ * Quien firma también mira
+ * --------------------------------------------------------------------------
+ * El alcance acotado decía «sólo las que tú solicitaste», y eso dejaba fuera
+ * un caso que se ve a la primera en cuanto se recorre el circuito completo:
+ *
+ *   1-oct-2026, con Abel. Gerencia autoriza REQ-E0E02C9A —cinco artículos,
+ *   $84,400— y acto seguido entra a Requisiciones: «No tienes requisiciones a
+ *   tu nombre».
+ *
+ * O sea que quien pone la firma que compromete el dinero no puede volver a
+ * ver en qué acabó lo que autorizó: si se cotizó, a quién se le adjudicó, si
+ * llegó. Tiene que pedírselo a Compras. En cualquier ERP serio el aprobador
+ * conserva la vista de lo que aprobó, y no por cortesía: es el único que
+ * puede detectar que su firma se usó para otra cosa.
+ *
+ * El arreglo NO es dar «todas» a gerencia. Eso concedería de más —las
+ * requisiciones de áreas que esa persona no firma— y dependería de una lista
+ * de roles que hay que mantener a mano. Se resuelve con el dato: se ve lo
+ * propio MÁS aquello donde uno aparece como firmante, lo haya resuelto ya o
+ * lo tenga pendiente. Nadie ve nada que no le tocara.
+ * ==========================================================================
+ */
+export const alcanceDeRequisiciones = (rol?: string): AlcanceConsulta =>
+  esRolAdministrador(rol) ||
+  ['COMPRADOR', 'COMPRAS'].includes(normalizarRol(rol))
+    ? 'todas'
+    : 'propias-y-firmadas';
 
 
 /**
@@ -337,14 +390,26 @@ export class RequisicionesService {
 
   // ====================== OBTENER TODAS ======================
   async obtenerTodas(empresaId: string, usuarioId?: string, rol?: string) {
-    const where: any = { empresaId };
-    const rolNormalizado = normalizarRol(rol);
-    if (
-      !esRolAdministrador(rol) &&
-      !['COMPRADOR', 'COMPRAS'].includes(rolNormalizado) &&
-      usuarioId
-    ) {
-      where.usuarioSolicitanteId = usuarioId;
+    let where: any = { empresaId };
+    if (alcanceDeRequisiciones(rol) !== 'todas' && usuarioId) {
+      /*
+       * Dos condiciones en OR: lo que pedí y lo que me tocó firmar. Va en dos
+       * consultas y no en un `where` anidado sobre la relación a propósito —
+       * filtrar por `aprobaciones.usuarioId` dentro del mismo `find` recorta
+       * también las aprobaciones que se devuelven, y la pantalla dejaría de
+       * ver el resto de la cadena de firmas.
+       */
+      const firmadas = await this.aprobacionRepo.find({
+        where: { usuarioId },
+        select: { requisicionId: true },
+      });
+      const ids = [...new Set(firmadas.map((a) => a.requisicionId))];
+      where = ids.length
+        ? [
+            { empresaId, usuarioSolicitanteId: usuarioId },
+            { empresaId, id: In(ids) },
+          ]
+        : { empresaId, usuarioSolicitanteId: usuarioId };
     }
 
     return this.reqRepo.find({

@@ -104,6 +104,14 @@ interface Conciliacion {
   revisados: number;
   discrepancias: number;
   hallazgos: Hallazgo[];
+  /*
+   * Una corrida que se cortó a la tercera póliza y no encontró nada no dice
+   * lo mismo que una que recorrió las ciento diez. Viaja en el resultado
+   * porque no se puede deducir de los hallazgos.
+   */
+  completa?: boolean;
+  interrumpida?: string | null;
+  pendientesDeComparar?: number;
 }
 
 interface ResultadoDespacho {
@@ -127,6 +135,11 @@ interface Simulacion {
   pendientesDespues: number;
 }
 
+interface PolizasSinEspejo {
+  total: number;
+  polizas: { id: string; folio: string; fecha: string; concepto: string }[];
+}
+
 export default function EspejoContablePage() {
   const { avisar } = useAvisos();
   const { tienePermiso } = usePermiso();
@@ -141,6 +154,10 @@ export default function EspejoContablePage() {
   const puedeReencolar = tienePermiso(
     "POST",
     "/integracion/outbox/:id/reencolar",
+  );
+  const puedeEncolarFaltantes = tienePermiso(
+    "POST",
+    "/integracion/contabilidad/encolar-faltantes",
   );
   const [simulacion, setSimulacion] = useState<Simulacion | null>(null);
   const [eleccion, setEleccion] = useState<Record<string, string>>({});
@@ -167,18 +184,80 @@ export default function EspejoContablePage() {
     [],
   );
   const mapeos = useDatos<Mapeo[]>(() => api.get("/integracion/cuentas/mapeo"), []);
-  const fallidos = useDatos<EventoOutbox[]>(
-    () => api.get("/integracion/outbox", { query: { estado: "FALLIDO" } }),
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * «No llegaron» es más que «fallaron»
+   * ──────────────────────────────────────────────────────────────────────────
+   * Esta tabla se titula «pólizas que no llegaron al mayor externo» y pedía
+   * `estado=FALLIDO`. Un evento PENDIENTE tampoco ha llegado, y REINTENTABLE
+   * tampoco. Se vio en vivo el 30-sep-2026: al encolar ocho pólizas que nunca
+   * se habían encolado, pasaron a PENDIENTE y la pantalla se quedó diciendo
+   * «nada detenido» con las ocho esperando — y el indicador, en cero.
+   *
+   * Son los tres mismos estados que cuenta el control del cierre mensual, y no
+   * es casualidad: es la misma pregunta.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  const sinEntregar = useDatos<EventoOutbox[]>(
+    () =>
+      api.get("/integracion/outbox", {
+        query: { estado: "FALLIDO,REINTENTABLE,PENDIENTE" },
+      }),
     [],
   );
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * La otra mitad: la póliza que NADIE intentó mandar
+   * ──────────────────────────────────────────────────────────────────────────
+   * La bandeja de abajo enseña lo que se intentó y no salió. Esto enseña lo
+   * contrario: pólizas vigentes sin un solo evento de espejo. No están
+   * detenidas —no están en ninguna parte—, así que no salían en esta pantalla
+   * ni las veía el cierre del mes.
+   *
+   * Medido el 30-sep-2026 contra la instalación: ocho, de los días 13 al 15 de
+   * septiembre. Nacieron antes del suscriptor o con el espejo apagado.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  const sinEncolar = useDatos<PolizasSinEspejo>(
+    () => api.get("/integracion/contabilidad/polizas-sin-espejo"),
+    [],
+  );
+  /*
+   * Mientras no se sabe, es cero: cero no afirma nada —no dibuja el panel ni
+   * suma al indicador— mientras que inventar un número sí. El segundo
+   * argumento de `useDatos` son las dependencias, no un valor por omisión.
+   */
+  const totalSinEncolar = sinEncolar.datos?.total ?? 0;
 
   const recargarTodo = () => {
     void estado.recargar();
     void pendientes.recargar();
     void previstas.recargar();
     void mapeos.recargar();
-    void fallidos.recargar();
+    void sinEntregar.recargar();
+    void sinEncolar.recargar();
   };
+
+  /*
+   * Encola. NO despacha: reconocer que faltaban y mandarlas al mayor externo
+   * no son la misma decisión, y despachar tiene su propio botón y su propio
+   * permiso. Repetirlo no duplica nada —la clave del outbox es `poliza:<id>`—.
+   */
+  const encolarFaltantes = useAccion(async () => {
+    const r = await api.post<{ encoladas: number; folios: string[] }>(
+      "/integracion/contabilidad/encolar-faltantes",
+      {},
+    );
+    avisar(
+      r.encoladas === 0
+        ? "No quedaba ninguna por encolar."
+        : `${r.encoladas} póliza(s) encolada(s): ${r.folios.join(", ")}. ` +
+          "Todavía no han salido: despacha la cola.",
+      r.encoladas === 0 ? "info" : "exito",
+    );
+    recargarTodo();
+    return r;
+  });
 
   const simular = useAccion(async () => {
     const r = await api.post<Simulacion>(
@@ -228,7 +307,7 @@ export default function EspejoContablePage() {
   const reencolar = useAccion(async (id: string) => {
     await api.post(`/integracion/outbox/${id}/reencolar`);
     avisar("Evento reencolado; se despachará en el siguiente ciclo.", "info");
-    void fallidos.recargar();
+    void sinEntregar.recargar();
   });
 
   /*
@@ -294,12 +373,26 @@ export default function EspejoContablePage() {
       "/integracion/contabilidad/conciliacion/ejecutar",
     );
     setConciliacion(r);
-    avisar(
-      r.discrepancias === 0
-        ? `Los dos mayores coinciden en las ${r.revisados} póliza(s) espejadas.`
-        : `${r.discrepancias} diferencia(s) entre el ERP y el mayor externo.`,
-      r.discrepancias === 0 ? "exito" : "alerta",
-    );
+    /*
+     * El aviso repite lo que pasó, no lo que se pidió. «Coinciden» con el
+     * enlace caído a mitad de corrida sería la peor frase de esta pantalla.
+     */
+    if (r.completa === false) {
+      avisar(
+        r.interrumpida ??
+          "La comparación se interrumpió; lo que no se miró no se sabe.",
+        "alerta",
+      );
+    } else {
+      avisar(
+        r.discrepancias === 0
+          ? `Los dos mayores coinciden en las ${r.revisados} póliza(s) espejadas.`
+          : `${r.discrepancias} diferencia(s) entre el ERP y el mayor externo.`,
+        r.discrepancias === 0 ? "exito" : "alerta",
+      );
+    }
+    /* Si el enlace se cayó, el indicador de arriba ya no dice la verdad. */
+    void estado.recargar();
   });
 
   const espejoActivo = estado.datos?.contabilidad.modoEfectivo === "ESPEJO";
@@ -350,12 +443,26 @@ export default function EspejoContablePage() {
           valor={estado.datos?.contabilidad.cuentasPorMapear ?? 0}
           detalle="fallarían en su primer uso"
         />
+        {/*
+          El indicador contaba sólo lo detenido, y «sin espejar» es más que
+          eso: una póliza que nunca se encoló tampoco está espejada, y no
+          aparecía por ninguna parte. La etiqueta prometía el total; ahora lo
+          cuenta.
+        */}
         <Indicador
           etiqueta="Pólizas sin espejar"
-          color={(fallidos.datos?.length ?? 0) > 0 ? "#e11d48" : "#059669"}
-          cargando={fallidos.cargando}
-          valor={fallidos.datos?.length ?? 0}
-          detalle="esperan la corrección"
+          color={
+            (sinEntregar.datos?.length ?? 0) + totalSinEncolar > 0
+              ? "#e11d48"
+              : "#059669"
+          }
+          cargando={sinEntregar.cargando || sinEncolar.cargando}
+          valor={(sinEntregar.datos?.length ?? 0) + totalSinEncolar}
+          detalle={
+            totalSinEncolar > 0
+              ? `${sinEntregar.datos?.length ?? 0} en la bandeja, ${totalSinEncolar} sin encolar`
+              : "esperan salir"
+          }
         />
         {/*
           «Sin enlace» en rojo era una avería inventada para quien no espeja.
@@ -525,6 +632,65 @@ export default function EspejoContablePage() {
         )}
       </Panel>
 
+      {/* ── Pólizas que nunca se encolaron ───────────────────────────── */}
+      {totalSinEncolar > 0 && (
+        <Panel sinRelleno className="mb-5">
+          <div className="panel-cabecera">
+            <div>
+              <p className="text-[13px] font-semibold text-slate-900">
+                {totalSinEncolar} póliza(s) que nunca se encolaron
+              </p>
+              <p className="text-[12px] text-slate-500 mt-0.5">
+                No están detenidas: no llegaron a entrar en la bandeja. Nacieron
+                antes de que el espejo existiera, o con el espejo apagado. El
+                cierre del mes no puede certificarse mientras sigan así.
+              </p>
+            </div>
+            {puedeEncolarFaltantes ? (
+              <Boton
+                variante="neutro"
+                icono={<RefreshCw className="w-3.5 h-3.5" />}
+                cargando={encolarFaltantes.ejecutando}
+                onClick={() => void encolarFaltantes.ejecutar()}
+              >
+                Encolarlas
+              </Boton>
+            ) : (
+              <p className="text-[12px] text-slate-500 max-w-[220px] text-right">
+                Encolarlas es de Administración.
+              </p>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="tabla">
+              <thead>
+                <tr>
+                  <th>Folio</th>
+                  <th>Fecha</th>
+                  <th>Concepto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(sinEncolar.datos?.polizas ?? []).map((p) => (
+                  <tr key={p.id} className="bg-amber-50/40">
+                    <td className="text-slate-900">{p.folio}</td>
+                    <td className="text-[12.5px] text-slate-500">
+                      {String(p.fecha).slice(0, 10)}
+                    </td>
+                    <td className="text-[12.5px] text-slate-600">{p.concepto}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="px-4 py-3 text-[12px] text-slate-500 border-t border-slate-100">
+            Encolarlas no las manda: quedan en la bandeja de abajo, y de ahí
+            salen con «Despachar la cola».
+          </p>
+        </Panel>
+      )}
+
       {/* ── Pólizas que no llegaron ──────────────────────────────────── */}
       <Panel sinRelleno className="mb-5">
         <div className="panel-cabecera">
@@ -553,12 +719,21 @@ export default function EspejoContablePage() {
           )}
         </div>
 
-        {fallidos.cargando ? (
+        {sinEntregar.cargando ? (
           <Cargando />
-        ) : (fallidos.datos?.length ?? 0) === 0 ? (
+        ) : (sinEntregar.datos?.length ?? 0) === 0 ? (
+          /*
+           * Decía «todas las pólizas encontraron su reflejo», y sólo sabía que
+           * nada estaba detenido. Con ocho pólizas que nunca se encolaron, esa
+           * frase era falsa y salía en verde. Ahora afirma lo que mide.
+           */
           <SinDatos
-            titulo="Nada detenido"
-            descripcion="Todas las pólizas encontraron su reflejo en el mayor externo."
+            titulo="Nada pendiente de salir"
+            descripcion={
+              totalSinEncolar > 0
+                ? `Ninguna póliza se detuvo por error. Pero ${totalSinEncolar} nunca se encolaron: están arriba.`
+                : "Ninguna póliza quedó detenida, y no hay ninguna sin encolar."
+            }
             icono={<CheckCircle2 className="w-5 h-5" />}
           />
         ) : (
@@ -567,18 +742,32 @@ export default function EspejoContablePage() {
               <thead>
                 <tr>
                   <th>Tipo</th>
-                  <th>Motivo por el que se detuvo</th>
+                  <th>Estado</th>
+                  <th>Motivo por el que no ha salido</th>
                   <th className="text-right">Intentos</th>
                   <th>Registrada</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {fallidos.datos!.map((e) => (
-                  <tr key={e.id} className="bg-rose-50/40">
+                {sinEntregar.datos!.map((e) => (
+                  <tr
+                    key={e.id}
+                    className={
+                      e.estado === "FALLIDO" ? "bg-rose-50/40" : "bg-amber-50/30"
+                    }
+                  >
                     <td className="text-slate-900">{e.tipo}</td>
+                    <td className="text-[12.5px] text-slate-600">{e.estado}</td>
                     <td className="text-[12.5px] text-rose-700">
-                      {e.ultimoError ?? "sin detalle"}
+                      {/*
+                        Un PENDIENTE no tiene motivo porque no ha fallado: está
+                        esperando su turno. «Sin detalle» ahí sonaba a avería.
+                      */}
+                      {e.ultimoError ??
+                        (e.estado === "PENDIENTE"
+                          ? "Todavía no se ha intentado; sale en el siguiente despacho."
+                          : "sin detalle")}
                     </td>
                     <td className="text-right cifra text-slate-600">{e.intentos}</td>
                     <td className="text-[12.5px] text-slate-500">
@@ -633,6 +822,20 @@ export default function EspejoContablePage() {
             descripcion="La comparación también corre sola cada diez minutos; aquí se puede pedir en el momento."
             icono={<Link2 className="w-5 h-5" />}
           />
+        ) : conciliacion.completa === false ? (
+          <div className="p-4">
+            <p className="text-[13px] font-semibold text-amber-800">
+              La comparación se interrumpió
+            </p>
+            <p className="text-[12px] text-slate-600 mt-1 max-w-3xl">
+              {conciliacion.interrumpida}
+            </p>
+            <p className="text-[12px] text-slate-500 mt-1">
+              Se revisaron {conciliacion.revisados}; quedaron{" "}
+              {conciliacion.pendientesDeComparar ?? 0} sin comparar. Vuelve a
+              pedirla cuando el enlace responda.
+            </p>
+          </div>
         ) : conciliacion.discrepancias === 0 ? (
           <div className="p-4">
             <p className="text-[13px] font-semibold text-emerald-700">

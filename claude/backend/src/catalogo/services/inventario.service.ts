@@ -25,6 +25,7 @@ import { StockService } from './stock.service';
 
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
+import { fechaContableNegocio } from '../../common/utils/business-time.util';
 
 /**
  * ============================================================================
@@ -135,6 +136,13 @@ export class InventarioService {
     costoUnitario?: number,
     documento?: { id?: string; tipo?: string },
     ubicacionId?: string,
+    /*
+     * Quién lo hizo. Opcional y al final para no romper a los veintitantos
+     * sitios que ya llaman aquí; los que lo sepan, que lo pasen. El primero
+     * es el ajuste manual, que era el único movimiento capaz de inventar
+     * existencias sin dejar nombre.
+     */
+    usuarioId?: string,
   ): Promise<ResultadoEntrada> {
     if (!almacenId) throw new BadRequestException('El almacén es obligatorio');
     if (cantidad <= 0)
@@ -330,6 +338,7 @@ export class InventarioService {
           fechaCaducidadMovimiento: loteActual.fechaCaducidad,
           documentoId: documento?.id,
           tipoDocumento: documento?.tipo,
+          usuarioId,
         }),
       );
 
@@ -745,6 +754,7 @@ export class InventarioService {
     loteEspecificoId?: string,
     manager?: EntityManager,
     costoUnitario?: number,
+    usuarioId?: string,
   ) {
     if (!almacenId) throw new BadRequestException('El almacén es obligatorio');
     if (cantidad <= 0)
@@ -773,7 +783,7 @@ export class InventarioService {
             movimientoId,
             tipo: 'MERMA',
             motivo,
-            fecha: new Date(),
+            fecha: fechaContableNegocio(),
             empresaId,
             detalles: [
               {
@@ -807,6 +817,52 @@ export class InventarioService {
         em,
         costoUnitario,
         { tipo: 'AJUSTE' },
+        undefined,
+        usuarioId,
+      );
+
+      /*
+       * ══════════════════════════════════════════════════════════════════════
+       * Un ingreso por ajuste también es un asiento
+       * ──────────────────────────────────────────────────────────────────────
+       * La rama MERMA de arriba encola su asiento; ésta no encolaba nada. Y la
+       * pantalla decía «Ajuste contabilizado» para las dos.
+       *
+       * O sea: un ingreso por ajuste SUBÍA el valor del inventario sin
+       * contrapartida, y quien lo registraba se iba creyendo que había quedado
+       * asentado. Un inventario que crece sin que nada explique de dónde salió
+       * ese valor es un agujero en los libros, y además del lado que nadie
+       * reclama: el almacén cuadra, la contabilidad no.
+       *
+       * No hace falta inventar nada: `AJUSTE_INVENTARIO` ya existe y es lo que
+       * usa el conteo cíclico del WMS. Su generador toma `diferencia` con
+       * signo y sabe tratar las dos direcciones. Aquí la diferencia es
+       * positiva; en el conteo puede ser de cualquier signo. Misma maquinaria,
+       * mismas cuentas, mismo sitio en el libro.
+       * ══════════════════════════════════════════════════════════════════════
+       */
+      const movimientoId = randomUUID();
+      await this.asientos.encolarEnTransaccion(
+        em,
+        TipoAsiento.AJUSTE_INVENTARIO,
+        {
+          ajusteId: movimientoId,
+          folio: `AJUSTE-${movimientoId.slice(0, 8)}`,
+          fecha: fechaContableNegocio(),
+          empresaId,
+          detalles: [
+            {
+              productoId,
+              diferencia: cantidad,
+              costoUnitario: Number(
+                costoUnitario ?? entrada.costoUnitarioLote ?? 0,
+              ),
+            },
+          ],
+        },
+        empresaId,
+        `AJUSTE-${movimientoId.slice(0, 8)}`,
+        movimientoId,
       );
 
       return { mensaje: 'Ajuste realizado', ...entrada };
