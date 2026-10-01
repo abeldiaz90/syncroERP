@@ -52,7 +52,6 @@ import { IamModule } from './iam/iam.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { ProveedoresModule } from './proveedores/proveedores.module';
 import { RecetasModule } from './recetas/modules/recetas.module';
-import { RpaModule } from './rpa/modules/curp-rpa.module';
 import { VentasModule } from './ventas/modules/ventas.module';
 import { CajaModule } from './caja/modules/caja.module';
 import { AprobacionesModule } from './aprobaciones/modules/aprobaciones.module';
@@ -200,7 +199,6 @@ import { RolesGuard } from './common/guards/roles.guard';
     HoteleriaModule,
     RecetasModule,
     NotificacionesModule,
-    RpaModule,
   ],
 
   /* Viveza y disponibilidad. Fuera del prefijo `api`, públicas. */

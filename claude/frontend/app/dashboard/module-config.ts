@@ -7,11 +7,11 @@
  * 1. RUTAS HUÉRFANAS. 24 pantallas existían en /app pero no aparecían en
  *    ningún menú: auditoría, unidades de medida, atributos de producto,
  *    cotizaciones de compra, importar inventario, stock inicial, países,
- *    estados, categorías contables, cierre contable, RPA CURP, recetas…
+ *    estados, categorías contables, cierre contable, recetas…
  *    Ahora TODAS están mapeadas.
  *
- * 2. MÓDULOS SIN PREFIJO → SIN BARRA DE NAVEGACIÓN. `/dashboard/rpa`,
- *    `/dashboard/auditoria` y `/dashboard/unidades-medida` no estaban en
+ * 2. MÓDULOS SIN PREFIJO → SIN BARRA DE NAVEGACIÓN. `/dashboard/auditoria`
+ *    y `/dashboard/unidades-medida` no estaban en
  *    ningún `prefixes`, así que `detectarModulo()` devolvía null y la barra
  *    superior simplemente no se pintaba. Esa era la causa principal del
  *    "no se pinta la navegación".
@@ -1084,7 +1084,6 @@ export const MODULOS: ModuleConfig[] = [
       "/dashboard/usuarios",
       "/dashboard/permisos",
       "/dashboard/auditoria",
-      "/dashboard/rpa",
       "/dashboard/admin/ver-como",
     ],
     items: [
@@ -1109,11 +1108,6 @@ export const MODULOS: ModuleConfig[] = [
         label: "Ver el ERP como otra persona",
         href: "/dashboard/admin/ver-como",
         grupo: "Accesos",
-      },
-      {
-        label: "Consulta de CURP (RPA)",
-        href: "/dashboard/rpa/curp",
-        grupo: "Herramientas",
       },
     ],
   },

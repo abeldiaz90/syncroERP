@@ -20,17 +20,17 @@
  *     «nunca se ha ejecutado» son cosas distintas y se confunden a simple
  *     vista. La tarjeta lo dice con palabras.
  *
- *  3. LO QUE NO ESTÁ INSTALADO SE DECLARA. La consulta de CURP vive en otro
- *     módulo y hoy su tabla no existe —faltan migraciones—. Aparece igual, con
- *     su estado, porque un control ausente del tablero es un control del que
- *     nadie se acuerda.
+ *  3. LO QUE NO SE HACE SE DECLARA. La CURP se captura a mano y se valida su
+ *     estructura; no hay consulta automatizada al registro nacional. Aparece
+ *     igual en el tablero, diciendo eso, porque un hueco sin explicar manda a
+ *     buscar un módulo que no existe.
  * ============================================================================
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
-  ShieldCheck, Play, Loader2, FlaskConical, IdCard, ChevronRight, AlertTriangle,
+  ShieldCheck, Play, Loader2, FlaskConical, IdCard, ChevronRight,
 } from 'lucide-react';
 import { api, intentar } from '@/lib/api';
 import { Indicador } from '@/components/ui';
@@ -83,7 +83,6 @@ const BARRA: Record<Resultado, string> = {
 export function TableroVerificaciones({ compacto = false }: { compacto?: boolean }) {
   const [dias, setDias] = useState(90);
   const [datos, setDatos] = useState<ITablero | null>(null);
-  const [curp, setCurp] = useState<{ total: number } | 'sin-instalar' | null>(null);
   const [cargando, setCargando] = useState(true);
 
   const cargar = useCallback(async () => {
@@ -91,12 +90,6 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
     const d = await intentar<ITablero | null>(
       api.get<ITablero>(`/integracion/validacion/tablero?dias=${dias}`), null);
     setDatos(d);
-
-    /* La consulta de CURP es de otro módulo y puede no estar instalada. Se
-       pregunta aparte y su fallo no tumba el tablero. */
-    const c = await intentar<{ total?: number } | null>(
-      api.get<{ total?: number }>('/rpa/curp/historial'), null);
-    setCurp(c && typeof c.total === 'number' ? { total: c.total } : 'sin-instalar');
     setCargando(false);
   }, [dias]);
 
@@ -222,31 +215,32 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
             );
           })}
 
-          {/* CURP vive en el módulo de RPA, no en el flujo. Se muestra igual. */}
+          {/*
+            * La CURP se captura, no se consulta.
+            *
+            * Aquí había una tarjeta que contaba «consultas al registro
+            * nacional» y avisaba, en ámbar, que al módulo le faltaban
+            * migraciones. Las dos cosas sobran: el módulo que raspaba el
+            * portal de gob.mx se retiró por decisión de Abel el 1-oct-2026, y
+            * con él la tabla que nunca se creó.
+            *
+            * La tarjeta se queda porque la pregunta que contesta sigue siendo
+            * válida —«¿qué pasa con la CURP en este sistema?»— y la respuesta
+            * ahora es la verdadera: se captura a mano y se valida su
+            * estructura, en clientes y en empleados. Dejar el hueco sin
+            * explicar mandaría a buscar un módulo que ya no está.
+            */}
           <article className="panel p-4 flex flex-col gap-2.5">
             <div className="flex items-center gap-2">
               <IdCard className="w-4 h-4 text-slate-400 shrink-0" />
-              <p className="text-[13px] font-semibold text-slate-800">Consulta de CURP</p>
+              <p className="text-[13px] font-semibold text-slate-800">CURP</p>
             </div>
-            {curp === 'sin-instalar' ? (
-              <>
-                <p className="text-[26px] font-bold leading-none cifra text-slate-300">—</p>
-                <p className="text-[11.5px] text-amber-700 flex items-start gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
-                  El módulo existe pero su tabla no está creada: faltan migraciones por correr.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-[26px] font-bold leading-none cifra text-slate-900">
-                  {typeof curp === 'object' && curp ? curp.total : 0}
-                </p>
-                <p className="text-[11.5px] text-slate-400">
-                  Consultas al registro nacional. Se cuentan desde que se instaló el módulo, no
-                  por ventana.
-                </p>
-              </>
-            )}
+            <p className="text-[26px] font-bold leading-none cifra text-slate-400">Captura</p>
+            <p className="text-[11.5px] text-slate-400">
+              Se captura en el expediente del cliente y en el alta del empleado, y se
+              valida su estructura de 18 caracteres. No hay consulta automatizada al
+              registro nacional.
+            </p>
           </article>
         </div>
       </div>

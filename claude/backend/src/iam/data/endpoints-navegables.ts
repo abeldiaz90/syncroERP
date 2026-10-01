@@ -606,11 +606,6 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Bitácora de auditoría',
     ordenMenu: 113,
   },
-  'POST /rpa/curp/consultar': {
-    rutaFrontend: '/dashboard/rpa/curp',
-    titulo: 'Consulta de CURP',
-    ordenMenu: 114,
-  },
 
   /* ── AÑADIDAS: pantallas del menú que no tenían endpoint navegable ────── */
   'GET /configuracion/diagnostico': {

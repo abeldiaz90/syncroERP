@@ -6,8 +6,16 @@
  * antes de elegir proveedor evita que el proveedor termine dictando el modelo
  * de dominio del ERP.
  *
- * Implementaciones previstas: INE/RENAPO vía el RPA de CURP que ya existe en
- * el ERP, prueba de vida biométrica, y validación documental de un tercero.
+ * Implementaciones previstas: una integración institucional autorizada con
+ * RENAPO o un proveedor de KYC con contrato, prueba de vida biométrica, y
+ * validación documental de un tercero.
+ *
+ * Aquí decía «vía el RPA de CURP que ya existe en el ERP». Ese RPA se retiró
+ * el 1-oct-2026 por decisión de Abel: raspaba el portal público de gob.mx con
+ * un complemento de evasión de detección de robots, y eso no se entrega a un
+ * cliente. La CURP se captura y se valida en su estructura; comprobarla
+ * contra el registro nacional exige un convenio, no un navegador
+ * automatizado.
  */
 export enum ResultadoIdentidad {
   VERIFICADA = 'VERIFICADA',

@@ -116,7 +116,6 @@ const CON_SU_PROPIO_FETCH = [
   'app/dashboard/reportes/inventario/page.tsx',
   'app/dashboard/reportes/top-productos/page.tsx',
   'app/dashboard/reportes/ventas/page.tsx',
-  'app/dashboard/rpa/curp/page.tsx',
   'app/dashboard/unidades-medida/page.tsx',
   'app/dashboard/usuarios/page.tsx',
   'app/dashboard/ventas/[id]/ticket/page.tsx',

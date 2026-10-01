@@ -202,14 +202,6 @@ class VariablesEntorno {
   @IsOptional()
   SWAGGER_HABILITADO = 'false';
 
-  /**
-   * El scraping del portal CURP queda deshabilitado por defecto. Solo puede
-   * habilitarse tras confirmar autorización legal e institucional.
-   */
-  @IsString()
-  @IsOptional()
-  CURP_RPA_HABILITADO = 'false';
-
   /* ── Cartera con registro externo ──────────────────────────────────────── */
 
   /**
