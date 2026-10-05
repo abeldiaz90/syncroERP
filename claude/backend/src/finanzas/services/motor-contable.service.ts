@@ -1514,6 +1514,50 @@ export class MotorContableService {
     try {
       const { empresaId } = datos;
 
+      /*
+       * EL ESPEJO VA PRIMERO — 5-oct-2026
+       *
+       * Esta función y `generarAsientoDeCobranza` son gemelas: las mismas
+       * cuentas, los mismos importes, los lados invertidos. Hoy coinciden. El
+       * problema es que son **dos** de casi doscientas líneas cada una, y
+       * mantenerlas iguales depende de que quien toque una se acuerde de la
+       * otra. Así empezaron los dos descuadres de este mismo día —la anulación
+       * de venta y la cancelación de tesorería—: dos gemelas que coincidían
+       * hasta que una aprendió algo.
+       *
+       * En una SOFOM la cobranza es justo donde más conceptos se agregan
+       * —moratorios, comisiones, cargos por atraso—, así que es la que más
+       * probabilidades tiene de separarse. El espejo lo impide por construcción.
+       *
+       * El cálculo de abajo se conserva como respaldo: es correcto, y cubre los
+       * pagos anteriores a que se guardara la clave de origen. A diferencia de
+       * la anulación de venta, aquí no hace falta detenerse cuando no hay
+       * póliza, porque el cálculo no tiene ningún caso que no sepa reconstruir.
+       */
+      const partidasDelCobro = await this.partidasDeLaPolizaDeOrigen(
+        empresaId,
+        `COBRANZA:${datos.pagoId}`,
+      );
+      if (partidasDelCobro) {
+        idPolizaGenerada = await this.crearPoliza({
+          empresaId,
+          tipo: TipoPoliza.DIARIO,
+          concepto: `Cancelación de cobranza — Crédito ${datos.folioCredito ?? datos.creditoId.slice(0, 8)}${datos.motivo ? `. ${datos.motivo}` : ''}`,
+          fecha: new Date(datos.fechaCancelacion),
+          partidas: this.espejoDePartidas(
+            partidasDelCobro,
+            `Cancelación cobro CRD-${datos.creditoId.slice(0, 8)}`,
+          ),
+          origenClave: `CANCELACION_COBRANZA:${datos.pagoId}`,
+          origenTipo: 'CANCELACION_COBRANZA',
+          origenId: datos.pagoId,
+        });
+        this.logger.log(
+          `Póliza de cancelación de cobranza generada por espejo: pago ${datos.pagoId.slice(0, 8)}`,
+        );
+        return idPolizaGenerada;
+      }
+
       const cuentaCaja = datos.cuentaBancariaId
         ? await this.buscarCuentaSegunMetodoPago(
             empresaId,

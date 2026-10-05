@@ -415,3 +415,115 @@ describe('el dato que hace sonar el guardia sale de donde vive', () => {
     );
   });
 });
+
+/**
+ * ============================================================================
+ * LA MISMA PIEZA, EN LA CANCELACIÓN DE COBRANZA
+ * ----------------------------------------------------------------------------
+ * `generarAsientoDeCobranza` y `generarAsientoDeCancelacionCobranza` son
+ * gemelas: las mismas cuentas, los mismos importes, los lados invertidos. Hoy
+ * coinciden, y por eso aquí no había un defecto que arreglar.
+ *
+ * Pero son dos funciones de casi doscientas líneas cada una, y que sigan
+ * coincidiendo depende de que quien toque una se acuerde de la otra. Así
+ * empezaron los dos descuadres de este mismo día. En una SOFOM la cobranza es
+ * justo donde más conceptos se agregan —moratorios, comisiones, cargos por
+ * atraso—, así que es la que más probabilidades tiene de separarse.
+ *
+ * Estas pruebas fijan que la cancelación salga del espejo, y que el cálculo
+ * siga ahí para los pagos sin póliza de origen.
+ * ============================================================================
+ */
+
+const PARTIDAS_DEL_COBRO = [
+  { cuentaContableId: 'cta-caja', cargo: 1160, abono: 0 },
+  { cuentaContableId: 'cta-clientes', cargo: 0, abono: 1000 },
+  { cuentaContableId: 'cta-intereses', cargo: 0, abono: 160 },
+  /* La reclasificación del IVA al cobrarse: sale del 209, entra al 208. */
+  { cuentaContableId: 'cta-209', cargo: 25, abono: 0 },
+  { cuentaContableId: 'cta-208', cargo: 0, abono: 25 },
+];
+
+const cancelacionDeCobro = {
+  pagoId: 'pago-1',
+  creditoId: 'credito-12345678',
+  folioCredito: 'CRD-2026-0011',
+  fechaCancelacion: new Date('2026-09-30'),
+  empresaId: 'emp-1',
+  montoCapital: 1000,
+  montoInteres: 160,
+  ivaReclasificado: 25,
+  totalPagado: 1160,
+  motivo: 'El cheque rebotó.',
+};
+
+describe('cancelar un cobro deshace exactamente el cobro', () => {
+  it('invierte las cinco partidas del cobro, incluida la reclasificación del IVA', async () => {
+    const { servicio, guardadas } = crearArnes({
+      polizasDeOrigen: { 'COBRANZA:pago-1': PARTIDAS_DEL_COBRO },
+    });
+    await servicio.generarAsientoDeCancelacionCobranza(cancelacionDeCobro);
+
+    expect(guardadas).toHaveLength(1);
+    const partidas = guardadas[0].partidas;
+    expect(importeEn(partidas, 'cta-caja', 'abono')).toBe(1160);
+    expect(importeEn(partidas, 'cta-clientes', 'cargo')).toBe(1000);
+    expect(importeEn(partidas, 'cta-intereses', 'cargo')).toBe(160);
+    /* El IVA vuelve a «no cobrado», que es donde estaba antes del pago. */
+    expect(importeEn(partidas, 'cta-209', 'abono')).toBe(25);
+    expect(importeEn(partidas, 'cta-208', 'cargo')).toBe(25);
+  });
+
+  it('no inventa cuentas: hereda las del cobro', async () => {
+    /*
+     * La propiedad que hace que no se separen. Si mañana la cobranza aprende a
+     * aplicar moratorios contra una cuenta nueva, la cancelación la deshace sin
+     * que nadie toque esta función.
+     */
+    const { servicio, guardadas } = crearArnes({
+      polizasDeOrigen: {
+        'COBRANZA:pago-1': [
+          ...PARTIDAS_DEL_COBRO,
+          { cuentaContableId: 'cta-moratorios-nueva', cargo: 0, abono: 90 },
+          { cuentaContableId: 'cta-caja', cargo: 90, abono: 0 },
+        ],
+      },
+    });
+    await servicio.generarAsientoDeCancelacionCobranza(cancelacionDeCobro);
+
+    expect(
+      importeEn(guardadas[0].partidas, 'cta-moratorios-nueva', 'cargo'),
+    ).toBe(90);
+  });
+
+  it('queda enlazada al pago que deshace', async () => {
+    const { servicio, guardadas } = crearArnes({
+      polizasDeOrigen: { 'COBRANZA:pago-1': PARTIDAS_DEL_COBRO },
+    });
+    await servicio.generarAsientoDeCancelacionCobranza(cancelacionDeCobro);
+
+    expect(guardadas[0].poliza.origenClave).toBe('CANCELACION_COBRANZA:pago-1');
+  });
+
+  it('sin póliza de origen sigue calculando, que es correcto para este caso', async () => {
+    /*
+     * A diferencia de la anulación de venta, aquí el cálculo no tiene ningún
+     * caso que no sepa reconstruir: recibe capital, interés, IVA y total. Por
+     * eso el respaldo se queda en vez de detenerse — detenerlo sería quitar
+     * una operación que funciona para los pagos anteriores a la clave de origen.
+     */
+    const { servicio, guardadas } = crearArnes();
+    await servicio.generarAsientoDeCancelacionCobranza(cancelacionDeCobro);
+
+    expect(guardadas).toHaveLength(1);
+    const cargos = guardadas[0].partidas.reduce(
+      (s, p) => s + Number(p.cargo),
+      0,
+    );
+    const abonos = guardadas[0].partidas.reduce(
+      (s, p) => s + Number(p.abono),
+      0,
+    );
+    expect(Math.round(cargos * 100)).toBe(Math.round(abonos * 100));
+  });
+});
