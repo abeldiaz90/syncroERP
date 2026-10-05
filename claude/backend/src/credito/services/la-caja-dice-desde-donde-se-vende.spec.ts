@@ -216,7 +216,7 @@ describe('Caja · la migración añade el contexto sin obligar a nadie', () => {
 });
 
 describe('Punto de venta · obedece a la caja elegida', () => {
-  const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+  const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
     // src/credito/services → src/credito → src → backend → claude
     .map((nombre) => join(__dirname, '..', '..', '..', '..', nombre))
     .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));

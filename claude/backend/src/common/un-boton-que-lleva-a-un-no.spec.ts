@@ -35,7 +35,7 @@ import { join, relative, sep } from 'path';
 
 const SRC = join(__dirname, '..');
 const RAIZ = join(SRC, '..', '..');
-const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
   .map((nombre) => join(RAIZ, nombre))
   .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
 
@@ -91,7 +91,7 @@ describe('Pantallas · un botón que lleva a una negativa es peor que no tenerlo
  */
 describe('Pantallas · los ejemplos de la póliza manual se pueden capturar', () => {
   const RAIZ2 = join(__dirname, '..', '..', '..');
-  const FRONT2 = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+  const FRONT2 = ['claude/frontend', 'frontend', '../claude/frontend']
     .map((nombre) => join(RAIZ2, nombre))
     .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
 

@@ -142,7 +142,7 @@ describe('Y cuando no se pide, se dice en voz alta qué se queda sin póliza', (
 
 describe('La pantalla ofrece la decisión y repite lo que contestó el servidor', () => {
   const RAIZ = join(__dirname, '..', '..', '..');
-  const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+  const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
     .map((nombre) => join(RAIZ, nombre))
     .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
   const ruta = FRONTEND

@@ -303,7 +303,7 @@ describe('y la llave del menú abre la puerta que la pantalla usa', () => {
 
   it('y la pantalla sigue mandando ahí', () => {
     const RAIZ = join(__dirname, '..', '..', '..');
-    const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+    const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
       .map((nombre) => join(RAIZ, nombre))
       .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
     if (!FRONTEND) return;

@@ -66,7 +66,7 @@ describe('ya no hay una segunda puerta al timbrado', () => {
 
   it('la pantalla de facturar sigue mandando a la puerta buena', () => {
     const RAIZ = join(__dirname, '..', '..', '..');
-    const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+    const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
       .map((nombre) => join(RAIZ, nombre))
       .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
     if (!FRONTEND) return;

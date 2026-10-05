@@ -23,7 +23,7 @@
  *    → La inferencia debe eliminarse; ver GUIA-DE-INTEGRACION.md.
  *
  * REGLA: la `rutaFrontend` debe existir como carpeta en
- * `syncro-erp-frontend/app/...` y coincidir exactamente con el `href` de
+ * `claude/frontend/app/...` —el árbol que corre— y coincidir exactamente con el `href` de
  * `module-config.ts`. Si no coincide, el permiso no sirve de nada.
  * ============================================================================
  */

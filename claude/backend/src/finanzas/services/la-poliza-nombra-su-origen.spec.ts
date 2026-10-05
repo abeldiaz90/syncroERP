@@ -94,7 +94,7 @@ describe('Contabilidad · una póliza nombra el documento que sí existe', () =>
      */
     const RAIZ = join(SRC, '..', '..');
     const candidatos = [
-      'syncro-erp-frontend/app/dashboard/compras/ordenes/page.tsx',
+      'claude/frontend/app/dashboard/compras/ordenes/page.tsx',
       'frontend/app/dashboard/compras/ordenes/page.tsx',
     ].map((r) => join(RAIZ, r));
     const pantalla = candidatos

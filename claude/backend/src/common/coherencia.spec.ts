@@ -41,11 +41,16 @@ import { esRolAdministrador, normalizarRol } from '../iam/utils/roles.util';
 const SRC = join(__dirname, '..');
 const RAIZ = join(SRC, '..', '..');
 /**
- * El frontend puede estar como `syncro-erp-frontend` (layout de los zips
- * originales) o como `frontend` (monorepo). Si no está, las pruebas que lo
- * necesitan se omiten en vez de fallar.
+ * El árbol de frontend QUE CORRE: `claude/frontend` en el equipo —es el que
+ * levanta `iniciar-syncroerp.bat` con `RAIZ=...\\syncroERP\\claude`— o
+ * `frontend` en el monorepo del contenedor.
+ *
+ * Decía `syncro-erp-frontend` PRIMERO, y ése es código congelado desde el
+ * 10-sep-2026. En el equipo existen los dos árboles, así que estas pruebas
+ * llevaban semanas midiendo la copia muerta y diciendo que todo estaba bien.
+ * `el-arbol-que-miraban-las-pruebas.spec.ts` vigila que no vuelva.
  */
-const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
   .map((nombre) => join(RAIZ, nombre))
   .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
 

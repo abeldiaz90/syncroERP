@@ -573,7 +573,7 @@ export const MODULOS: ModuleConfig[] = [
     href: "/dashboard/centros/finanzas",
     prefixes: ["/dashboard/centros/finanzas", "/dashboard/finanzas"],
     acciones: [
-      { label: "Nueva póliza", href: "/dashboard/finanzas/polizas/nueva", principal: true, accion: { metodo: "POST", ruta: "/api/finanzas/polizas" } },
+      { label: "Nueva póliza", href: "/dashboard/finanzas/polizas/nueva", principal: true, accion: { metodo: "POST", ruta: "/api/finanzas/polizas/manual" } },
       { label: "Balanza", href: "/dashboard/finanzas/balanza" },
       { label: "Cierre mensual", href: "/dashboard/finanzas/cierre-contable", accion: { metodo: "POST", ruta: "/api/finanzas/cierres/cerrar" } },
       { label: "Asientos pendientes", href: "/dashboard/finanzas/asientos-pendientes" },

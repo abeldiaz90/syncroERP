@@ -23,6 +23,14 @@ export interface IMovimiento {
   motivo: string;
   almacen?: { nombre: string };
   saldoGlobal?: number;
+  /**
+   * Quién registró el movimiento, ya resuelto a nombre por el servidor.
+   *
+   * Nulo en los movimientos anteriores al 5-oct-2026 —no se guardaba— y en los
+   * que nacen de un documento que no pasa el dato: ahí el nombre está en el
+   * documento, y el enlace es `documentoId`.
+   */
+  usuarioNombre?: string | null;
 }
 
 // ==========================================
@@ -186,7 +194,7 @@ export default function KardexPage() {
   // ==========================================
   const exportarExcel = () => {
     if (movimientosFiltrados.length === 0) return;
-    const encabezados = ['ID Movimiento', 'Fecha', 'Hora', 'Tipo', 'Almacén', 'Entrada (+)', 'Salida (-)', 'Saldo Local (Almacén)', 'Saldo Global (Empresa)', 'Motivo'];
+    const encabezados = ['ID Movimiento', 'Fecha', 'Hora', 'Tipo', 'Almacén', 'Entrada (+)', 'Salida (-)', 'Saldo Local (Almacén)', 'Saldo Global (Empresa)', 'Motivo', 'Quién'];
     const filas = movimientosFiltrados.map(m => {
       const fecha = new Date(m.fechaMovimiento).toLocaleDateString('es-MX');
       const hora = new Date(m.fechaMovimiento).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
@@ -194,7 +202,9 @@ export default function KardexPage() {
       const salida = !esMovimientoEntrada(m) ? Math.abs(m.cantidad) : 0;
       const motivoEscapado = `"${m.motivo ? m.motivo.replace(/"/g, '""') : ''}"`;
       
-      return [m.id, fecha, hora, m.tipo, m.almacen?.nombre || 'General', entrada, salida, m.stockNuevo, m.saldoGlobal, motivoEscapado].join(',');
+      const quienEscapado = `"${(m.usuarioNombre ?? '').replace(/"/g, '""')}"`;
+
+      return [m.id, fecha, hora, m.tipo, m.almacen?.nombre || 'General', entrada, salida, m.stockNuevo, m.saldoGlobal, motivoEscapado, quienEscapado].join(',');
     });
 
     const csvContent = "\uFEFF" + [encabezados.join(','), ...filas].join('\n');
@@ -354,7 +364,7 @@ export default function KardexPage() {
                     <th colSpan={4} className="p-2 border-r border-slate-200 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Información del Documento</th>
                     <th colSpan={2} className="p-2 border-r border-slate-200 text-center text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50/30">Cantidades Físicas</th>
                     <th colSpan={2} className="p-2 border-r border-slate-200 text-center text-[10px] font-black text-slate-600 uppercase tracking-widest bg-slate-100">Saldos de Inventario</th>
-                    <th colSpan={1} className="p-2 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Referencia</th>
+                    <th colSpan={2} className="p-2 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Referencia</th>
                   </tr>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider">
                     <th className="px-5 py-4 font-bold border-r border-slate-200">Fecha / Hora</th>
@@ -369,6 +379,13 @@ export default function KardexPage() {
                     <th className="px-5 py-4 font-bold text-center text-indigo-700 bg-indigo-50/30 border-r border-slate-200" title="La suma total de todos los almacenes">Saldo Global</th>
                     
                     <th className="px-5 py-4 font-bold">Comentarios</th>
+                    {/*
+                      El movimiento guardaba `usuario_id` y el kardex no lo
+                      enseñaba: llegaba un UUID suelto y no había columna. Una
+                      investigación de inventario empieza aquí, y sin el nombre
+                      acababa en la base de datos.
+                    */}
+                    <th className="px-5 py-4 font-bold" title="Quién registró el movimiento. En los que nacen de un documento —venta, orden de compra, transferencia— el nombre está en ese documento.">Quién</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -416,6 +433,19 @@ export default function KardexPage() {
                         
                         <td className="px-5 py-3 text-slate-500 italic text-xs max-w-xs truncate" title={m.motivo}>
                           {m.motivo || 'Sin comentarios'}
+                        </td>
+
+                        <td className="px-5 py-3 text-xs">
+                          {m.usuarioNombre ? (
+                            <span className="font-semibold text-slate-600">{m.usuarioNombre}</span>
+                          ) : (
+                            <span
+                              className="text-slate-300"
+                              title="Este movimiento no guardó quién lo hizo. Los anteriores al 5 de octubre de 2026 no lo registraban; si nació de un documento, el nombre está en ese documento."
+                            >
+                              —
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );

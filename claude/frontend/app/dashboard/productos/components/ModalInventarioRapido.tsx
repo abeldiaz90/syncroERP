@@ -123,8 +123,15 @@ export default function ModalInventarioRapido({ isOpen, onClose, tipo, producto,
               <Icono className="w-5 h-5" />
             </div>
             <div>
+              {/*
+                Decía «Recepción de Mercancía», que es como se llama recibir una
+                orden de compra. Por aquí no entra ninguna: es justo la puerta
+                para lo que NO tiene documento. El nombre prometía un papel
+                detrás que no existe, y es el dato que decide si esto se usa
+                para lo que es o para saltarse el circuito de compras.
+              */}
               <h2 className={`text-lg font-black ${theme.textTitle} leading-none`}>
-                {esEntrada ? 'Recepción de Mercancía' : 'Salida de Mercancía'}
+                {esEntrada ? 'Entrada sin documento' : 'Salida sin documento'}
               </h2>
               <p className="text-xs font-bold text-slate-500 mt-1">{producto.sku} - {producto.nombre}</p>
             </div>
@@ -136,6 +143,16 @@ export default function ModalInventarioRapido({ isOpen, onClose, tipo, producto,
 
         <form id="inventario-form" onSubmit={handleSubmit} className="p-6 space-y-4 bg-slate-50" noValidate>
           {intento && Object.keys(errores).length > 0 && <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">Corrige los campos marcados antes de confirmar.</div>}
+          {/*
+            Qué pasa en los libros, dicho antes de confirmar y no después. Quien
+            usa esta ventana suele ser almacén, y hasta hoy no había forma de
+            saber desde aquí que el movimiento también mueve dinero.
+          */}
+          <div className="rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-600">
+            {esEntrada
+              ? 'Sube la existencia y el valor del almacén, y genera su póliza: carga inventario contra la cuenta de diferencias. Queda en el kardex con tu nombre.'
+              : 'Baja la existencia y el valor, y genera su póliza: carga costo de ventas contra inventario. Si lo que sale se echó a perder, regístralo en Inventario → Ajustes para que vaya a la cuenta de mermas. Queda en el kardex con tu nombre.'}
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Almacén *</label>

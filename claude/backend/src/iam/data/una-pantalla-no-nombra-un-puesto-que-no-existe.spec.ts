@@ -35,7 +35,7 @@ import { PLANTILLAS_PERMISOS } from './plantillas-permisos';
  * ============================================================================
  */
 
-const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
   // src/iam/data → src/iam → src → backend → claude
   .map((nombre) => join(__dirname, '..', '..', '..', '..', nombre))
   .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));

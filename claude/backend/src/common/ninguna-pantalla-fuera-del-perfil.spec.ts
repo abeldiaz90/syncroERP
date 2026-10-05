@@ -48,7 +48,7 @@ import { ENDPOINTS_NAVEGABLES } from '../iam/data/endpoints-navegables';
 
 const SRC = join(__dirname, '..');
 const RAIZ = join(SRC, '..', '..');
-const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
   .map((nombre) => join(RAIZ, nombre))
   .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
 

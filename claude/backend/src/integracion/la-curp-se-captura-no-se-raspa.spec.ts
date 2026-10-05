@@ -39,7 +39,7 @@ import { join } from 'path';
 
 const BACKEND = join(__dirname, '..');
 const RAIZ = join(BACKEND, '..', '..');
-const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
   .map((nombre) => join(RAIZ, nombre))
   .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
 

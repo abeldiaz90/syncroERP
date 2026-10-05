@@ -90,7 +90,7 @@ describe('El servidor manda la existencia real, no la de una página', () => {
 
 describe('La pantalla pinta el saldo hacia atrás, desde lo que hay hoy', () => {
   const RAIZ = join(__dirname, '..', '..', '..');
-  const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+  const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
     .map((nombre) => join(RAIZ, nombre))
     .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
   const ruta = FRONTEND

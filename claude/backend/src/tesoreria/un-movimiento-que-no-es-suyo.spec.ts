@@ -174,7 +174,7 @@ describe('un movimiento que no es suyo', () => {
     const { existsSync, readFileSync } = require('fs') as typeof import('fs');
     const { join } = require('path') as typeof import('path');
     const RAIZ = join(__dirname, '..', '..', '..');
-    const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+    const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
       .map((n) => join(RAIZ, n))
       .find((r) => existsSync(join(r, 'app/dashboard/module-config.ts')));
     if (!FRONTEND) return;

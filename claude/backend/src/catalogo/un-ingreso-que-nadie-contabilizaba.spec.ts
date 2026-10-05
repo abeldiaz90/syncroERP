@@ -305,7 +305,7 @@ describe('El lote es de la entrada, no de la salida', () => {
    * trazables —alimentos, farmacia—, los únicos a los que FEFO les sirve.
    */
   const RAIZ = join(__dirname, '..', '..', '..');
-  const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+  const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
     .map((nombre) => join(RAIZ, nombre))
     .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
   const ruta = FRONTEND
@@ -408,7 +408,7 @@ describe('y el kardex enseña quién, que es la mitad que faltaba', () => {
 
   it('la pantalla tiene la columna, y dice la verdad cuando no hay nombre', () => {
     const RAIZ = join(__dirname, '..', '..', '..');
-    const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+    const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
       .map((nombre) => join(RAIZ, nombre))
       .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
     if (!FRONTEND) return;
@@ -430,7 +430,7 @@ describe('y el kardex enseña quién, que es la mitad que faltaba', () => {
 
   it('y la exportación se lleva la columna, que es donde acaba la auditoría', () => {
     const RAIZ = join(__dirname, '..', '..', '..');
-    const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+    const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
       .map((nombre) => join(RAIZ, nombre))
       .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
     if (!FRONTEND) return;
@@ -452,7 +452,7 @@ describe('y el kardex enseña quién, que es la mitad que faltaba', () => {
      * circuito de compras.
      */
     const RAIZ = join(__dirname, '..', '..', '..');
-    const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+    const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
       .map((nombre) => join(RAIZ, nombre))
       .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
     if (!FRONTEND) return;

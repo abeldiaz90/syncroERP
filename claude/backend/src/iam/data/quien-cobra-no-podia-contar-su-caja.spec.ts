@@ -55,7 +55,7 @@ import { PLANTILLAS_PERMISOS } from './plantillas-permisos';
 const CORTA = 'GET /credito/cuentas-bancarias/para-cobro';
 const COMPLETA = 'GET /credito/cuentas-bancarias';
 
-const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
   // src/iam/data → src/iam → src → backend → claude, y ahí vive `frontend`.
   .map((nombre) => join(__dirname, '..', '..', '..', '..', nombre))
   .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
