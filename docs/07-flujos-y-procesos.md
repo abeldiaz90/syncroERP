@@ -280,6 +280,46 @@ Lo captura el almacén; **lo cierra gerencia**. Las diferencias se convierten en
 entradas o salidas de ajuste con su póliza, y quien contó no es quien acepta la
 diferencia.
 
+## Entrada y salida rápidas desde el catálogo
+
+En **Productos → Catálogo**, cada renglón tiene dos iconos: uno verde para
+**entrar** mercancía y uno ámbar para **sacarla**. Sirven para lo que no llega
+por una orden de compra ni se va por una venta: la caja que apareció sin
+papeles, la pieza que se usó internamente, el faltante que alguien detectó.
+
+**Lo que hacen, y lo que ya no te puede pasar:**
+
+| | Qué mueve | Qué deja en los libros |
+|---|---|---|
+| Entrada (verde) | sube la existencia y el valor del almacén | una póliza que carga inventario y abona la cuenta de diferencias |
+| Salida (ámbar) | baja la existencia y el valor | una póliza que carga costo de ventas y abona inventario |
+
+Las dos quedan en el kardex **con tu nombre**. Y el motivo que escribes viaja al
+concepto de la póliza, así que el contador lee en el libro lo mismo que tú
+escribiste en la pantalla.
+
+> **Hasta el 5 de octubre de 2026 estas dos puertas movían el valor del
+> inventario sin generar ninguna póliza y sin guardar quién lo hizo.** El
+> almacén cuadraba y la contabilidad no, y el kardex mostraba el movimiento con
+> la columna de usuario vacía. Está corregido, pero si tu base tiene
+> movimientos anteriores a esa fecha hechos por aquí, su contrapartida no
+> existe: hay que buscarlos en el kardex y asentarlos a mano.
+
+**Por qué la salida va a costo de ventas y no a mermas.** Una merma es una
+pérdida que alguien declara como tal, y para eso está **Inventario → Ajustes**,
+que sí la manda a la cuenta de mermas. La salida del catálogo no declara nada
+—puede ser una muestra, un consumo o un faltante—, así que su valor va a costo
+de ventas. De ese modo la cuenta de mermas sigue diciendo sólo lo que de verdad
+se echó a perder, que es lo que el contador mira para decidir si hay un problema
+en el almacén.
+
+> **Qué te va a negar el sistema.** Una entrada cuyo producto no tiene costo de
+> compra capturado: «el costo de entrada debe ser mayor a cero». Y cualquiera de
+> las dos si la categoría del producto no tiene configuradas sus cuentas
+> contables: el movimiento entra, y su póliza queda **fallida en la bandeja de
+> asientos pendientes** nombrando qué cuenta falta. Nunca se contabiliza a
+> medias.
+
 ---
 
 # 6 · Vacaciones

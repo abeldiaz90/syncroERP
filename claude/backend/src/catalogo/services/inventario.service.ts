@@ -25,6 +25,7 @@ import { StockService } from './stock.service';
 
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
+import type { TipoSalida } from '../../finanzas/services/motor-contable.service';
 import { fechaContableNegocio } from '../../common/utils/business-time.util';
 import { factorDeEmpaque } from '../utils/factor-de-empaque.util';
 
@@ -87,6 +88,26 @@ export interface ResultadoEntrada {
   stockNuevo: number;
   costoUnitarioLote: number;
   costoTotal: number;
+  /**
+   * Lo que entró, en unidad base. Si se compró en cajas, aquí vienen piezas.
+   *
+   * Lo devuelve porque quien tiene que hacer la póliza lo necesita y no puede
+   * deducirlo: con un empaque de por medio, `cantidad` está en cajas y el costo
+   * en piezas, y multiplicarlos daba un asiento inflado por el factor.
+   */
+  cantidadBase: number;
+  /**
+   * Lo que costó CADA unidad de esta entrada, no el promedio del lote.
+   *
+   * `costoUnitarioLote` es el promedio ponderado DESPUÉS de la entrada, que es
+   * lo que vale el inventario de aquí en adelante. Para el asiento hace falta
+   * otra cosa: el valor que esta entrada añadió. Si el lote ya tenía piezas a
+   * otro costo, los dos números no coinciden y el promedio da una póliza que no
+   * cuadra con el auxiliar.
+   *
+   * `cantidadBase × costoUnitarioEntrada = costoTotal`, exacto por construcción.
+   */
+  costoUnitarioEntrada: number;
 }
 
 const redondear2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -348,6 +369,8 @@ export class InventarioService {
         stockNuevo,
         costoUnitarioLote: costoPromedio,
         costoTotal: costoTotalEntrada,
+        cantidadBase,
+        costoUnitarioEntrada: redondear4(costoPorUnidadBase),
       };
     };
 
@@ -376,6 +399,22 @@ export class InventarioService {
     documento?: { id?: string; tipo?: string },
     ubicacionId?: string,
     reservaId?: string,
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * Quién la hizo. La entrada lo guarda desde el 4-oct; la salida, nunca.
+     *
+     * `MovimientoInventario` tiene el campo y el kardex lo muestra, así que una
+     * salida aparecía con la columna vacía. Para las que nacen de un documento
+     * —venta, transferencia, devolución a proveedor, conteo— el nombre se puede
+     * seguir por `documentoId` hasta el documento, que sí lo guarda. Para las
+     * que NO tienen documento —la merma y la salida cruda del catálogo— no
+     * había por dónde: el kardex decía «Merma: se mojó» y ahí terminaba la
+     * investigación.
+     *
+     * Opcional y al final para no romper a los once sitios que ya llaman aquí.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    usuarioId?: string,
   ): Promise<ResultadoSalida> {
     if (!almacenId) throw new BadRequestException('El almacén es obligatorio');
     if (cantidad <= 0)
@@ -597,6 +636,7 @@ export class InventarioService {
             fechaCaducidadMovimiento: lote.fechaCaducidad,
             documentoId: documento?.id,
             tipoDocumento: documento?.tipo,
+            usuarioId,
           }),
         );
 
@@ -705,6 +745,7 @@ export class InventarioService {
       const salida = await this.registrarSalida(
         productoId, origenId, cantidad, `Transferencia ${folio} a ${destino.nombre}: ${motivo}`,
         empresaId, undefined, undefined, em, { id: transferenciaId, tipo: 'TRANSFERENCIA' },
+        undefined, undefined, usuarioId,
       );
 
       const detalles: TransferenciaInventarioDetalle[] = [];
@@ -745,6 +786,199 @@ export class InventarioService {
 
   /* ══ AJUSTES ═════════════════════════════════════════════════════════════ */
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * EL MOVIMIENTO QUE NO TIENE UN DOCUMENTO DETRÁS
+   * --------------------------------------------------------------------------
+   * `registrarCompra` y `registrarSalida` no encolan asiento a propósito, y el
+   * motivo está escrito en `productos.service.ts`: las usan nueve sitios
+   * —órdenes de compra, transferencias, conteos, recetas, ventas— y **cada uno
+   * tiene su propia contrapartida**. Una venta abona inventario contra costo de
+   * ventas; una transferencia no mueve el mayor; una devolución a proveedor
+   * toca cuentas por pagar. El asiento depende del origen, así que no puede
+   * vivir dentro del movimiento. Ese razonamiento es correcto.
+   *
+   * Lo que dejaba fuera es el décimo camino: el que NO tiene origen. Los dos
+   * botones de cada renglón del catálogo —`POST .../:id/compra` y
+   * `.../:id/salida`— entran directos al movimiento sin documento que responda
+   * por la póliza. Resultado medido: el valor del inventario subía o bajaba y
+   * el mayor no se enteraba, igual que el ingreso por ajuste hasta el 4-oct,
+   * sólo que por una puerta que nadie había mirado. Y sin `usuarioId`: el
+   * kardex decía «Entrada de inventario» sin decir de quién.
+   *
+   * Este método es el dueño que faltaba. Hay UNA sola vez en el código que
+   * decide qué asiento lleva un movimiento sin documento, y por aquí pasan
+   * tanto el ajuste manual como los dos botones del catálogo.
+   *
+   * POR QUÉ UNA SALIDA CRUDA ES «AJUSTE» Y NO «MERMA»
+   *
+   * `generarAsientoDeSalida` carga a la cuenta de mermas cuando el tipo es
+   * MERMA, y a costo de ventas en los demás. Una merma es una pérdida
+   * declarada; la salida del catálogo no declara nada —puede ser una muestra,
+   * un consumo interno, un faltante—. Mandarla a mermas metería en esa cuenta
+   * cosas que no lo son, y esa cuenta la mira el contador para decidir si hay
+   * un problema en el almacén. AJUSTE la lleva a costo de ventas, que es donde
+   * va una salida de valor sin motivo declarado, y deja la cuenta de mermas
+   * diciendo sólo lo que de verdad se echó a perder.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  private async movimientoSinDocumento(
+    em: EntityManager,
+    datos: {
+      direccion: 'ENTRADA' | 'SALIDA';
+      /** Sólo para SALIDA: a qué cuenta se carga el valor que se va. */
+      razon?: TipoSalida;
+      productoId: string;
+      almacenId: string;
+      cantidad: number;
+      motivo: string;
+      empresaId: string;
+      usuarioId?: string;
+      numeroLote?: string;
+      fechaCaducidad?: string;
+      equivalenciaId?: string;
+      loteEspecificoId?: string;
+      ubicacionId?: string;
+      costoUnitario?: number;
+    },
+  ) {
+    const movimientoId = randomUUID();
+
+    if (datos.direccion === 'SALIDA') {
+      const razon: TipoSalida = datos.razon ?? 'AJUSTE';
+      const etiqueta: Record<TipoSalida, string> = {
+        MERMA: 'Merma',
+        AJUSTE: 'Salida sin documento',
+        CONSUMO: 'Consumo',
+        MUESTRA: 'Muestra',
+      };
+      const salida = await this.registrarSalida(
+        datos.productoId,
+        datos.almacenId,
+        datos.cantidad,
+        `${etiqueta[razon]}: ${datos.motivo}`,
+        datos.empresaId,
+        datos.equivalenciaId,
+        datos.loteEspecificoId,
+        em,
+        { tipo: razon },
+        datos.ubicacionId,
+        undefined,
+        datos.usuarioId,
+      );
+
+      // Outbox atómico: inventario y evento contable confirman juntos.
+      await this.asientos.encolarEnTransaccion(
+        em,
+        TipoAsiento.SALIDA_INVENTARIO,
+        {
+          movimientoId,
+          tipo: razon,
+          motivo: datos.motivo,
+          fecha: fechaContableNegocio(),
+          empresaId: datos.empresaId,
+          detalles: [
+            {
+              productoId: datos.productoId,
+              cantidad: salida.cantidadTotal,
+              costoUnitario: salida.costoUnitarioPromedio,
+            },
+          ],
+        },
+        datos.empresaId,
+        `${razon}-${movimientoId.slice(0, 8)}`,
+        movimientoId,
+      );
+
+      return salida;
+    }
+
+    const entrada = await this.registrarCompra(
+      datos.productoId,
+      datos.almacenId,
+      datos.cantidad,
+      datos.motivo,
+      datos.empresaId,
+      datos.numeroLote ?? 'AJUSTE',
+      datos.fechaCaducidad,
+      datos.equivalenciaId,
+      em,
+      datos.costoUnitario,
+      { tipo: 'AJUSTE' },
+      datos.ubicacionId,
+      datos.usuarioId,
+    );
+
+    /*
+     * `AJUSTE_INVENTARIO` ya existe y es lo que usa el conteo cíclico del WMS:
+     * toma `diferencia` con signo y sabe tratar las dos direcciones. Aquí la
+     * diferencia es positiva. Misma maquinaria, mismas cuentas.
+     *
+     * Los dos números vienen de la entrada y no de los argumentos. Hacerlo con
+     * `cantidad × costoUnitario` daba mal el asiento en dos casos reales: con un
+     * empaque de por medio la cantidad está en cajas y el costo en piezas, y
+     * cuando el lote ya tenía existencias el promedio ponderado no es lo que
+     * esta entrada añadió. `cantidadBase × costoUnitarioEntrada` es el valor
+     * exacto que subió al auxiliar.
+     */
+    await this.asientos.encolarEnTransaccion(
+      em,
+      TipoAsiento.AJUSTE_INVENTARIO,
+      {
+        ajusteId: movimientoId,
+        folio: `AJUSTE-${movimientoId.slice(0, 8)}`,
+        concepto: `${datos.motivo}`,
+        fecha: fechaContableNegocio(),
+        empresaId: datos.empresaId,
+        detalles: [
+          {
+            productoId: datos.productoId,
+            diferencia: entrada.cantidadBase,
+            costoUnitario: entrada.costoUnitarioEntrada,
+          },
+        ],
+      },
+      datos.empresaId,
+      `AJUSTE-${movimientoId.slice(0, 8)}`,
+      movimientoId,
+    );
+
+    return entrada;
+  }
+
+  /**
+   * La entrada y la salida de los dos botones del renglón del catálogo.
+   *
+   * Existe para que el controlador no entre directo al movimiento: por aquí
+   * lleva asiento y nombre, como cualquier otra operación que mueve dinero.
+   */
+  async movimientoDesdeElCatalogo(datos: {
+    direccion: 'ENTRADA' | 'SALIDA';
+    productoId: string;
+    almacenId: string;
+    cantidad: number;
+    motivo: string;
+    empresaId: string;
+    usuarioId?: string;
+    numeroLote?: string;
+    fechaCaducidad?: string;
+    equivalenciaId?: string;
+    loteEspecificoId?: string;
+    ubicacionId?: string;
+  }) {
+    return this.dataSource.transaction((em) =>
+      this.movimientoSinDocumento(em, { ...datos, razon: 'AJUSTE' }),
+    );
+  }
+
+  /**
+   * El ajuste manual, que ahora sólo elige la dirección y el motivo.
+   *
+   * Hasta hoy tenía su propia copia de las dos reglas —qué asiento encolar y con
+   * qué cuenta— y los botones del catálogo no tenían ninguna. Lo que decide eso
+   * vive en `movimientoSinDocumento` y no hay segunda copia: si mañana cambia la
+   * cuenta de un ajuste, cambia para las dos puertas a la vez.
+   */
   async ajusteManual(
     productoId: string,
     almacenId: string,
@@ -763,108 +997,34 @@ export class InventarioService {
 
     const ejecutar = async (em: EntityManager) => {
       if (tipo === 'MERMA') {
-        const salida = await this.registrarSalida(
+        const salida = await this.movimientoSinDocumento(em, {
+          direccion: 'SALIDA',
+          razon: 'MERMA',
           productoId,
           almacenId,
           cantidad,
-          `Merma: ${motivo}`,
+          motivo,
           empresaId,
-          undefined,
+          usuarioId,
           loteEspecificoId,
-          em,
-          { tipo: 'MERMA' },
-        );
-
-        // Outbox atómico: inventario y evento contable confirman juntos.
-        const movimientoId = randomUUID();
-        await this.asientos.encolarEnTransaccion(
-          em,
-          TipoAsiento.SALIDA_INVENTARIO,
-          {
-            movimientoId,
-            tipo: 'MERMA',
-            motivo,
-            fecha: fechaContableNegocio(),
-            empresaId,
-            detalles: [
-              {
-                productoId,
-                cantidad: salida.cantidadTotal,
-                costoUnitario: salida.costoUnitarioPromedio,
-              },
-            ],
-          },
-          empresaId,
-          `MERMA-${movimientoId.slice(0, 8)}`,
-          movimientoId,
-        );
-
+        });
         return {
           mensaje: 'Merma registrada',
           costoTotal: salida.costoTotal,
-          consumos: salida.consumos,
+          consumos: (salida as ResultadoSalida).consumos,
         };
       }
 
-      const entrada = await this.registrarCompra(
+      const entrada = await this.movimientoSinDocumento(em, {
+        direccion: 'ENTRADA',
         productoId,
         almacenId,
         cantidad,
-        `Ajuste manual (ingreso): ${motivo}`,
+        motivo: `Ajuste manual (ingreso): ${motivo}`,
         empresaId,
-        'AJUSTE',
-        undefined,
-        undefined,
-        em,
-        costoUnitario,
-        { tipo: 'AJUSTE' },
-        undefined,
         usuarioId,
-      );
-
-      /*
-       * ══════════════════════════════════════════════════════════════════════
-       * Un ingreso por ajuste también es un asiento
-       * ──────────────────────────────────────────────────────────────────────
-       * La rama MERMA de arriba encola su asiento; ésta no encolaba nada. Y la
-       * pantalla decía «Ajuste contabilizado» para las dos.
-       *
-       * O sea: un ingreso por ajuste SUBÍA el valor del inventario sin
-       * contrapartida, y quien lo registraba se iba creyendo que había quedado
-       * asentado. Un inventario que crece sin que nada explique de dónde salió
-       * ese valor es un agujero en los libros, y además del lado que nadie
-       * reclama: el almacén cuadra, la contabilidad no.
-       *
-       * No hace falta inventar nada: `AJUSTE_INVENTARIO` ya existe y es lo que
-       * usa el conteo cíclico del WMS. Su generador toma `diferencia` con
-       * signo y sabe tratar las dos direcciones. Aquí la diferencia es
-       * positiva; en el conteo puede ser de cualquier signo. Misma maquinaria,
-       * mismas cuentas, mismo sitio en el libro.
-       * ══════════════════════════════════════════════════════════════════════
-       */
-      const movimientoId = randomUUID();
-      await this.asientos.encolarEnTransaccion(
-        em,
-        TipoAsiento.AJUSTE_INVENTARIO,
-        {
-          ajusteId: movimientoId,
-          folio: `AJUSTE-${movimientoId.slice(0, 8)}`,
-          fecha: fechaContableNegocio(),
-          empresaId,
-          detalles: [
-            {
-              productoId,
-              diferencia: cantidad,
-              costoUnitario: Number(
-                costoUnitario ?? entrada.costoUnitarioLote ?? 0,
-              ),
-            },
-          ],
-        },
-        empresaId,
-        `AJUSTE-${movimientoId.slice(0, 8)}`,
-        movimientoId,
-      );
+        costoUnitario,
+      });
 
       return { mensaje: 'Ajuste realizado', ...entrada };
     };

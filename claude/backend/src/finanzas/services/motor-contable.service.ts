@@ -1228,6 +1228,17 @@ export class MotorContableService {
     folio: string;
     fecha: Date;
     empresaId: string;
+    /**
+     * Qué dirá la póliza. Por omisión, el conteo cíclico, que es quien estrenó
+     * este generador.
+     *
+     * Hace falta porque ya no es el único que entra: el ingreso por ajuste y la
+     * entrada sin documento del catálogo usan la misma maquinaria, y el concepto
+     * fijo —«Ajuste de inventario por conteo AJUSTE-3f2a»— les ponía en el libro
+     * un conteo que nunca existió. Un auditor que siga ese concepto busca un
+     * acta de conteo y no la encuentra.
+     */
+    concepto?: string;
     detalles: Array<{
       productoId: string;
       diferencia: number;
@@ -1304,7 +1315,9 @@ export class MotorContableService {
     const id = await this.crearPoliza({
       empresaId: datos.empresaId,
       tipo: TipoPoliza.DIARIO,
-      concepto: `Ajuste de inventario por conteo ${datos.folio}`,
+      concepto:
+        datos.concepto?.trim() ||
+        `Ajuste de inventario por conteo ${datos.folio}`,
       fecha: datos.fecha,
       partidas,
       origenClave: `AJUSTE_INVENTARIO:${datos.ajusteId}`,

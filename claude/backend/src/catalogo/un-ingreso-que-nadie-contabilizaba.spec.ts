@@ -32,50 +32,194 @@ const sinComentarios = servicio
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
-/** El cuerpo de `ajusteManual`, que es donde viven las dos ramas. */
-const ajusteManual = (() => {
-  const inicio = sinComentarios.indexOf('async ajusteManual(');
+/**
+ * ============================================================================
+ * Y LA MISMA PUERTA TENÍA UNA GEMELA QUE NADIE HABÍA MIRADO (5-oct-2026)
+ * ----------------------------------------------------------------------------
+ * El arreglo de arriba puso el asiento DENTRO de `ajusteManual`. Funcionaba, y
+ * por eso tapaba lo otro: los dos botones del renglón del catálogo
+ * —`POST .../:id/compra` y `.../:id/salida`, los iconos verde y ámbar de cada
+ * producto— entran al mismo movimiento de inventario por otra puerta, y esa no
+ * encolaba nada ni guardaba quién.
+ *
+ * O sea que el agujero no era «la rama INGRESO del ajuste». Era: **un
+ * movimiento sin documento detrás no tiene a nadie que haga su póliza**, y el
+ * ajuste era sólo uno de los tres sitios con ese problema.
+ *
+ * Lo que decide eso vive ahora en `movimientoSinDocumento`, una sola vez, y las
+ * pruebas se mudaron ahí con él. Las de antes miraban el cuerpo de
+ * `ajusteManual` y se pusieron rojas con la mudanza: estaban clavadas al sitio,
+ * no a la regla. Éstas miran la regla y además cierran la puerta de atrás: el
+ * controlador ya no puede entrar directo al movimiento.
+ * ============================================================================
+ */
+
+/** Toma el cuerpo de un método del servicio, cortando en el siguiente. */
+function cuerpoDe(nombre: string): string {
+  const inicio = sinComentarios.indexOf(nombre);
   expect(inicio).toBeGreaterThan(-1);
-  /*
-   * El corte va al SIGUIENTE método, no a un nombre concreto:
-   * `listarTransferencias` está ANTES que `ajusteManual` en el archivo, así que
-   * anclar ahí extendía el trozo hasta el final y la cuenta de ramas salía
-   * inflada. Lo comprobé con la prueba en rojo: decía 5 ramas donde hay 2.
-   */
-  const siguiente = sinComentarios.slice(inicio + 1).search(/\n  (async |private |\/\*)/);
+  const siguiente = sinComentarios
+    .slice(inicio + 1)
+    .search(/\n  (async |private |\/\*)/);
   return siguiente > -1
     ? sinComentarios.slice(inicio, inicio + 1 + siguiente)
     : sinComentarios.slice(inicio);
-})();
+}
 
-describe('Las dos ramas del ajuste llegan a la contabilidad', () => {
-  it('la merma encola su asiento (esto ya estaba bien)', () => {
-    expect(ajusteManual).toMatch(/TipoAsiento\.SALIDA_INVENTARIO/);
+const duenio = cuerpoDe('private async movimientoSinDocumento(');
+
+describe('El movimiento sin documento tiene un dueño, y uno solo', () => {
+  it('la salida encola su asiento', () => {
+    expect(duenio).toMatch(/TipoAsiento\.SALIDA_INVENTARIO/);
   });
 
-  it('el ingreso también encola el suyo', () => {
-    expect(ajusteManual).toMatch(/TipoAsiento\.AJUSTE_INVENTARIO/);
+  it('la entrada encola el suyo', () => {
+    expect(duenio).toMatch(/TipoAsiento\.AJUSTE_INVENTARIO/);
   });
 
-  it('ninguna rama se queda sin encolar', () => {
+  it('ninguna dirección se queda sin encolar', () => {
     /*
-     * La comprobación que importa, y escrita en negativo a propósito: no se
-     * mide que haya dos llamadas, se mide que no haya un camino de salida sin
-     * asiento. Contar llamadas se queda verde si alguien añade una tercera
-     * rama muda.
+     * En negativo a propósito: no se cuenta que haya dos llamadas, se mide que
+     * no haya un camino de salida sin asiento. Contar llamadas se queda verde
+     * si alguien añade una tercera dirección muda.
      */
-    const ramas = ajusteManual.split('return {').length - 1;
-    const encolados = (ajusteManual.match(/encolarEnTransaccion\(/g) ?? [])
-      .length;
-    expect(ramas).toBeGreaterThanOrEqual(2);
-    expect(encolados).toBeGreaterThanOrEqual(ramas);
+    const salidas = (duenio.match(/\n      return |\n    return /g) ?? []).length;
+    const encolados = (duenio.match(/encolarEnTransaccion\(/g) ?? []).length;
+    expect(salidas).toBeGreaterThanOrEqual(2);
+    expect(encolados).toBeGreaterThanOrEqual(salidas);
   });
 
-  it('el ingreso usa el tipo que el motor sabe generar', () => {
+  it('el ajuste manual ya no tiene su propia copia de la regla', () => {
     /*
-     * `AJUSTE_INVENTARIO` tiene generador registrado. Encolar un tipo sin
-     * generador deja el asiento pendiente para siempre, que es peor que no
-     * encolarlo: aparece en la bandeja y nadie sabe qué hacer con él.
+     * El valor del arreglo está aquí. Mientras `ajusteManual` siguiera
+     * encolando por su cuenta, arreglar la cuenta de un ajuste obligaría a
+     * acordarse de los dos sitios, y el segundo es el que se olvida.
+     */
+    const ajuste = cuerpoDe('async ajusteManual(');
+    expect(ajuste).not.toMatch(/encolarEnTransaccion\(/);
+    expect(ajuste).toMatch(/movimientoSinDocumento\(em, \{/);
+  });
+
+  it('y el controlador no tiene puerta directa al movimiento', () => {
+    /*
+     * ÉSTE es el defecto del 5-oct, escrito como no puede volver. Los dos
+     * endpoints llamaban a `registrarCompra` / `registrarSalida`, que a
+     * propósito no encolan asiento porque lo encola quien tiene el documento.
+     * Sin documento no había nadie, y el valor del inventario se movía sin
+     * tocar el mayor.
+     */
+    const controlador = readFileSync(
+      join(__dirname, 'controllers', 'inventario.controller.ts'),
+      'utf8',
+    );
+    expect(controlador).not.toMatch(/inventarioService\.registrarCompra\(/);
+    expect(controlador).not.toMatch(/inventarioService\.registrarSalida\(/);
+    expect(controlador).toMatch(/movimientoDesdeElCatalogo\(\{/);
+  });
+
+  it('las dos puertas del catálogo guardan quién lo hizo', () => {
+    const controlador = readFileSync(
+      join(__dirname, 'controllers', 'inventario.controller.ts'),
+      'utf8',
+    );
+    /*
+     * `MovimientoInventario` tiene el campo y el kardex lo muestra. La entrada
+     * cruda lo dejaba vacío, y la salida no podía llenarlo porque
+     * `registrarSalida` no recibía el dato: ninguna salida del sistema dejaba
+     * nombre.
+     */
+    const compra = controlador.slice(
+      controlador.indexOf("@Post('productos/:id/compra')"),
+      controlador.indexOf("@Post('productos/:id/salida')"),
+    );
+    expect(compra).toMatch(/@ActiveUser\('sub'\) usuarioId/);
+    expect(compra).toMatch(/usuarioId,/);
+
+    const servicio = readFileSync(
+      join(__dirname, 'services', 'inventario.service.ts'),
+      'utf8',
+    );
+    const salida = servicio.slice(
+      servicio.indexOf('async registrarSalida('),
+      servicio.indexOf('): Promise<ResultadoSalida>'),
+    );
+    expect(salida).toMatch(/usuarioId\?: string,/);
+  });
+
+  it('y la salida de verdad lo escribe en el kardex, no sólo lo recibe', () => {
+    /*
+     * MUTANTE SUPERVIVIENTE. La prueba de arriba comprobaba que la firma de
+     * `registrarSalida` acepta `usuarioId`, y un mutante que borró
+     * `usuarioId,` del `create(MovimientoInventario, …)` pasó en verde: el dato
+     * llegaba al método y se tiraba a la basura, que es exactamente el estado en
+     * el que estaba el código antes de hoy —el campo existía en la entidad y
+     * nadie lo llenaba—.
+     *
+     * Se mide sobre el bloque que ESCRIBE, no sobre la firma.
+     */
+    const servicio = readFileSync(
+      join(__dirname, 'services', 'inventario.service.ts'),
+      'utf8',
+    );
+    const cuerpo = servicio.slice(
+      servicio.indexOf('async registrarSalida('),
+      servicio.indexOf('/* ══ TRANSFERENCIAS'),
+    );
+    expect(cuerpo).toMatch(
+      /tipo: 'SALIDA',[\s\S]{0,800}?tipoDocumento: documento\?\.tipo,\s*\n\s*usuarioId,/,
+    );
+  });
+
+  it('y la entrada devuelve los dos números con los que se hace la póliza', () => {
+    /*
+     * MUTANTE SUPERVIVIENTE. Cambiar `costoUnitarioEntrada` por `costoPromedio`
+     * no ponía nada rojo: la prueba de arriba mira cómo se USA el campo, no de
+     * dónde sale su valor, y el promedio del lote es justo el número equivocado
+     * cuando el lote ya tenía existencias a otro costo.
+     *
+     * Medirlo ejecutando `registrarCompra` pide montar almacén, producto, lote,
+     * resumen de stock y bloqueo pesimista: se mediría el armado del doble. La
+     * aserción se queda donde el valor se compone, con el invariante escrito:
+     * `cantidadBase × costoUnitarioEntrada = costoTotal`.
+     */
+    const servicio = readFileSync(
+      join(__dirname, 'services', 'inventario.service.ts'),
+      'utf8',
+    );
+    const retorno = servicio.slice(
+      servicio.indexOf("mensaje: 'Entrada registrada correctamente'"),
+    );
+    expect(retorno.slice(0, 400)).toMatch(
+      /costoTotal: costoTotalEntrada,\s*\n\s*cantidadBase,\s*\n\s*costoUnitarioEntrada: redondear4\(costoPorUnidadBase\),/,
+    );
+    /* Y el costo total sigue siendo cantidadBase × costoPorUnidadBase. */
+    expect(servicio).toMatch(/valorEntrada[\s\S]{0,40}cantidadBase \* costoPorUnidadBase/);
+  });
+
+  it('la salida cruda va a AJUSTE y no a MERMA', () => {
+    /*
+     * `generarAsientoDeSalida` carga a la cuenta de mermas sólo cuando el tipo
+     * es MERMA. Una merma es una pérdida declarada; la salida del catálogo no
+     * declara nada. Mandarla a mermas metería en esa cuenta cosas que no lo
+     * son, y es la cuenta que mira el contador para decidir si hay un problema
+     * en el almacén.
+     */
+    const servicio = readFileSync(
+      join(__dirname, 'services', 'inventario.service.ts'),
+      'utf8',
+    );
+    const puerta = servicio.slice(
+      servicio.indexOf('async movimientoDesdeElCatalogo('),
+    );
+    expect(puerta.slice(0, puerta.indexOf('async ajusteManual('))).toMatch(
+      /razon: 'AJUSTE'/,
+    );
+  });
+
+  it('el tipo que encola tiene generador registrado', () => {
+    /*
+     * Encolar un tipo sin generador deja el asiento pendiente para siempre, que
+     * es peor que no encolarlo: aparece en la bandeja y nadie sabe qué hacer.
      */
     const registro = readFileSync(
       join(__dirname, '..', 'finanzas', 'services', 'asientos-pendientes.service.ts'),
@@ -84,42 +228,68 @@ describe('Las dos ramas del ajuste llegan a la contabilidad', () => {
     expect(registro).toMatch(
       /\[TipoAsiento\.AJUSTE_INVENTARIO\]: 'generarAsientoDeAjusteInventario'/,
     );
+    expect(registro).toMatch(
+      /\[TipoAsiento\.SALIDA_INVENTARIO\]: 'generarAsientoDeSalida'/,
+    );
     expect(TipoAsiento.AJUSTE_INVENTARIO).toBe('AJUSTE_INVENTARIO');
   });
 
-  it('la diferencia del ingreso viaja positiva', () => {
+  it('la diferencia de la entrada viaja positiva', () => {
     /*
      * El generador toma el valor absoluto para el importe, pero usa el signo
-     * para decidir qué cuenta va al debe. Un ingreso con diferencia negativa
+     * para decidir qué cuenta va al debe. Una entrada con diferencia negativa
      * asentaría al revés: inventario abonado en una entrada.
      */
-    expect(ajusteManual).toMatch(/diferencia: cantidad,/);
+    expect(duenio).toMatch(/diferencia: entrada\.cantidadBase,/);
   });
 
-  it('y con el costo que de verdad se usó, no con cero', () => {
+  it('y con el valor que de verdad entró, no con el promedio del lote', () => {
     /*
-     * `costoUnitario` es opcional en la firma: cuando no viene, el costo real
-     * lo calcula la entrada. Tomar el argumento sin más dejaría el asiento en
-     * cero justo en el caso habitual, y un asiento de cero no se distingue de
-     * uno que no existe.
+     * LO QUE ESTABA MAL EN EL ARREGLO DE AYER, encontrado al mudar la regla.
+     *
+     * Decía `costoUnitario ?? entrada.costoUnitarioLote ?? 0` sobre
+     * `diferencia: cantidad`, y eso falla en dos casos reales:
+     *
+     *   · con un empaque de por medio, `cantidad` está en cajas y el costo en
+     *     piezas: el asiento sale multiplicado por el factor;
+     *   · si el lote ya tenía existencias a otro costo, `costoUnitarioLote` es
+     *     el promedio ponderado DESPUÉS de la entrada, que no es lo que esta
+     *     entrada añadió al auxiliar.
+     *
+     * `cantidadBase × costoUnitarioEntrada` es el valor exacto que subió, por
+     * construcción de `registrarCompra`.
      */
-    expect(ajusteManual).toMatch(
-      /costoUnitario \?\? entrada\.costoUnitarioLote \?\? 0/,
-    );
+    expect(duenio).toMatch(/costoUnitario: entrada\.costoUnitarioEntrada,/);
+    expect(duenio).not.toMatch(/entrada\.costoUnitarioLote/);
   });
-});
 
-describe('Y el asiento nace con la existencia, no después', () => {
-  it('se encola dentro de la misma transacción', () => {
+  it('el asiento nace dentro de la misma transacción que movió el stock', () => {
     /*
-     * `encolarEnTransaccion(em, …)` con el mismo `EntityManager` que movió el
-     * inventario: si la transacción se deshace, el asiento se deshace con
-     * ella. Un asiento que sobrevive a su movimiento es una póliza que no
-     * respalda nada.
+     * `encolarEnTransaccion(em, …)` con el mismo `EntityManager`: si la
+     * transacción se deshace, el asiento se deshace con ella. Un asiento que
+     * sobrevive a su movimiento es una póliza que no respalda nada.
      */
-    expect(ajusteManual).toMatch(
+    expect(duenio).toMatch(
       /encolarEnTransaccion\(\s*em,\s*TipoAsiento\.AJUSTE_INVENTARIO/,
     );
+    expect(duenio).toMatch(
+      /encolarEnTransaccion\(\s*em,\s*TipoAsiento\.SALIDA_INVENTARIO/,
+    );
+  });
+
+  it('y la póliza no dice que vino de un conteo que no existió', () => {
+    /*
+     * `generarAsientoDeAjusteInventario` nació para el conteo cíclico y fijaba
+     * el concepto «Ajuste de inventario por conteo <folio>». Reusar la
+     * maquinaria era correcto; heredar su concepto, no: un auditor que siga esa
+     * línea busca un acta de conteo y no la encuentra.
+     */
+    const motor = readFileSync(
+      join(__dirname, '..', 'finanzas', 'services', 'motor-contable.service.ts'),
+      'utf8',
+    );
+    expect(motor).toMatch(/concepto:\s*\n?\s*datos\.concepto\?\.trim\(\) \|\|/);
+    expect(duenio).toMatch(/concepto: /);
   });
 });
 

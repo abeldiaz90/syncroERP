@@ -7,16 +7,41 @@ import { AjusteInventarioDto, RegistrarCompraInventarioDto, RegistrarSalidaInven
 export class InventarioController {
   constructor(private readonly inventarioService: InventarioService) {}
 
+  /**
+   * ──────────────────────────────────────────────────────────────────────────
+   * Los dos botones del renglón del catálogo
+   * --------------------------------------------------------------------------
+   * Son los dos iconos verde y ámbar de cada producto en /dashboard/productos.
+   * Entraban directo a `registrarCompra` / `registrarSalida`, que a propósito no
+   * encolan asiento: lo encola quien tiene el documento —la orden de compra, la
+   * venta, la transferencia—. Pero aquí no hay documento, así que no había
+   * nadie, y el valor del inventario subía y bajaba sin tocar el mayor. Tampoco
+   * se guardaba quién: el kardex mostraba el movimiento con la columna vacía.
+   *
+   * Ahora pasan por `movimientoDesdeElCatalogo`, el único sitio que decide qué
+   * asiento lleva un movimiento sin documento. El mismo por el que pasa el
+   * ajuste manual.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
   @Post('productos/:id/compra')
   async registrarCompra(
     @Param('id') id: string,
     @Body() dto: RegistrarCompraInventarioDto,
     @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('sub') usuarioId: string,
   ) {
-    return this.inventarioService.registrarCompra(
-      id, dto.almacenId, dto.cantidad, dto.motivo, empresaId,
-      dto.numeroLote, dto.fechaCaducidad, dto.equivalenciaId,
-    );
+    return this.inventarioService.movimientoDesdeElCatalogo({
+      direccion: 'ENTRADA',
+      productoId: id,
+      almacenId: dto.almacenId,
+      cantidad: dto.cantidad,
+      motivo: `Entrada sin documento: ${dto.motivo}`,
+      empresaId,
+      usuarioId,
+      numeroLote: dto.numeroLote,
+      fechaCaducidad: dto.fechaCaducidad,
+      equivalenciaId: dto.equivalenciaId,
+    });
   }
 
   @Post('productos/:id/salida')
@@ -24,12 +49,20 @@ export class InventarioController {
     @Param('id') id: string,
     @Body() dto: RegistrarSalidaInventarioDto,
     @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('sub') usuarioId: string,
   ) {
-    return this.inventarioService.registrarSalida(
-      id, dto.almacenId, dto.cantidad, dto.motivo, empresaId,
-      dto.equivalenciaId, dto.loteEspecificoId, undefined, undefined,
-      dto.ubicacionId,
-    );
+    return this.inventarioService.movimientoDesdeElCatalogo({
+      direccion: 'SALIDA',
+      productoId: id,
+      almacenId: dto.almacenId,
+      cantidad: dto.cantidad,
+      motivo: dto.motivo,
+      empresaId,
+      usuarioId,
+      equivalenciaId: dto.equivalenciaId,
+      loteEspecificoId: dto.loteEspecificoId,
+      ubicacionId: dto.ubicacionId,
+    });
   }
 
   @Get('productos/:id/movimientos')
