@@ -19,6 +19,7 @@ import { RestablecerPasswordDto } from '../dto/restablecer-password.dto';
 import { Public } from '../../iam/decorators/public.decorator';
 import { SkipPermisos } from '../../iam/decorators/skip-permisos.decorator';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
+import { Roles } from '../decorators/roles.decorator';
 import { esRolAdministrador } from '../utils/roles.util';
 
 @Controller('auth')
@@ -97,10 +98,29 @@ export class AuthController {
 
   /**
    * POST /api/auth/onboarding/paso/:numero
-   * Guarda cada paso del wizard de configuración inicial.
-   * Requiere JWT (@SkipPermisos: sin validar tabla de permisos).
-   * El paso 4 marca onboardingCompletado = true.
+   *
+   * Guarda cada paso del asistente de configuración inicial. El paso 4 marca
+   * `onboardingCompletado`.
+   *
+   * ──────────────────────────────────────────────────────────────────────────
+   * POR QUÉ LLEVA `@Roles`, Y POR QUÉ ANTES ERA UN AGUJERO
+   *
+   * `@SkipPermisos()` saca al endpoint de la tabla de permisos: ni se da de
+   * alta en ella, ni un administrador puede quitarlo desde la pantalla. Con eso
+   * y sin `@Roles`, la única condición era tener sesión — **de cualquier rol**.
+   *
+   * Y el paso 1 reescribe el **RFC de la empresa**, que es el emisor de todos
+   * los CFDI (`cfdi/configuracion-mexico.service`). Un almacenista con su
+   * sesión normal podía dejar a la empresa timbrando con un RFC ajeno; el paso
+   * 2 cambia el domicilio fiscal y el 4 el plan contratado. Nada de eso se
+   * auditaba: `auth` no está en las rutas auditables.
+   *
+   * De paso, esquivaba la puerta buena: `POST /cfdi/configuracion-mexico/aplicar`
+   * sí pasa por la tabla de permisos y exige confirmación de revisión con el
+   * contador, RFC coherente con el tipo de persona y régimen válido.
+   * ──────────────────────────────────────────────────────────────────────────
    */
+  @Roles('administrador', 'direccion')
   @SkipPermisos()
   @Post('onboarding/paso/:numero')
   async onboardingPaso(
@@ -112,6 +132,12 @@ export class AuthController {
   }
 
 
+  /*
+   * Devuelve RFC, régimen, domicilio completo y plan. `GET /usuarios/me`
+   * entrega a propósito sólo el nombre comercial, porque «lo reservado es la
+   * configuración fiscal»; esto lo contradecía para cualquier rol.
+   */
+  @Roles('administrador', 'direccion')
   @SkipPermisos()
   @Get('onboarding/estado')
   async onboardingEstado(@ActiveUser('empresaId') empresaId: string) {

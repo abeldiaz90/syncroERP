@@ -306,7 +306,9 @@ export class CreditosService {
           // cortesía de calendario, no un plazo mayor del autorizado.
           fechaVencimiento:
             ultimaCuota.fechaVencimientoSinAjuste ?? ultimaCuota.fechaVencimiento,
-          fechaCorte: dto.fechaInicio?.slice(0, 10),
+          /* Sin `fechaCorte`: la mora y el plazo se miden contra el día de
+             negocio, no contra la fecha que se capturó. Ver la nota de
+             `ValidarOperacionCreditoInput`. */
         },
       );
       if (dto.numeroCuotas > 60) {

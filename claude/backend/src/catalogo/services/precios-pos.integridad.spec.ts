@@ -38,6 +38,8 @@ describe('PreciosService · integridad del punto de venta', () => {
       productoRepo as any,
       precioRepo as any,
       listaRepo as any,
+      /* Empaques: esta prueba vende en unidad base, así que no se consultan. */
+      { find: jest.fn().mockResolvedValue([]) } as any,
     );
 
     const resultado = await service.consultarPrecio(
@@ -81,6 +83,8 @@ describe('PreciosService · integridad del punto de venta', () => {
       productoRepo as any,
       precioRepo as any,
       listaRepo as any,
+      /* Empaques: esta prueba vende en unidad base, así que no se consultan. */
+      { find: jest.fn().mockResolvedValue([]) } as any,
     );
 
     const resultado = await service.resolverVenta(

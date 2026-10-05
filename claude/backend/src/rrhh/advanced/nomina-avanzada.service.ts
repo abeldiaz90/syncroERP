@@ -423,7 +423,6 @@ export class NominaAvanzadaService {
   async prepararAprobacion(
     periodoId: string,
     empresaId: string,
-    niveles: number,
     aceptarAlertas: boolean,
     usuario: UsuarioNomina,
   ) {
@@ -471,7 +470,14 @@ export class NominaAvanzadaService {
       });
       const definiciones = matriz.length
         ? matriz
-        : CADENA_FIRMAS_NOMINA.slice(0, niveles).map((rolAprobador, index) => ({
+        : /*
+           * La cadena COMPLETA. Antes era `slice(0, niveles)` con `niveles`
+           * del cuerpo de la petición, así que quien preparaba la nómina
+           * elegía cuántas firmas necesitaba: con `1` se aprobaba en Gerencia
+           * y Finanzas y Tesorería nunca la veían. Ver la nota de
+           * `PrepararAprobacionDto`.
+           */
+          CADENA_FIRMAS_NOMINA.map((rolAprobador, index) => ({
             orden: index + 1, rolAprobador, usuarioId: undefined, tiempoLimiteHoras: 24,
           }));
       if (!definiciones.length) throw new ConflictException('Configura al menos un aprobador para Nómina.');

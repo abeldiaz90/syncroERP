@@ -54,7 +54,6 @@ describe('PoliticaCreditoService', () => {
         empresaId: 'empresa-1',
         clienteId: 'cliente-1',
         importe: 40_000,
-        fechaCorte: '2026-08-03',
       },
     );
     expect(resultado.utilizado).toBe(50_000);
@@ -83,7 +82,6 @@ describe('PoliticaCreditoService', () => {
         empresaId: 'empresa-1',
         clienteId: 'cliente-1',
         importe: 15_000,
-        fechaCorte: '2026-08-03',
       }),
     ).rejects.toThrow('Crédito global insuficiente');
   });
@@ -96,7 +94,6 @@ describe('PoliticaCreditoService', () => {
         empresaId: 'empresa-1',
         clienteId: 'cliente-1',
         importe: 1_000,
-        fechaCorte: '2026-08-03',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
   });

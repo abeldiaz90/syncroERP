@@ -65,6 +65,10 @@ import { ResultadoPasoValidacion } from '../validacion/entities/resultado-paso.e
 import { FlujosValidacionService } from '../validacion/services/flujos-validacion.service';
 import { MotorValidacionService } from '../validacion/services/motor-validacion.service';
 import {
+  CatalogoContratadoNoConfigurado,
+  PUERTO_CATALOGO_CONTRATADO,
+} from '../validacion/contrato/catalogo-contratado.port';
+import {
   EvaluadorBuroCredito,
   EvaluadorCirculoCredito,
   EvaluadorHistorialInterno,
@@ -165,6 +169,22 @@ import { FineractAdapterModule } from '../adaptadores/fineract/fineract.module';
       useClass: ValidacionIdentidadNoConfigurada,
     },
     { provide: PUERTO_BURO_CREDITO, useClass: BuroNoConfigurado },
+    /*
+     * El catálogo de lo que cada empresa contrató vive en la suite de SUMA, no
+     * aquí: ahí están `permissionTypes`, los contadores de consumo y las
+     * credenciales de los terceros, y ahí tienen que seguir. El ERP lo pregunta
+     * por un puerto, igual que pregunta por un buró.
+     *
+     * Hoy no hay catálogo, y eso es lo seguro: sin él, un tipo de paso que este
+     * portal no conoce es una errata y no se puede guardar. Cuando la suite
+     * responda, el mismo tipo se podrá configurar y el flujo lo registrará como
+     * NO_DISPONIBLE hasta que exista su evaluador. Enchufarlo es cambiar esta
+     * línea.
+     */
+    {
+      provide: PUERTO_CATALOGO_CONTRATADO,
+      useClass: CatalogoContratadoNoConfigurado,
+    },
 
     // ── Flujos de validación ────────────────────────────────────────────────
     EvaluadorIdentidadIne,

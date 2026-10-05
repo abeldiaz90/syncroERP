@@ -34,8 +34,41 @@ export interface ValidarOperacionCreditoInput {
   clienteId: string;
   importe: number;
   fechaVencimiento?: Date | string;
-  fechaCorte?: string;
 }
+
+/*
+ * ============================================================================
+ * Por qué `fechaCorte` ya no entra en la validación
+ * ----------------------------------------------------------------------------
+ * `ValidarOperacionCreditoInput` tenía `fechaCorte`, y los dos únicos canales
+ * que validan lo llenaban con un dato del documento que el cliente captura:
+ * `creditos.service` con `dto.fechaInicio` y `city-ledger.service` con
+ * `datos.fechaEmision`. Ninguno de los dos tiene cota.
+ *
+ * Ese valor decidía dos cosas, y las dos se podían mover desde la petición:
+ *
+ *  · **La mora.** La subconsulta de vencido es `q.fechaVencimiento < $3`. Con
+ *    una fecha retroactiva no hay nada vencido: un cliente con
+ *    `bloquearCreditoConSaldoVencido` y una cuota caída la semana pasada pasaba
+ *    el control poniendo `fechaInicio` anterior a ese vencimiento. El bloqueo
+ *    por mora existía y no se disparaba nunca para quien supiera eso.
+ *
+ *  · **El plazo autorizado.** El tope es `fechaBase + diasCredito`. Con
+ *    `fechaInicio = hoy + 180` y una cuota a 30 días, el vencimiento caía
+ *    dentro del tope y la línea se consumía hoy sin nada exigible en siete
+ *    meses.
+ *
+ * Las dos medidas son sobre HOY y no sobre el documento, y la razón es la
+ * misma: la mora es un hecho de hoy, y el plazo autorizado cuenta desde que la
+ * mercancía o el dinero salen, que es hoy. Fechar el documento hacia atrás o
+ * hacia adelante no cambia ninguna de las dos cosas.
+ *
+ * Y se **quita del tipo** en vez de ignorarse: un parámetro que se sigue
+ * recibiendo y no hace nada es el defecto original con una pista falsa encima.
+ * `obtenerResumen` lo conserva, porque ahí sí sirve —un reporte de exposición a
+ * una fecha pasada es legítimo—; lo que no puede es decidir una autorización.
+ * ============================================================================
+ */
 
 /**
  * Fuente única de verdad para la exposición crediticia del cliente.
@@ -190,10 +223,11 @@ export class PoliticaCreditoService {
       input.empresaId,
       input.clienteId,
     );
+    /* Sin `fechaCorte`: la mora se mide contra el día de negocio. Ver la nota
+       de `ValidarOperacionCreditoInput`. */
     const resumen = await this.obtenerResumen(input.empresaId, input.clienteId, {
       manager,
       bloquear: true,
-      fechaCorte: input.fechaCorte,
     });
 
     if (!resumen.cliente.activo) {
@@ -231,9 +265,15 @@ export class PoliticaCreditoService {
       if (Number.isNaN(fechaVencimiento.getTime())) {
         throw new BadRequestException('La fecha de vencimiento no es válida.');
       }
-      const fechaBase = input.fechaCorte
-        ? new Date(`${input.fechaCorte.slice(0, 10)}T12:00:00`)
-        : new Date();
+      /*
+       * El plazo autorizado se cuenta desde HOY, no desde la fecha del
+       * documento: es el tiempo que la institución espera su dinero, y empieza
+       * cuando la mercancía sale. Un crédito retroactivo —migración de
+       * histórico— sigue pasando, porque su vencimiento también es pasado.
+       */
+      const fechaBase = new Date(
+        `${fechaCalendarioNegocio(new Date())}T12:00:00`,
+      );
       const maxima = new Date(fechaBase);
       maxima.setDate(maxima.getDate() + resumen.diasCredito);
       if (fechaVencimiento.getTime() > maxima.getTime()) {

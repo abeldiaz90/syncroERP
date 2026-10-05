@@ -4160,3 +4160,121 @@ describe('Coherencia · el respaldo ya no se firma en ninguna puerta', () => {
     expect(cierre).toContain('this.respaldoService.generar(');
   });
 });
+
+describe('Coherencia · una escritura fuera de la tabla de permisos necesita un rol', () => {
+  /*
+   * ==========================================================================
+   * `@SkipPermisos()` sobre una escritura es un hueco que no se ve
+   * --------------------------------------------------------------------------
+   * `@SkipPermisos()` no relaja un permiso: saca al endpoint de la tabla.
+   * Entonces pasan dos cosas, y la segunda es la que lo hace difícil de ver:
+   *
+   *   1. la única condición para llamarlo es tener sesión, de cualquier rol;
+   *   2. **no aparece en la pantalla de permisos**, así que un administrador que
+   *      la revise entera no encuentra nada que apretar. El endpoint es
+   *      invisible para el mecanismo que sirve justamente para auditar esto.
+   *
+   * En lectura suele ser deliberado y está bien: los catálogos de referencia y
+   * los datos de la propia sesión se consultan sin pasar por la tabla. En
+   * escritura es otra cosa.
+   *
+   * ── El hallazgo que motivó la regla, 6-oct-2026 ───────────────────────────
+   * `POST /auth/onboarding/paso/:numero` reescribe el **RFC de la empresa** —el
+   * emisor de todos los CFDI—, el domicilio fiscal y el plan contratado. Llevaba
+   * `@SkipPermisos()` y ningún `@Roles`: un almacenista con su sesión normal
+   * podía dejar a la empresa timbrando con un RFC ajeno. Y no se auditaba,
+   * porque `auth` no está en las rutas auditables. Esquivaba además la puerta
+   * buena, que sí valida el RFC contra el tipo de persona y pide confirmación
+   * de que lo revisó el contador.
+   *
+   * Una prueba de ese endpoint lo habría cerrado. Esta regla cierra la clase.
+   * ==========================================================================
+   */
+
+  /**
+   * Las escrituras que legítimamente no necesitan rol, y por qué.
+   *
+   * El criterio es estrecho a propósito: **actúan sólo sobre la cuenta de quien
+   * llama**. No hay forma de usarlas para tocar el dato de otra persona ni de la
+   * empresa, así que exigirles un rol dejaría a la gente sin poder cerrar su
+   * sesión o cambiar su propio idioma.
+   */
+  const SOLO_SOBRE_UNO_MISMO: Array<{ ruta: RegExp; razon: string }> = [
+    {
+      ruta: /^POST \/auth\/logout$/,
+      razon: 'Cierra la sesión de quien llama. No toca ningún dato de la empresa.',
+    },
+    {
+      ruta: /^PATCH \/usuarios\/me\/preferencias$/,
+      razon: 'Preferencias de la propia cuenta, resueltas por el usuario de la sesión.',
+    },
+  ];
+
+  it('ninguna escritura con @SkipPermisos() queda sin @Roles ni declarada', () => {
+    const sinPuerta: string[] = [];
+    let revisadas = 0;
+
+    for (const { ruta, texto } of CODIGO) {
+      if (!ruta.endsWith('.controller.ts')) continue;
+      const limpio = sinComentarios(texto);
+      if (!limpio.includes('@SkipPermisos()')) continue;
+      const base = limpio.match(/@Controller\(\s*'([^']*)'/)?.[1] ?? '';
+      /*
+       * `@Roles` puede ir antes o después del `@SkipPermisos()` —los dos órdenes
+       * existen en el repositorio—, y también en el controlador entero. Se mira
+       * la ventana completa de decoradores del método, más la cabecera de la
+       * clase.
+       */
+      const enLaClase = /@Roles\(/.test(limpio.slice(0, limpio.indexOf('export class')));
+
+      const re =
+        /((?:@\w+\([^)]*\)\s*)*)@SkipPermisos\(\)\s*((?:@\w+\([^)]*\)\s*)*?)@(Post|Patch|Put|Delete)\(\s*(?:'([^']*)')?\s*\)/g;
+      for (const m of limpio.matchAll(re)) {
+        revisadas += 1;
+        const clave =
+          `${m[3].toUpperCase()} /` +
+          [base.replace(/^\/|\/$/g, ''), (m[4] ?? '').replace(/^\/|\/$/g, '')]
+            .filter(Boolean)
+            .join('/');
+        const tieneRoles = /@Roles\(/.test(m[1]) || /@Roles\(/.test(m[2]) || enLaClase;
+        const declarada = SOLO_SOBRE_UNO_MISMO.some((e) => e.ruta.test(clave));
+        if (!tieneRoles && !declarada) sinPuerta.push(`${ruta}: ${clave}`);
+      }
+    }
+
+    /*
+     * Que la prueba haya mirado antes de afirmar que todo está bien. Si un
+     * refactor cambia la forma de los decoradores y el barrido deja de
+     * encontrar nada, esto falla en vez de dar un verde vacío — que es el
+     * resultado más peligroso de una prueba estructural.
+     */
+    expect(revisadas).toBeGreaterThanOrEqual(3);
+    expect(sinPuerta.sort()).toEqual([]);
+  });
+
+  it('las declaradas dicen por qué, y sólo tocan la cuenta de quien llama', () => {
+    /* Una lista de excepciones sin motivo se convierte en el sitio donde se
+       esconde el siguiente agujero. */
+    for (const excepcion of SOLO_SOBRE_UNO_MISMO) {
+      expect(excepcion.razon.length).toBeGreaterThan(30);
+      expect(excepcion.razon).toMatch(/propia|propio|quien llama|sesión/i);
+    }
+  });
+
+  it('el asistente de configuración inicial exige rol de administración', () => {
+    /*
+     * El caso concreto, nombrado. Si alguien le quita el `@Roles` al asistente
+     * para «desbloquear» una puesta en marcha, esto falla antes de que el RFC
+     * de una empresa quede en manos de cualquier sesión.
+     */
+    const auth = sinComentarios(
+      leer(join(SRC, 'iam/controllers/auth.controller.ts')),
+    );
+    const bloque = auth.slice(
+      Math.max(0, auth.indexOf("@Post('onboarding/paso/:numero')") - 400),
+      auth.indexOf("@Post('onboarding/paso/:numero')"),
+    );
+    expect(bloque).toContain('@Roles(');
+    expect(bloque).toContain('administrador');
+  });
+});

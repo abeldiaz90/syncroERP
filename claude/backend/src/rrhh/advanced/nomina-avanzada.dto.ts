@@ -164,8 +164,31 @@ export class RegistrarPagoNominaDto {
   aplicaciones!: AplicacionPagoDto[];
 }
 
+/**
+ * ============================================================================
+ * `niveles` ya no se recibe: cuántas firmas lleva una nómina no lo elige quien
+ * la prepara
+ * ----------------------------------------------------------------------------
+ * Este DTO tenía `@IsOptional() @IsInt() @Min(1) @Max(3) niveles = 3`, y sin
+ * matriz de NOMINA configurada —el caso de fábrica— los niveles salían de
+ * `CADENA_FIRMAS_NOMINA.slice(0, niveles)`.
+ *
+ * Es decir: RRHH calculaba la nómina y mandaba `{ "niveles": 1 }`. Se creaba
+ * UNA aprobación de etapa GERENCIA, gerencia firmaba, y el periodo pasaba a
+ * APROBADO, apto para dispersión. **Finanzas y Tesorería —los dos dueños que
+ * responden del gasto y del pago— nunca lo veían.** Y en la bitácora quedaba
+ * `{ niveles: 1, configurado: false }` como si fuera lo normal.
+ *
+ * `matriz-de-firmas.ts` declara que la cadena son tres dueños distintos. El
+ * número de firmas es una decisión de configuración —la matriz de aprobaciones
+ * de la empresa—, no un parámetro de la petición que las dispara.
+ *
+ * Se **quita del DTO** en vez de ignorarse: con `forbidNonWhitelisted` activo,
+ * un cliente que todavía lo mande recibe un 400 que lo nombra, en vez de un 200
+ * que le hace creer que se le obedeció.
+ * ============================================================================
+ */
 export class PrepararAprobacionDto {
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(3) niveles = 3;
   @IsOptional() @IsBoolean() aceptarAlertas = false;
 }
 

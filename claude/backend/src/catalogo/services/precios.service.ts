@@ -13,6 +13,8 @@ import { TipoProducto } from '../entities/producto.entity';
 import { ProductoPrecio } from '../entities/producto-precio.entity';
 import { ListaPrecio, ModoListaPrecio } from '../entities/lista-precio.entity';
 import { topeDescuentoDeRol } from '../constants/tope-descuento';
+import { ProductoEquivalencia } from '../entities/producto-equivalencia.entity';
+import { factorDeEmpaque } from '../utils/factor-de-empaque.util';
 
 /**
  * ============================================================================
@@ -121,6 +123,8 @@ export class PreciosService {
     private readonly precioRepo: Repository<ProductoPrecio>,
     @InjectRepository(ListaPrecio)
     private readonly listaRepo: Repository<ListaPrecio>,
+    @InjectRepository(ProductoEquivalencia)
+    private readonly equivalenciaRepo: Repository<ProductoEquivalencia>,
   ) {}
 
   /* ══ RESOLUCIÓN ══════════════════════════════════════════════════════════ */
@@ -174,9 +178,17 @@ export class PreciosService {
       empresaId,
       manager,
     );
-    const [preciosDeLista, lista] = await Promise.all([
+    /*
+     * Los empaques pedidos, en la misma tanda que los precios: una venta de
+     * treinta renglones no puede hacer treinta consultas más.
+     */
+    const empaquesPedidos = Array.from(
+      new Set(renglones.map((r) => r.equivalenciaId).filter((x): x is string => !!x)),
+    );
+    const [preciosDeLista, lista, empaques] = await Promise.all([
       this.cargarPreciosDeLista(ids, listaId, empresaId, manager),
       this.cargarLista(listaId, empresaId, manager),
+      this.cargarEmpaques(empaquesPedidos, manager),
     ]);
 
     const topeRol = topeDescuentoDeRol(opciones.rolUsuario);
@@ -197,12 +209,39 @@ export class PreciosService {
         );
       }
 
-      /* ── El precio lo pone el servidor ── */
-      const precioUnitario = this.precioDe(
+      /*
+       * ── El precio lo pone el servidor, y en la unidad que se vende ──
+       *
+       * Los precios y los costos del ERP viven en la **unidad base**: la entrada
+       * de inventario divide el costo de la caja entre su factor, y la salida
+       * descuenta `cantidad × factor`. El precio de venta no convertía, así que
+       * vender una caja de doce cobraba el precio de una pieza y sacaba doce del
+       * almacén. Se perdía la diferencia en cada venta por empaque, con el
+       * ticket aparentemente correcto.
+       *
+       * La conversión es la misma función que usa el inventario
+       * (`catalogo/utils/factor-de-empaque`), para que no vuelvan a separarse.
+       */
+      const empaque = r.equivalenciaId ? empaques.get(r.equivalenciaId) : undefined;
+      /*
+       * Y que sea de ESTE producto. `equivalenciaId` lo manda el cliente: el
+       * empaque de otro artículo —con otro factor— multiplicaría un precio con
+       * el que no tiene nada que ver, mientras el inventario, que sí compara
+       * `{ id, productoId }` al descontar, sacaría otra cosa. Los dos lados
+       * tienen que estar de acuerdo o la operación no se hace.
+       */
+      if (r.equivalenciaId && empaque?.productoId !== r.productoId) {
+        throw new BadRequestException(
+          `${producto.nombre}: el empaque indicado no existe o no es de este producto.`,
+        );
+      }
+      const factor = factorDeEmpaque(empaque);
+      const precioBase = this.precioDe(
         producto,
         preciosDeLista.get(r.productoId),
         lista,
       );
+      const precioUnitario = redondear2(precioBase * factor);
 
       if (precioUnitario <= 0) {
         throw new BadRequestException(
@@ -472,6 +511,31 @@ export class PreciosService {
    * fuerza. Si alguien negoció un precio para un artículo, ese precio manda.
    * ==========================================================================
    */
+  /**
+   * Los empaques por id, comprobando que sean del producto que se vende.
+   *
+   * Carga por id y **quien llama compara el `productoId`**, renglón por renglón.
+   * No se filtra aquí porque una venta puede traer varios productos con sus
+   * empaques y un `where` combinado los mezclaría; el filtro útil es el del
+   * renglón, que es el que sabe qué producto pidió qué empaque.
+   *
+   * Que la comparación hace falta no es teórico: la primera versión de este
+   * arreglo cargaba por id y no comparaba nada, y la prueba que creía vigilarlo
+   * pasaba porque el doble devolvía otro id. Lo descubrió un mutante que quitó
+   * el filtro de la consulta y no rompió nada.
+   */
+  private async cargarEmpaques(
+    ids: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, ProductoEquivalencia>> {
+    if (!ids.length) return new Map();
+    const repo = manager
+      ? manager.getRepository(ProductoEquivalencia)
+      : this.equivalenciaRepo;
+    const filas = await repo.find({ where: { id: In(ids) } });
+    return new Map(filas.map((f) => [f.id, f]));
+  }
+
   private precioDe(
     producto: Producto,
     precioDeLista?: number,

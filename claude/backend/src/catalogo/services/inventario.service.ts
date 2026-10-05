@@ -26,6 +26,7 @@ import { StockService } from './stock.service';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
 import { fechaContableNegocio } from '../../common/utils/business-time.util';
+import { factorDeEmpaque } from '../utils/factor-de-empaque.util';
 
 /**
  * ============================================================================
@@ -1034,10 +1035,13 @@ export class InventarioService {
     return lote;
   }
 
+  /*
+   * La regla vive en `catalogo/utils/factor-de-empaque` porque el servicio de
+   * precios también la necesita: estaba aquí, privada, y por eso el precio de
+   * venta no convertía por empaque mientras la salida de inventario sí. Una
+   * sola copia.
+   */
   private calcularFactorBase(equivalencia: ProductoEquivalencia): number {
-    // Se conserva el comportamiento original, pero con red de seguridad:
-    // un factor 0 o nulo convertía toda la cantidad en cero silenciosamente.
-    const factor = Number(equivalencia.factorConversion);
-    return Number.isFinite(factor) && factor > 0 ? factor : 1;
+    return factorDeEmpaque(equivalencia);
   }
 }

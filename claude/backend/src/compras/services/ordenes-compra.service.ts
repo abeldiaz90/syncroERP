@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
 import {
   FoliosService,
   TIPOS_DE_FOLIO,
@@ -852,6 +852,33 @@ export class OrdenesCompraService {
       .getMany();
   }
 
+  /**
+   * El importe de las devoluciones VIGENTES de una orden, IVA incluido.
+   *
+   * Se consulta con el `EntityManager` de la transacción del pago para que una
+   * devolución registrada en ese mismo instante no se cuele entre la lectura y
+   * la escritura.
+   *
+   * `total` del documento de devolución ya viene con IVA —así lo asienta su
+   * póliza: «Dr. 201.01 Proveedores (el total, IVA incluido)»— y eso es lo que
+   * hace falta, porque el techo de pago también incluye impuestos.
+   */
+  private async devueltoVigenteDeOrden(
+    em: EntityManager,
+    empresaId: string,
+    ordenCompraId: string,
+  ): Promise<number> {
+    const [fila] = await em.query(
+      `SELECT COALESCE(SUM(total), 0) AS devuelto
+         FROM devoluciones_proveedor
+        WHERE empresaid = $1 AND ordencompraid = $2 AND estado = $3`,
+      [empresaId, ordenCompraId, 'REGISTRADA'],
+    );
+    /* SUM() en PostgreSQL devuelve numeric, y numeric llega como TEXTO. */
+    const devuelto = Number(fila?.devuelto ?? 0);
+    return Number.isFinite(devuelto) && devuelto > 0 ? devuelto : 0;
+  }
+
   async pagarOrden(
     id: string,
     empresaId: string,
@@ -959,7 +986,33 @@ export class OrdenesCompraService {
       }
 
       const pagadoAnterior = Number(oc.totalPagado ?? 0);
-      const pagable = valorRecibidoOC(oc.detalles ?? []);
+      /*
+       * ====================================================================
+       * Lo devuelto al proveedor baja lo que se le debe
+       * --------------------------------------------------------------------
+       * `valorRecibidoOC` mide contra `cantidadRecibidaOk`, y una devolución
+       * **no toca ese campo** —no puede: es lo que `devolvible()` usa para
+       * saber qué queda por devolver, y bajarlo dejaría devolver dos veces la
+       * misma mercancía—. Así que sin esta resta el techo de pago seguía
+       * siendo el total completo:
+       *
+       *   OC de 100 piezas a $100 + IVA = $11,600, recibida completa.
+       *   Se devuelven 50 por defectuosas; la nota de crédito del proveedor
+       *   es de $5,800 y su póliza ya está asentada.
+       *   Tesorería entra a pagar y el máximo sigue siendo $11,600.
+       *
+       * Se pagaban $5,800 de mercancía que ya no está en el almacén, con la
+       * cuenta por pagar y la póliza contradiciéndose y la orden marcada como
+       * liquidada. Silencioso: nada falla, el pago se acepta.
+       *
+       * Sólo cuentan las devoluciones VIGENTES: una cancelada no reduce nada.
+       * ====================================================================
+       */
+      const devuelto = await this.devueltoVigenteDeOrden(em, empresaId, id);
+      const pagable = Math.max(
+        0,
+        Math.round((valorRecibidoOC(oc.detalles ?? []) - devuelto) * 100) / 100,
+      );
       const saldo = Math.max(0, pagable - pagadoAnterior);
       if (monto - saldo > 0.009) {
         throw new BadRequestException(
@@ -1121,13 +1174,20 @@ export class OrdenesCompraService {
 
       oc.totalPagado = Math.round((pagadoAnterior + monto) * 100) / 100;
       /*
-       * El saldo pendiente sigue midiéndose contra el TOTAL de la orden: es lo
-       * que el proveedor acabará cobrando si entrega todo. Lo que cambia es
+       * El saldo pendiente se mide contra lo que el proveedor acabará cobrando
+       * si entrega todo, **menos lo que ya se le devolvió**. Lo que cambia es
        * cuánto de ese saldo se puede pagar hoy.
+       *
+       * Sin la resta, una orden con devolución no llegaba nunca a PAGADA: el
+       * proveedor no va a cobrar la parte devuelta, así que `saldoPendiente`
+       * se quedaba en el importe de la nota de crédito para siempre y la orden
+       * vivía en PARCIAL. Es el mismo defecto por el otro lado.
        */
       oc.saldoPendiente = Math.max(
         0,
-        Math.round((Number(oc.total) - Number(oc.totalPagado)) * 100) / 100,
+        Math.round(
+          (Number(oc.total) - devuelto - Number(oc.totalPagado)) * 100,
+        ) / 100,
       );
       oc.estadoPago =
         Number(oc.saldoPendiente) <= 0

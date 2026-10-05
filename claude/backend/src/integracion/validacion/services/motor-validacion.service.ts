@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Cliente } from '../../../clientes/entities/cliente.entity';
@@ -17,6 +17,15 @@ import {
   TipoPasoValidacion,
 } from '../validacion.constants';
 import { ContextoValidacion, EvaluadorPaso } from '../evaluadores/evaluador.port';
+import {
+  CatalogoContratadoNoConfigurado,
+  PUERTO_CATALOGO_CONTRATADO,
+  type CatalogoContratadoPort,
+} from '../contrato/catalogo-contratado.port';
+import {
+  resolverTipoDePaso,
+  salidaDeTipoSinEvaluador,
+} from '../contrato/catalogo-de-pasos';
 
 export interface PasoEjecutado {
   orden: number;
@@ -171,6 +180,15 @@ export class MotorValidacionService {
     @InjectRepository(Cliente)
     private readonly clientes: Repository<Cliente>,
     private readonly vinculos: IntegracionVinculosService,
+    /*
+     * El catálogo de lo contratado es opcional a propósito: una instalación del
+     * ERP sin la suite de SUMA no lo tiene, y tiene que funcionar igual con el
+     * vocabulario reducido a lo que el portal trae escrito. Sin él, un tipo que
+     * el portal no conoce es una errata, que es el lado correcto del error.
+     */
+    @Optional()
+    @Inject(PUERTO_CATALOGO_CONTRATADO)
+    private readonly catalogo: CatalogoContratadoPort = new CatalogoContratadoNoConfigurado(),
   ) {
     this.porTipo = new Map(evaluadores.map((e) => [e.tipo, e]));
   }
@@ -233,15 +251,38 @@ export class MotorValidacionService {
 
     const ejecutados: PasoEjecutado[] = [];
 
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * EL VOCABULARIO SE ABRE; EL VEREDICTO NO
+     * ------------------------------------------------------------------------
+     * `TipoPasoValidacion` es un enum, así que dar de alta una validación nueva
+     * significaba editar código y volver a desplegar. Con el catálogo de lo
+     * contratado, un tipo que el portal todavía no sabe evaluar se puede
+     * configurar hoy y el flujo lo registra como NO_DISPONIBLE —no aprueba— en
+     * vez de como ERROR.
+     *
+     * La diferencia entre los dos la lee la política del paso: NO_DISPONIBLE con
+     * DERIVA_A_REVISION manda el expediente a una persona, que es lo correcto
+     * para una validación que falta; ERROR es para una errata de configuración,
+     * que no la arregla ninguna persona mirando el expediente.
+     *
+     * Y la regla que lo hace seguro, la misma del puerto de los evaluadores:
+     * nunca APROBADO. Un evaluador permisivo por omisión termina otorgando
+     * crédito sin validar a nadie.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    const tiposContratados = await this.catalogo
+      .tiposContratados(entrada.empresaId)
+      .catch(() => [] as string[]);
+
     for (const paso of flujo.pasos) {
       const evaluador = this.porTipo.get(paso.tipo);
       let salida;
 
       if (!evaluador) {
-        salida = {
-          resultado: ResultadoPaso.ERROR,
-          detalle: `No hay evaluador registrado para ${paso.tipo}.`,
-        };
+        salida = salidaDeTipoSinEvaluador(
+          resolverTipoDePaso(paso.tipo, tiposContratados),
+        );
       } else {
         try {
           salida = await evaluador.evaluar(contexto, paso);

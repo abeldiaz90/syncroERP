@@ -618,6 +618,26 @@ export class CobranzaService {
       pago.motivoCancelacion = motivo.slice(0, 500);
       pago.canceladoPorId = usuarioId ?? null;
       pago.estadoContable = EstadoContableCobranza.REVERTIDO;
+      /*
+       * ====================================================================
+       * Un pago cancelado sin complemento ya no necesita uno
+       * --------------------------------------------------------------------
+       * Si se queda en `PENDIENTE_REP` o `ERROR_REP`, la corrida de
+       * complementos lo sigue tomando y acaba timbrando al SAT un REP por
+       * dinero que se devolvió.
+       *
+       * **Sólo cuando NO hay complemento timbrado.** Si ya existe
+       * `complementoPagoId`, el CFDI está en los libros del SAT y lo que hace
+       * falta es cancelarlo allá: marcar `NO_REQUERIDO` aquí escondería
+       * exactamente eso. Se deja el estado como está, para que siga
+       * apareciendo como algo que alguien tiene que resolver, en vez de
+       * desaparecer de la lista.
+       * ====================================================================
+       */
+      if (!pago.complementoPagoId) {
+        pago.estadoFiscal = EstadoFiscalCobranza.NO_REQUERIDO;
+        pago.ultimoErrorFiscal = null;
+      }
       await em.save(pago);
 
       // La reversa contable va como póliza propia; la original no se toca.

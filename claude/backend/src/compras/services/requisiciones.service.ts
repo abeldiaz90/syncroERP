@@ -281,10 +281,52 @@ export class RequisicionesService {
     });
 
     /*
-     * Ningun nivel aplica: el monto quedo por debajo de lo que exige firma.
-     * La requisicion nace lista para cotizar. Que no requiera autorizacion no
-     * la hace invisible: queda en el expediente con su importe estimado, y si
-     * manana alguien baja el umbral, las siguientes si la piden.
+     * ════════════════════════════════════════════════════════════════════════
+     * NINGUN NIVEL APLICA: HAY DOS RAZONES Y SOLO UNA ES BENIGNA
+     * ------------------------------------------------------------------------
+     * Aqui decia «el monto quedo por debajo de lo que exige firma», y eso es
+     * cierto SOLO cuando el importe cae por debajo del primer `montoDesde`. La
+     * lista tambien vuelve vacia cuando el importe queda POR ENCIMA del tope
+     * del ultimo nivel, y entonces la conclusion se invierte: entre mas cara la
+     * requisicion, menos firmas.
+     *
+     * El caso real: matriz de un departamento con un solo nivel de 0 a 50,000
+     * —«arriba de 50 mil ya lo ve Direccion», que todavia no se capturo—. Una
+     * requisicion de 300,000 no cae en ninguna banda y nace lista para cotizar
+     * SIN UNA SOLA FIRMA.
+     *
+     * Es la misma familia que el departamento sin matriz, que ya se cerro el
+     * 28-sep: la ausencia de un dato leida como una decision. Alli faltaba la
+     * matriz; aqui falta un tramo de la matriz, y el silencio es identico.
+     *
+     * Se niega, y se dice que falta configurar. La alternativa —caer al nivel
+     * mas alto— seria adivinar quien tiene autoridad sobre un importe que nadie
+     * declaro, y eso es inventar una firma.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    if (!configuraciones.length && todasLasConfiguraciones.length) {
+      const topes = todasLasConfiguraciones.map((c) =>
+        c.montoHasta === null || c.montoHasta === undefined
+          ? Number.POSITIVE_INFINITY
+          : Number(c.montoHasta),
+      );
+      const topeMaximo = Math.max(...topes);
+      if (importeEstimado > topeMaximo) {
+        throw new BadRequestException(
+          `El importe estimado de ${importeEstimado.toFixed(2)} supera el tope del ultimo nivel ` +
+            `de autorizacion configurado (${topeMaximo.toFixed(2)}). No hay quien pueda firmarla: ` +
+            'agrega un nivel sin tope en Compras → Configuracion de aprobaciones para que ningun ' +
+            'importe quede fuera de la matriz.',
+        );
+      }
+    }
+
+    /*
+     * Con la puerta de arriba, llegar aqui con la lista vacia solo puede
+     * significar lo benigno: el importe quedo por debajo del primer tramo. La
+     * requisicion nace lista para cotizar, y no se vuelve invisible: queda en
+     * el expediente con su importe estimado, y si manana alguien baja el
+     * umbral, las siguientes si la piden.
      */
     const requiereAutorizacion = configuraciones.length > 0;
 
@@ -671,6 +713,53 @@ export class RequisicionesService {
         .getCount();
       if (anterioresSinAprobar > 0)
         throw new BadRequestException('Debe resolverse primero el nivel de aprobación anterior.');
+
+      /*
+       * ════════════════════════════════════════════════════════════════════════
+       * DOS FIRMAS SON DOS PERSONAS
+       * ------------------------------------------------------------------------
+       * Lo que se comprobaba era que la aprobación estuviera asignada a quien
+       * llama, el orden, y que no estuviera resuelta. Nada impedía que la MISMA
+       * PERSONA resolviera dos niveles de la misma requisición.
+       *
+       * Y la cadena de suplencia puede asignársela: `resolverFirmante` se llama
+       * nivel por nivel, sin saber a quién asignó en los anteriores. Matriz con
+       * Ana en el nivel 1 y Carlos en el 2 —válida al guardar—; Carlos se da de
+       * baja; el escalón del suplente busca «alguien con el rol de Carlos» y
+       * encuentra a Ana. Dos filas con Ana, Ana firma las dos, la requisición
+       * queda con sus dos firmas puestas por una sola persona.
+       *
+       * El motor central de aprobaciones ya tenía esta regla con estas mismas
+       * palabras (`aprobaciones-documentos.service`), y compras no la tenía. No
+       * es una política distinta: es la misma y faltaba aquí.
+       *
+       * Y la segunda mitad: **quien pide no firma**. La matriz nombra usuarios
+       * concretos, así que si quien captura la requisición es además uno de sus
+       * aprobadores, autoriza su propia necesidad. La regla está escrita y
+       * aplicada en los otros cuatro flujos del sistema; faltaba en éste.
+       * ════════════════════════════════════════════════════════════════════════
+       */
+      if (aprobacion.requisicion.usuarioSolicitanteId === usuarioActualId) {
+        throw new BadRequestException(
+          'No puedes autorizar una requisición que tú mismo solicitaste. ' +
+            'Pide a Compras que reasigne este nivel a otra persona.',
+        );
+      }
+      const otrosNivelesResueltos = await aprobaciones
+        .createQueryBuilder('a')
+        .where('a.requisicionId = :requisicionId', {
+          requisicionId: aprobacion.requisicionId,
+        })
+        .andWhere('a.id <> :id', { id: aprobacion.id })
+        .andWhere('a.usuarioId = :usuarioId', { usuarioId: usuarioActualId })
+        .andWhere('a.estado = :aprobado', { aprobado: 'APROBADO' })
+        .getCount();
+      if (otrosNivelesResueltos > 0) {
+        throw new BadRequestException(
+          'Una misma persona no puede resolver más de un nivel del mismo ciclo de aprobación. ' +
+            'Este nivel quedó asignado a quien ya firmó otro: pide a Compras que lo reasigne.',
+        );
+      }
 
       aprobacion.estado = estado;
       aprobacion.fechaResolucion = new Date();

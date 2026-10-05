@@ -385,6 +385,34 @@ export class AuthService {
       );
     }
 
+    /*
+     * ======================================================================
+     * El asistente es para dar de alta, no para editar la identidad fiscal
+     * ----------------------------------------------------------------------
+     * El tope de arriba sólo impide ADELANTARSE. No impide volver: con
+     * `onboardingPaso = 4`, los pasos 1 a 4 seguían abiertos para siempre, y el
+     * paso 1 reescribe el RFC de la empresa —el emisor de todos los CFDI—.
+     *
+     * Un asistente de puesta en marcha que sigue aceptando cambios después de
+     * terminar deja de ser un asistente y se convierte en una segunda puerta a
+     * la configuración fiscal, sin las comprobaciones de la primera: la pantalla
+     * buena (`POST /cfdi/configuracion-mexico/aplicar`) valida el RFC contra el
+     * tipo de persona, exige régimen válido y pide confirmación de que lo revisó
+     * el contador. Aquí nada de eso existe.
+     *
+     * El paso 3 —el primer almacén— se deja pasar: es idempotente, no toca
+     * identidad fiscal y volver a pedirlo no cambia nada.
+     * ======================================================================
+     */
+    if (empresa.onboardingCompletado && numPaso !== 3) {
+      throw new BadRequestException(
+        'La configuración inicial de esta empresa ya está terminada. Los datos ' +
+          'fiscales y el plan se cambian en Configuración inicial → Datos ' +
+          'fiscales, que valida el RFC contra el tipo de persona y pide ' +
+          'confirmación de que lo revisó el contador.',
+      );
+    }
+
     switch (numPaso) {
       case 1: // Datos fiscales
         if (!datos.rfc || !datos.regimenFiscal || !datos.giro || !datos.tamano) {

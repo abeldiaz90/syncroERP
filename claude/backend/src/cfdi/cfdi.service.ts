@@ -882,8 +882,31 @@ export class CfdiService implements OnModuleInit {
       return null;
     }
 
+    /*
+     * ======================================================================
+     * Un pago cancelado no existe para el SAT
+     * ----------------------------------------------------------------------
+     * Esta lista decide tres cosas del complemento: si hay un pago anterior
+     * sin REP, cuánto se había aplicado antes, y qué número de parcialidad
+     * toca. Sin filtrar los cancelados, las tres salían mal, y de formas
+     * distintas:
+     *
+     *   · un pago capturado por error y cancelado seguía contando como «pago
+     *     anterior sin complemento», así que el REP del pago bueno quedaba
+     *     bloqueado PARA SIEMPRE con «los REP deben generarse en orden
+     *     cronológico» — y el pago cancelado nunca iba a tener complemento;
+     *   · `aplicadoAnterior` lo sumaba, así que el saldo insoluto y el importe
+     *     del saldo anterior que se declaran al SAT salían por debajo de lo
+     *     real;
+     *   · y la parcialidad quedaba corrida en uno.
+     *
+     * `cancelado` es el campo que pone `CobranzaService.cancelarPago`, que
+     * conserva `montoCapital` a propósito —lo necesita su póliza de reversa—,
+     * de modo que el importe sigue ahí para quien no mire la bandera.
+     * ======================================================================
+     */
     const pagos = await pagoRepo.find({
-      where: { empresaId, creditoId: pago.creditoId },
+      where: { empresaId, creditoId: pago.creditoId, cancelado: false },
       order: { fechaPago: 'ASC', fechaCreacion: 'ASC', id: 'ASC' },
     });
     const indice = pagos.findIndex((item) => item.id === pago.id);
@@ -1119,9 +1142,16 @@ export class CfdiService implements OnModuleInit {
 
   async generarComplementosPendientes(empresaId: string, limite = 50) {
     const pagos = await this.dataSource.getRepository(PagoCobranza).find({
+      /*
+       * `cancelado: false` en las dos ramas. Sin él, un pago que quedó en
+       * `ERROR_REP` y después se canceló seguía en esta cola, y la corrida
+       * **timbraba un complemento de pago por dinero que se devolvió**. Es el
+       * peor de los tres síntomas de este defecto: los otros dos bloquean o
+       * declaran de menos; éste declara al SAT un cobro que no existe.
+       */
       where: [
-        { empresaId, estadoFiscal: EstadoFiscalCobranza.PENDIENTE_REP },
-        { empresaId, estadoFiscal: EstadoFiscalCobranza.ERROR_REP },
+        { empresaId, cancelado: false, estadoFiscal: EstadoFiscalCobranza.PENDIENTE_REP },
+        { empresaId, cancelado: false, estadoFiscal: EstadoFiscalCobranza.ERROR_REP },
       ],
       order: { fechaPago: 'ASC', fechaCreacion: 'ASC' },
       take: Math.min(Math.max(limite, 1), 100),

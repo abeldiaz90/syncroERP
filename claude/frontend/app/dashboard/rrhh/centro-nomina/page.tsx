@@ -136,7 +136,11 @@ export default function CentroNominaPage() {
     const aceptarAlertas = pre.alertas > 0;
     if (aceptarAlertas && !await confirmarElegante(`La prenómina contiene ${pre.alertas} alerta(s). ¿Deseas enviarla a revisión dejando evidencia de aceptación?`)) return;
     try {
-      await api.post(`/rrhh/nomina-avanzada/periodos/${periodoId}/aprobaciones/preparar`, { niveles: 3, aceptarAlertas });
+      /* Sin `niveles`: cuántas firmas lleva una nómina lo decide la matriz de
+         aprobaciones de la empresa, no la pantalla que las dispara. El campo se
+         quitó del DTO porque con `@Min(1)` quien preparaba podía pedir una sola
+         firma y dejar a Finanzas y Tesorería fuera. */
+      await api.post(`/rrhh/nomina-avanzada/periodos/${periodoId}/aprobaciones/preparar`, { aceptarAlertas });
       await cargarPeriodo(periodoId);
     } catch (e) { setError(e instanceof Error ? e.message : 'No fue posible iniciar la aprobación.'); }
   }

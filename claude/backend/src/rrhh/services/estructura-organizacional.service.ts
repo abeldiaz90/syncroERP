@@ -165,6 +165,35 @@ export class EstructuraOrganizacionalService {
         throw new ForbiddenException(`Esta etapa requiere el rol ${etapa === 'GERENCIA' ? 'Gerencia' : 'Finanzas'}.`);
       }
     }
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * QUIEN PIDE NO FIRMA
+     * ------------------------------------------------------------------------
+     * Abajo está la segregación Gerencia-vs-Finanzas, que sí existía. Lo que
+     * faltaba era comparar contra QUIEN SOLICITÓ: `crear()` autoriza a
+     * `['rrhh','gerencia']` a originar la solicitud, así que un usuario con rol
+     * `gerencia` podía dar de alta un puesto con el `salarioMaximo` que
+     * quisiera y, acto seguido, aprobar su propia etapa de Gerencia. De las dos
+     * firmas del alta de estructura, una la ponía el solicitante.
+     *
+     * La regla está escrita y aplicada en los otros cuatro flujos del sistema
+     * —`resolverFirmante`, `exigirFacultadDeResolver`, `validarResolutor`,
+     * `preparadaPorId`—. Aquí faltaba.
+     *
+     * SIN EXENCIÓN PARA EL ADMINISTRADOR, a diferencia de la segregación de
+     * abajo, y es deliberado: la exención de abajo existe para desatascar, y
+     * aquí no hace falta ninguna —el administrador puede resolver cualquier
+     * solicitud que no sea la suya—. Aprobar el rango salarial de un puesto que
+     * uno mismo pidió es exactamente lo que el control evita.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    if (solicitud.solicitadoPorId === usuario.id) {
+      throw new ForbiddenException(
+        'No puedes autorizar una solicitud de estructura que tú mismo registraste. ' +
+          'Pide a otra persona de la etapa que la resuelva.',
+      );
+    }
+
     const esperado = etapa === 'GERENCIA'
       ? EstadoSolicitudEstructura.PENDIENTE_GERENCIA
       : EstadoSolicitudEstructura.PENDIENTE_FINANZAS;

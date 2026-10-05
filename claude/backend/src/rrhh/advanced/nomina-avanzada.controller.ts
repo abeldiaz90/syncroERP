@@ -183,7 +183,6 @@ export class NominaAvanzadaController {
     return this.svc.prepararAprobacion(
       id,
       usuario.empresaId,
-      dto.niveles,
       dto.aceptarAlertas,
       usuario,
     );

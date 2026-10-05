@@ -782,7 +782,8 @@ export class CityLedgerService {
         empresaId: datos.empresaId,
         clienteId: convenio.clienteId,
         importe: datos.total,
-        fechaCorte: datos.fechaEmision,
+        /* Sin `fechaCorte`: la fecha de emisión del folio no puede mover la
+           medida de la mora. Ver `ValidarOperacionCreditoInput`. */
       },
     );
     if (

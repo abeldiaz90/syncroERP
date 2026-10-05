@@ -246,6 +246,50 @@ export class ConfiguracionesAprobacionService {
       }
     }
 
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * NINGUN IMPORTE PUEDE QUEDAR FUERA DE LA MATRIZ
+     * ------------------------------------------------------------------------
+     * Esta comprobacion vivia dentro de la rama de los procesos financieros
+     * centrales, y su propio mensaje explica por que hace falta: «para que
+     * ningun importe quede fuera de la matriz». Fuera de esa rama —en
+     * REQUISICION y en COTIZACION— no se aplicaba.
+     *
+     * La consecuencia se media en requisiciones: una matriz con un solo nivel
+     * de 0 a 50,000 dejaba que una requisicion de 300,000 no cayera en ninguna
+     * banda, y el servicio leia «ninguna banda» como «no necesita firma». Entre
+     * mas cara, menos firmas.
+     *
+     * La regla es la misma para todos los procesos porque el razonamiento no
+     * depende del proceso: una escala de autoridad con techo deja un tramo sin
+     * dueno, y un tramo sin dueno se lee como un tramo sin control.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    let topeAnterior = -0.01;
+    for (let indice = 0; indice < dto.aprobadores.length; indice++) {
+      const nivel = dto.aprobadores[indice];
+      const esUltimo = indice === dto.aprobadores.length - 1;
+      if (!esUltimo && nivel.montoHasta == null) {
+        throw new BadRequestException(
+          `El nivel ${indice + 1} necesita un tope de autoridad. Sólo el último nivel puede quedar sin tope.`,
+        );
+      }
+      if (esUltimo && nivel.montoHasta != null) {
+        throw new BadRequestException(
+          'El último nivel debe quedar sin tope para que ningún importe quede fuera de la matriz.',
+        );
+      }
+      if (nivel.montoHasta != null) {
+        const tope = Number(nivel.montoHasta);
+        if (tope <= topeAnterior + 0.009) {
+          throw new BadRequestException(
+            `El tope del nivel ${indice + 1} debe ser mayor al del nivel anterior.`,
+          );
+        }
+        topeAnterior = tope;
+      }
+    }
+
     let aprobadoresNormalizados = dto.aprobadores;
     if (esProcesoFinancieroCentral(dto.proceso)) {
       if (
@@ -260,30 +304,6 @@ export class ConfiguracionesAprobacionService {
         );
       }
 
-      let topeAnterior = -0.01;
-      for (let indice = 0; indice < dto.aprobadores.length; indice++) {
-        const nivel = dto.aprobadores[indice];
-        const esUltimo = indice === dto.aprobadores.length - 1;
-        if (!esUltimo && nivel.montoHasta == null) {
-          throw new BadRequestException(
-            `El nivel ${indice + 1} necesita un tope de autoridad. Sólo el último nivel puede quedar sin tope.`,
-          );
-        }
-        if (esUltimo && nivel.montoHasta != null) {
-          throw new BadRequestException(
-            'El último nivel debe quedar sin tope para que ningún importe quede fuera de la matriz.',
-          );
-        }
-        if (nivel.montoHasta != null) {
-          const tope = Number(nivel.montoHasta);
-          if (tope <= topeAnterior + 0.009) {
-            throw new BadRequestException(
-              `El tope del nivel ${indice + 1} debe ser mayor al del nivel anterior.`,
-            );
-          }
-          topeAnterior = tope;
-        }
-      }
       aprobadoresNormalizados = derivarEscalaFinanciera(
         dto.aprobadores.map((nivel) => ({
           ...nivel,
