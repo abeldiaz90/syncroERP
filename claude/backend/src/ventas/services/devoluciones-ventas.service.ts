@@ -40,6 +40,7 @@ import {
   AmortizacionCuota,
   EstadoCuota,
 } from '../../credito/entities/amortizacion-cuota.entity';
+import { reducirCuota } from '../../credito/utils/reducir-cuota.util';
 import {
   CuentaBancaria,
   TipoCuentaBancaria,
@@ -1030,33 +1031,18 @@ export class DevolucionesVentasService {
     let pendiente = importe;
     for (const cuota of cuotas) {
       if (pendiente <= 0.0001) break;
-      const disponible = Math.max(
-        0,
-        Number(cuota.montoCuota) - Number(cuota.montoPagado),
-      );
-      if (disponible <= 0) continue;
-      const reducir = Math.min(pendiente, disponible);
-      const capitalReducido = Math.min(reducir, Number(cuota.montoCapital));
-      const interesReducido = reducir - capitalReducido;
-      cuota.montoCapital = redondear(
-        Number(cuota.montoCapital) - capitalReducido,
-        4,
-      );
-      cuota.montoInteres = redondear(
-        Math.max(0, Number(cuota.montoInteres) - interesReducido),
-        4,
-      );
-      cuota.montoCuota = redondear(Number(cuota.montoCuota) - reducir, 4);
-      cuota.saldoRestante = redondear(
-        Math.max(0, Number(cuota.saldoRestante) - reducir),
-        4,
-      );
-      if (Number(cuota.montoCuota) <= Number(cuota.montoPagado) + 0.0001) {
-        cuota.estado = EstadoCuota.PAGADA;
-        cuota.fechaPago = cuota.fechaPago ?? new Date();
-      }
+      /*
+       * La regla vivía aquí y era correcta: capital primero, interés después,
+       * manteniendo `montoCapital + montoInteres = montoCuota`. Se sacó a
+       * `reducirCuota` sin cambiarla, porque el otro camino que reduce cuotas
+       * —el ajuste por devolución registrada en el externo— no la tenía y por
+       * eso producía intereses negativos. Una regla en dos copias es una regla
+       * que acaba existiendo en una sola.
+       */
+      const { reducido } = reducirCuota(cuota, pendiente);
+      if (reducido <= 0.0001) continue;
       await em.save(cuota);
-      pendiente -= reducir;
+      pendiente -= reducido;
     }
     if (pendiente > 0.01) {
       throw new ConflictException(

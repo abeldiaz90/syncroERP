@@ -407,13 +407,34 @@ export class TesoreriaService {
   ) {
     const repo = manager.getRepository(MovimientoTesoreria);
 
-    // Saldo justo antes de `desde`.
+    /*
+     * ──────────────────────────────────────────────────────────────────────
+     * UN MOVIMIENTO CANCELADO SIGUE CONTANDO, PORQUE SU CONTRAPARTIDA LO DESHACE
+     *
+     * Aquí se descontaba dos veces. `cancelar` hace dos cosas a la vez: marca
+     * el original con `cancelado = true` **y** escribe la contrapartida
+     * inversa. Este recálculo saltaba los cancelados, así que el original
+     * dejaba de sumar y la contrapartida restaba otra vez:
+     *
+     *     INGRESO de 1,000, cancelado   →  saldo = B − 1,000, no B
+     *
+     * Y no era un caso raro: `cancelar` es el ÚNICO sitio que pone
+     * `cancelado = true`, y siempre crea la contrapartida. Los dos mecanismos
+     * iban siempre juntos, así que el descuento doble era todas las veces.
+     *
+     * Se elige el mecanismo que deja rastro —la contrapartida—, que es el mismo
+     * que ya usa el mayor desde que la cancelación encola su propia póliza
+     * (`CANCELACION_TESORERIA`). Auxiliar y contabilidad quedan con la misma
+     * forma: nada se borra, todo se contrarresta. `cancelado` se queda como lo
+     * que es, una marca de estado para la pantalla y para impedir cancelar dos
+     * veces, no como una exclusión del saldo.
+     * ──────────────────────────────────────────────────────────────────────
+     */
     const anterior = await repo
       .createQueryBuilder('m')
       .where('m.cuentaBancariaId = :cta', { cta: cuentaBancariaId })
       .andWhere('m.empresaId = :empresaId', { empresaId })
       .andWhere('m.fecha < :desde', { desde })
-      .andWhere('m.cancelado = false')
       .orderBy('m.fecha', 'DESC')
       .addOrderBy('m.fechaCreacion', 'DESC')
       .getOne();
@@ -427,11 +448,6 @@ export class TesoreriaService {
 
     for (const m of posteriores) {
       if (new Date(m.fecha) < desde) continue;
-      if (m.cancelado) {
-        m.saldoPosterior = aPesos(saldoCent);
-        await repo.save(m);
-        continue;
-      }
       saldoCent += SIGNO[m.tipo] * aCent(m.importe);
       m.saldoPosterior = aPesos(saldoCent);
       await repo.save(m);
@@ -488,6 +504,23 @@ export class TesoreriaService {
     motivo: string,
     empresaId: string,
     usuarioId?: string,
+    /**
+     * Lo pide el módulo dueño del documento, no la pantalla de tesorería.
+     *
+     * Sin esto, la guardia de abajo bloqueaba **también** al único camino
+     * legítimo. El comentario que la acompaña nombra `CobranzaService.
+     * cancelarPago` como la forma correcta de deshacer un cobro… y la guardia
+     * la rechazaba, con un mensaje que mandaba a quien la estaba llamando:
+     *
+     *     «Cancela el pago en Créditos → Cobranza»
+     *
+     * Resultado: cancelar un pago de cobranza fallaba SIEMPRE con 409, y como
+     * la transacción es SERIALIZABLE se revertía entera. La operación que el
+     * propio código describe como la buena no se podía hacer por ninguna vía.
+     *
+     * La guardia sigue entera para la pantalla, que es contra quien se escribió.
+     */
+    opciones?: { loPideElDocumentoDeOrigen?: boolean },
   ) {
     const original = await this.movimientos.findOne({
       where: { id, empresaId },
@@ -530,7 +563,7 @@ export class TesoreriaService {
      * veces.
      * ──────────────────────────────────────────────────────────────────────
      */
-    if (original.tipoDocumento) {
+    if (original.tipoDocumento && !opciones?.loPideElDocumentoDeOrigen) {
       throw new ConflictException(
         `Este movimiento no se registró a mano: lo generó ${DOCUMENTOS_DE_ORIGEN[original.tipoDocumento]?.que ?? `un documento del sistema (${original.tipoDocumento})`}. ` +
           'Cancelarlo aquí devolvería el saldo al banco y dejaría ese documento diciendo que el ' +

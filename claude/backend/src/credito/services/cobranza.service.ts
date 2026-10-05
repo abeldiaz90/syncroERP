@@ -22,6 +22,10 @@ import {
   EstadoCuota,
 } from '../entities/amortizacion-cuota.entity';
 import {
+  proporcionDeCapital,
+  reducirCuota,
+} from '../utils/reducir-cuota.util';
+import {
   EstadoContableCobranza,
   EstadoFiscalCobranza,
   PagoCobranza,
@@ -202,10 +206,14 @@ export class CobranzaService {
         );
         if (saldoCuota <= 0) continue;
         const aplicar = Math.min(restante, saldoCuota);
-        const proporcionCapital =
-          Number(cuota.montoCuota) > 0
-            ? Number(cuota.montoCapital) / Number(cuota.montoCuota)
-            : 1;
+        /*
+         * Acotada a uno. Es una red, no la corrección: el arreglo de raíz es
+         * `reducirCuota`, que impide que nadie vuelva a romper el invariante.
+         * Pero los créditos que ya pasaron por el defecto tienen cuotas con el
+         * capital por encima del total, y sin este tope su siguiente pago
+         * seguiría dando interés negativo y quedándose sin póliza.
+         */
+        const proporcionCapital = proporcionDeCapital(cuota);
         const capital = this.redondear(aplicar * proporcionCapital);
         const interes = this.redondear(aplicar - capital);
         capitalAplicado = this.redondear(capitalAplicado + capital);
@@ -673,6 +681,14 @@ export class CobranzaService {
           `Cancelación de cobranza: ${motivo}`,
           empresaId,
           usuarioId,
+          /*
+           * Esto es exactamente lo que la guardia de tesorería nombra como el
+           * camino correcto —«cancela el pago en Créditos → Cobranza»— y lo que
+           * hasta hoy rechazaba, porque el movimiento lleva
+           * `tipoDocumento: 'PAGO_COBRANZA'`. Cancelar un pago fallaba siempre
+           * con 409 y la transacción SERIALIZABLE lo revertía todo.
+           */
+          { loPideElDocumentoDeOrigen: true },
         );
       }
 
@@ -766,17 +782,21 @@ export class CobranzaService {
       const afectadas: AmortizacionCuota[] = [];
       for (const cuota of cuotas) {
         if (porReducir <= 0.0001) break;
-        const resta = this.redondear(
-          Number(cuota.montoCuota) - Number(cuota.montoPagado),
-        );
-        if (resta <= 0.0001) continue;
-        const quitar = Math.min(resta, porReducir);
-        cuota.montoCuota = this.redondear(Number(cuota.montoCuota) - quitar);
-        cuota.estado =
-          Number(cuota.montoPagado) + 0.001 >= Number(cuota.montoCuota)
-            ? EstadoCuota.PAGADA
-            : cuota.estado;
-        porReducir = this.redondear(porReducir - quitar);
+        /*
+         * Antes aquí se bajaba `montoCuota` y se dejaba `montoCapital` donde
+         * estaba. El reparto de un pago calcula `montoCapital / montoCuota`, así
+         * que esa proporción pasaba de uno y **el interés del siguiente pago
+         * salía negativo**: el crédito reportaba más capital cobrado que dinero
+         * recibido y la póliza, con un abono negativo a ingresos por intereses,
+         * no se generaba.
+         *
+         * La regla de repartir la baja —capital primero, interés después— ya
+         * existía en la devolución de venta del ERP y funcionaba. Faltaba en
+         * este camino, que es el de al lado. Ahora los dos llaman a la misma.
+         */
+        const { reducido } = reducirCuota(cuota, porReducir);
+        if (reducido <= 0.0001) continue;
+        porReducir = this.redondear(porReducir - reducido);
         afectadas.push(cuota);
       }
       if (afectadas.length) await em.save(AmortizacionCuota, afectadas);

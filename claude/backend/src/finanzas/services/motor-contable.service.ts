@@ -5,6 +5,7 @@ import { Producto } from '../../catalogo/entities/producto.entity';
 import { Poliza, TipoPoliza } from '../entities/poliza.entity';
 import { PartidaPoliza } from '../entities/partida-poliza.entity';
 import { RolCuentaSistema } from '../entities/cuenta-contable.entity';
+import { exigirQueYaHayaOcurrido } from '../utils/la-contabilidad-registra-lo-que-ya-paso.util';
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 export interface DetalleVentaContable {
@@ -2179,6 +2180,24 @@ export class MotorContableService {
         `Póliza descuadrada (cargos ${cargosCentavos / 100}, abonos ${abonosCentavos / 100}): ${data.concepto}.`,
       );
     }
+
+    /*
+     * La contabilidad registra lo que ya pasó.
+     *
+     * Esta regla existía sólo en `PolizasService`, y su comentario afirmaba que
+     * todos los caminos pasaban por allí. No era verdad: este `crearPoliza` es
+     * propio —transacción, folio y verificación de período aparte— y por él
+     * nacen casi todas las pólizas: ventas, compras, cobranza, tesorería,
+     * depreciación, hospedaje, cierres de caja. El control cubría la captura
+     * manual, que es la minoría.
+     *
+     * Va antes de abrir la transacción: no tiene sentido reservar folio ni tomar
+     * candados para algo que se va a rechazar. Desde aquí el rechazo llega a la
+     * bandeja de asientos pendientes, que lo reintentará —y cuando el día
+     * llegue, la póliza se generará sola—; mientras tanto queda a la vista en
+     * vez de entrar en los libros con fecha de mañana.
+     */
+    exigirQueYaHayaOcurrido(data.fecha, data.concepto);
 
     const mes = data.fecha.getMonth() + 1;
     const anio = data.fecha.getFullYear();
