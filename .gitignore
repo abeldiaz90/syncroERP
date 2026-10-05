@@ -24,3 +24,20 @@ desktop.ini
 
 # Respaldos que deja el despliegue de pruebas
 claude/backend/src.respaldo-*/
+
+# Carpetas congeladas y basura de trabajo — 5-oct-2026
+#
+# `syncro-erp-backend/` y `syncro-erp-frontend/` eran el código anterior al
+# 10-sep-2026. Dejaron de ejecutarse y el 1-oct se movieron a
+# `_VIEJO-syncro-erp-backend-2026-10-01/`, pero el borrado nunca se commiteó:
+# git siguió creyendo que esos ~400 archivos existían, y aparecían en cada
+# `git status` como borrados pendientes. Un `git add -A` se los habría llevado
+# mezclados con cualquier otro trabajo.
+#
+# El borrado ya está commiteado. Esto evita que el respaldo y la basura de
+# trabajo vuelvan a ensuciar el estado.
+_VIEJO-*/
+_to_delete/
+_pruebas/
+MENSAJE-COMMIT-PENDIENTE.txt
+claude/MENSAJE-COMMIT-PENDIENTE.txt
