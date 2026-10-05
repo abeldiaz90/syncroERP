@@ -10,7 +10,6 @@ import {
 import { DataSource, EntityManager, In, QueryRunner } from 'typeorm';
 import { Poliza } from '../entities/poliza.entity';
 import { PartidaPoliza } from '../entities/partida-poliza.entity';
-import { CrearPolizaDto } from '../dto/crear-poliza.dto';
 import { CuentaContable } from '../entities/cuenta-contable.entity';
 import { diaCalendario } from '../../common/utils/fecha-calendario.util';
 import { exigirQueYaHayaOcurrido } from '../utils/la-contabilidad-registra-lo-que-ya-paso.util';
@@ -231,73 +230,6 @@ export class PolizasService {
   // ══════════════════════════════════════════════════════════════════════════
   // CREAR PÓLIZA (usado desde el controller de pólizas manuales)
   // ══════════════════════════════════════════════════════════════════════════
-  async crearPoliza(dto: CrearPolizaDto, empresaId: string) {
-    const sumaCargos =
-      Math.round(dto.partidas.reduce((s, p) => s + Number(p.cargo), 0) * 100) /
-      100;
-    const sumaAbonos =
-      Math.round(dto.partidas.reduce((s, p) => s + Number(p.abono), 0) * 100) /
-      100;
-
-    if (sumaCargos !== sumaAbonos) {
-      throw new BadRequestException(
-        `La póliza está descuadrada. Total Cargos: $${sumaCargos} | Total Abonos: $${sumaAbonos}`,
-      );
-    }
-    if (sumaCargos === 0) {
-      throw new BadRequestException('Una póliza no puede tener valor cero.');
-    }
-
-    const fecha = this.aFechaNueva(dto.fecha);
-    await this.verificarPeriodoCerrado(empresaId, fecha);
-
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-    try {
-      await this.bloquearPeriodoDuranteEscritura(queryRunner, empresaId, fecha);
-      const folio = await this.generarFolio(empresaId, dto.tipo);
-
-      const nuevaPoliza = queryRunner.manager.create(Poliza, {
-        empresaId,
-        tipo: dto.tipo,
-        concepto: dto.concepto,
-        fecha,
-        folio,
-        mes: fecha.getMonth() + 1,
-        anio: fecha.getFullYear(),
-      });
-      const polizaGuardada = await queryRunner.manager.save(nuevaPoliza);
-
-      const partidas = dto.partidas.map((p) =>
-        queryRunner.manager.create(PartidaPoliza, {
-          polizaId: polizaGuardada.id,
-          cuentaContableId: p.cuentaContableId,
-          cargo: p.cargo,
-          abono: p.abono,
-          referencia: p.referencia,
-        }),
-      );
-      await queryRunner.manager.save(PartidaPoliza, partidas);
-      await queryRunner.commitTransaction();
-
-      return {
-        mensaje: 'Póliza generada correctamente',
-        poliza: polizaGuardada.id,
-        folio,
-        cuadre: sumaCargos,
-      };
-    } catch (error: any) {
-      await queryRunner.rollbackTransaction();
-      if (error instanceof HttpException) throw error;
-      throw new InternalServerErrorException(
-        'Error al generar la póliza: ' + error.message,
-      );
-    } finally {
-      await queryRunner.release();
-    }
-  }
-
   // ══════════════════════════════════════════════════════════════════════════
   // PÓLIZA MANUAL — gastos y asientos que no se generan automáticamente
   // ══════════════════════════════════════════════════════════════════════════
@@ -316,17 +248,36 @@ export class PolizasService {
   private async validarCuentasAfectables(
     empresaId: string,
     partidas: Array<{ cuentaContableId: string }>,
+    opciones?: {
+      /**
+       * Transacción del proceso llamador. Si no se pasa, la consulta sale por
+       * fuera y no ve lo que esa transacción aún no confirmó.
+       */
+      manager?: EntityManager;
+      /**
+       * Si quien escribe es un proceso con su propio auxiliar —nómina, el motor
+       * contable— y por tanto SÍ puede mover una cuenta controlada.
+       *
+       * La mitad de `esAfectable` se aplica igual: una cuenta de mayor no recibe
+       * movimientos directos de nadie, humano o máquina, porque es la suma de
+       * sus hijas y cargarle algo propio descuadra el balance al sumar.
+       */
+      procesoAutomatico?: boolean;
+    },
   ): Promise<void> {
     const ids = [...new Set(partidas.map((p) => p.cuentaContableId))];
     if (!ids.length) return;
 
-    const cuentas = await this.dataSource.getRepository(CuentaContable).find({
+    const repo = opciones?.manager
+      ? opciones.manager.getRepository(CuentaContable)
+      : this.dataSource.getRepository(CuentaContable);
+    const cuentas = await repo.find({
       where: { id: In(ids), empresaId },
     });
 
-    const bloqueadas = cuentas.filter(
-      (c) => c.permiteMovimientoManual === false,
-    );
+    const bloqueadas = opciones?.procesoAutomatico
+      ? []
+      : cuentas.filter((c) => c.permiteMovimientoManual === false);
     if (bloqueadas.length) {
       const detalle = bloqueadas
         .map((c) => `${c.numeroCuenta} ${c.nombre}`)
@@ -487,6 +438,27 @@ export class PolizasService {
     if (datos.partidas.some((p) => !p.cuentaContableId)) {
       throw new BadRequestException('Todas las partidas requieren cuenta contable.');
     }
+
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * ESTA PUERTA NO TENÍA NINGÚN CONTROL DE CUENTAS (5-oct-2026)
+     *
+     * La usa nómina, dentro de su propia transacción, y por eso NO se le aplica
+     * la mitad de `permiteMovimientoManual`: una corrida de nómina abona Bancos
+     * de pleno derecho, igual que el motor contable. Pasarle el control entero
+     * rompería el pago de la nómina, que es una operación legítima con su
+     * propio auxiliar.
+     *
+     * Pero la otra mitad vale para todos. Una cuenta de mayor es la suma de sus
+     * hijas; cargarle algo propio descuadra el balance al sumar, y eso no
+     * depende de quién escriba. El `manager` va porque la consulta tiene que
+     * ver lo que esta transacción todavía no confirmó.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    await this.validarCuentasAfectables(datos.empresaId, datos.partidas, {
+      manager,
+      procesoAutomatico: true,
+    });
 
     const fecha = this.aFechaNueva(datos.fecha);
     const mes = fecha.getMonth() + 1;

@@ -8,7 +8,6 @@ import {
   Query,
 } from '@nestjs/common';
 import { PolizasService } from '../services/polizas.service';
-import { CrearPolizaDto } from '../dto/crear-poliza.dto';
 import { CancelarPolizaDto, CrearPolizaManualDto } from '../dto/operaciones-poliza.dto';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { Navegable } from '../../iam/decorators/navegable.decorator';
@@ -21,14 +20,32 @@ export class PolizasController {
     private readonly activacionService: ActivacionFinancieraService,
   ) {}
 
-  @Post()
-  async crear(
-    @Body() dto: CrearPolizaDto,
-    @ActiveUser('empresaId') empresaId: string,
-  ) {
-    await this.activacionService.exigirActiva(empresaId);
-    return this.polizasService.crearPoliza(dto, empresaId);
-  }
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * AQUÍ HABÍA UN `POST /finanzas/polizas`, Y SE QUITÓ (5-oct-2026)
+   * --------------------------------------------------------------------------
+   * Creaba una póliza **sin pasar por `validarCuentasAfectables`**, que es el
+   * control que impide cargar o abonar a mano Bancos, Clientes CxC o
+   * Inventario. Cuando una de esas cuentas se mueve a mano el auxiliar no
+   * cambia, el mayor sí, y la conciliación cuadra: es el mecanismo con el que
+   * se disimula un faltante.
+   *
+   * El comentario del validador dice que los asientos del motor contable no
+   * pasan por él porque «usan `crearPoliza`», y es verdad —pero de
+   * `MotorContableService.crearPoliza`, que es otro método de otra clase con el
+   * mismo nombre—. El de aquí, `PolizasService.crearPoliza`, tenía **un solo
+   * llamador en todo el sistema: este endpoint**. Era una puerta humana, y la
+   * frase del comentario la hacía parecer una vía interna.
+   *
+   * Ninguna pantalla lo usaba: la de «Nueva póliza» y la de saldos iniciales
+   * mandan las dos a `POST /finanzas/polizas/manual`, que además valida GUID,
+   * dos decimales, mínimo dos partidas, concepto con largo y es idempotente por
+   * `origenClave`. Lo viejo era más laxo en seis cosas a la vez.
+   *
+   * No se arregló añadiéndole el control: dos puertas humanas a lo mismo, con
+   * reglas distintas, es la forma del defecto. Queda una.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
 
   @Navegable('/dashboard/finanzas/polizas', 'Libro Diario', 51)
   @Get()

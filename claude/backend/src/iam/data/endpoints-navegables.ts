@@ -290,7 +290,14 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Libro diario',
     ordenMenu: 40,
   },
-  'POST /finanzas/polizas': {
+  /*
+   * La llave de «Nueva póliza» era `POST /finanzas/polizas`, y esa pantalla
+   * nunca llamó ahí: manda a `/manual`. O sea que conceder «Nueva póliza» abría
+   * el endpoint sin control de cuentas afectables y la pantalla seguía dando 403
+   * al guardar, porque cada ruta es un permiso aparte. El endpoint ya no existe
+   * y la llave es la de la puerta que la pantalla usa.
+   */
+  'POST /finanzas/polizas/manual': {
     rutaFrontend: '/dashboard/finanzas/polizas/nueva',
     titulo: 'Nueva póliza',
     ordenMenu: 41,
