@@ -19,6 +19,8 @@ export default function ModalInventarioRapido({ isOpen, onClose, tipo, producto,
   const [lote, setLote] = useState('');
   const [fechaCaducidad, setFechaCaducidad] = useState('');
   const [equivalenciaId, setEquivalenciaId] = useState('');
+  const [errores, setErrores] = useState<Record<string, string>>({});
+  const [intento, setIntento] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -28,6 +30,8 @@ export default function ModalInventarioRapido({ isOpen, onClose, tipo, producto,
       setLote('');
       setFechaCaducidad('');
       setEquivalenciaId('');
+      setErrores({});
+      setIntento(false);
     }
   }, [isOpen]);
 
@@ -55,21 +59,59 @@ export default function ModalInventarioRapido({ isOpen, onClose, tipo, producto,
     btn: 'bg-amber-600 hover:bg-amber-700'
   };
 
+  const validar = () => {
+    const e: Record<string, string> = {};
+    const n = Number(cantidad);
+    if (!almacenId) e.almacenId = 'Selecciona un almacén.';
+    if (!cantidad || !Number.isFinite(n) || n <= 0) e.cantidad = 'Captura una cantidad mayor que cero.';
+    if (producto.requiereLote && esEntrada && !lote.trim()) e.lote = 'El lote es obligatorio para este producto.';
+    if (producto.requiereCaducidad && esEntrada && !fechaCaducidad) e.fechaCaducidad = 'La fecha de caducidad es obligatoria.';
+    if (fechaCaducidad && new Date(`${fechaCaducidad}T00:00:00`) <= new Date(new Date().toDateString())) e.fechaCaducidad = 'La caducidad debe ser posterior a hoy.';
+    return e;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setIntento(true);
+    const encontrados = validar();
+    setErrores(encontrados);
+    if (Object.keys(encontrados).length) return;
     onSubmit({
       id: producto.id,
       cantidad: Number(cantidad),
       almacenId,
       motivo: motivo || (esEntrada ? 'Ingreso rápido de almacén' : 'Salida rápida de almacén'),
-      // ✅ SOLUCIÓN 2: Renombrado a 'numeroLote' para coincidir con la función del padre
-      numeroLote: producto.requiereLote ? lote : undefined,
-      fechaCaducidad: producto.requiereCaducidad ? fechaCaducidad : undefined,
+      /*
+       * ══════════════════════════════════════════════════════════════════════
+       * El lote es de la ENTRADA, no de la salida
+       * ──────────────────────────────────────────────────────────────────────
+       * Esto decía `producto.requiereLote ? lote : undefined`. En una SALIDA
+       * los campos de lote y caducidad ni siquiera se dibujan —línea 157—, así
+       * que `lote` vale cadena vacía; y una cadena vacía NO es `undefined`, de
+       * modo que la clave viajaba en el JSON. `RegistrarSalidaInventarioDto` no
+       * declara `numeroLote`, y el validador global rechaza lo que no está
+       * declarado: 400 «property numeroLote should not exist».
+       *
+       * O sea: la salida rápida estaba rota EXACTAMENTE para los productos
+       * trazables —los que llevan lote y caducidad: alimentos, farmacia—, que
+       * son los únicos para los que el aviso azul de esta misma ventana promete
+       * que «el sistema aplicará automáticamente FEFO».
+       *
+       * En la salida no se elige lote a mano a propósito: lo elige FEFO. Así
+       * que estos dos campos sólo tienen sentido entrando, y sólo entrando se
+       * mandan.
+       * ══════════════════════════════════════════════════════════════════════
+       */
+      numeroLote: esEntrada && producto.requiereLote ? lote : undefined,
+      fechaCaducidad:
+        esEntrada && producto.requiereCaducidad ? fechaCaducidad : undefined,
       equivalenciaId: equivalenciaId || undefined
     });
   };
 
   const inputClass = "w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 transition-colors text-slate-800 font-medium";
+  const clase = (campo: string, extra = '') => `${inputClass} ${extra} ${errores[campo] ? 'border-rose-500 bg-rose-50 focus:ring-rose-300' : ''}`;
+  const ErrorCampo = ({ campo }: { campo: string }) => errores[campo] ? <p className="mt-1 text-xs font-semibold text-rose-600" role="alert">{errores[campo]}</p> : null;
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
@@ -81,8 +123,15 @@ export default function ModalInventarioRapido({ isOpen, onClose, tipo, producto,
               <Icono className="w-5 h-5" />
             </div>
             <div>
+              {/*
+                Decía «Recepción de Mercancía», que es como se llama recibir una
+                orden de compra. Por aquí no entra ninguna: es justo la puerta
+                para lo que NO tiene documento. El nombre prometía un papel
+                detrás que no existe, y es el dato que decide si esto se usa
+                para lo que es o para saltarse el circuito de compras.
+              */}
               <h2 className={`text-lg font-black ${theme.textTitle} leading-none`}>
-                {esEntrada ? 'Recepción de Mercancía' : 'Salida de Mercancía'}
+                {esEntrada ? 'Entrada sin documento' : 'Salida sin documento'}
               </h2>
               <p className="text-xs font-bold text-slate-500 mt-1">{producto.sku} - {producto.nombre}</p>
             </div>
@@ -92,19 +141,32 @@ export default function ModalInventarioRapido({ isOpen, onClose, tipo, producto,
           </button>
         </div>
 
-        <form id="inventario-form" onSubmit={handleSubmit} className="p-6 space-y-4 bg-slate-50">
+        <form id="inventario-form" onSubmit={handleSubmit} className="p-6 space-y-4 bg-slate-50" noValidate>
+          {intento && Object.keys(errores).length > 0 && <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">Corrige los campos marcados antes de confirmar.</div>}
+          {/*
+            Qué pasa en los libros, dicho antes de confirmar y no después. Quien
+            usa esta ventana suele ser almacén, y hasta hoy no había forma de
+            saber desde aquí que el movimiento también mueve dinero.
+          */}
+          <div className="rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-600">
+            {esEntrada
+              ? 'Sube la existencia y el valor del almacén, y genera su póliza: carga inventario contra la cuenta de diferencias. Queda en el kardex con tu nombre.'
+              : 'Baja la existencia y el valor, y genera su póliza: carga costo de ventas contra inventario. Si lo que sale se echó a perder, regístralo en Inventario → Ajustes para que vaya a la cuenta de mermas. Queda en el kardex con tu nombre.'}
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Almacén *</label>
-              <select required value={almacenId} onChange={(e) => setAlmacenId(e.target.value)} className={`${inputClass} ${theme.ring} ${theme.borderFocus}`}>
+              <select required value={almacenId} onChange={(e) => setAlmacenId(e.target.value)} className={clase('almacenId', `${theme.ring} ${theme.borderFocus}`)} aria-invalid={Boolean(errores.almacenId)}>
                 <option value="">Seleccione...</option>
                 {almacenes.map(alm => <option key={alm.id} value={alm.id}>{alm.nombre}</option>)}
               </select>
+              <ErrorCampo campo="almacenId" />
             </div>
             <div>
               <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Cantidad *</label>
               <div className="flex items-center gap-2">
-                <input required type="number" min="0.01" step="0.01" value={cantidad} onChange={(e) => setCantidad(e.target.value)} className={`${inputClass} ${theme.ring} ${theme.borderFocus}`} placeholder="0" />
+                <input required type="number" min="0.01" step="0.01" value={cantidad} onChange={(e) => setCantidad(e.target.value)} className={clase('cantidad', `${theme.ring} ${theme.borderFocus}`)} aria-invalid={Boolean(errores.cantidad)} placeholder="0" />
+                <ErrorCampo campo="cantidad" />
               </div>
             </div>
           </div>
@@ -143,7 +205,8 @@ export default function ModalInventarioRapido({ isOpen, onClose, tipo, producto,
                     <label className="flex items-center gap-1.5 text-[11px] font-black text-amber-700 uppercase tracking-wider mb-1.5">
                       <Hash className="w-3 h-3" /> Lote de Fab. *
                     </label>
-                    <input required type="text" value={lote} onChange={(e) => setLote(e.target.value.toUpperCase())} className={`${inputClass} border-amber-300 focus:ring-amber-500`} placeholder="Ej. LOTE-123" />
+                    <input required type="text" value={lote} onChange={(e) => setLote(e.target.value.toUpperCase())} className={clase('lote', 'border-amber-300 focus:ring-amber-500')} aria-invalid={Boolean(errores.lote)} placeholder="Ej. LOTE-123" />
+                    <ErrorCampo campo="lote" />
                   </div>
                 )}
                 {producto.requiereCaducidad && (
@@ -151,7 +214,8 @@ export default function ModalInventarioRapido({ isOpen, onClose, tipo, producto,
                     <label className="flex items-center gap-1.5 text-[11px] font-black text-amber-700 uppercase tracking-wider mb-1.5">
                       <Calendar className="w-3 h-3" /> Caducidad *
                     </label>
-                    <input required type="date" value={fechaCaducidad} onChange={(e) => setFechaCaducidad(e.target.value)} className={`${inputClass} border-amber-300 focus:ring-amber-500`} />
+                    <input required type="date" value={fechaCaducidad} onChange={(e) => setFechaCaducidad(e.target.value)} className={clase('fechaCaducidad', 'border-amber-300 focus:ring-amber-500')} aria-invalid={Boolean(errores.fechaCaducidad)} />
+                    <ErrorCampo campo="fechaCaducidad" />
                   </div>
                 )}
               </div>

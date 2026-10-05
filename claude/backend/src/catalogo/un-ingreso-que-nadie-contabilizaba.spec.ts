@@ -361,3 +361,115 @@ describe('El lote es de la entrada, no de la salida', () => {
     expect(cuerpo).not.toMatch(/fechaCaducidad/);
   });
 });
+
+describe('y el kardex enseña quién, que es la mitad que faltaba', () => {
+  /*
+   * ENCONTRADO MIRANDO LA PANTALLA, NO EL CÓDIGO (5-oct-2026).
+   *
+   * Hecho el arreglo, se registró una entrada real desde el catálogo y se abrió
+   * la Auditoría de Kardex a comprobarlo. El movimiento estaba, con su motivo y
+   * su saldo. **El nombre no, porque no hay columna.**
+   *
+   * El servicio traía el almacén con un `leftJoin` y nada más, así que al
+   * navegador le llegaba `usuarioId` como UUID suelto. Guardar quién y no
+   * enseñarlo es la mitad inútil del control: una investigación de inventario
+   * empieza en esta pantalla, y sin el nombre acaba en la base de datos.
+   *
+   * Es el mismo patrón que el proyecto ya persiguió dos veces: un control que
+   * está puesto y no se ve no está puesto.
+   */
+  const servicio = readFileSync(
+    join(__dirname, 'services', 'inventario.service.ts'),
+    'utf8',
+  );
+
+  it('el servicio resuelve el nombre y no manda un UUID', () => {
+    const cuerpo = servicio.slice(
+      servicio.indexOf('async obtenerMovimientosPorProducto('),
+      servicio.indexOf('async obtenerStockEnAlmacen('),
+    );
+    expect(cuerpo).toMatch(/getRepository\(Usuario\)/);
+    expect(cuerpo).toMatch(/usuarioNombre: m\.usuarioId \? \(nombres\.get\(m\.usuarioId\) \?\? null\) : null/);
+  });
+
+  it('y lo hace en una consulta por página, no una por renglón', () => {
+    /*
+     * El kardex pagina de a cincuenta. Resolver el nombre dentro del `map`
+     * serían cincuenta consultas por pantalla, y en un producto de rotación
+     * alta eso se nota.
+     */
+    const cuerpo = servicio.slice(
+      servicio.indexOf('async obtenerMovimientosPorProducto('),
+      servicio.indexOf('async obtenerStockEnAlmacen('),
+    );
+    expect(cuerpo).toMatch(/const idsDeUsuario = \[\s*\n?\s*\.\.\.new Set\(/);
+    expect(cuerpo).toMatch(/where: \{ id: In\(idsDeUsuario\) \}/);
+  });
+
+  it('la pantalla tiene la columna, y dice la verdad cuando no hay nombre', () => {
+    const RAIZ = join(__dirname, '..', '..', '..');
+    const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+      .map((nombre) => join(RAIZ, nombre))
+      .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
+    if (!FRONTEND) return;
+
+    const pantalla = readFileSync(
+      join(FRONTEND, 'app/dashboard/productos/[id]/page.tsx'),
+      'utf8',
+    );
+    expect(pantalla).toMatch(/usuarioNombre\?: string \| null;/);
+    expect(pantalla).toMatch(/>Quién</);
+    /*
+     * El guion importa tanto como el nombre: un movimiento viejo no tiene
+     * quién, y poner ahí cualquier otra cosa sería inventar.
+     */
+    expect(pantalla).toMatch(/m\.usuarioNombre \? \(/);
+    /* Y el encabezado agrupador abarca las dos columnas, o la tabla se desalinea. */
+    expect(pantalla).toMatch(/colSpan=\{2\}[^>]*>Referencia</);
+  });
+
+  it('y la exportación se lleva la columna, que es donde acaba la auditoría', () => {
+    const RAIZ = join(__dirname, '..', '..', '..');
+    const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+      .map((nombre) => join(RAIZ, nombre))
+      .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
+    if (!FRONTEND) return;
+
+    const pantalla = readFileSync(
+      join(FRONTEND, 'app/dashboard/productos/[id]/page.tsx'),
+      'utf8',
+    );
+    const exportacion = pantalla.slice(pantalla.indexOf('const exportarExcel'));
+    expect(exportacion.slice(0, 1500)).toMatch(/'Motivo', 'Quién'\]/);
+    expect(exportacion.slice(0, 1500)).toMatch(/quienEscapado\].join\(','\)/);
+  });
+
+  it('la ventana ya no promete un documento que no existe', () => {
+    /*
+     * Decía «Recepción de Mercancía», que es como se llama recibir una orden de
+     * compra. Por aquí no entra ninguna: es la puerta de lo que NO tiene
+     * documento, y el nombre decide si se usa para eso o para saltarse el
+     * circuito de compras.
+     */
+    const RAIZ = join(__dirname, '..', '..', '..');
+    const FRONTEND = ['syncro-erp-frontend', 'frontend', '../syncro-erp-frontend']
+      .map((nombre) => join(RAIZ, nombre))
+      .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
+    if (!FRONTEND) return;
+
+    const modal = readFileSync(
+      join(FRONTEND, 'app/dashboard/productos/components/ModalInventarioRapido.tsx'),
+      'utf8',
+    );
+    /*
+     * Sobre el título que se pinta, no sobre el archivo: el comentario de ese
+     * cambio cita el nombre viejo, y buscarlo suelto daba rojo por la
+     * explicación del arreglo.
+     */
+    expect(modal).not.toMatch(/\? 'Recepción de Mercancía'/);
+    expect(modal).toMatch(/Entrada sin documento/);
+    expect(modal).toMatch(/Salida sin documento/);
+    /* Y dice qué pasa en los libros antes de confirmar, no después. */
+    expect(modal).toMatch(/cuenta de mermas/);
+  });
+});

@@ -146,19 +146,32 @@ export class CfdiController {
     );
   }
 
-  @Post('timbrar')
-  @HttpCode(HttpStatus.CREATED)
-  timbrar(
-    @Body() dto: CrearFacturaDto,
-    @Headers('idempotency-key') idempotencyKey: string | undefined,
-    @Req() req,
-  ) {
-    return this.cfdiService.crearYTimbrar(
-      dto,
-      req.user.empresaId,
-      idempotencyKey,
-    );
-  }
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * AQUÍ HABÍA UN `POST /cfdi/timbrar`, Y SE QUITÓ (5-oct-2026)
+   * --------------------------------------------------------------------------
+   * Entregaba `CrearFacturaDto` tal cual al motor, con sus partidas e importes
+   * puestos a mano y un `ventaId` opcional. Comprobaba que la venta existiera y
+   * que no tuviera ya un CFDI vigente, y ahí se acababa. `timbrarVenta` —la
+   * puerta de la pantalla— comprueba tres cosas más:
+   *
+   *   · que la venta no esté ANULADA;
+   *   · que lo devuelto no se facture: arma las partidas con
+   *     `cantidad − cantidadDevuelta` y se niega si no queda nada;
+   *   · que los importes y la tasa salgan de la venta y del catálogo SAT, no de
+   *     lo que mande quien llama.
+   *
+   * Y lo peor no era poder timbrar de más, sino el candado. Las dos puertas
+   * derivan la misma clave de idempotencia, `VENTA:<id>`. Un timbrado por aquí
+   * la consumía, y el timbrado bueno que viniera después encontraba esa clave
+   * TIMBRADA y **devolvía el CFDI equivocado dando éxito**. El camino correcto
+   * no fallaba: mentía.
+   *
+   * Ninguna pantalla lo usaba —`/dashboard/ventas/[id]/facturar` manda a
+   * `/cfdi/ventas/:ventaId/timbrar`—. `crearYTimbrar` sigue siendo el motor y lo
+   * llaman desde dentro `timbrarVenta` y la nota de crédito.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
 
   @Post(':id/reintentar-timbrado')
   reintentarTimbrado(@Param('id') id: string, @Req() req) {

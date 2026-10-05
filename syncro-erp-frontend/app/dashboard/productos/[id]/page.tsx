@@ -3,10 +3,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { hoyISO } from '@/lib/fechas';
 import { 
   ArrowLeft, History, Package, ArrowUpRight, ArrowDownRight, 
   Warehouse, Download, TrendingUp, TrendingDown, Layers, Globe,
-  Search, Calendar, Filter, XCircle
+  Search, Calendar, Filter, XCircle, MapPin, Plus
 } from 'lucide-react';
 
 // ==========================================
@@ -22,6 +23,14 @@ export interface IMovimiento {
   motivo: string;
   almacen?: { nombre: string };
   saldoGlobal?: number;
+  /**
+   * Quién registró el movimiento, ya resuelto a nombre por el servidor.
+   *
+   * Nulo en los movimientos anteriores al 5-oct-2026 —no se guardaba— y en los
+   * que nacen de un documento que no pasa el dato: ahí el nombre está en el
+   * documento, y el enlace es `documentoId`.
+   */
+  usuarioNombre?: string | null;
 }
 
 // ==========================================
@@ -32,6 +41,12 @@ export default function KardexPage() {
   const id = params?.id as string;
   
   const [movimientos, setMovimientos] = useState<IMovimiento[]>([]);
+  /*
+   * `null` mientras no se sabe: un contrato viejo que no mande `saldoActual`
+   * no debe hacer que la pantalla invente un saldo, y tampoco que enseñe cero
+   * —que se leería como «no hay nada».
+   */
+  const [saldoReal, setSaldoReal] = useState<number | null>(null);
   const [cargando, setCargando] = useState(true);
 
   // ESTADOS DE LOS FILTROS
@@ -41,7 +56,7 @@ export default function KardexPage() {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
 
   useEffect(() => {
     const fetchMovimientos = async () => {
@@ -51,10 +66,34 @@ export default function KardexPage() {
         const res = await fetch(`${apiUrl}/catalogo/inventario/productos/${id}/movimientos`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (res.ok) {
-          const data = await res.json();
-          setMovimientos(data);
+        if (!res.ok) {
+          throw new Error(`No fue posible cargar el kardex (${res.status})`);
         }
+
+        const respuesta = await res.json();
+
+        // Compatibilidad con los contratos antiguo y paginado:
+        // - Antiguo: IMovimiento[]
+        // - Actual: { data: IMovimiento[], total, pagina, limite, paginas }
+        // - Con interceptor global: { data: { data: IMovimiento[], ... } }
+        const lista = Array.isArray(respuesta)
+          ? respuesta
+          : Array.isArray(respuesta?.data)
+            ? respuesta.data
+            : Array.isArray(respuesta?.data?.data)
+              ? respuesta.data.data
+              : [];
+
+        setMovimientos(lista);
+        /*
+         * La existencia REAL, la que suma `stock_por_almacen` y cuadra contra
+         * la cuenta contable. Antes esta pantalla la calculaba sumando los
+         * movimientos recibidos —la primera página— y la titulaba «global».
+         */
+        const cuerpo = Array.isArray(respuesta) ? null : (respuesta?.data?.saldoActual !== undefined ? respuesta.data : respuesta);
+        setSaldoReal(
+          typeof cuerpo?.saldoActual === 'number' ? cuerpo.saldoActual : null,
+        );
       } catch (error) {
         console.error("Error al cargar kardex", error);
       } finally {
@@ -75,24 +114,46 @@ export default function KardexPage() {
   };
 
   // Calculamos la historia matemática ANTES de los filtros
+  /*
+   * El saldo corrido se calcula HACIA ATRÁS desde la existencia real.
+   *
+   * Sumar hacia adelante desde cero exige tener el primer movimiento del
+   * producto, y en la página dos no se tiene: la columna arrancaba en cero en
+   * el movimiento cincuenta, como si antes no hubiera pasado nada.
+   *
+   * Desde el saldo de hoy sí se puede: el movimiento más reciente dejó ese
+   * saldo, y el anterior se deduce deshaciéndolo. Cada fila dice la verdad
+   * aunque se esté viendo la página tres.
+   *
+   * Si el servidor no mandó el saldo —contrato viejo— no se pinta la columna
+   * en vez de pintarla mal.
+   */
   const movimientosProcesados = useMemo(() => {
     if (!movimientos.length) return [];
-    let acumuladoGlobal = 0;
-    const clon = [...movimientos].reverse();
-    const resultado = clon.map(m => {
+    if (saldoReal === null) {
+      return movimientos.map(m => ({ ...m, saldoGlobal: undefined }));
+    }
+    let saldo = saldoReal;
+    /* `movimientos` viene del más reciente al más antiguo. */
+    return movimientos.map(m => {
+      const fila = { ...m, saldoGlobal: saldo };
       const cant = Math.abs(m.cantidad);
-      if (esMovimientoEntrada(m)) acumuladoGlobal += cant;
-      else acumuladoGlobal -= cant;
-      return { ...m, saldoGlobal: acumuladoGlobal };
+      saldo = esMovimientoEntrada(m) ? saldo - cant : saldo + cant;
+      return fila;
     });
-    return resultado.reverse();
-  }, [movimientos]);
+  }, [movimientos, saldoReal]);
 
   // ==========================================
   // MOTOR DE FILTROS AVANZADOS
   // ==========================================
-  const almacenesUnicos = Array.from(new Set(movimientos.map(m => m.almacen?.nombre).filter(Boolean)));
-  const tiposUnicos = Array.from(new Set(movimientos.map(m => m.tipo).filter(Boolean)));
+  const almacenesUnicos = useMemo(
+    () => Array.from(new Set(movimientos.map(m => m.almacen?.nombre).filter(Boolean))),
+    [movimientos],
+  );
+  const tiposUnicos = useMemo(
+    () => Array.from(new Set(movimientos.map(m => m.tipo).filter(Boolean))),
+    [movimientos],
+  );
 
   const movimientosFiltrados = useMemo(() => {
     return movimientosProcesados.filter(m => {
@@ -121,7 +182,8 @@ export default function KardexPage() {
     else totalSalidas += cant;
   });
 
-  const saldoGlobalActual = movimientosProcesados.length > 0 ? movimientosProcesados[0].saldoGlobal : 0;
+  /* La existencia real, no la suma de una página. */
+  const saldoGlobalActual = saldoReal;
 
   const limpiarFiltros = () => {
     setBusqueda(''); setFiltroAlmacen(''); setFiltroTipo(''); setFechaInicio(''); setFechaFin('');
@@ -132,7 +194,7 @@ export default function KardexPage() {
   // ==========================================
   const exportarExcel = () => {
     if (movimientosFiltrados.length === 0) return;
-    const encabezados = ['ID Movimiento', 'Fecha', 'Hora', 'Tipo', 'Almacén', 'Entrada (+)', 'Salida (-)', 'Saldo Local (Almacén)', 'Saldo Global (Empresa)', 'Motivo'];
+    const encabezados = ['ID Movimiento', 'Fecha', 'Hora', 'Tipo', 'Almacén', 'Entrada (+)', 'Salida (-)', 'Saldo Local (Almacén)', 'Saldo Global (Empresa)', 'Motivo', 'Quién'];
     const filas = movimientosFiltrados.map(m => {
       const fecha = new Date(m.fechaMovimiento).toLocaleDateString('es-MX');
       const hora = new Date(m.fechaMovimiento).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
@@ -140,7 +202,9 @@ export default function KardexPage() {
       const salida = !esMovimientoEntrada(m) ? Math.abs(m.cantidad) : 0;
       const motivoEscapado = `"${m.motivo ? m.motivo.replace(/"/g, '""') : ''}"`;
       
-      return [m.id, fecha, hora, m.tipo, m.almacen?.nombre || 'General', entrada, salida, m.stockNuevo, m.saldoGlobal, motivoEscapado].join(',');
+      const quienEscapado = `"${(m.usuarioNombre ?? '').replace(/"/g, '""')}"`;
+
+      return [m.id, fecha, hora, m.tipo, m.almacen?.nombre || 'General', entrada, salida, m.stockNuevo, m.saldoGlobal, motivoEscapado, quienEscapado].join(',');
     });
 
     const csvContent = "\uFEFF" + [encabezados.join(','), ...filas].join('\n');
@@ -148,7 +212,7 @@ export default function KardexPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Kardex_Filtrado_${id}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `Kardex_Filtrado_${id}_${hoyISO()}.csv`);
     document.body.appendChild(link);
     link.click(); document.body.removeChild(link);
   };
@@ -178,6 +242,7 @@ export default function KardexPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto p-6 max-w-7xl mx-auto w-full custom-scrollbar">
+        <UbicacionesProducto productoId={id} apiUrl={apiUrl} />
         
         {/* BARRA DE FILTROS INTELIGENTES */}
         {!cargando && movimientos.length > 0 && (
@@ -256,8 +321,10 @@ export default function KardexPage() {
 
             <div className="bg-white p-5 rounded-xl border border-indigo-200 shadow-md flex items-center justify-between bg-gradient-to-br from-white to-indigo-50/50">
               <div>
-                <p className="text-[11px] font-bold text-indigo-500 uppercase tracking-widest mb-1">Stock Histórico Global</p>
-                <p className="text-3xl font-black text-indigo-700">{saldoGlobalActual}</p>
+                <p className="text-[11px] font-bold text-indigo-500 uppercase tracking-widest mb-1">Existencia actual</p>
+                <p className="text-3xl font-black text-indigo-700">
+                  {saldoGlobalActual === null ? '—' : saldoGlobalActual}
+                </p>
               </div>
               <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
                 <Globe className="w-6 h-6" />
@@ -297,7 +364,7 @@ export default function KardexPage() {
                     <th colSpan={4} className="p-2 border-r border-slate-200 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Información del Documento</th>
                     <th colSpan={2} className="p-2 border-r border-slate-200 text-center text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50/30">Cantidades Físicas</th>
                     <th colSpan={2} className="p-2 border-r border-slate-200 text-center text-[10px] font-black text-slate-600 uppercase tracking-widest bg-slate-100">Saldos de Inventario</th>
-                    <th colSpan={1} className="p-2 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Referencia</th>
+                    <th colSpan={2} className="p-2 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Referencia</th>
                   </tr>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider">
                     <th className="px-5 py-4 font-bold border-r border-slate-200">Fecha / Hora</th>
@@ -312,6 +379,13 @@ export default function KardexPage() {
                     <th className="px-5 py-4 font-bold text-center text-indigo-700 bg-indigo-50/30 border-r border-slate-200" title="La suma total de todos los almacenes">Saldo Global</th>
                     
                     <th className="px-5 py-4 font-bold">Comentarios</th>
+                    {/*
+                      El movimiento guardaba `usuario_id` y el kardex no lo
+                      enseñaba: llegaba un UUID suelto y no había columna. Una
+                      investigación de inventario empieza aquí, y sin el nombre
+                      acababa en la base de datos.
+                    */}
+                    <th className="px-5 py-4 font-bold" title="Quién registró el movimiento. En los que nacen de un documento —venta, orden de compra, transferencia— el nombre está en ese documento.">Quién</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -354,11 +428,24 @@ export default function KardexPage() {
                         </td>
 
                         <td className="px-5 py-3 text-center bg-indigo-50/10 border-r border-slate-100 font-mono">
-                          <span className="font-black text-indigo-700">{m.saldoGlobal}</span>
+                          <span className="font-black text-indigo-700">{m.saldoGlobal === undefined ? '—' : m.saldoGlobal}</span>
                         </td>
                         
                         <td className="px-5 py-3 text-slate-500 italic text-xs max-w-xs truncate" title={m.motivo}>
                           {m.motivo || 'Sin comentarios'}
+                        </td>
+
+                        <td className="px-5 py-3 text-xs">
+                          {m.usuarioNombre ? (
+                            <span className="font-semibold text-slate-600">{m.usuarioNombre}</span>
+                          ) : (
+                            <span
+                              className="text-slate-300"
+                              title="Este movimiento no guardó quién lo hizo. Los anteriores al 5 de octubre de 2026 no lo registraban; si nació de un documento, el nombre está en ese documento."
+                            >
+                              —
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -371,4 +458,32 @@ export default function KardexPage() {
       </div>
     </div>
   );
+}
+
+function UbicacionesProducto({ productoId, apiUrl }: { productoId: string; apiUrl: string }) {
+  const [asignaciones, setAsignaciones] = useState<any[]>([]);
+  const [ubicaciones, setUbicaciones] = useState<any[]>([]);
+  const [ubicacionId, setUbicacionId] = useState('');
+  const [principal, setPrincipal] = useState(false);
+  const [error, setError] = useState('');
+  const token = typeof window !== 'undefined' ? localStorage.getItem('syncro_token') : '';
+  const cargar = async () => {
+    try {
+      const [a,u] = await Promise.all([
+        fetch(`${apiUrl}/catalogo/wms/productos/${productoId}/ubicaciones`, { headers:{Authorization:`Bearer ${token}`} }).then(r=>r.json()),
+        fetch(`${apiUrl}/catalogo/wms/ubicaciones`, { headers:{Authorization:`Bearer ${token}`} }).then(r=>r.json()),
+      ]);
+      setAsignaciones(Array.isArray(a)?a:Array.isArray(a?.data)?a.data:[]);
+      setUbicaciones(Array.isArray(u)?u:Array.isArray(u?.data)?u.data:[]);
+    } catch { setError('No fue posible cargar las ubicaciones físicas.'); }
+  };
+  useEffect(()=>{void cargar()},[productoId]);
+  const asignar=async()=>{if(!ubicacionId){setError('Selecciona una ubicación.');return;}setError('');const r=await fetch(`${apiUrl}/catalogo/wms/productos/${productoId}/ubicaciones`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ubicacionId,esPrincipal:principal})});if(!r.ok){const x=await r.json().catch(()=>({}));setError(x.message||'No se pudo asignar.');return;}setUbicacionId('');setPrincipal(false);await cargar();};
+  /* «Hacer principal» escribe: si el servidor lo niega hay que decirlo, no recargar la misma lista y dejar que el usuario crea que cambió. */
+  const principalizar=async(id:string)=>{setError('');const r=await fetch(`${apiUrl}/catalogo/wms/productos/${productoId}/ubicaciones/${id}`,{method:'PATCH',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({esPrincipal:true})});if(!r.ok){const x=await r.json().catch(()=>({}));setError(x.message||'No se pudo marcar como ubicación principal.');return;}await cargar();};
+  return <section className="bg-white border border-slate-200 rounded-xl shadow-sm mb-6 overflow-hidden">
+    <div className="px-5 py-4 border-b flex items-center justify-between"><div><h2 className="font-black flex items-center gap-2"><MapPin className="w-4 h-4 text-indigo-600"/>Ubicación física del producto</h2><p className="text-xs text-slate-500 mt-1">Define dónde se surte y almacena este artículo en cada almacén.</p></div></div>
+    <div className="p-5 grid lg:grid-cols-[1fr_360px] gap-5"><div>{asignaciones.length===0?<div className="border border-dashed rounded-xl p-5 text-sm text-slate-500">Aún no tiene ubicaciones asignadas. El stock existe por almacén, pero el personal no sabe en qué pasillo, rack o posición encontrarlo.</div>:<div className="grid md:grid-cols-2 gap-3">{asignaciones.map(a=><div key={a.id} className="border rounded-xl p-4"><div className="flex justify-between gap-2"><div><p className="font-bold">{a.ubicacion?.codigo}</p><p className="text-xs text-slate-500">{a.almacen?.nombre}</p></div>{a.esPrincipal?<span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full h-fit">PRINCIPAL</span>:<button onClick={()=>principalizar(a.id)} className="text-xs text-indigo-600 font-bold">Hacer principal</button>}</div><p className="text-xs text-slate-500 mt-2">{[a.ubicacion?.zona,a.ubicacion?.pasillo,a.ubicacion?.rack,a.ubicacion?.nivel,a.ubicacion?.posicion].filter(Boolean).join(' / ')||'Ruta física sin detalle'}</p></div>)}</div>}</div>
+    <div className="bg-slate-50 rounded-xl p-4"><label className="text-xs font-bold text-slate-600">Asignar ubicación</label><select value={ubicacionId} onChange={e=>setUbicacionId(e.target.value)} className="w-full mt-2 p-2.5 border rounded-lg bg-white"><option value="">Selecciona...</option>{ubicaciones.filter(u=>u.activo!==false&&u.estado==='DISPONIBLE').map(u=><option key={u.id} value={u.id}>{u.almacen?.nombre} · {u.codigo}</option>)}</select><label className="flex items-center gap-2 text-xs mt-3"><input type="checkbox" checked={principal} onChange={e=>setPrincipal(e.target.checked)}/> Ubicación principal de surtido</label>{error&&<p className="text-xs text-rose-600 mt-2">{error}</p>}<button onClick={asignar} className="mt-3 w-full bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-bold flex items-center justify-center gap-2"><Plus className="w-4 h-4"/>Asignar</button></div></div>
+  </section>;
 }

@@ -212,6 +212,19 @@ export class CfdiService implements OnModuleInit {
       if (!venta) {
         throw new BadRequestException('La venta vinculada no existe o pertenece a otra empresa.');
       }
+      /*
+       * `timbrarVenta` ya lo comprueba, y es la única puerta que queda. Esto
+       * está aquí porque el motor no debe depender de que su llamador se
+       * acuerde: la puerta que se quitó el 5-oct existía precisamente por eso,
+       * y timbraba contra ventas anuladas durante meses sin que nada se
+       * quejara. Un CFDI de una venta anulada es un ingreso declarado al SAT
+       * que no ocurrió, y deshacerlo pide cancelación fiscal, no un borrado.
+       */
+      if (venta.estado === 'ANULADA') {
+        throw new BadRequestException(
+          `La venta #${venta.folio ?? dto.ventaId} está anulada: no se puede facturar.`,
+        );
+      }
       const vinculada = await this.facturaRepo
         .createQueryBuilder('f')
         .where('f.empresaId=:empresaId AND f.ventaId=:ventaId', { empresaId, ventaId: dto.ventaId })

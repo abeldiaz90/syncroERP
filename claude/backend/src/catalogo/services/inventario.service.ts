@@ -6,10 +6,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager } from 'typeorm';
+import { Repository, DataSource, EntityManager, In } from 'typeorm';
 import { randomUUID } from 'crypto';
 
 import { Producto } from '../entities/producto.entity';
+import { Usuario } from '../../iam/entities/usuario.entity';
 import { MovimientoInventario } from '../entities/movimiento-inventario.entity';
 import { LoteInventario } from '../entities/lote-inventario.entity';
 import { ProductoEquivalencia } from '../entities/producto-equivalencia.entity';
@@ -1080,8 +1081,46 @@ export class InventarioService {
       .andWhere(almacenId ? 's.almacenId = :almacenId' : '1=1', { almacenId })
       .getRawOne<{ total: string }>();
 
+    /*
+     * ========================================================================
+     * El kardex guardaba quién, y no lo decía
+     * ------------------------------------------------------------------------
+     * `usuario_id` se escribe en cada movimiento desde hoy. Pero la consulta
+     * sólo traía el almacén, así que al navegador le llegaba un UUID suelto y
+     * la pantalla no pintaba columna ninguna. Guardar quién y no enseñarlo es
+     * la mitad inútil del control: la investigación empieza en el kardex, y si
+     * ahí no está el nombre, hay que ir a la base de datos a buscarlo.
+     *
+     * Se resuelve con UNA consulta por página, no con un `leftJoin` en la
+     * principal: el join obligaría a declarar la relación en la entidad y a
+     * tocar el esquema, y el kardex pagina de a cincuenta, así que los nombres
+     * distintos en una página son siempre un puñado.
+     *
+     * Un movimiento viejo, de antes de que esto se guardara, no tiene nombre y
+     * la pantalla lo dice con un guion. Es la verdad: no se sabe quién fue.
+     * ========================================================================
+     */
+    const idsDeUsuario = [
+      ...new Set(
+        data.map((m) => m.usuarioId).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const nombres = new Map<string, string>();
+    if (idsDeUsuario.length) {
+      const usuarios = await this.dataSource.getRepository(Usuario).find({
+        where: { id: In(idsDeUsuario) },
+        select: ['id', 'nombreCompleto', 'email'],
+      });
+      for (const u of usuarios) {
+        nombres.set(u.id, u.nombreCompleto?.trim() || u.email);
+      }
+    }
+
     return {
-      data,
+      data: data.map((m) => ({
+        ...m,
+        usuarioNombre: m.usuarioId ? (nombres.get(m.usuarioId) ?? null) : null,
+      })),
       total,
       pagina: page,
       limite: take,
