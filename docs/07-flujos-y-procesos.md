@@ -1,6 +1,6 @@
 # 07 · Flujos y procesos, paso a paso
 
-**Revisión:** 30 de septiembre de 2026
+**Revisión:** 5 de octubre de 2026
 **Para:** usuarios finales, quien los capacita y quien recibe el sistema.
 
 > Cada flujo de este documento está **ejercido contra el sistema corriendo o
@@ -146,7 +146,6 @@ ya movió dinero de otro, anularla dejaría un descuadre.**
 |---|---|
 | Anular sin motivo | «Indica el motivo de la anulación. Queda en la bitácora y en la póliza de reversión.» |
 | Anular una venta con devoluciones parciales | «…Devuelve el remanente desde el módulo de devoluciones; no puede anularse completa.» |
-| Anular una venta que usó saldo a favor | «…Anularla dejaría ese saldo sin restituir y la cuenta de cobro descuadrada. Regístralo como devolución total.» |
 | Anular una venta a crédito ya liquidada | «…Anular dejaría un pago sin documento que lo respalde.» |
 | Anular una venta a crédito con enganche o abonos | «…Debe procesarse como devolución con reembolso para no dejar CxC, caja e IVA inconsistentes.» |
 | Anular una venta anterior al costeo por lote | «…no existe registro de a qué lote ni a qué costo salió la mercancía, así que el sistema no puede reintegrarla sin corromper la valuación.» |
@@ -155,11 +154,43 @@ Ese último mensaje además **te dice qué hacer**: registrar la entrada a mano
 desde Inventario → Ajustes y después anular, o procesar una devolución
 indicando el lote.
 
+## Una puerta que se abrió, y por qué se podía abrir
+
+**Hasta el 5 de octubre de 2026, una venta pagada en parte con saldo a favor del
+cliente no se podía anular.** El sistema decía:
+
+> «Anularla dejaría ese saldo sin restituir y la cuenta de cobro descuadrada.
+> Regístralo como devolución total.»
+
+Y tenía razón **para el código que había**: la póliza de reversión se calculaba
+de nuevo en vez de contrarrestar la de la venta, así que no sabía del saldo a
+favor y abonaba el total a la cuenta de cobro. El pasivo con el cliente quedaba
+sin cancelar.
+
+Hoy la reversión **espeja la póliza original** —devuelve cada peso a la cuenta de
+la que salió— y además el saldo vuelve al auxiliar del cliente, que es el que
+dice cuánto le queda. Hechas las dos mitades, el motivo del bloqueo desapareció y
+el bloqueo con él.
+
+**Lo que esto significa para quien opera:** una venta con saldo a favor ya se
+anula como cualquier otra, y el cliente recupera su saldo en el mismo momento.
+Se ve en Catálogos → Clientes, en el movimiento de saldo a favor, con el
+concepto «Restitución por anulación de la venta #N».
+
 ## Lo que pasa al anular
 
 Se reintegra la mercancía **al lote y al costo originales**, se cancela el
-crédito, se revierte el movimiento de caja, se genera una **póliza de reversión**
-—no se edita la original— y se cancela el CFDI con motivo SAT `03`.
+crédito, se revierte el movimiento de caja, **se le devuelve al cliente el saldo
+a favor que la venta había consumido**, se genera una **póliza de reversión**
+—no se edita la original, se contrarresta— y se cancela el CFDI con motivo SAT
+`03`.
+
+Esa póliza de reversión es el espejo exacto de la de la venta: las mismas
+cuentas, los mismos importes, los lados invertidos. No vuelve a decidir a qué
+cuenta va cada peso, porque la póliza original ya lo dice. Eso es lo que hace que
+el enganche vuelva a caja, que el IVA se reparta entre cobrado y no cobrado igual
+que al vender, y que el saldo a favor se restituya sin que nadie tenga que
+acordarse.
 
 ---
 

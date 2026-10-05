@@ -31,6 +31,7 @@ import {
   fechaContableNegocio,
 } from '../../common/utils/business-time.util';
 import { CarteraPublicadorService } from '../../integracion/services/cartera-publicador.service';
+import { SaldosFavorService } from './saldos-favor.service';
 import { CajaService } from '../../caja/services/caja.service';
 import {
   NaturalezaMovimientoCaja,
@@ -114,6 +115,7 @@ export class AnulacionVentasService {
     private readonly cfdi: CfdiService,
     private readonly caja: CajaService,
     private readonly cartera: CarteraPublicadorService,
+    private readonly saldosFavor: SaldosFavorService,
   ) {}
 
   async anular(
@@ -460,6 +462,31 @@ export class AnulacionVentasService {
           Number(cantidadPendiente.get(detalle.productoId) ?? 0) +
             Number(detalle.cantidad),
         );
+      }
+
+      /*
+       * ══ El saldo a favor vuelve al cliente ══
+       *
+       * El bloqueo de arriba se levantó porque la póliza de reversión ya
+       * restituye el pasivo en el MAYOR. Faltaba la otra mitad: el auxiliar de
+       * saldos a favor, que es el que dice cuánto le queda al cliente. Sin
+       * esto, el mayor decía que se le devolvió y el auxiliar que no, y el
+       * cliente perdía ese dinero — exactamente lo que el bloqueo evitaba, sólo
+       * que sin aviso.
+       *
+       * Va dentro de la misma transacción que todo lo demás: si algo falla
+       * después, no queda un abono suelto sobre una venta que sigue viva.
+       */
+      const saldoFavorAplicado = Number(venta.saldoFavorAplicado ?? 0);
+      if (saldoFavorAplicado > 0 && venta.clienteId) {
+        await this.saldosFavor.abonarPorAnulacionDeVenta(em, {
+          empresaId,
+          clienteId: venta.clienteId,
+          ventaId: venta.id,
+          importe: saldoFavorAplicado,
+          concepto: `Restitución por anulación de la venta #${venta.folio}: ${motivo}`,
+          usuarioId,
+        });
       }
 
       const datosReversion = {
