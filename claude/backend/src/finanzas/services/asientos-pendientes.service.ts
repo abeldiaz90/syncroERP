@@ -371,6 +371,8 @@ export class AsientosPendientesService {
       [TipoAsiento.BAJA_ACTIVO]: 'generarAsientoDeBajaActivo',
       [TipoAsiento.DEVOLUCION_PROVEEDOR]: 'generarAsientoDeDevolucionProveedor',
       [TipoAsiento.TESORERIA]: 'generarAsientoDeTesoreria',
+      [TipoAsiento.CANCELACION_TESORERIA]:
+        'generarAsientoDeCancelacionTesoreria',
     };
 
     const nombre = metodo[tipo];

@@ -362,6 +362,53 @@ export class MotorContableService {
     return idPolizaGenerada;
   }
 
+  /**
+   * Las partidas de una póliza ya registrada, buscadas por su clave de origen.
+   *
+   * Devuelve `null` cuando esa póliza no existe: o la operación es anterior a
+   * que se guardara la clave de origen, o nunca se contabilizó.
+   */
+  private async partidasDeLaPolizaDeOrigen(
+    empresaId: string,
+    origenClave: string,
+  ): Promise<PartidaPoliza[] | null> {
+    const poliza = await this.dataSource
+      .getRepository(Poliza)
+      .findOne({ where: { empresaId, origenClave } });
+    if (!poliza) return null;
+    const partidas = await this.dataSource
+      .getRepository(PartidaPoliza)
+      .find({ where: { polizaId: poliza.id } });
+    return partidas.length > 0 ? partidas : null;
+  }
+
+  /**
+   * El espejo exacto de unas partidas: lo que era cargo pasa a abono y al revés.
+   *
+   * ESTA ES LA PIEZA QUE EVITA QUE LA REVERSIÓN SE SEPARE DE SU ORIGINAL
+   *
+   * Contrarrestar un asiento no es volver a calcularlo con el signo cambiado:
+   * es devolver cada peso a la cuenta de la que salió. Mientras la reversión se
+   * recalculaba, bastaba con que la venta aprendiera un componente nuevo
+   * —primero el saldo a favor, después el enganche— para que la reversión se
+   * quedara atrás **sin que nada fallara**, porque una póliza mal repartida
+   * cuadra igual de bien que una bien repartida.
+   *
+   * Con el espejo no hay dos lógicas que mantener sincronizadas: hay una, y la
+   * otra es su reflejo.
+   */
+  private espejoDePartidas(
+    partidas: PartidaPoliza[],
+    referencia: string,
+  ): PartidaInput[] {
+    return partidas.map((p) => ({
+      cuentaContableId: p.cuentaContableId,
+      cargo: this.redondear(Number(p.abono ?? 0)),
+      abono: this.redondear(Number(p.cargo ?? 0)),
+      referencia,
+    }));
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // REVERSIÓN DE VENTA — anulaciones y devoluciones
   //
@@ -374,6 +421,31 @@ export class MotorContableService {
   //
   // Cancelar el IVA trasladado es lo que evita enterarle al SAT impuesto de una
   // venta que no ocurrió.
+  //
+  // ───────────────────────────────────────────────────────────────────────────
+  // POR QUÉ SE ESPEJA LA PÓLIZA ORIGINAL EN VEZ DE RECALCULARLA
+  //
+  // Una venta a crédito **con enganche** no es un solo movimiento: el enganche
+  // entró a Caja y causó IVA trasladado COBRADO (208); el resto quedó en cuentas
+  // por cobrar y causó IVA trasladado NO cobrado (209). Si además se aplicó
+  // saldo a favor, se canceló un pasivo con el cliente (206).
+  //
+  // La reversión recalculada no sabía nada de eso —su firma no recibe el
+  // enganche ni el saldo a favor— y abonaba **todo** a la cuenta del método de
+  // pago cargando **todo** el IVA a una sola cuenta. El resultado:
+  //
+  //     209 .... cargada de más por el IVA del enganche
+  //     208 .... abonada para siempre: impuesto cobrado de una venta anulada
+  //     CxC .... abonada por dinero que nunca estuvo en cuentas por cobrar
+  //     Caja ... intacta: el enganche nunca salió
+  //     206 .... el saldo a favor del cliente, sin restituir
+  //
+  // Y la póliza **cuadraba**, que es lo que lo volvía invisible.
+  //
+  // Ahora, cuando existe la póliza de la venta, la reversión es su espejo exacto
+  // y no hay forma de que diverja. El cálculo se conserva sólo para ventas sin
+  // póliza de origen —las anteriores a la clave de origen— y únicamente cuando
+  // es seguro: ahí abajo se explica por qué a crédito se detiene.
   // ═══════════════════════════════════════════════════════════════════════════
   async generarAsientoDeCancelacionVenta(datos: {
     ventaId: string;
@@ -384,6 +456,16 @@ export class MotorContableService {
     cuentaBancariaId?: string;
     motivo: string;
     detalles: DetalleVentaContable[];
+    /**
+     * Cómo se repartió el cobro de la venta, para las ventas que no tienen
+     * póliza de origen que espejar.
+     *
+     * No se usan para calcular nada: se usan para **saber si es seguro
+     * calcular**. Una venta a crédito cobrada de una sola vez se revierte bien
+     * con el cálculo; una con enganche o con saldo a favor, no.
+     */
+    enganche?: number;
+    saldoFavorAplicado?: number;
   }): Promise<string | undefined> {
     let idPolizaGenerada: string | undefined;
     try {
@@ -393,9 +475,25 @@ export class MotorContableService {
         datos.empresaId,
       );
 
+      /*
+       * El espejo de la venta, si está registrada. Se piden las dos pólizas de
+       * una vez porque las dos se contrarrestan igual, y la ausencia de una no
+       * dice nada sobre la otra.
+       */
+      const partidasOriginalesCosto = await this.partidasDeLaPolizaDeOrigen(
+        datos.empresaId,
+        `VENTA:${datos.ventaId}:COSTO`,
+      );
+      const partidasOriginalesIngreso = await this.partidasDeLaPolizaDeOrigen(
+        datos.empresaId,
+        `VENTA:${datos.ventaId}:INGRESO`,
+      );
+
       // ── Reversión del costo: el inventario regresa ──
-      const partidasCosto: PartidaInput[] = [];
-      for (const det of datos.detalles) {
+      const partidasCosto: PartidaInput[] = partidasOriginalesCosto
+        ? this.espejoDePartidas(partidasOriginalesCosto, ref)
+        : [];
+      for (const det of partidasOriginalesCosto ? [] : datos.detalles) {
         const prod = prodMap.get(det.productoId);
         const cat = prod?.categoria as any;
         const costo = this.redondear(Number(det.costoTotal ?? 0));
@@ -443,6 +541,65 @@ export class MotorContableService {
       }
 
       // ── Reversión del ingreso ──
+      const esCredito = this.METODOS_CREDITO.has(datos.metodoPago ?? '');
+
+      if (partidasOriginalesIngreso) {
+        /*
+         * El camino normal: devolver cada peso a la cuenta de la que salió.
+         * No hace falta saber cómo se repartió la venta —ni el enganche, ni el
+         * IVA cobrado contra el no cobrado, ni el saldo a favor—, porque la
+         * póliza original ya lo dice.
+         */
+        idPolizaGenerada = await this.crearPoliza({
+          empresaId: datos.empresaId,
+          tipo: TipoPoliza.EGRESO,
+          concepto: `Reversión de ingreso — ${datos.folio}. ${datos.motivo}`,
+          fecha: datos.fecha,
+          partidas: this.espejoDePartidas(partidasOriginalesIngreso, ref),
+          origenClave: `ANULACION_VENTA:${datos.ventaId}:INGRESO`,
+          origenTipo: 'ANULACION_VENTA',
+          origenId: datos.ventaId,
+        });
+        return idPolizaGenerada;
+      }
+
+      /*
+       * Sin póliza de origen no se puede espejar, y entonces hay que recalcular.
+       * Recalcular es correcto para una venta cobrada de una sola vez, y NO lo
+       * es para una a crédito: el cálculo no distingue el enganche del
+       * remanente, así que repartiría mal el IVA y dejaría Caja sin tocar.
+       *
+       * Entre mentir y detenerse, se detiene — la misma doctrina que ya gobierna
+       * la anulación de ventas anteriores al costeo por lote.
+       */
+      const engancheDeclarado = this.redondear(Number(datos.enganche ?? 0));
+      const saldoFavorDeclarado = this.redondear(
+        Number(datos.saldoFavorAplicado ?? 0),
+      );
+      if (esCredito && (engancheDeclarado > 0 || saldoFavorDeclarado > 0)) {
+        /*
+         * Sólo se detiene el caso que de verdad no se puede reconstruir. Una
+         * venta a crédito cobrada de una sola vez —sin enganche y sin saldo a
+         * favor— sí se revierte bien con el cálculo: todo su IVA fue «no
+         * cobrado» y todo su importe está en cuentas por cobrar. Bloquearla
+         * también sería cambiar un defecto por una avería.
+         */
+        throw new Error(
+          `Reversión ${datos.folio}: no existe la póliza de ingreso de esta venta ` +
+            '(VENTA:…:INGRESO) y la venta llevó ' +
+            (engancheDeclarado > 0
+              ? `enganche de $${engancheDeclarado.toFixed(2)}`
+              : '') +
+            (engancheDeclarado > 0 && saldoFavorDeclarado > 0 ? ' y ' : '') +
+            (saldoFavorDeclarado > 0
+              ? `saldo a favor por $${saldoFavorDeclarado.toFixed(2)}`
+              : '') +
+            ', así que no se puede reconstruir el reparto entre caja, cuentas por cobrar ' +
+            'e IVA cobrado o por cobrar. Regístralo como devolución, que sí desglosa, ' +
+            'o captura el ajuste a mano. Ninguna póliza fue creada.',
+        );
+      }
+
       const cuentaCredito = await this.buscarCuentaSegunMetodoPago(
         datos.empresaId,
         datos.metodoPago,
@@ -456,7 +613,6 @@ export class MotorContableService {
         );
       }
 
-      const esCredito = this.METODOS_CREDITO.has(datos.metodoPago ?? '');
       const cuentaIva = await this.buscarCuentaPorRol(
         datos.empresaId,
         esCredito
@@ -2817,6 +2973,73 @@ export class MotorContableService {
       return poliza;
     } catch (err: any) {
       this.logger.error(`[Tesorería ${datos.folio}] ${err?.message}`);
+      throw err;
+    }
+  }
+
+  /**
+   * La póliza que deshace un movimiento manual de tesorería cancelado.
+   *
+   * EL DEFECTO QUE CIERRA
+   *
+   * Cancelar un movimiento manual creaba la contrapartida en
+   * `movimientos_tesoreria` y recalculaba los saldos de la cuenta bancaria —el
+   * auxiliar quedaba neto en cero— pero **no tocaba el mayor**: la póliza
+   * original seguía ahí y nadie generaba la contraria. El auxiliar y la
+   * contabilidad divergían por el importe completo, de forma permanente, y la
+   * diferencia sólo aparece al conciliar banco contra balanza.
+   *
+   * POR QUÉ ES UN ESPEJO Y NO UN CÁLCULO
+   *
+   * Por lo mismo que la anulación de venta: el movimiento original pudo ser un
+   * ingreso o un egreso, contra una contrapartida que eligió quien lo capturó, y
+   * recalcularlo obliga a repetir esas decisiones aquí. El espejo las hereda.
+   *
+   * SI LA PÓLIZA ORIGINAL NO ESTÁ, SE FALLA A PROPÓSITO
+   *
+   * Puede faltar por dos motivos, y los dos se resuelven igual: o el asiento
+   * original sigue en la cola de pendientes —y entonces este reintento lo
+   * encontrará cuando se genere—, o el movimiento nunca se contabilizó. Fallar
+   * deja el trabajo en la bandeja de asientos pendientes, que es donde se ve;
+   * devolver `undefined` lo daría por hecho y el mayor se quedaría como estaba,
+   * que es exactamente el defecto que esto corrige.
+   */
+  async generarAsientoDeCancelacionTesoreria(datos: {
+    movimientoId: string;
+    empresaId: string;
+    fecha: Date;
+    folio: string;
+    motivo: string;
+  }): Promise<string | undefined> {
+    try {
+      const partidasOriginales = await this.partidasDeLaPolizaDeOrigen(
+        datos.empresaId,
+        `TESORERIA:${datos.movimientoId}`,
+      );
+      if (!partidasOriginales) {
+        throw new Error(
+          `Cancelación de tesorería ${datos.folio}: todavía no existe la póliza del ` +
+            'movimiento original (TESORERIA:…), así que no hay nada que contrarrestar. ' +
+            'Si el asiento original sigue en la cola, este reintento lo tomará cuando ' +
+            'se genere.',
+        );
+      }
+
+      return await this.crearPoliza({
+        empresaId: datos.empresaId,
+        tipo: TipoPoliza.DIARIO,
+        concepto: `Cancelación de tesorería — ${datos.folio}. ${datos.motivo}`,
+        fecha: datos.fecha,
+        partidas: this.espejoDePartidas(
+          partidasOriginales,
+          `CANC-TES ${datos.folio}`,
+        ),
+        origenClave: `CANCELACION_TESORERIA:${datos.movimientoId}`,
+        origenTipo: 'CANCELACION_TESORERIA',
+        origenId: datos.movimientoId,
+      });
+    } catch (err: any) {
+      this.logger.error(`[Cancelación tesorería ${datos.folio}] ${err?.message}`);
       throw err;
     }
   }

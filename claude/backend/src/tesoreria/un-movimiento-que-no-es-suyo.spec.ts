@@ -57,6 +57,9 @@ describe('un movimiento que no es suyo', () => {
           }),
         }),
     };
+    /* La cancelación encola la reversión contable desde el 5-oct-2026: sin este
+       doble, el arnés mide un camino que ya no existe. */
+    s.asientos = { encolarEnTransaccion: () => Promise.resolve({ id: 'pend-1' }) };
     s.siguienteFolio = () => Promise.resolve('MOV-999');
     s.recalcularSaldos = () => Promise.resolve(undefined);
     return { s: s as unknown as TesoreriaService, guardados };

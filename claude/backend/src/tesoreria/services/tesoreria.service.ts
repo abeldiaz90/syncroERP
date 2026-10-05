@@ -589,6 +589,39 @@ export class TesoreriaService {
         new Date(original.fecha),
         manager,
       );
+
+      /*
+       * Y el mayor, que es lo que faltaba.
+       *
+       * Hasta hoy la cancelación arreglaba el auxiliar —la contrapartida de
+       * arriba y el recálculo de saldos— y dejaba la contabilidad como estaba:
+       * la póliza del movimiento original seguía ahí y nadie generaba la
+       * contraria. Banco y balanza divergían por el importe completo, para
+       * siempre, y la diferencia sólo asoma al conciliar.
+       *
+       * Se encola con el mismo criterio con que se contabilizó el original: si
+       * aquel movimiento no generó póliza —porque vino de ventas, cobranza o
+       * compras, que ya contabilizan en su módulo—, aquí tampoco hay nada que
+       * deshacer. Encolarla igualmente crearía una reversión de una póliza que
+       * no existe, que es el defecto simétrico.
+       */
+      if (ORIGENES_CONTABILIZA_TESORERIA.has(original.origen)) {
+        await this.asientos.encolarEnTransaccion(
+          manager,
+          TipoAsiento.CANCELACION_TESORERIA,
+          {
+            movimientoId: original.id,
+            empresaId,
+            fecha: fechaContableNegocio(),
+            folio: original.folio,
+            motivo,
+          },
+          empresaId,
+          `CANC-${original.folio}`,
+          original.id,
+        );
+      }
+
       return { original, contrapartida: contra };
     });
   }

@@ -311,21 +311,23 @@ export class AnulacionVentasService {
       }
 
       /*
-       * El saldo a favor aplicado no se puede revertir por esta vía.
-       * `generarAsientoDeVenta` carga la cuenta de saldos a favor de clientes
-       * cuando se aplica, pero `generarAsientoDeCancelacionVenta` no recibe
-       * `saldoFavorAplicado` y abona el total íntegro a la cuenta del método
-       * de pago: el pasivo con el cliente quedaría sin cancelar y la cuenta de
-       * cobro sobreabonada. Hasta que la reversión maneje el desglose, se
-       * exige procesarlo como devolución, que sí lo contempla.
+       * EL SALDO A FAVOR YA NO BLOQUEA — 5-oct-2026
+       *
+       * Este bloqueo existía por una razón real: la reversión recalculaba el
+       * asiento, no recibía `saldoFavorAplicado`, y abonaba el total íntegro a
+       * la cuenta del método de pago. El pasivo con el cliente quedaba sin
+       * cancelar y la cuenta de cobro sobreabonada, así que se obligaba a
+       * procesar como devolución una operación que es una anulación.
+       *
+       * Ahora la reversión **espeja la póliza de la venta**, donde el cargo a
+       * saldos a favor de clientes ya está escrito con su importe. Restituir el
+       * pasivo deja de ser algo que haya que acordarse de hacer: sale solo.
+       *
+       * El bloqueo se mantiene únicamente para las ventas sin póliza de origen,
+       * y ahí lo pone el motor contable, que es quien sabe si la encontró. Se
+       * comprueba una vez y en el sitio donde está el dato, en vez de dos veces
+       * con dos criterios que pueden separarse.
        */
-      if (Number(venta.saldoFavorAplicado ?? 0) > 0) {
-        throw new ConflictException(
-          `La venta #${venta.folio} aplicó $${Number(venta.saldoFavorAplicado).toFixed(2)} ` +
-            'de saldo a favor del cliente. Anularla dejaría ese saldo sin restituir ' +
-            'y la cuenta de cobro descuadrada. Regístralo como devolución total.',
-        );
-      }
 
       /* ══ 2. Cancelar el crédito ══ */
 
@@ -467,6 +469,15 @@ export class AnulacionVentasService {
         empresaId,
         metodoPago: venta.metodoPago,
         motivo,
+        /*
+         * Viajan para que la reversión sepa si puede calcular cuando no haya
+         * póliza de origen que espejar. No para que calcule con ellos: el
+         * reparto bueno sale de la póliza de la venta, no de recomponerlo aquí.
+         */
+        /* El enganche vive en el crédito, no en la venta: es el crédito el que
+           nace por el remanente después de lo que el cliente dejó en caja. */
+        enganche: Number(credito?.enganche ?? 0),
+        saldoFavorAplicado: Number(venta.saldoFavorAplicado ?? 0),
         detalles: venta.detalles.map((d: DetalleVenta) => {
           const costoDisponible = Number(costoPendiente.get(d.productoId) ?? 0);
           const cantidadDisponible = Number(

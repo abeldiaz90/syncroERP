@@ -68,6 +68,16 @@ export enum TipoAsiento {
   /** Mercancía que se le regresa al proveedor: la compra al revés. */
   DEVOLUCION_PROVEEDOR = 'DEVOLUCION_PROVEEDOR',
   TESORERIA = 'TESORERIA',
+  /**
+   * Cancelación de un movimiento manual de tesorería.
+   *
+   * No existía, y por eso cancelar un movimiento manual reversaba el auxiliar
+   * —se creaba la contrapartida en `movimientos_tesoreria` y se recalculaban
+   * los saldos— pero **no el mayor**: la póliza original se quedaba, y el
+   * auxiliar y la contabilidad divergían por el importe completo, para siempre
+   * y sin que nada avisara.
+   */
+  CANCELACION_TESORERIA = 'CANCELACION_TESORERIA',
 }
 
 export enum EstadoAsiento {
