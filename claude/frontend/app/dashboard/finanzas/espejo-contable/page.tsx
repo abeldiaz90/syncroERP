@@ -56,16 +56,17 @@ interface Estado {
     configurado: boolean;
     disponible: boolean;
     /*
-     * A QUÉ LIBRO DEL CORE VAN LAS PÓLIZAS DE ESTA EMPRESA.
+     * A QUÉ INSTITUCIÓN DEL CORE VAN LAS PÓLIZAS DE ESTA EMPRESA.
      *
-     * `proveedor` es «fineract»: el nombre del programa, no el libro. Esta
-     * pantalla afirma que las dos contabilidades dicen lo mismo, y hasta ahora
-     * no decía con cuál de los libros del core coincide.
+     * `proveedor` es «fineract»: el nombre del programa, no la institución.
+     * Esta pantalla afirma que las dos contabilidades dicen lo mismo, y hasta
+     * ahora no decía con cuál de las instituciones del core coincide.
      *
      * `efectivo` es el que de verdad recibe los asientos: el de la empresa si
-     * tiene uno asignado, el compartido por omisión si no. `propioDeLaEmpresa`
-     * distingue los dos casos, que es la diferencia entre un libro que es sólo
-     * suyo y uno que comparte con quien no tenga asignado el suyo.
+     * tiene una asignada, la compartida por omisión si no.
+     * `propioDeLaEmpresa` distingue los dos casos, que es la diferencia entre
+     * una institución que es sólo suya y una que comparte con quien no tenga
+     * asignada la suya.
      */
     inquilino?: { efectivo: string | null; propioDeLaEmpresa: boolean };
   };
@@ -418,30 +419,34 @@ export default function EspejoContablePage() {
 
   /*
    * ══════════════════════════════════════════════════════════════════════════
-   * CON QUÉ LIBRO COINCIDE
+   * CON QUÉ INSTITUCIÓN DEL CORE COINCIDE
    * --------------------------------------------------------------------------
    * La casilla del enlace decía «En línea · fineract». `fineract` es el nombre
-   * del programa; el libro al que llegan los asientos es el inquilino, y era
-   * justo el dato que faltaba en la pantalla que afirma que las dos
+   * del programa; la institución a la que llegan los asientos es el inquilino,
+   * y era justo el dato que faltaba en la pantalla que afirma que las dos
    * contabilidades dicen lo mismo.
    *
-   * Se dice además si el libro es sólo de esta empresa o el compartido por
-   * omisión. No es un adorno: un libro compartido es seguro mientras sea una
-   * sola empresa la que cae en él, y quien administra tiene que poder verlo sin
+   * «Institución» es la misma palabra que usa el portal de Fineract desde la
+   * pasada de terminología: quien mira las dos pantallas no debería tener que
+   * aprender que «inquilino», «tenant» y «libro» son lo mismo.
+   *
+   * Se dice además si es sólo de esta empresa o la compartida por omisión. No
+   * es un adorno: una institución compartida es segura mientras sea una sola
+   * empresa la que cae en ella, y quien administra tiene que poder verlo sin
    * abrir un archivo de configuración.
    *
    * Si el backend es anterior a este cambio, `inquilino` no viene y la casilla
-   * se queda como estaba, sin inventar un libro.
+   * se queda como estaba, sin inventar una institución.
    * ══════════════════════════════════════════════════════════════════════════
    */
-  const libroDelCore = (() => {
+  const institucionDelCore = (() => {
     const enlace = estado.datos?.enlace;
     if (!enlace) return "—";
     const nombre = enlace.inquilino?.efectivo;
     if (!nombre) return enlace.proveedor;
     return enlace.inquilino?.propioDeLaEmpresa
-      ? `${enlace.proveedor} · libro «${nombre}»`
-      : `${enlace.proveedor} · libro «${nombre}», compartido`;
+      ? `${enlace.proveedor} · institución «${nombre}»`
+      : `${enlace.proveedor} · institución «${nombre}», compartida`;
   })();
 
   return (
@@ -524,7 +529,7 @@ export default function EspejoContablePage() {
             enVuelo ? "En línea" : espejoActivo ? "Sin enlace" : "No se usa"
           }
           detalle={
-            enVuelo || espejoActivo ? libroDelCore : "el espejo está apagado"
+            enVuelo || espejoActivo ? institucionDelCore : "el espejo está apagado"
           }
         />
       </div>

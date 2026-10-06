@@ -16,8 +16,8 @@ import { IntegracionController } from './controllers/integracion.controller';
  * el del inquilino.
  *
  * No había contradicción, pero sí un hueco: la pantalla que termina diciendo
- * «Coinciden en las 5 póliza(s) espejadas» no decía con cuál de los libros del
- * core coincide. Y el inquilino es precisamente la frontera que decide a qué
+ * «Coinciden en las 5 póliza(s) espejadas» no decía con cuál de las
+ * instituciones del core coincide. Y el inquilino es precisamente la frontera que decide a qué
  * libro llegaron los asientos: desde el ERP cada empresa ve sólo lo suyo, y es
  * el core quien las tendría juntas si dos cayeran en el mismo inquilino.
  *
@@ -195,21 +195,26 @@ describe('y la pantalla lo pinta', () => {
 
   it('la casilla del enlace ya no pinta sólo el nombre del proveedor', () => {
     const s = pantalla();
-    expect(s).toMatch(/detalle=\{\s*\n?\s*enVuelo \|\| espejoActivo \? libroDelCore/);
+    expect(s).toMatch(/detalle=\{\s*\n?\s*enVuelo \|\| espejoActivo \? institucionDelCore/);
     expect(s).not.toMatch(/enlace\.proveedor \?\? "—"/);
   });
 
-  it('dice el libro, y dice cuándo es compartido', () => {
+  it('dice la institución, y dice cuándo es compartida', () => {
+    /*
+     * «Institución» es la palabra que usa el portal de Fineract. Llamarlo aquí
+     * «libro» o «inquilino» obligaría a quien mira las dos pantallas a aprender
+     * que son lo mismo.
+     */
     const s = pantalla();
-    expect(s).toMatch(/propioDeLaEmpresa\s*\n?\s*\?\s*`\$\{enlace\.proveedor\} · libro «\$\{nombre\}»`/);
-    expect(s).toMatch(/libro «\$\{nombre\}», compartido/);
+    expect(s).toMatch(/propioDeLaEmpresa\s*\n?\s*\?\s*`\$\{enlace\.proveedor\} · institución «\$\{nombre\}»`/);
+    expect(s).toMatch(/institución «\$\{nombre\}», compartida/);
   });
 
-  it('y sin el dato se queda como estaba, sin inventar un libro', () => {
+  it('y sin el dato se queda como estaba, sin inventar una institución', () => {
     /*
      * El frontend vivo puede ir por delante del backend durante un despliegue.
-     * «libro «undefined»» en la pantalla del espejo contable sería peor que no
-     * decir nada.
+     * «institución «undefined»» en la pantalla del espejo contable sería peor
+     * que no decir nada.
      */
     const s = pantalla();
     expect(s).toMatch(/if \(!nombre\) return enlace\.proveedor;/);
