@@ -62,7 +62,26 @@ const configuracionCon = (
     unknown
   >;
   s.configEmpresa = { find: async () => filas };
+  s.reparto = null;
   return s as unknown as ContextoInquilinoService;
+};
+
+/** El mismo doble, contando cuántas veces se lee la tabla. */
+const contando = (filas: Array<Record<string, unknown>>) => {
+  const s = Object.create(ContextoInquilinoService.prototype) as Record<
+    string,
+    unknown
+  >;
+  const consultas = { veces: 0 };
+  s.configEmpresa = {
+    find: async () => {
+      consultas.veces += 1;
+      return filas;
+    },
+  };
+  s.reparto = null;
+  s.cache = new Map();
+  return { c: s as unknown as ContextoInquilinoService, consultas };
 };
 
 const empresa = (
@@ -176,6 +195,95 @@ describe('quién acaba escribiendo en un inquilino', () => {
      */
     const c = configuracionCon([empresa('e1'), empresa('e2')]);
     expect(await c.empresasQueCaenEn('', '')).toEqual([]);
+  });
+});
+
+describe('y no se lee la tabla en cada llamada al core', () => {
+  /*
+   * POR QUÉ ESTO IMPORTA AHORA Y ANTES NO. La comprobación de mezcla pasó a
+   * correr en CADA salida al core, no sólo en el respaldo al inquilino global.
+   * Sin caché serían dos consultas por operación —la del inquilino de la
+   * empresa y ésta, que lee la tabla entera— en el camino de un desembolso.
+   *
+   * Un caché es justo donde vive un fallo silencioso, así que se mide: que
+   * ahorre, y que se entere cuando algo cambia.
+   */
+  it('una consulta sirve para todas las preguntas del minuto', async () => {
+    const { c, consultas } = contando([
+      empresa('e1', { parametrosProveedor: { tenant: 'cliente_uno' } }),
+      empresa('e2'),
+    ]);
+    await c.empresasQueCaenEn('cliente_uno', GLOBAL);
+    await c.empresasQueCaenEn(GLOBAL, GLOBAL);
+    await c.empresasQueCaenEn('cliente_uno', GLOBAL);
+    expect(consultas.veces).toBe(1);
+  });
+
+  it('y las respuestas siguen siendo las de cada inquilino', async () => {
+    /*
+     * Un caché que devuelve lo mismo a todo el mundo también ahorra consultas.
+     */
+    const { c } = contando([
+      empresa('e1', { parametrosProveedor: { tenant: 'cliente_uno' } }),
+      empresa('e2'),
+    ]);
+    expect(await c.empresasQueCaenEn('cliente_uno', GLOBAL)).toEqual(['e1']);
+    expect(await c.empresasQueCaenEn(GLOBAL, GLOBAL)).toEqual(['e2']);
+    expect(await c.empresasQueCaenEn('nadie', GLOBAL)).toEqual([]);
+  });
+
+  it('asignar un inquilino lo invalida: el control no puede seguir negándose', async () => {
+    /*
+     * El caso real: alguien ve el error, asigna el inquilino desde la consola
+     * de SUMA y vuelve a intentar. Si el reparto siguiera vivo, el ERP se
+     * negaría otro minuto con un motivo que ya no es cierto — y quien esté
+     * delante concluirá que el arreglo no sirvió.
+     */
+    const { c, consultas } = contando([empresa('e1'), empresa('e2')]);
+    await c.empresasQueCaenEn(GLOBAL, GLOBAL);
+    expect(consultas.veces).toBe(1);
+    c.invalidar('e1');
+    await c.empresasQueCaenEn(GLOBAL, GLOBAL);
+    expect(consultas.veces).toBe(2);
+  });
+
+  it('y al minuto se vuelve a mirar, aunque nadie avise', async () => {
+    /*
+     * ESTO LO DESTAPÓ UN MUTANTE QUE SOBREVIVIÓ: poner el vencimiento en el
+     * infinito no rompía ninguna prueba, porque ninguna dejaba pasar el tiempo.
+     *
+     * El vencimiento es la red de seguridad del caché: alguien puede cambiar la
+     * configuración por un camino que no avise —una migración, una corrección
+     * en la base, un despliegue— y sin él el ERP se quedaría con esa foto hasta
+     * reiniciarse. Un minuto de retraso es aceptable; para siempre, no.
+     */
+    const { c, consultas } = contando([empresa('e1')]);
+    const ahora = Date.now();
+    const reloj = jest.spyOn(Date, 'now').mockReturnValue(ahora);
+    try {
+      await c.empresasQueCaenEn(GLOBAL, GLOBAL);
+      reloj.mockReturnValue(ahora + 59_000);
+      await c.empresasQueCaenEn(GLOBAL, GLOBAL);
+      expect(consultas.veces).toBe(1);
+      reloj.mockReturnValue(ahora + 61_000);
+      await c.empresasQueCaenEn(GLOBAL, GLOBAL);
+      expect(consultas.veces).toBe(2);
+    } finally {
+      reloj.mockRestore();
+    }
+  });
+
+  it('invalidar una empresa borra el reparto entero, no sólo su fila', async () => {
+    /*
+     * Asignarle un inquilino a UNA empresa la saca de un grupo y la mete en
+     * otro: el reparto de las demás cambia con ella. Un invalidado por empresa
+     * dejaría al resto mirando una foto vieja.
+     */
+    const { c, consultas } = contando([empresa('e1'), empresa('e2')]);
+    await c.empresasQueCaenEn(GLOBAL, GLOBAL);
+    c.invalidar('otra-empresa-distinta');
+    await c.empresasQueCaenEn(GLOBAL, GLOBAL);
+    expect(consultas.veces).toBe(2);
   });
 });
 

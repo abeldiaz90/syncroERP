@@ -324,7 +324,16 @@ describe('los tres modos de contratación', () => {
       hayLibre?: boolean;
     }) {
       const guardado: Cualquiera[] = [];
+      /*
+       * A QUIÉN SE LE AVISA. Este doble se quedó corto en cuanto
+       * `asignarInquilino` empezó a invalidar el caché del contexto, y se puso
+       * rojo con «Cannot read properties of undefined» — que es la forma BUENA
+       * de que un doble se quede atrás: ruidosa. Se anota la llamada en vez de
+       * ignorarla, porque es justo lo que hay que comprobar.
+       */
+      const invalidados: Array<string | undefined> = [];
       const s = Object.create(AltaEmpresasService.prototype) as Cualquiera;
+      s.inquilinos = { invalidar: (id?: string) => invalidados.push(id) };
       s.empresas = {
         findOne: () => Promise.resolve({ id: 'e1', nombreComercial: 'SUMA Local' }),
       };
@@ -347,7 +356,7 @@ describe('los tres modos de contratación', () => {
             },
           }),
       };
-      return { s: s as unknown as AltaEmpresasService, guardado };
+      return { s: s as unknown as AltaEmpresasService, guardado, invalidados };
     }
 
     it('entrega el inquilino y lo escribe TAMBIÉN en la configuración', async () => {
@@ -368,6 +377,24 @@ describe('los tres modos de contratación', () => {
        */
       const cfg = guardado.find((g) => g.parametrosProveedor !== undefined) as Cualquiera;
       expect(cfg.parametrosProveedor).toEqual({ otro: 1, tenant: 't007' });
+    });
+
+    it('y avisa al contexto, para que no siga creyendo que no tiene', async () => {
+      /*
+       * EL CACHÉ NO SE ENTERA SOLO. `ContextoInquilinoService` guarda por un
+       * minuto el inquilino de cada empresa y el reparto de empresas por
+       * inquilino. Sin este aviso, la empresa que acaba de estrenar inquilino
+       * sigue pareciendo durante ese minuto una empresa sin él.
+       *
+       * Antes eso significaba escribir en el inquilino global —el libro de
+       * otra—. Ahora, con el control de mezcla, significa además que el ERP
+       * puede negarse a operar justo después de que alguien arreglara la
+       * configuración desde la consola: el peor momento posible para dar un
+       * error que ya no es cierto.
+       */
+      const { s, invalidados } = servicio({ modo: ModoCartera.SOMBRA });
+      await s.asignarInquilino('e1', 'abel@suma.mx');
+      expect(invalidados).toEqual(['e1']);
     });
 
     it('no le da inquilino a quien no contrató el core', async () => {

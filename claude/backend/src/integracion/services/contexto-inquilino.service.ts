@@ -47,6 +47,8 @@ export class ContextoInquilinoService {
   private readonly logger = new Logger(ContextoInquilinoService.name);
   private readonly almacen = new AsyncLocalStorage<Contexto>();
   private readonly cache = new Map<string, { valor: string | null; expira: number }>();
+  /** El reparto de empresas por inquilino efectivo. Ver `repartoPorInquilino`. */
+  private reparto: { valor: Map<string, string[]>; expira: number } | null = null;
 
   constructor(
     @InjectRepository(ConfiguracionIntegracionEmpresa)
@@ -136,30 +138,56 @@ export class ContextoInquilinoService {
   async empresasQueCaenEn(inquilino: string, global: string): Promise<string[]> {
     const buscado = inquilino.trim();
     if (!buscado) return [];
+    return (await this.repartoPorInquilino(global)).get(buscado) ?? [];
+  }
+
+  /**
+   * Qué empresas acaban en cada inquilino. Una consulta por minuto.
+   *
+   * Con caché porque la comprobación de mezcla pasó a correr en **cada** salida
+   * al core, no sólo en el respaldo al global: sin esto serían dos consultas
+   * por operación —la del inquilino de la empresa y ésta, que lee la tabla
+   * entera— en el camino de un desembolso.
+   *
+   * El minuto es el mismo que el del inquilino por empresa, y por la misma
+   * razón: asignar uno desde la consola invalida las dos a la vez.
+   */
+  private async repartoPorInquilino(global: string): Promise<Map<string, string[]>> {
+    if (this.reparto && this.reparto.expira > Date.now()) return this.reparto.valor;
+
+    const mapa = new Map<string, string[]>();
     const filas = await this.configEmpresa.find();
-    return filas
-      .filter((f) => {
-        /*
-         * Sólo las que hablan con el core. Cualquiera de los dos interruptores
-         * basta: uno manda cartera y el otro asientos, y los dos escriben en el
-         * inquilino. Mirar sólo `modo` dejaría fuera a quien replica el mayor,
-         * que es justo lo que se mezcla.
-         */
-        const activa =
-          String(f.modo ?? 'APAGADO') !== 'APAGADO' ||
-          String(f.modoContabilidad ?? 'APAGADO') !== 'APAGADO';
-        if (!activa) return false;
-        const parametros = (f.parametrosProveedor ?? {}) as { tenant?: string };
-        /* Un inquilino en blanco no es una asignación: cae al global. */
-        const efectivo = parametros.tenant?.trim() || global.trim();
-        return efectivo === buscado;
-      })
-      .map((f) => f.empresaId);
+    for (const f of filas) {
+      /*
+       * Sólo las que hablan con el core. Cualquiera de los dos interruptores
+       * basta: uno manda cartera y el otro asientos, y los dos escriben en el
+       * inquilino. Mirar sólo `modo` dejaría fuera a quien replica el mayor,
+       * que es justo lo que se mezcla.
+       */
+      const activa =
+        String(f.modo ?? 'APAGADO') !== 'APAGADO' ||
+        String(f.modoContabilidad ?? 'APAGADO') !== 'APAGADO';
+      if (!activa) continue;
+      const parametros = (f.parametrosProveedor ?? {}) as { tenant?: string };
+      /* Un inquilino en blanco no es una asignación: cae al global. */
+      const efectivo = parametros.tenant?.trim() || global.trim();
+      if (!efectivo) continue;
+      mapa.set(efectivo, [...(mapa.get(efectivo) ?? []), f.empresaId]);
+    }
+    this.reparto = { valor: mapa, expira: Date.now() + TTL_MS };
+    return mapa;
   }
 
   /** Tras asignar un inquilino, para no esperar el minuto del caché. */
   invalidar(empresaId?: string) {
     if (empresaId) this.cache.delete(empresaId);
     else this.cache.clear();
+    /*
+     * El reparto SIEMPRE, aunque se invalide una sola empresa: asignarle un
+     * inquilino la saca de un grupo y la mete en otro, así que el reparto de
+     * las demás cambia con ella. Dejarlo vivo haría que el control siguiera
+     * negándose un minuto después de haberlo arreglado desde la consola.
+     */
+    this.reparto = null;
   }
 }

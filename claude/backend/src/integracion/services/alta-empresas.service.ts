@@ -10,6 +10,7 @@ import { DataSource, Repository } from 'typeorm';
 
 import { Empresa } from '../../iam/entities/empresa.entity';
 import { Usuario } from '../../iam/entities/usuario.entity';
+import { ContextoInquilinoService } from './contexto-inquilino.service';
 import { AuditoriaService } from '../../auditoria/services/auditoria.service';
 import { CATALOGO_POR_OMISION } from '../../credito/services/productos-credito.service';
 import { ProductoCredito, EstadoProductoCredito } from '../../credito/entities/producto-credito.entity';
@@ -65,6 +66,8 @@ export class AltaEmpresasService {
     private readonly productos: Repository<ProductoCredito>,
     @InjectRepository(Usuario)
     private readonly usuarios: Repository<Usuario>,
+    /* Para avisar en cuanto una empresa estrena inquilino. Ver `tomarInquilino`. */
+    private readonly inquilinos: ContextoInquilinoService,
   ) {}
 
   /**
@@ -584,6 +587,23 @@ export class AltaEmpresasService {
           tenant: tenant.identificador,
         };
         await em.save(configuracion);
+        /*
+         * ────────────────────────────────────────────────────────────────────
+         * EL CACHÉ NO SE ENTERA SOLO
+         * --------------------------------------------------------------------
+         * `ContextoInquilinoService` guarda por un minuto el inquilino de cada
+         * empresa y el reparto de empresas por inquilino. Sin este aviso, la
+         * empresa que acaba de estrenar inquilino sigue pareciendo, durante ese
+         * minuto, una empresa sin él.
+         *
+         * Antes eso significaba escribir en el inquilino global —el libro de
+         * otra—. Ahora, con el control de mezcla, significa además que el ERP
+         * puede negarse a operar justo después de que alguien arreglara la
+         * configuración desde la consola, que es el peor momento para dar un
+         * error que ya no es cierto.
+         * ────────────────────────────────────────────────────────────────────
+         */
+        this.inquilinos.invalidar(empresaId);
       }
 
       await this.auditoria.registrar({
