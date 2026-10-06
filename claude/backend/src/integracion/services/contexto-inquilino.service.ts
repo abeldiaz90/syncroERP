@@ -107,36 +107,52 @@ export class ContextoInquilinoService {
 
   /**
    * ══════════════════════════════════════════════════════════════════════════
-   * CUÁNTAS EMPRESAS ESTÁN HABLANDO CON EL CORE SIN INQUILINO PROPIO
+   * QUIÉN MÁS ESCRIBE EN ESTE INQUILINO
    * --------------------------------------------------------------------------
-   * El respaldo al inquilino global —cuando el interruptor está apagado y la
-   * empresa no tiene el suyo— es la configuración de hoy y funciona: hay UNA
-   * empresa operando, y el inquilino global es el suyo.
+   * En Fineract el inquilino es la frontera de verdad. Dos empresas dentro del
+   * mismo comparten clientes, cartera y mayor, y el core no da error: escribir
+   * en el inquilino de otro es una escritura perfectamente válida. Nadie se
+   * entera hasta que alguien ve en su cartera un crédito que no es suyo.
    *
-   * Deja de funcionar en el instante en que una segunda empresa enciende la
-   * integración sin inquilino asignado: sus clientes, sus créditos y su mayor
-   * caen en el MISMO inquilino de Fineract que los de la primera. No da error
-   * —escribir en el inquilino de otro es una escritura válida— y no se nota
-   * hasta que alguien ve en su cartera un crédito que no es suyo.
+   * POR QUÉ ESTO Y NO «CUÁNTAS NO TIENEN INQUILINO»
    *
-   * La cabecera de `alta-empresas.service.ts` ya lo dice con todas sus letras:
-   * «hasta que cada empresa tenga su realm, sólo UNA empresa puede operar con
-   * el core». Esto lo convierte de advertencia en comprobación.
+   * La primera versión de este control contaba las empresas con la integración
+   * encendida y **sin** inquilino propio, y se negaba con dos o más. Cubría el
+   * caso que tenía en la cabeza —dos empresas cayendo al global por respaldo—
+   * y dejaba fuera el que de verdad está montado hoy.
    *
-   * Se cuenta y no se confía en una bandera porque la condición es sobre el
-   * CONJUNTO: una empresa sola sin inquilino es correcta; dos, es una mezcla.
+   * Lo enseñó la pantalla de espejo contable, en cuanto empezó a decir el
+   * inquilino: la empresa que opera **tiene `default` asignado explícitamente**,
+   * y `default` es también el inquilino global. Así que una segunda empresa sin
+   * inquilino caería al global… que es el libro de la primera. Ninguna de las
+   * dos aparecía en la lista de «sin inquilino» más de una vez, y el control no
+   * se habría disparado.
+   *
+   * La condición correcta no es cuántas carecen de inquilino, sino **cuántas
+   * acaban en el mismo**. El inquilino efectivo de una empresa es el suyo si lo
+   * tiene y el global si no; con eso, los dos casos son el mismo caso.
    * ══════════════════════════════════════════════════════════════════════════
    */
-  async empresasSinInquilinoConIntegracionActiva(): Promise<string[]> {
+  async empresasQueCaenEn(inquilino: string, global: string): Promise<string[]> {
+    const buscado = inquilino.trim();
+    if (!buscado) return [];
     const filas = await this.configEmpresa.find();
     return filas
       .filter((f) => {
+        /*
+         * Sólo las que hablan con el core. Cualquiera de los dos interruptores
+         * basta: uno manda cartera y el otro asientos, y los dos escriben en el
+         * inquilino. Mirar sólo `modo` dejaría fuera a quien replica el mayor,
+         * que es justo lo que se mezcla.
+         */
         const activa =
           String(f.modo ?? 'APAGADO') !== 'APAGADO' ||
           String(f.modoContabilidad ?? 'APAGADO') !== 'APAGADO';
         if (!activa) return false;
         const parametros = (f.parametrosProveedor ?? {}) as { tenant?: string };
-        return !parametros.tenant?.trim();
+        /* Un inquilino en blanco no es una asignación: cae al global. */
+        const efectivo = parametros.tenant?.trim() || global.trim();
+        return efectivo === buscado;
       })
       .map((f) => f.empresaId);
   }

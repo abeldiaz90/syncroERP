@@ -151,11 +151,16 @@ export class FineractHttpService {
             'falta abrir el contexto de empresa antes de llamar al core.',
         );
       }
-      return this.cfg.tenant;
+      /*
+       * Un proceso del sistema sin empresa escribe en el global. Pasa por la
+       * misma comprobación: si dos empresas ya comparten ese libro, un asiento
+       * del sistema cae encima de los dos igual que cualquier otro.
+       */
+      return this.nadieMasEscribeAhi(this.cfg.tenant);
     }
 
     const suyo = await this.inquilinos.inquilinoDe(empresaId);
-    if (suyo) return suyo;
+    if (suyo) return this.nadieMasEscribeAhi(suyo);
 
     if (porEmpresa) {
       throw new Error(
@@ -169,37 +174,46 @@ export class FineractHttpService {
      * ────────────────────────────────────────────────────────────────────────
      * EL RESPALDO AL INQUILINO GLOBAL VALE PARA UNA EMPRESA, NO PARA DOS
      * ------------------------------------------------------------------------
-     * Con el interruptor apagado, una empresa sin inquilino propio caía al
-     * global. Eso es correcto mientras haya UNA operando: el global es el suyo.
-     *
-     * Con dos, deja de serlo. Sus clientes, sus créditos y su mayor caerían en
-     * el mismo inquilino de Fineract que los de la otra, y no daría error:
-     * escribir en el inquilino de otro es una escritura perfectamente válida
-     * para el core. Nadie se entera hasta que alguien ve en su cartera un
-     * crédito que no es suyo, y para entonces ya hay dos carteras entreveradas
-     * en una base que no sabe separarlas.
-     *
-     * La cabecera de `alta-empresas.service.ts` ya lo advertía —«hasta que cada
-     * empresa tenga su realm, sólo UNA empresa puede operar con el core»—. Una
-     * advertencia en un comentario no detiene una escritura.
-     *
-     * El error nombra a las empresas y dice las dos salidas reales, porque
-     * quien lo lea estará en medio de un alta y necesita saber qué hacer.
+     * Con el interruptor apagado, una empresa sin inquilino propio cae al
+     * global. Eso es correcto mientras sea la única que acaba ahí: el global es
+     * su libro. Deja de serlo en cuanto otra también acaba ahí —porque tampoco
+     * tiene el suyo, o porque el suyo ES el global, que es la configuración de
+     * hoy—. Y no daría error: escribir en el inquilino de otro es una escritura
+     * perfectamente válida para el core.
      * ────────────────────────────────────────────────────────────────────────
      */
-    const sinInquilino =
-      await this.inquilinos.empresasSinInquilinoConIntegracionActiva();
-    if (sinInquilino.length > 1) {
+    return this.nadieMasEscribeAhi(this.cfg.tenant);
+  }
+
+  /**
+   * Devuelve el inquilino, o se niega si hay más de una empresa escribiendo en
+   * él.
+   *
+   * Va en los DOS caminos —el inquilino propio y el respaldo al global— porque
+   * la mezcla no depende de cómo se llegó: depende de cuántas acaban dentro.
+   * Dos empresas con el mismo inquilino asignado a mano se mezclan igual que
+   * dos cayendo al global, y la primera versión de este control sólo miraba el
+   * segundo caso.
+   *
+   * El mensaje nombra a las empresas y dice las salidas reales, porque quien lo
+   * lea estará en medio de un alta y necesita saber qué hacer.
+   */
+  private async nadieMasEscribeAhi(inquilino: string): Promise<string> {
+    const comparten = await this.inquilinos.empresasQueCaenEn(
+      inquilino,
+      this.cfg.tenant,
+    );
+    if (comparten.length > 1) {
       throw new Error(
-        `Hay ${sinInquilino.length} empresas con la integracion encendida y sin ` +
-          `inquilino propio en el core (${sinInquilino.join(', ')}). Todas caerian ` +
-          'en el inquilino global y sus carteras quedarian mezcladas. ' +
-          'Asigna un inquilino a cada una desde la consola de SUMA, o deja ' +
-          'encendida la integracion de una sola empresa.',
+        `Hay ${comparten.length} empresas con la integracion encendida que ` +
+          `escriben en el mismo inquilino del core, «${inquilino}» ` +
+          `(${comparten.join(', ')}). Sus clientes, su cartera y su mayor ` +
+          'quedarian mezclados, y el core no lo impide. Asigna a cada una su ' +
+          'propio inquilino desde la consola de SUMA, o deja encendida la ' +
+          'integracion de una sola empresa.',
       );
     }
-
-    return this.cfg.tenant;
+    return inquilino;
   }
 
   /**

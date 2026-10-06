@@ -5,7 +5,7 @@ import { ContextoInquilinoService } from './services/contexto-inquilino.service'
 
 /**
  * ============================================================================
- * EL RESPALDO AL INQUILINO GLOBAL VALE PARA UNA EMPRESA, NO PARA DOS
+ * NO ES CUÁNTAS NO TIENEN INQUILINO: ES CUÁNTAS ACABAN EN EL MISMO
  * ----------------------------------------------------------------------------
  * EL CASO, Y DÓNDE ESTABA ESCRITO
  *
@@ -17,31 +17,38 @@ import { ContextoInquilinoService } from './services/contexto-inquilino.service'
  *   2. el asignado a la empresa del contexto,
  *   3. y si no tiene, **el global**.
  *
- * El paso 3 es correcto mientras haya UNA empresa operando: el inquilino global
- * es el suyo. Deja de serlo en el instante en que una segunda enciende la
- * integración sin inquilino asignado — sus clientes y su cartera caen en el
- * MISMO inquilino que los de la primera.
+ * Dos empresas dentro del mismo inquilino comparten cartera y mayor, y el core
+ * no da error: escribir en el inquilino de otro es una escritura perfectamente
+ * válida. Nadie se entera hasta que alguien ve en su cartera un crédito que no
+ * es suyo.
  *
- * Y no da error. Escribir en el inquilino de otro es, para el core, una
- * escritura perfectamente válida. Nadie se entera hasta que alguien ve en su
- * cartera un crédito que no es suyo, y para entonces hay dos carteras
- * entreveradas en una base que no sabe separarlas.
+ * LA PRIMERA VERSIÓN DE ESTE CONTROL MIRABA LO QUE NO ERA
  *
- * Lo más llamativo: el sistema YA LO SABÍA. La cabecera de
- * `alta-empresas.service.ts` lo dice con todas sus letras —«hasta que cada
- * empresa tenga su realm, sólo UNA empresa puede operar con el core»— y la de
- * `contexto-inquilino.service.ts` explica que el interruptor
- * `FINERACT_TENANT_POR_EMPRESA` existe para eso y está apagado.
+ * Contaba las empresas con la integración encendida y **sin** inquilino propio,
+ * y se negaba con dos o más. Cubría el caso que yo tenía en la cabeza —dos
+ * empresas cayendo al global por respaldo— y dejaba fuera el que de verdad está
+ * montado hoy.
  *
- * Una advertencia en un comentario no detiene una escritura.
+ * Lo enseñó **la pantalla**, en cuanto el espejo contable empezó a decir el
+ * inquilino: la casilla puso «fineract · institución «default»» **sin la
+ * palabra «compartida»**, que es como esa pantalla dice que el inquilino está
+ * asignado a la empresa, no heredado. O sea: la empresa que opera tiene
+ * `default` asignado explícitamente, y `default` es también el inquilino
+ * global. Una segunda empresa sin inquilino caería al global… que es el libro
+ * de la primera. **Ninguna de las dos habría aparecido dos veces en la lista de
+ * «sin inquilino», y el control no se habría disparado.**
  *
- * EL ARREGLO
+ * La condición correcta no es cuántas carecen de inquilino, sino cuántas acaban
+ * en el mismo. El inquilino efectivo de una empresa es el suyo si lo tiene y el
+ * global si no; con eso, los dos casos son el mismo caso, y aparece un tercero
+ * que antes tampoco se veía: dos empresas con el mismo inquilino asignado a
+ * mano.
  *
- * No se enciende el interruptor —esa es una decisión de despliegue, y encenderlo
- * deja fuera del core a toda empresa sin inquilino, incluida la que opera hoy—.
- * Lo que se hace es comprobar la condición exacta que vuelve peligroso el
- * respaldo: que haya MÁS DE UNA empresa con la integración encendida y sin
- * inquilino propio. Con una, todo sigue igual. Con dos, se niega y las nombra.
+ * NO SE ENCIENDE EL INTERRUPTOR
+ *
+ * `FINERACT_TENANT_POR_EMPRESA` sigue apagado: encenderlo deja fuera del core a
+ * toda empresa sin inquilino, incluida la que opera hoy. Eso es una decisión de
+ * despliegue. Esto es la comprobación que hace falta mientras esté apagado.
  * ============================================================================
  */
 
@@ -69,17 +76,66 @@ const empresa = (
   ...extra,
 });
 
-describe('quién está hablando con el core sin inquilino propio', () => {
-  it('una empresa con la integración encendida y sin inquilino: sale en la lista', async () => {
+const GLOBAL = 'default';
+
+describe('quién acaba escribiendo en un inquilino', () => {
+  it('la que no tiene el suyo cae en el global', async () => {
     const c = configuracionCon([empresa('e1')]);
-    expect(await c.empresasSinInquilinoConIntegracionActiva()).toEqual(['e1']);
+    expect(await c.empresasQueCaenEn(GLOBAL, GLOBAL)).toEqual(['e1']);
   });
 
-  it('con inquilino asignado NO sale: ésa ya opera en su casa', async () => {
+  it('la que tiene el suyo no cae en el global', async () => {
     const c = configuracionCon([
       empresa('e1', { parametrosProveedor: { tenant: 'cliente_uno' } }),
     ]);
-    expect(await c.empresasSinInquilinoConIntegracionActiva()).toEqual([]);
+    expect(await c.empresasQueCaenEn(GLOBAL, GLOBAL)).toEqual([]);
+    expect(await c.empresasQueCaenEn('cliente_uno', GLOBAL)).toEqual(['e1']);
+  });
+
+  it('EL CASO DE HOY: una con «default» asignado y otra sin inquilino', async () => {
+    /*
+     * ÉSTE ES EL QUE SE ESCAPABA, Y ES LA CONFIGURACIÓN REAL. La empresa que
+     * opera tiene `default` asignado a mano —lo dijo la pantalla de espejo
+     * contable—, y `default` es el global. La segunda, sin inquilino, cae
+     * exactamente en su libro.
+     *
+     * Con el control anterior, la lista de «sin inquilino» tenía UN elemento y
+     * no se disparaba nada.
+     */
+    const c = configuracionCon([
+      empresa('la-que-opera', { parametrosProveedor: { tenant: 'default' } }),
+      empresa('la-nueva'),
+    ]);
+    expect(await c.empresasQueCaenEn(GLOBAL, GLOBAL)).toEqual([
+      'la-que-opera',
+      'la-nueva',
+    ]);
+  });
+
+  it('y el que ya cubría: dos sin inquilino', async () => {
+    const c = configuracionCon([empresa('e1'), empresa('e2')]);
+    expect(await c.empresasQueCaenEn(GLOBAL, GLOBAL)).toEqual(['e1', 'e2']);
+  });
+
+  it('y uno que tampoco veía: dos con el MISMO inquilino asignado a mano', async () => {
+    /*
+     * Un dedazo en la consola de SUMA, o un identificador reusado de la
+     * reserva. Ninguna de las dos está «sin inquilino», y se mezclan igual.
+     */
+    const c = configuracionCon([
+      empresa('e1', { parametrosProveedor: { tenant: 'cliente_uno' } }),
+      empresa('e2', { parametrosProveedor: { tenant: 'cliente_uno' } }),
+    ]);
+    expect(await c.empresasQueCaenEn('cliente_uno', GLOBAL)).toEqual(['e1', 'e2']);
+  });
+
+  it('dos empresas en inquilinos distintos no se tocan', async () => {
+    const c = configuracionCon([
+      empresa('e1', { parametrosProveedor: { tenant: 'cliente_uno' } }),
+      empresa('e2', { parametrosProveedor: { tenant: 'cliente_dos' } }),
+    ]);
+    expect(await c.empresasQueCaenEn('cliente_uno', GLOBAL)).toEqual(['e1']);
+    expect(await c.empresasQueCaenEn('cliente_dos', GLOBAL)).toEqual(['e2']);
   });
 
   it('un inquilino en blanco cuenta como no tenerlo', async () => {
@@ -90,14 +146,14 @@ describe('quién está hablando con el core sin inquilino propio', () => {
     const c = configuracionCon([
       empresa('e1', { parametrosProveedor: { tenant: '   ' } }),
     ]);
-    expect(await c.empresasSinInquilinoConIntegracionActiva()).toEqual(['e1']);
+    expect(await c.empresasQueCaenEn(GLOBAL, GLOBAL)).toEqual(['e1']);
   });
 
   it('con la integración apagada no cuenta: no habla con el core', async () => {
     const c = configuracionCon([
       empresa('e1', { modo: 'APAGADO', modoContabilidad: 'APAGADO' }),
     ]);
-    expect(await c.empresasSinInquilinoConIntegracionActiva()).toEqual([]);
+    expect(await c.empresasQueCaenEn(GLOBAL, GLOBAL)).toEqual([]);
   });
 
   it('basta con que esté encendida la contabilidad, aunque la cartera no', async () => {
@@ -109,28 +165,17 @@ describe('quién está hablando con el core sin inquilino propio', () => {
     const c = configuracionCon([
       empresa('e1', { modo: 'APAGADO', modoContabilidad: 'ESPEJO' }),
     ]);
-    expect(await c.empresasSinInquilinoConIntegracionActiva()).toEqual(['e1']);
+    expect(await c.empresasQueCaenEn(GLOBAL, GLOBAL)).toEqual(['e1']);
   });
 
-  it('dos empresas así son el caso que no puede pasar', async () => {
-    const c = configuracionCon([empresa('e1'), empresa('e2')]);
-    expect(await c.empresasSinInquilinoConIntegracionActiva()).toEqual([
-      'e1',
-      'e2',
-    ]);
-  });
-
-  it('y una con inquilino junto a otra sin él deja sólo a la segunda', async () => {
+  it('preguntar por un inquilino vacío no devuelve a todo el mundo', async () => {
     /*
-     * El caso de la migración: la primera ya tiene su inquilino, la nueva
-     * todavía no. Una sola sin inquilino sigue siendo seguro —el global es
-     * suyo—, así que esto NO debe bloquear.
+     * Si la configuración global llegara sin inquilino, comparar contra cadena
+     * vacía metería en el mismo saco a todas las empresas sin asignación y
+     * detendría el sistema entero con un mensaje que no es el problema.
      */
-    const c = configuracionCon([
-      empresa('e1', { parametrosProveedor: { tenant: 'cliente_uno' } }),
-      empresa('e2'),
-    ]);
-    expect(await c.empresasSinInquilinoConIntegracionActiva()).toEqual(['e2']);
+    const c = configuracionCon([empresa('e1'), empresa('e2')]);
+    expect(await c.empresasQueCaenEn('', '')).toEqual([]);
   });
 });
 
@@ -157,45 +202,67 @@ describe('y el único punto de salida al core se niega cuando son dos', () => {
     salida.indexOf('private construirAgente('),
   );
 
-  it('comprueba cuántas empresas caerían en el global', () => {
-    expect(cuerpo).toMatch(/empresasSinInquilinoConIntegracionActiva\(\)/);
-    expect(cuerpo).toMatch(/sinInquilino\.length > 1/);
+  it('comprueba quién más escribe en el inquilino', () => {
+    expect(cuerpo).toMatch(/empresasQueCaenEn\(/);
+    expect(cuerpo).toMatch(/comparten\.length > 1/);
   });
 
-  it('y lo hace ANTES de devolver el inquilino global', () => {
+  it('LOS DOS CAMINOS pasan por la comprobación, no sólo el respaldo', () => {
     /*
-     * Después del `return` no se ejecuta. Es la diferencia entre un control y un
-     * comentario.
+     * Es el defecto que se corrige: la comprobación estaba sólo antes de
+     * devolver el global, y `if (suyo) return suyo` salía antes. Dos empresas
+     * con el mismo inquilino asignado nunca llegaban a mirarse.
      */
-    const comprobacion = cuerpo.indexOf('sinInquilino.length > 1');
-    const respaldo = cuerpo.lastIndexOf('return this.cfg.tenant;');
-    expect(comprobacion).toBeGreaterThan(0);
-    expect(respaldo).toBeGreaterThan(comprobacion);
+    expect(cuerpo).toMatch(/if \(suyo\) return this\.nadieMasEscribeAhi\(suyo\);/);
+    expect(cuerpo).toMatch(/return this\.nadieMasEscribeAhi\(this\.cfg\.tenant\);/);
   });
 
-  it('el mensaje nombra a las empresas y dice las dos salidas', () => {
+  it('y no queda ningún camino que devuelva el inquilino sin comprobarlo', () => {
+    /*
+     * En negativo sobre el método entero, sin comentarios: un `return` nuevo que
+     * se salte la comprobación es exactamente cómo esto vuelve.
+     *
+     * El único que se perdona es el inquilino EXPLÍCITO, que lo pasa una tarea
+     * de mantenimiento que sabe a qué libro va y por qué.
+     */
+    const sinComentarios = cuerpo
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1');
+    const metodo = sinComentarios.slice(
+      0,
+      sinComentarios.indexOf('private async nadieMasEscribeAhi('),
+    );
+    const retornos = [...metodo.matchAll(/return ([^;]+);/g)].map((m) => m[1].trim());
+    for (const r of retornos) {
+      expect(r === 'explicito' || r.startsWith('this.nadieMasEscribeAhi(')).toBe(true);
+    }
+    expect(retornos.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('el mensaje nombra a las empresas, el inquilino y las dos salidas', () => {
     /*
      * Quien lo lea estará en medio de un alta. Un «error de inquilino» a secas
      * le hace abrir el código; esto le dice qué hacer.
      */
-    expect(cuerpo).toMatch(/sinInquilino\.join\(', '\)/);
+    expect(cuerpo).toMatch(/comparten\.join\(', '\)/);
+    expect(cuerpo).toMatch(/\$\{inquilino\}/);
     expect(cuerpo).toMatch(/consola de SUMA/);
     expect(cuerpo).toMatch(/una sola empresa/);
   });
 
-  it('con UNA empresa sin inquilino el respaldo sigue en pie', () => {
+  it('con UNA sola empresa en el inquilino todo sigue funcionando', () => {
     /*
      * La instalación de hoy. Si el control fuera `>= 1` el core dejaría de
      * funcionar al desplegar esto, que es peor que el defecto.
      */
-    expect(cuerpo).not.toMatch(/sinInquilino\.length >= 1/);
-    expect(cuerpo).not.toMatch(/sinInquilino\.length > 0/);
+    expect(cuerpo).not.toMatch(/comparten\.length >= 1/);
+    expect(cuerpo).not.toMatch(/comparten\.length > 0/);
   });
 
   it('y el orden de preferencia no cambió: explícito, el suyo, y al final el global', () => {
     const explicito = cuerpo.indexOf('if (explicito) return explicito;');
-    const suyo = cuerpo.indexOf('if (suyo) return suyo;');
-    const global = cuerpo.lastIndexOf('return this.cfg.tenant;');
+    const suyo = cuerpo.indexOf('if (suyo) return');
+    const global = cuerpo.lastIndexOf('this.cfg.tenant)');
     expect(explicito).toBeGreaterThan(-1);
     expect(suyo).toBeGreaterThan(explicito);
     expect(global).toBeGreaterThan(suyo);
