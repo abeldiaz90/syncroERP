@@ -26,6 +26,28 @@ const repoCon = (porEmpresa: Record<string, string | undefined>) =>
       porEmpresa[where.empresaId] !== undefined
         ? { parametrosProveedor: { tenant: porEmpresa[where.empresaId] } }
         : null,
+    /*
+     * `find()` sin argumentos lo usa `empresasSinInquilinoConIntegracionActiva`,
+     * el control que impide que DOS empresas sin inquilino propio caigan juntas
+     * en el global.
+     *
+     * Este doble no lo tenía, y al añadir ese control esta prueba se puso roja
+     * con `this.configEmpresa.find is not a function`. Vale la pena anotarlo
+     * porque es el caso bueno del problema que ya mordió dos veces en este
+     * proyecto: un doble MENOS capaz que el real rompe en rojo y señala el
+     * punto de integración; uno MÁS permisivo pasa en verde y esconde el
+     * defecto. Esta prueba hizo su trabajo.
+     *
+     * Devuelve las mismas empresas que `findOne`, con la integración encendida,
+     * para que los escenarios de abajo sigan midiendo lo que miden.
+     */
+    find: async () =>
+      Object.entries(porEmpresa).map(([empresaId, tenant]) => ({
+        empresaId,
+        modo: 'ESPEJO',
+        modoContabilidad: 'APAGADO',
+        parametrosProveedor: { tenant },
+      })),
   }) as unknown as Repository<ConfiguracionIntegracionEmpresa>;
 
 const armar = (opciones: {

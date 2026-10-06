@@ -165,6 +165,40 @@ export class FineractHttpService {
       );
     }
 
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * EL RESPALDO AL INQUILINO GLOBAL VALE PARA UNA EMPRESA, NO PARA DOS
+     * ------------------------------------------------------------------------
+     * Con el interruptor apagado, una empresa sin inquilino propio caía al
+     * global. Eso es correcto mientras haya UNA operando: el global es el suyo.
+     *
+     * Con dos, deja de serlo. Sus clientes, sus créditos y su mayor caerían en
+     * el mismo inquilino de Fineract que los de la otra, y no daría error:
+     * escribir en el inquilino de otro es una escritura perfectamente válida
+     * para el core. Nadie se entera hasta que alguien ve en su cartera un
+     * crédito que no es suyo, y para entonces ya hay dos carteras entreveradas
+     * en una base que no sabe separarlas.
+     *
+     * La cabecera de `alta-empresas.service.ts` ya lo advertía —«hasta que cada
+     * empresa tenga su realm, sólo UNA empresa puede operar con el core»—. Una
+     * advertencia en un comentario no detiene una escritura.
+     *
+     * El error nombra a las empresas y dice las dos salidas reales, porque
+     * quien lo lea estará en medio de un alta y necesita saber qué hacer.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const sinInquilino =
+      await this.inquilinos.empresasSinInquilinoConIntegracionActiva();
+    if (sinInquilino.length > 1) {
+      throw new Error(
+        `Hay ${sinInquilino.length} empresas con la integracion encendida y sin ` +
+          `inquilino propio en el core (${sinInquilino.join(', ')}). Todas caerian ` +
+          'en el inquilino global y sus carteras quedarian mezcladas. ' +
+          'Asigna un inquilino a cada una desde la consola de SUMA, o deja ' +
+          'encendida la integracion de una sola empresa.',
+      );
+    }
+
     return this.cfg.tenant;
   }
 

@@ -105,6 +105,42 @@ export class ContextoInquilinoService {
     return valor;
   }
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * CUÁNTAS EMPRESAS ESTÁN HABLANDO CON EL CORE SIN INQUILINO PROPIO
+   * --------------------------------------------------------------------------
+   * El respaldo al inquilino global —cuando el interruptor está apagado y la
+   * empresa no tiene el suyo— es la configuración de hoy y funciona: hay UNA
+   * empresa operando, y el inquilino global es el suyo.
+   *
+   * Deja de funcionar en el instante en que una segunda empresa enciende la
+   * integración sin inquilino asignado: sus clientes, sus créditos y su mayor
+   * caen en el MISMO inquilino de Fineract que los de la primera. No da error
+   * —escribir en el inquilino de otro es una escritura válida— y no se nota
+   * hasta que alguien ve en su cartera un crédito que no es suyo.
+   *
+   * La cabecera de `alta-empresas.service.ts` ya lo dice con todas sus letras:
+   * «hasta que cada empresa tenga su realm, sólo UNA empresa puede operar con
+   * el core». Esto lo convierte de advertencia en comprobación.
+   *
+   * Se cuenta y no se confía en una bandera porque la condición es sobre el
+   * CONJUNTO: una empresa sola sin inquilino es correcta; dos, es una mezcla.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  async empresasSinInquilinoConIntegracionActiva(): Promise<string[]> {
+    const filas = await this.configEmpresa.find();
+    return filas
+      .filter((f) => {
+        const activa =
+          String(f.modo ?? 'APAGADO') !== 'APAGADO' ||
+          String(f.modoContabilidad ?? 'APAGADO') !== 'APAGADO';
+        if (!activa) return false;
+        const parametros = (f.parametrosProveedor ?? {}) as { tenant?: string };
+        return !parametros.tenant?.trim();
+      })
+      .map((f) => f.empresaId);
+  }
+
   /** Tras asignar un inquilino, para no esperar el minuto del caché. */
   invalidar(empresaId?: string) {
     if (empresaId) this.cache.delete(empresaId);
