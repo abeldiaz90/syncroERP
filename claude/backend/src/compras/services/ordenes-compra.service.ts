@@ -879,6 +879,67 @@ export class OrdenesCompraService {
     return Number.isFinite(devuelto) && devuelto > 0 ? devuelto : 0;
   }
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * LO QUE SE LE DEBE AL PROVEEDOR, EN UN SOLO SITIO
+   * --------------------------------------------------------------------------
+   * `saldoPendiente`, `estadoPago` y `estado` de una orden se derivan de tres
+   * cosas: lo que vale, lo que ya se pagó y lo que se devolvió. La regla vivía
+   * dentro de `pagarOrden`, así que sólo se aplicaba **cuando entraba un pago**.
+   *
+   * Y eso dejaba fuera el caso que la propia regla viene a resolver. Una orden
+   * de 11,600 con 9,600 pagados queda en PARCIAL, debiendo 2,000. Si se
+   * devuelven esos 2,000 al proveedor, ya no hay nada que pagar —y por tanto no
+   * va a haber otro pago que dispare el recálculo—. La orden se quedaba en
+   * PARCIAL **para siempre**, con un saldo que nadie iba a cobrar ni a saldar,
+   * y la cuenta por pagar del proveedor arrastrando un importe muerto.
+   *
+   * El comentario del cálculo ya describía exactamente este defecto. Lo que
+   * faltaba no era la fórmula: era que la devolución también la ejecutara.
+   *
+   * Recibe el `EntityManager` del llamador a propósito: la devolución lo hace
+   * dentro de su propia transacción, y si esa transacción se deshace, el estado
+   * de la orden se deshace con ella.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  async recalcularCobranzaDeLaOrden(
+    em: EntityManager,
+    empresaId: string,
+    ordenCompraId: string,
+  ): Promise<OrdenCompra | null> {
+    const oc = await em.findOne(OrdenCompra, {
+      where: { id: ordenCompraId, empresaId },
+    });
+    if (!oc) return null;
+    if (oc.estado === 'CANCELADA') return oc;
+
+    const devuelto = await this.devueltoVigenteDeOrden(
+      em,
+      empresaId,
+      ordenCompraId,
+    );
+
+    /*
+     * El saldo se mide contra lo que el proveedor acabará cobrando si entrega
+     * todo, **menos lo que ya se le devolvió**: esa parte no la va a cobrar.
+     */
+    oc.saldoPendiente =
+      Math.max(
+        0,
+        Math.round(
+          (Number(oc.total) - devuelto - Number(oc.totalPagado)) * 100,
+        ) / 100,
+      );
+    oc.estadoPago =
+      Number(oc.saldoPendiente) <= 0
+        ? 'PAGADA'
+        : Number(oc.totalPagado) > 0
+          ? 'PARCIAL'
+          : 'PENDIENTE';
+    oc.estado = estadoDerivadoOC(oc);
+    return em.save(oc);
+  }
+
   async pagarOrden(
     id: string,
     empresaId: string,
@@ -1183,20 +1244,14 @@ export class OrdenesCompraService {
        * se quedaba en el importe de la nota de crédito para siempre y la orden
        * vivía en PARCIAL. Es el mismo defecto por el otro lado.
        */
-      oc.saldoPendiente = Math.max(
-        0,
-        Math.round(
-          (Number(oc.total) - devuelto - Number(oc.totalPagado)) * 100,
-        ) / 100,
-      );
-      oc.estadoPago =
-        Number(oc.saldoPendiente) <= 0
-          ? 'PAGADA'
-          : Number(oc.totalPagado) > 0
-            ? 'PARCIAL'
-            : 'PENDIENTE';
-      oc.estado = estadoDerivadoOC(oc);
-      const orden = await em.save(oc);
+      await em.save(oc);
+      /*
+       * La regla vive en `recalcularCobranzaDeLaOrden`, y la devolución llama a
+       * la misma. Tener aquí una segunda copia es cómo este cálculo acabó
+       * aplicándose sólo en uno de los dos caminos.
+       */
+      const orden =
+        (await this.recalcularCobranzaDeLaOrden(em, empresaId, id)) ?? oc;
       return {
         orden,
         pago,

@@ -24,6 +24,7 @@ import { OrdenCompra } from '../entities/orden-compra.entity';
 import { DetalleOrdenCompra } from '../entities/detalle-orden-compra.entity';
 import { InventarioService } from '../../catalogo/services/inventario.service';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
+import { OrdenesCompraService } from './ordenes-compra.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
 
 /**
@@ -65,6 +66,11 @@ export class DevolucionesProveedorService {
     private readonly inventario: InventarioService,
     private readonly asientos: AsientosPendientesService,
     private readonly folios: FoliosService,
+    /*
+     * Para volver a derivar lo que se le debe al proveedor cuando la devolución
+     * se registra. La regla vive allí, en un solo sitio; aquí sólo se la llama.
+     */
+    private readonly ordenes: OrdenesCompraService,
   ) {}
 
   private folioDeOrden(oc: { id: string; folio?: string | null }) {
@@ -282,6 +288,10 @@ export class DevolucionesProveedorService {
           undefined,
           manager,
           { id: guardada.id, tipo: 'DEVOLUCION_PROVEEDOR' },
+          undefined,
+          undefined,
+          /* El kardex lo muestra desde el 5-oct, y aquí se sabe quién es. */
+          usuarioId,
         );
 
         await manager.save(
@@ -312,6 +322,29 @@ export class DevolucionesProveedorService {
       guardada.impuestos = Math.round(impuestos * 100) / 100;
       guardada.total = Math.round((subtotal + impuestos) * 100) / 100;
       await manager.save(guardada);
+
+      /*
+       * ══════════════════════════════════════════════════════════════════════
+       * Y lo que se le debe al proveedor cambia aquí mismo
+       * ----------------------------------------------------------------------
+       * Hasta hoy el saldo de la orden sólo se volvía a derivar **cuando
+       * entraba un pago**, y eso dejaba fuera justo el caso que la regla viene a
+       * resolver: una orden de 11,600 con 9,600 pagados debe 2,000; si se
+       * devuelven esos 2,000, ya no hay nada que pagar, así que no va a haber
+       * otro pago que dispare el recálculo. La orden se quedaba en PARCIAL para
+       * siempre, con un saldo que nadie iba a cobrar ni a saldar.
+       *
+       * Va DESPUÉS de guardar el total de la devolución, porque el recálculo
+       * suma los totales de las devoluciones vigentes de la orden y tiene que
+       * ver ésta; y dentro de la transacción, para que si algo falla el estado
+       * de la orden se deshaga con lo demás.
+       * ══════════════════════════════════════════════════════════════════════
+       */
+      await this.ordenes.recalcularCobranzaDeLaOrden(
+        manager,
+        empresaId,
+        datos.ordenCompraId,
+      );
 
       /*
        * Si la orden ya estaba pagada, el IVA vive en 118 «acreditable pagado»;
