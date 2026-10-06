@@ -240,10 +240,60 @@ export class DiagnosticoConfiguracionService {
   }
 
   async verificarIntegridad(empresaId: string) {
-    const hallazgos: Array<{ codigo: string; severidad: 'ERROR' | 'ADVERTENCIA'; titulo: string; cantidad: number; detalle: string; ruta?: string }> = [];
+    const hallazgos: Array<{
+      codigo: string;
+      severidad: 'ERROR' | 'ADVERTENCIA';
+      titulo: string;
+      cantidad: number;
+      detalle: string;
+      ruta?: string;
+      /** Hasta cinco filas que identifican a los culpables. Ver `agregar`. */
+      ejemplos?: Array<Record<string, unknown>>;
+    }> = [];
 
-    const agregar = (codigo: string, severidad: 'ERROR' | 'ADVERTENCIA', titulo: string, cantidad: number, detalle: string, ruta?: string) => {
-      if (cantidad > 0) hallazgos.push({ codigo, severidad, titulo, cantidad, detalle, ruta });
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * UN CONTROL QUE DICE «HAY 1» Y NO DICE CUÁL
+     * --------------------------------------------------------------------------
+     * Esta revisión decía «Stock consolidado distinto al localizado · 1» con un
+     * enlace a la lista de ubicaciones. Desde ahí no hay forma de saber QUÉ
+     * producto descuadra: la pantalla de destino enseña tres posiciones y
+     * ninguna dice nada del problema. Para averiguarlo hay que entrar a la base
+     * de datos a mano, y entonces el control no es un control: es un aviso de
+     * que algo pasa en algún sitio.
+     *
+     * Es el mismo defecto que tenía el reporte de excepciones antes del 5-oct.
+     * Un número sin nombre no se puede arreglar, y lo que no se puede arreglar
+     * se acaba ignorando — que es peor que no medirlo, porque da la impresión
+     * de que está vigilado.
+     *
+     * Por eso cada comprobación puede traer EJEMPLOS: unas pocas filas que
+     * identifican a los culpables, con el mismo acotado por empresa que la
+     * cuenta. Cinco bastan: quien tiene cuarenta no necesita verlos todos para
+     * entender qué está pasando, y una lista larga en una pantalla de
+     * diagnóstico se vuelve ilegible.
+     * ══════════════════════════════════════════════════════════════════════════
+     */
+    const agregar = (
+      codigo: string,
+      severidad: 'ERROR' | 'ADVERTENCIA',
+      titulo: string,
+      cantidad: number,
+      detalle: string,
+      ruta?: string,
+      ejemplos?: Array<Record<string, unknown>>,
+    ) => {
+      if (cantidad > 0) {
+        hallazgos.push({
+          codigo,
+          severidad,
+          titulo,
+          cantidad,
+          detalle,
+          ruta,
+          ejemplos: ejemplos?.length ? ejemplos : undefined,
+        });
+      }
     };
 
     if (await this.existeTabla('stock_por_almacen')) {
@@ -251,13 +301,37 @@ export class DiagnosticoConfiguracionService {
         `SELECT COUNT(1) total FROM stock_por_almacen WHERE empresaId=$1 AND (cantidad < 0 OR reservado < 0 OR comprometido < 0 OR bloqueado < 0 OR enTransito < 0)`,
         [empresaId],
       );
-      agregar('INV_NEGATIVOS', 'ERROR', 'Existencias o apartados negativos', Number(negativos?.[0]?.total ?? 0), 'Hay cantidades negativas que deben corregirse antes de operar.', '/dashboard/inventario/ajustes');
+      const cualesNegativos = await this.ds.query(
+        `SELECT p.sku, p.nombre AS producto, a.nombre AS almacen,
+                CAST(s.cantidad AS float) AS existencia,
+                CAST(s.reservado AS float) AS reservado,
+                CAST(s.comprometido AS float) AS comprometido
+         FROM stock_por_almacen s
+         LEFT JOIN productos p ON p.id=s.productoId
+         LEFT JOIN almacenes a ON a.id=s.almacenId
+         WHERE s.empresaId=$1
+           AND (s.cantidad < 0 OR s.reservado < 0 OR s.comprometido < 0 OR s.bloqueado < 0 OR s.enTransito < 0)
+         LIMIT 5`,
+        [empresaId],
+      );
+      agregar('INV_NEGATIVOS', 'ERROR', 'Existencias o apartados negativos', Number(negativos?.[0]?.total ?? 0), 'Hay cantidades negativas que deben corregirse antes de operar.', '/dashboard/inventario/ajustes', cualesNegativos);
 
       const duplicados = await this.ds.query(
         `SELECT COUNT(1) total FROM (SELECT productoId, almacenId FROM stock_por_almacen WHERE empresaId=$1 GROUP BY productoId, almacenId HAVING COUNT(1)>1) d`,
         [empresaId],
       );
-      agregar('INV_DUPLICADOS', 'ERROR', 'Stock duplicado por producto y almacén', Number(duplicados?.[0]?.total ?? 0), 'Debe existir una sola fila de stock por producto y almacén.', '/dashboard/almacenes');
+      const cualesDuplicados = await this.ds.query(
+        `SELECT p.sku, p.nombre AS producto, a.nombre AS almacen, COUNT(1) AS filas
+         FROM stock_por_almacen s
+         LEFT JOIN productos p ON p.id=s.productoId
+         LEFT JOIN almacenes a ON a.id=s.almacenId
+         WHERE s.empresaId=$1
+         GROUP BY p.sku,p.nombre,a.nombre,s.productoId,s.almacenId
+         HAVING COUNT(1)>1
+         LIMIT 5`,
+        [empresaId],
+      );
+      agregar('INV_DUPLICADOS', 'ERROR', 'Stock duplicado por producto y almacén', Number(duplicados?.[0]?.total ?? 0), 'Debe existir una sola fila de stock por producto y almacén.', '/dashboard/almacenes', cualesDuplicados);
     }
 
     if (await this.existeTabla('ordenes_compra') && await this.tieneColumna('ordenes_compra', 'cotizacionId')) {
@@ -318,6 +392,29 @@ export class DiagnosticoConfiguracionService {
          ) d`,
         [empresaId],
       );
+      /*
+       * El mismo acotado y la misma condición que la cuenta, con nombre y
+       * números. Si la consulta de ejemplos y la de la cuenta dejaran de decir
+       * lo mismo, la pantalla enseñaría una cosa y contaría otra: por eso el
+       * `WHERE` y el `HAVING` son idénticos, y hay una prueba que lo exige.
+       */
+      const quienesDescuadran = await this.ds.query(
+        `SELECT p.sku, p.nombre AS producto, a.nombre AS almacen,
+                CAST(s.cantidad AS float) AS consolidado,
+                CAST(COALESCE(SUM(su.cantidad),0) AS float) AS localizado
+         FROM stock_por_almacen s
+         LEFT JOIN stock_ubicaciones su
+           ON su.empresaId=s.empresaId
+          AND su.productoId=s.productoId
+          AND su.almacenId=s.almacenId
+         LEFT JOIN productos p ON p.id=s.productoId
+         LEFT JOIN almacenes a ON a.id=s.almacenId
+         WHERE s.empresaId=$1
+         GROUP BY p.sku,p.nombre,a.nombre,s.productoId,s.almacenId,s.cantidad
+         HAVING ABS(CAST(s.cantidad AS float)-CAST(COALESCE(SUM(su.cantidad),0) AS float))>0.0001
+         LIMIT 5`,
+        [empresaId],
+      );
       agregar(
         'INV_STOCK_UBICACION_DIFERENTE',
         'ERROR',
@@ -325,6 +422,7 @@ export class DiagnosticoConfiguracionService {
         Number(diferenciasUbicacion?.[0]?.total ?? 0),
         'La existencia por almacén debe coincidir con la suma de sus ubicaciones.',
         '/dashboard/inventario/ubicaciones',
+        quienesDescuadran,
       );
 
       const stockSinUbicacion = await this.ds.query(
@@ -337,6 +435,20 @@ export class DiagnosticoConfiguracionService {
          WHERE s.empresaId=$1 AND s.cantidad>0 AND su.id IS NULL`,
         [empresaId],
       );
+      const sinUbicar = await this.ds.query(
+        `SELECT p.sku, p.nombre AS producto, a.nombre AS almacen,
+                CAST(s.cantidad AS float) AS existencia
+         FROM stock_por_almacen s
+         LEFT JOIN stock_ubicaciones su
+           ON su.empresaId=s.empresaId
+          AND su.productoId=s.productoId
+          AND su.almacenId=s.almacenId
+         LEFT JOIN productos p ON p.id=s.productoId
+         LEFT JOIN almacenes a ON a.id=s.almacenId
+         WHERE s.empresaId=$1 AND s.cantidad>0 AND su.id IS NULL
+         LIMIT 5`,
+        [empresaId],
+      );
       agregar(
         'INV_STOCK_SIN_UBICACION',
         'ERROR',
@@ -344,6 +456,7 @@ export class DiagnosticoConfiguracionService {
         Number(stockSinUbicacion?.[0]?.total ?? 0),
         'Toda existencia operativa debe estar localizada dentro del almacén.',
         '/dashboard/inventario/ubicaciones',
+        sinUbicar,
       );
     }
 
