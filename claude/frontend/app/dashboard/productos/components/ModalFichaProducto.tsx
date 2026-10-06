@@ -189,7 +189,7 @@ function EquivalenciasArbol({ equivalencias, unidadBase, onChange }: {
                       placeholder="EAN opcional" />
                   </div>
                   <div className="col-span-1 flex justify-end">
-                    <button type="button" onClick={() => eliminarNodo(i)}
+                    <button aria-label="Eliminar el renglón" title="Eliminar el renglón" type="button" onClick={() => eliminarNodo(i)}
                       className="p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -560,7 +560,7 @@ export default function ModalFichaProducto({
               </p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-md transition-colors">
+          <button aria-label="Cerrar la ficha del producto" title="Cerrar la ficha del producto" type="button" onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-md transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1101,10 +1101,10 @@ export default function ModalFichaProducto({
                       <div key={idx} className={`relative group rounded-md overflow-hidden aspect-square border ${img.principal ? 'border-blue-500 ring-2 ring-blue-200' : 'border-slate-200'}`}>
                         <img src={`${BASE_URL}${img.url}`} className="w-full h-full object-cover" alt="" />
                         <div className="absolute inset-0 bg-slate-900/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                          <button type="button" className="p-1.5 bg-white text-blue-600 rounded shadow-sm hover:scale-110 transition-transform"
+                          <button aria-label="Usar como imagen principal" title="Usar como imagen principal" type="button" className="p-1.5 bg-white text-blue-600 rounded shadow-sm hover:scale-110 transition-transform"
                             onClick={() => setFormData(p => ({ ...p, imagenes: p.imagenes.map((m, i) => ({ ...m, principal: i === idx })) }))}>
                             <Star className="w-3.5 h-3.5" /></button>
-                          <button type="button" className="p-1.5 bg-rose-500 text-white rounded shadow-sm hover:scale-110 transition-transform"
+                          <button aria-label="Eliminar la imagen" title="Eliminar la imagen" type="button" className="p-1.5 bg-rose-500 text-white rounded shadow-sm hover:scale-110 transition-transform"
                             onClick={() => setFormData(p => ({ ...p, imagenes: p.imagenes.filter((_, i) => i !== idx) }))}>
                             <Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
@@ -1153,7 +1153,7 @@ export default function ModalFichaProducto({
               <h3 className="font-bold text-slate-900 flex items-center gap-2">
                 <Plus className="w-4 h-4 text-indigo-500" /> Nueva unidad de medida
               </h3>
-              <button onClick={() => setModalUnidad(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full">
+              <button aria-label="Cerrar" title="Cerrar" onClick={() => setModalUnidad(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full">
                 <X className="w-4 h-4" />
               </button>
             </div>

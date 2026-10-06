@@ -231,7 +231,7 @@ export default function RequisicionesPage() {
           <p className="text-slate-500 text-sm mt-1">Solicita materiales y supervisa el estado de tus pedidos.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm">
+          <button aria-label="Volver a cargar las requisiciones" title="Volver a cargar las requisiciones" onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm">
             <RefreshCw className="w-4 h-4"/>
           </button>
           <PuedeCrear ruta="/api/compras/requisiciones">
@@ -429,7 +429,7 @@ export default function RequisicionesPage() {
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
                 <ClipboardList className="w-5 h-5 text-indigo-500"/> Nueva Requisición de Compra
               </h2>
-              <button onClick={() => setModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl">
+              <button aria-label="Cerrar" title="Cerrar" onClick={() => setModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl">
                 <X className="w-5 h-5"/>
               </button>
             </div>
@@ -527,16 +527,16 @@ export default function RequisicionesPage() {
                           <div className="flex items-center gap-2">
                             <input type="number" min="1" value={editCant} onChange={e => setEditCant(Number(e.target.value))}
                               className="w-16 px-2 py-1 border border-indigo-300 rounded-lg text-sm text-center font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500" autoFocus/>
-                            <button onClick={() => { setDetalles(prev => prev.map((d,i)=>i===idx?{...d,cantidadSolicitada:editCant}:d)); setEditIdx(null); }}
+                            <button aria-label="Guardar la cantidad" title="Guardar la cantidad" onClick={() => { setDetalles(prev => prev.map((d,i)=>i===idx?{...d,cantidadSolicitada:editCant}:d)); setEditIdx(null); }}
                               className="text-emerald-600 hover:text-emerald-700 p-1"><CheckCircle2 className="w-4 h-4"/></button>
-                            <button onClick={() => setEditIdx(null)} className="text-slate-400 p-1"><X className="w-4 h-4"/></button>
+                            <button aria-label="Descartar el cambio" title="Descartar el cambio" onClick={() => setEditIdx(null)} className="text-slate-400 p-1"><X className="w-4 h-4"/></button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">×{d.cantidadSolicitada}</span>
-                            <button onClick={() => { setEditIdx(idx); setEditCant(d.cantidadSolicitada); }}
+                            <button aria-label="Editar la cantidad del renglón" title="Editar la cantidad del renglón" onClick={() => { setEditIdx(idx); setEditCant(d.cantidadSolicitada); }}
                               className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg"><Edit2 className="w-3.5 h-3.5"/></button>
-                            <button onClick={() => setDetalles(prev => prev.filter((_,i)=>i!==idx))}
+                            <button aria-label="Quitar el renglón" title="Quitar el renglón" onClick={() => setDetalles(prev => prev.filter((_,i)=>i!==idx))}
                               className="p-1.5 text-rose-400 hover:bg-rose-50 rounded-lg"><Trash2 className="w-3.5 h-3.5"/></button>
                           </div>
                         )}

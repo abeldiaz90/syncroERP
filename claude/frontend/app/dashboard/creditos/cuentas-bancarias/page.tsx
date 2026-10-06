@@ -296,13 +296,13 @@ export default function CuentasBancariasPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <PuedeEditar ruta="/credito/cuentas-bancarias/:id">
-                          <button onClick={() => abrirEditar(c)}
+                          <button aria-label="Editar" title="Editar" onClick={() => abrirEditar(c)}
                             className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors">
                             <Edit2 className="w-4 h-4"/>
                           </button>
                         </PuedeEditar>
                         <PuedeEditar ruta="/credito/cuentas-bancarias/:id/estado">
-                          <button onClick={() => toggleEstado(c)}
+                          <button aria-label="Activar o desactivar" title="Activar o desactivar" onClick={() => toggleEstado(c)}
                             className="p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded-lg transition-colors">
                             <Power className="w-4 h-4"/>
                           </button>
@@ -325,7 +325,7 @@ export default function CuentasBancariasPage() {
                 <div key={c.id} className="flex items-center gap-4 px-6 py-3 hover:bg-slate-50">
                   <p className="flex-1 text-sm text-slate-500 line-through">{c.nombre}</p>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${TIPO_STYLE[c.tipo]}`}>{c.tipo}</span>
-                  <button onClick={() => toggleEstado(c)}
+                  <button aria-label="Activar o desactivar" title="Activar o desactivar" onClick={() => toggleEstado(c)}
                     className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg text-xs font-medium">
                     <Power className="w-4 h-4"/>
                   </button>
@@ -359,7 +359,7 @@ export default function CuentasBancariasPage() {
                 <Landmark className="w-5 h-5 text-indigo-400"/>
                 {editando ? `Editar — ${editando.nombre}` : 'Nueva Cuenta Bancaria'}
               </h2>
-              <button onClick={()=>setModal(false)} className="p-1.5 text-slate-400 hover:text-white">
+              <button aria-label="Cerrar" title="Cerrar" onClick={()=>setModal(false)} className="p-1.5 text-slate-400 hover:text-white">
                 <X className="w-5 h-5"/>
               </button>
             </div>

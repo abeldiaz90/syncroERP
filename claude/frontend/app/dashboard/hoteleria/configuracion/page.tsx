@@ -967,7 +967,7 @@ function Modal({ titulo, icon: Icon, onClose, children }: any) {
           <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
             <Icon className="w-5 h-5 text-slate-400" /> {titulo}
           </h3>
-          <button
+          <button aria-label="Cerrar" title="Cerrar"
             onClick={onClose}
             className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-50 rounded-full"
           >

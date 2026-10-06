@@ -136,7 +136,7 @@ export default function ModalInventarioRapido({ isOpen, onClose, tipo, producto,
               <p className="text-xs font-bold text-slate-500 mt-1">{producto.sku} - {producto.nombre}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-md transition-colors">
+          <button aria-label="Cerrar" title="Cerrar" type="button" onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-md transition-colors">
             <X className="w-5 h-5"/>
           </button>
         </div>

@@ -334,7 +334,7 @@ export default function FoliosHotelPage() {
             <button
               onClick={() => setResumenCierre(null)}
               className="rounded-lg p-1 hover:bg-white/60"
-              aria-label="Cerrar aviso"
+              aria-label="Cerrar aviso" title="Cerrar aviso"
             >
               <X size={18} />
             </button>
@@ -384,7 +384,7 @@ export default function FoliosHotelPage() {
                   Folio de {seleccion.clienteNombre}
                 </h2>
               </div>
-              <button
+              <button aria-label="Cerrar" title="Cerrar"
                 onClick={() => {
                   setSeleccion(null);
                   setFolio(null);

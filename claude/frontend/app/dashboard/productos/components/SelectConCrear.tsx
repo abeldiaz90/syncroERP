@@ -144,7 +144,7 @@ export default function SelectConCrear({
                 <Plus className="w-4 h-4 text-indigo-500" />
                 {tituloModal || `Nueva ${label.toLowerCase()}`}
               </h3>
-              <button
+              <button aria-label="Cerrar" title="Cerrar"
                 onClick={() => !guardando && setModal(false)}
                 className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full"
               >

@@ -855,7 +855,7 @@ export default function TerminalPos() {
       {errorMsg&&(
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-rose-600 text-white px-6 py-3 rounded-xl shadow-2xl font-bold flex items-center gap-3 max-w-lg text-sm">
           <AlertCircle className="w-5 h-5 shrink-0"/> {errorMsg}
-          <button onClick={()=>setErrorMsg('')}><X className="w-4 h-4"/></button>
+          <button aria-label="Cerrar el aviso de error" title="Cerrar el aviso de error" onClick={()=>setErrorMsg('')}><X className="w-4 h-4"/></button>
         </div>
       )}
 
@@ -867,7 +867,7 @@ export default function TerminalPos() {
             <input ref={searchRef} type="text" value={busqueda} onChange={e=>setBusqueda(e.target.value)}
               placeholder="Buscar por nombre, SKU o código de barras..."
               className="w-full pl-10 pr-10 py-2.5 bg-slate-100 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white font-medium text-slate-800"/>
-            {busqueda&&<button onClick={()=>{setBusqueda('');searchRef.current?.focus()}} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><X className="w-4 h-4"/></button>}
+            {busqueda&&<button aria-label="Limpiar la búsqueda" title="Limpiar la búsqueda" onClick={()=>{setBusqueda('');searchRef.current?.focus()}} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><X className="w-4 h-4"/></button>}
           </div>
           {/*
             * ──────────────────────────────────────────────────────────────────
@@ -1010,13 +1010,13 @@ export default function TerminalPos() {
                         <p className="text-sm font-bold text-slate-800 leading-tight">{item.nombre}</p>
                         <p className="text-[10px] font-bold text-slate-400">{item.sku}</p>
                       </div>
-                      <button onClick={()=>eliminarItem(item.productoId)} className="p-1 text-slate-300 hover:text-rose-500 rounded"><Trash2 className="w-4 h-4"/></button>
+                      <button aria-label="Quitar el artículo del ticket" title="Quitar el artículo del ticket" onClick={()=>eliminarItem(item.productoId)} className="p-1 text-slate-300 hover:text-rose-500 rounded"><Trash2 className="w-4 h-4"/></button>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
-                        <button onClick={()=>actualizarCantidad(item.productoId,-1)} className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100"><Minus className="w-3.5 h-3.5"/></button>
+                        <button aria-label="Quitar una unidad" title="Quitar una unidad" onClick={()=>actualizarCantidad(item.productoId,-1)} className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100"><Minus className="w-3.5 h-3.5"/></button>
                         <span className="w-10 text-center text-sm font-black text-slate-800">{item.cantidad}</span>
-                        <button onClick={()=>actualizarCantidad(item.productoId,1)} disabled={item.cantidad>=item.stockDisponible} className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-40"><Plus className="w-3.5 h-3.5"/></button>
+                        <button aria-label="Agregar una unidad" title="Agregar una unidad" onClick={()=>actualizarCantidad(item.productoId,1)} disabled={item.cantidad>=item.stockDisponible} className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-40"><Plus className="w-3.5 h-3.5"/></button>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-black text-slate-900">${fmt(itemTotal)}</p>
@@ -1063,11 +1063,11 @@ export default function TerminalPos() {
                     {cliente.rfc&&<p className="text-[10px] text-blue-600">{cliente.rfc}</p>}
                   </div>
                 </div>
-                <button onClick={()=>setCliente(null)} className="text-blue-400 hover:text-blue-700"><X className="w-4 h-4"/></button>
+                <button aria-label="Quitar el cliente del ticket" title="Quitar el cliente del ticket" onClick={()=>setCliente(null)} className="text-blue-400 hover:text-blue-700"><X className="w-4 h-4"/></button>
               </div>
             ) : (
               <div className="relative">
-                <button onClick={()=>setShowClienteSearch(!showClienteSearch)}
+                <button aria-label="Buscar un cliente" title="Buscar un cliente" onClick={()=>setShowClienteSearch(!showClienteSearch)}
                   className={`w-full flex items-center gap-2 px-3 py-2 border rounded-xl text-sm font-medium transition-colors bg-white ${esCredito(metodoPago)?'border-amber-400 text-amber-700 animate-pulse':'border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-600'}`}>
                   <Store className="w-4 h-4"/>
                   <span>{esCredito(metodoPago)?'⚠ Selecciona un cliente (requerido)':'Público General'}</span>
@@ -1312,7 +1312,7 @@ export default function TerminalPos() {
                 {productoSel ? productoSel.nombre : 'Configurar Plan de Pagos'}
                 {!!productoSel&&<span className="font-normal text-xs text-slate-400">{productoSel.codigo}</span>}
               </h2>
-              <button onClick={()=>setModalCredito(false)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
+              <button aria-label="Cerrar la ventana de crédito" title="Cerrar la ventana de crédito" onClick={()=>setModalCredito(false)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-6 overflow-y-auto">
               {/* Configuración */}
@@ -1449,7 +1449,7 @@ export default function TerminalPos() {
               <h3 className="font-bold text-slate-900 flex items-center gap-2">
                 <User className="w-5 h-5 text-blue-500" /> Nuevo cliente
               </h3>
-              <button onClick={() => setShowNuevoCliente(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full">
+              <button aria-label="Cerrar sin crear el cliente" title="Cerrar sin crear el cliente" onClick={() => setShowNuevoCliente(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full">
                 <X className="w-4 h-4" />
               </button>
             </div>

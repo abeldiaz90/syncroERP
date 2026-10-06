@@ -90,7 +90,7 @@ export function AsistentePasos({
               <h3 className="mt-1 text-lg font-bold text-slate-950">{pasos[pasoActual]?.titulo}</h3>
               <p className="text-xs text-slate-500">{pasos[pasoActual]?.descripcion}</p>
             </div>
-            <button type="button" onClick={onCerrar} className="btn btn-fantasma btn-icono" aria-label="Cerrar"><X className="h-4 w-4" /></button>
+            <button type="button" onClick={onCerrar} className="btn btn-fantasma btn-icono" aria-label="Cerrar" title="Cerrar"><X className="h-4 w-4" /></button>
           </header>
 
           <div className="h-1 bg-slate-100 md:hidden"><div className="h-full bg-indigo-600 transition-all" style={{ width: `${progreso}%` }} /></div>

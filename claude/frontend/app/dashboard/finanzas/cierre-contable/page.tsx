@@ -356,7 +356,7 @@ export default function CierreContablePage() {
           <button
             onClick={() => void cargarPeriodos()}
             className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500"
-            aria-label="Actualizar"
+            aria-label="Actualizar" title="Actualizar"
           >
             <RefreshCw className="w-4 h-4" />
           </button>

@@ -614,7 +614,7 @@ export default function ProductosPage() {
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="bg-white px-6 py-4 border-b border-slate-200 flex justify-between items-center shadow-sm z-10 shrink-0">
           <div className="flex items-center gap-4 flex-1">
-            <button onClick={() => setSidebarOpen(s => !s)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+            <button onClick={() => setSidebarOpen(s => !s)} aria-label="Mostrar u ocultar los filtros" title="Mostrar u ocultar los filtros" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
               <Filter className="w-5 h-5" />
             </button>
             <div className="relative w-full max-w-2xl">
@@ -629,8 +629,8 @@ export default function ProductosPage() {
           </div>
           <div className="flex items-center gap-3 ml-4">
             <div className="hidden sm:flex bg-slate-100 p-1 rounded-xl">
-              <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}><LayoutGrid className="w-4 h-4" /></button>
-              <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}><List className="w-4 h-4" /></button>
+              <button onClick={() => setViewMode('grid')} aria-label="Ver como tarjetas" title="Ver como tarjetas" className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}><LayoutGrid className="w-4 h-4" /></button>
+              <button onClick={() => setViewMode('list')} aria-label="Ver como tabla" title="Ver como tabla" className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}><List className="w-4 h-4" /></button>
             </div>
             <PuedeCrear ruta="/api/catalogo/productos">
               <button onClick={abrirModalCrear} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-md transition-all">
@@ -738,7 +738,7 @@ export default function ProductosPage() {
                             )}
                             <div className="flex gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
                               <ProtectedElement metodo="PUT" ruta="/api/catalogo/productos/:id">
-                                <button onClick={() => abrirModalEditar(prod)} className="p-1.5 hover:bg-slate-100 rounded text-slate-600"><Edit2 className="w-4 h-4" /></button>
+                                <button onClick={() => abrirModalEditar(prod)} aria-label="Editar el producto" title="Editar el producto" className="p-1.5 hover:bg-slate-100 rounded text-slate-600"><Edit2 className="w-4 h-4" /></button>
                               </ProtectedElement>
                               <Link href={`/dashboard/productos/${prod.id}`} className="p-1.5 hover:bg-slate-100 rounded text-slate-600"><History className="w-4 h-4" /></Link>
                             </div>
@@ -800,19 +800,19 @@ export default function ProductosPage() {
                           <td className="px-6 py-3 text-right">
                             <div className="flex justify-end gap-1">
                               <ProtectedElement metodo="PUT" ruta="/api/catalogo/productos/:id">
-                                <button onClick={() => abrirModalEditar(prod)} className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors"><Edit2 className="w-4 h-4" /></button>
+                                <button onClick={() => abrirModalEditar(prod)} aria-label="Editar el producto" title="Editar el producto" className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors"><Edit2 className="w-4 h-4" /></button>
                               </ProtectedElement>
                               <Link href={`/dashboard/productos/${prod.id}`} className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-800 rounded transition-colors"><History className="w-4 h-4" /></Link>
                               <div className="w-px h-4 bg-slate-200 mx-1 self-center" />
                               <ProtectedElement metodo="POST" ruta="/api/catalogo/inventario/productos/:id/compra">
-                                <button onClick={() => setModalInventario({ isOpen: true, tipo: 'compra', producto: prod })} className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded transition-colors"><PackagePlus className="w-4 h-4" /></button>
+                                <button onClick={() => setModalInventario({ isOpen: true, tipo: 'compra', producto: prod })} aria-label="Entrada sin documento" title="Entrada sin documento" className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded transition-colors"><PackagePlus className="w-4 h-4" /></button>
                               </ProtectedElement>
                               <ProtectedElement metodo="POST" ruta="/api/catalogo/inventario/productos/:id/salida">
-                                <button onClick={() => setModalInventario({ isOpen: true, tipo: 'salida', producto: prod })} className="p-1.5 hover:bg-amber-50 text-slate-400 hover:text-amber-600 rounded transition-colors"><PackageMinus className="w-4 h-4" /></button>
+                                <button onClick={() => setModalInventario({ isOpen: true, tipo: 'salida', producto: prod })} aria-label="Salida sin documento" title="Salida sin documento" className="p-1.5 hover:bg-amber-50 text-slate-400 hover:text-amber-600 rounded transition-colors"><PackageMinus className="w-4 h-4" /></button>
                               </ProtectedElement>
                               <div className="w-px h-4 bg-slate-200 mx-1 self-center" />
                               <PuedeEditar ruta="/api/catalogo/productos/:id/estado">
-                                <button onClick={() => handleCambiarEstado(prod.id)} className={`p-1.5 rounded transition-colors ${prod.activo ? 'text-slate-400 hover:bg-rose-50 hover:text-rose-600' : 'text-rose-500 hover:bg-emerald-50 hover:text-emerald-600'}`}><Power className="w-4 h-4" /></button>
+                                <button onClick={() => handleCambiarEstado(prod.id)} aria-label="Activar o desactivar el producto" title="Activar o desactivar el producto" className={`p-1.5 rounded transition-colors ${prod.activo ? 'text-slate-400 hover:bg-rose-50 hover:text-rose-600' : 'text-rose-500 hover:bg-emerald-50 hover:text-emerald-600'}`}><Power className="w-4 h-4" /></button>
                               </PuedeEditar>
                             </div>
                           </td>
@@ -838,7 +838,7 @@ export default function ProductosPage() {
 
       {gallery.open && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95">
-          <button onClick={() => setGallery(g => ({ ...g, open: false }))} className="absolute top-6 right-6 text-white"><X className="w-8 h-8" /></button>
+          <button onClick={() => setGallery(g => ({ ...g, open: false }))} aria-label="Cerrar la galería" title="Cerrar la galería" className="absolute top-6 right-6 text-white"><X className="w-8 h-8" /></button>
           <img src={`${BASE_URL}${gallery.imagenes[gallery.currentIndex].url}`} className="max-h-[80vh] max-w-[80vw] object-contain" alt="" />
         </div>
       )}

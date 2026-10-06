@@ -495,7 +495,7 @@ export default function CuentasContablesPage() {
                   ? `Editar — ${editando.numeroCuenta}`
                   : "Nueva Cuenta Contable"}
               </h2>
-              <button
+              <button aria-label="Cerrar" title="Cerrar"
                 onClick={() => setModal(false)}
                 className="p-1.5 text-slate-400 hover:text-white rounded-lg"
               >

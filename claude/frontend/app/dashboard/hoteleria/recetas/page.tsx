@@ -177,7 +177,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white z-10">
           <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2"><ChefHat className="w-5 h-5 text-slate-400" /> {producto ? `Receta: ${producto.nombre}` : 'Nueva receta'}</h3>
-          <button onClick={onClose} className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-50 rounded-full"><X className="w-5 h-5" /></button>
+          <button aria-label="Cerrar" title="Cerrar" onClick={onClose} className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-50 rounded-full"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="p-5 space-y-5">
@@ -189,7 +189,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
             {producto ? (
               <div className="flex items-center justify-between bg-slate-900 text-white rounded-lg px-3 py-2.5">
                 <span className="text-sm font-medium flex items-center gap-2"><ChefHat className="w-4 h-4" /> {producto.nombre}</span>
-                {!productoIdInicial && <button onClick={() => setProducto(null)} className="text-white/60 hover:text-white"><X className="w-4 h-4" /></button>}
+                {!productoIdInicial && <button aria-label="Cerrar" title="Cerrar" onClick={() => setProducto(null)} className="text-white/60 hover:text-white"><X className="w-4 h-4" /></button>}
               </div>
             ) : (
               <div className="relative">
@@ -250,7 +250,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
                     <input type="number" min={0} step="0.01" value={i.cantidad} onChange={e => actualizar(i.insumoId, 'cantidad', Number(e.target.value))} className="col-span-3 px-2 py-1 border border-slate-200 rounded text-sm text-center tabular-nums" />
                     <input value={i.unidad} onChange={e => actualizar(i.insumoId, 'unidad', e.target.value)} className="col-span-2 px-2 py-1 border border-slate-200 rounded text-sm text-center" />
                     <input type="number" min={0} value={i.mermaPorcentaje} onChange={e => actualizar(i.insumoId, 'mermaPorcentaje', Number(e.target.value))} className="col-span-1 px-1 py-1 border border-slate-200 rounded text-sm text-center" />
-                    <button onClick={() => quitar(i.insumoId)} className="col-span-1 text-slate-300 hover:text-rose-500 flex justify-center"><Trash2 className="w-4 h-4" /></button>
+                    <button aria-label="Eliminar" title="Eliminar" onClick={() => quitar(i.insumoId)} className="col-span-1 text-slate-300 hover:text-rose-500 flex justify-center"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 ))}
               </div>

@@ -410,7 +410,7 @@ export default function FlujoVerificacionPage() {
         <div className="bg-white border rounded-lg p-5 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-900">Nuevo flujo</h2>
-            <button onClick={() => setEditor(null)} className="text-gray-400 hover:text-gray-600">
+            <button aria-label="Cerrar" title="Cerrar" onClick={() => setEditor(null)} className="text-gray-400 hover:text-gray-600">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -530,7 +530,7 @@ export default function FlujoVerificacionPage() {
                     </div>
                     <button
                       onClick={() => setEditor({ ...editor, pasos: editor.pasos.filter((_, j) => j !== i) })}
-                      className="text-gray-400 hover:text-red-600 mt-2" aria-label="Quitar el paso">
+                      className="text-gray-400 hover:text-red-600 mt-2" aria-label="Quitar el paso" title="Quitar el paso">
                       <X className="w-4 h-4" />
                     </button>
                   </div>

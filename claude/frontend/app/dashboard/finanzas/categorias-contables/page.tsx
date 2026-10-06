@@ -366,7 +366,7 @@ export default function CategoriasContablesPage() {
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                 <Plus className="w-5 h-5 text-indigo-500" /> Nueva Categoría
               </h2>
-              <button onClick={() => setModalNueva(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full">
+              <button aria-label="Cerrar" title="Cerrar" onClick={() => setModalNueva(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -435,7 +435,7 @@ export default function CategoriasContablesPage() {
                 </h2>
                 <p className="text-sm text-slate-500 mt-0.5">Asigna una cuenta contable para cada tipo de movimiento</p>
               </div>
-              <button onClick={() => setModal(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
+              <button aria-label="Cerrar" title="Cerrar" onClick={() => setModal(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>

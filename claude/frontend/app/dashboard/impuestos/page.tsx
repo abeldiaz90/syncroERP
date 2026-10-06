@@ -186,7 +186,7 @@ export default function ImpuestosPage() {
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <Percent className="w-5 h-5 text-indigo-500" /> {editandoId ? "Editar Impuesto" : "Nuevo Impuesto"}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+              <button aria-label="Cerrar" title="Cerrar" onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-full transition-colors"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6">
               <form id="impuesto-form" noValidate onSubmit={handleGuardar} className="space-y-4">

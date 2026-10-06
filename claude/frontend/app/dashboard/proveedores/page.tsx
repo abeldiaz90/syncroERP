@@ -450,7 +450,7 @@ export default function ProveedoresPage() {
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <Truck className="w-5 h-5 text-indigo-500" /> {editandoId ? 'Editar Proveedor' : 'Nuevo Proveedor'}
               </h2>
-              <button onClick={() => { setIsModalOpen(false); setErrores({}); setErrorGeneral(null); }} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-full transition-colors">
+              <button aria-label="Cerrar" title="Cerrar" onClick={() => { setIsModalOpen(false); setErrores({}); setErrorGeneral(null); }} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-full transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>

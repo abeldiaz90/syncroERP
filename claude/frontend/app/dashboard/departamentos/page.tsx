@@ -127,13 +127,13 @@ export default function DepartamentosPage() {
                     <div className="flex justify-center gap-2">
                       {/* ✅ Solo aparece si tiene PATCH /api/departamentos/:id */}
                       <PuedeEditar ruta="/api/departamentos/:id">
-                        <button onClick={() => abrirModalEditar(dep)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                        <button aria-label="Editar" title="Editar" onClick={() => abrirModalEditar(dep)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
                           <Edit2 className="w-4 h-4" />
                         </button>
                       </PuedeEditar>
                       {/* ✅ Solo aparece si tiene PATCH /api/departamentos/:id/estado */}
                       <PuedeEditar ruta="/api/departamentos/:id/estado">
-                        <button onClick={() => handleToggle(dep.id, dep.activo)} className={`p-2 rounded-lg transition-colors ${dep.activo ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}>
+                        <button aria-label="Activar o desactivar" title="Activar o desactivar" onClick={() => handleToggle(dep.id, dep.activo)} className={`p-2 rounded-lg transition-colors ${dep.activo ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}>
                           <Power className="w-4 h-4" />
                         </button>
                       </PuedeEditar>

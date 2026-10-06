@@ -223,7 +223,7 @@ export default function UnidadesMedidaPage() {
                 <Ruler className="w-5 h-5 text-indigo-500" />
                 {editandoId ? "Editar Unidad" : "Nueva Unidad"}
               </h2>
-              <button onClick={() => setModal(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full">
+              <button aria-label="Cerrar" title="Cerrar" onClick={() => setModal(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>

@@ -954,7 +954,7 @@ function ModalConvenio({
               El límite y plazo se heredan de la línea maestra del cliente.
             </p>
           </div>
-          <button onClick={onClose} aria-label="Cerrar">
+          <button onClick={onClose} aria-label="Cerrar" title="Cerrar">
             <X />
           </button>
         </div>
@@ -1251,7 +1251,7 @@ function ModalRenovarConvenio({
               {convenio.nombreComercial} · la línea y el plazo seguirán heredándose del cliente.
             </p>
           </div>
-          <button onClick={onClose} aria-label="Cerrar">
+          <button onClick={onClose} aria-label="Cerrar" title="Cerrar">
             <X />
           </button>
         </div>
@@ -1399,7 +1399,7 @@ function ModalCobro({
               {dinero(cuenta.saldoPendiente, cuenta.moneda)}
             </p>
           </div>
-          <button onClick={onClose}>
+          <button aria-label="Cerrar" title="Cerrar" onClick={onClose}>
             <X />
           </button>
         </div>

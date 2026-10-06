@@ -891,7 +891,7 @@ export default function ClientesPage() {
                                     </p>
                                 </div>
                             </div>
-                            <button onClick={()=>setModal(false)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                            <button aria-label="Cerrar" title="Cerrar" onClick={()=>setModal(false)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
                                 <X className="w-5 h-5 text-slate-400"/>
                             </button>
                         </div>

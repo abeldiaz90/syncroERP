@@ -421,7 +421,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button
               onClick={() => setMenuAbierto(true)}
               className="lg:hidden btn btn-fantasma btn-icono btn-sm"
-              aria-label="Abrir menú"
+              aria-label="Abrir menú" title="Abrir menú"
             >
               <LayoutGrid className="w-4 h-4" />
             </button>

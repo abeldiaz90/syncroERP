@@ -189,7 +189,7 @@ export default function DevolucionesProveedorPage() {
         </div>
         <div className="flex gap-2">
           <Link href="/dashboard/compras/ordenes" className="px-4 py-2 rounded-xl border font-semibold">Órdenes de compra</Link>
-          <button onClick={() => void cargar()} className="p-2 border rounded-xl"><RefreshCw className={cargando ? 'animate-spin' : ''} /></button>
+          <button aria-label="Volver a cargar" title="Volver a cargar" onClick={() => void cargar()} className="p-2 border rounded-xl"><RefreshCw className={cargando ? 'animate-spin' : ''} /></button>
         </div>
       </div>
 

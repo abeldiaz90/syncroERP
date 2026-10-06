@@ -349,7 +349,7 @@ export default function CobranzaPage() {
                 <DollarSign className="w-5 h-5 text-indigo-400"/>
                 Registrar Pago — {creditoSeleccionado.folio}
               </h2>
-              <button onClick={()=>setModalPago(false)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
+              <button aria-label="Cerrar" title="Cerrar" onClick={()=>setModalPago(false)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
             </div>
             <div className="p-6 space-y-4">
               {cuotaSeleccionada&&(

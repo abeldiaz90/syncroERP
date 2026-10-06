@@ -399,7 +399,7 @@ export default function RackPage() {
                     {sel.tipoHabitacion?.nombre} · Piso {sel.piso}
                   </p>
                 </div>
-                <button
+                <button aria-label="Cerrar" title="Cerrar"
                   onClick={() => setSel(null)}
                   className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors"
                 >

@@ -253,7 +253,7 @@ export default function ImportarInventarioPage() {
                 Aplicar carga
               </button>
 
-              <button
+              <button aria-label="Cerrar" title="Cerrar"
                 onClick={() => {
                   setArchivo(null);
                   setResultado(null);

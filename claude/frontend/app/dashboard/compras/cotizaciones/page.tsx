@@ -482,7 +482,7 @@ export default function CotizacionesPage() {
                   Referencia: <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">{folioDe(selectedReq, FOLIO.REQUISICION)}</span>
                 </p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-full transition-colors">
+              <button aria-label="Cerrar" title="Cerrar" onClick={() => setIsModalOpen(false)} className="p-2 bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-full transition-colors">
                 <X className="w-6 h-6" />
               </button>
             </div>

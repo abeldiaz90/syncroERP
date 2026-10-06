@@ -249,7 +249,7 @@ export default function HousekeepingPage() {
               ))}
             </select>
           )}
-          <button
+          <button aria-label="Volver a cargar" title="Volver a cargar"
             onClick={cargar}
             className="p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50"
           >

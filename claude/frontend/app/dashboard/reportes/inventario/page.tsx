@@ -154,7 +154,7 @@ export default function ReporteInventarioPage() {
             datos={filtrados}
             columnas={COLUMNAS_INV}
           />
-          <button onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 print:hidden">
+          <button aria-label="Volver a cargar" title="Volver a cargar" onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 print:hidden">
             <RefreshCw className="w-4 h-4"/>
           </button>
         </div>

@@ -550,7 +550,7 @@ export default function ConfiguracionAprobacionesPage() {
                         disabled={!puedeGobernar}
                         onClick={() => mover(indice, -1)}
                         className="rounded-lg p-2 hover:bg-slate-100 disabled:opacity-30"
-                        aria-label="Subir nivel"
+                        aria-label="Subir nivel" title="Subir nivel"
                       >
                         <ArrowUp className="h-4 w-4" />
                       </button>
@@ -558,7 +558,7 @@ export default function ConfiguracionAprobacionesPage() {
                         disabled={!puedeGobernar}
                         onClick={() => mover(indice, 1)}
                         className="rounded-lg p-2 hover:bg-slate-100 disabled:opacity-30"
-                        aria-label="Bajar nivel"
+                        aria-label="Bajar nivel" title="Bajar nivel"
                       >
                         <ArrowDown className="h-4 w-4" />
                       </button>
@@ -572,7 +572,7 @@ export default function ConfiguracionAprobacionesPage() {
                           )
                         }
                         className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-30"
-                        aria-label="Eliminar nivel"
+                        aria-label="Eliminar nivel" title="Eliminar nivel"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

@@ -140,7 +140,7 @@ export default function DeclaracionIVAPage() {
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 text-sm font-medium hover:bg-slate-50 shadow-sm print:hidden">
             <Printer className="w-4 h-4"/> Imprimir
           </button>
-          <button onClick={cargar}
+          <button aria-label="Volver a cargar" title="Volver a cargar" onClick={cargar}
             className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm print:hidden">
             <RefreshCw className="w-4 h-4"/>
           </button>

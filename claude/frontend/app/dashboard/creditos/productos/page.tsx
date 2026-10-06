@@ -398,7 +398,7 @@ export default function ProductosCreditoPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="font-bold flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-indigo-400"/> {detalle.nombre}</h2>
-              <button onClick={()=>setDetalle(null)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
+              <button aria-label="Cerrar" title="Cerrar" onClick={()=>setDetalle(null)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
             </div>
             <div className="p-6 overflow-y-auto text-sm">
               <p className="text-slate-500 mb-3">
@@ -457,7 +457,7 @@ export default function ProductosCreditoPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="font-bold">{editando ? `Editar ${editando.codigo}` : 'Nuevo producto de crédito'}</h2>
-              <button onClick={()=>setModal(false)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
+              <button aria-label="Cerrar" title="Cerrar" onClick={()=>setModal(false)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
             </div>
             <div className="p-6 space-y-4 overflow-y-auto">
               {!editando&&(

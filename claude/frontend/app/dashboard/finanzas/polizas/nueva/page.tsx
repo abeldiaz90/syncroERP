@@ -149,7 +149,7 @@ export default function PolizaManualPage() {
           </h1>
           <p className="text-slate-500 text-sm mt-1">Registra asientos contables que no se generan automáticamente.</p>
         </div>
-        <button onClick={() => router.back()}
+        <button aria-label="Cerrar" title="Cerrar" onClick={() => router.back()}
           className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50">
           <X className="w-4 h-4"/>
         </button>
@@ -294,7 +294,7 @@ export default function PolizaManualPage() {
 
                   {/* Eliminar */}
                   <td className="px-4 py-3 text-center">
-                    <button onClick={() => eliminarLinea(linea.id)} disabled={lineas.length <= 2}
+                    <button aria-label="Eliminar" title="Eliminar" onClick={() => eliminarLinea(linea.id)} disabled={lineas.length <= 2}
                       className="p-1.5 text-rose-400 hover:bg-rose-50 rounded-lg disabled:opacity-20 transition-colors">
                       <Trash2 className="w-3.5 h-3.5"/>
                     </button>

@@ -65,7 +65,7 @@ export default function ConfirmDialog({
               <h3 className="text-lg font-bold text-slate-900">{titulo}</h3>
               <p className="text-sm text-slate-500 mt-1 leading-relaxed">{mensaje}</p>
             </div>
-            <button
+            <button aria-label="Cerrar" title="Cerrar"
               onClick={() => !procesando && onCancelar()}
               className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"
             >

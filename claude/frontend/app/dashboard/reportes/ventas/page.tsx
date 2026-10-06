@@ -144,7 +144,7 @@ export default function ReporteVentasPage() {
             datos={ventasFiltradas}
             columnas={COLUMNAS_VENTAS}
           />
-          <button onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50">
+          <button aria-label="Volver a cargar" title="Volver a cargar" onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50">
             <RefreshCw className="w-4 h-4"/>
           </button>
         </div>

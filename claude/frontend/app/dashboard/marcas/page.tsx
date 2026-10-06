@@ -144,7 +144,7 @@ export default function MarcasPage() {
 
                       {/* ✅ Solo aparece si tiene PATCH /api/catalogo/marcas/:id */}
                       <PuedeEditar ruta="/api/catalogo/marcas/:id">
-                        <button
+                        <button aria-label="Editar" title="Editar"
                           onClick={() => { setEditandoId(m.id); setNombreMarca(m.nombre); setNombreTocado(false); setIsModalOpen(true); }}
                           className="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all"
                         >
@@ -154,7 +154,7 @@ export default function MarcasPage() {
 
                       {/* ✅ Solo aparece si tiene PATCH /api/catalogo/marcas/:id/estado */}
                       <PuedeEditar ruta="/api/catalogo/marcas/:id/estado">
-                        <button
+                        <button aria-label="Activar o desactivar" title="Activar o desactivar"
                           onClick={() => handleCambiarEstado(m.id, m.activo)}
                           className="p-2 text-slate-500 bg-slate-100 rounded-lg hover:bg-slate-200 transition-all"
                         >

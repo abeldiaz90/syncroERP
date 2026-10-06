@@ -509,7 +509,7 @@ export default function PermisosPage() {
                   placeholder="nombre del rol"
                   style={{ padding: '7px 10px', border: '1.5px solid #c7d2fe', borderRadius: 8, fontSize: 12, outline: 'none', flex: 1, minWidth: 0 }}/>
                 <button onClick={crearRol} style={{ padding: '7px 12px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Crear</button>
-                <button onClick={() => setCreandoRol(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                <button aria-label="Cerrar" title="Cerrar" onClick={() => setCreandoRol(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
                   <X style={{ width: 14, height: 14, color: '#94a3b8' }}/>
                 </button>
               </div>

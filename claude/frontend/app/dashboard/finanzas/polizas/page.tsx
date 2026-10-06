@@ -196,7 +196,7 @@ export default function LibroDiarioPage() {
           <p className="text-slate-500 text-sm mt-1">Auditoría de todos los movimientos contables del ERP.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={cargar}
+          <button aria-label="Volver a cargar el libro diario" title="Volver a cargar el libro diario" onClick={cargar}
             className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm">
             <RefreshCw className="w-4 h-4"/>
           </button>
@@ -343,11 +343,11 @@ export default function LibroDiarioPage() {
                   Página {pagina} de {totalPaginas} · {filtradas.length} registros
                 </p>
                 <div className="flex gap-1">
-                  <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
+                  <button aria-label="Página anterior" title="Página anterior" onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
                     className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white disabled:opacity-30">
                     <ChevronLeft className="w-4 h-4"/>
                   </button>
-                  <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
+                  <button aria-label="Página siguiente" title="Página siguiente" onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
                     className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white disabled:opacity-30">
                     <ChevronRight className="w-4 h-4"/>
                   </button>
@@ -369,7 +369,7 @@ export default function LibroDiarioPage() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-slate-400">{fmtFecha(detalle.fecha?.split('T')[0])}</span>
-                <button onClick={() => setDetalle(null)}
+                <button aria-label="Cerrar el detalle de la póliza" title="Cerrar el detalle de la póliza" onClick={() => setDetalle(null)}
                   className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
                   <X className="w-5 h-5"/>
                 </button>
@@ -488,7 +488,7 @@ export default function LibroDiarioPage() {
         <div className="fixed bottom-6 right-6 z-[60] bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3">
           <Undo2 className="w-4 h-4 text-emerald-400"/>
           <span>{okCancel}</span>
-          <button onClick={() => setOkCancel(null)} className="text-slate-400 hover:text-white"><X className="w-4 h-4"/></button>
+          <button aria-label="Cerrar" title="Cerrar" onClick={() => setOkCancel(null)} className="text-slate-400 hover:text-white"><X className="w-4 h-4"/></button>
         </div>
       )}
     </div>

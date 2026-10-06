@@ -85,7 +85,7 @@ export default function WizardRecetas({ api, h, onListo, onClose }: {
             <h3 className="text-lg font-semibold text-slate-900">Verificación previa</h3>
             <p className="text-sm text-slate-500">Antes de crear recetas, revisemos que todo esté listo.</p>
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-50 rounded-full"><X className="w-5 h-5" /></button>
+          <button aria-label="Cerrar" title="Cerrar" onClick={onClose} className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-50 rounded-full"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="p-5">

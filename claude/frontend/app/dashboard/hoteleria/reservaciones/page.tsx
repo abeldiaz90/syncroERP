@@ -496,7 +496,7 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
               {reserva.codigo} · {reserva.clienteNombre}
             </p>
           </div>
-          <button
+          <button aria-label="Cerrar" title="Cerrar"
             onClick={onClose}
             className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"
           >
@@ -628,7 +628,7 @@ function ModalCambiarEstado({ api, h, datos, onClose, onOk }: any) {
               {datos.reserva.codigo} · {datos.reserva.clienteNombre}
             </p>
           </div>
-          <button
+          <button aria-label="Cerrar" title="Cerrar"
             onClick={onClose}
             className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"
           >
@@ -847,7 +847,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
           <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Plus className="w-5 h-5 text-indigo-500" /> Nueva reservación
           </h3>
-          <button
+          <button aria-label="Cerrar" title="Cerrar"
             onClick={onClose}
             className="p-2 text-slate-400 hover:bg-slate-100 rounded-full"
           >
@@ -871,7 +871,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
                 <span className="text-sm font-medium text-indigo-800 flex items-center gap-2">
                   <User className="w-4 h-4" /> {form.clienteNombre}
                 </span>
-                <button
+                <button aria-label="Cerrar" title="Cerrar"
                   onClick={() =>
                     setForm((f) => ({ ...f, clienteId: "", clienteNombre: "" }))
                   }
@@ -1058,7 +1058,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
               <h3 className="font-bold text-slate-900 flex items-center gap-2">
                 <User className="w-5 h-5 text-indigo-500" /> Nuevo huésped
               </h3>
-              <button
+              <button aria-label="Cerrar sin dar de alta al huésped" title="Cerrar sin dar de alta al huésped"
                 onClick={() => setNuevoHuesped(false)}
                 className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full"
               >
@@ -1223,7 +1223,7 @@ function ModalCheckIn({ api, h, reserva, onClose, onOk }: any) {
           <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <LogIn className="w-5 h-5 text-emerald-500" /> Check-in
           </h3>
-          <button
+          <button aria-label="Cerrar" title="Cerrar"
             onClick={onClose}
             className="p-2 text-slate-400 hover:bg-slate-100 rounded-full"
           >
@@ -1386,7 +1386,7 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
             </h3>
             <p className="text-sm text-slate-500">{reserva.clienteNombre}</p>
           </div>
-          <button
+          <button aria-label="Cerrar" title="Cerrar"
             onClick={onClose}
             className="p-2 text-slate-400 hover:bg-slate-100 rounded-full"
           >

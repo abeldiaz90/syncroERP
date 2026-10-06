@@ -164,18 +164,18 @@ export default function AtributosPersonalizadosPage() {
                       <input autoFocus value={nombreEditado} onChange={(e) => setNombreEditado(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && renombrarGrupo(g.id)}
                         className="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" />
-                      <button onClick={(e) => { e.stopPropagation(); renombrarGrupo(g.id); }}><Check className="w-4 h-4 text-emerald-600" /></button>
-                      <button onClick={(e) => { e.stopPropagation(); setEditandoGrupo(null); }}><X className="w-4 h-4 text-slate-400" /></button>
+                      <button aria-label="Guardar el nuevo nombre del grupo" title="Guardar el nuevo nombre del grupo" onClick={(e) => { e.stopPropagation(); renombrarGrupo(g.id); }}><Check className="w-4 h-4 text-emerald-600" /></button>
+                      <button aria-label="Descartar el cambio de nombre" title="Descartar el cambio de nombre" onClick={(e) => { e.stopPropagation(); setEditandoGrupo(null); }}><X className="w-4 h-4 text-slate-400" /></button>
                     </>
                   ) : (
                     <>
                       <span className="flex-1 text-sm font-medium">{g.nombre}</span>
                       <span className="text-xs text-slate-400">{g.definiciones.length}</span>
-                      <button className="opacity-0 group-hover:opacity-100"
+                      <button aria-label="Renombrar el grupo" title="Renombrar el grupo" className="opacity-0 group-hover:opacity-100"
                         onClick={(e) => { e.stopPropagation(); setEditandoGrupo(g.id); setNombreEditado(g.nombre); }}>
                         <Pencil className="w-3.5 h-3.5 text-slate-400 hover:text-blue-600" />
                       </button>
-                      <button className="opacity-0 group-hover:opacity-100"
+                      <button aria-label="Eliminar el grupo" title="Eliminar el grupo" className="opacity-0 group-hover:opacity-100"
                         onClick={(e) => { e.stopPropagation(); eliminarGrupo(g.id, g.nombre); }}>
                         <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-rose-600" />
                       </button>
@@ -192,7 +192,7 @@ export default function AtributosPersonalizadosPage() {
                 onKeyDown={(e) => e.key === "Enter" && crearGrupo()}
                 placeholder="Nueva plantilla… (ej. Ferretería)"
                 className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-              <button onClick={crearGrupo} disabled={guardando || !nuevoGrupo.trim()}
+              <button aria-label="Crear el grupo" title="Crear el grupo" onClick={crearGrupo} disabled={guardando || !nuevoGrupo.trim()}
                 className="bg-purple-600 text-white rounded-lg px-3 hover:bg-purple-700 disabled:opacity-40">
                 <Plus className="w-4 h-4" />
               </button>
@@ -228,7 +228,7 @@ export default function AtributosPersonalizadosPage() {
                         </span>
                         <button onClick={() => moverCampo(d, -1)} className="text-slate-300 hover:text-slate-600">↑</button>
                         <button onClick={() => moverCampo(d, +1)} className="text-slate-300 hover:text-slate-600">↓</button>
-                        <button onClick={() => eliminarCampo(d.id)}>
+                        <button aria-label="Eliminar el campo" title="Eliminar el campo" onClick={() => eliminarCampo(d.id)}>
                           <Trash2 className="w-4 h-4 text-slate-300 hover:text-rose-600" />
                         </button>
                       </div>

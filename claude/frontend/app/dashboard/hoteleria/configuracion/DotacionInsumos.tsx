@@ -170,7 +170,7 @@ export default function DotacionInsumos({ api, h, hotelId, tipos }: {
                       <input type="number" min={0} step="0.5" value={it.cantidad}
                         onChange={e => cambiarCantidad(it.productoId, Number(e.target.value))}
                         className="w-16 px-2 py-1 border border-slate-200 rounded text-sm text-center tabular-nums" />
-                      <button onClick={() => quitar(it.productoId)} className="text-slate-300 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
+                      <button aria-label="Eliminar" title="Eliminar" onClick={() => quitar(it.productoId)} className="text-slate-300 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
                     </div>
                     <div className="flex gap-1.5 pl-6">
                       <button onClick={() => cambiarTipo(it.productoId, 'CONSUMIBLE')}

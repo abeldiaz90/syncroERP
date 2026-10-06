@@ -320,13 +320,13 @@ export default function ListasPrecioPage() {
                           <div className="flex justify-end gap-2">
                             {/* ✅ Solo aparece si tiene PATCH /api/catalogo/listas-precio/:id */}
                             <PuedeEditar ruta="/api/catalogo/listas-precio/:id">
-                              <button onClick={() => handleEditar(lista)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
+                              <button aria-label="Editar" title="Editar" onClick={() => handleEditar(lista)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
                                 <Edit2 className="w-4 h-4" />
                               </button>
                             </PuedeEditar>
                             {/* ✅ Solo aparece si tiene DELETE /api/catalogo/listas-precio/:id */}
                             <PuedeEliminar ruta="/api/catalogo/listas-precio/:id">
-                              <button onClick={() => handleEliminar(lista.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors">
+                              <button aria-label="Eliminar" title="Eliminar" onClick={() => handleEliminar(lista.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </PuedeEliminar>

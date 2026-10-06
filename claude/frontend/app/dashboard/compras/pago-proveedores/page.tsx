@@ -335,7 +335,7 @@ export default function PagoProveedoresPage() {
                 <DollarSign className="w-5 h-5 text-indigo-400"/>
                 Pago — {folioDe(ordenSeleccionada, FOLIO.ORDEN_COMPRA)}
               </h2>
-              <button onClick={()=>setModal(false)} className="p-1.5 text-slate-400 hover:text-white">
+              <button aria-label="Cerrar" title="Cerrar" onClick={()=>setModal(false)} className="p-1.5 text-slate-400 hover:text-white">
                 <X className="w-5 h-5"/>
               </button>
             </div>

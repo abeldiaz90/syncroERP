@@ -140,7 +140,7 @@ export default function PaisesPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col border-t-4 border-t-indigo-500">
             <div className="flex justify-between items-center p-6 border-b border-slate-100">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Globe className="w-5 h-5 text-indigo-500" />{editandoId ? 'Editar País' : 'Nuevo País'}</h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+              <button aria-label="Cerrar" title="Cerrar" onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 space-y-4">
               <form id="pais-form" noValidate onSubmit={handleGuardar} className="space-y-4">

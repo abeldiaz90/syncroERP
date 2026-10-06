@@ -221,7 +221,7 @@ export default function AsistenteConfiguracion({
             Completaste los pasos que te corresponden en la puesta en marcha.
           </p>
         </div>
-        <button onClick={() => setOculto(true)} className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full">
+        <button aria-label="Cerrar" title="Cerrar" onClick={() => setOculto(true)} className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full">
           <X className="w-4 h-4" />
         </button>
       </div>

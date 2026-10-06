@@ -212,7 +212,7 @@ export default function SaldosInicialesPage() {
             El balance de apertura: activo, pasivo y capital. La contrapartida va a {CUENTA_PUENTE} «Carga de saldos iniciales».
           </p>
         </div>
-        <button onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm">
+        <button aria-label="Volver a cargar" title="Volver a cargar" onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm">
           <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />
         </button>
       </div>

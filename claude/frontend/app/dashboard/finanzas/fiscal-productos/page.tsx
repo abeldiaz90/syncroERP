@@ -170,7 +170,7 @@ export default function FiscalProductosPage() {
         <button
           onClick={() => void cargar()}
           className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm"
-          aria-label="Actualizar"
+          aria-label="Actualizar" title="Actualizar"
         >
           <RefreshCw className={`w-4 h-4 ${cargando ? "animate-spin" : ""}`} />
         </button>

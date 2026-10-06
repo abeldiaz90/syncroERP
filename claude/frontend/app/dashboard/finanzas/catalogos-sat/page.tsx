@@ -444,7 +444,7 @@ export default function CatalogosSatPage() {
                   {seleccionada.numeroCuenta} · {seleccionada.nombre}
                 </h2>
               </div>
-              <button
+              <button aria-label="Cerrar" title="Cerrar"
                 onClick={() => setSeleccionada(null)}
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
               >

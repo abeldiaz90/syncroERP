@@ -215,7 +215,7 @@ export default function AuditoriaPage() {
                   Página {resp.pagina} de {resp.totalPaginas} · {resp.total} registros
                 </p>
                 <div className="flex gap-1">
-                  <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={resp.pagina === 1}
+                  <button aria-label="Anterior" title="Anterior" onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={resp.pagina === 1}
                     className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white disabled:opacity-30">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -242,7 +242,7 @@ export default function AuditoriaPage() {
                   <Clock className="w-3 h-3 inline mx-1" />{fmtFechaHora(detalle.fechaHora)}
                 </p>
               </div>
-              <button onClick={() => setDetalle(null)} className="p-1.5 hover:bg-white/10 rounded-lg">
+              <button aria-label="Cerrar" title="Cerrar" onClick={() => setDetalle(null)} className="p-1.5 hover:bg-white/10 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
