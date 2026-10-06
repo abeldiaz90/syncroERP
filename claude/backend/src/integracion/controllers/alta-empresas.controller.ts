@@ -11,6 +11,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Public } from '../../common/decorators/public.decorator';
+import {
+  AsignarAdministradorDto,
+  CrearEmpresaDto,
+  RegistrarIdentidadDto,
+  RegistrarReservaDto,
+  SolicitadoPorDto,
+} from '../dto/alta-empresas.dto';
 import { AltaEmpresasService } from '../services/alta-empresas.service';
 import { IdentidadEmpresaService } from '../../iam/services/identidad-empresa.service';
 import { revisarRfc } from '../../common/utils/rfc.util';
@@ -52,6 +59,22 @@ export class AltaEmpresasController {
    * carácter distinto haría que el tiempo de respuesta revelara cuántos
    * caracteres se acertaron.
    */
+  /**
+   * El id de empresa que llega por la ruta tiene forma de GUID.
+   *
+   * No es formalidad: ese valor va a un `where` y a escrituras, y aquí no hay
+   * DTO que lo valide porque viene del path. Un parámetro con otra forma sólo
+   * puede venir de una llamada mal construida o de alguien probando, y en los
+   * dos casos un 400 claro es mejor que una consulta.
+   */
+  private exigirGuid(empresaId: string): void {
+    if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+        (empresaId ?? '').trim(),
+      )) {
+      throw new BadRequestException('El identificador de empresa no es válido.');
+    }
+  }
+
   private exigirServicio(clave?: string): void {
     const esperada = (this.cfg.get<string>('APROVISIONAMIENTO_TOKEN') ?? '').trim();
     if (!esperada || esperada.length < 32) throw new NotFoundException();
@@ -79,28 +102,15 @@ export class AltaEmpresasController {
   @Post()
   async crear(
     @Headers('x-aprovisionamiento') clave: string | undefined,
-    @Body()
-    cuerpo: {
-      nombreComercial?: string;
-      rfc?: string;
-      usaFineract?: boolean;
-      /** Quién lo autorizó del lado de SUMA. Va a la bitácora. */
-      solicitadoPor?: string;
-      /** El administrador de la empresa cliente. Sin él nadie puede entrar. */
-      administrador?: { correo?: string; nombre?: string; apellido?: string };
-    },
+    @Body() cuerpo: CrearEmpresaDto,
   ) {
     this.exigirServicio(clave);
-    if (!cuerpo?.solicitadoPor?.trim()) {
-      /*
-       * Se exige saber a nombre de quién se da el alta. Una credencial de
-       * servicio dice QUÉ sistema llamó, no QUIÉN lo pidió, y una bitácora que
-       * sólo dice «la consola» no sirve para auditar a nadie.
-       */
-      throw new ForbiddenException(
-        'Falta indicar quién autoriza el alta del lado de SUMA (solicitadoPor).',
-      );
-    }
+    /*
+     * `solicitadoPor` ya no se comprueba a mano: lo exige el DTO, que además lo
+     * acota en largo. Se exige saber a nombre de quién se da el alta porque una
+     * credencial de servicio dice QUÉ sistema llamó, no QUIÉN lo pidió, y una
+     * bitácora que sólo dice «la consola» no sirve para auditar a nadie.
+     */
     /*
      * ──────────────────────────────────────────────────────────────────────
      * EL RFC, COMPROBADO AQUI Y NO EL DIA DEL PRIMER TIMBRADO
@@ -131,7 +141,7 @@ export class AltaEmpresasController {
       nombreComercial: String(cuerpo?.nombreComercial ?? ''),
       rfc,
       usaFineract: cuerpo?.usaFineract === true,
-      solicitadoPor: cuerpo.solicitadoPor.trim(),
+      solicitadoPor: cuerpo.solicitadoPor,
       administrador: cuerpo?.administrador?.correo?.trim()
         ? {
             correo: cuerpo.administrador.correo.trim(),
@@ -154,29 +164,16 @@ export class AltaEmpresasController {
   async asignarAdministrador(
     @Headers('x-aprovisionamiento') clave: string | undefined,
     @Param('empresaId') empresaId: string,
-    @Body()
-    cuerpo: {
-      correo?: string;
-      nombre?: string;
-      apellido?: string;
-      solicitadoPor?: string;
-    },
+    @Body() cuerpo: AsignarAdministradorDto,
   ) {
     this.exigirServicio(clave);
-    if (!cuerpo?.solicitadoPor?.trim()) {
-      throw new ForbiddenException(
-        'Falta indicar quién autoriza el alta del lado de SUMA (solicitadoPor).',
-      );
-    }
-    if (!cuerpo?.correo?.trim()) {
-      throw new ForbiddenException('Falta el correo del administrador.');
-    }
+    this.exigirGuid(empresaId);
     return this.alta.asignarAdministrador({
       empresaId,
-      correo: cuerpo.correo.trim(),
-      nombre: (cuerpo.nombre ?? '').trim(),
-      apellido: (cuerpo.apellido ?? '').trim(),
-      solicitadoPor: cuerpo.solicitadoPor.trim(),
+      correo: cuerpo.correo,
+      nombre: cuerpo.nombre ?? '',
+      apellido: cuerpo.apellido ?? '',
+      solicitadoPor: cuerpo.solicitadoPor,
     });
   }
 
@@ -191,10 +188,10 @@ export class AltaEmpresasController {
   @Post('reserva')
   async registrarReserva(
     @Headers('x-aprovisionamiento') clave: string | undefined,
-    @Body() cuerpo: { identificadores?: string[] },
+    @Body() cuerpo: RegistrarReservaDto,
   ) {
     this.exigirServicio(clave);
-    return this.alta.registrarEnReserva(cuerpo?.identificadores ?? []);
+    return this.alta.registrarEnReserva(cuerpo.identificadores);
   }
 
   /*
@@ -216,39 +213,24 @@ export class AltaEmpresasController {
   async registrarIdentidad(
     @Headers('x-aprovisionamiento') clave: string | undefined,
     @Param('empresaId') empresaId: string,
-    @Body()
-    cuerpo: {
-      emisor?: string;
-      realm?: string;
-      clientIdPublico?: string;
-      clientIdServicio?: string;
-      secretoServicio?: string;
-      clientIdProvisionador?: string;
-      secretoProvisionador?: string;
-      dominiosPermitidos?: string;
-      solicitadoPor?: string;
-    },
+    @Body() cuerpo: RegistrarIdentidadDto,
   ) {
     this.exigirServicio(clave);
-    if (!cuerpo?.solicitadoPor?.trim()) {
-      throw new ForbiddenException(
-        'Falta indicar quién autoriza el registro de identidad (solicitadoPor).',
-      );
-    }
+    this.exigirGuid(empresaId);
     // Que la empresa exista se comprueba antes de escribir: una identidad
     // huérfana no la reclama nadie y no se ve en ninguna pantalla.
     await this.alta.estado(empresaId);
     return this.identidades.registrar({
       empresaId,
-      emisor: String(cuerpo?.emisor ?? ''),
-      realm: String(cuerpo?.realm ?? ''),
-      clientIdPublico: String(cuerpo?.clientIdPublico ?? ''),
-      clientIdServicio: cuerpo?.clientIdServicio ?? null,
-      secretoServicio: cuerpo?.secretoServicio ?? null,
-      clientIdProvisionador: cuerpo?.clientIdProvisionador ?? null,
-      secretoProvisionador: cuerpo?.secretoProvisionador ?? null,
-      dominiosPermitidos: cuerpo?.dominiosPermitidos ?? null,
-      aprovisionadoPor: cuerpo.solicitadoPor.trim(),
+      emisor: cuerpo.emisor,
+      realm: cuerpo.realm,
+      clientIdPublico: cuerpo.clientIdPublico,
+      clientIdServicio: cuerpo.clientIdServicio ?? null,
+      secretoServicio: cuerpo.secretoServicio ?? null,
+      clientIdProvisionador: cuerpo.clientIdProvisionador ?? null,
+      secretoProvisionador: cuerpo.secretoProvisionador ?? null,
+      dominiosPermitidos: cuerpo.dominiosPermitidos ?? null,
+      aprovisionadoPor: cuerpo.solicitadoPor,
     });
   }
 
@@ -257,15 +239,10 @@ export class AltaEmpresasController {
   async activarIdentidad(
     @Headers('x-aprovisionamiento') clave: string | undefined,
     @Param('empresaId') empresaId: string,
-    @Body() cuerpo: { solicitadoPor?: string },
+    @Body() cuerpo: SolicitadoPorDto,
   ) {
     this.exigirServicio(clave);
-    if (!cuerpo?.solicitadoPor?.trim()) {
-      throw new ForbiddenException(
-        'Falta indicar quién autoriza la activación (solicitadoPor).',
-      );
-    }
-    return this.identidades.activar(empresaId, cuerpo.solicitadoPor.trim());
+    return this.identidades.activar(empresaId, cuerpo.solicitadoPor);
   }
 
   @Public()
@@ -273,15 +250,10 @@ export class AltaEmpresasController {
   async suspenderIdentidad(
     @Headers('x-aprovisionamiento') clave: string | undefined,
     @Param('empresaId') empresaId: string,
-    @Body() cuerpo: { solicitadoPor?: string },
+    @Body() cuerpo: SolicitadoPorDto,
   ) {
     this.exigirServicio(clave);
-    if (!cuerpo?.solicitadoPor?.trim()) {
-      throw new ForbiddenException(
-        'Falta indicar quién autoriza la suspensión (solicitadoPor).',
-      );
-    }
-    return this.identidades.suspender(empresaId, cuerpo.solicitadoPor.trim());
+    return this.identidades.suspender(empresaId, cuerpo.solicitadoPor);
   }
 
   /** Qué identidad tiene una empresa. Nunca devuelve secretos. */
@@ -336,14 +308,9 @@ export class AltaEmpresasController {
   async sembrarCatalogo(
     @Headers('x-aprovisionamiento') clave: string | undefined,
     @Param('id') id: string,
-    @Body() cuerpo: { solicitadoPor?: string },
+    @Body() cuerpo: SolicitadoPorDto,
   ) {
     this.exigirServicio(clave);
-    if (!cuerpo?.solicitadoPor?.trim()) {
-      throw new ForbiddenException(
-        'Falta indicar quién autoriza la siembra del catálogo (solicitadoPor).',
-      );
-    }
     return this.alta.sembrarCatalogoDe(id);
   }
 
@@ -360,14 +327,9 @@ export class AltaEmpresasController {
   async asignarInquilino(
     @Headers('x-aprovisionamiento') clave: string | undefined,
     @Param('id') id: string,
-    @Body() cuerpo: { solicitadoPor?: string },
+    @Body() cuerpo: SolicitadoPorDto,
   ) {
     this.exigirServicio(clave);
-    if (!cuerpo?.solicitadoPor?.trim()) {
-      throw new ForbiddenException(
-        'Falta indicar quién autoriza la entrega del inquilino (solicitadoPor).',
-      );
-    }
-    return this.alta.asignarInquilino(id, cuerpo.solicitadoPor.trim());
+    return this.alta.asignarInquilino(id, cuerpo.solicitadoPor);
   }
 }
