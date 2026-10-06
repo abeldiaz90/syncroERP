@@ -57,8 +57,8 @@ const REPORTES = [
   {
     href:    '/dashboard/reportes/ejecutivo',
     icon:    BarChart2,
-    titulo:  'Dashboard Ejecutivo',
-    desc:    'KPIs en tiempo real, alertas, gráfica 30 días y top productos.',
+    titulo:  'Tablero ejecutivo',
+    desc:    'Indicadores en tiempo real, alertas, gráfica de 30 días y los productos más vendidos.',
     color:   '#0f172a',
     badge:   'Gerencia',
   },

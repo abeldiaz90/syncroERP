@@ -248,7 +248,7 @@ export default function AuditoriaPage() {
             </div>
             <div className="overflow-y-auto flex-1 p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <Campo label="Endpoint" valor={detalle.endpoint} mono />
+                <Campo label="Ruta" valor={detalle.endpoint} mono />
                 <Campo label="Registro" valor={detalle.registroId} mono />
                 <Campo label="IP" valor={detalle.ip} mono />
                 <Campo label="Resultado" valor={detalle.resultado} />

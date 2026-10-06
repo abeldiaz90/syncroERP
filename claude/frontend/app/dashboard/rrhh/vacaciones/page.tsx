@@ -98,7 +98,7 @@ export default function VacacionesPage() {
           <BuscadorSeleccion valor={form.empleadoId} onChange={(empleadoId) => setForm({ ...form, empleadoId })} opciones={empleados.map((e) => ({ valor: e.id, etiqueta: nombre(e.id), busqueda: e.numeroEmpleado }))} placeholder="Buscar empleado…" />
           <div className="grid grid-cols-2 gap-3"><label className="text-sm">Desde<input type="date" className="entrada mt-1 w-full" value={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })}/></label><label className="text-sm">Hasta<input type="date" className="entrada mt-1 w-full" value={form.fechaFin} min={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaFin: e.target.value })}/></label></div>
           <label className="text-sm">Motivo o referencia<textarea className="entrada mt-1 min-h-20 w-full py-2" maxLength={400} value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })}/></label>
-          <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><b>{diasNaturales === null ? 'Elige un rango de fechas válido.' : `${diasNaturales} días naturales seleccionados.`}</b><br/>El backend descontará exclusivamente los días laborables del calendario de la empresa.</div>
+          <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><b>{diasNaturales === null ? 'Elige un rango de fechas válido.' : `${diasNaturales} días naturales seleccionados.`}</b><br/>El sistema descontará exclusivamente los días laborables del calendario de la empresa.</div>
           {sinDerecho && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
             <b>Todavía no tiene derecho a vacaciones.</b>
             <p className="mt-1">
