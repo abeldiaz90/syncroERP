@@ -51,7 +51,24 @@ interface Estado {
     cuentasSinMapear: number;
     cuentasPorMapear: number;
   };
-  enlace: { proveedor: string; configurado: boolean; disponible: boolean };
+  enlace: {
+    proveedor: string;
+    configurado: boolean;
+    disponible: boolean;
+    /*
+     * A QUÉ LIBRO DEL CORE VAN LAS PÓLIZAS DE ESTA EMPRESA.
+     *
+     * `proveedor` es «fineract»: el nombre del programa, no el libro. Esta
+     * pantalla afirma que las dos contabilidades dicen lo mismo, y hasta ahora
+     * no decía con cuál de los libros del core coincide.
+     *
+     * `efectivo` es el que de verdad recibe los asientos: el de la empresa si
+     * tiene uno asignado, el compartido por omisión si no. `propioDeLaEmpresa`
+     * distingue los dos casos, que es la diferencia entre un libro que es sólo
+     * suyo y uno que comparte con quien no tenga asignado el suyo.
+     */
+    inquilino?: { efectivo: string | null; propioDeLaEmpresa: boolean };
+  };
   outbox: Record<string, number>;
 }
 
@@ -399,6 +416,34 @@ export default function EspejoContablePage() {
   const sinMapear = estado.datos?.contabilidad.cuentasSinMapear ?? 0;
   const enVuelo = estado.datos?.enlace.disponible === true;
 
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * CON QUÉ LIBRO COINCIDE
+   * --------------------------------------------------------------------------
+   * La casilla del enlace decía «En línea · fineract». `fineract` es el nombre
+   * del programa; el libro al que llegan los asientos es el inquilino, y era
+   * justo el dato que faltaba en la pantalla que afirma que las dos
+   * contabilidades dicen lo mismo.
+   *
+   * Se dice además si el libro es sólo de esta empresa o el compartido por
+   * omisión. No es un adorno: un libro compartido es seguro mientras sea una
+   * sola empresa la que cae en él, y quien administra tiene que poder verlo sin
+   * abrir un archivo de configuración.
+   *
+   * Si el backend es anterior a este cambio, `inquilino` no viene y la casilla
+   * se queda como estaba, sin inventar un libro.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  const libroDelCore = (() => {
+    const enlace = estado.datos?.enlace;
+    if (!enlace) return "—";
+    const nombre = enlace.inquilino?.efectivo;
+    if (!nombre) return enlace.proveedor;
+    return enlace.inquilino?.propioDeLaEmpresa
+      ? `${enlace.proveedor} · libro «${nombre}»`
+      : `${enlace.proveedor} · libro «${nombre}», compartido`;
+  })();
+
   return (
     <div className="p-6 max-w-[1300px] mx-auto">
       <EncabezadoPantalla
@@ -479,9 +524,7 @@ export default function EspejoContablePage() {
             enVuelo ? "En línea" : espejoActivo ? "Sin enlace" : "No se usa"
           }
           detalle={
-            enVuelo || espejoActivo
-              ? (estado.datos?.enlace.proveedor ?? "—")
-              : "el espejo está apagado"
+            enVuelo || espejoActivo ? libroDelCore : "el espejo está apagado"
           }
         />
       </div>

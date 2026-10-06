@@ -37,6 +37,7 @@ import { MapearRolDto } from '../dto/mapear-rol.dto';
 import { AprovisionarCuentaServicioDto } from '../dto/cuenta-servicio.dto';
 import { EvaluarCreditoDto } from '../dto/evaluar-credito.dto';
 import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integracion-empresa.entity';
+import { ContextoInquilinoService } from '../services/contexto-inquilino.service';
 import { AccesoExternoService } from '../services/acceso-externo.service';
 import { CarteraConciliacionService } from '../services/cartera-conciliacion.service';
 import { ContabilidadConciliacionService } from '../services/contabilidad-conciliacion.service';
@@ -82,6 +83,8 @@ export class IntegracionController {
     private readonly mapeo: MapeoCuentasService,
     private readonly roles: RolesExternosService,
     private readonly acceso: AccesoExternoService,
+    /* Para decir en pantalla a qué inquilino del core van las pólizas de esta empresa. */
+    private readonly inquilinos: ContextoInquilinoService,
     private readonly publicadorContable: ContabilidadPublicadorService,
     @Inject(PUERTO_CONTABILIDAD_EXTERNA)
     private readonly contabilidad: PuertoContabilidadExterna,
@@ -111,9 +114,62 @@ export class IntegracionController {
            Se ven ANTES de que una póliza falle, que es cuando cuesta poco. */
         cuentasPorMapear: (await this.mapeo.previstas(empresaId)).length,
       },
-      enlace: this.disponibilidad.estado(),
+      /*
+       * ══════════════════════════════════════════════════════════════════════
+       * EL ENLACE DICE CON QUÉ MAYOR EXTERNO, NO SÓLO QUE HAY ENLACE
+       * ----------------------------------------------------------------------
+       * `estado()` devuelve el inquilino CONFIGURADO —el global—, y la pantalla
+       * de espejo contable ni siquiera lo pintaba: decía «En línea · fineract»,
+       * donde `fineract` es el nombre del PROVEEDOR.
+       *
+       * Eso deja a la pantalla que afirma «las dos contabilidades dicen lo
+       * mismo» sin decir con CUÁL. Y el inquilino es justo lo que decide a qué
+       * libro llegaron los asientos: desde el ERP cada empresa ve sólo lo suyo,
+       * y es el core quien las tendría juntas si dos cayeran en el mismo.
+       *
+       * Se devuelve el EFECTIVO —el de esta empresa si lo tiene, el global si
+       * no— porque es el que de verdad recibe sus pólizas. Y se dice cuál de
+       * los dos es, para que «global» se lea como lo que es: una empresa sola
+       * que todavía comparte el inquilino por omisión.
+       * ══════════════════════════════════════════════════════════════════════
+       */
+      enlace: await this.enlaceConInquilino(empresaId),
       outbox: await this.outbox.resumen(empresaId),
       parametrosProveedor: fila?.parametrosProveedor ?? {},
+    };
+  }
+
+  /**
+   * El estado del enlace más el inquilino que de verdad recibe las pólizas de
+   * esta empresa.
+   *
+   * `inquilinoDe` se resuelve UNA vez y se usa para las dos cosas: el nombre y
+   * el «es suyo». Preguntarlo dos veces abriría la puerta a que una respuesta
+   * dijera un inquilino y la otra que no tiene ninguno.
+   */
+  private async enlaceConInquilino(empresaId: string): Promise<{
+    proveedor: string;
+    configurado: boolean;
+    disponible: boolean;
+    inquilino: { efectivo: string | null; propioDeLaEmpresa: boolean };
+  }> {
+    const estado = this.disponibilidad.estado();
+    const propio = await this.inquilinos.inquilinoDe(empresaId);
+    /*
+     * `detalle` es `Record<string, unknown>`: lo que haya en `tenant` sólo sirve
+     * si es texto con contenido. Un objeto o un vacío pintados en la pantalla
+     * dirían «[object Object]» o una casilla en blanco justo donde la empresa
+     * busca con qué libro coincide.
+     */
+    const global = estado.detalle?.['tenant'];
+    const porOmision =
+      typeof global === 'string' && global.trim() ? global.trim() : null;
+    return {
+      ...estado,
+      inquilino: {
+        efectivo: propio ?? porOmision,
+        propioDeLaEmpresa: propio !== null,
+      },
     };
   }
 
