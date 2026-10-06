@@ -133,7 +133,27 @@ export class OperacionesPendientesService {
     const columnas = esquema.columnas.get(clave) ?? new Set<string>();
     const estadoNormalizado = columnaEstado.toLowerCase();
     if (!columnas.has(estadoNormalizado)) return null;
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * UNA TABLA SIN COLUMNA DE EMPRESA NO SE CUENTA: SE DICE QUE NO SE PUDO
+     * ------------------------------------------------------------------------
+     * Esto era `const whereEmpresa = tieneEmpresa ? 'empresaId=$1 AND ' : ''`, y
+     * una definición sobre una tabla SIN esa columna no devolvía `null` como los
+     * otros dos casos imposibles de arriba: contaba **todas las filas de todas
+     * las empresas** y se las devolvía al que preguntaba como pendientes suyos.
+     *
+     * Hoy no filtra nada —las diez tablas de `DEFINICIONES_PENDIENTES` la
+     * tienen— así que esto no es un arreglo, es quitar una trampa armada para
+     * la próxima definición que alguien añada sobre una tabla hija.
+     *
+     * Y es el mismo defecto que motivó este archivo, por el otro lado: allí se
+     * reportaba un pendiente que no existía; aquí se reportarían los de otros.
+     * `null` es «no se pudo medir», que es la verdad, y el llamador ya sabe
+     * tratarlo.
+     * ────────────────────────────────────────────────────────────────────────
+     */
     const tieneEmpresa = columnas.has('empresaid');
+    if (!tieneEmpresa) return null;
     // Los nombres de tabla provienen de una lista estática del servidor, no de
     // la entrada del usuario. Aun así se limita el formato por defensa extra.
     if (

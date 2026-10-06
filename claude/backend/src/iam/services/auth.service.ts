@@ -612,6 +612,24 @@ export class AuthService {
     };
   }
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * CERRAR SESIÓN NO CERRABA NADA CON KEYCLOAK
+   * --------------------------------------------------------------------------
+   * Esto subía `tokenVersion`, y la estrategia JWT compara ese contador contra
+   * el del token **sólo en modo local**. En modo `keycloak` —el obligatorio de
+   * esta instalación— `validarKeycloak` nunca lo miraba, porque el token lo
+   * firma el directorio y no lleva ese campo.
+   *
+   * O sea: el botón escribía en la base y no revocaba nada. Un token robado
+   * seguía valiendo hasta su `exp`, y la pantalla decía «Sesión cerrada
+   * correctamente».
+   *
+   * Ahora se escriben las dos cosas: el contador, que es lo que entiende el modo
+   * local, y la marca de tiempo, que es lo único que el ERP puede comparar
+   * contra un token que no firmó. Las dos en la misma escritura.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
   async logout(usuarioId: string, empresaId: string) {
     const resultado = await this.usuarioRepository.increment(
       { id: usuarioId, empresaId },
@@ -621,6 +639,19 @@ export class AuthService {
     if (!resultado.affected) {
       throw new UnauthorizedException('Sesión inválida');
     }
+    /*
+     * Un segundo después de «ahora», y no «ahora» a secas: el `iat` de un JWT
+     * va en SEGUNDOS y se redondea hacia abajo, así que un token emitido en el
+     * mismo segundo en que se cierra sesión tendría `iat` igual o menor y se
+     * colaría. Redondear hacia arriba cierra esa rendija de un segundo a costa
+     * de invalidar, como mucho, un token recién emitido — que es el lado
+     * correcto en el que equivocarse.
+     */
+    const corte = new Date(Math.ceil(Date.now() / 1000) * 1000 + 1000);
+    await this.usuarioRepository.update(
+      { id: usuarioId, empresaId },
+      { sesionesValidasDesde: corte },
+    );
     return { mensaje: 'Sesión cerrada correctamente.' };
   }
 

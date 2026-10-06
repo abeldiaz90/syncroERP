@@ -30,8 +30,14 @@ import { SecretosService } from '../../common/services/secretos.service';
  */
 
 export interface IdentidadResuelta {
-  /** De dónde salió: sirve para que las pantallas lo puedan decir. */
-  origen: 'empresa' | 'entorno';
+  /**
+   * De dónde salió, y es más que información para la pantalla: `suspendida`
+   * significa **ningún emisor aceptado**, y la estrategia JWT lo trata así.
+   *
+   * Que no existiera ese tercer valor es lo que hacía que suspender una
+   * identidad ABRIERA una puerta en vez de cerrarla. Ver `deEmpresa`.
+   */
+  origen: 'empresa' | 'entorno' | 'suspendida';
   emisor: string;
   realm: string | null;
   clientIdPublico: string | null;
@@ -109,8 +115,44 @@ export class IdentidadEmpresaService {
     let valor: IdentidadResuelta;
     try {
       const fila = await this.repo.findOne({ where: { empresaId } });
-      valor =
-        fila && fila.estado === 'ACTIVA' ? this.desdeFila(fila) : this.desdeEntorno();
+      /*
+       * ══════════════════════════════════════════════════════════════════════
+       * SUSPENDER NO PODÍA SIGNIFICAR «VUELVE AL REALM COMPARTIDO»
+       * ----------------------------------------------------------------------
+       * Esto decía: `fila.estado === 'ACTIVA' ? desdeFila(fila) : desdeEntorno()`.
+       * O sea que una identidad SUSPENDIDA caía al emisor del entorno —el realm
+       * compartido—, y la estrategia JWT pasaba a aceptar tokens de ahí para esa
+       * empresa.
+       *
+       * El propio `suspender()` promete lo contrario, con estas palabras:
+       *
+       *     «Borrar la fila devolvería la empresa al emisor del entorno —el
+       *      realm compartido—, que es una puerta ABIERTA, no cerrada.
+       *      Suspender la deja sin emisor aceptado.»
+       *
+       * No la dejaba sin emisor aceptado: le cambiaba cuál. Un cliente que se
+       * va, o del que se sospecha, seguía entrando si sus personas tenían cuenta
+       * en el realm compartido —que es justo el caso de quien migró a realm
+       * propio desde ahí—.
+       *
+       * Las tres situaciones son distintas y ahora se dicen distintas:
+       *
+       *   · sin fila        → entorno     (la instalación compartida de siempre)
+       *   · ACTIVA          → empresa     (su realm, y sólo el suyo)
+       *   · SUSPENDIDA      → suspendida  (ninguno: la puerta cerrada)
+       *
+       * APROVISIONANDO sigue cayendo al entorno a propósito: es el camino por el
+       * que una empresa llega a tener realm propio, y cerrarlo ahí dejaría a la
+       * empresa fuera a mitad del alta. Su realm propio tampoco entra todavía,
+       * porque `emisoresAceptados()` sólo lista las ACTIVAS.
+       * ══════════════════════════════════════════════════════════════════════
+       */
+      if (fila && fila.estado === 'SUSPENDIDA') {
+        valor = { ...this.desdeFila(fila), origen: 'suspendida' };
+      } else {
+        valor =
+          fila && fila.estado === 'ACTIVA' ? this.desdeFila(fila) : this.desdeEntorno();
+      }
     } catch (error) {
       /*
        * Si la tabla todavía no existe —migración sin aplicar— no se cae nada:

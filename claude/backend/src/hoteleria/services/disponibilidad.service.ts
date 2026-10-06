@@ -283,8 +283,15 @@ export class DisponibilidadService {
     /* ── Sin cupo: ¿se permite sobreventa? ── */
 
     if (!datos.permitirSobreventa) {
+      /*
+       * Acotado por empresa, y no es adorno: `tipoHabitacionId` viene del DTO.
+       * Con el id de otra empresa no hay habitaciones, así que `disponibles`
+       * sale 0 y el flujo cae justo aquí — y el mensaje de error devolvía EL
+       * NOMBRE del tipo de habitación de esa otra empresa. Un 409 que confirma
+       * que ese id existe y cómo se llama.
+       */
       const tipo = await manager.findOne(TipoHabitacion, {
-        where: { id: datos.tipoHabitacionId },
+        where: { id: datos.tipoHabitacionId, empresaId },
       });
 
       throw new ConflictException(

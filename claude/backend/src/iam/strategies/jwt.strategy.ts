@@ -53,8 +53,16 @@ interface TokenKeycloak {
   iss?: string;
   azp?: string;
   aud?: string | string[];
+  /**
+   * Declarados pero MUERTOS en esta rama, y conviene que se sepa: el `empresaId`
+   * del token nunca se lee —la empresa sale de la fila del ERP— y el
+   * `tokenVersion` tampoco, porque Keycloak no lo firma. La revocación de este
+   * modo va por `iat` contra `usuario.sesionesValidasDesde`.
+   */
   empresaId?: string;
   tokenVersion?: number;
+  /** Cuándo se emitió, en segundos desde epoch. Lo firma el directorio. */
+  iat?: number;
 }
 
 @Injectable()
@@ -291,6 +299,34 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     /*
      * ────────────────────────────────────────────────────────────────────────
+     * CERRAR SESIÓN TAMBIÉN REVOCA AQUÍ
+     * ------------------------------------------------------------------------
+     * La rama `local` compara `tokenVersion` y por eso su logout revoca de
+     * verdad. Aquí no había NADA equivalente: `logout()` escribía en la base y
+     * el token seguía valiendo hasta su `exp`, con la pantalla diciendo «Sesión
+     * cerrada correctamente».
+     *
+     * El contador no sirve en este modo porque el token lo firma el directorio
+     * y no lo lleva. Lo que sí lleva —firmado— es el `iat`, y lo que el ERP
+     * controla es su propia fila: se compara una cosa con la otra.
+     *
+     * Nulo es «nunca se cerró sesión» y no invalida nada, que es como está
+     * todo el mundo hasta que use el botón por primera vez.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const corte = usuario.sesionesValidasDesde;
+    if (corte) {
+      const emitidoEn = Number(payload.iat ?? 0) * 1000;
+      if (!emitidoEn || emitidoEn < corte.getTime()) {
+        this.logger.warn(
+          `Token rechazado: emitido antes del cierre de sesión de ${usuario.email}`,
+        );
+        throw new UnauthorizedException('Tu sesión se cerró. Vuelve a entrar.');
+      }
+    }
+
+    /*
+     * ────────────────────────────────────────────────────────────────────────
      * Cada empresa entra por su propia puerta
      * ------------------------------------------------------------------------
      * Que el emisor esté registrado dice que es de SUMA, no que sea EL DE ESTA
@@ -307,6 +343,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const identidadDelUsuario = await this.identidades.deEmpresa(
       usuario.empresaId,
     );
+    /*
+     * Una identidad SUSPENDIDA no acepta a nadie, ni de su realm ni del
+     * compartido. Antes caía al emisor del entorno y la suspensión acababa
+     * ABRIENDO la puerta del realm compartido justo para el cliente del que se
+     * sospecha. Ver `IdentidadEmpresaService.deEmpresa`.
+     */
+    if (identidadDelUsuario.origen === 'suspendida') {
+      this.logger.warn(
+        `Token rechazado: la identidad de la empresa ${usuario.empresaId} está SUSPENDIDA (intento de ${usuario.email} desde ${emisor})`,
+      );
+      throw new UnauthorizedException(
+        'El acceso de tu empresa está suspendido. Contacta a tu administrador.',
+      );
+    }
+
     if (identidadDelUsuario.origen === 'empresa') {
       if (identidadDelUsuario.emisor !== emisor) {
         this.logger.warn(

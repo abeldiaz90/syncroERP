@@ -70,9 +70,29 @@ export class Usuario {
   @Column({ type: 'boolean', default: false })
   esPropietario!: boolean;
 
-  /** Invalida inmediatamente todos los JWT emitidos antes de un cambio sensible. */
+  /**
+   * Invalida inmediatamente todos los JWT emitidos antes de un cambio sensible.
+   *
+   * Sólo sirve cuando el ERP firma el token —modo `local`—, porque el contador
+   * viaja dentro. Con Keycloak no hay dónde meterlo: para eso está
+   * `sesionesValidasDesde`.
+   */
   @Column({ type: 'int', default: 0 })
   tokenVersion!: number;
+
+  /**
+   * Desde cuándo valen las sesiones de esta persona. Cerrar sesión lo pone
+   * «ahora», y la estrategia JWT rechaza todo token emitido antes.
+   *
+   * Es el equivalente de `tokenVersion` para el modo Keycloak, donde el token
+   * lo firma el directorio y el ERP no puede meterle un contador: lo único que
+   * controla es su propia fila, así que compara contra el `iat`, que todo JWT
+   * trae firmado.
+   *
+   * Nulo significa «nunca se cerró sesión»: ningún token queda invalidado.
+   */
+  @Column({ type: 'timestamptz', nullable: true })
+  sesionesValidasDesde!: Date | null;
 
   @ManyToOne(() => Empresa, (empresa) => empresa.usuarios, {
     onDelete: 'CASCADE',
