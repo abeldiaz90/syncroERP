@@ -377,6 +377,102 @@ export class IntegridadFinancieraService {
                       AND cc.codigoAgrupadorSAT NOT IN ('401.07','401.08','401.09','401.14','401.15'))
                  )`,
       },
+      /*
+       * ======================================================================
+       * LOS INVARIANTES DE LA CARTERA, QUE NADIE VIGILABA
+       * ----------------------------------------------------------------------
+       * Entre el 4 y el 5 de octubre de 2026 se cerraron cuatro defectos
+       * distintos —un interés que salía negativo, un pago que se repartía mal,
+       * una anulación que no devolvía el saldo, una cancelación que descontaba
+       * dos veces— y los cuatro se habían comido la misma regla:
+       *
+       *     montoCapital + montoInteres = montoCuota
+       *
+       * No es una regla cosmética. El reparto de cada pago se calcula con
+       * `proporcionCapital = montoCapital / montoCuota`, así que una cuota
+       * descuadrada reparte mal TODOS los pagos que reciba después, y el error
+       * se arrastra hacia adelante sin que nada lo señale.
+       *
+       * Los cuatro se encontraron leyendo código, de uno en uno. Ninguna
+       * comprobación de integridad miraba el invariante, así que una fila ya
+       * dañada —por una versión anterior, por un proceso a medias— seguiría ahí
+       * para siempre. Arreglar el código impide que se rompa de nuevo; no
+       * repara lo que ya está roto, y no avisa de ello.
+       *
+       * Esto es lo que convierte esa familia entera en algo que avisa solo.
+       *
+       * UNA NOTA SOBRE LA EMPRESA
+       *
+       * `amortizacion_cuotas` NO tiene columna de empresa: cuelga del crédito.
+       * Por eso todas estas consultas entran por `creditos_clientes`, que sí la
+       * tiene. Filtrar sólo por la cuota habría mezclado empresas.
+       * ======================================================================
+       */
+      {
+        codigo: 'CUOTA_DESCUADRADA',
+        modulo: 'Crédito y cobranza',
+        severidad: 'CRITICA',
+        descripcion:
+          'Cuotas donde capital + interés no suma el total de la cuota. Es la regla con la que se reparte cada pago, así que una cuota así reparte mal todo lo que cobre después.',
+        accion:
+          'No cobrar sobre esas cuotas hasta corregirlas: revisar el crédito en Crédito y cobranza y rehacer la tabla de amortización. Si ya recibieron pagos, hay que recomponer el reparto.',
+        sql: `SELECT COUNT(1) cantidad
+                FROM amortizacion_cuotas q
+                JOIN creditos_clientes c ON c.id = q.creditoId
+               WHERE c.empresaId = $1
+                 AND c.estado IN ('ACTIVO','VENCIDO')
+                 AND ABS(q.montoCapital + q.montoInteres - q.montoCuota) > 0.005`,
+      },
+      {
+        codigo: 'CUOTA_CON_IMPORTES_IMPOSIBLES',
+        modulo: 'Crédito y cobranza',
+        severidad: 'CRITICA',
+        descripcion:
+          'Cuotas con interés negativo, capital negativo o capital mayor que la propia cuota. Ninguna de las tres puede existir en una amortización válida.',
+        accion:
+          'Revisar el crédito: suele venir de una reducción de cuota mal aplicada o de una reestructura. Hay que rehacer la amortización desde el saldo real.',
+        sql: `SELECT COUNT(1) cantidad
+                FROM amortizacion_cuotas q
+                JOIN creditos_clientes c ON c.id = q.creditoId
+               WHERE c.empresaId = $1
+                 AND c.estado IN ('ACTIVO','VENCIDO')
+                 AND (q.montoInteres < -0.005
+                      OR q.montoCapital < -0.005
+                      OR q.montoCapital > q.montoCuota + 0.005)`,
+      },
+      {
+        codigo: 'CREDITO_SALDO_NO_COINCIDE_CON_SUS_CUOTAS',
+        modulo: 'Crédito y cobranza',
+        severidad: 'CRITICA',
+        descripcion:
+          'Créditos cuyo saldo pendiente no es lo que queda por cobrar según su propia tabla de amortización.',
+        accion:
+          'Es el auxiliar contra su detalle: o el saldo se tocó sin pasar por las cuotas, o un pago no actualizó el saldo. Conciliar antes de aceptar más cobros o de mandar la cartera al core.',
+        sql: `SELECT COUNT(1) cantidad
+                FROM creditos_clientes c
+                LEFT JOIN LATERAL (
+                  SELECT COALESCE(SUM(q.montoCuota - q.montoPagado), 0) AS porCobrar
+                    FROM amortizacion_cuotas q
+                   WHERE q.creditoId = c.id
+                ) x ON true
+               WHERE c.empresaId = $1
+                 AND c.estado IN ('ACTIVO','VENCIDO')
+                 AND ABS(c.saldoPendiente - x.porCobrar) > 0.02`,
+      },
+      {
+        codigo: 'CUOTA_SOBREPAGADA',
+        modulo: 'Crédito y cobranza',
+        severidad: 'ALTA',
+        descripcion:
+          'Cuotas con más dinero aplicado del que valen. El excedente debería haber pasado a la cuota siguiente o al saldo a favor del cliente, no quedarse ahí.',
+        accion:
+          'Revisar el reparto de ese pago en Crédito y cobranza: el sobrante tiene que ir a la siguiente cuota o devolverse al cliente.',
+        sql: `SELECT COUNT(1) cantidad
+                FROM amortizacion_cuotas q
+                JOIN creditos_clientes c ON c.id = q.creditoId
+               WHERE c.empresaId = $1
+                 AND q.montoPagado > q.montoCuota + 0.005`,
+      },
       {
         codigo: 'NOMINA_SIN_SNAPSHOT',
         modulo: 'RR. HH./Nómina',
