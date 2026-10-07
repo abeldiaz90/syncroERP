@@ -456,6 +456,28 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
        * —un aviso que deja de salir— no señala a la causa.
        */
       'GET /caja/turnos/abiertos',
+      /*
+       * ── Las tres que el detector no veía ─────────────────────────────────
+       * Las tres llevan un parámetro, así que la caja las escribe con acento
+       * grave y una interpolación. El barrido de esta misma lista sólo leía
+       * las llamadas entre comillas simples: tres de las once consultas de la
+       * pantalla de cobro quedaban fuera del control que promete vigilarlas, y
+       * funcionaban por herencia de módulo, que es justo aquello de lo que
+       * esta lista existe para no depender.
+       *
+       * Y las tres van envueltas en `intentar(..., null)`, que convierte un
+       * 403 en «no hay»: la política de crédito del cliente, su saldo a favor
+       * y el precio del producto en su lista. Ninguna apaga el botón; las tres
+       * cobran una cifra equivocada en silencio.
+       *
+       * El `:id` no es el nombre que usa el controlador —son `:clienteId` y
+       * `:productoId`—: la tabla de permisos normaliza todo parámetro a `:id`,
+       * y una acción escrita con el nombre verdadero no encontraría su fila y
+       * no concedería nada, en silencio.
+       */
+      'GET /credito/creditos/cliente/:id/politica',
+      'GET /ventas/clientes/:id/saldo-favor',
+      'GET /catalogo/listas-precio/producto/:id',
     ],
     accionesVedadas: ['GET /credito/cuentas-bancarias'],
   },

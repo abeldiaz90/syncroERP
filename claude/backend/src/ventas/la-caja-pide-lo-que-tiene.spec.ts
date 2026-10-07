@@ -59,19 +59,42 @@ describe('Punto de venta · la caja sólo pide lo que el mostrador tiene', () =>
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/\/\/[^\n]*/g, '');
 
+    /*
+     * ── El detector no veía las rutas con parámetro ───────────────────────
+     * Hasta el 7-oct-2026 sólo leía `api.get('…')` entre comillas simples.
+     * Una consulta con parámetro se escribe con acento grave —no hay otra
+     * forma—, así que las tres de la caja que lo llevan nunca pasaron por
+     * aquí: un control que se creía puesto sobre la mitad de lo que mira.
+     *
+     * Ahora se leen las dos formas y se comparan normalizadas: una
+     * interpolación de la pantalla y un `:loQueSea` de la plantilla son el
+     * mismo hueco, y el nombre del parámetro lo decide el controlador.
+     */
+    const hueco = (r: string) =>
+      r.replace(/\$\{[^}]*\}/g, ':_').replace(/:[A-Za-z_][A-Za-z0-9_]*/g, ':_');
+
     const consultas = [
-      ...texto.matchAll(/api\.get<[^>]*>\(\s*'([^']+)'|api\.get\(\s*'([^']+)'/g),
+      ...texto.matchAll(
+        /api\.get<[^>]*>\(\s*['`]([^'`]+)['`]|api\.get\(\s*['`]([^'`]+)['`]/g,
+      ),
     ]
       .map((m) => m[1] ?? m[2])
       .filter((r) => r.startsWith('/'))
       /* `/catalogo/productos/buscar` y `/clientes` llevan query, no parámetro. */
       .map((r) => r.replace(/\/$/, ''));
 
-    expect(consultas.length).toBeGreaterThanOrEqual(4);
+    /*
+     * Un trinquete sobre el propio detector: si una refactorización cambia la
+     * forma de llamar y deja de reconocerse, esto baja y la prueba se pone
+     * roja, en vez de pasar mirando tres consultas de once.
+     */
+    expect(consultas.length).toBeGreaterThanOrEqual(11);
 
-    const declaradas = new Set(mostrador?.accionesIrrenunciables ?? []);
+    const declaradas = new Set(
+      (mostrador?.accionesIrrenunciables ?? []).map(hueco),
+    );
     const sinDeclarar = [...new Set(consultas)]
-      .map((r) => `GET ${r}`)
+      .map((r) => hueco(`GET ${r}`))
       .filter((accion) => !declaradas.has(accion));
 
     expect(sinDeclarar.sort()).toEqual([]);
