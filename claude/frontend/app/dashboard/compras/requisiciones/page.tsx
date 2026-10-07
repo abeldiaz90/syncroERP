@@ -301,10 +301,33 @@ export default function RequisicionesPage() {
           { label: 'Cotizando',  val: stats.cotizando, color: 'blue',    filter: 'COTIZANDO' },
           { label: 'Recibidas',  val: stats.recibida,  color: 'emerald', filter: 'RECIBIDA' },
         ].map(k => (
-          <button key={k.label} onClick={() => setFiltroEstado(filtroEstado === k.filter ? '' : k.filter)}
-            className={`bg-white rounded-2xl border-2 p-4 text-left transition-all shadow-sm hover:shadow-md ${filtroEstado === k.filter ? `border-${k.color}-400` : 'border-slate-200'}`}>
+          /*
+           * Mientras se consulta, el número no se afirma.
+           *
+           * Medido el 7-oct con el rol de comprador: al abrir, los cuatro
+           * recuadros decían 0 —en 48 px de alto— mientras la tabla, dos
+           * líneas más abajo, decía «Consultando…». Al llegar los datos:
+           * 3 / 2 / 0 / 1. «Pendientes 0» se lee como «no tengo nada que
+           * hacer», y el comprador cierra la pantalla.
+           *
+           * El cuidado ya estaba en la barra de la tabla; a los recuadros
+           * grandes —los únicos que se miran de lejos— no les llegó.
+           *
+           * Y no se pueden pulsar mientras tanto: filtrar por un estado cuyo
+           * conteo todavía no se sabe deja la tabla vacía sin que nada diga
+           * por qué.
+           */
+          <button key={k.label} disabled={cargando}
+            onClick={() => setFiltroEstado(filtroEstado === k.filter ? '' : k.filter)}
+            className={`bg-white rounded-2xl border-2 p-4 text-left transition-all shadow-sm ${cargando ? 'cursor-default' : 'hover:shadow-md'} ${filtroEstado === k.filter && !cargando ? `border-${k.color}-400` : 'border-slate-200'}`}>
             <p className="text-xs font-bold uppercase text-slate-400 mb-1">{k.label}</p>
-            <p className={`text-3xl font-black text-${k.color}-600`}>{k.val}</p>
+            {cargando ? (
+              <p className="text-3xl font-black text-slate-300" title="Todavía se está consultando">
+                —
+              </p>
+            ) : (
+              <p className={`text-3xl font-black text-${k.color}-600`}>{k.val}</p>
+            )}
           </button>
         ))}
       </div>

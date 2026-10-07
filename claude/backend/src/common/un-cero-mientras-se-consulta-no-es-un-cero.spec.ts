@@ -86,6 +86,39 @@ describe('ninguna pantalla afirma un cero mientras sigue consultando', () => {
     });
   }
 
+  it('los cuatro recuadros de requisiciones esperan igual que su tabla', () => {
+    /*
+     * LO QUE LA LISTA DE ARRIBA NO MIRABA, y es lo que de verdad se lee.
+     *
+     * Medido el 7-oct con el rol de comprador: esta pantalla ya estaba en la
+     * lista —por el «N registros» de la barra de la tabla, que sí esperaba—
+     * y al abrirla los cuatro recuadros grandes decían 0 / 0 / 0 / 0 en letra
+     * de 30 px mientras, dos líneas más abajo, ponía «Consultando…». Al
+     * llegar los datos: 3 / 2 / 0 / 1.
+     *
+     * «Pendientes 0» se lee como «no tengo nada que hacer». El cuidado
+     * estaba en la línea pequeña y no en la grande, que es la única que se
+     * mira de lejos —la misma asimetría que destapó esta prueba—.
+     */
+    const s = sinComentarios(
+      readFileSync(
+        join(FRONTEND!, 'app/dashboard/compras/requisiciones/page.tsx'),
+        'utf8',
+      ),
+    );
+    /* El valor del recuadro pasa por la guarda. */
+    expect(s).toMatch(/cargando \? \([\s\S]{0,400}\u2014[\s\S]{0,200}\) : \([\s\S]{0,200}\{k\.val\}/);
+    /* Y no queda la forma vieja: el número pelado como único hijo. */
+    expect(s).not.toMatch(
+      /<p className=\{`text-3xl font-black text-\$\{k\.color\}-600`\}>\{k\.val\}<\/p>\s*<\/button>/,
+    );
+    /*
+     * Y no se pueden pulsar mientras tanto: filtrar por un estado cuyo conteo
+     * no se sabe deja la tabla vacía sin que nada diga por qué.
+     */
+    expect(s).toMatch(/<button key=\{k\.label\} disabled=\{cargando\}/);
+  });
+
   it('y el detector reconoce la forma mala cuando la ve', () => {
     /*
      * La prueba de la prueba. Sin esto, cambiar el patrón por uno que no
