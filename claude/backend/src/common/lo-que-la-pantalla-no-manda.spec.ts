@@ -169,6 +169,37 @@ function llavesDe(texto: string, desde: number): { nombres: string[]; spread: bo
   };
 }
 
+/**
+ * ══════════════════════════════════════════════════════════════════════════
+ * UN COMENTARIO CON UNA COMA ENGAÑABA AL LECTOR DE CUERPOS
+ * --------------------------------------------------------------------------
+ * El lector de abajo parte el objeto por las comas de primer nivel y se queda
+ * con el identificador de cada trozo. Un comentario DENTRO del objeto entra en
+ * ese reparto, y si lleva una coma se parte en dos:
+ *
+ *     api.post(`…/cerrar`, {
+ *       // El que se ve en pantalla, contado o tecleado. Nunca otro.
+ *       efectivoContado: Number(contadoEfectivo),
+ *
+ * El primer trozo quedaba en «// El que se ve en pantalla» y el segundo
+ * empezaba por «contado», así que la prueba informó de que la pantalla mandaba
+ * `contado, observaciones` y echaba en falta `efectivoContado` —que estaba ahí,
+ * dos palabras más allá—.
+ *
+ * Un control que se puede confundir con un comentario se vuelve a confundir.
+ * Se quitan los comentarios antes de leer, **conservando la longitud** —cada
+ * uno se sustituye por espacios— para que las posiciones que usa el recorrido
+ * sigan siendo las del archivo.
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+function sinComentarios(texto: string): string {
+  return texto
+    .replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '))
+    .replace(/(^|[^:/])\/\/[^\n]*/g, (c, antes: string) =>
+      antes + ' '.repeat(c.length - antes.length),
+    );
+}
+
 describe('lo que la pantalla no manda y el servidor exige', () => {
   if (!FRONTEND) {
     it('se salta: el frontend no está junto al backend', () => {
@@ -186,7 +217,8 @@ describe('lo que la pantalla no manda y el servidor exige', () => {
     ...archivos(join(FRONTEND, 'app'), (n) => /\.tsx?$/.test(n)),
     ...archivos(join(FRONTEND, 'components'), (n) => /\.tsx?$/.test(n)),
   ]) {
-    const texto = readFileSync(archivo, 'utf8');
+    // Sin comentarios: uno con una coma dentro del objeto partía el cuerpo en dos.
+    const texto = sinComentarios(readFileSync(archivo, 'utf8'));
     const re = /api\.(post|patch|put)\s*<?[^(]*\(\s*([`'])([^`']*)\2\s*,\s*\{/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(texto))) {

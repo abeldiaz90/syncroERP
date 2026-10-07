@@ -44,6 +44,9 @@ type Turno = {
   efectivoContado?: number | null;
   diferencia?: number | null;
   fechaApertura: string;
+  /** `null` cuando el servidor no pudo resolverlo. Nunca el uuid en crudo. */
+  usuarioAperturaNombre?: string | null;
+  cuentaCajaNombre?: string | null;
   fechaCierre?: string | null;
 };
 
@@ -142,6 +145,44 @@ async function cargarCajas(): Promise<{ vedado: boolean; cajas: CuentaCaja[] }> 
   };
 }
 
+/**
+ * ============================================================================
+ * CONTAR EL CAJÓN, NO TECLEAR UN TOTAL
+ * ----------------------------------------------------------------------------
+ * El arqueo pedía un número: «Efectivo contado». Quien cuenta el cajón hace la
+ * suma de cabeza o en el teléfono y teclea el resultado, y cualquier error de
+ * esa suma se convierte en un faltante o un sobrante contabilizado a su nombre
+ * —y a partir de ahí nadie puede reconstruir si faltaba dinero o faltaba un
+ * cero—.
+ *
+ * Esto deja contar como se cuenta de verdad: por montón. El sistema suma.
+ *
+ * DOS CAMPOS QUE PUEDEN DECIR COSAS DISTINTAS SON PEOR QUE UNO
+ *
+ * Mientras el conteo por denominaciones está abierto, el total NO se puede
+ * teclear: es el resultado, y se dice que lo es. Cerrarlo devuelve el campo a
+ * mano, en blanco. En ningún momento hay dos cifras compitiendo por ser la
+ * buena, que es justo el defecto que este arqueo existe para evitar.
+ * ============================================================================
+ */
+const DENOMINACIONES = [
+  { valor: 1000, etiqueta: '$1,000', clase: 'billete' as const },
+  { valor: 500, etiqueta: '$500', clase: 'billete' as const },
+  { valor: 200, etiqueta: '$200', clase: 'billete' as const },
+  { valor: 100, etiqueta: '$100', clase: 'billete' as const },
+  { valor: 50, etiqueta: '$50', clase: 'billete' as const },
+  { valor: 20, etiqueta: '$20', clase: 'billete' as const },
+  { valor: 20, etiqueta: '$20', clase: 'moneda' as const },
+  { valor: 10, etiqueta: '$10', clase: 'moneda' as const },
+  { valor: 5, etiqueta: '$5', clase: 'moneda' as const },
+  { valor: 2, etiqueta: '$2', clase: 'moneda' as const },
+  { valor: 1, etiqueta: '$1', clase: 'moneda' as const },
+  { valor: 0.5, etiqueta: '50¢', clase: 'moneda' as const },
+];
+
+/** La llave de cada montón: el valor no basta, hay billete y moneda de $20. */
+const llaveDe = (d: (typeof DENOMINACIONES)[number]) => `${d.clase}-${d.valor}`;
+
 export default function CajaPage() {
   const [cuentas, setCuentas] = useState<CuentaCaja[]>([]);
   /** El catálogo de cuentas de caja no es de todos los roles que ven esta pantalla. */
@@ -151,8 +192,39 @@ export default function CajaPage() {
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [seleccionado, setSeleccionado] = useState<string>('');
   const [resumen, setResumen] = useState<ResumenTurno | null>(null);
-  const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
+  /*
+   * `null` mientras se lee, `[]` cuando de verdad no hay ninguno. Un cero
+   * mientras se consulta no es un cero, y aquí el cero son pesos.
+   */
+  const [movimientos, setMovimientos] = useState<Movimiento[] | null>(null);
   const [cargando, setCargando] = useState(true);
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * «La entrada quedó registrada» con los números sin moverse
+   * --------------------------------------------------------------------------
+   * MEDIDO EN VIVO el 7-oct-2026. Se registró una entrada de $200 contra Otros
+   * Ingresos. El servidor la aplicó bien —entradas 288.84 → 488.84, efectivo
+   * esperado 0 → 200, cuarto movimiento en la lista—. La pantalla dijo «La
+   * entrada quedó registrada.» y SIGUIÓ ENSEÑANDO ENTRADAS $288.84, ESPERADO
+   * $0.00 y tres movimientos.
+   *
+   * La causa: `ejecutar()` llama a `cargar()`, que refresca la lista de turnos
+   * abiertos, pero el resumen y los movimientos los traía un `useEffect` que
+   * dependía de `turno?.id` —y el turno es el mismo, así que no volvía a
+   * correr—. Y como los recuadros leen `resumen?...` antes que el turno de la
+   * lista, el resumen viejo tapaba incluso los números frescos que sí habían
+   * llegado.
+   *
+   * En una pantalla de efectivo esto no es un refresco perezoso: es un «ya
+   * quedó» junto a unas cifras que dicen que no quedó. Quien lo lee lo
+   * registra otra vez. Doble entrada de caja por una pantalla que no se
+   * recargó.
+   *
+   * Ahora cada recarga incrementa esta marca, y el detalle se vuelve a leer
+   * aunque el turno no cambie.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const [revision, setRevision] = useState(0);
   const [procesando, setProcesando] = useState(false);
   const [aviso, setAviso] = useState<{ texto: string; ok: boolean } | null>(null);
 
@@ -167,6 +239,8 @@ export default function CajaPage() {
    */
   const [cuentasContables, setCuentasContables] = useState<CuentaContable[]>([]);
   const [conteo, setConteo] = useState('');
+  /** `null` = se teclea el total a mano. Un objeto = se está contando por montones. */
+  const [montones, setMontones] = useState<Record<string, string> | null>(null);
   const [observaciones, setObservaciones] = useState('');
 
   const turno = useMemo(
@@ -174,18 +248,85 @@ export default function CajaPage() {
     [seleccionado, turnos],
   );
 
+  /*
+   * El total de los montones, al centavo. Se redondea a dos decimales porque
+   * las monedas de 50¢ en coma flotante producen colas de céntimos que luego
+   * aparecen como una diferencia de arqueo de $0.0000001.
+   */
+  const totalMontones = useMemo(() => {
+    if (!montones) return null;
+    const suma = DENOMINACIONES.reduce((acc, d) => {
+      const n = Number(montones[llaveDe(d)] ?? '');
+      return acc + (Number.isFinite(n) && n > 0 ? n * d.valor : 0);
+    }, 0);
+    return Math.round(suma * 100) / 100;
+  }, [montones]);
+
+  /** Al menos un montón tecleado. Abrir el panel no es haber contado. */
+  const hayAlgunMonton = Boolean(
+    montones && Object.values(montones).some((v) => v.trim() !== ''),
+  );
+
+  /*
+   * Mientras se cuenta por montones, el total del arqueo ES la suma. No se
+   * copia al campo: se sustituye, para que no puedan existir dos cifras
+   * distintas peleando por ser la buena.
+   *
+   * Y mientras no se haya tecleado NINGÚN montón, no hay cifra: cadena vacía,
+   * no cero. Con cero, abrir el panel para empezar a contar enseñaba al
+   * instante «FALTAN $150.00» —el efectivo esperado entero— antes de haber
+   * contado un solo billete. Un cero que nadie contó no es un conteo de cero,
+   * y un aviso que grita desde el primer segundo se aprende a ignorar.
+   */
+  const contadoEfectivo = montones
+    ? hayAlgunMonton
+      ? String(totalMontones ?? 0)
+      : ''
+    : conteo;
+
+  /*
+   * El arqueo, restado en el momento. `null` mientras no haya una cifra
+   * tecleada: un cero que nadie escribió no es un conteo de cero.
+   */
+  const arqueo = useMemo(() => {
+    if (!turno || contadoEfectivo.trim() === '') return null;
+    const contado = Number(contadoEfectivo);
+    if (!Number.isFinite(contado)) return null;
+    const esperado = Number(resumen?.turno.efectivoEsperado ?? turno.efectivoEsperado ?? 0);
+    const diferencia = Math.round((contado - esperado) * 100) / 100;
+    // El mismo umbral que aplica el servidor, para que no digan cosas distintas.
+    return { contado, esperado, diferencia, cuadra: Math.abs(diferencia) < 0.01 };
+  }, [contadoEfectivo, resumen, turno]);
+
   const nombreCaja = useCallback(
     (cuentaId: string) => cuentas.find((cuenta) => cuenta.id === cuentaId)?.nombre ?? 'Caja',
     [cuentas],
   );
 
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Los movimientos de un turno no se quedan debajo del nombre de otro
+   * --------------------------------------------------------------------------
+   * Con dos cajas abiertas, al pulsar la segunda pestaña el encabezado y los
+   * cuatro recuadros cambiaban al instante —salen del listado, que ya está en
+   * memoria— y la tabla de movimientos seguía enseñando los de la caja
+   * anterior hasta que llegaba la respuesta. Durante ese segundo la pantalla
+   * afirmaba que esos cobros eran de esta caja.
+   *
+   * En una pantalla de arqueo eso no es un parpadeo: es una lista de efectivo
+   * atribuida a la caja equivocada. Se vacía primero y se dice que se está
+   * leyendo.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
   const cargarDetalle = useCallback(async (turnoId: string) => {
+    setResumen(null);
+    setMovimientos(null);
     const [resumenTurno, lista] = await Promise.all([
       api.get<ResumenTurno>(`/caja/turnos/${turnoId}/resumen`),
       api.get<Movimiento[]>(`/caja/turnos/${turnoId}/movimientos`),
     ]);
     setResumen(resumenTurno);
-    setMovimientos(lista);
+    setMovimientos(Array.isArray(lista) ? lista : []);
   }, []);
 
   const cargar = useCallback(async () => {
@@ -229,7 +370,29 @@ export default function CajaPage() {
          * explicara. Es el mismo defecto que apagaba el botón «Cobrar» en la
          * caja. Se distingue la lista vacía del fallo.
          */
-        conPermiso(api.get<CuentaContable[]>('/finanzas/cuentas-contables')),
+      /*
+       * ──────────────────────────────────────────────────────────────────
+       * Una cuenta de mayor no recibe pólizas, así que no se ofrece
+       * ------------------------------------------------------------------
+       * El catálogo trae las 1083 cuentas del plan, y 153 de ellas son
+       * cuentas de MAYOR —«100 · Activo», «101 · Caja», «600 · Gastos»—:
+       * agrupan a sus hijas y no se les asienta nada. `polizas.service` lo
+       * rechaza, y con razón.
+       *
+       * Este desplegable las ofrecía todas. El único filtro que aplicaba era
+       * `permiteMovimientoManual`, y las 153 lo pasan, así que ninguna
+       * quedaba fuera: elegir cualquiera de ellas era elegir un rechazo. Un
+       * botón que lleva a un no.
+       *
+       * El servidor ya sabe hacer esta distinción —`?soloAfectables=true`, que
+       * además filtra las inactivas— y tres pantallas ya se lo piden. Ésta no.
+       * ──────────────────────────────────────────────────────────────────
+       */
+        conPermiso(
+          api.get<CuentaContable[]>('/finanzas/cuentas-contables', {
+            query: { soloAfectables: true },
+          }),
+        ),
       ]);
       setCuentasVedadas(cajasRes.vedado);
       setContablesVedadas(contables.vedado);
@@ -241,17 +404,21 @@ export default function CajaPage() {
       );
       const cajas = cajasRes.cajas;
       setCuentas(cajas);
-      setTurnos(abiertos);
+      // Las otras tres lecturas ya se comprueban; ésta no, y de ella se llama
+      // `.some` y `.length` tres líneas más abajo.
+      const listaAbiertos = Array.isArray(abiertos) ? abiertos : [];
+      setTurnos(listaAbiertos);
       setCuentaNueva((actual) =>
         cajas.some((cuenta) => cuenta.id === actual) ? actual : cajas[0]?.id || '',
       );
       setSeleccionado((actual) =>
-        abiertos.some((item) => item.id === actual) ? actual : abiertos[0]?.id || '',
+        listaAbiertos.some((item) => item.id === actual) ? actual : listaAbiertos[0]?.id || '',
       );
-      if (!abiertos.length) {
+      if (!listaAbiertos.length) {
         setResumen(null);
         setMovimientos([]);
       }
+      setRevision((n) => n + 1);
     } catch (error) {
       setAviso({ texto: mensaje(error), ok: false });
     } finally {
@@ -265,7 +432,9 @@ export default function CajaPage() {
 
   useEffect(() => {
     if (turno?.id) void cargarDetalle(turno.id).catch((error) => setAviso({ texto: mensaje(error), ok: false }));
-  }, [turno?.id, cargarDetalle]);
+    // `revision` está aquí a propósito: sin ella, un movimiento registrado
+    // sobre el mismo turno no volvía a leer el resumen. Ver la nota de arriba.
+  }, [turno?.id, revision, cargarDetalle]);
 
   /*
    * `texto` puede ser una frase fija o una función que MIRA LA RESPUESTA.
@@ -334,13 +503,35 @@ export default function CajaPage() {
   async function cerrar(evento: FormEvent) {
     evento.preventDefault();
     if (!turno) return;
+    /*
+     * CERRAR SIN HABER CONTADO NADA.
+     *
+     * Un campo `readOnly` no lo valida el navegador, así que con el conteo por
+     * montones abierto y sin teclear una sola pieza el formulario se podía
+     * enviar con cero. Y cerrar con cero no es un detalle: contabiliza TODO el
+     * efectivo esperado como faltante, a nombre de quien cerró, y no hay vuelta
+     * atrás.
+     *
+     * Un cajón vacío de verdad sí se puede cerrar: basta escribir un 0 en
+     * cualquier montón, que es un acto deliberado. Lo que no pasa es el envío
+     * sin haber tocado nada.
+     */
+    if (montones && !hayAlgunMonton) {
+      setAviso({
+        texto:
+          'Todavía no has contado ningún montón. Si el cajón está vacío, escribe 0 en alguna denominación para dejarlo dicho.',
+        ok: false,
+      });
+      return;
+    }
     const ok = await ejecutar(
+      // Se manda el total que se ve en pantalla —contado o tecleado—. Nunca otro.
       () => api.post(`/caja/turnos/${turno.id}/cerrar`, {
-        efectivoContado: Number(conteo),
+        efectivoContado: Number(contadoEfectivo),
         observaciones: observaciones.trim() || undefined,
       }),
       (r: any) => {
-        const contado = Number(conteo);
+        const contado = Number(contadoEfectivo);
         const esperado = Number(
           resumen?.turno.efectivoEsperado ?? turno?.efectivoEsperado ?? 0,
         );
@@ -360,6 +551,7 @@ export default function CajaPage() {
     );
     if (ok) {
       setConteo('');
+      setMontones(null);
       setObservaciones('');
     }
   }
@@ -466,7 +658,19 @@ export default function CajaPage() {
             {turnos.map((item) => (
               <button key={item.id} type="button" onClick={() => setSeleccionado(item.id)} className={`min-w-56 rounded-xl border p-3 text-left transition ${turno?.id === item.id ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                 <p className="text-sm font-semibold text-slate-900">{nombreCaja(item.cuentaCajaId)}</p>
-                <p className="mt-1 text-xs text-slate-500">Abierta {new Date(item.fechaApertura).toLocaleString('es-MX')}</p>
+                {/*
+                  Quién la abrió, no sólo cuándo. Con varias cajas abiertas a la
+                  vez el nombre es lo que distingue un cajón de otro; la hora,
+                  no. Y quien cierra se hace responsable de la diferencia, así
+                  que conviene ver de quién era el turno antes de arquearlo.
+                */}
+                <p className="mt-1 text-xs text-slate-500">
+                  {item.usuarioAperturaNombre
+                    ? `Abierta por ${item.usuarioAperturaNombre}`
+                    : 'Abierta'}
+                  {' · '}
+                  {new Date(item.fechaApertura).toLocaleString('es-MX')}
+                </p>
               </button>
             ))}
           </section>
@@ -496,7 +700,7 @@ export default function CajaPage() {
                     <tr><th className="px-4 py-3">Hora</th><th className="px-4 py-3">Tipo</th><th className="px-4 py-3">Concepto</th><th className="px-4 py-3 text-right">Importe</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {movimientos.map((item) => (
+                    {(movimientos ?? []).map((item) => (
                       <tr key={item.id}>
                         <td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(item.fechaCreacion).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</td>
                         <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-medium ${item.naturaleza === 'ENTRADA' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{item.tipo.replaceAll('_', ' ')}</span></td>
@@ -504,7 +708,11 @@ export default function CajaPage() {
                         <td className={`px-4 py-3 text-right font-semibold ${item.naturaleza === 'ENTRADA' ? 'text-emerald-700' : 'text-rose-700'}`}>{item.naturaleza === 'ENTRADA' ? '+' : '−'}{moneda.format(Number(item.importe))}</td>
                       </tr>
                     ))}
-                    {!movimientos.length && <tr><td colSpan={4} className="px-4 py-10 text-center text-slate-400">El turno todavía no tiene movimientos.</td></tr>}
+                    {movimientos === null ? (
+                      <tr><td colSpan={4} className="px-4 py-10 text-center text-slate-400">Leyendo los movimientos de esta caja…</td></tr>
+                    ) : !movimientos.length ? (
+                      <tr><td colSpan={4} className="px-4 py-10 text-center text-slate-400">El turno todavía no tiene movimientos.</td></tr>
+                    ) : null}
                   </tbody>
                 </table>
               </div>
@@ -538,11 +746,150 @@ export default function CajaPage() {
                 </div>
               </form>
 
+              {/*
+                ────────────────────────────────────────────────────────────────
+                La diferencia se dice ANTES de cerrar, no después
+                ----------------------------------------------------------------
+                Cerrar un turno no se deshace, y si el conteo no cuadra el
+                sistema levanta una póliza con el faltante o el sobrante a
+                nombre de quien cerró. Esta pantalla tenía el efectivo esperado
+                a dos dedos del campo y no restaba: quien contaba teclaba su
+                cifra, pulsaba, y se enteraba del faltante cuando ya estaba
+                hecho. Un dedo de más en el teclado era un faltante contabilizado.
+
+                Y la letra pequeña decía «Una diferencia exige observaciones»
+                siendo que el campo no era obligatorio: la regla la aplicaba el
+                servidor, que contestaba con un rechazo después de pulsar. La
+                regla existía; la pantalla no la ayudaba a cumplirse.
+
+                Ahora resta en cuanto hay una cifra, dice qué va a pasar con la
+                diferencia, y pide la explicación aquí.
+                ────────────────────────────────────────────────────────────────
+              */}
               <form onSubmit={cerrar} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-cyan-700" /><h2 className="font-semibold text-slate-950">Corte y arqueo</h2></div>
-                <p className="text-sm text-slate-500">Cuenta físicamente el efectivo. Una diferencia exige observaciones.</p>
-                <input value={conteo} onChange={(e) => setConteo(e.target.value)} aria-label="Efectivo contado" type="number" min="0" step="0.01" placeholder="Efectivo contado" className="h-10 w-full rounded-lg border border-slate-200 px-3" required />
-                <textarea value={observaciones} onChange={(e) => setObservaciones(e.target.value)} aria-label="Observaciones del arqueo" placeholder="Observaciones del arqueo" maxLength={500} className="min-h-24 w-full rounded-lg border border-slate-200 p-3" />
+                <p className="text-sm text-slate-500">
+                  Cuenta físicamente el efectivo. Cerrar el turno no se deshace.
+                </p>
+                {montones === null ? (
+                  <>
+                    <input value={conteo} onChange={(e) => setConteo(e.target.value)} aria-label="Efectivo contado" type="number" min="0" step="0.01" placeholder="Efectivo contado" className="h-10 w-full rounded-lg border border-slate-200 px-3" required />
+                    <button
+                      type="button"
+                      onClick={() => setMontones({})}
+                      className="text-[12px] font-medium text-cyan-700 hover:text-cyan-900 hover:underline"
+                    >
+                      Contar por denominaciones
+                    </button>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[12px] font-semibold text-slate-700">
+                        Cuenta los montones; la suma la hace el sistema
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => { setMontones(null); setConteo(''); }}
+                        className="shrink-0 text-[11.5px] font-medium text-slate-500 hover:text-slate-800 hover:underline"
+                      >
+                        Teclear el total
+                      </button>
+                    </div>
+
+                    {(['billete', 'moneda'] as const).map((clase) => (
+                      <div key={clase} className="mt-2.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                          {clase === 'billete' ? 'Billetes' : 'Monedas'}
+                        </p>
+                        <div className="mt-1 grid grid-cols-3 gap-1.5">
+                          {DENOMINACIONES.filter((d) => d.clase === clase).map((d) => {
+                            const llave = llaveDe(d);
+                            const piezas = Number(montones[llave] ?? '');
+                            const parcial = Number.isFinite(piezas) && piezas > 0 ? piezas * d.valor : 0;
+                            return (
+                              <label key={llave} className="block">
+                                <span className="block text-[11px] font-medium text-slate-600">{d.etiqueta}</span>
+                                <input
+                                  value={montones[llave] ?? ''}
+                                  onChange={(e) =>
+                                    setMontones((previo) => ({ ...(previo ?? {}), [llave]: e.target.value }))
+                                  }
+                                  aria-label={`Piezas de ${d.etiqueta} en ${clase}s`}
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  placeholder="0"
+                                  className="mt-0.5 h-8 w-full rounded-md border border-slate-200 px-2 text-right text-[12.5px]"
+                                />
+                                {/* El parcial, al lado. Un montón mal tecleado se ve antes de cerrar. */}
+                                <span className="block text-right text-[10.5px] text-slate-400">
+                                  {parcial > 0 ? moneda.format(parcial) : '—'}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="mt-3 flex items-baseline justify-between border-t border-slate-200 pt-2">
+                      <span className="text-[12px] font-semibold text-slate-700">Total contado</span>
+                      <span className="text-[15px] font-bold text-slate-900">
+                        {moneda.format(totalMontones ?? 0)}
+                      </span>
+                    </div>
+                    {/*
+                      El total, también como campo, para que quien use lector de
+                      pantalla lo oiga y para que el valor enviado sea el mismo
+                      que se ve. SIN `required`: un campo `readOnly` no lo valida
+                      el navegador, así que ponerlo sería un control que se cree
+                      puesto. Lo que de verdad impide cerrar sin haber contado
+                      está en `cerrar()`, y dice por qué.
+                    */}
+                    <input
+                      value={contadoEfectivo}
+                      onChange={() => undefined}
+                      aria-label="Efectivo contado"
+                      type="number"
+                      readOnly
+                      tabIndex={-1}
+                      className="sr-only"
+                    />
+                  </div>
+                )}
+                {arqueo && (
+                  <div
+                    className={`rounded-lg border px-3 py-2 text-xs ${
+                      arqueo.cuadra
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                        : 'border-amber-300 bg-amber-50 text-amber-900'
+                    }`}
+                  >
+                    <p className="font-semibold">
+                      {arqueo.cuadra
+                        ? `Cuadra: ${moneda.format(arqueo.contado)} contra ${moneda.format(arqueo.esperado)} esperados.`
+                        : arqueo.diferencia < 0
+                          ? `FALTAN ${moneda.format(Math.abs(arqueo.diferencia))}: cuentas ${moneda.format(arqueo.contado)} y se esperaban ${moneda.format(arqueo.esperado)}.`
+                          : `SOBRAN ${moneda.format(arqueo.diferencia)}: cuentas ${moneda.format(arqueo.contado)} y se esperaban ${moneda.format(arqueo.esperado)}.`}
+                    </p>
+                    {!arqueo.cuadra && (
+                      <p className="mt-1">
+                        Al cerrar, esa diferencia se registra en una póliza a tu
+                        nombre. Explícala abajo antes de cerrar.
+                      </p>
+                    )}
+                  </div>
+                )}
+                <textarea
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                  aria-label="Observaciones del arqueo"
+                  placeholder={arqueo && !arqueo.cuadra ? 'Explica la diferencia (obligatorio)' : 'Observaciones del arqueo'}
+                  maxLength={500}
+                  required={Boolean(arqueo && !arqueo.cuadra)}
+                  className="min-h-24 w-full rounded-lg border border-slate-200 p-3"
+                />
                 <button disabled={procesando} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 text-sm font-semibold text-white disabled:opacity-50"><LockKeyhole className="h-4 w-4" /> Cerrar turno</button>
               </form>
             </div>
