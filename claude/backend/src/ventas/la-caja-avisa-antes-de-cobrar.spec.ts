@@ -36,7 +36,13 @@ const terminal = hay ? readFileSync(ruta, 'utf8') : '';
 describe('El turno se pregunta al abrir la terminal', () => {
   it('la consulta viaja con las demás de la carga inicial', () => {
     if (!hay) return;
-    expect(terminal).toMatch(/api\.get<\{ cuentaCajaId:string \}\[\]>\('\/caja\/turnos\/abiertos'\)/);
+    /*
+     * El tipo dejó de ser `{ cuentaCajaId:string }[]` el 7-oct: la respuesta
+     * trae además quién abrió el turno y en qué caja, para que el mostrador
+     * pueda decirlo con varios cajeros a la vez. Lo que esta prueba protege no
+     * es el tipo, es que la consulta siga en la carga inicial.
+     */
+    expect(terminal).toMatch(/api\.get<ITurnoAbierto\[\]>\('\/caja\/turnos\/abiertos'\)/);
   });
 
   it('va dentro de `intentar`, como el resto', () => {
@@ -47,7 +53,7 @@ describe('El turno se pregunta al abrir la terminal', () => {
      */
     if (!hay) return;
     expect(terminal).toMatch(
-      /intentar\(api\.get<\{ cuentaCajaId:string \}\[\]>\('\/caja\/turnos\/abiertos'\), null\)/,
+      /intentar\(api\.get<ITurnoAbierto\[\]>\('\/caja\/turnos\/abiertos'\), null\)/,
     );
   });
 

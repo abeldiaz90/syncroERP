@@ -12,6 +12,8 @@ import type { MetodoPagoVenta } from '@/lib/ventas/metodos-pago';
 import { METODOS_CREDITO as METODOS_CREDITO_CONTRATO } from '@/lib/ventas/metodos-pago';
 import { api, ApiError, API_URL, intentar } from '@/lib/api';
 import { useAcciones } from '@/hooks/use-acciones';
+import { leerSesion } from '@/lib/session';
+import { token as sesionToken } from '@/lib/sesion';
 
 const n   = (v: any): number => Number(v) || 0;
 /*
@@ -109,6 +111,21 @@ const calcTotales = (carrito: IItemCarrito[]) => {
   return { subtotal:n(subtotal.toFixed(4)), impuestos:n(impuestos.toFixed(4)), total:n((subtotal+impuestos).toFixed(4)) };
 };
 
+interface ITurnoAbierto {
+  id: string;
+  cuentaCajaId: string;
+  fechaApertura: string;
+  /** `null` cuando el servidor no pudo resolverlo: nunca el uuid en crudo. */
+  usuarioAperturaId?: string | null;
+  usuarioAperturaNombre?: string | null;
+  cuentaCajaNombre?: string | null;
+  /* Lo que hace falta para la lectura de caja. Ya viene en la misma respuesta. */
+  fondoInicial?: number | string;
+  totalEntradas?: number | string;
+  totalSalidas?: number | string;
+  efectivoEsperado?: number | string;
+}
+
 export default function TerminalPos() {
   const BASE_URL = API_URL.replace(/\/api$/, '');
 
@@ -153,6 +170,64 @@ export default function TerminalPos() {
    * ──────────────────────────────────────────────────────────────────────────
    */
   const [cajasConTurno,     setCajasConTurno]     = useState<string[] | null>(null);
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * TRES CAJEROS A LA VEZ Y UN SOLO CAJÓN CON REGISTRO
+   * --------------------------------------------------------------------------
+   * Antes de esto la caja sólo guardaba los IDENTIFICADORES de las cajas con
+   * turno abierto, para apagar el botón «Cobrar». Suficiente con un mostrador
+   * de una caja; con varios cajeros a la vez, no:
+   *
+   *   · Esta pantalla PROPONE la caja marcada «por omisión» de la empresa, que
+   *     es LA MISMA en las tres terminales.
+   *   · Nada en pantalla decía que ese turno lo había abierto otra persona, ni
+   *     en qué cajón físico estaba el efectivo.
+   *
+   * Resultado: los tres cobran contra el mismo turno, los otros dos cajones
+   * acumulan dinero sin registro, y aparece de noche como un faltante que nadie
+   * puede explicar —el peor de los errores de caja, porque se descubre cuando
+   * ya no se puede reconstruir—.
+   *
+   * Dos cosas lo arreglan, y ninguna inventa reglas que el servidor no tenga:
+   *
+   *   1. La caja la recuerda ESTA terminal (`localStorage`). El cajón es del
+   *      mostrador físico, no de la empresa. La marcada por omisión sigue
+   *      siendo la primera propuesta, pero sólo en una terminal que no ha
+   *      elegido nunca.
+   *   2. Se dice quién abrió el turno y a qué hora, y se avisa cuando no eres
+   *      tú. No se bloquea: hay mostradores donde se relevan en el mismo cajón
+   *      y eso es legítimo. Se dice, que es lo que permite darse cuenta ANTES
+   *      de cobrar.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const [turnosAbiertos,    setTurnosAbiertos]    = useState<ITurnoAbierto[] | null>(null);
+  const [yoId,              setYoId]              = useState('');
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * LA LECTURA DE CAJA, APAGADA POR OMISIÓN
+   * --------------------------------------------------------------------------
+   * Hasta ahora, para saber cuánto efectivo debería haber en el cajón a media
+   * jornada había que salir del mostrador y abrir Tesorería. El dato ya viaja
+   * en la misma respuesta que dice si la caja tiene turno abierto: no hace
+   * falta pedir nada nuevo, sólo enseñarlo.
+   *
+   * Y APAGADA POR OMISIÓN, que es la parte que importa: la pantalla del punto
+   * de venta la ve el cliente del otro lado del mostrador. El total del cajón
+   * no es un dato que deba estar a la vista todo el día. Se pide, se mira y se
+   * vuelve a guardar.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const [verLecturaCaja,    setVerLecturaCaja]    = useState(false);
+  useEffect(() => {
+    /*
+     * Por `token.get()`, no por `localStorage` a pelo. La clave del almacén es
+     * del cliente de sesión, y leerla aquí convertiría esta pantalla en una de
+     * las que se sacan el token crudo —justo lo que vigila
+     * `sesenta-y-seis-pantallas-con-su-propio-fetch`—. Además `get()` ya cae a
+     * memoria cuando el navegador bloquea el almacenamiento.
+     */
+    setYoId(leerSesion(sesionToken.get())?.id ?? '');
+  }, []);
   const [almacenId,         setAlmacenId]         = useState('');
   const [listasPrecio,      setListasPrecio]      = useState<IListaPrecio[]>([]);
   const [listaPrecioId,     setListaPrecioId]     = useState('');
@@ -264,7 +339,7 @@ export default function TerminalPos() {
        * que en ese caso no se afirma nada y el servidor sigue siendo quien
        * decide al cobrar.
        */
-      intentar(api.get<{ cuentaCajaId:string }[]>('/caja/turnos/abiertos'), null),
+      intentar(api.get<ITurnoAbierto[]>('/caja/turnos/abiertos'), null),
     ]).then(([alm, cb, listas, prodsCredito, tope, turnos]) => {
       setAlmacenes(alm);
       if (alm.length>0) setAlmacenId(alm[0].id);
@@ -278,10 +353,21 @@ export default function TerminalPos() {
       const listaDefecto = listas.find((lista) => lista.esPorDefecto) ?? listas[0];
       if (listaDefecto) setListaPrecioId(listaDefecto.id);
       setCuentasBancarias(cb);
+      /*
+       * La caja de ESTA terminal manda sobre la de la empresa. Si lo guardado
+       * ya no existe o se dio de baja, se ignora en silencio y se propone la
+       * de omisión: un identificador viejo no puede dejar la caja sin vender.
+       */
+      const recordada = (() => {
+        try { return localStorage.getItem('syncro_pos_caja') || ''; } catch { return ''; }
+      })();
+      const suya = cb.find((c:ICuentaBancaria) => c.id === recordada && c.tipo==='CAJA');
       const def = cb.find((c:ICuentaBancaria) => c.esPorDefecto && c.tipo==='CAJA');
-      if (def) setCuentaBancariaId(def.id);
+      if (suya) setCuentaBancariaId(suya.id);
+      else if (def) setCuentaBancariaId(def.id);
       setProductosCredito(prodsCredito);
       setTopeDescuento(Math.min(100, Math.max(0, n(tope?.topePorcentaje))));
+      setTurnosAbiertos(Array.isArray(turnos) ? turnos : null);
       setCajasConTurno(
         Array.isArray(turnos) ? turnos.map((t) => t.cuentaCajaId) : null,
       );
@@ -289,7 +375,27 @@ export default function TerminalPos() {
     searchRef.current?.focus();
   }, []);
 
-  // ── Auto-seleccionar cuenta según método de pago ───────────────
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Auto-seleccionar la cuenta según el método de pago, SIN pisar la elegida
+   * --------------------------------------------------------------------------
+   * Esto elegía la cuenta «por omisión» del tipo que toca cada vez que cambiaba
+   * el método de pago, el enganche o la lista de cuentas. Y la de omisión es la
+   * misma para toda la empresa.
+   *
+   * MEDIDO POR PANTALLA el 7-oct-2026 con dos cajas abiertas: se elegía «Caja 2
+   * · Mostrador norte», se recargaba, y volvía sola a «Caja mostrador». Lo
+   * mismo pasaba sin recargar, en mitad de una venta, con sólo tocar el método
+   * de pago. El cajero de la segunda caja tenía que corregirlo cada vez, y el
+   * día que no se diera cuenta su efectivo quedaría registrado en el cajón de
+   * otro.
+   *
+   * La regla correcta es más sencilla: esto sirve para que no haya que elegir
+   * cuando NO HAY NADA ELEGIDO que sirva. Si lo que ya está puesto es del tipo
+   * que el método necesita, no se toca: lo eligió una persona, o lo recuerda
+   * esta terminal, y en los dos casos sabe más que una marca de la empresa.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
   useEffect(() => {
     if (!cuentasBancarias.length) return;
     const tipo = esCredito(metodoPago) && n(enganche)>0 ? 'CAJA'
@@ -297,10 +403,20 @@ export default function TerminalPos() {
       : (metodoPago==='TARJETA'||metodoPago==='MSI_BANCO') ? 'TPV'
       : metodoPago==='TRANSFERENCIA' ? 'BANCO' : null;
     if (!tipo) return;
-    const match = cuentasBancarias.find(c=>c.tipo===tipo && c.esPorDefecto)
+    // Lo que ya hay puesto sirve: se respeta.
+    const actual = cuentasBancarias.find(c => c.id === cuentaBancariaId);
+    if (actual?.tipo === tipo) return;
+    /*
+     * Y cuando hay que elegir, la de esta terminal antes que la de la empresa.
+     * El cajón es del mostrador físico.
+     */
+    let recordada = '';
+    try { recordada = localStorage.getItem('syncro_pos_caja') || ''; } catch { recordada = ''; }
+    const match = cuentasBancarias.find(c=>c.id===recordada && c.tipo===tipo)
+                || cuentasBancarias.find(c=>c.tipo===tipo && c.esPorDefecto)
                 || cuentasBancarias.find(c=>c.tipo===tipo);
     if (match) setCuentaBancariaId(match.id);
-  }, [metodoPago, cuentasBancarias, enganche]);
+  }, [metodoPago, cuentasBancarias, enganche, cuentaBancariaId]);
 
   /*
    * ──────────────────────────────────────────────────────────────────────────
@@ -318,6 +434,16 @@ export default function TerminalPos() {
    * ──────────────────────────────────────────────────────────────────────────
    */
   const cajaElegida = cuentasBancarias.find(c => c.id === cuentaBancariaId) ?? null;
+  /* El turno de ESTA caja, si lo hay, con su dueño. Ver la nota del estado. */
+  const turnoDeLaCaja = (turnosAbiertos ?? []).find(t => t.cuentaCajaId === cuentaBancariaId) ?? null;
+  /*
+   * `true` sólo cuando SE SABE que el turno es de otra persona. Con el id sin
+   * resolver no se afirma nada: un aviso falso en una caja se aprende a ignorar,
+   * y entonces deja de servir el día que es cierto.
+   */
+  const turnoDeOtro = Boolean(
+    turnoDeLaCaja?.usuarioAperturaId && yoId && turnoDeLaCaja.usuarioAperturaId !== yoId,
+  );
 
   useEffect(() => {
     if (!cajaElegida) return;
@@ -349,6 +475,19 @@ export default function TerminalPos() {
       return;
     }
     setCuentaBancariaId(valor);
+    /*
+     * Se recuerda en ESTA terminal. El cajón es del mostrador físico, no de la
+     * empresa: sin esto, las tres terminales vuelven a proponer la misma caja
+     * en cada recarga y el cajero tiene que acordarse de corregirlo cada vez
+     * —y el día que se le olvide cobra en el cajón de otro—.
+     *
+     * En try/catch porque en modo privado `localStorage` lanza, y una caja no
+     * se puede quedar sin vender por no poder recordar una preferencia.
+     */
+    try {
+      if (valor) localStorage.setItem('syncro_pos_caja', valor);
+      else localStorage.removeItem('syncro_pos_caja');
+    } catch { /* la caja sigue vendiendo: sólo no recordará la elección */ }
   };
 
   // ── Buscar productos ────────────────────────────────────────────
@@ -677,8 +816,11 @@ export default function TerminalPos() {
        * con el carrito armado otra vez.
        */
       void api
-        .get<{ cuentaCajaId: string }[]>('/caja/turnos/abiertos')
-        .then((t) => setCajasConTurno(Array.isArray(t) ? t.map((x) => x.cuentaCajaId) : null))
+        .get<ITurnoAbierto[]>('/caja/turnos/abiertos')
+        .then((t) => {
+          setTurnosAbiertos(Array.isArray(t) ? (t as ITurnoAbierto[]) : null);
+          setCajasConTurno(Array.isArray(t) ? t.map((x) => x.cuentaCajaId) : null);
+        })
         .catch(() => {/* no se afirma nada si no se pudo preguntar */});
     } catch (error) {
       // Errores de validación son definitivos y permiten una nueva solicitud.
@@ -1245,6 +1387,77 @@ export default function TerminalPos() {
                     return true;
                   }).map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
+                {/*
+                  DE QUIÉN ES ESTE CAJÓN
+                  ----------------------------------------------------------
+                  Con varios cajeros a la vez, el nombre del turno es el único
+                  dato que permite darse cuenta antes de cobrar de que se está
+                  cobrando en el cajón de otra persona. No se bloquea —hay
+                  mostradores donde se relevan en el mismo cajón, y eso es
+                  legítimo— pero se dice, y en ámbar cuando no eres tú.
+                */}
+                {cajaElegida?.tipo==='CAJA' && turnoDeLaCaja && !verLecturaCaja && (
+                  <button
+                    type="button"
+                    onClick={() => setVerLecturaCaja(true)}
+                    className="mt-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 hover:underline"
+                  >
+                    Ver cuánto debería haber en el cajón
+                  </button>
+                )}
+                {cajaElegida?.tipo==='CAJA' && turnoDeLaCaja && verLecturaCaja && (
+                  <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[11px] font-semibold text-slate-700">
+                        Lectura de caja · no cierra el turno
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setVerLecturaCaja(false)}
+                        className="shrink-0 text-[11px] font-medium text-slate-500 hover:text-slate-800 hover:underline"
+                      >
+                        Ocultar
+                      </button>
+                    </div>
+                    <dl className="mt-1 space-y-0.5 text-[11.5px]">
+                      {([
+                        ['Fondo inicial', turnoDeLaCaja.fondoInicial],
+                        ['Entradas', turnoDeLaCaja.totalEntradas],
+                        ['Salidas', turnoDeLaCaja.totalSalidas],
+                      ] as const).map(([rotulo, valor]) => (
+                        <div key={rotulo} className="flex justify-between text-slate-500">
+                          <dt>{rotulo}</dt>
+                          <dd className="font-mono">${fmt(n(valor ?? 0))}</dd>
+                        </div>
+                      ))}
+                      <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-800">
+                        <dt>Debería haber</dt>
+                        <dd className="font-mono">${fmt(n(turnoDeLaCaja.efectivoEsperado ?? 0))}</dd>
+                      </div>
+                    </dl>
+                    {/*
+                      Lo que dice el sistema, no lo que hay en el cajón. El
+                      arqueo de verdad es contar, y se hace al cerrar en
+                      Tesorería; decir aquí «cuadra» sin haber contado nada
+                      sería la peor frase de esta pantalla.
+                    */}
+                    <p className="mt-1.5 text-[10.5px] leading-snug text-slate-500">
+                      Es lo que el sistema lleva registrado desde que se abrió el
+                      turno. Cuadrarlo contra el efectivo contado es el corte, y
+                      se hace en Tesorería → Caja, corte y arqueo.
+                    </p>
+                  </div>
+                )}
+                {cajaElegida?.tipo==='CAJA' && turnoDeLaCaja && (
+                  <p className={`mt-1 text-[11px] leading-snug ${turnoDeOtro ? 'text-amber-700 font-semibold' : 'text-slate-500'}`}>
+                    {turnoDeOtro ? '⚠ ' : ''}
+                    Turno abierto por {turnoDeLaCaja.usuarioAperturaNombre ?? 'alguien que no se pudo identificar'}
+                    {' · desde '}
+                    {new Date(turnoDeLaCaja.fechaApertura).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                    {/* La hora en es-MX ya termina en «p. m.»: un punto más se lee como errata. */}
+                    {turnoDeOtro ? ' · Si tu efectivo va a otro cajón, elige tu caja antes de cobrar.' : ''}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -1442,7 +1655,7 @@ export default function TerminalPos() {
 
       {/* ══ MINI-MODAL: NUEVO CLIENTE AL VUELO ══════════════════════ */}
       {showNuevoCliente && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[90] p-4"
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-[90] p-4"
           onClick={() => !guardandoCliente && setShowNuevoCliente(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-100">

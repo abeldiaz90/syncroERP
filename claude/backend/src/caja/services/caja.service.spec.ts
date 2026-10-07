@@ -50,7 +50,21 @@ describe('CajaService', () => {
    * ruta; basta con otro doble inerte.
    */
   const asientosFalsos = { encolarEnTransaccion: jest.fn(async () => ({ id: 'pend-1' })) } as any;
-  const servicio = new CajaService({} as any, {} as any, {} as any, tesoreriaFalsa, asientosFalsos);
+  /*
+   * Y los dos catálogos con los que `turnosAbiertos` le pone nombre a quien
+   * abrió el turno y a la caja. Estas pruebas no los ejercitan: dobles inertes.
+   */
+  const usuariosFalsos = { find: jest.fn(async () => []) } as any;
+  const cuentasFalsas = { find: jest.fn(async () => []) } as any;
+  const servicio = new CajaService(
+    {} as any,
+    {} as any,
+    {} as any,
+    usuariosFalsos,
+    cuentasFalsas,
+    tesoreriaFalsa,
+    asientosFalsos,
+  );
 
   it('rechaza una salida que dejaría efectivo esperado negativo', async () => {
     const { manager, save } = managerConTurno(100);
@@ -102,6 +116,8 @@ describe('CajaService', () => {
       dataSource,
       {} as any,
       {} as any,
+      { find: jest.fn(async () => []) } as any,
+      { find: jest.fn(async () => []) } as any,
       { registrarEnTransaccion: jest.fn(async () => null) } as any,
       { encolarEnTransaccion: jest.fn(async () => ({ id: 'pend-1' })) } as any,
     );
