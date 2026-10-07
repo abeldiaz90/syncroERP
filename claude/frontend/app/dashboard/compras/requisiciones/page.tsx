@@ -170,15 +170,48 @@ export default function RequisicionesPage() {
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * UNA CANTIDAD TECLEADA Y NO CONFIRMADA SE PERDÍA SIN DECIR NADA
+   * --------------------------------------------------------------------------
+   * MEDIDO POR PANTALLA el 7-oct-2026 pidiendo 20 kg de café: se pulsa el lápiz
+   * del renglón, se teclea 20, se pulsa Enter —que es lo que hace todo el
+   * mundo— y **no pasa nada**: el único modo de confirmar era la palomita. Y
+   * acto seguido «Crear Requisición» mandaba la cantidad VIEJA.
+   *
+   * La requisición se creó pidiendo 1 kg en vez de 20, sin un aviso, sin un
+   * resaltado, sin nada. Y de una requisición salen una cotización y una orden
+   * de compra: el error se descubre cuando llega la mercancía.
+   *
+   * Dos cosas, no una:
+   *   · Enter confirma y Escape descarta, porque ésa es la tecla que se pulsa.
+   *   · Y si al enviar queda una edición abierta, **se confirma** en vez de
+   *     tirarse. Lo que la persona tecleó es lo que quiere pedir; descartarlo
+   *     en silencio es la peor de las opciones.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  const confirmarCantidad = (idx: number, cantidad: number) => {
+    setDetalles(prev => prev.map((d, i) => (i === idx ? { ...d, cantidadSolicitada: cantidad } : d)));
+    setEditIdx(null);
+  };
+
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!detalles.length) { toast$('Agrega al menos un producto', false); return; }
+    /*
+     * La edición a medias se confirma, no se tira. Se calcula aquí el cuerpo
+     * para no depender de que el estado ya se haya actualizado.
+     */
+    const partidas = detalles.map((d, i) =>
+      editIdx === i && editCant > 0 ? { ...d, cantidadSolicitada: editCant } : d,
+    );
+    if (editIdx !== null && editCant > 0) confirmarCantidad(editIdx, editCant);
     setGuardando(true);
     const res = await fetch(`${api}/compras/requisiciones`, {
       method: 'POST', headers: { ...h(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
         notas, prioridad, fechaRequerida: fechaRequerida || null,
-        detalles: detalles.map(d => ({ productoId: d.productoId, cantidadSolicitada: d.cantidadSolicitada })),
+        detalles: partidas.map(d => ({ productoId: d.productoId, cantidadSolicitada: d.cantidadSolicitada })),
       }),
     });
     setGuardando(false);
@@ -526,8 +559,13 @@ export default function RequisicionesPage() {
                         {editIdx === idx ? (
                           <div className="flex items-center gap-2">
                             <input type="number" min="1" value={editCant} onChange={e => setEditCant(Number(e.target.value))}
+                              onKeyDown={e => {
+                                // Enter confirma y Escape descarta: es lo que se pulsa.
+                                if (e.key === 'Enter') { e.preventDefault(); if (editCant > 0) confirmarCantidad(idx, editCant); }
+                                else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditIdx(null); }
+                              }}
                               className="w-16 px-2 py-1 border border-indigo-300 rounded-lg text-sm text-center font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500" autoFocus/>
-                            <button aria-label="Guardar la cantidad" title="Guardar la cantidad" onClick={() => { setDetalles(prev => prev.map((d,i)=>i===idx?{...d,cantidadSolicitada:editCant}:d)); setEditIdx(null); }}
+                            <button aria-label="Guardar la cantidad" title="Guardar la cantidad" onClick={() => confirmarCantidad(idx, editCant)}
                               className="text-emerald-600 hover:text-emerald-700 p-1"><CheckCircle2 className="w-4 h-4"/></button>
                             <button aria-label="Descartar el cambio" title="Descartar el cambio" onClick={() => setEditIdx(null)} className="text-slate-400 p-1"><X className="w-4 h-4"/></button>
                           </div>
