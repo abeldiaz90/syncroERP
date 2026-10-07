@@ -14,6 +14,11 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Maximize2, Minimize2, X, Store } from 'lucide-react';
 import { leerSesion, type Sesion } from '@/lib/session';
+import {
+  EVENTO_VER_COMO,
+  establecerVerComo,
+  quienAtiende,
+} from '@/lib/ver-como';
 import { api, intentar } from '@/lib/api';
 import TerminalPos from './terminal';
 
@@ -30,10 +35,21 @@ export default function PosPage() {
   const [empresa, setEmpresa] = useState('');
   const [reloj, setReloj] = useState('');
   const [completa, setCompleta] = useState(false);
+  /*
+   * Quien atiende no es quien inició sesión cuando hay una suplantación
+   * puesta: la venta se graba a nombre del suplantado, porque es lo que viaja
+   * en la cabecera de cada llamada. Se guarda en estado y se rehace al cambiar
+   * de persona, para que la barra no se quede con el nombre anterior.
+   */
+  const [atiende, setAtiende] = useState(() => quienAtiende(null));
 
   useEffect(() => {
     const jwt = localStorage.getItem('syncro_token') ?? '';
-    if (jwt) setSesion(leerSesion(jwt));
+    const miSesion = jwt ? leerSesion(jwt) : null;
+    if (miSesion) setSesion(miSesion);
+    const recalcularQuien = () => setAtiende(quienAtiende(miSesion));
+    recalcularQuien();
+    window.addEventListener(EVENTO_VER_COMO, recalcularQuien);
 
     // El nombre de la empresa se pregunta, igual que en el área de trabajo: es
     // lo que distingue una caja de otra cuando alguien atiende dos sucursales.
@@ -57,6 +73,7 @@ export default function PosPage() {
     return () => {
       vivo = false;
       clearInterval(t);
+      window.removeEventListener(EVENTO_VER_COMO, recalcularQuien);
       document.removeEventListener('fullscreenchange', alCambiar);
     };
   }, []);
@@ -119,12 +136,37 @@ export default function PosPage() {
             <p className="text-[10.5px] text-white/45 capitalize">{hoy}</p>
           </div>
 
-          <div className="text-right leading-tight border-l border-white/10 pl-4">
+          {/*
+            * El nombre que sale aquí es el que queda en la venta. Con una
+            * suplantación puesta se dice, y se dice en ámbar: cobrar creyendo
+            * que firmas tú y que lo firme otro no se descubre hasta el corte.
+            */}
+          <div
+            className={`text-right leading-tight border-l border-white/10 pl-4 ${
+              atiende.suplantado ? 'text-amber-300' : ''
+            }`}
+          >
             <p className="text-[12.5px] font-semibold truncate max-w-[180px]">
-              {sesion?.nombreCompleto ?? sesion?.email ?? '—'}
+              {atiende.nombre}
             </p>
-            <p className="text-[10.5px] text-white/45">Atiende</p>
+            <p
+              className={`text-[10.5px] ${
+                atiende.suplantado ? 'text-amber-300/80' : 'text-white/45'
+              }`}
+            >
+              {atiende.suplantado ? 'Atiende · estás viendo como él' : 'Atiende'}
+            </p>
           </div>
+
+          {atiende.suplantado && (
+            <button
+              onClick={() => establecerVerComo(null)}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-400 text-slate-900 hover:bg-amber-300 transition-colors"
+              title={`Cobrarías a nombre de ${atiende.nombre}`}
+            >
+              Volver a ser yo
+            </button>
+          )}
 
           <button
             onClick={alternarPantallaCompleta}

@@ -28,6 +28,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { leerSesion, puedeEntrar, sesionVigente, type Sesion } from '@/lib/session';
+import { verComoActual } from '@/lib/ver-como';
 import { esRolAdministrador } from '@/lib/roles';
 import { api, rutaDeAccesoConRegreso } from '@/lib/api';
 
@@ -57,7 +58,13 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
      * ────────────────────────────────────────────────────────────────────────
      */
     document.title = 'Caja · SyncroERP';
-    if (esRolAdministrador(sesion.rol)) {
+    /*
+     * Y mientras se mira el ERP como otra persona, el atajo de administrador
+     * no vale: si ese perfil no tiene caja, el aviso que esta pantalla promete
+     * es justo lo que hay que ver. Dejarlo entrar es decir que la suplantación
+     * comprueba algo que no comprueba.
+     */
+    if (!verComoActual() && esRolAdministrador(sesion.rol)) {
       setEstado('dentro');
       return;
     }

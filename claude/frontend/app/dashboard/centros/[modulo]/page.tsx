@@ -9,6 +9,7 @@ import { MODULOS, agruparItems } from '../../module-config';
 import { api, intentar, token } from '@/lib/api';
 import { esRolAdministrador } from '@/lib/roles';
 import { leerSesion, puedeVerEnlace } from '@/lib/session';
+import { EVENTO_VER_COMO, verComoActual } from '@/lib/ver-como';
 import { usePermiso } from '@/hooks/use-permisos';
 import { useContratacion, contratado } from '@/lib/contratacion';
 
@@ -16,6 +17,17 @@ export default function CentroModuloPage() {
   const params = useParams<{ modulo: string }>();
   const modulo = useMemo(() => MODULOS.find((m) => m.id === params.modulo), [params.modulo]);
   const [permisos, setPermisos] = useState<string[] | null>(null);
+  /*
+   * Y se vuelve a preguntar al cambiar de persona: si no, el centro se queda
+   * con los enlaces del anterior mientras las llamadas ya van con el nuevo.
+   */
+  const [verComoId, setVerComoId] = useState<string | null>(null);
+  useEffect(() => {
+    const leer = () => setVerComoId(verComoActual()?.id ?? null);
+    leer();
+    window.addEventListener(EVENTO_VER_COMO, leer);
+    return () => window.removeEventListener(EVENTO_VER_COMO, leer);
+  }, []);
   const { tienePermiso } = usePermiso();
   /*
    * Lo contratado se pregunta aquí igual que en el menú lateral: el centro de
@@ -28,7 +40,20 @@ export default function CentroModuloPage() {
     let vivo = true;
     (async () => {
       const sesion = leerSesion(token.get());
-      if (esRolAdministrador(sesion?.rol)) {
+      /*
+       * ── La cuarta puerta de «ver el ERP como otro» ─────────────────────
+       * El rol de la sesión sigue siendo administrador mientras se mira el ERP
+       * como otra persona, y `['*']` abre el centro entero. Medido el 7-oct
+       * viendo como el mostrador: el menú lateral ofrecía UNA sección de
+       * Tesorería y este centro ofrecía cinco, entre ellas «Cuentas
+       * bancarias», que la plantilla del mostrador veda a propósito —CLABE y
+       * números de cuenta—. Cada una aterrizaba en «esta sección no está en tu
+       * perfil».
+       *
+       * Las dos puertas al mismo sitio decían cosas distintas, que es justo lo
+       * que el comentario de arriba dice que no debe pasar.
+       */
+      if (!verComoActual() && esRolAdministrador(sesion?.rol)) {
         if (vivo) setPermisos(['*']);
         return;
       }
@@ -48,7 +73,7 @@ export default function CentroModuloPage() {
       }
     })();
     return () => { vivo = false; };
-  }, []);
+  }, [verComoId]);
 
   if (!modulo) return <div className="p-8">Módulo no encontrado.</div>;
   const items = modulo.items.filter(

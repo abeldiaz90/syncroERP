@@ -14,6 +14,7 @@ import { api, ApiError, API_URL, intentar } from '@/lib/api';
 import { useAcciones } from '@/hooks/use-acciones';
 import { leerSesion } from '@/lib/session';
 import { token as sesionToken } from '@/lib/sesion';
+import { EVENTO_VER_COMO, quienAtiende } from '@/lib/ver-como';
 
 const n   = (v: any): number => Number(v) || 0;
 /*
@@ -226,7 +227,18 @@ export default function TerminalPos() {
      * `sesenta-y-seis-pantallas-con-su-propio-fetch`—. Además `get()` ya cae a
      * memoria cuando el navegador bloquea el almacenamiento.
      */
-    setYoId(leerSesion(sesionToken.get())?.id ?? '');
+    /*
+     * Y no es el id del JWT, sino el de quien atiende: con una suplantación
+     * puesta la venta se graba a nombre del suplantado —medido el 7-oct con
+     * el folio 10—, así que comparar el turno contra el JWT apagaba el aviso
+     * justo cuando quien cobra no es quien abrió el cajón. Un aviso que se
+     * apaga en su propio caso es peor que no tenerlo.
+     */
+    const leerYo = () =>
+      setYoId(quienAtiende(leerSesion(sesionToken.get())).id);
+    leerYo();
+    window.addEventListener(EVENTO_VER_COMO, leerYo);
+    return () => window.removeEventListener(EVENTO_VER_COMO, leerYo);
   }, []);
   const [almacenId,         setAlmacenId]         = useState('');
   const [listasPrecio,      setListasPrecio]      = useState<IListaPrecio[]>([]);
