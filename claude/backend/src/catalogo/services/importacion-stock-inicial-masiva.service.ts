@@ -12,6 +12,7 @@ import { InventarioService } from './inventario.service';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
 import { ImportacionInventarioFilaAplicada } from '../entities/importacion-inventario-fila-aplicada.entity';
+import { fechaContableNegocio } from '../../common/utils/business-time.util';
 
 interface FilaCruda { fila:number; sku:string; almacen:string; cantidad:unknown; costoUnitario:unknown; lote?:unknown; caducidad?:unknown; }
 interface FilaValida { fila:number; producto:Producto; almacen:Almacen; cantidad:number; costoUnitario:number; lote?:string; caducidad?:string; }
@@ -375,7 +376,20 @@ export class ImportacionStockInicialMasivaService implements OnModuleInit {
             TipoAsiento.INVENTARIO_INICIAL,
             {
               empresaId: job.empresaId,
-              fecha: job.fechaFin ?? new Date(),
+              /*
+               * La fecha contable es el DÍA del hecho en la zona de la empresa, no el
+               * instante en UTC. `job.fechaFin` es una marca de tiempo: a las 19:56 de
+               * México son las 01:56 UTC del día siguiente, así que el asiento nacía
+               * fechado mañana — y una operación de la última noche del mes caía en
+               * el mes siguiente, que no lo caza un balance porque cuadra igual.
+               *
+               * Se pasa el instante por el convertidor en vez de usarlo crudo: así se
+               * conserva el día del hecho y se normaliza al calendario de negocio.
+               * Encontrado el 7-oct al arreglar el mismo defecto en las devoluciones
+               * de venta, ampliando el barrido para que cazara también la forma
+               * `?? new Date()`.
+               */
+              fecha: fechaContableNegocio(job.fechaFin ?? undefined),
               importacionId: job.id,
               detalles: [...porProducto.values()],
             },

@@ -444,7 +444,19 @@ export default function CajaPage() {
               <input value={fondo} onChange={(e) => setFondo(e.target.value)} type="number" min="0" step="0.01" className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 px-3" required />
             </label>
             <button disabled={procesando || !cuentaNueva} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-cyan-700 px-4 text-sm font-semibold text-white hover:bg-cyan-800 disabled:opacity-50">
-              {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />} Abrir caja
+              {/*
+                «Abrir turno», no «Abrir caja», por dos razones. La primera es
+                que el encabezado de este mismo formulario ya dice «Abrir
+                turno»: el botón contradecía a su propio título.
+
+                La segunda importa más. En Ventas hay otra acción llamada
+                «Abrir caja» que abre el punto de venta —una ventana— y aquí
+                abre un TURNO con su fondo inicial, que es un acto con
+                consecuencia contable. Las mismas dos palabras para una ventana
+                y para un movimiento de efectivo: quien aprende un significado
+                lee mal el otro.
+              */}
+              {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />} Abrir turno
             </button>
           </form>
         </section>

@@ -60,6 +60,7 @@ import {
   TipoMovimientoCaja,
 } from '../../caja/entities/movimiento-caja.entity';
 import { MovimientoInventario } from '../../catalogo/entities/movimiento-inventario.entity';
+import { fechaContableNegocio } from '../../common/utils/business-time.util';
 
 const CREDIT_METHODS = new Set<MetodoPagoHotel>([
   MetodoPagoHotel.CREDITO_EMPRESA,
@@ -1288,7 +1289,20 @@ export class OperacionHotelService {
           documentoId: folio.id,
           empresaId,
           folio: reserva.codigo ?? folio.id.slice(0, 8),
-          fecha: folio.fechaCierre ?? new Date(),
+          /*
+           * La fecha contable es el DÍA del hecho en la zona de la empresa, no el
+           * instante en UTC. `folio.fechaCierre` es una marca de tiempo: a las 19:56 de
+           * México son las 01:56 UTC del día siguiente, así que el asiento nacía
+           * fechado mañana — y una operación de la última noche del mes caía en
+           * el mes siguiente, que no lo caza un balance porque cuadra igual.
+           *
+           * Se pasa el instante por el convertidor en vez de usarlo crudo: así se
+           * conserva el día del hecho y se normaliza al calendario de negocio.
+           * Encontrado el 7-oct al arreglar el mismo defecto en las devoluciones
+           * de venta, ampliando el barrido para que cazara también la forma
+           * `?? new Date()`.
+           */
+          fecha: fechaContableNegocio(folio.fechaCierre ?? undefined),
           subtotal: Number(folio.subtotal),
           subtotalHospedaje: money(
             cargos

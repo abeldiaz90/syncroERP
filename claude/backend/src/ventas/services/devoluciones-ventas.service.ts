@@ -57,7 +57,10 @@ import { SaldosFavorService } from './saldos-favor.service';
 import { CarteraPublicadorService } from '../../integracion/services/cartera-publicador.service';
 import { CfdiService } from '../../cfdi/cfdi.service';
 import { CierreContable } from '../../finanzas/entities/cierre-contable.entity';
-import { fechaCalendarioNegocio } from '../../common/utils/business-time.util';
+import {
+  fechaCalendarioNegocio,
+  fechaContableNegocio,
+} from '../../common/utils/business-time.util';
 import { CajaService } from '../../caja/services/caja.service';
 import {
   ROLES_AUTORIZADORES_DEVOLUCION,
@@ -994,7 +997,36 @@ export class DevolucionesVentasService {
         ventaId,
         folio: devolucion.folio,
         folioVenta: venta.folio,
-        fecha: devolucion.fechaDevolucion ?? new Date(),
+        /*
+         * ──────────────────────────────────────────────────────────────────
+         * LA FECHA CONTABLE ES EL DÍA DEL HECHO, NO UN INSTANTE EN UTC
+         *
+         * Esto pasaba `devolucion.fechaDevolucion`, que es una MARCA DE TIEMPO
+         * —`new Date()` al crear la devolución—. A las 19:56 del 6 de octubre
+         * en México eso son las 01:56 UTC del 7, así que el asiento nacía
+         * fechado **mañana**.
+         *
+         * Medido el 7-oct, y la prueba estaba a diez minutos de distancia: las
+         * dos pólizas de una venta de las 19:46 salieron con fecha 2026-10-06,
+         * correctas, y las dos de su devolución de las 19:56 salieron con
+         * 2026-10-07. Mismo día, misma pantalla, dos fechas.
+         *
+         * Dos consecuencias, y la segunda es peor que la primera:
+         *
+         *  · Fineract rechaza el asiento por futuro —«The journal entry cannot
+         *    be made for a future date»— y la póliza se queda en la cola del
+         *    espejo hasta que llegue el día. Se vio pasar.
+         *  · Una devolución de la última noche del mes cae en el mes
+         *    SIGUIENTE. Eso no lo caza un balance: cuadra igual, y el período
+         *    es el equivocado. Es, con nombre y apellido, lo que persigue
+         *    `la-poliza-que-nacio-en-otro-mes`.
+         *
+         * Y el arreglo ya estaba en esta misma función: `hoyNegocio`, que es lo
+         * que usa el movimiento de tesorería veinte líneas más arriba. El
+         * asiento no lo usaba.
+         * ──────────────────────────────────────────────────────────────────
+         */
+        fecha: fechaContableNegocio(),
         empresaId,
         motivo: devolucion.motivo,
         cuentaBancariaId: devolucion.cuentaBancariaId ?? undefined,

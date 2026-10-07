@@ -137,6 +137,21 @@ describe('Ningún generador de asientos se quedó con la fecha cruda', () => {
     'catalogo/services/inventario.service.ts',
     'catalogo/services/wms.service.ts',
     'catalogo/services/productos.service.ts',
+    /*
+     * EL NOVENO, encontrado el 7-oct probando la devolución por pantalla. No
+     * estaba en esta lista, y el barrido tampoco lo cazaba: no escribía
+     * `fecha: new Date(),` sino `fecha: devolucion.fechaDevolucion ?? new
+     * Date()` —una marca de tiempo—. A las 19:56 de México eso es el día
+     * siguiente, y el asiento nacía fechado mañana.
+     *
+     * Los otros dos que salieron al ampliar el barrido —la importación de
+     * stock inicial y el cierre de folio de hotelería— NO se listan aquí: esos
+     * fechan con el instante del hecho pasado por el convertidor
+     * (`fechaContableNegocio(folio.fechaCierre)`), no con el de ahora, así que
+     * no cumplen la forma exacta que estas dos pruebas exigen. Los cubre el
+     * barrido de abajo, que es donde les toca.
+     */
+    'ventas/services/devoluciones-ventas.service.ts',
   ];
 
   const sinComentarios = (t: string) =>
@@ -213,7 +228,15 @@ describe('Ningún generador de asientos se quedó con la fecha cruda', () => {
     const sospechosos = archivosTs(SRC)
       .filter((f) => !f.includes('.spec.') && !f.includes('asientos-pendientes.service.ts'))
       .filter((f) => /encolarEnTransaccion|asientos\.encolar/.test(readFileSync(f, 'utf8')))
-      .filter((f) => /fecha: new Date\(\),/.test(readFileSync(f, 'utf8')))
+      /*
+       * DOS FORMAS, no una. La original —`fecha: new Date(),`— y la que se
+       * escapó: `fecha: loQueSea ?? new Date()`. La segunda se lee como si
+       * tuviera fecha propia y en la práctica es el mismo instante en UTC. Se
+       * amplió el 7-oct, después de que una devolución naciera fechada mañana
+       * con este barrido en verde; al ampliarlo salieron dos más, la
+       * importación de stock inicial y el cierre de folio de hotelería.
+       */
+      .filter((f) => /fecha:[^,\n]*\bnew Date\(\)/.test(readFileSync(f, 'utf8')))
       .map((f) => f.replace(SRC, ''));
     expect(sospechosos).toEqual([]);
   });
