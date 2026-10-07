@@ -240,4 +240,73 @@ describe('Ningún generador de asientos se quedó con la fecha cruda', () => {
       .map((f) => f.replace(SRC, ''));
     expect(sospechosos).toEqual([]);
   });
+
+  it('ni se cuela por un campo que guarda el instante de ahora', () => {
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * LA TERCERA FORMA: el `new Date()` que no está en la línea del `fecha:`
+     * ------------------------------------------------------------------------
+     * Las dos formas que persigue el barrido de arriba miran la MISMA línea. El
+     * cierre de caja escribía esta otra:
+     *
+     *     turno.fechaCierre = new Date();     // cinco líneas más arriba
+     *     …
+     *     fecha: turno.fechaCierre,
+     *
+     * Con el barrido en verde, un faltante de $20 cerrado a las 23:30 de México
+     * nació fechado al día siguiente —`DI-2026-00008`, 7-oct-2026, medido por
+     * pantalla—. Al escribir esta prueba salió un segundo caso idéntico que
+     * nadie había mirado: la cancelación de cobranza, con
+     * `pago.fechaCancelacion = new Date()` pasado como `fechaCancelacion:`.
+     *
+     * Por eso esto no busca la palabra `fecha:` seguida de `new Date()`. Busca
+     * los campos a los que se les asigna el instante de ahora, y luego
+     * comprueba que ninguno viaje como fecha de un asiento. El nombre de la
+     * llave no importa: vale `fecha:`, `fechaCancelacion:`, `fechaCierre:`.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    const culpables: string[] = [];
+    for (const ruta of archivosTs(SRC)) {
+      if (ruta.includes('.spec.') || ruta.includes('asientos-pendientes.service.ts')) continue;
+      const texto = readFileSync(ruta, 'utf8');
+      if (!/encolarEnTransaccion|asientos\.encolar/.test(texto)) continue;
+      const codigo = sinComentarios(texto);
+      // Los campos que reciben el instante de ahora: `algo.loQueSea = new Date();`
+      const campos = [
+        ...new Set(
+          [...codigo.matchAll(/\.(\w+)\s*=\s*new Date\(\)\s*;/g)].map((m) => m[1]),
+        ),
+      ];
+      if (!campos.length) continue;
+      for (const llamada of codigo.matchAll(
+        /(?:encolarEnTransaccion|asientos\.encolar\w*)\s*\(/g,
+      )) {
+        /*
+         * Sólo DENTRO de la llamada, hasta su paréntesis de cierre. Una ventana
+         * más ancha señalaba a `cobranza`, que unas líneas más abajo le manda a
+         * Fineract el instante exacto —y ahí el instante es lo correcto—. Un
+         * barrido que grita por lo que está bien se acaba apagando.
+         */
+        const resto = codigo.slice(llamada.index);
+        const cierre = resto.search(/\n\s*\)\s*;/);
+        const ventana = resto.slice(0, cierre > 0 ? cierre : 1200);
+        for (const campo of campos) {
+          const comoFecha = new RegExp(`fecha\\w*:\\s*[\\w.]*\\.${campo}\\b`);
+          if (comoFecha.test(ventana)) culpables.push(`${ruta.replace(SRC, '')} → ${campo}`);
+        }
+      }
+    }
+    expect([...new Set(culpables)]).toEqual([]);
+  });
+
+  it('esta tercera forma mira de verdad a alguien', () => {
+    /*
+     * La prueba de la prueba. Si `encolarEnTransaccion` se renombra, el bucle de
+     * arriba no entra nunca y declara el árbol limpio sin haber leído un archivo.
+     */
+    const encolan = archivosTs(SRC)
+      .filter((f) => !f.includes('.spec.'))
+      .filter((f) => /encolarEnTransaccion|asientos\.encolar/.test(readFileSync(f, 'utf8')));
+    expect(encolan.length).toBeGreaterThanOrEqual(10);
+  });
 });

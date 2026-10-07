@@ -48,7 +48,10 @@ import {
   OrigenMovimiento,
   TipoMovimiento,
 } from '../../tesoreria/entities/tesoreria.entity';
-import { fechaCalendarioNegocio } from '../../common/utils/business-time.util';
+import {
+  fechaCalendarioNegocio,
+  fechaContableNegocio,
+} from '../../common/utils/business-time.util';
 import { CajaService } from '../../caja/services/caja.service';
 import {
   NaturalezaMovimientoCaja,
@@ -656,7 +659,27 @@ export class CobranzaService {
           pagoId: pago.id,
           creditoId: credito.id,
           folioCredito: credito.folio,
-          fechaCancelacion: pago.fechaCancelacion,
+          /*
+           * ──────────────────────────────────────────────────────────────────
+           * LA UNDÉCIMA PUERTA, de la misma familia que el cierre de caja
+           * ------------------------------------------------------------------
+           * `pago.fechaCancelacion` es `new Date()`: el instante exacto, que es
+           * lo correcto para la marca de tiempo del pago y para lo que se le
+           * manda al core unas líneas más abajo. Como FECHA CONTABLE es otra
+           * cosa: `motor-contable` hace `fecha: new Date(datos.fechaCancelacion)`
+           * y la póliza sale con el día en UTC.
+           *
+           * Una cobranza cancelada a las 23:30 de México asienta su reversa en
+           * el día siguiente; el último día del mes, en el mes siguiente. El
+           * cobro quedó en un mes y su cancelación en otro, y la cartera deja
+           * de cuadrar contra el mayor sin que nada parezca roto.
+           *
+           * Salió al ampliar el barrido de `la-poliza-que-nacio-en-otro-mes`
+           * después de encontrar el mismo defecto en el cierre de caja, por
+           * pantalla, el 7-oct-2026.
+           * ──────────────────────────────────────────────────────────────────
+           */
+          fechaCancelacion: fechaContableNegocio(),
           empresaId,
           montoCapital: Number(pago.montoCapital),
           montoInteres: Number(pago.montoInteres),

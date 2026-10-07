@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import {
   CuentaBancaria,
   TipoCuentaBancaria,
@@ -16,9 +16,11 @@ import {
   TipoMovimientoCaja,
 } from '../entities/movimiento-caja.entity';
 import { EstadoTurnoCaja, TurnoCaja } from '../entities/turno-caja.entity';
+import { Usuario } from '../../iam/entities/usuario.entity';
 import { TesoreriaService } from '../../tesoreria/services/tesoreria.service';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
+import { fechaContableNegocio } from '../../common/utils/business-time.util';
 import {
   OrigenMovimiento,
   TipoMovimiento,
@@ -52,6 +54,11 @@ export class CajaService {
     private readonly turnos: Repository<TurnoCaja>,
     @InjectRepository(MovimientoCaja)
     private readonly movimientos: Repository<MovimientoCaja>,
+    /* Para ponerle nombre a quien abrió el turno y a la caja. Ver `turnosAbiertos`. */
+    @InjectRepository(Usuario)
+    private readonly usuarios: Repository<Usuario>,
+    @InjectRepository(CuentaBancaria)
+    private readonly cuentas: Repository<CuentaBancaria>,
     private readonly tesoreria: TesoreriaService,
     private readonly asientos: AsientosPendientesService,
   ) {}
@@ -354,7 +361,31 @@ export class CajaService {
             turnoId: turno.id,
             cuentaCajaId: turno.cuentaCajaId,
             diferencia,
-            fecha: turno.fechaCierre,
+            /*
+             * ────────────────────────────────────────────────────────────────
+             * LA DÉCIMA PUERTA: el faltante nacía fechado mañana
+             * ----------------------------------------------------------------
+             * `turno.fechaCierre` es `new Date()`: el instante exacto del
+             * cierre, que es lo correcto para una marca de tiempo. Pero como
+             * FECHA CONTABLE es otra cosa. Medido en vivo el 7-oct-2026 a las
+             * 23:30 de México: se cerró un turno con un faltante de $20 y la
+             * póliza `DI-2026-00008` salió fechada 2026-10-07, mientras las dos
+             * pólizas de los movimientos de ese mismo turno, registradas tres
+             * minutos antes, decían 2026-10-06.
+             *
+             * Un turno que se cierra de noche —que es cuando se cierran los
+             * turnos— asienta su faltante en el día siguiente; el último día
+             * del mes, en el mes siguiente. Y el arqueo deja de cuadrar contra
+             * el día que se arqueó.
+             *
+             * El barrido de `la-poliza-que-nacio-en-otro-mes` no lo cazaba:
+             * busca `new Date()` en la misma línea del `fecha:`, y aquí el
+             * `new Date()` está a cinco líneas, guardado en un campo. Se amplió
+             * con la regla que sí lo caza, que es en positivo: quien encola un
+             * asiento usa el convertidor.
+             * ────────────────────────────────────────────────────────────────
+             */
+            fecha: fechaContableNegocio(),
             observaciones: turno.observacionesCierre ?? undefined,
           },
           empresaId,
@@ -397,11 +428,53 @@ export class CajaService {
     };
   }
 
-  turnosAbiertos(empresaId: string) {
-    return this.turnos.find({
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * UN TURNO TIENE DUEÑO, Y HASTA AHORA NO SE DECÍA
+   * --------------------------------------------------------------------------
+   * Esto devolvía `usuarioAperturaId`, un identificador, y ninguna pantalla lo
+   * usaba. El punto de venta sólo miraba `cuentaCajaId` para saber si podía
+   * cobrar.
+   *
+   * Con un mostrador de una caja eso da igual. Con tres cajeros a la vez —que
+   * es para lo que se pide— no: el punto de venta propone la caja marcada «por
+   * omisión» de la empresa, LA MISMA en las tres terminales, y nada en pantalla
+   * dice que ese turno lo abrió otra persona ni en qué cajón está el efectivo.
+   * Los tres cobran contra el mismo turno, los otros dos cajones acumulan
+   * dinero sin registro, y aparece en el arqueo de la noche como un faltante
+   * que nadie puede explicar.
+   *
+   * Un número sin nombre no se puede arreglar: se devuelve el nombre de quien
+   * abrió y el de la caja, que es lo que una persona necesita leer para darse
+   * cuenta antes de cobrar.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  async turnosAbiertos(empresaId: string) {
+    const turnos = await this.turnos.find({
       where: { empresaId, estado: EstadoTurnoCaja.ABIERTO },
       order: { fechaApertura: 'ASC' },
     });
+    if (!turnos.length) return turnos;
+    const [usuarios, cajas] = await Promise.all([
+      this.usuarios.find({
+        where: {
+          empresaId,
+          id: In([...new Set(turnos.map((t) => t.usuarioAperturaId).filter(Boolean))] as string[]),
+        },
+      }),
+      this.cuentas.find({ where: { empresaId, id: In(turnos.map((t) => t.cuentaCajaId)) } }),
+    ]);
+    const nombre = new Map(usuarios.map((u) => [u.id, u.nombreCompleto]));
+    const caja = new Map(cajas.map((c) => [c.id, c.nombre]));
+    return turnos.map((t) => ({
+      ...t,
+      /*
+       * `null` cuando no se pudo resolver, no el identificador en crudo: un
+       * uuid en pantalla no le dice a nadie de quién es el cajón.
+       */
+      usuarioAperturaNombre: nombre.get(t.usuarioAperturaId) ?? null,
+      cuentaCajaNombre: caja.get(t.cuentaCajaId) ?? null,
+    }));
   }
 
   async listarTurnos(empresaId: string, pagina = 1, limite = 20) {
