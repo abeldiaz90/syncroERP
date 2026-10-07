@@ -152,7 +152,7 @@ export default function DotacionInsumos({ api, h, hotelId, tipos }: {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Insumos de este tipo</label>
-              <span className="text-xs text-slate-400">{items.length} producto(s)</span>
+              <span className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${items.length} producto(s)`}</span>
             </div>
             {cargando ? (
               <div className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin text-slate-300 mx-auto" /></div>

@@ -311,11 +311,38 @@ export default function BandejaAprobacionesPage() {
                   </div>
                 </div>
 
+                {/*
+                  ──────────────────────────────────────────────────────────────
+                  UN SOLO AVISO, Y EL QUE DICE LA VERDAD
+
+                  Aquí había DOS paneles para `!coincide`, los dos dentro de la
+                  misma tarjeta y los dos visibles a la vez. Y se contradecían:
+                  éste decía «Actualiza la bandeja; el backend impedirá aprobar
+                  condiciones obsoletas» —o sea, refresca y sigue— y el de más
+                  abajo decía «No se puede resolver: hay que volver a
+                  solicitarla».
+
+                  El que mandaba a refrescar era el falso. Con `!coincide` se
+                  deshabilitan LOS DOS botones, aprobar y rechazar: refrescar no
+                  enciende nada, porque lo que cambió son las condiciones del
+                  documento, no la vista. Y era el que se leía primero, por estar
+                  arriba. De paso hablaba de «el backend», que es una palabra
+                  para quien programa, no para quien firma.
+
+                  Queda uno solo, con el texto que sí describe la salida, y en
+                  esta posición, que es donde se lee.
+                  ──────────────────────────────────────────────────────────────
+                */}
                 {!coincide && (
                   <div className="mt-4 flex gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    El documento cambió después de iniciar el ciclo. Actualiza la
-                    bandeja; el backend impedirá aprobar condiciones obsoletas.
+                    <span>
+                      Las condiciones del cliente cambiaron después de pedir esta
+                      autorización, así que lo que aquí se muestra ya no es lo que
+                      se aprobaría. No se puede resolver —ni aprobar ni
+                      rechazar—: hay que volver a solicitarla con las condiciones
+                      vigentes.
+                    </span>
                   </div>
                 )}
 
@@ -418,15 +445,6 @@ export default function BandejaAprobacionesPage() {
                   </div>
                 )}
 
-                {!coincide && (
-                  <div className="mt-3 flex gap-2 rounded-xl border border-slate-300 bg-slate-50 p-3 text-xs font-semibold text-slate-700">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    Las condiciones del cliente cambiaron después de pedir esta
-                    autorización, así que lo que aquí se muestra ya no es lo que
-                    se aprobaría. No se puede resolver: hay que volver a
-                    solicitarla con las condiciones vigentes.
-                  </div>
-                )}
 
                 {!bloqueaValidacion &&
                   validacion?.estado === "NO_CONCLUIDO" && (

@@ -202,14 +202,39 @@ function destinoDeRegreso(): string | null {
   return cola ? `${ruta}?${cola}` : ruta;
 }
 
+/**
+ * La URL de la pantalla de acceso, recordando de dónde viene quien la pide.
+ *
+ * ──────────────────────────────────────────────────────────────────────────
+ * POR QUÉ ESTÁ EXPORTADA, Y NO ERA UN DETALLE
+ *
+ * Este cuidado vivía sólo aquí, y aquí casi nunca se llegaba. Los DOS guardias
+ * de sesión que de verdad se disparan al navegar —`app/dashboard/layout.tsx` y
+ * `app/pos/layout.tsx`— hacían `router.replace('/login')` a secas: comprueban
+ * la vigencia del token en cada cambio de ruta, así que con la sesión vencida
+ * son ellos los que echan, no un 401.
+ *
+ * Resultado medido el 6-oct: al abrir `/dashboard/creditos/creditos` con el
+ * token caducado, el ERP mandaba a `/login` **pelado**. Después de entrar, uno
+ * aparece en la raíz, no donde iba. En el punto de venta es peor: quien está
+ * cobrando vuelve al principio en vez de a la caja.
+ *
+ * La maquinaria estaba escrita, bien pensada y comentada —conserva la query,
+ * descarta un `next` heredado para que no se encadenen, y no se dispara desde
+ * la propia pantalla de acceso— y el camino que corre de verdad no la usaba.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+export function rutaDeAccesoConRegreso(): string {
+  if (typeof window === 'undefined') return '/login';
+  const destino = destinoDeRegreso();
+  return destino ? `/login?next=${encodeURIComponent(destino)}` : '/login';
+}
+
 function sesionExpirada() {
   sesionToken.clear();
   if (typeof window === 'undefined' || redirigiendo) return;
   redirigiendo = true;
-  const destino = destinoDeRegreso();
-  window.location.href = destino
-    ? `/login?next=${encodeURIComponent(destino)}`
-    : '/login';
+  window.location.href = rutaDeAccesoConRegreso();
 }
 
 /**

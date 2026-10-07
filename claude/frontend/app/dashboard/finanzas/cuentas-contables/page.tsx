@@ -365,7 +365,7 @@ export default function CuentasContablesPage() {
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
             Plan de Cuentas
           </p>
-          <p className="text-xs text-slate-400">{filtradas.length} cuenta(s)</p>
+          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${filtradas.length} cuenta(s)`}</p>
         </div>
 
         {cargando ? (

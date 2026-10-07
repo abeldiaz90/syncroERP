@@ -172,7 +172,16 @@ export default function ReporteInventarioPage() {
         </div>
         <div className={`rounded-2xl border-2 p-4 shadow-sm ${stockBajo > 0 ? 'bg-rose-50 border-rose-300' : 'bg-white border-slate-200'}`}>
           <p className={`text-xs font-bold uppercase mb-1 ${stockBajo > 0 ? 'text-rose-500' : 'text-slate-400'}`}>Stock bajo mínimo</p>
-          <p className={`text-2xl font-black ${stockBajo > 0 ? 'text-rose-600' : 'text-slate-600'}`}>{stockBajo} productos</p>
+          {/*
+            EL CERO MÁS TRANQUILIZADOR DE TODOS. Mientras consulta, `stockBajo`
+            vale 0: la tarjeta sale blanca, el número en gris y el rótulo
+            «Stock bajo mínimo · 0 productos». Se lee como «no falta nada», que
+            es justo lo que uno quiere creer de un almacén. Durante la carga no
+            se afirma ningún número.
+          */}
+          <p className={`text-2xl font-black ${stockBajo > 0 ? 'text-rose-600' : 'text-slate-600'}`}>
+            {cargando ? '—' : `${stockBajo} productos`}
+          </p>
         </div>
       </div>
 
@@ -194,7 +203,7 @@ export default function ReporteInventarioPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-between">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Productos</p>
-          <p className="text-xs text-slate-400">{filtrados.length} productos</p>
+          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${filtrados.length} productos`}</p>
         </div>
         {cargando ? (
           <div className="p-12 text-center">

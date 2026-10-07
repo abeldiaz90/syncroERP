@@ -280,7 +280,7 @@ export default function RequisicionesPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-900 text-white px-6 py-3 flex items-center justify-between">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Registro de Requisiciones</p>
-          <p className="text-xs text-slate-400">{filtradas.length} registros</p>
+          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${filtradas.length} registros`}</p>
         </div>
 
         {cargando ? (

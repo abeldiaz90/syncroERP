@@ -38,7 +38,7 @@ import {
 
 import { MODULOS, detectarModulo, detectarItem, agruparItems, RUTAS_CONTENEDOR } from './module-config';
 import { establecerVerComo, verComoActual, type VerComo } from '@/lib/ver-como';
-import { api, token, intentar } from '@/lib/api';
+import { api, token, intentar, rutaDeAccesoConRegreso } from '@/lib/api';
 import { leerSesion, sesionVigente, iniciales, puedeEntrar, puedeVerEnlace, type Sesion } from '@/lib/session';
 import PaletaComandos from '@/components/PaletaComandos';
 import { esRolAdministrador } from '@/lib/roles';
@@ -110,7 +110,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       if (!sesionVigente(s)) {
         token.clear();
-        router.replace('/login');
+        router.replace(rutaDeAccesoConRegreso());
         return;
       }
       if (!vivo) return;

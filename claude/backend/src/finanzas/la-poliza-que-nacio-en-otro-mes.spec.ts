@@ -29,7 +29,7 @@
  * ningún generador se quede fuera.
  * ============================================================================
  */
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 
 import {
@@ -158,21 +158,63 @@ describe('Ningún generador de asientos se quedó con la fecha cruda', () => {
     expect(codigo).not.toMatch(/fecha: new Date\(\),/);
   });
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * EL BARRIDO, SIN SALIR DE NODE
+   * --------------------------------------------------------------------------
+   * Esto llamaba a `grep` con `execSync`, y por eso **no corría en la máquina
+   * donde se desarrolla**: Windows no tiene `grep` ni entiende `|| true`, así
+   * que la prueba no fallaba por un generador suelto sino por el intérprete, y
+   * con un mensaje —«"grep" no se reconoce como un comando»— que no habla de
+   * asientos ni de fechas.
+   *
+   * Es la misma avería que se persigue en el producto, aplicada a una prueba: un
+   * control que existe y no corre donde hace falta. Y de las dos formas que
+   * tiene de salir mal, la peor no es ésta: si `grep` llegara a existir pero el
+   * patrón se escribiera mal, el `|| true` devolvería vacío y la prueba pasaría
+   * en verde **sin haber mirado nada**. Un barrido que no encuentra nada y un
+   * barrido que no se ejecutó se ven exactamente igual.
+   *
+   * Recorrer el árbol con `fs` corre en los tres sistemas, es más rápido que
+   * lanzar un proceso, y una ruta que no existe truena en vez de callar.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  const archivosTs = (dir: string, acumulado: string[] = []): string[] => {
+    for (const nombre of readdirSync(dir)) {
+      if (nombre === 'node_modules' || nombre === 'dist') continue;
+      const ruta = join(dir, nombre);
+      if (statSync(ruta).isDirectory()) archivosTs(ruta, acumulado);
+      else if (nombre.endsWith('.ts')) acumulado.push(ruta);
+    }
+    return acumulado;
+  };
+
+  it('el barrido mira de verdad el árbol, y no un vacío', () => {
+    /*
+     * La prueba de la prueba, y la razón de que exista: la forma anterior
+     * devolvía vacío tanto si no había nada como si no se ejecutó. Si algún día
+     * el recorrido deja de encontrar archivos, esto se pone rojo en vez de
+     * declarar el barrido limpio.
+     */
+    const todos = archivosTs(SRC);
+    expect(todos.length).toBeGreaterThan(500);
+    const encolan = todos.filter((f) =>
+      /encolarEnTransaccion|asientos\.encolar/.test(readFileSync(f, 'utf8')),
+    );
+    expect(encolan.length).toBeGreaterThanOrEqual(GENERADORES.length);
+  });
+
   it('no hay un noveno generador suelto que la lista no cubra', () => {
     /*
      * Esta es la prueba que importa dentro de un año: si alguien añade un
      * generador nuevo y lo encola con `new Date()`, aquí se pone roja aunque
      * nadie se acuerde de este archivo.
      */
-    const { execSync } = require('child_process') as typeof import('child_process');
-    const salida = execSync(
-      `grep -rln "encolarEnTransaccion\\|asientos.encolar" --include=*.ts ${SRC} || true`,
-      { encoding: 'utf8' },
-    );
-    const sospechosos = salida
-      .split('\n')
-      .filter((f) => f && !f.includes('.spec.') && !f.includes('asientos-pendientes.service.ts'))
-      .filter((f) => /fecha: new Date\(\),/.test(readFileSync(f, 'utf8')));
+    const sospechosos = archivosTs(SRC)
+      .filter((f) => !f.includes('.spec.') && !f.includes('asientos-pendientes.service.ts'))
+      .filter((f) => /encolarEnTransaccion|asientos\.encolar/.test(readFileSync(f, 'utf8')))
+      .filter((f) => /fecha: new Date\(\),/.test(readFileSync(f, 'utf8')))
+      .map((f) => f.replace(SRC, ''));
     expect(sospechosos).toEqual([]);
   });
 });

@@ -671,6 +671,31 @@ export class AltaEmpresasService {
       order: { email: 'ASC' },
     });
     const totalUsuarios = cuentas.length;
+    /*
+     * ──────────────────────────────────────────────────────────────────────
+     * CUÁNTAS PERSONAS PUEDEN ENTRAR, NO CUÁNTAS FILAS HAY
+     *
+     * El punto «Usuario administrador» se daba por LISTO con `totalUsuarios >
+     * 0`, o sea contando cuentas DADAS DE BAJA igual que las vivas. La lista de
+     * empresas, dos pantallas más arriba, cuenta `u.activo = true` y su propio
+     * comentario lo dice: «cuántas personas pueden entrar a cada empresa».
+     *
+     * Las dos medían la misma pregunta y contestaban distinto. Medido en vivo
+     * el 6-oct sobre EMPRESA B PRUEBA AISLAMIENTO: la fila enseñaba la pastilla
+     * «nadie puede entrar» y, al abrirla, el punto decía «LISTO · 1 usuario(s)
+     * en el ERP». Quien abre la empresa es justamente quien quiere saber qué le
+     * falta, y se le contestaba que no le falta nada.
+     *
+     * Y no era cosmético: `accionAutomatica` sólo ofrece DAR_ADMINISTRADOR
+     * cuando el punto está en rojo. Con una cuenta inactiva, la empresa quedaba
+     * inalcanzable Y la consola escondía el único botón que lo arregla.
+     *
+     * Se cuenta lo que la pregunta dice, y cuando los dos números no coinciden
+     * se dicen los dos: «1 cuenta, ninguna activa» no se puede leer como «hay
+     * administrador».
+     * ──────────────────────────────────────────────────────────────────────
+     */
+    const puedenEntrar = cuentas.filter((u) => u.activo).length;
 
     /*
      * ──────────────────────────────────────────────────────────────────────
@@ -735,6 +760,23 @@ export class AltaEmpresasService {
         {
           clave: 'catalogo',
           titulo: 'Catálogo de crédito',
+          /*
+           * ────────────────────────────────────────────────────────────────
+           * «NO APLICA» NO ES «LISTO»
+           *
+           * Los cuatro puntos sólo tenían `listo`, así que los dos que no le
+           * tocan a una empresa «sólo ERP» salían con la misma palomita verde
+           * que los medidos de verdad. Cuatro verdes donde se midieron dos: el
+           * panel se lee como una empresa completa, y quien lo mira no puede
+           * distinguir «se comprobó y está bien» de «aquí no había nada que
+           * comprobar». Es la misma avería que se persigue en el ERP —un
+           * control que se cree puesto— con el verde de otro.
+           *
+           * `aplica` separa las dos cosas. Un punto que no aplica no cuenta
+           * para el verde ni para el rojo: se dice en neutro y ya.
+           * ────────────────────────────────────────────────────────────────
+           */
+          aplica: true,
           listo: catalogo.length > 0,
           detalle: catalogo.length
             ? `${catalogo.length} producto(s).`
@@ -753,18 +795,25 @@ export class AltaEmpresasService {
         {
           clave: 'usuarios',
           titulo: 'Usuario administrador',
-          listo: totalUsuarios > 0,
-          detalle: totalUsuarios
-            ? `${totalUsuarios} usuario(s) en el ERP.`
-            : 'Nadie puede entrar todavía a esta empresa.',
-          accion: totalUsuarios
+          aplica: true,
+          listo: puedenEntrar > 0,
+          detalle: puedenEntrar
+            ? `${puedenEntrar} usuario(s) activo(s) en el ERP` +
+              (totalUsuarios > puedenEntrar
+                ? `, de ${totalUsuarios} cuenta(s) en total.`
+                : '.')
+            : totalUsuarios
+              ? `Nadie puede entrar: hay ${totalUsuarios} cuenta(s), ninguna activa.`
+              : 'Nadie puede entrar todavía a esta empresa.',
+          accion: puedenEntrar
             ? null
             : 'Invitar al administrador. Recibe un enlace y define su propia contraseña; nadie más la ve.',
-          accionAutomatica: totalUsuarios ? null : 'DAR_ADMINISTRADOR',
+          accionAutomatica: puedenEntrar ? null : 'DAR_ADMINISTRADOR',
         },
         {
           clave: 'tenant',
           titulo: 'Inquilino en el registro externo',
+          aplica: usaFineract,
           listo: !usaFineract || Boolean(tenant),
           detalle: !usaFineract
             ? 'No aplica: esta empresa opera sólo con el ERP.'
@@ -811,6 +860,7 @@ export class AltaEmpresasService {
         {
           clave: 'conciliacion',
           titulo: 'Cartera enlazada con el registro externo',
+          aplica: usaFineract,
           listo:
             !usaFineract ||
             (cfg?.modo ?? ModoCartera.APAGADO) !== ModoCartera.APAGADO ||

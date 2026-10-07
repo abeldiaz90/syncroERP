@@ -142,7 +142,7 @@ export default function CreditosPage() {
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
             Registro de Créditos
           </p>
-          <p className="text-xs text-slate-400">{filtrados.length} crédito(s)</p>
+          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${filtrados.length} crédito(s)`}</p>
         </div>
 
         {cargando ? (

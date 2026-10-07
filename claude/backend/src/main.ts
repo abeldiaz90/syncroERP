@@ -151,6 +151,29 @@ async function bootstrap() {
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
+    /*
+     * ──────────────────────────────────────────────────────────────────────
+     * LA LISTA ES BLANCA: lo que no esté aquí, el navegador NO lo manda.
+     *
+     * `X-Suplantar-Usuario` faltaba, y faltaba en silencio. La pantalla
+     * «Ver como» existe, el guardia que la vigila existe y el servidor
+     * contesta `{"habilitada":true,"puedeSuplantar":true}` a quien pregunta;
+     * pero en cuanto alguien elegía a una persona, el navegador rechazaba
+     * TODAS las peticiones en la verificación previa —no el servidor: el
+     * navegador, antes de salir—. Quien lo usaba veía el ERP entero caerse
+     * sin un solo error en la bitácora del servidor, porque ninguna petición
+     * llegó a existir.
+     *
+     * Permitir la cabecera no concede nada: CORS no es un control de
+     * autorización, y el guardia de suplantación sigue exigiendo rol de
+     * administrador, misma empresa, objetivo que no sea administrador y una
+     * sola suplantación sin encadenar. Lo único que cambia es que ahora la
+     * petición llega a ser evaluada por ese guardia.
+     *
+     * `cabeceras-que-el-navegador-nunca-mando.spec` compara esta lista contra
+     * las que el frontend pone de verdad, para que la próxima no muera igual.
+     * ──────────────────────────────────────────────────────────────────────
+     */
     allowedHeaders: [
       'Content-Type',
       'Authorization',
@@ -158,6 +181,7 @@ async function bootstrap() {
       'X-Requested-With',
       'Idempotency-Key',
       'X-Idempotency-Key',
+      'X-Suplantar-Usuario',
     ],
     exposedHeaders: ['Content-Disposition'], // necesario para descargar Excel/PDF
     maxAge: 86_400,

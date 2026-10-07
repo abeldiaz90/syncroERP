@@ -29,7 +29,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { leerSesion, puedeEntrar, sesionVigente, type Sesion } from '@/lib/session';
 import { esRolAdministrador } from '@/lib/roles';
-import { api } from '@/lib/api';
+import { api, rutaDeAccesoConRegreso } from '@/lib/api';
 
 export default function PosLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -39,7 +39,7 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
     const jwt = localStorage.getItem('syncro_token') ?? '';
     const sesion: Sesion | null = jwt ? leerSesion(jwt) : null;
     if (!sesion || !sesionVigente(sesion)) {
-      router.replace('/login');
+      router.replace(rutaDeAccesoConRegreso());
       return;
     }
     /*
