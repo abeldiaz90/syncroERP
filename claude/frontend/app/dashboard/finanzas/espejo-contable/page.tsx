@@ -130,6 +130,13 @@ interface Conciliacion {
   completa?: boolean;
   interrumpida?: string | null;
   pendientesDeComparar?: number;
+  /*
+   * Las que todavía no han salido, con el motivo que escribió la cola. No son
+   * una diferencia entre los dos libros: vuelven solas. Viajan aparte para que
+   * esta pantalla no las pinte del mismo color que un «no coincide», que es lo
+   * único que pide a alguien ahora mismo.
+   */
+  enCamino?: Hallazgo[];
 }
 
 interface ResultadoDespacho {
@@ -893,6 +900,18 @@ export default function EspejoContablePage() {
               Comparación del {fechaHora(conciliacion.fecha)} · alcance{" "}
               {conciliacion.alcance}
             </p>
+            {/*
+              Sin esto, «coinciden» se leería como «ya está todo», y hay pólizas
+              que ni han salido. No coincidir y no haber salido son dos cosas, y
+              la segunda también hay que decirla.
+            */}
+            {(conciliacion.enCamino?.length ?? 0) > 0 && (
+              <p className="text-[12px] text-slate-600 mt-2">
+                Faltan {conciliacion.enCamino!.length} por salir; no son una
+                diferencia y no hay nada que hacer con ellas. El detalle está
+                abajo.
+              </p>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -918,6 +937,50 @@ export default function EspejoContablePage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/*
+          En gris y con su motivo, no en ámbar.
+          ------------------------------------------------------------------
+          Medido el 7-oct: dos pólizas de una devolución salían como
+          «VINCULO_INCOMPLETO · reintenta desde el espejo contable» cuando lo
+          que pasaba era que el core no llega todavía a su fecha y el
+          despachador las reintenta solo. El consejo era imposible de seguir y
+          el rojo era permanente. Un control que casi siempre está encendido
+          por lo que se arregla sin nadie se acaba mirando por encima.
+        */}
+        {(conciliacion?.enCamino?.length ?? 0) > 0 && (
+          <div className="border-t border-slate-200">
+            <div className="px-4 py-2.5 bg-slate-50/60">
+              <p className="text-[12.5px] font-semibold text-slate-700">
+                Todavía no han salido ({conciliacion!.enCamino!.length})
+              </p>
+              <p className="text-[12px] text-slate-500 mt-0.5">
+                Están en la cola con su motivo escrito y vuelven solas. No
+                cuentan como diferencia.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="tabla">
+                <thead>
+                  <tr>
+                    <th>Póliza</th>
+                    <th>Por qué no ha salido</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {conciliacion!.enCamino!.map((h) => (
+                    <tr key={`camino-${h.polizaId}`}>
+                      <td className="text-slate-900">{h.folio}</td>
+                      <td className="text-[12.5px] text-slate-600">
+                        {h.detalle}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </Panel>

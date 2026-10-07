@@ -5,13 +5,32 @@ import { Repository } from 'typeorm';
 import { createHash } from 'node:crypto';
 import { Poliza } from '../../finanzas/entities/poliza.entity';
 import { omitirTareaProgramada } from '../../common/utils/tareas-programadas.util';
-import { ModoContabilidad, PUERTO_CONTABILIDAD_EXTERNA, TipoVinculo } from '../integracion.constants';
+import {
+  EstadoEventoIntegracion,
+  ModoContabilidad,
+  PUERTO_CONTABILIDAD_EXTERNA,
+  TipoEventoIntegracion,
+  TipoVinculo,
+} from '../integracion.constants';
 import { PuertoContabilidadExterna } from '../ports/contabilidad-externa.port';
 import { VinculoIntegracion } from '../entities/vinculo-integracion.entity';
 import { MapeoCuentaExterna } from '../entities/mapeo-cuenta-externa.entity';
 import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integracion-empresa.entity';
 import { AvisoIntegracion, EstadoAviso } from '../entities/aviso-integracion.entity';
+import { EventoIntegracion } from '../entities/evento-integracion.entity';
 import { IntegracionModoService } from './integracion-modo.service';
+
+/**
+ * Corta en el último espacio, no a media palabra. Un mensaje técnico cortado en
+ * «for a future » se lee como un error del sistema, no como una explicación.
+ */
+function recortarEnPalabra(texto: string, maximo: number): string {
+  const limpio = texto.trim();
+  if (limpio.length <= maximo) return limpio;
+  const corte = limpio.slice(0, maximo);
+  const espacio = corte.lastIndexOf(' ');
+  return `${(espacio > maximo * 0.6 ? corte.slice(0, espacio) : corte).replace(/[.,;:\s]+$/, '')}…`;
+}
 
 export interface HallazgoContable {
   polizaId: string;
@@ -34,7 +53,77 @@ export class ContabilidadConciliacionService {
     @InjectRepository(MapeoCuentaExterna) private readonly mapeos: Repository<MapeoCuentaExterna>,
     @InjectRepository(ConfiguracionIntegracionEmpresa) private readonly configuraciones: Repository<ConfiguracionIntegracionEmpresa>,
     @InjectRepository(AvisoIntegracion) private readonly avisos: Repository<AvisoIntegracion>,
+    /*
+     * La cola de salida. Se mira para distinguir «no salió y hay que hacer
+     * algo» de «no salió TODAVÍA, y ya se sabe por qué». Ver `porQueNoSalio`.
+     */
+    @InjectRepository(EventoIntegracion)
+    private readonly eventos: Repository<EventoIntegracion>,
   ) {}
+
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * «AÚN NO HA SALIDO» NO ES UNA DIVERGENCIA ENTRE LOS DOS LIBROS
+   * --------------------------------------------------------------------------
+   * La conciliación marcaba `VINCULO_INCOMPLETO` para toda póliza sin
+   * identificador externo y aconsejaba lo mismo siempre: «Reintenta desde el
+   * espejo contable».
+   *
+   * Medido el 7-oct con dos pólizas de una devolución: su evento estaba en
+   * REINTENTABLE porque el core todavía no llega a esa fecha —«The journal
+   * entry cannot be made for a future date»— y el despachador las reintenta
+   * solo cuando llegue. Reintentar ahora **no puede funcionar**, así que el
+   * consejo era falso; y, peor, la comparación las contaba como discrepancia
+   * al lado de una cola que ya las daba por atendidas.
+   *
+   * Una conciliación que marca en rojo lo que la pantalla de al lado explica y
+   * resuelve sola se acaba mirando por encima, que es lo único que un control
+   * no se puede permitir.
+   *
+   * Aquí se lee la cola y se dice lo que de verdad pasa. No se inventa nada:
+   * el motivo es el que el despachador escribió.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  private async porQueNoSalio(
+    empresaId: string,
+    polizaId: string,
+  ): Promise<{ esperando: boolean; detalle: string } | null> {
+    const evento = await this.eventos.findOne({
+      /*
+       * Con el tipo puesto: el outbox es uno solo y un identificador de
+       * entidad podría repetirse en otro hecho. Un control que mira la fila
+       * equivocada es peor que no mirar.
+       */
+      where: { empresaId, entidadId: polizaId, tipo: TipoEventoIntegracion.POLIZA_REGISTRADA },
+      order: { fechaCreacion: 'DESC' },
+    });
+    if (!evento) return null;
+    const esperando =
+      evento.estado === EstadoEventoIntegracion.REINTENTABLE ||
+      evento.estado === EstadoEventoIntegracion.PENDIENTE;
+    if (!esperando) return null;
+    /*
+     * El motivo es el que escribió el despachador, TAL CUAL. Ponerle delante
+     * un «Dijo:» propio producía esto, medido por pantalla el 7-oct:
+     *
+     *   «…y la cola ya sabe por qué. Se reintenta solo a partir del
+     *    2026-10-08. Dijo: La fecha de este documento todavía no ha llegado…
+     *    Se reintenta solo cuando llegue. Dijo: Fineract respondió 403: The
+     *    journal entry cannot be made for a future »
+     *
+     * Tres veces «se reintenta», dos veces «Dijo:», y cortado a media palabra.
+     * Un mensaje así se deja de leer entero, y entonces da igual lo que diga.
+     */
+    const cuando = evento.proximoIntento
+      ? ` Próximo intento a partir del ${evento.proximoIntento.toISOString().slice(0, 10)}.`
+      : ' Sale en el siguiente despacho.';
+    return {
+      esperando: true,
+      detalle: `Todavía no ha salido.${cuando}${
+        evento.ultimoError ? ` ${recortarEnPalabra(evento.ultimoError, 240)}` : ''
+      }`,
+    };
+  }
 
   @Cron('0 */10 * * * *', { name: 'contabilidad-conciliar' })
   async ejecutar(): Promise<void> {
@@ -103,6 +192,16 @@ export class ContabilidadConciliacionService {
        * envío», que no dice cuál de las dos es.
        */
       if (!link.idExterno) {
+        /*
+         * Primero se pregunta a la cola. Si el evento sigue vivo esperando su
+         * turno o su fecha, esto NO es una divergencia: es un envío en camino
+         * con su razón escrita, y se cuenta aparte para no inflar el rojo.
+         */
+        const enCola = await this.porQueNoSalio(empresaId, link.entidadId);
+        if (enCola) {
+          agregar('PENDIENTE_DE_SALIR', enCola.detalle);
+          continue;
+        }
         const detalle =
           link.estadoRemoto === 'NO_ENVIADO'
             ? 'El asiento no llegó a salir: el mayor externo lo rechazó o no hubo enlace. Reintenta desde el espejo contable; el motivo está en la cola.'
@@ -172,6 +271,16 @@ export class ContabilidadConciliacionService {
         }
       }
     }
+    /*
+     * Dos montones, no uno.
+     *
+     * «Aún no ha salido, y la cola dice por qué» no es una diferencia entre los
+     * dos libros: se resuelve solo. «Salió y no coincide» pide atención ahora.
+     * Contarlos juntos le quita filo al control: el rojo deja de significar
+     * algo cuando casi siempre está encendido por lo que se arregla sin nadie.
+     */
+    const divergencias = hallazgos.filter((h) => h.codigo !== 'PENDIENTE_DE_SALIR');
+    const enCamino = hallazgos.filter((h) => h.codigo === 'PENDIENTE_DE_SALIR');
     if (guardarAvisos) {
       /*
        * Primero se cierra, después se abre.
@@ -207,7 +316,36 @@ export class ContabilidadConciliacionService {
         );
       }
 
-      for (const h of hallazgos) {
+      /*
+       * Y se cierra también el consejo que dejó de ser cierto.
+       *
+       * Una póliza que hoy está «en camino» pudo dejar ayer un aviso de
+       * VINCULO_INCOMPLETO que decía «reintenta desde el espejo contable».
+       * Reintentar no puede funcionar mientras el core no llegue a su fecha,
+       * así que ese aviso manda a una persona a pulsar un botón que no hace
+       * nada. Se cierra, y sin `resueltoPor`: no lo resolvió nadie.
+       */
+      for (const h of enCamino) {
+        const huella = createHash('sha256')
+          .update(
+            JSON.stringify([
+              'conciliacion-contable',
+              empresaId,
+              this.externa.proveedor,
+              h.polizaId,
+              h.asientoId,
+              'VINCULO_INCOMPLETO',
+            ]),
+          )
+          .digest('hex');
+        await this.avisos.update(
+          { huella, estado: EstadoAviso.PENDIENTE },
+          { estado: EstadoAviso.PROCESADO, resueltoEn: new Date(), resueltoPor: null },
+        );
+      }
+
+      /* Sólo las divergencias abren aviso: lo que vuelve solo no pide a nadie. */
+      for (const h of divergencias) {
         const huella = createHash('sha256').update(JSON.stringify(['conciliacion-contable', empresaId, this.externa.proveedor, h.polizaId, h.asientoId, h.codigo])).digest('hex');
         // Índice único existente: el cron y una ejecución manual no duplican el aviso.
         await this.avisos.createQueryBuilder().insert().values({
@@ -222,8 +360,13 @@ export class ContabilidadConciliacionService {
       fecha: new Date().toISOString(),
       alcance: 'POLIZAS_VINCULADAS',
       revisados,
-      discrepancias: hallazgos.length,
-      hallazgos,
+      discrepancias: divergencias.length,
+      hallazgos: divergencias,
+      /*
+       * Viajan aparte y con su motivo, para que la pantalla pueda decir «no
+       * coincide» y «todavía no ha salido» con dos palabras distintas.
+       */
+      enCamino,
       /*
        * `completa` va en el resultado y no se deduce de que no haya hallazgos:
        * una corrida que se cortó a la tercera póliza y no encontró nada no

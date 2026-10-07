@@ -20,8 +20,15 @@ describe('Conciliación de pólizas vinculadas', () => {
       createQueryBuilder: jest.fn().mockReturnValue(builder),
       update: jest.fn().mockResolvedValue({ affected: 0 }),
     };
-    const service = new ContabilidadConciliacionService(externa as any, {} as any, links as any, polizas as any, mappings as any, cfg as any, avisos as any);
-    return { service, externa, links, polizas, mappings, avisos, builder };
+    /*
+     * La cola de salida. Por omisión está vacía: el escenario base habla de
+     * pólizas que YA salieron. Un `findOne` que devolviera algo convertiría
+     * cada vínculo sin identificador en «todavía no ha salido», que es
+     * precisamente lo que las pruebas de abajo quieren poder distinguir.
+     */
+    const eventos = { findOne: jest.fn().mockResolvedValue(null) };
+    const service = new ContabilidadConciliacionService(externa as any, {} as any, links as any, polizas as any, mappings as any, cfg as any, avisos as any, eventos as any);
+    return { service, externa, links, polizas, mappings, avisos, builder, eventos };
   }
   it('acota por empresa/proveedor y no escribe en una consulta', async () => {
     const s = escenario(); expect((await s.service.conciliarEmpresa('empresa')).discrepancias).toBe(0);
