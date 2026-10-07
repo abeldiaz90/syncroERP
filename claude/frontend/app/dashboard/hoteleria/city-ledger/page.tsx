@@ -940,7 +940,7 @@ function ModalConvenio({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[80] flex items-start overflow-y-auto [&>*]:my-auto justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -1237,7 +1237,7 @@ function ModalRenovarConvenio({
 
   return (
     <div
-      className="fixed inset-0 z-[85] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[85] flex items-start overflow-y-auto [&>*]:my-auto justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -1384,7 +1384,7 @@ function ModalCobro({
   };
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[80] flex items-start overflow-y-auto [&>*]:my-auto justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div

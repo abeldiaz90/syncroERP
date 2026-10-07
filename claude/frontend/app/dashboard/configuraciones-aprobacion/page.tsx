@@ -483,7 +483,7 @@ export default function ConfiguracionAprobacionesPage() {
                 {!procesoOperativo && (
                   <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
                     El proceso aún no bloquea ni dirige operaciones reales. Se
-                    muestra para planeación, pero el backend impedirá guardar una
+                    muestra para planeación, pero el sistema impedirá guardar una
                     matriz que produzca una falsa sensación de control.
                   </p>
                 )}

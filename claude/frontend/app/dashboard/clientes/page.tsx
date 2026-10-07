@@ -635,7 +635,7 @@ export default function ClientesPage() {
                 {([
                     { clave: 'TODOS' as const, etiqueta: 'Clientes', pie: soloActivos ? 'activos' : 'incluye inactivos', tono: '#4f46e5' },
                     { clave: 'CON_LINEA' as const, etiqueta: 'Con línea vigente', pie: 'pueden comprar a crédito', tono: '#059669' },
-                    { clave: 'EN_APROBACION' as const, etiqueta: 'En aprobación', pie: 'esperan maker-checker', tono: '#d97706' },
+                    { clave: 'EN_APROBACION' as const, etiqueta: 'En aprobación', pie: 'esperan una segunda firma', tono: '#d97706' },
                     { clave: 'SIN_CREDITO' as const, etiqueta: 'De contado', pie: 'no usan crédito', tono: '#64748b' },
                 ]).map(k=>{
                     const valor = k.clave === 'TODOS'
@@ -1431,7 +1431,7 @@ export default function ClientesPage() {
                                             <div className="col-span-2 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2.5 text-xs text-indigo-700 flex items-center gap-2">
                                                 <CreditCard className="w-4 h-4"/>
                                                 La propuesta de <strong>${formData.limiteCredito.toLocaleString('es-MX')}</strong> a{' '}
-                                                <strong>{formData.diasCredito} días</strong>, riesgo <strong>{formData.nivelRiesgo}</strong> y política de vencidos se enviará al flujo maker-checker. Una línea ya autorizada seguirá vigente hasta la resolución final; los convenios nunca consumen la propuesta, sólo la versión aprobada.
+                                                <strong>{formData.diasCredito} días</strong>, riesgo <strong>{formData.nivelRiesgo}</strong> y política de vencidos se enviará a la bandeja de aprobaciones, donde la autoriza una segunda persona. Una línea ya autorizada seguirá vigente hasta la resolución final; los convenios nunca consumen la propuesta, sólo la versión aprobada.
                                             </div>
                                         )}
                                         </div>

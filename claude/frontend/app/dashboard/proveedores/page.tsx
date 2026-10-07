@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { confirmarElegante, solicitarTexto } from '@/components/ui/dialogos';
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
+import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
 import {
   Search, Plus, Edit2, Power, X, Truck, AlertCircle, CheckCircle2,
   Building2, User, MapPin, CreditCard, Phone, Briefcase, FileText
@@ -44,6 +45,8 @@ export default function ProveedoresPage() {
   const [busquedaDebounced, setBusquedaDebounced] = useState('');
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  /* Escape cierra el alta de proveedor sin tener que buscar «Cancelar». */
+  useCerrarConEscape(isModalOpen, () => { setIsModalOpen(false); setErrores({}); setErrorGeneral(null); });
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [paises, setPaises] = useState<ICatalogoItem[]>([]);

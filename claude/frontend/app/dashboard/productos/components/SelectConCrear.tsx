@@ -132,7 +132,7 @@ export default function SelectConCrear({
       {/* Mini-modal de creación rápida */}
       {modal && (
         <div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-[70] p-4"
           onClick={() => !guardando && setModal(false)}
         >
           <div

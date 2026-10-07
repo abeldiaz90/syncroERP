@@ -78,7 +78,7 @@ export default function WizardRecetas({ api, h, onListo, onClose }: {
   );
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-[70] p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-slate-100">
           <div>

@@ -379,7 +379,7 @@ export default function RackPage() {
 
       {sel && (
         <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-50 p-4"
           onClick={() => setSel(null)}
         >
           <div

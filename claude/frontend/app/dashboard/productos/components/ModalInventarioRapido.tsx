@@ -114,7 +114,7 @@ export default function ModalInventarioRapido({ isOpen, onClose, tipo, producto,
   const ErrorCampo = ({ campo }: { campo: string }) => errores[campo] ? <p className="mt-1 text-xs font-semibold text-rose-600" role="alert">{errores[campo]}</p> : null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-[100] p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200">
         
         <div className={`px-6 py-4 flex items-center justify-between border-b border-slate-100 ${theme.bgLight}`}>

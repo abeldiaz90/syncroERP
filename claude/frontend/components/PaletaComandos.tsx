@@ -89,7 +89,7 @@ export default function PaletaComandos({
 
   return (
     <div
-      className="fixed inset-0 z-[500] bg-slate-900/40 backdrop-blur-[2px] flex items-start justify-center pt-[12vh] px-4 no-imprimir"
+      className="fixed inset-0 overflow-y-auto z-[500] bg-slate-900/40 backdrop-blur-[2px] flex items-start justify-center pt-[12vh] px-4 no-imprimir"
       onMouseDown={(e) => { if (e.target === e.currentTarget) setAbierta(false); }}
       role="dialog"
       aria-modal="true"

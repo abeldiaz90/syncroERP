@@ -6,6 +6,7 @@ import { confirmarElegante } from '@/components/ui/dialogos';
 import { Building2, Plus, Edit2, Power, AlertCircle, CheckCircle2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { PuedeEditar } from "@/app/components/ProtectedElement";
+import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
 
 export interface IDepartamento { id: string; nombre: string; activo: boolean; }
 
@@ -15,6 +16,8 @@ export default function DepartamentosPage() {
   const [busqueda, setBusqueda] = useState('');
   const [busquedaDebounced, setBusquedaDebounced] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  /* Escape cierra el modal: la salida que todo el mundo pulsa sin pensar. */
+  useCerrarConEscape(isModalOpen, () => setIsModalOpen(false));
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [formData, setFormData] = useState({ nombre: '', motivo: '' });
@@ -147,7 +150,7 @@ export default function DepartamentosPage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 border-t-4 border-t-indigo-500">
             <h2 className="text-xl font-bold mb-1">{editandoId ? 'Editar área' : 'Solicitar nueva área'}</h2>
             {!editandoId && <p className="mb-4 text-xs text-slate-500">La solicitud pasa primero por Gerencia y después por Finanzas.</p>}

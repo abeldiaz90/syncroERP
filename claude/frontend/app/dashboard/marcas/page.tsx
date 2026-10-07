@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { Search, Plus, Edit2, Power, X, Bookmark, AlertCircle, CheckCircle2, Loader2, Save } from "lucide-react";
 import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement";
+import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
 
 export interface IMarca { id: string; nombre: string; activo: boolean; }
 
@@ -12,6 +13,8 @@ export default function MarcasPage() {
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  /* Escape cierra el modal: la salida que todo el mundo pulsa sin pensar. */
+  useCerrarConEscape(isModalOpen, () => setIsModalOpen(false));
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nombreMarca, setNombreMarca] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -173,7 +176,7 @@ export default function MarcasPage() {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-[110] p-4">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 duration-200">
             <h2 className="text-xl font-black mb-6">{editandoId ? "Editar Marca" : "Nueva Marca"}</h2>
             <form onSubmit={handleGuardar}>

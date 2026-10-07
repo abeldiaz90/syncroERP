@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { Search, Plus, Edit2, Power, X, Percent, AlertCircle, CheckCircle2 } from "lucide-react";
 import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement";
+import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
 
 export interface IImpuesto { id: string; nombre: string; porcentaje: number; activo: boolean; }
 
@@ -14,6 +15,8 @@ export default function ImpuestosPage() {
   const [busqueda, setBusqueda] = useState("");
   const [busquedaDebounced, setBusquedaDebounced] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  /* Escape cierra el modal: la salida que todo el mundo pulsa sin pensar. */
+  useCerrarConEscape(isModalOpen, () => setIsModalOpen(false));
   const [editandoId, setEditandoId] = useState<string | null>(null);
   // porcentaje se maneja como string para permitir "0", "" y decimales sin conflictos
   const [formData, setFormData] = useState<{ nombre: string; porcentaje: string }>({ nombre: "", porcentaje: "" });
@@ -180,7 +183,7 @@ export default function ImpuestosPage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col border-t-4 border-t-indigo-500">
             <div className="flex justify-between items-center p-6 border-b border-slate-100">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">

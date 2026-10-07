@@ -1,6 +1,7 @@
 // app/components/ConfirmDialog.tsx
 "use client";
 import { AlertTriangle, X, Loader2 } from 'lucide-react';
+import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
 
 export interface ConfirmDialogProps {
   abierto: boolean;
@@ -44,12 +45,18 @@ export default function ConfirmDialog({
   onConfirmar,
   onCancelar,
 }: ConfirmDialogProps) {
+  /*
+   * Antes del `return null`: un gancho no se puede llamar condicionalmente.
+   * Y con `!procesando`, porque mientras se está confirmando cerrar dejaría la
+   * operación en curso sin nada en pantalla que la explique.
+   */
+  useCerrarConEscape(abierto && !procesando, onCancelar);
   if (!abierto) return null;
   const v = VARIANTES[variante];
 
   return (
     <div
-      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-[60] p-4 animate-in fade-in duration-150"
       onClick={() => !procesando && onCancelar()}
     >
       <div

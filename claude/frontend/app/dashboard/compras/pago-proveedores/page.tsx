@@ -328,7 +328,7 @@ export default function PagoProveedoresPage() {
 
       {/* Modal pago */}
       {modal && ordenSeleccionada && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
               <h2 className="font-bold flex items-center gap-2">

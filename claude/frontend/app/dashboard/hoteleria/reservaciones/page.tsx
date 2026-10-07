@@ -479,7 +479,7 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[80] flex items-start overflow-y-auto [&>*]:my-auto justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -612,7 +612,7 @@ function ModalCambiarEstado({ api, h, datos, onClose, onOk }: any) {
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[80] flex items-start overflow-y-auto [&>*]:my-auto justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -836,7 +836,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
 
   return (
     <div
-      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-[70] p-4"
       onClick={onClose}
     >
       <div
@@ -1047,7 +1047,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
       {/* Mini-modal: nuevo huésped al vuelo */}
       {nuevoHuesped && (
         <div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-[80] p-4"
           onClick={() => !guardandoH && setNuevoHuesped(false)}
         >
           <div
@@ -1212,7 +1212,7 @@ function ModalCheckIn({ api, h, reserva, onClose, onOk }: any) {
 
   return (
     <div
-      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-[70] p-4"
       onClick={onClose}
     >
       <div

@@ -3,6 +3,7 @@
 import FormValidationGuard from "@/app/components/FormValidationGuard";
 import { useState, useEffect } from "react";
 import { confirmarElegante } from '@/components/ui/dialogos';
+import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
 import {
   Search,
   Plus,
@@ -30,6 +31,8 @@ export default function BancosPage() {
   const [busqueda, setBusqueda] = useState("");
   const [busquedaDebounced, setBusquedaDebounced] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  /* Escape cierra el modal: la salida que todo el mundo pulsa sin pensar. */
+  useCerrarConEscape(isModalOpen, () => setIsModalOpen(false));
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [formData, setFormData] = useState({ nombre: "", clave: "" });
@@ -311,7 +314,7 @@ export default function BancosPage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col border-t-4 border-t-indigo-500">
             <div className="flex justify-between items-center p-6 border-b border-slate-100">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">

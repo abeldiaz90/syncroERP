@@ -7,6 +7,7 @@ import {
   CreditCard, Banknote, Building2, Save
 } from 'lucide-react';
 import { PuedeCrear, PuedeEditar } from '@/app/components/ProtectedElement';
+import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
 
 interface ICuentaContable { id: string; numeroCuenta: string; nombre: string; tipo?: string; }
 interface IBanco { id: string; clave: string | null; nombre: string; activo: boolean; }
@@ -61,6 +62,8 @@ export default function CuentasBancariasPage() {
   const [cargando, setCargando]     = useState(true);
   const [errorCarga, setErrorCarga] = useState('');
   const [modal, setModal]           = useState(false);
+  /* Escape cierra el alta: es la salida que todo el mundo pulsa sin pensar. */
+  useCerrarConEscape(modal, () => setModal(false));
   const [editando, setEditando]     = useState<ICuentaBancaria | null>(null);
   const [form, setForm]             = useState(FORM_VACIO);
   const [guardando, setGuardando]   = useState(false);
@@ -352,7 +355,7 @@ export default function CuentasBancariasPage() {
 
       {/* Modal crear / editar */}
       {modal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
               <h2 className="font-bold flex items-center gap-2">

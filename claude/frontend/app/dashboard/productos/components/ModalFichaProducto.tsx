@@ -542,7 +542,7 @@ export default function ModalFichaProducto({
   const eqs = ((fd.equivalencias ?? []) as IEquivalencia[]);
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-50 p-4">
       <div className="bg-slate-50 rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col border border-slate-300 overflow-hidden">
 
         {/* Header */}
@@ -1146,7 +1146,7 @@ export default function ModalFichaProducto({
       </div>
 
       {modalUnidad && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4"
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-[80] p-4"
           onClick={() => !guardandoUnidad && setModalUnidad(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
