@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync, readFileSync, readdirSync } from 'fs';
+import { join, relative } from 'path';
 
 /**
  * ============================================================================
@@ -117,6 +117,145 @@ describe('ninguna pantalla afirma un cero mientras sigue consultando', () => {
      * no se sabe deja la tabla vacía sin que nada diga por qué.
      */
     expect(s).toMatch(/<button key=\{k\.label\} disabled=\{cargando\}/);
+  });
+
+  /** La sangría dice quién envuelve a quién; una ventana de caracteres, no. */
+  const sangria = (linea: string) => linea.length - linea.trimStart().length;
+
+  /** La forma: un conteo pelado seguido de una palabra, dentro de un elemento. */
+  const FORMA =
+    />\s*\{\s*([A-Za-z_$][\w$.]*\.length)\s*\}\s+([a-zA-Z\u00e1-\u00fa\u00f1()]{3,20})/;
+
+  /**
+   * Los conteos de una pantalla que se pintan sin que nadie haya esperado.
+   * Devuelve [] cuando la pantalla entera espera, que es la otra forma buena
+   * de resolverlo y la que usan la mitad de las pantallas del ERP.
+   */
+  function conteosSinGuarda(texto: string): string[] {
+    if (!/const \[cargando\s*,/.test(texto)) return [];
+    if (/if\s*\(\s*cargando\s*\)\s*(return|\{)/.test(texto)) return [];
+
+    const lineas = texto.split('\n');
+    const sueltos: string[] = [];
+
+    lineas.forEach((linea, i) => {
+      const hallazgo = FORMA.exec(linea);
+      if (!hallazgo) return;
+
+      /*
+       * Se sube por los ANCESTROS: cada línea con menos sangría que la última
+       * mirada. Si alguno abre un condicional que espera —la ternaria de
+       * carga, un «> 0 &&», un «dato &&»— el cero no se llega a pintar.
+       */
+      let nivel = sangria(linea);
+      let guardado = false;
+      for (let j = i - 1; j >= 0 && j > i - 120; j -= 1) {
+        const l = lineas[j];
+        if (!l.trim()) continue;
+        const s = sangria(l);
+        if (s >= nivel) continue;
+        nivel = s;
+        const abreCondicional =
+          /\{[^}]*(&&|\?)\s*\(?\s*$/.test(l) || /\{\s*[\w$.]+\s*\?/.test(l);
+        if (abreCondicional) {
+          if (
+            /cargando/.test(l) ||
+            />\s*0\s*&&/.test(l) ||
+            /\.length\s*&&/.test(l) ||
+            /\{\s*[\w$.]+\s*&&/.test(l)
+          ) {
+            guardado = true;
+            break;
+          }
+        }
+        if (s === 0) break;
+      }
+      if (!guardado) sueltos.push(`{${hallazgo[1]}} ${hallazgo[2]}`);
+    });
+
+    return sueltos;
+  }
+
+  it('ninguna barra de encabezado cuenta antes de saber \u2014barrido\u2014', () => {
+    /*
+     * \u2500\u2500 LA LISTA ESCRITA A MANO S\u00d3LO CUBRE LO QUE YA SE ENCONTR\u00d3 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+     * Esta prueba naci\u00f3 de dos barras oscuras \u2014\u00abREGISTRO DE CR\u00c9DITOS \u00b7 0
+     * cr\u00e9dito(s)\u00bb y \u00abPLAN DE CUENTAS \u00b7 0 cuenta(s)\u00bb\u2014 y fij\u00f3 seis pantallas
+     * por su nombre. El 7-oct-2026, barriendo esa misma forma por el \u00e1rbol,
+     * aparecieron tres m\u00e1s que nunca estuvieron en la lista:
+     *
+     *     finanzas/polizas          \u00abP\u00d3LIZAS \u00b7 0 registros\u00bb
+     *     compras/pago-proveedores  \u00ab\u00d3RDENES DE COMPRA \u00b7 0 orden(es)\u00bb
+     *     reportes/ventas           \u00abPOR D\u00cdA \u00b7 0 ventas\u00bb
+     *
+     * Las tres con la tabla justo debajo diciendo \u00abCargando\u2026\u00bb: el cuidado
+     * estaba a dos l\u00edneas y no lleg\u00f3 a la barra.
+     *
+     * As\u00ed que la lista de arriba deja de ser el control y pasa a ser el
+     * detalle. El control es esto, y no nombra pantallas.
+     */
+    const archivos: Array<{ ruta: string; texto: string }> = [];
+    const recorrer = (dir: string) => {
+      for (const entrada of readdirSync(dir, { withFileTypes: true })) {
+        if (entrada.name.startsWith('.')) continue;
+        const camino = join(dir, entrada.name);
+        if (entrada.isDirectory()) {
+          recorrer(camino);
+          continue;
+        }
+        if (!entrada.name.endsWith('.tsx')) continue;
+        archivos.push({
+          ruta: relative(FRONTEND!, camino),
+          texto: sinComentarios(readFileSync(camino, 'utf8')),
+        });
+      }
+    };
+    recorrer(join(FRONTEND!, 'app/dashboard'));
+
+    /* Un barrido que mira pocos archivos no prueba nada. */
+    expect(archivos.length).toBeGreaterThan(100);
+
+    const sueltos = archivos.flatMap(({ ruta, texto }) =>
+      conteosSinGuarda(texto).map((c) => `${ruta}: ${c}`),
+    );
+    expect(sueltos.sort()).toEqual([]);
+  });
+
+  it('y el barrido se pone rojo con el arreglo quitado', () => {
+    /*
+     * La prueba del barrido, sobre las tres pantallas de verdad: se revierte
+     * el arreglo en memoria y cada una tiene que aparecer. Sin esto, una
+     * expresi\u00f3n que dejara de encontrar nada pondr\u00eda el \u00e1rbol entero en
+     * verde para siempre, que es el mismo defecto que esta prueba persigue
+     * aplicado a s\u00ed misma.
+     */
+    const casos: Array<[string, string, string]> = [
+      [
+        'app/dashboard/finanzas/polizas/page.tsx',
+        "{cargando ? 'Consultando\u2026' : `${filtradas.length} registros`}",
+        '{filtradas.length} registros',
+      ],
+      [
+        'app/dashboard/compras/pago-proveedores/page.tsx',
+        "{cargando ? 'Consultando\u2026' : `${filtradas.length} orden(es)`}",
+        '{filtradas.length} orden(es)',
+      ],
+      [
+        'app/dashboard/reportes/ventas/page.tsx',
+        "{cargando ? 'Consultando\u2026' : `${ventasFiltradas.length} ventas`}",
+        '{ventasFiltradas.length} ventas',
+      ],
+    ];
+
+    for (const [ruta, puesto, quitado] of casos) {
+      const texto = sinComentarios(readFileSync(join(FRONTEND!, ruta), 'utf8'));
+      /* Con el arreglo: limpio. */
+      expect(conteosSinGuarda(texto)).toEqual([]);
+      /* Y la l\u00ednea arreglada sigue ah\u00ed, o lo de arriba no prueba nada. */
+      expect(texto).toContain(puesto);
+      /* Sin el arreglo: el barrido lo canta. */
+      expect(conteosSinGuarda(texto.replace(puesto, quitado))).toEqual([quitado]);
+    }
   });
 
   it('y el detector reconoce la forma mala cuando la ve', () => {

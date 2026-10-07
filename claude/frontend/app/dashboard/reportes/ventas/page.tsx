@@ -211,7 +211,7 @@ export default function ReporteVentasPage() {
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
             {agrupacion === 'dia' ? 'Por Día' : agrupacion === 'metodo' ? 'Por Método de Pago' : 'Por Cliente'}
           </p>
-          <p className="text-xs text-slate-400">{ventasFiltradas.length} ventas</p>
+          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${ventasFiltradas.length} ventas`}</p>
         </div>
         {cargando ? (
           <div className="p-12 text-center">

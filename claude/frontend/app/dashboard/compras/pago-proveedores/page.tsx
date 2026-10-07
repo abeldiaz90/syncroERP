@@ -247,7 +247,7 @@ export default function PagoProveedoresPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-900 text-white px-6 py-3 flex justify-between items-center">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Órdenes de Compra</p>
-          <p className="text-xs text-slate-400">{filtradas.length} orden(es)</p>
+          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${filtradas.length} orden(es)`}</p>
         </div>
 
         {cargando ? (
