@@ -53,7 +53,25 @@ export default function PolizaManualPage() {
         sin decir por qué: la pantalla parece rota. Se dice.
       */
       try {
-        const r = await fetch(`${api}/finanzas/cuentas-contables`, { headers: h() });
+        /*
+         * ──────────────────────────────────────────────────────────────────
+         * Una cuenta de mayor no recibe pólizas, así que no se ofrece
+         * ------------------------------------------------------------------
+         * El catálogo trae las 1083 cuentas del plan, y 153 de ellas son
+         * cuentas de MAYOR —«100 · Activo», «101 · Caja», «600 · Gastos»—:
+         * agrupan a sus hijas y no se les asienta nada. `polizas.service` lo
+         * rechaza, y con razón.
+         *
+         * Este desplegable las ofrecía todas. El único filtro que aplicaba era
+         * `permiteMovimientoManual`, y las 153 lo pasan, así que ninguna
+         * quedaba fuera: elegir cualquiera de ellas era elegir un rechazo. Un
+         * botón que lleva a un no.
+         *
+         * El servidor ya sabe hacer esta distinción —`?soloAfectables=true`, que
+         * además filtra las inactivas— y tres pantallas ya se lo piden. Ésta no.
+         * ──────────────────────────────────────────────────────────────────
+         */
+        const r = await fetch(`${api}/finanzas/cuentas-contables?soloAfectables=true`, { headers: h() });
         if (r.ok) { setCuentas(await r.json()); }
         else {
           setCuentas([]);

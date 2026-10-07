@@ -120,7 +120,16 @@ describe('Punto de venta · la caja sólo pide lo que el mostrador tiene', () =>
     if (!existsSync(pantalla)) return;
     const texto = readFileSync(pantalla, 'utf8');
     expect(texto).not.toMatch(/cuentas-contables'\)\.catch\(\(\) => \[\]\)/);
-    expect(texto).toMatch(/conPermiso\(api\.get<CuentaContable\[\]>\('\/finanzas\/cuentas-contables'\)\)/);
+    /*
+     * Desde el 7-oct la consulta lleva además `soloAfectables`: el catálogo
+     * traía las 1083 cuentas del plan, incluidas las 153 de mayor, que el
+     * servidor rechaza al asentar. Lo que esta prueba protege no es la forma
+     * exacta de la llamada, sino que siga pasando por `conPermiso` —que es lo
+     * que distingue «no hay» de «no puedo leerlo»—.
+     */
+    expect(texto).toMatch(
+      /conPermiso\(\s*api\.get<CuentaContable\[\]>\('\/finanzas\/cuentas-contables',\s*\{\s*query:\s*\{\s*soloAfectables:\s*true\s*\},?\s*\}\s*,?\s*\)\s*,?\s*\)/,
+    );
     expect(texto).toMatch(/no está en tu perfil, así que no hay contra qué registrar/);
   });
 });

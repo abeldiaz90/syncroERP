@@ -346,7 +346,27 @@ function ModalNuevoMovimiento({
   useEffect(() => {
     if (!abierto) return;
     let vivo = true;
-    api.get<CuentaContableSimple[]>('/finanzas/cuentas-contables')
+    /*
+     * ──────────────────────────────────────────────────────────────────
+     * Una cuenta de mayor no recibe pólizas, así que no se ofrece
+     * ------------------------------------------------------------------
+     * El catálogo trae las 1083 cuentas del plan, y 153 de ellas son
+     * cuentas de MAYOR —«100 · Activo», «101 · Caja», «600 · Gastos»—:
+     * agrupan a sus hijas y no se les asienta nada. `polizas.service` lo
+     * rechaza, y con razón.
+     *
+     * Este desplegable las ofrecía todas. El único filtro que aplicaba era
+     * `permiteMovimientoManual`, y las 153 lo pasan, así que ninguna
+     * quedaba fuera: elegir cualquiera de ellas era elegir un rechazo. Un
+     * botón que lleva a un no.
+     *
+     * El servidor ya sabe hacer esta distinción —`?soloAfectables=true`, que
+     * además filtra las inactivas— y tres pantallas ya se lo piden. Ésta no.
+     * ──────────────────────────────────────────────────────────────────
+     */
+    api.get<CuentaContableSimple[]>('/finanzas/cuentas-contables', {
+      query: { soloAfectables: true },
+    })
       .then((datos) => { if (vivo) setCuentasContables(Array.isArray(datos) ? datos : []); })
       .catch(() => { if (vivo) setCuentasContables([]); });
     return () => { vivo = false; };
