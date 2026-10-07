@@ -116,8 +116,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (!vivo) return;
       setSesion(s);
 
+      /*
+       * ──────────────────────────────────────────────────────────────────────
+       * El atajo del administrador NO se toma mientras se ve como otro
+       * --------------------------------------------------------------------
+       * El rol sale del JWT, que es el de quien mira, no el de quien se mira.
+       * Con el atajo puesto, «Ver como Almacen Prueba» dejaba el menú entero
+       * —Finanzas, Recursos humanos, Administración, Hotelería— y la función
+       * se volvía una trampa: se prueba un rol, se ve que todo abre, y los
+       * defectos que sólo aparecen cuando la pantalla ofrece algo que el
+       * servidor va a negar quedan escondidos justo en la herramienta hecha
+       * para encontrarlos. Medido por pantalla el 7-oct-2026.
+       *
+       * `api.get` ya manda la cabecera de suplantación, así que preguntar es
+       * todo lo que hace falta.
+       * ──────────────────────────────────────────────────────────────────────
+       */
       // El administrador no necesita consultar: acceso total.
-      if (esRolAdministrador(s!.rol)) {
+      if (!verComoActual() && esRolAdministrador(s!.rol)) {
         if (vivo) { setPermisos(['*']); setCargando(false); }
       } else {
         try {
@@ -161,7 +177,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     })();
 
     return () => { vivo = false; };
-  }, [router]);
+  }, [router, verComo?.id]);
 
   /* ── Preferencia del menú ──────────────────────────────────────────────── */
 

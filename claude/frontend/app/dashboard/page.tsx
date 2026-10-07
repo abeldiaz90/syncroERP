@@ -20,6 +20,7 @@ import { leerSesion, puedeEntrar, puedeVerEnlace } from '@/lib/session';
 import { Indicador } from '@/components/ui';
 import { dinero } from '@/lib/format';
 import { esRolAdministrador } from '@/lib/roles';
+import { EVENTO_VER_COMO, verComoActual } from '@/lib/ver-como';
 
 interface Metricas {
   ventasHoy: number;
@@ -52,6 +53,12 @@ export default function PanelPrincipal() {
   const [permisos, setPermisos] = useState<string[] | null>(null);
   const [nombre, setNombre] = useState('');
   const [cargandoKpis, setCargandoKpis] = useState(true);
+  const [verComoId, setVerComoId] = useState<string | null>(() => verComoActual()?.id ?? null);
+  useEffect(() => {
+    const leer = () => setVerComoId(verComoActual()?.id ?? null);
+    window.addEventListener(EVENTO_VER_COMO, leer);
+    return () => window.removeEventListener(EVENTO_VER_COMO, leer);
+  }, []);
 
   useEffect(() => {
     let vivo = true;
@@ -62,7 +69,13 @@ export default function PanelPrincipal() {
       if (vivo) setNombre(s.nombreCompleto || s.email);
 
       let rutas: string[] | null;
-      if (esRolAdministrador(s.rol)) {
+      /*
+       * El atajo del administrador no se toma mientras se ve como otro: el rol
+       * sale del JWT, que es el de quien mira. Con el atajo puesto, el panel
+       * principal seguía ofreciendo los diez módulos a un almacenista, y «Ver
+       * como» dejaba de servir para lo único que sirve. Medido el 7-oct-2026.
+       */
+      if (!verComoActual() && esRolAdministrador(s.rol)) {
         rutas = ['*'];
       } else {
         /*
@@ -148,7 +161,11 @@ export default function PanelPrincipal() {
     })();
 
     return () => { vivo = false; };
-  }, []);
+  /*
+   * Y se vuelve a preguntar al empezar o dejar de suplantar: lo que el panel
+   * ofrece cambia con quien se está viendo.
+   */
+  }, [verComoId]);
 
   const hora = new Date().getHours();
   const saludo = hora < 12 ? 'Buenos días' : hora < 19 ? 'Buenas tardes' : 'Buenas noches';
