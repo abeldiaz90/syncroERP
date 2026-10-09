@@ -661,6 +661,7 @@ export class OperacionHotelService {
         habitacion,
         hotel,
         empresaId,
+        folio.id,
       );
 
       habitacion.estado = EstadoHabitacion.OCUPADA;
@@ -681,12 +682,43 @@ export class OperacionHotelService {
     });
   }
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * El costo de la dotación no llegaba al mayor
+   * --------------------------------------------------------------------------
+   * Las amenidades que se dejan en la habitación al hacer el check-in —jabón,
+   * café, agua— salen del almacén aquí. La salida se registraba contra la
+   * HABITACIÓN:
+   *
+   *     { id: habitacion.id, tipo: 'HOTEL_DOTACION' }
+   *
+   * y el asiento de hospedaje, al cerrar el folio, suma el costo de las salidas
+   * ligadas al FOLIO:
+   *
+   *     .andWhere('m.documentoId = :folioId', { folioId: folio.id })
+   *
+   * Los dos lados nombran documentos distintos, así que el costo de la dotación
+   * no entraba en ninguna suma: **la existencia bajaba y la cuenta de Inventario
+   * no se acreditaba nunca**. El inventario físico y el contable divergen por el
+   * costo de las amenidades de cada estancia, de forma permanente y creciente.
+   *
+   * Y no lo caza un balance, porque la póliza de hospedaje cuadra igual: lo que
+   * falta no está mal repartido, es que no está.
+   *
+   * La habitación no es el documento de nada: es dónde pasó. El documento de
+   * una estancia es su folio —que ya existe cuando esto corre, se crea unas
+   * líneas más arriba— y es el que sabe cuándo cerrar y a quién cobrarle. Se
+   * registra contra él, y el tipo `HOTEL_DOTACION` se conserva para que el
+   * kardex siga diciendo qué fue.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
   private async descontarDotacion(
     manager: EntityManager,
     tipoHabitacionId: string,
     habitacion: Habitacion,
     hotel: Hotel,
     empresaId: string,
+    folioId: string,
   ): Promise<{ consumibles: number; blancos: number }> {
     const dotacion = await manager.getRepository(DotacionTipoHabitacion).find({
       where: { tipoHabitacionId, empresaId },
@@ -718,7 +750,12 @@ export class OperacionHotelService {
         undefined,
         undefined,
         manager,
-        { id: habitacion.id, tipo: 'HOTEL_DOTACION' },
+        /*
+         * El folio, no la habitación: es lo que suma el asiento al cerrar. La
+         * habitación sigue dicha en el motivo, que es donde sirve —para leer el
+         * kardex—, y no donde hace falta que coincidan dos consultas.
+         */
+        { id: folioId, tipo: 'HOTEL_DOTACION' },
       );
     }
     return { consumibles: consumibles.length, blancos: blancos.length };
