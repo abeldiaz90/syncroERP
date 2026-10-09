@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
-import { existsSync, readFileSync, statSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'fs';
+import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { esRolAdministrador } from '../iam/utils/roles.util';
 import {
@@ -9,6 +10,7 @@ import {
 } from './documentacion.catalogo';
 import { EnlaceInterno, renderizar } from './markdown';
 import { paginaImprimible } from './plantilla-impresion';
+import { cargarPuppeteer, elegirNavegador } from './navegador-para-el-pdf';
 
 /**
  * ============================================================================
@@ -150,45 +152,12 @@ export class DocumentacionService {
   /**
    * Qué navegador usa el PDF.
    *
-   * Por omisión, el Chromium que puppeteer se descarga al instalar. Pero en un
-   * servidor donde ese paso no corrió —pasa: hay despliegues con
-   * `PUPPETEER_SKIP_DOWNLOAD`— el PDF fallaría teniendo un Chrome instalado a
-   * un palmo. Se busca, en orden, y sin instalar nada:
-   *
-   *   1. `DOCUMENTACION_NAVEGADOR`, si alguien quiere mandar sobre esto.
-   *   2. `PUPPETEER_EXECUTABLE_PATH`, la variable que ya entiende puppeteer.
-   *   3. Nada: que decida puppeteer con lo que trae.
-   *   4. Las rutas habituales de Chrome y Edge, si lo de puppeteer no está.
-   *
-   * Devuelve `undefined` para dejar que puppeteer use el suyo, que es lo
-   * correcto cuando existe.
+   * La resolución vive en `navegador-para-el-pdf.ts`, aparte y pura, porque la
+   * versión que estaba aquí tenía una rama que no se tomaba nunca y ninguna
+   * prueba podía verlo. Ahí está contado el porqué.
    */
-  private navegadorInstalado(): string | undefined {
-    const declarado =
-      process.env.DOCUMENTACION_NAVEGADOR?.trim() ||
-      process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
-    if (declarado) return declarado;
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const p = require('puppeteer');
-      if (typeof p.executablePath === 'function' && existsSync(p.executablePath())) {
-        return undefined; // el suyo está: que lo use
-      }
-    } catch {
-      /* se sigue con las rutas conocidas */
-    }
-
-    const conocidas = [
-      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      '/usr/bin/google-chrome',
-      '/usr/bin/chromium',
-      '/usr/bin/chromium-browser',
-    ];
-    return conocidas.find((c) => existsSync(c));
+  private async navegadorInstalado(): Promise<string | undefined> {
+    return elegirNavegador(cargarPuppeteer());
   }
 
   /**
@@ -219,12 +188,31 @@ export class DocumentacionService {
 
     let navegador: { newPage: () => Promise<unknown>; close: () => Promise<void> } | null =
       null;
+    /*
+     * ── Un perfil propio por PDF ──────────────────────────────────────────
+     * Sin `userDataDir`, puppeteer se inventa un perfil temporal y lo borra al
+     * cerrar. En Windows ese cierre es perezoso: el proceso suelta el archivo
+     * después de que la promesa de `close()` ya volvió. Dos PDF seguidos —o
+     * dos personas pulsando «PDF» a la vez— se encuentran con
+     *
+     *   The browser is already running for …puppeteer_dev_chrome_profile-…
+     *   EBUSY: resource busy or locked, unlink …first_party_sets.db
+     *
+     * y el segundo no sale. Se vio en vivo el 9 de octubre: de siete
+     * documentos salieron cuatro.
+     *
+     * Con un directorio propio por petición no hay nada que compartir, y el
+     * borrado se intenta con reintentos y sin que su fallo estropee un PDF que
+     * ya está hecho: un temporal que sobra es basura, no un error.
+     */
+    const perfil = mkdtempSync(join(tmpdir(), 'syncro-pdf-'));
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const puppeteer = require('puppeteer');
-      const ejecutable = this.navegadorInstalado();
+      const ejecutable = await this.navegadorInstalado();
       navegador = await puppeteer.launch({
         headless: true,
+        userDataDir: perfil,
         ...(ejecutable ? { executablePath: ejecutable } : {}),
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
       });
@@ -258,6 +246,11 @@ export class DocumentacionService {
       );
     } finally {
       if (navegador) await navegador.close().catch(() => undefined);
+      try {
+        rmSync(perfil, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      } catch {
+        this.logger.warn(`No se pudo borrar el perfil temporal ${perfil}.`);
+      }
     }
   }
 }
