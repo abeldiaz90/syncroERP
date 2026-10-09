@@ -554,6 +554,12 @@ export const MODULOS: ModuleConfig[] = [
         grupo: "Análisis",
         etiqueta: "Nuevo",
       },
+      {
+        label: "Impresoras de ticket",
+        href: "/dashboard/tesoreria/impresoras",
+        grupo: "Operación",
+        etiqueta: "Nuevo",
+      },
     ],
     relacionados: [
       { label: "Cuentas bancarias", href: "/dashboard/creditos/cuentas-bancarias" },

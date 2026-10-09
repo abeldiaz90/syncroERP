@@ -381,6 +381,17 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Flujo de efectivo',
     ordenMenu: 57,
   },
+  /*
+   * La pantalla que declara dónde sale el ticket de cada caja. Cuelga de
+   * Tesorería porque la impresora pertenece a la caja —la cuenta que abre el
+   * turno—, no a Ventas: quien decide a qué aparato de la red le escribe el
+   * servidor es quien administra el mostrador, no quien cobra en él.
+   */
+  'GET /ventas/impresoras': {
+    rutaFrontend: '/dashboard/tesoreria/impresoras',
+    titulo: 'Impresoras de ticket',
+    ordenMenu: 58,
+  },
 
   /* ── ACTIVOS FIJOS (nuevo) ─────────────────────────────────────────────── */
   'GET /activos': {

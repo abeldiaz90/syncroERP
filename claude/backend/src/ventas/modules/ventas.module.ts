@@ -30,6 +30,12 @@ import { CajaModule } from '../../caja/modules/caja.module';
 // devuelve. Sin esto el ERP cancelaba el crédito en su base y allá el préstamo
 // seguía vivo por el importe completo.
 import { IntegracionModule } from '../../integracion/modules/integracion.module';
+// El ticket sale por una impresora térmica de red; ver `impresion/`.
+import { Empresa } from '../../iam/entities/empresa.entity';
+import { ImpresoraCaja } from '../../caja/entities/impresora-caja.entity';
+import { ImpresionTicketsController } from '../controllers/impresion-tickets.controller';
+import { ImpresionTicketsService } from '../impresion/impresion-tickets.service';
+import { ImpresoraTermicaService } from '../impresion/impresora-termica.service';
 
 @Module({
   imports: [
@@ -43,6 +49,8 @@ import { IntegracionModule } from '../../integracion/modules/integracion.module'
       DetalleDevolucionVenta,
       AplicacionLoteDevolucion,
       SaldoFavorClienteMovimiento,
+      Empresa,
+      ImpresoraCaja,
     ]),
     CatalogoModule,
     FinanzasModule,
@@ -53,13 +61,19 @@ import { IntegracionModule } from '../../integracion/modules/integracion.module'
     NotificacionesModule,
     IntegracionModule,
   ],
-  controllers: [VentasController, DashboardEjecutivoController],
+  controllers: [
+    VentasController,
+    DashboardEjecutivoController,
+    ImpresionTicketsController,
+  ],
   providers: [
     VentasService,
     DashboardEjecutivoService,
     AnulacionVentasService,
     DevolucionesVentasService,
     SaldosFavorService,
+    ImpresionTicketsService,
+    ImpresoraTermicaService,
   ],
 })
 export class VentasModule {}

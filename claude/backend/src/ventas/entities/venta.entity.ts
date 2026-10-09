@@ -127,6 +127,18 @@ export class Venta {
   @Column({ type: 'text', nullable: true })
   notas?: string;
 
+  /**
+   * Cuántas veces se ha pedido el ticket de esta venta.
+   *
+   * Sube con cada petición, salga el papel o no. Si sólo subiera cuando sale,
+   * un cajero podría pedirlo diez veces con la impresora apagada y, al
+   * encenderla, llevarse diez originales indistinguibles. A partir del segundo
+   * el papel va marcado como reimpresión, que es lo que impide cobrar dos veces
+   * una devolución con el mismo ticket.
+   */
+  @Column({ type: 'int', default: 0 })
+  impresionesTicket: number;
+
   @CreateDateColumn()
   fechaVenta: Date;
 

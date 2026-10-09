@@ -1,6 +1,6 @@
 # 07 · Flujos y procesos, paso a paso
 
-**Revisión:** 8 de octubre de 2026
+**Revisión:** 9 de octubre de 2026
 **Para:** usuarios finales, quien los capacita y quien recibe el sistema.
 
 > Cada flujo de este documento está **ejercido contra el sistema corriendo o
@@ -74,6 +74,43 @@ desde otro almacén o con otra lista, el sistema te lo dice:
   contable.
 - Si la venta es a crédito, nacen el **crédito y su tabla de amortización** en la
   misma operación.
+- Y **sale el ticket**, si la caja tiene impresora declarada. Ver abajo.
+
+## El ticket
+
+Al terminar la venta, el servidor manda el ticket a la impresora térmica de esa
+caja. No hay que pulsar nada, y no hay que instalar nada en el mostrador: la
+impresora tiene su dirección en la red y el servidor le escribe directamente.
+
+Qué impresora le toca a cada caja se declara en
+**Tesorería → Impresoras de ticket**, y hay un botón **Probar impresora** que
+manda una página de prueba: la alternativa es configurarla y descubrir el error
+con el primer cliente enfrente.
+
+Tres formas de imprimir, y las tres son legítimas:
+
+| Modo | Cuándo | Qué hace el punto de venta |
+|---|---|---|
+| **Por red** | La impresora tiene su propia IP | El ticket sale solo al cobrar |
+| **Desde el navegador** | La impresora cuelga por USB de la computadora de la caja | Abre el ticket; se imprime con el diálogo de siempre |
+| **No imprimir** | Un mostrador que sólo factura por correo | Nada |
+
+Una caja **sin configurar** se comporta como «desde el navegador», que es como
+funcionaba antes: nadie se queda sin comprobante por no haber declarado nada.
+
+Tres cosas que conviene saber:
+
+- **Si el ticket no sale, la venta está cobrada igual.** La pantalla lo dice en
+  ámbar, con el motivo —impresora apagada, sin red, sin papel— y recuerda que
+  puedes abrir el ticket e imprimirlo desde el navegador. Un problema de papel
+  nunca tumba un cobro.
+- **La segunda copia sale marcada «REIMPRESIÓN».** Un ticket reimpreso que no se
+  distingue del original sirve para cobrar dos veces una devolución.
+- **El cajón de dinero se abre sólo con efectivo**, y sólo si se pidió al
+  configurar. Un cajón que se abre con cada tarjeta acaba quedándose abierto.
+
+El ticket **no es un comprobante fiscal**, y el papel lo dice, para que la
+discusión no ocurra en el mostrador.
 
 ## Qué te va a negar el sistema
 

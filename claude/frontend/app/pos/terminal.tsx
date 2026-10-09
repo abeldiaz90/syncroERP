@@ -6,7 +6,7 @@ import {
   Banknote, CreditCard, ArrowLeftRight, CheckCircle2,
   Package, Loader2, Receipt, AlertCircle, Store,
   ChevronDown, RotateCcw, Barcode, Calendar, Clock,
-  Building2, Calculator, ChevronRight,
+  Building2, Calculator, ChevronRight, Printer,
 } from 'lucide-react';
 import type { MetodoPagoVenta } from '@/lib/ventas/metodos-pago';
 import { METODOS_CREDITO as METODOS_CREDITO_CONTRATO } from '@/lib/ventas/metodos-pago';
@@ -273,6 +273,22 @@ export default function TerminalPos() {
     recibido: number | null;
     discrepancias: Array<{ productoNombre: string; precioMostrado: number; precioReal: number; diferencia: number }>;
   } | null>(null);
+  /*
+   * ── El ticket en papel ────────────────────────────────────────────────────
+   * Qué pasó con la impresión de esta venta. `null` mientras se intenta.
+   *
+   * La venta YA está cobrada cuando esto corre: lo que diga aquí no puede
+   * deshacerla ni bloquear la pantalla. Por eso es un aviso al lado del botón
+   * y no un modal: un cajero con cola no puede quedarse atrapado porque la
+   * impresora se quedó sin papel.
+   */
+  const [impresion, setImpresion] = useState<{
+    modo: 'RED' | 'NAVEGADOR' | 'NINGUNA';
+    impreso: boolean;
+    reimpresion: boolean;
+    motivo?: string;
+  } | null>(null);
+  const [reimprimiendo, setReimprimiendo] = useState(false);
   const [showClienteSearch, setShowClienteSearch] = useState(false);
   const [showNuevoCliente,  setShowNuevoCliente]  = useState(false);
   const [nuevoCliente,      setNuevoCliente]      = useState({ nombre: '', telefono: '', rfc: '', email: '' });
@@ -691,6 +707,7 @@ export default function TerminalPos() {
   const limpiarCarrito = () => {
     setCarrito([]); setCliente(null); setMontoRecibido('');
     setNotas(''); setVentaExitosa(null); setMetodoPago('EFECTIVO');
+    setImpresion(null); setReimprimiendo(false);
     setEnganche('0'); setTablaAmort([]);
     idempotenciaVentaRef.current = null;
     setTimeout(()=>searchRef.current?.focus(),100);
@@ -821,6 +838,29 @@ export default function TerminalPos() {
             : null,
         discrepancias: data.discrepanciasPrecio ?? [],
       });
+      /*
+       * El ticket sale solo. Antes había que abrir una pestaña y pulsar
+       * «Imprimir» en el diálogo del navegador: en un mostrador con cola eso
+       * no ocurre y el cliente se va sin papel.
+       *
+       * Va en su propia promesa y con `intentar`, porque **nada de la
+       * impresión puede tocar la venta**: si el servidor no contesta, la
+       * pantalla de éxito ya está puesta y el cobro, hecho.
+       */
+      setImpresion(null);
+      void api
+        .post<{ modo: 'RED'|'NAVEGADOR'|'NINGUNA'; impreso: boolean; reimpresion: boolean; motivo?: string }>(
+          `/ventas/${data.id}/ticket/imprimir`, {},
+        )
+        .then((r) => setImpresion(r))
+        .catch(() =>
+          setImpresion({
+            modo: 'NAVEGADOR',
+            impreso: false,
+            reimpresion: false,
+            motivo: 'No se pudo avisar a la impresora. Abre el ticket e imprímelo desde el navegador.',
+          }),
+        );
       /*
        * Y se vuelve a preguntar por los turnos. Uno puede cerrarse desde
        * Tesorería mientras la caja sigue abierta —es lo normal al terminar el
@@ -990,11 +1030,58 @@ export default function TerminalPos() {
             </p>
           </div>
         )}
+        {/*
+          * ── Qué pasó con el papel ──────────────────────────────────────────
+          * Tres estados y tres colores, porque son tres cosas distintas:
+          *
+          *   · salió          · verde, y no pide nada.
+          *   · va por el      · gris: no es un fallo, es cómo está montada
+          *     navegador        esta caja. Un aviso rojo aquí enseñaría al
+          *                      cajero a no leerlos.
+          *   · no salió       · ámbar, con el motivo y con la salida que
+          *                      siempre existe: abrir el ticket e imprimirlo.
+          */}
+        {impresion === null && (
+          <p className="text-xs text-slate-400 mb-3">Mandando el ticket a la impresora…</p>
+        )}
+        {impresion?.impreso && (
+          <p className="text-xs text-emerald-600 font-medium mb-3">
+            Ticket impreso{impresion.reimpresion ? ' (reimpresión)' : ''}.
+          </p>
+        )}
+        {impresion && !impresion.impreso && impresion.modo === 'RED' && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-left">
+            <p className="text-xs font-bold text-amber-800 mb-1">El ticket no salió</p>
+            <p className="text-xs text-amber-700">{impresion.motivo}</p>
+            <p className="text-xs text-amber-700 mt-1">
+              La venta quedó cobrada. Puedes abrir el ticket e imprimirlo desde el navegador.
+            </p>
+          </div>
+        )}
+
         <div className="flex gap-3">
           <button onClick={()=>window.open(`/dashboard/ventas/${ventaExitosa.id}/ticket`,'_blank')}
             className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50">
             <Receipt className="w-5 h-5"/> Ticket
           </button>
+          {impresion?.modo === 'RED' && (
+            <button
+              disabled={reimprimiendo}
+              onClick={() => {
+                setReimprimiendo(true);
+                void api
+                  .post<{ modo: 'RED'|'NAVEGADOR'|'NINGUNA'; impreso: boolean; reimpresion: boolean; motivo?: string }>(
+                    `/ventas/${ventaExitosa.id}/ticket/imprimir`, {},
+                  )
+                  .then((r) => setImpresion(r))
+                  .catch(() => undefined)
+                  .finally(() => setReimprimiendo(false));
+              }}
+              title="Vuelve a mandar el ticket; saldrá marcado como reimpresión"
+              className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+              <Printer className="w-5 h-5"/> {reimprimiendo ? 'Mandando…' : 'Reimprimir'}
+            </button>
+          )}
           <button onClick={limpiarCarrito}
             className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">
             <RotateCcw className="w-5 h-5"/> Nueva Venta

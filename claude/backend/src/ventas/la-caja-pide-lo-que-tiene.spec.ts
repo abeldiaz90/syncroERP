@@ -73,29 +73,49 @@ describe('Punto de venta · la caja sólo pide lo que el mostrador tiene', () =>
     const hueco = (r: string) =>
       r.replace(/\$\{[^}]*\}/g, ':_').replace(/:[A-Za-z_][A-Za-z0-9_]*/g, ':_');
 
-    const consultas = [
+    /*
+     * ── Y tampoco veía lo que la caja ESCRIBE ─────────────────────────────
+     * Hasta el 9-oct-2026 sólo miraba los `api.get`. Las llamadas que cambian
+     * algo —crear el cliente, simular el crédito, cobrar, mandar el ticket a
+     * la impresora— quedaban fuera, y son justo las que el cajero no puede
+     * suplir de otra manera: una lectura que falla deja un desplegable vacío,
+     * una escritura que falla deja la venta sin hacer.
+     *
+     * Y hay dos detalles de forma que costaron encontrar, los dos del mismo
+     * tipo —el detector mirando una escritura más estrecha que la real—:
+     *
+     *   · el genérico de `api.post<{…}>` ocupa varias líneas en esta pantalla,
+     *     así que el `[^>]*` de antes no habría casado ni añadiendo el verbo;
+     *   · y una llamada encadenada se parte como `api` + salto + `.post(`, con
+     *     lo que un `api\.post` literal no la ve.
+     *
+     * Por eso el genérico se lee perezoso y a varias líneas, y el punto admite
+     * espacios alrededor.
+     */
+    const llamadas = [
       ...texto.matchAll(
-        /api\.get<[^>]*>\(\s*['`]([^'`]+)['`]|api\.get\(\s*['`]([^'`]+)['`]/g,
+        /api\s*\.\s*(get|post|put|patch|delete)\s*(?:<[\s\S]*?>)?\s*\(\s*['`]([^'`]+)['`]/g,
       ),
     ]
-      .map((m) => m[1] ?? m[2])
-      .filter((r) => r.startsWith('/'))
+      .map((m) => ({ verbo: m[1].toUpperCase(), ruta: m[2] }))
+      .filter((c) => c.ruta.startsWith('/'))
       /* `/catalogo/productos/buscar` y `/clientes` llevan query, no parámetro. */
-      .map((r) => r.replace(/\/$/, ''));
+      .map((c) => ({ ...c, ruta: c.ruta.replace(/\/$/, '') }));
 
     /*
      * Un trinquete sobre el propio detector: si una refactorización cambia la
      * forma de llamar y deja de reconocerse, esto baja y la prueba se pone
-     * roja, en vez de pasar mirando tres consultas de once.
+     * roja, en vez de pasar mirando tres consultas de catorce.
      */
-    expect(consultas.length).toBeGreaterThanOrEqual(11);
+    expect(llamadas.filter((c) => c.verbo === 'GET').length).toBeGreaterThanOrEqual(11);
+    expect(llamadas.filter((c) => c.verbo !== 'GET').length).toBeGreaterThanOrEqual(4);
 
     const declaradas = new Set(
       (mostrador?.accionesIrrenunciables ?? []).map(hueco),
     );
-    const sinDeclarar = [...new Set(consultas)]
-      .map((r) => hueco(`GET ${r}`))
-      .filter((accion) => !declaradas.has(accion));
+    const sinDeclarar = [
+      ...new Set(llamadas.map((c) => hueco(`${c.verbo} ${c.ruta}`))),
+    ].filter((accion) => !declaradas.has(accion));
 
     expect(sinDeclarar.sort()).toEqual([]);
   });

@@ -478,6 +478,28 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'GET /credito/creditos/cliente/:id/politica',
       'GET /ventas/clientes/:id/saldo-favor',
       'GET /catalogo/listas-precio/producto/:id',
+      /*
+       * ── Y lo que la caja ESCRIBE ─────────────────────────────────────────
+       * El mismo hueco, un escalón más grave. El barrido de esta lista sólo
+       * leía los `api.get` de la pantalla, así que las cuatro llamadas que
+       * cambian algo nunca pasaron por aquí —incluida `POST /ventas`, que es
+       * para lo que existe el mostrador—. Funcionaban por herencia de módulo.
+       *
+       * Y la diferencia con las lecturas es que una lectura que falla deja un
+       * desplegable vacío, mientras que una escritura que falla deja la venta
+       * sin hacer, con el cliente enfrente y el dinero en la mano.
+       */
+      'POST /ventas',
+      'POST /clientes',
+      'POST /credito/creditos/simular',
+      /*
+       * Mandar el ticket a la impresora térmica de la caja. Va aquí y no en un
+       * permiso de impresión aparte a propósito: si colgara de otro, bastaría
+       * con que alguien se lo quitara al mostrador —sin saber qué apagaba—
+       * para dejar al cajero sin papel. Y el `:id` es el que normaliza la
+       * tabla, no el `:ventaId` del controlador.
+       */
+      'POST /ventas/:id/ticket/imprimir',
     ],
     accionesVedadas: ['GET /credito/cuentas-bancarias'],
   },
