@@ -402,5 +402,46 @@ export function validarEntorno(config: Record<string, unknown>) {
     }
   }
 
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * El esquema de una base que no es de nadie
+   * --------------------------------------------------------------------------
+   * `DB_SYNC=true` deja que TypeORM materialice el esquema desde las entidades:
+   * crea, cambia y **borra** columnas para que la base se parezca al código.
+   * En desarrollo es comodísimo; sobre datos reales es irreversible.
+   *
+   * Está defendido: `debeSincronizarEsquema` exige `NODE_ENV !== 'production'`,
+   * y esa condición es dominante a propósito. Pero `NODE_ENV` es opcional y por
+   * omisión vale `development`, y `DB_SYNC` vale `'true'` por omisión. O sea
+   * que la combinación peligrosa no es una mala configuración: **es la que sale
+   * de no configurar nada**. Un despliegue que se olvide de poner `NODE_ENV`
+   * arranca contra la base del cliente en modo desarrollo y la sincroniza.
+   *
+   * La defensa existente no sirve para esto porque sólo mira el caso en que
+   * alguien SÍ declaró producción. Aquí se mira el contrario: nadie declaró
+   * nada y la base no es local.
+   *
+   * No se corrige el valor por omisión en silencio —un dev que depende de él se
+   * quedaría sin esquema sin saber por qué—: se detiene el arranque y se dice
+   * cuál de las dos cosas hay que escribir. Un servicio que no levanta se
+   * arregla en minutos; uno que levanta y reescribe un esquema no se arregla.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  const entornoDeclarado = limpio.NODE_ENV !== undefined;
+  const baseLocal = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[?::1\]?|host\.docker\.internal|db|postgres)$/i.test(
+    String(instancia.DB_HOST ?? '').trim(),
+  );
+
+  if (!entornoDeclarado && !baseLocal && instancia.DB_SYNC === 'true') {
+    throw new Error(
+      `NODE_ENV no está declarado, así que vale «development», y con DB_SYNC=true eso ` +
+        `autoriza a TypeORM a reescribir el esquema de ${instancia.DB_HOST} —crear, cambiar ` +
+        `y borrar columnas— para que se parezca a las entidades.\n\n` +
+        `Esa base no es local, así que lo más probable es que no sea de pruebas.\n\n` +
+        `Declara NODE_ENV=production (y entonces DB_SYNC se ignora), o DB_SYNC=false si de ` +
+        `verdad es un entorno de desarrollo contra una base remota.`,
+    );
+  }
+
   return instancia;
 }

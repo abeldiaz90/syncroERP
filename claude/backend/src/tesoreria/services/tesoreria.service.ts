@@ -1101,14 +1101,54 @@ export class TesoreriaService {
     const primerDia = new Date(estado.ejercicio, estado.mes - 1, 1);
     const ultimoDia = new Date(estado.ejercicio, estado.mes, 0);
 
-    const movimientos = await this.movimientos.find({
+    /*
+     * ══════════════════════════════════════════════════════════════════════
+     * El saldo según libros salía del último renglón de una consulta sin orden
+     * ----------------------------------------------------------------------
+     * Esta línea decidía la cifra contra la que se concilia toda una cuenta:
+     *
+     *     const saldoLibrosCent = movimientos.length
+     *       ? aCent(movimientos[movimientos.length - 1].saldoPosterior)
+     *       : 0;
+     *
+     * y `movimientos` venía de un `find()` SIN `order`. Postgres devuelve las
+     * filas en el orden que le conviene —el del montón, que cambia con cada
+     * actualización—, así que «el último» era un movimiento cualquiera del mes
+     * y su saldo corrido, una cifra cualquiera. La conciliación se negaba sobre
+     * cuentas correctas, o firmaba un descuadre; y entre una corrida y la
+     * siguiente podía contestar cosas distintas sin que nada hubiera cambiado.
+     *
+     * Tres cosas se arreglan de un tirón, porque las tres viven en ese renglón:
+     *
+     *  1. **El orden.** El saldo corrido lo calcula `recalcularSaldos` por
+     *     `fecha ASC, fechaCreacion ASC`; leerlo con otro orden es leer otra
+     *     cosa. Ahora se pide el mismo.
+     *
+     *  2. **Los cancelados.** `recalcularSaldos` NO los excluye —y está
+     *     razonado arriba: la cancelación deja contrapartida, `cancelado` es
+     *     una marca de estado y no una exclusión del saldo—. Tomar el último
+     *     de una lista que sí los excluye podía leer el `saldoPosterior` de un
+     *     movimiento que no es el último de verdad. El saldo de libros se lee
+     *     de TODOS; los importes en tránsito siguen contando sólo los vivos,
+     *     que para eso sí es lo correcto.
+     *
+     *  3. **El mes sin movimientos.** Daba cero. Una cuenta quieta con saldo
+     *     no tiene cero en libros: tiene lo que traía. Un cero ahí se lee como
+     *     una cuenta vacía y hace cuadrar lo que no cuadra. Ahora se arrastra
+     *     el último saldo anterior al mes.
+     * ══════════════════════════════════════════════════════════════════════
+     */
+    const delMes = await this.movimientos.find({
       where: {
         empresaId,
         cuentaBancariaId: estado.cuentaBancariaId,
         fecha: Between(primerDia, ultimoDia),
-        cancelado: false,
       },
+      order: { fecha: 'ASC', fechaCreacion: 'ASC' },
     });
+
+    /* Para lo que sí depende de que el movimiento siga vivo. */
+    const movimientos = delMes.filter((m) => !m.cancelado);
 
     const lineas = await this.lineas.find({ where: { estadoCuentaId } });
 
@@ -1119,9 +1159,21 @@ export class TesoreriaService {
     // Movimientos del banco que no tenemos registrados.
     const noRegistrados = lineas.filter((l) => !l.conciliada);
 
-    const saldoLibrosCent = movimientos.length
-      ? aCent(movimientos[movimientos.length - 1].saldoPosterior)
-      : 0;
+    const ultimoDelMes = delMes.length ? delMes[delMes.length - 1] : null;
+    const anteriorAlMes = ultimoDelMes
+      ? null
+      : await this.movimientos
+          .createQueryBuilder('m')
+          .where('m.cuentaBancariaId = :cta', { cta: estado.cuentaBancariaId })
+          .andWhere('m.empresaId = :empresaId', { empresaId })
+          .andWhere('m.fecha < :desde', { desde: primerDia })
+          .orderBy('m.fecha', 'DESC')
+          .addOrderBy('m.fechaCreacion', 'DESC')
+          .getOne();
+
+    const saldoLibrosCent = aCent(
+      (ultimoDelMes ?? anteriorAlMes)?.saldoPosterior ?? 0,
+    );
 
     const depositosEnTransitoCent = enTransito
       .filter((m) => SIGNO[m.tipo] === 1)
