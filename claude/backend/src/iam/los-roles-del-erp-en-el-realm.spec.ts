@@ -130,6 +130,51 @@ describe('los roles del ERP en el realm', () => {
     expect(GUION).toMatch(/^cargarEnv\(\);$/m);
   });
 
+  describe('no saber no es que no', () => {
+    /*
+     * Encontrado al correrlo contra el realm de SUMA, el 10 de octubre.
+     *
+     * Keycloak contesta a `GET /admin/realms/<realm>` aunque la cuenta no tenga
+     * `view-realm`: devuelve una representación RECORTADA, con el nombre y poco
+     * más. El guion no lo distinguía y, al faltar `internationalizationEnabled`,
+     * imprimió «desactivados — la pantalla de acceso sale en inglés». Puede que
+     * lo esté y puede que no: no lo sabía, y lo afirmó.
+     *
+     * Es el defecto de siempre con otra cara —un dato ausente leído como una
+     * respuesta— y aquí manda a cambiar una configuración que quizá ya está
+     * bien.
+     */
+    it('reconoce la respuesta recortada y no afirma nada sobre ella', () => {
+      expect(GUION).toMatch(/const recortada =/);
+      expect(GUION).toMatch(/NO se afirma nada sobre cómo está: no se sabe/);
+      expect(GUION).toMatch(/view-realm/);
+    });
+
+    it('«desactivado» sólo se dice cuando el realm dijo que lo está', () => {
+      /*
+       * `=== false`, no `!valor`. Con la negación, `undefined` —que es «no
+       * vino»— se leía como «apagado».
+       */
+      expect(GUION).toMatch(/internationalizationEnabled === true/);
+      expect(GUION).toMatch(/internationalizationEnabled === false/);
+      expect(GUION).not.toMatch(/if \(!ajustes\.internationalizationEnabled\)/);
+      expect(GUION).toMatch(/\(no vino en la respuesta\)/);
+    });
+
+    it('un 403 al listar dice qué rol falta y dónde se pone', () => {
+      /*
+       * El caso real: la cuenta tiene `manage-users` y `view-users` —lo que el
+       * ERP necesita para dar de alta— y nada sobre el realm. Decir «403» a
+       * secas manda a adivinar.
+       */
+      expect(GUION).toMatch(/status === 403/);
+      expect(GUION).toMatch(/Service account roles/);
+      expect(GUION).toMatch(/Los roles que harían falta/);
+      /* Y ofrece la salida de hacerlo a mano, para no obligar a dar el permiso. */
+      expect(GUION).toMatch(/Realm roles → Create role/);
+    });
+  });
+
   it('el prefijo separa los dos sistemas que comparten realm', () => {
     expect(GUION).toMatch(/export const PREFIJO_ROL_ERP = 'erp:'/);
   });

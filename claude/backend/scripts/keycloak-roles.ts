@@ -153,14 +153,45 @@ async function informarDelRealm(
   }
 
   console.log('\n  ── Cómo está el realm ───────────────────────────────────');
+
+  /*
+   * ── No saber no es que no ───────────────────────────────────────────────
+   * Keycloak contesta a `GET /admin/realms/<realm>` aunque la cuenta no tenga
+   * `view-realm`: devuelve una representación RECORTADA, con el nombre y poco
+   * más. La primera versión de esto no lo distinguía y, al faltar
+   * `internationalizationEnabled`, imprimía «desactivados — la pantalla sale en
+   * inglés». Puede que lo esté y puede que no: el guion no lo sabía y lo afirmó.
+   *
+   * Es el defecto de siempre con otra cara —un dato ausente leído como una
+   * respuesta—, y aquí manda a cambiar una configuración que quizá ya está
+   * bien. Ahora se reconoce la representación recortada por lo que es, y se
+   * dice qué permiso haría falta para verla de verdad.
+   */
+  const recortada =
+    ajustes.ssoSessionIdleTimeout === undefined &&
+    ajustes.ssoSessionMaxLifespan === undefined &&
+    ajustes.accessTokenLifespan === undefined;
+
+  if (recortada) {
+    console.log(
+      '  No se puede leer la configuración del realm con esta cuenta: Keycloak\n' +
+        '  contesta una versión recortada, sin los tiempos de sesión ni los idiomas.\n' +
+        '  Para verla hace falta el rol «view-realm» de realm-management.\n' +
+        '  NO se afirma nada sobre cómo está: no se sabe.',
+    );
+    return;
+  }
+
   console.log(`  Token de acceso:      ${enMinutos(ajustes.accessTokenLifespan)}`);
   console.log(`  SSO Session Idle:     ${enMinutos(ajustes.ssoSessionIdleTimeout)}`);
   console.log(`  SSO Session Max:      ${enMinutos(ajustes.ssoSessionMaxLifespan)}`);
   console.log(
     `  Idiomas:              ${
-      ajustes.internationalizationEnabled
+      ajustes.internationalizationEnabled === true
         ? `activados · por omisión «${ajustes.defaultLocale ?? '?'}» · disponibles: ${(ajustes.supportedLocales ?? []).join(', ') || '(ninguno)'}`
-        : 'desactivados — la pantalla de acceso sale en inglés'
+        : ajustes.internationalizationEnabled === false
+          ? 'desactivados — la pantalla de acceso sale en inglés'
+          : '(no vino en la respuesta)'
     }`,
   );
 
@@ -182,7 +213,7 @@ async function informarDelRealm(
         '    antes de acabar la jornada, esté trabajando o no.',
     );
   }
-  if (!ajustes.internationalizationEnabled) {
+  if (ajustes.internationalizationEnabled === false) {
     console.log(
       '  · Sin idiomas activados no se puede poner la pantalla de acceso en\n' +
         '    español. Es lo primero que ve cualquiera.',
@@ -280,6 +311,35 @@ async function main(): Promise<void> {
     });
     existentes = Array.isArray(data) ? data : [];
   } catch (e) {
+    const status = (e as { response?: { status?: number } }).response?.status;
+    if (status === 403) {
+      /*
+       * El caso real de SUMA: la cuenta de servicio tiene `manage-users` y
+       * `view-users` —lo que el ERP necesita para dar de alta— y nada sobre el
+       * realm. Decir «403» a secas manda a adivinar; decir qué rol falta y
+       * dónde se pone, no.
+       */
+      console.error(
+        '\n  La cuenta de servicio no puede leer los roles del realm (403).\n\n' +
+          '  En Keycloak: Clients → ' +
+          clientId +
+          ' → Service account roles → Assign role →\n' +
+          '  filtrar por «realm-management» y añadir:\n' +
+          '   · view-realm    — para LEER los roles y la configuración\n' +
+          '   · manage-realm  — para CREAR los roles que falten\n\n' +
+          '  Son permisos sobre el realm, no sobre las personas: con ellos esta\n' +
+          '  cuenta puede cambiar la configuración del directorio. Si prefieres no\n' +
+          '  dárselos, los trece roles se crean a mano en Realm roles → Create role,\n' +
+          '  con el prefijo «erp:» (abajo está la lista).',
+      );
+      console.error('\n  Los roles que harían falta:');
+      for (const plantilla of PLANTILLAS_PERMISOS) {
+        console.error(`   · ${PREFIJO_ROL_ERP}${plantilla.rol}`);
+      }
+      console.error(`   · ${PREFIJO_ROL_ERP}administrador`);
+      process.exitCode = 1;
+      return;
+    }
     console.error(`  No se pudieron leer los roles del realm: ${(e as Error).message}`);
     process.exitCode = 1;
     return;
