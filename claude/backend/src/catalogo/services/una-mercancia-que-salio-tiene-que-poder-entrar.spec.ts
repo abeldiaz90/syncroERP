@@ -46,9 +46,31 @@ const FUENTE = readFileSync(
   'utf8',
 );
 
-/** El cuerpo del `if (ubicacionId) { … }` de la entrada de mercancía. */
+/**
+ * El cuerpo del bloque de ubicación de la ENTRADA de mercancía.
+ *
+ * ── El ancla, y por qué cambió ───────────────────────────────────────
+ * Hasta el 8-oct-2026 este bloque se buscaba por `if (ubicacionId) {`. El
+ * 7-oct la entrada pasó a resolver antes la posición de recepción —lo que
+ * entra sin indicar posición cae en el andén— y la condición se llama ahora
+ * `ubicacionElegida`.
+ *
+ * Esa misma cadena existe más abajo en `registrarSalida`, y ahí es correcta:
+ * una salida sin posición no se inventa un andén, descuenta del almacén. Así
+ * que el buscador no se quedó sin encontrar nada: encontró **el bloque
+ * equivocado**, y las tres comprobaciones de abajo fallaron hablando de otra
+ * función. Un ancla ambigua no avisa de que se movió: contesta otra cosa.
+ *
+ * Por eso ahora se ancla a la resolución de la entrada, que es única en el
+ * archivo, y se comprueba que lo sea.
+ */
 function bloqueDeUbicacion(texto: string): string {
-  const inicio = texto.indexOf('if (ubicacionId) {');
+  /* Única en el archivo: si algún día no lo fuera, esto lo dice. */
+  expect(texto.split('const ubicacionElegida =').length - 1).toBe(1);
+  const resolucion = texto.indexOf('const ubicacionElegida =');
+  expect(resolucion).toBeGreaterThan(-1);
+
+  const inicio = texto.indexOf('if (ubicacionElegida) {', resolucion);
   expect(inicio).toBeGreaterThan(-1);
   let nivel = 0;
   for (let i = texto.indexOf('{', inicio); i < texto.length; i++) {

@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Not, Repository } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import { Almacen } from '../entities/almacen.entity';
@@ -14,6 +14,7 @@ import { ConteoInventario, EstadoConteoInventario } from '../entities/conteo-inv
 import { ConteoInventarioDetalle } from '../entities/conteo-inventario-detalle.entity';
 import { InventarioService } from './inventario.service';
 import { ProductoUbicacion } from '../entities/producto-ubicacion.entity';
+import { asegurarUbicacionDeRecepcion, buscarUbicacionDeRecepcion, cuantasPosicionesTiene } from '../utils/ubicacion-de-recepcion';
 import { StockUbicacion, EstadoStockUbicacion } from '../entities/stock-ubicacion.entity';
 import { LoteInventario } from '../entities/lote-inventario.entity';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
@@ -23,7 +24,7 @@ import { fechaContableNegocio } from '../../common/utils/business-time.util';
 const n = (v: unknown) => Number(v ?? 0);
 const folio = (prefijo: string) => `${prefijo}-${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}-${randomUUID().slice(0, 6).toUpperCase()}`;
 @Injectable()
-export class WmsService {
+export class WmsService implements OnModuleInit {
     private readonly logger = new Logger(WmsService.name);
     constructor(private readonly dataSource: DataSource, private readonly inventario: InventarioService, private readonly asientos: AsientosPendientesService, 
     @InjectRepository(TransferenciaInventario)
@@ -140,6 +141,54 @@ export class WmsService {
             return em.save(reserva);
         });
     }
+    /**
+     * ── Reponer la posicion de recepcion donde falte ───────────────────
+     * Desde ahora toda posicion nueva arrastra la de recepcion de su almacen,
+     * pero eso solo arregla los almacenes que nazcan de hoy en adelante. Los
+     * que ya manejan posiciones —los de SUMA, entre ellos— se quedarian a
+     * medias, y entonces el arreglo valdria para la instalacion de demostracion
+     * y no para la que trabaja.
+     *
+     * Se hace al arrancar y no con una migracion a proposito: es una
+     * reparacion idempotente, no un cambio de esquema, y tiene que valer
+     * tambien para la empresa que se da de alta manana con sus posiciones ya
+     * cargadas por importacion.
+     *
+     * Si falla NO se tumba el arranque: un ERP que no levanta porque no pudo
+     * crear una posicion de anden es peor que un almacen sin anden, y el
+     * diagnostico de integridad sigue estando para decirlo.
+     */
+    async onModuleInit() {
+        try {
+            const almacenes: Array<{ empresaId: string; almacenId: string }> =
+                await this.dataSource.query(`
+          SELECT u.empresaId AS "empresaId", u.almacenId AS "almacenId"
+          FROM ubicaciones_almacen u
+          WHERE u.activo = true
+          GROUP BY u.empresaId, u.almacenId
+          HAVING COUNT(*) FILTER (WHERE u.estado = $1) = 0
+        `, [EstadoUbicacionAlmacen.RECEPCION]);
+
+            if (!almacenes.length) return;
+
+            let repuestas = 0;
+            for (const { empresaId, almacenId } of almacenes) {
+                try {
+                    if (await asegurarUbicacionDeRecepcion(this.ubicaciones.manager, empresaId, almacenId)) {
+                        repuestas += 1;
+                    }
+                } catch (e: any) {
+                    this.logger.warn(`No se pudo reponer la posición de recepción del almacén ${almacenId}: ${e?.message ?? e}`);
+                }
+            }
+            if (repuestas) {
+                this.logger.log(`Posición de recepción repuesta en ${repuestas} almacén(es) que manejaban posiciones y no la tenían.`);
+            }
+        } catch (e: any) {
+            this.logger.warn(`No se pudo revisar las posiciones de recepción al arrancar: ${e?.message ?? e}`);
+        }
+    }
+
     @Cron('0 */15 * * * *', { name: 'wms-liberar-reservas-expiradas' })
     async liberarReservasExpiradas(empresaId?: string) {
         /*
@@ -356,17 +405,82 @@ export class WmsService {
     }
     async listarTransferencias(empresaId: string, pagina = 1, limite = 20, estado?: EstadoTransferenciaInventario) { const take = Math.min(Math.max(n(limite) || 20, 1), 100), page = Math.max(n(pagina) || 1, 1); const where: any = { empresaId }; if (estado)
         where.estado = estado; const [data, total] = await this.transferencias.findAndCount({ where, relations: ['almacenOrigen', 'almacenDestino', 'detalles', 'detalles.producto', 'detalles.ubicacionOrigen', 'detalles.ubicacionDestino'], order: { fechaCreacion: 'DESC' }, skip: (page - 1) * take, take }); return { data, total, pagina: page, limite: take, paginas: Math.ceil(total / take) }; }
-    async crearUbicacion(empresaId: string, dto: any) { const almacen = await this.dataSource.getRepository(Almacen).findOne({ where: { id: dto.almacenId, empresaId } }); if (!almacen)
-        throw new NotFoundException('Almacén no encontrado'); const codigo = String(dto.codigo || '').trim().toUpperCase(); if (!codigo)
-        throw new BadRequestException('El código es obligatorio'); return this.ubicaciones.save(this.ubicaciones.create({ ...dto, empresaId, codigo, estado: dto.estado || EstadoUbicacionAlmacen.DISPONIBLE, activo: true })); }
+    /**
+     * Alta de una posicion.
+     *
+     * ── Y la de recepcion nace con la primera ───────────────────────────
+     * En este modelo no hay un interruptor de «este almacen maneja
+     * posiciones»: las maneja cuando tiene alguna. Asi que crear la PRIMERA es
+     * el momento en que el almacen estrena WMS, y es ahi donde los ERP que
+     * manejan posiciones crean la de entrada —Odoo crea el `WH/Input` solo al
+     * activar la recepcion en dos pasos—.
+     *
+     * Se hace en la misma transaccion: un almacen que estrena posiciones y se
+     * queda sin la de recepcion por un fallo a medias es exactamente el estado
+     * que esto existe para que no exista.
+     */
+    async crearUbicacion(empresaId: string, dto: any) {
+        const codigo = String(dto.codigo || '').trim().toUpperCase();
+        if (!codigo)
+            throw new BadRequestException('El código es obligatorio');
+        return this.dataSource.transaction(async (em) => {
+            const almacen = await em.findOne(Almacen, { where: { id: dto.almacenId, empresaId } });
+            if (!almacen)
+                throw new NotFoundException('Almacén no encontrado');
+            const creada = await em.save(em.create(UbicacionAlmacen, { ...dto, empresaId, codigo, estado: dto.estado || EstadoUbicacionAlmacen.DISPONIBLE, activo: true }));
+            await asegurarUbicacionDeRecepcion(em, empresaId, dto.almacenId);
+            return creada;
+        });
+    }
     async listarUbicaciones(empresaId: string, almacenId?: string) { const where: any = { empresaId }; if (almacenId)
         where.almacenId = almacenId; return this.ubicaciones.find({ where, relations: ['almacen'], order: { almacenId: 'ASC', codigo: 'ASC' } }); }
-    async actualizarUbicacion(empresaId: string, id: string, dto: any) { const u = await this.ubicaciones.findOne({ where: { id, empresaId } }); if (!u)
-        throw new NotFoundException('Ubicación no encontrada'); for (const campo of ['zona', 'pasillo', 'rack', 'nivel', 'posicion', 'estado', 'capacidadMaxima', 'descripcion', 'activo'] as const) {
-        if (dto[campo] !== undefined)
-            (u as any)[campo] = dto[campo];
-    } if (dto.codigo !== undefined)
-        u.codigo = String(dto.codigo).trim().toUpperCase(); return this.ubicaciones.save(u); }
+    /**
+     * Edicion de una posicion.
+     *
+     * ── La de recepcion no se puede dejar sin sustituta ─────────────────
+     * Es la validacion que Dynamics pone en la pantalla de almacenes: no deja
+     * guardar un almacen cuya ubicacion de recepcion quede invalida. Aqui es
+     * lo mismo —apagarla o cambiarle el estado deja al almacen manejando
+     * posiciones sin sitio donde caiga lo que entra sin indicar—, y se dice
+     * en la pantalla, no tres dias despues en un descuadre.
+     *
+     * No se prohibe del todo: si el almacen tiene OTRA en recepcion, esta se
+     * puede liberar. Lo que no se permite es quedarse sin ninguna.
+     */
+    async actualizarUbicacion(empresaId: string, id: string, dto: any) {
+        const u = await this.ubicaciones.findOne({ where: { id, empresaId } });
+        if (!u)
+            throw new NotFoundException('Ubicación no encontrada');
+
+        const dejaDeRecibir =
+            u.estado === EstadoUbicacionAlmacen.RECEPCION &&
+            ((dto.estado !== undefined && dto.estado !== EstadoUbicacionAlmacen.RECEPCION) ||
+                dto.activo === false);
+        if (dejaDeRecibir) {
+            const otra = await this.ubicaciones.findOne({
+                where: {
+                    empresaId,
+                    almacenId: u.almacenId,
+                    estado: EstadoUbicacionAlmacen.RECEPCION,
+                    activo: true,
+                    id: Not(id),
+                },
+            });
+            if (!otra && (await cuantasPosicionesTiene(this.ubicaciones.manager, empresaId, u.almacenId)) > 1) {
+                throw new BadRequestException(
+                    `${u.codigo} es la única posición de recepción de este almacén: ahí cae la mercancía que entra sin posición indicada —importaciones, alta de producto, devoluciones de receta—. Marca otra posición como de recepción antes de liberar ésta.`,
+                );
+            }
+        }
+
+        for (const campo of ['zona', 'pasillo', 'rack', 'nivel', 'posicion', 'estado', 'capacidadMaxima', 'descripcion', 'activo'] as const) {
+            if (dto[campo] !== undefined)
+                (u as any)[campo] = dto[campo];
+        }
+        if (dto.codigo !== undefined)
+            u.codigo = String(dto.codigo).trim().toUpperCase();
+        return this.ubicaciones.save(u);
+    }
     async listarUbicacionesProducto(empresaId: string, productoId: string) {
         const producto = await this.dataSource.getRepository(Producto).findOne({ where: { id: productoId, empresaId } });
         if (!producto)
@@ -639,7 +753,47 @@ export class WmsService {
       GROUP BY s.productoId,p.sku,p.nombre,s.almacenId,a.nombre,s.cantidad
       HAVING ABS(CAST(s.cantidad AS float)-CAST(COALESCE(SUM(su.cantidad),0) AS float))>0.0001
     `, [empresaId]);
-        return { ok: resumen.length === 0, totalDiferencias: resumen.length, diferencias: resumen };
+
+        /*
+         * ── UN NUMERO SIN NOMBRE NO SE PUEDE ARREGLAR ───────────────────
+         * Hasta el 7-oct esto devolvia la diferencia y nada mas: «124 en el
+         * almacen, 119 localizados, 5 sin ubicar». Quien lo lee no puede hacer
+         * nada con eso, porque no dice por que.
+         *
+         * Desde que la mercancia que entra sin posicion cae en la de
+         * recepcion, una diferencia en un almacen CON posiciones solo puede
+         * venir de que a ese almacen le falte el anden. Eso si tiene arreglo, y
+         * cabe en una frase.
+         *
+         * Se consulta aparte y no en el SQL de arriba a proposito: aquella
+         * consulta responde «cuanto no cuadra», que es cierto se sepa la causa
+         * o no. Mezclarlas dejaria la cifra a merced de un JOIN de mas.
+         */
+        const almacenesSinAnden: Array<{ almacenId: string }> = resumen.length
+            ? await this.dataSource.query(`
+          SELECT u.almacenId AS "almacenId"
+          FROM ubicaciones_almacen u
+          WHERE u.empresaId = $1 AND u.activo = true
+          GROUP BY u.almacenId
+          HAVING COUNT(*) FILTER (WHERE u.estado = $2) = 0
+        `, [empresaId, EstadoUbicacionAlmacen.RECEPCION])
+            : [];
+        const sinAnden = new Set(almacenesSinAnden.map((a) => a.almacenId));
+
+        const diferencias = resumen.map((d: any) => ({
+            ...d,
+            causa: sinAnden.has(d.almacenId)
+                ? `El almacén «${d.almacen}» maneja posiciones y no tiene ninguna de recepción, así que la mercancía que entra sin posición indicada —importaciones de existencia inicial, alta de producto, devoluciones de receta— sube al almacén y no cae en ningun sitio. Crea una posición de recepción en ese almacén y vuelve a medir.`
+                : null,
+            remedio: sinAnden.has(d.almacenId) ? 'CREAR_POSICION_RECEPCION' : null,
+        }));
+
+        return {
+            ok: resumen.length === 0,
+            totalDiferencias: resumen.length,
+            almacenesSinPosicionDeRecepcion: [...sinAnden],
+            diferencias,
+        };
     }
     async crearConteo(empresaId: string, usuarioId: string | undefined, dto: any) {
         return this.dataSource.transaction(async (em) => {

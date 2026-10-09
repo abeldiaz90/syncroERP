@@ -72,7 +72,8 @@
     "cliente:duplicado": "ts-node -r tsconfig-paths/register scripts/diagnosticar-duplicado-cliente.ts",
     "clientes:auditar-nombres": "ts-node -r tsconfig-paths/register scripts/auditar-nombres-clientes.ts",
     "fineract:contabilidad": "ts-node -r tsconfig-paths/register scripts/aprovisionar-contabilidad-fineract.ts",
-    "clientes:expediente": "ts-node -r tsconfig-paths/register scripts/sincronizar-expedientes-clientes.ts"
+    "clientes:expediente": "ts-node -r tsconfig-paths/register scripts/sincronizar-expedientes-clientes.ts",
+    "inventario:recepcion": "ts-node -r tsconfig-paths/register scripts/e2e-ubicacion-recepcion.ts"
   },
   "dependencies": {
     "@nestjs-modules/mailer": "^2.3.7",

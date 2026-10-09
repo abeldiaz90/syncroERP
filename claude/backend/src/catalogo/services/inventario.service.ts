@@ -20,6 +20,7 @@ import { TransferenciaInventario, EstadoTransferenciaInventario } from '../entit
 import { TransferenciaInventarioDetalle } from '../entities/transferencia-inventario-detalle.entity';
 import { UbicacionAlmacen, EstadoUbicacionAlmacen } from '../entities/ubicacion-almacen.entity';
 import { ProductoUbicacion } from '../entities/producto-ubicacion.entity';
+import { buscarUbicacionDeRecepcion } from '../utils/ubicacion-de-recepcion';
 import { StockUbicacion, EstadoStockUbicacion } from '../entities/stock-ubicacion.entity';
 import { ReservaInventario, EstadoReservaInventario } from '../entities/reserva-inventario.entity';
 import { StockService } from './stock.service';
@@ -225,9 +226,36 @@ export class InventarioService {
         fechaCaducidad ? new Date(fechaCaducidad) : undefined,
       );
 
+      /*
+       * ── LA ENTRADA QUE NO DICE DONDE VA ───────────────────────────────
+       * De los ocho sitios que llaman aqui, cuatro no pasan ubicacion porque
+       * no tienen de donde sacarla: la importacion de stock inicial lee un
+       * Excel, el alta de producto captura una cantidad, la transferencia por
+       * la via vieja no conoce el WMS, y la reversion de consumo de receta
+       * devuelve lo que se consumio.
+       *
+       * Hasta el 7-oct-2026 esa mercancia subia al almacen y no entraba en
+       * ninguna posicion: medido, ABA-CAF-1KG con 124 en el almacen y 119
+       * localizados. Cinco kilos que existen y no estan en ningun sitio.
+       *
+       * Ahora cae en la posicion de recepcion, que es lo que hacen los ERP que
+       * manejan posiciones. Queda localizada desde el primer segundo y el
+       * almacenista la reubica despues, que es justo para lo que existe esa
+       * pantalla. Y desde ahi sigue el MISMO camino que una posicion elegida a
+       * mano —slotting, capacidad, estado—: no se abre una via de excepcion.
+       *
+       * Si el almacen no tiene posicion de recepcion, la entrada NO se
+       * rechaza: entra sin ubicar, como hasta hoy, y el diagnostico de
+       * integridad lo nombra. Un control que impide trabajar el primer dia se
+       * acaba desactivando, y entonces no protege de nada.
+       */
+      const ubicacionElegida =
+        ubicacionId ??
+        (await buscarUbicacionDeRecepcion(em, empresaId, almacenId))?.id;
+
       let ubicacion: UbicacionAlmacen | null = null;
-      if (ubicacionId) {
-        ubicacion = await em.findOne(UbicacionAlmacen, { where: { id: ubicacionId, almacenId, empresaId, activo: true } });
+      if (ubicacionElegida) {
+        ubicacion = await em.findOne(UbicacionAlmacen, { where: { id: ubicacionElegida, almacenId, empresaId, activo: true } });
         if (!ubicacion) throw new BadRequestException('La ubicación no existe, está inactiva o no pertenece al almacén seleccionado.');
         if ([EstadoUbicacionAlmacen.BLOQUEADA, EstadoUbicacionAlmacen.EMBARQUE].includes(ubicacion.estado)) {
           throw new BadRequestException(`La ubicación ${ubicacion.codigo} no admite recepciones en estado ${ubicacion.estado}.`);
@@ -264,9 +292,9 @@ export class InventarioService {
          * de estas líneas. Así que se crea, no principal, y se sigue.
          * ──────────────────────────────────────────────────────────────────
          */
-        let asignacion = await em.findOne(ProductoUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId, activo: true } });
+        let asignacion = await em.findOne(ProductoUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId: ubicacionElegida, activo: true } });
         if (!asignacion) {
-          const previa = await em.findOne(ProductoUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId } });
+          const previa = await em.findOne(ProductoUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId: ubicacionElegida } });
           if (previa) {
             // Existía desactivada: se reactiva, conservando su slotting.
             previa.activo = true;
@@ -277,7 +305,7 @@ export class InventarioService {
                 empresaId,
                 productoId,
                 almacenId,
-                ubicacionId,
+                ubicacionId: ubicacionElegida,
                 esPrincipal: false,
                 activo: true,
                 observaciones: 'Creada automáticamente al recibir mercancía en esta posición.',
@@ -287,7 +315,7 @@ export class InventarioService {
         }
         const actualUb = await em.createQueryBuilder(StockUbicacion, 'su')
           .select('COALESCE(SUM(su.cantidad),0)', 'total')
-          .where('su.empresaId=:empresaId AND su.ubicacionId=:ubicacionId', { empresaId, ubicacionId })
+          .where('su.empresaId=:empresaId AND su.ubicacionId=:ubicacionId', { empresaId, ubicacionId: ubicacionElegida })
           .getRawOne();
         const capacidad = Number(ubicacion.capacidadMaxima ?? asignacion.capacidadAsignada ?? 0);
         if (capacidad > 0 && Number(actualUb?.total ?? 0) + cantidadBase > capacidad) {
