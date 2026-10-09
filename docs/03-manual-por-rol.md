@@ -1,6 +1,6 @@
 # 03 · Manual por rol
 
-**Revisión:** 28 de septiembre de 2026
+**Revisión:** 8 de octubre de 2026
 **Para:** usuarios finales y quien los capacite.
 
 > El alcance de cada rol está **medido contra el sistema corriendo**, no copiado
@@ -51,24 +51,70 @@ mundos.
 
 ## Lo que cada rol alcanza, medido
 
-| rol | pantallas | dónde se concentra |
-|---|---|---|
-| gerencia | 80 | rrhh (12), finanzas (12), hotelería (8), reportes (6) |
-| finanzas | 56 | finanzas (15), rrhh (8), compras (5), créditos (5) |
-| contador | 44 | finanzas (15), rrhh (5), compras (4), tesorería (4) |
-| tesoreria | 37 | finanzas (12), compras (5), créditos (5), tesorería (4) |
-| almacenista | 21 | inventario (8), almacenes (3), compras (3) |
-| rrhh | 20 | rrhh (16) |
-| credito | 16 | créditos (6), reportes (3) |
-| comprador | 16 | compras (3), inventario (3), productos (2) |
-| gobierno | 5 | aprobaciones y su configuración |
+Esto se lee en la pantalla de cada quien: el panel dice «**N de M disponibles
+con tu perfil**», y N es este número. Sale de la plantilla del rol, no de un
+diseño; una prueba lo compara contra ella, así que si alguien cambia un permiso
+y no toca esta tabla, el barrido se pone rojo.
 
-Dos lecturas útiles:
+**Escribe** es lo que puede capturar y modificar. **Consulta** es lo que puede
+abrir y leer, sin tocar.
 
-- **Tesorería ve 12 pantallas de finanzas, pero casi todas en consulta.** Quien
-  paga tiene que poder ver qué paga; no tiene que poder contabilizarlo.
-- **Gerencia y dirección ven casi todo y escriben casi nada.** Es la forma
-  correcta: la supervisión no necesita permisos de captura.
+| Rol | Escribe | Consulta | Total |
+|---|---:|---:|---:|
+| dirección | 2 | 21 | 23 |
+| gerencia | 2 | 18 | 20 |
+| finanzas | 7 | 7 | 14 |
+| contador | 4 | 7 | 11 |
+| tesorería | 3 | 6 | 9 |
+| empleado | 5 | 3 | 8 |
+| hotelería | 5 | 3 | 8 |
+| crédito | 3 | 4 | 7 |
+| cobranza | 3 | 3 | 6 |
+| comprador | 2 | 3 | 5 |
+| almacenista | 2 | 2 | 4 |
+| rrhh | 2 | 2 | 4 |
+| gobierno | 1 | 2 | 3 |
+
+De 24 módulos en el catálogo. El administrador los tiene todos.
+
+Tres lecturas que explican el reparto:
+
+- **Dirección y gerencia ven casi todo y escriben casi nada** —2 módulos de
+  escritura cada una—. Es la forma correcta: la supervisión no necesita
+  permisos de captura, necesita poder mirar.
+- **El mostrador escribe más que el comprador** (5 contra 2). No es un error:
+  vender, cobrar, facturar, dar de alta un cliente y llevar el embudo son cinco
+  trabajos distintos que hace la misma persona. El comprador pide y cotiza; la
+  firma que autoriza es de otro.
+- **Gobierno tiene tres módulos y ninguna firma.** Quien escribe las reglas de
+  aprobación no puede además aprobar: `PATCH /aprobaciones/:id/resolver` le está
+  vedado por contrato.
+
+---
+
+## Probar el sistema con el rol de otro
+
+**Administración → Ver el ERP como otra persona.** Es la herramienta de quien
+capacita y de quien configura permisos: enseña el ERP exactamente como lo ve el
+puesto elegido —el menú, el panel, los botones y las negativas del servidor—
+sin pedir su contraseña ni entrar con su cuenta.
+
+Tres cosas que conviene saber antes de usarlo:
+
+1. **Lo que guardes queda registrado a nombre de esa persona.** Si cobras una
+   venta viendo el ERP como el mostrador, la venta sale a nombre del mostrador.
+   La banda ámbar de arriba lo dice todo el rato, y el punto de venta lo repite
+   junto al nombre de quien atiende.
+2. **Cerrar la pestaña termina la suplantación.** Vive en la pestaña y no en la
+   cuenta, a propósito: dejarla puesta de un día para otro es la receta para
+   creer que «el ERP no te deja hacer nada» sin acordarte de que te quedaste
+   como almacenista.
+3. **Se sale con «Volver a ser yo»**, en esa misma banda. Si la pantalla donde
+   estás no es del perfil que estás viendo, el ERP lo dice —y la salida está
+   arriba, no en el mensaje.
+
+En producción esto se apaga con `SUPLANTACION_HABILITADA`. Déjalo apagado salvo
+mientras capacitas.
 
 ---
 

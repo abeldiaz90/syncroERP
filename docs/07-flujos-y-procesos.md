@@ -1,6 +1,6 @@
 # 07 · Flujos y procesos, paso a paso
 
-**Revisión:** 5 de octubre de 2026
+**Revisión:** 8 de octubre de 2026
 **Para:** usuarios finales, quien los capacita y quien recibe el sistema.
 
 > Cada flujo de este documento está **ejercido contra el sistema corriendo o
@@ -322,7 +322,99 @@ en el almacén.
 
 ---
 
-# 6 · Vacaciones
+# 6 · Abrir, cobrar y arquear la caja
+
+**Quién:** `tesoreria` abre y cierra; `empleado` cobra. **Dónde:** Tesorería →
+Caja, corte y arqueo, y el Punto de venta.
+
+Este flujo está probado con **dos cajas abiertas a la vez** y una ráfaga de seis
+cobros simultáneos, tres por caja: folios 4 a 9, sin repetidos y sin huecos.
+
+## Cómo está armado
+
+Una **caja** es una cuenta bancaria de tipo CAJA, con su cuenta contable y, si
+se quiere, su almacén y su lista de precios: el punto de venta las obedece.
+
+Un **turno** se abre por caja, con su fondo inicial. La apertura corre con un
+candado por caja, así que **dos personas no pueden abrir dos turnos sobre el
+mismo cajón**, ni aunque pulsen al mismo instante.
+
+## Los pasos
+
+| # | Quién | Qué pasa |
+|---|---|---|
+| 1 | tesorería | Abre el turno de cada caja y declara su fondo inicial |
+| 2 | empleado | Elige su caja en el punto de venta y cobra |
+| 3 | tesorería | Registra entradas y retiros manuales, si los hay |
+| 4 | tesorería | Cuenta el cajón y cierra |
+
+## Varias cajas a la vez
+
+El punto de venta propone la caja marcada «por omisión» de la empresa, que es
+**la misma en todas las terminales**. Con tres mostradores, eso significa que
+los tres cobrarían contra el mismo turno si nadie mira.
+
+Dos cosas lo evitan, y conviene conocerlas:
+
+- **La terminal recuerda su caja.** El cajón es del mostrador físico, no de la
+  empresa. La de omisión sólo se propone en una terminal que no ha elegido
+  nunca. Si una terminal se reinstala, vuelve a proponer la de la empresa.
+- **El turno dice de quién es.** Bajo el desplegable sale «Turno abierto por
+  Fulano · desde las 11:58», y **en ámbar cuando no eres tú**, con el remedio:
+  «Si tu efectivo va a otro cajón, elige tu caja antes de cobrar».
+
+**No se bloquea.** Hay mostradores donde se relevan en el mismo cajón y eso es
+legítimo. Se dice, que es lo que permite darse cuenta antes de cobrar.
+
+## Contar el cajón
+
+El arqueo no pide un número: pide **el conteo por montones**, con las
+denominaciones de México —billetes de $1,000 a $20, monedas de $20 a 50¢—, el
+parcial de cada montón al lado y el total abajo.
+
+Se hace así porque quien cuenta hacía la suma de cabeza o en el teléfono, y
+cualquier error de esa suma se convierte en un faltante contabilizado a su
+nombre; después nadie puede reconstruir si faltaba dinero o faltaba un cero.
+
+Mientras el conteo por montones está abierto, **el total no se teclea: es el
+resultado**. Dos cifras que pueden decir cosas distintas en la misma pantalla
+son peor que una mal tecleada: la segunda se descubre, la primera se discute.
+
+> El billete y la moneda de $20 se cuentan por separado. Valen lo mismo y
+> conviven en el cajón; con una sola casilla, teclear unos borraría los otros.
+
+## La diferencia se dice antes de cerrar
+
+En cuanto hay una cifra contada, la pantalla resta: «**FALTAN $20.00**: cuentas
+$130.00 y se esperaban $150.00», y dice qué va a pasar con la diferencia.
+
+Esto importa porque **cerrar un turno no se deshace**, y si el conteo no cuadra
+el sistema levanta una póliza de faltante o sobrante **a nombre de quien
+cerró**. Enterarse después no sirve de nada.
+
+Si hay diferencia, las observaciones son obligatorias. No es burocracia: es el
+único sitio donde queda escrito por qué.
+
+## Qué te va a negar el sistema
+
+| Mensaje | Qué significa | Qué hacer |
+|---|---|---|
+| «Esta caja no tiene turno abierto: ábrelo en Tesorería → Caja, corte y arqueo antes de cobrar en efectivo.» | Correcto. Sin turno no hay dónde registrar el efectivo | Que tesorería abra el turno |
+| Cerrar con el conteo por montones abierto y sin teclear una sola pieza | Se rechaza. Cerrar con cero contabilizaría **todo** el efectivo esperado como faltante | Si el cajón está vacío de verdad, se declara escribiendo un 0 |
+| «Ya existe un turno abierto para esta caja» | Correcto, y es el candado | Usar el turno abierto, o cerrarlo antes |
+| El desplegable de contrapartida sin cuentas de mayor | Correcto. «100 · Activo» no recibe pólizas | Elegir una cuenta de detalle |
+
+## Lo que queda anotado
+
+- **El cajero no puede abrir su propio turno** desde el punto de venta: el fondo
+  inicial y el cierre son de tesorería. Es una decisión —abrir un turno es
+  declarar un fondo—, pero con tres mostradores alguien tiene que abrir tres
+  turnos cada mañana.
+- El reparto de caja por terminal se guarda en el navegador de esa terminal.
+
+---
+
+# 7 · Vacaciones
 
 **Quién la captura:** `rrhh`. **Quién la autoriza:** `gerencia`.
 
@@ -355,7 +447,7 @@ de Recursos humanos.
 
 ---
 
-# 7 · Incidencias de nómina
+# 8 · Incidencias de nómina
 
 **Quién las captura:** `rrhh`. **Quién las autoriza:** `gerencia` o `direccion`.
 
@@ -392,7 +484,7 @@ que se trabajaron menos días de los que se trabajaron.
 
 ---
 
-# 8 · Correr la nómina
+# 9 · Correr la nómina
 
 **Quién:** `rrhh`. **Quién firma el periodo:** `gerencia` y `direccion`.
 
@@ -421,7 +513,7 @@ No se limitan a avisar que algo no cuadra; dicen hacia dónde y qué implica:
 
 ---
 
-# 9 · Cuando el sistema te dice que no
+# 10 · Cuando el sistema te dice que no
 
 Tres respuestas distintas que conviene no confundir:
 

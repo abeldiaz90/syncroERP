@@ -1,6 +1,6 @@
 # 04 · Compras y nómina
 
-**Revisión:** 28 de septiembre de 2026
+**Revisión:** 8 de octubre de 2026
 **Para:** las personas que operan estos dos ciclos y quien las capacite.
 
 Los dos ciclos tienen algo en común y conviene decirlo antes de empezar: **los
@@ -152,6 +152,60 @@ las recepciones para saber si llegó, y no puede registrarlas.
 
 **Tesorería → Pagos a proveedores.** El comprador no puede llegar aquí, y es
 deliberado: quien elige al proveedor no le firma el cheque.
+
+### El diálogo enseña el asiento antes de cometerlo
+
+Al registrar el pago, antes de pulsar nada, la pantalla muestra en qué cuentas
+va a caer:
+
+```
+Asiento contable que se generará:
+  Dr. 210-01 Proveedores   $1000
+     Cr. Caja mostrador    $1000
+```
+
+En una pantalla de dinero eso no es un adorno: quien paga ve el asiento **antes**
+de cometerlo, no después en el libro diario.
+
+### No se puede pagar con efectivo que no hay
+
+Si el importe supera lo disponible en la caja o cuenta elegida, el servidor se
+niega y **dice el número real**:
+
+> La salida excede el efectivo disponible. Disponible: 1000.00.
+
+Nada se escribe. El diálogo se queda abierto con el importe puesto, así que se
+corrige y se reintenta.
+
+> Ese aviso aparece como mensaje flotante y **se desvanece en unos tres
+> segundos**. Si pulsaste «Pagar» y la pantalla parece no haber hecho nada,
+> probablemente fue esto: vuelve a pulsar y lee enseguida.
+
+### El IVA acreditable se reclasifica solo, y en proporción
+
+Esto sorprende la primera vez y conviene entenderlo: **la póliza del pago no
+vale lo que pagaste.**
+
+Medido el 7-oct con un pago de $1,000 sobre una orden de $96,152.40: la póliza
+`EG-2026-00003` salió con **cuatro partidas** y **$1,137.93**.
+
+Los $137.93 de diferencia son **IVA acreditable que se reclasifica**, en
+proporción a lo que se pagó:
+
+```
+IVA de la orden      = 96,152.40 × 16/116 = 13,262.40
+proporción pagada    = 1,000 / 96,152.40  =  1.0400 %
+IVA a reclasificar   = 13,262.40 × 1.04 % =    137.93
+```
+
+Para qué sirve: así el IVA acreditable del mes es el del IVA **efectivamente
+pagado** y no el facturado, que es como lo pide la ley. Un pago parcial
+reclasifica su parte, ni más ni menos; el resto espera al siguiente pago.
+
+No hay que hacer nada para que ocurra. Sólo hay que no asustarse al ver que la
+póliza no cuadra con el cheque.
+
+### Lo que no se puede deshacer
 
 > **No hay reversa de pagos a proveedor.** Y cancelar su movimiento desde
 > Tesorería → Movimientos **no** deshace el pago: el sistema lo niega y lo dice.
