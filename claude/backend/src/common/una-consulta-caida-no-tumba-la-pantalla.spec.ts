@@ -170,4 +170,75 @@ describe('Pantallas · una consulta que se cae no tumba la pantalla entera', () 
 
     expect(culpables.sort()).toEqual([]);
   });
+
+  /*
+   * ════════════════════════════════════════════════════════════════════════
+   * El escalón siguiente de la misma herida
+   * ------------------------------------------------------------------------
+   * La regla de arriba acepta `.catch(…)` como defensa, y es verdad que
+   * defiende: la pantalla ya no se cae. Pero `.catch(() => [])` hace algo más
+   * que no caerse —convierte «no puedo leerlo» en «no hay»— y eso la pantalla
+   * lo cuenta como una buena noticia:
+   *
+   *   · Devoluciones a proveedor decía «No hay órdenes recibidas: sólo se
+   *     puede devolver lo que ya entró» y «Todavía no hay devoluciones» a un
+   *     rol que simplemente no podía leerlas.
+   *   · Transferencias dejaba el buscador de producto vacío, sin una palabra,
+   *     y parecía que la empresa no tiene catálogo.
+   *
+   * Un desplegable vacío sin explicación es peor que un error, porque nadie
+   * pregunta por él: se asume y se abandona la pantalla.
+   *
+   * `conPermiso` e `intentar` existen justo para esto: devuelven el dato Y si
+   * estaba vedado, que es lo que permite a la pantalla decir cuál de las dos
+   * cosas pasó. Así que en un `Promise.all` que cruza módulos, un `.catch`
+   * a secas ya no cuenta como defensa suficiente.
+   * ════════════════════════════════════════════════════════════════════════
+   */
+  it('en un Promise.all que cruza módulos, un `.catch` a secas no basta', () => {
+    const culpables: string[] = [];
+
+    for (const { ruta, texto } of archivos) {
+      let desde = 0;
+      for (;;) {
+        const i = texto.indexOf('Promise.all(', desde);
+        if (i < 0) break;
+        desde = i + 12;
+
+        const cuerpo = grupo(texto, i);
+        if (!cuerpo) continue;
+        const partes = elementos(cuerpo);
+
+        const conRuta = partes
+          .map((parte) => ({ parte, m: RUTA_API.exec(parte) }))
+          .filter((x) => x.m && !x.m[1].startsWith('/dashboard'))
+          .map((x) => ({ parte: x.parte, api: x.m![1] }));
+        if (conRuta.length < 2) continue;
+
+        const modulos = new Set(
+          conRuta.map((x) => moduloDeRuta(x.api)).filter((m) => m !== 'catalogos'),
+        );
+        if (modulos.size < 2) continue;
+
+        /*
+         * Lo que se busca: la consulta que se defiende SÓLO con un `.catch`
+         * que devuelve vacío. Un `.catch` que avisa, que marca un estado o que
+         * vuelve a lanzar no cuenta aquí: ésos sí dejan a la pantalla contar
+         * lo que pasó.
+         */
+        const mudas = conRuta.filter((x) => {
+          if (/(?:intentar|conPermiso)\s*(?:<[^>]*>)?\s*\(/.test(x.parte)) return false;
+          return /\.catch\s*\(\s*\(\s*\)\s*=>\s*(\[\s*\]|null|undefined|\{\s*\})\s*\)/.test(
+            x.parte,
+          );
+        });
+
+        if (mudas.length) {
+          culpables.push(`${ruta} → ${mudas.map((x) => x.api).join(', ')}`);
+        }
+      }
+    }
+
+    expect(culpables.sort()).toEqual([]);
+  });
 });

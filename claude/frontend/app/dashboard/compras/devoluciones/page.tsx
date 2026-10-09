@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Undo2, RefreshCw, PackageMinus } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, conPermiso } from '@/lib/api';
 import { useAvisos } from '@/components/ui';
 import { fechaNumerica, hoyISO } from '@/lib/fechas';
 import { FOLIO, folioDe } from '@/lib/folios';
@@ -74,15 +74,35 @@ export default function DevolucionesProveedorPage() {
   const [motivo, setMotivo] = useState('');
   const [nota, setNota] = useState('');
   const [devolvible, setDevolvible] = useState<Devolvible | null>(null);
+  /*
+   * Qué de lo que esta pantalla necesita no es del rol de quien mira. No es lo
+   * mismo que esté vacío a que no se pueda ver, y la pantalla tiene que poder
+   * decir cuál de las dos es.
+   */
+  const [vedado, setVedado] = useState({
+    ordenes: false,
+    almacenes: false,
+    devoluciones: false,
+  });
   const [cantidades, setCantidades] = useState<Record<string, string>>({});
 
   const cargar = async () => {
     setCargando(true);
     try {
-      /* Cada lectura con su propia red: son módulos distintos y el 403 de uno
-         no puede dejar la pantalla en blanco sobre lo que el rol sí tiene. */
+      /*
+       * Cada lectura con su propia red: son módulos distintos y el 403 de uno
+       * no puede dejar la pantalla en blanco sobre lo que el rol sí tiene.
+       *
+       * Y con `conPermiso`, no con `.catch(() => [])`. La diferencia no es de
+       * estilo: un `.catch` que devuelve lista vacía SÍ evita que la pantalla
+       * se caiga, pero convierte «no puedo leerlo» en «no hay», que es la
+       * mentira más cara de las dos. Esta pantalla decía «No hay órdenes
+       * recibidas: sólo se puede devolver lo que ya entró» y «Todavía no hay
+       * devoluciones» a un rol que simplemente no podía leerlas, y las dos
+       * frases suenan a buena noticia.
+       */
       const [oc, alm, devs] = await Promise.all([
-        api.get<any>('/compras/ordenes').catch(() => []),
+        conPermiso(api.get<any>('/compras/ordenes')),
         /*
           La lista CORTA de almacenes —id y nombre—, no el módulo entero.
           `/catalogo/almacenes` pertenece a «almacenes» —dirección,
@@ -91,13 +111,20 @@ export default function DevolucionesProveedorPage() {
           vacío, así que esta pantalla no se podía usar desde el rol que la
           necesita. Medido el 27-sep-2026 barriendo rol por rol.
         */
-        api.get<any>('/catalogo/almacenes/para-venta').catch(() => []),
-        api.get<Devolucion[]>('/compras/devoluciones').catch(() => []),
+        conPermiso(api.get<any>('/catalogo/almacenes/para-venta')),
+        conPermiso(api.get<Devolucion[]>('/compras/devoluciones')),
       ]);
-      const lista = Array.isArray(oc) ? oc : (oc?.data ?? []);
+      const lista = Array.isArray(oc.valor) ? oc.valor : (oc.valor?.data ?? []);
       setOrdenes(lista.filter((o: Orden) => o.estado === 'RECIBIDA' || o.estado === 'PAGADA'));
-      setAlmacenes(Array.isArray(alm) ? alm : (alm?.almacenes ?? []));
-      setDevoluciones(Array.isArray(devs) ? devs : []);
+      setAlmacenes(
+        Array.isArray(alm.valor) ? alm.valor : (alm.valor?.almacenes ?? []),
+      );
+      setDevoluciones(Array.isArray(devs.valor) ? devs.valor : []);
+      setVedado({
+        ordenes: oc.vedado,
+        almacenes: alm.vedado,
+        devoluciones: devs.vedado,
+      });
     } catch (e) {
       avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cargar.', 'error');
     } finally {
@@ -206,7 +233,11 @@ export default function DevolucionesProveedorPage() {
               ))}
             </select>
             {ordenes.length === 0 && !cargando && (
-              <p className="text-xs text-slate-500">No hay órdenes recibidas: sólo se puede devolver lo que ya entró.</p>
+              <p className="text-xs text-slate-500">
+                {vedado.ordenes
+                  ? 'Las órdenes de compra no están en tu perfil, así que aquí no hay de dónde elegir. No significa que no haya.'
+                  : 'No hay órdenes recibidas: sólo se puede devolver lo que ya entró.'}
+              </p>
             )}
           </label>
           <label className="space-y-1">
@@ -218,6 +249,13 @@ export default function DevolucionesProveedorPage() {
                 : almacenes
               ).map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}
             </select>
+            {vedado.almacenes && !devolvible?.almacenesRecepcion?.length && (
+              <span className="text-xs text-amber-700">
+                El catálogo de almacenes no está en tu perfil, así que el
+                desplegable sale vacío. No es que no haya almacenes: es que no
+                se pueden leer desde este rol.
+              </span>
+            )}
             {devolvible && !devolvible.almacenesRecepcion?.length && (
               <span className="text-xs text-amber-700">
                 Esta orden no tiene recepción registrada, así que no se sabe en
@@ -316,7 +354,9 @@ export default function DevolucionesProveedorPage() {
         <div className="p-5 border-b font-black">Devoluciones registradas</div>
         {devoluciones.length === 0 ? (
           <p className="p-10 text-center text-sm text-slate-500">
-            Todavía no hay devoluciones. Aquí quedará el rastro de cada mercancía que se le regresó a un proveedor.
+            {vedado.devoluciones
+              ? 'No puedes leer el registro de devoluciones con tu perfil. Esto no quiere decir que no haya ninguna.'
+              : 'Todavía no hay devoluciones. Aquí quedará el rastro de cada mercancía que se le regresó a un proveedor.'}
           </p>
         ) : (
           <div className="overflow-x-auto">

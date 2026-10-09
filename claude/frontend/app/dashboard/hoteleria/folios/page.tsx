@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BedDouble, CreditCard, Plus, RefreshCw, X } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, conPermiso } from "@/lib/api";
 import { fechaCorta } from "@/lib/fechas";
 
 type Reserva = {
@@ -89,6 +89,9 @@ export default function FoliosHotelPage() {
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
   const [convenios, setConvenios] = useState<Convenio[]>([]);
+  /* Si el City Ledger no es del perfil de quien atiende, se dice en la propia
+     casilla en vez de dejar un desplegable vacío sin explicación. */
+  const [conveniosVedados, setConveniosVedados] = useState(false);
   const [seleccion, setSeleccion] = useState<Reserva | null>(null);
   const [folio, setFolio] = useState<Folio | null>(null);
   const [pagos, setPagos] = useState<Pago[]>([
@@ -156,15 +159,25 @@ export default function FoliosHotelPage() {
       */
       const [f, conveniosHotel] = await Promise.all([
         api.get<Folio>(`/hoteleria/operacion/reservaciones/${r.id}/folio`),
-        api
-          .get<Convenio[]>(
+        /*
+         * Con `conPermiso` y no con `.catch(() => null)`. El comentario de
+         * arriba dice «y se dice», y hasta hoy no se decía: con un `.catch`
+         * mudo, el desplegable de convenios salía vacío y recepción no tenía
+         * manera de saber si este hotel no tiene convenios o si es su perfil
+         * el que no los alcanza. Son dos cosas distintas y llevan a dos
+         * acciones distintas —buscar al huésped otra forma de pago, o llamar a
+         * quien administra los accesos—.
+         */
+        conPermiso(
+          api.get<Convenio[]>(
             `/hoteleria/city-ledger/convenios?hotelId=${r.hotelId}`,
-          )
-          .catch(() => null),
+          ),
+        ),
       ]);
       setFolio(f);
+      setConveniosVedados(conveniosHotel.vedado);
       setConvenios(
-        (conveniosHotel ?? []).filter(
+        (conveniosHotel.valor ?? []).filter(
           (convenio) =>
             convenio.estado === "APROBADO" &&
             Number(convenio.creditoDisponible) > 0,
@@ -453,6 +466,7 @@ export default function FoliosHotelPage() {
                     className="rounded-lg border p-2"
                   />
                   {p.metodoPago.startsWith("CREDITO_") ? (
+                    <div className="flex flex-col gap-1">
                     <select
                       value={p.convenioId || ""}
                       onChange={(e) => cambiar(i, "convenioId", e.target.value)}
@@ -475,6 +489,19 @@ export default function FoliosHotelPage() {
                           </option>
                         ))}
                     </select>
+                    {conveniosVedados ? (
+                      <span className="text-xs text-amber-700">
+                        El City Ledger no está en tu perfil, así que aquí no
+                        hay convenios que elegir. No quiere decir que el hotel
+                        no tenga: pídelo a quien administre los accesos.
+                      </span>
+                    ) : convenios.length === 0 ? (
+                      <span className="text-xs text-slate-500">
+                        Este hotel no tiene convenios aprobados con crédito
+                        disponible.
+                      </span>
+                    ) : null}
+                    </div>
                   ) : (
                     <select
                       value={p.cuentaBancariaId || ""}

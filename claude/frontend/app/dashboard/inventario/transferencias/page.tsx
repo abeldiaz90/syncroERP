@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRightLeft, Check, PackageCheck, Truck, X, MapPin, ClipboardCheck, RefreshCw } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, conPermiso } from '@/lib/api';
 import { useAcciones } from '@/hooks/use-acciones';
 import { Boton, Modal, SinDatos, useAvisos } from '@/components/ui';
 import { confirmarElegante } from '@/components/ui/dialogos';
@@ -16,13 +16,21 @@ export default function TransferenciasPage(){
  const [form,setForm]=useState({productoId:'',almacenOrigenId:'',almacenDestinoId:'',ubicacionOrigenId:'',cantidad:'',motivo:''});
  const [stockFisico,setStockFisico]=useState<any[]>([]),[ubicacionesDestino,setUbicacionesDestino]=useState<any[]>([]);
  const [intento,setIntento]=useState(false),[guardando,setGuardando]=useState(false);
+ /*
+  * El catálogo de productos es de Inventario y esta pantalla es de Almacén.
+  * Antes su 403 se tragaba con `.catch(()=>[])`: la pantalla no se caía, pero
+  * el buscador de producto salía vacío y parecía que la empresa no tiene
+  * catálogo. Un desplegable vacío sin explicación es peor que un error, porque
+  * nadie pregunta por él: se asume y se abandona la pantalla.
+  */
+ const [catalogoVedado,setCatalogoVedado]=useState(false);
  const [recepcion,setRecepcion]=useState<{transferencia:Transferencia;ubicaciones:any[];observaciones:string;destinos:Record<string,string>}|null>(null);
  /* Quién soy, para no ofrecerme una firma que el servidor me va a negar. */
  const [usuarioId,setUsuarioId]=useState<string>('');
  useEffect(()=>{try{setUsuarioId(JSON.parse(localStorage.getItem('syncro_user')||'{}')?.id??'');}catch{setUsuarioId('');}},[]);
  const errores={productoId:!form.productoId?'Selecciona un producto':'',almacenOrigenId:!form.almacenOrigenId?'Selecciona el almacén origen':'',almacenDestinoId:!form.almacenDestinoId?'Selecciona el almacén destino':form.almacenDestinoId===form.almacenOrigenId?'Origen y destino deben ser distintos':'',ubicacionOrigenId:!form.ubicacionOrigenId?'Selecciona la posición física de origen':'',cantidad:!form.cantidad||Number(form.cantidad)<=0?'La cantidad debe ser mayor a cero':'',motivo:!form.motivo.trim()?'El motivo es obligatorio':form.motivo.trim().length<5?'Captura al menos 5 caracteres':''};
  const cargar=async()=>{setCargando(true);try{/* El catalogo de productos es de Inventario y esta pantalla es de Almacen: su 403 no puede dejar sin transferencias a quien si las tiene. */
-const [p,a,t]=await Promise.all([api.get<any>('/catalogo/productos',{query:{limite:2000}}).catch(()=>[]),api.get<any[]>('/catalogo/almacenes'),api.get<any>('/catalogo/wms/transferencias',{query:{limite:100}})]);setProductos(Array.isArray(p)?p:(p as any).productos||(p as any).data||[]);setAlmacenes(Array.isArray(a)?a:(a as any).almacenes||[]);setTransferencias(Array.isArray(t)?t:t.data||[]);}catch(e){avisar(e instanceof ApiError?e.mensajeParaPantalla():'No se pudo cargar transferencias.','error');}finally{setCargando(false)}};
+const [p,a,t]=await Promise.all([conPermiso(api.get<any>('/catalogo/productos',{query:{limite:2000}})),api.get<any[]>('/catalogo/almacenes'),api.get<any>('/catalogo/wms/transferencias',{query:{limite:100}})]);setProductos(Array.isArray(p.valor)?p.valor:(p.valor as any)?.productos||(p.valor as any)?.data||[]);setCatalogoVedado(p.vedado);setAlmacenes(Array.isArray(a)?a:(a as any).almacenes||[]);setTransferencias(Array.isArray(t)?t:t.data||[]);}catch(e){avisar(e instanceof ApiError?e.mensajeParaPantalla():'No se pudo cargar transferencias.','error');}finally{setCargando(false)}};
  useEffect(()=>{cargar()},[]);
  useEffect(()=>{if(!form.productoId||!form.almacenOrigenId){setStockFisico([]);return;}api.get<any[]>('/catalogo/wms/stock-ubicaciones',{query:{productoId:form.productoId,almacenId:form.almacenOrigenId,estado:'DISPONIBLE'}}).then(x=>setStockFisico(Array.isArray(x)?x:[])).catch(()=>setStockFisico([]));},[form.productoId,form.almacenOrigenId]);
  useEffect(()=>{if(!form.almacenDestinoId){setUbicacionesDestino([]);return;}api.get<any[]>('/catalogo/wms/ubicaciones',{query:{almacenId:form.almacenDestinoId}}).then(x=>setUbicacionesDestino(Array.isArray(x)?x:[])).catch(()=>setUbicacionesDestino([]));},[form.almacenDestinoId]);
@@ -44,7 +52,7 @@ const [p,a,t]=await Promise.all([api.get<any>('/catalogo/productos',{query:{limi
      * aviso que obliga a adivinar entre seis.
      */}
    {intento&&Object.values(errores).some(Boolean)&&<div className="md:col-span-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"><b className="font-semibold">Falta esto para crear la transferencia:</b><ul className="mt-1 list-disc pl-5 font-medium">{Object.values(errores).filter(Boolean).map((m)=><li key={m}>{m}</li>)}</ul></div>}
-   <BuscadorSeleccion valor={form.productoId} onChange={(productoId)=>setForm({...form,productoId,ubicacionOrigenId:''})} opciones={productos.map(p=>({valor:p.id,etiqueta:`${p.sku} · ${p.nombre}`,busqueda:p.sku}))} placeholder="Buscar producto…"/>
+   <div><BuscadorSeleccion valor={form.productoId} onChange={(productoId)=>setForm({...form,productoId,ubicacionOrigenId:''})} opciones={productos.map(p=>({valor:p.id,etiqueta:`${p.sku} · ${p.nombre}`,busqueda:p.sku}))} placeholder="Buscar producto…"/>{catalogoVedado&&<p className="mt-1 text-xs text-amber-700">El catálogo de productos no está en tu perfil, así que aquí no hay de dónde elegir. No es que no haya productos.</p>}</div>
    <BuscadorSeleccion valor={form.almacenOrigenId} onChange={(almacenOrigenId)=>setForm({...form,almacenOrigenId,ubicacionOrigenId:'',almacenDestinoId:form.almacenDestinoId===almacenOrigenId?'':form.almacenDestinoId})} opciones={almacenes.map(a=>({valor:a.id,etiqueta:a.nombre}))} placeholder="Almacén origen…"/>
    <BuscadorSeleccion valor={form.almacenDestinoId} onChange={(almacenDestinoId)=>setForm({...form,almacenDestinoId})} opciones={almacenes.filter(a=>a.id!==form.almacenOrigenId).map(a=>({valor:a.id,etiqueta:a.nombre}))} placeholder="Almacén destino…"/>
    <div><select className={`w-full p-3 border rounded-xl ${intento&&errores.ubicacionOrigenId?'border-rose-400':'border-slate-300'}`} value={form.ubicacionOrigenId} onChange={e=>setForm({...form,ubicacionOrigenId:e.target.value})}><option value="">Posición origen</option>{stockFisico.map(x=><option key={x.id} value={x.ubicacionId}>{x.ubicacion?.codigo} · disp. {Number(x.cantidad||0)-Number(x.reservado||0)}</option>)}</select>{/*
