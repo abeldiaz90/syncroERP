@@ -40,7 +40,24 @@
  * los roles creados.
  * ============================================================================
  */
+import { config as cargarEnv } from 'dotenv';
 import axios from 'axios';
+
+/*
+ * El entorno no se carga solo. Lo carga el ConfigModule de Nest cuando arranca
+ * el servidor; un guion suelto lee `process.env` a secas y lo encuentra vacío.
+ * La primera corrida en la máquina de SUMA dijo «falta configuración» teniendo
+ * las tres variables puestas a un palmo: la pieza buena existía y el camino
+ * real no la usaba.
+ *
+ * Y se leen los DOS archivos, en este orden. La instalación de SUMA tiene
+ * `.env.local` y no `.env`, así que un `cargarEnv()` a secas —que busca `.env`
+ * y nada más— habría seguido sin encontrar nada y habría dado el mismo mensaje
+ * equivocado. `dotenv` no pisa lo que ya está puesto, así que el primero manda
+ * y el segundo rellena lo que falte.
+ */
+cargarEnv({ path: '.env.local' });
+cargarEnv();
 import { PLANTILLAS_PERMISOS } from '../src/iam/data/plantillas-permisos';
 
 /**

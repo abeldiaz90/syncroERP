@@ -119,6 +119,17 @@ describe('los roles del ERP en el realm', () => {
     expect(informe).not.toMatch(/axios\.(put|post|delete)/);
   });
 
+  it('carga el entorno, y los dos archivos que esta instalación usa', () => {
+    /*
+     * La primera corrida en la máquina de SUMA dijo «falta configuración»
+     * teniendo las tres variables puestas: un guion suelto lee `process.env` y
+     * nadie se lo había llenado. Y un `cargarEnv()` a secas tampoco bastaba,
+     * porque esta instalación tiene `.env.local` y no `.env`.
+     */
+    expect(GUION).toMatch(/cargarEnv\(\{ path: '\.env\.local' \}\)/);
+    expect(GUION).toMatch(/^cargarEnv\(\);$/m);
+  });
+
   it('el prefijo separa los dos sistemas que comparten realm', () => {
     expect(GUION).toMatch(/export const PREFIJO_ROL_ERP = 'erp:'/);
   });
