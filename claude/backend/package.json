@@ -74,7 +74,8 @@
     "fineract:contabilidad": "ts-node -r tsconfig-paths/register scripts/aprovisionar-contabilidad-fineract.ts",
     "clientes:expediente": "ts-node -r tsconfig-paths/register scripts/sincronizar-expedientes-clientes.ts",
     "inventario:recepcion": "ts-node -r tsconfig-paths/register scripts/e2e-ubicacion-recepcion.ts",
-    "documentacion:pdf": "ts-node -r tsconfig-paths/register scripts/e2e-documentacion-pdf.ts"
+    "documentacion:pdf": "ts-node -r tsconfig-paths/register scripts/e2e-documentacion-pdf.ts",
+    "keycloak:roles": "ts-node -r tsconfig-paths/register scripts/keycloak-roles.ts"
   },
   "dependencies": {
     "@nestjs-modules/mailer": "^2.3.7",
