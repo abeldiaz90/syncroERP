@@ -24,12 +24,19 @@ export class ProveedoresService {
     @InjectRepository(Estado) private readonly estadoRepo: Repository<Estado>,
   ) {}
 
-  async crear(dto: CrearProveedorDto, empresaId: string) {
+  async crear(dto: CrearProveedorDto, empresaId: string, usuarioId?: string) {
     await this.validar(dto, empresaId);
     const proveedor = this.proveedorRepo.create({
       ...dto,
       empresaId,
       estadoHomologacion: 'EN_EVALUACION',
+      /*
+       * Quién lo creó se guarda aquí y no se puede mandar desde el cuerpo: es
+       * la mitad de la separación de funciones que comprueba
+       * `resolverHomologacion`, y un dato que el cliente pudiera elegir no
+       * controla nada.
+       */
+      creadoPorId: usuarioId ?? null,
     } as Partial<Proveedor>);
     return this.proveedorRepo.save(proveedor);
   }
@@ -115,6 +122,37 @@ export class ProveedoresService {
       );
     }
     const proveedor = await this.obtenerPorId(id, empresaId);
+
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * Nadie homologa al proveedor que él mismo dio de alta
+     * ------------------------------------------------------------------------
+     * Hallazgo #11 del barrido, abierto desde el 5-oct porque faltaba el dato.
+     *
+     * Sin esto, el control de homologación no controla nada: quien quiera
+     * meter un proveedor se lo da de alta y se lo aprueba en dos clics, y el
+     * expediente queda con dos firmas que son la misma persona. Es el mismo
+     * razonamiento que la doble firma del core, a menor escala.
+     *
+     * **Ni siquiera el administrador.** La excepción de rol de arriba dice
+     * quién PUEDE homologar; ésta dice sobre QUÉ no puede, y son cosas
+     * distintas. Un administrador que se salta su propia separación de
+     * funciones la convierte en una sugerencia.
+     *
+     * Y `creadoPorId` en nulo —las filas anteriores a la columna— NO se lee
+     * como «no fue el mismo»: no se sabe. Se deja pasar, porque bloquear
+     * retroactivamente a todos los proveedores existentes sería peor, pero se
+     * deja dicho en el comentario de la resolución para que el expediente no
+     * afirme un control que no se pudo comprobar.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    if (proveedor.creadoPorId && proveedor.creadoPorId === usuarioId) {
+      throw new ForbiddenException(
+        'No puedes homologar un proveedor que diste de alta tú mismo. ' +
+          'La homologación es un segundo par de ojos: tiene que resolverla otra persona.',
+      );
+    }
+
     const comentario = dto.comentario?.trim() || null;
     if (dto.estado !== 'APROBADO' && !comentario) {
       throw new BadRequestException(
@@ -125,7 +163,11 @@ export class ProveedoresService {
     proveedor.nivelRiesgo = dto.nivelRiesgo;
     proveedor.homologacionResueltaPorId = usuarioId;
     proveedor.fechaResolucionHomologacion = new Date();
-    proveedor.comentarioHomologacion = comentario;
+    proveedor.comentarioHomologacion = proveedor.creadoPorId
+      ? comentario
+      : [comentario, 'No se pudo comprobar quién dio de alta a este proveedor.']
+          .filter(Boolean)
+          .join(' · ');
     return this.proveedorRepo.save(proveedor);
   }
 

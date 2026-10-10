@@ -90,6 +90,22 @@ export class Proveedor {
   @Column({ type: 'uuid', nullable: true })
   paisId: string;
 
+  /**
+   * Quién dio de alta al proveedor.
+   *
+   * No es trazabilidad decorativa: es la mitad de una separación de funciones.
+   * Quien da de alta a un proveedor no puede ser quien lo homologa — si lo
+   * fuera, el control no existe: basta con darse de alta a sí mismo un
+   * proveedor y aprobarlo. Hasta el 11-oct-2026 esa comprobación no se podía
+   * hacer porque este dato no se guardaba, y el hallazgo #11 del barrido quedó
+   * abierto por eso.
+   *
+   * `null` en las filas anteriores a la columna: no se sabe quién las creó, y
+   * eso NO se lee como «no fue el mismo». Ver `resolverHomologacion`.
+   */
+  @Column({ type: 'uuid', nullable: true })
+  creadoPorId?: string | null;
+
   @ManyToOne(() => Estado, { nullable: true })
   @JoinColumn({ name: 'estadoid' })
   estado: Estado;

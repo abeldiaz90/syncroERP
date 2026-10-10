@@ -21,8 +21,9 @@ export class ProveedoresController {
   crear(
     @Body() dto: CrearProveedorDto,
     @ActiveUser('empresaId') empresaId: string,
+    @ActiveUser('id') usuarioId: string,
   ) {
-    return this.proveedoresService.crear(dto, empresaId);
+    return this.proveedoresService.crear(dto, empresaId, usuarioId);
   }
 
   @Get()
