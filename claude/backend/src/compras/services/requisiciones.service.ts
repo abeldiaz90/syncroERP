@@ -255,13 +255,64 @@ export class RequisicionesService {
      */
     const costos = await this.productoRepo
       .createQueryBuilder('p')
-      .select(['p.id AS id', 'p.precioCompra AS costo'])
+      .select([
+        'p.id AS id',
+        'p.precioCompra AS costo',
+        'p.nombre AS nombre',
+        'p.monedaCosto AS moneda',
+      ])
       .where('p.empresaId = :empresaId', { empresaId })
       .andWhere('p.id IN (:...ids)', { ids })
-      .getRawMany<{ id: string; costo: string | number }>();
+      .getRawMany<{ id: string; costo: string | number; nombre: string; moneda: string }>();
     const costoPorProducto = new Map(
       costos.map((c) => [c.id, Number(c.costo ?? 0)]),
     );
+
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * EL UMBRAL SUMABA DOLARES Y PESOS COMO SI TODO FUERA MXN
+     * ------------------------------------------------------------------------
+     * `precioCompra` viene acompañado de `monedaCosto`, que admite MXN, USD y
+     * EUR —la importacion de productos lo valida—. Esta suma ignoraba la
+     * columna: un insumo de 900 USD entraba al umbral como 900 pesos, o sea una
+     * veinteava parte de lo que vale. Una requisicion de veinte mil dolares
+     * podia caer en la banda de «menos de 50,000» y nacer con una sola firma.
+     * Es el hallazgo 7 otra vez —entre mas cara, menos firmas— por una puerta
+     * distinta: alli el importe se salia de la matriz, aqui el importe es
+     * falso.
+     *
+     * No hay servicio de tipo de cambio en el ERP: el unico `tipoCambio` que
+     * existe lo captura una persona en hoteleria y en nomina, por documento.
+     * Inventar aqui una conversion seria peor que el defecto, porque pondria un
+     * numero de aspecto correcto debajo de una firma.
+     *
+     * Asi que se detiene, que es la misma doctrina que este archivo ya sigue
+     * cuando el importe se sale de la matriz: «caer al nivel mas alto seria
+     * adivinar quien tiene autoridad sobre un importe que nadie declaro». Aqui
+     * es el importe mismo el que nadie puede declarar. Se dice que producto y
+     * en que moneda, para que se arregle en el catalogo en vez de adivinar.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    const pedidos = new Set(
+      dto.detalles
+        .filter((d) => Number(d.cantidadSolicitada ?? 0) > 0)
+        .map((d) => d.productoId),
+    );
+    const enOtraMoneda = costos.filter(
+      (c) => pedidos.has(c.id) && c.moneda && String(c.moneda).toUpperCase() !== 'MXN',
+    );
+    if (enOtraMoneda.length) {
+      throw new BadRequestException(
+        'No se puede calcular el umbral de autorizacion porque hay insumos con el costo en ' +
+          'otra moneda y el ERP no tiene tipo de cambio: ' +
+          enOtraMoneda
+            .map((c) => `${c.nombre ?? c.id} (${String(c.moneda).toUpperCase()})`)
+            .join(', ') +
+          '. Captura el costo de reposicion en pesos en Catalogo → Productos, o separa esos ' +
+          'insumos en otra requisicion. Sumarlos como si fueran pesos daria menos firmas de ' +
+          'las que corresponden.',
+      );
+    }
     const importeEstimado = dto.detalles.reduce(
       (suma, d) =>
         suma +

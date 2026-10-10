@@ -932,7 +932,30 @@ export class CobranzaService {
    * comprobar la mora sin dejar mora inventada en la cartera.
    */
   async actualizarVencidos(empresaId: string, manager?: EntityManager) {
-    const hoy = new Date();
+    /*
+     * ══════════════════════════════════════════════════════════════════════
+     * EL DÍA EN QUE VENCE UNA CUOTA TODAVÍA NO ES MORA
+     * ----------------------------------------------------------------------
+     * Esto era `new Date()`: el INSTANTE. `fechaVencimiento` es una columna
+     * `date`, o sea medianoche, así que una cuota que vence hoy cumple
+     * `fechaVencimiento < ahora` desde las 00:00:01 y la primera corrida del
+     * día la marcaba VENCIDA. Al cliente le quedaba el día entero para pagar y
+     * el sistema ya lo tenía por moroso: aparece en el reporte de vencidos,
+     * dispara el bloqueo por mora —`bloquearCreditoConSaldoVencido`— y le
+     * niega una compra a crédito que tenía derecho a hacer.
+     *
+     * Y había cinco nociones de «vencido» conviviendo. Tres ya eran correctas
+     * —la política de crédito compara contra el día de calendario, lo mismo la
+     * devolución de ventas con `CAST(CURRENT_TIMESTAMP AS date)` y City Ledger
+     * con su fecha ISO—. Las dos que medían contra el instante eran ésta y el
+     * tablero ejecutivo, y por eso el tablero contaba más vencidos que el
+     * reporte de cartera el mismo día.
+     *
+     * `fechaContableNegocio()` es hoy a medianoche en la zona de negocio: la
+     * cuota de hoy no entra, la de ayer sí.
+     * ══════════════════════════════════════════════════════════════════════
+     */
+    const hoy = fechaContableNegocio();
     const cuotaRepo = manager
       ? manager.getRepository(AmortizacionCuota)
       : this.cuotaRepo;

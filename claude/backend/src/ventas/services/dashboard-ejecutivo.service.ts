@@ -160,7 +160,7 @@ export class DashboardEjecutivoService {
         'cuotas vencidas',
         'SELECT COUNT(*) AS total, COALESCE(SUM(montoCuota-montoPagado),0) AS monto ' +
           'FROM amortizacion_cuotas ac JOIN creditos_clientes cc ON cc.id=ac.creditoId ' +
-          'WHERE cc.empresaId=$1 AND ac.estado IN ($2,$3) AND ac.fechaVencimiento<CURRENT_TIMESTAMP',
+          'WHERE cc.empresaId=$1 AND ac.estado IN ($2,$3) AND ac.fechaVencimiento<CAST(CURRENT_TIMESTAMP AS date)',
         [empresaId, 'VENCIDA', 'PENDIENTE'],
       ),
       q<{ total: number }>(

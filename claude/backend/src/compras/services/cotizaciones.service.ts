@@ -23,6 +23,10 @@ import { Producto } from '../../catalogo/entities/producto.entity';
 import { esViolacionUnicidad } from '../../common/database/errores-sql';
 import { esRolAdministrador, normalizarRol } from '../../iam/utils/roles.util';
 import { veTrazaCompleta } from '../../aprobaciones/services/traza-completa.util';
+import {
+  matrizQueAplica,
+  nivelesParaElImporte,
+} from '../utils/elegir-la-matriz.util';
 
 @Injectable()
 export class CotizacionesService implements OnApplicationBootstrap {
@@ -344,11 +348,63 @@ export class CotizacionesService implements OnApplicationBootstrap {
     cot.motivoSeleccion = motivoSeleccion?.trim();
     cot.solicitadoAprobacionPorId = usuarioId;
     cot.fechaSolicitudAprobacion = new Date();
-    const configuracion = await this.configuracionRepo.createQueryBuilder('c')
-      .where('c.empresaId=:empresaId AND c.proceso=:proceso AND c.activo=true', { empresaId, proceso: 'COTIZACION' })
-      .andWhere('(c.montoDesde IS NULL OR c.montoDesde<=:total) AND (c.montoHasta IS NULL OR c.montoHasta>=:total)', { total: Number(cot.total) })
-      .orderBy('c.orden', 'ASC').getMany();
-    if (!configuracion.length) throw new BadRequestException('Configura la ruta de aprobación de cotizaciones antes de solicitar la adjudicación.');
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * VARIAS MATRICES SE USABAN TODAS JUNTAS
+     * ------------------------------------------------------------------------
+     * Una matriz de aprobación se identifica por el PAR `proceso` +
+     * `departamentoId` —lo dice el propio guardado, que borra y reescribe por
+     * ese par, y el diagnóstico de salud, que agrupa por `proceso::depto`—.
+     * Esta consulta filtraba sólo por `proceso`.
+     *
+     * Así que una empresa con la matriz global de COTIZACION y la de un
+     * departamento mandaba a firma los niveles de LAS DOS a la vez. Dos
+     * consecuencias, y la segunda es peor que la primera:
+     *
+     *  · Firmas de más: el documento pasa por gente que, según la matriz que
+     *    le aplica, no tenía por qué verlo.
+     *  · Y firmas de MENOS: `firmantes` es un `Map` indexado por `orden`, así
+     *    que el nivel 1 de la segunda matriz PISA al nivel 1 de la primera.
+     *    Un firmante declarado desaparece sin que nada lo diga, y el documento
+     *    sale adjudicado con una ruta que nadie configuró.
+     *
+     * Se elige UNA matriz: la del departamento de quien solicita si existe, y
+     * si no la global —la de `departamentoId` nulo—. Nunca las dos. Es la misma
+     * convención que ya usan las requisiciones, que resuelven el departamento
+     * desde el usuario porque el documento no lo guarda.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    const solicitante = await this.dataSource
+      .getRepository(Usuario)
+      .findOne({ where: { id: usuarioId, empresaId } });
+    const candidatas = await this.configuracionRepo.find({
+      where: { empresaId, proceso: 'COTIZACION', activo: true },
+      order: { orden: 'ASC' },
+    });
+    const matriz = matrizQueAplica(candidatas, solicitante?.departamentoId);
+    const total = Number(cot.total);
+    const configuracion = nivelesParaElImporte(matriz, total);
+    if (!configuracion.length) {
+      /*
+       * Dos razones distintas y conviene separarlas: puede que no haya matriz
+       * que aplique a este departamento, o que la haya y el importe no caiga
+       * en ninguna de sus bandas. Mandar a configurar la ruta cuando el
+       * problema es un tramo que falta hace perder la tarde.
+       */
+      if (!matriz.length) {
+        throw new BadRequestException(
+          candidatas.length
+            ? 'No hay ruta de aprobación de cotizaciones para tu departamento ni una global. ' +
+                'Configúrala en Flujos de aprobación antes de solicitar la adjudicación.'
+            : 'Configura la ruta de aprobación de cotizaciones antes de solicitar la adjudicación.',
+        );
+      }
+      throw new BadRequestException(
+        `El importe de ${total.toFixed(2)} no cae en ninguna banda de la ruta de aprobación de ` +
+          'cotizaciones. Agrega el tramo que falta en Flujos de aprobación: un importe sin banda ' +
+          'no tiene quien lo firme.',
+      );
+    }
     if (configuracion.some((c) => !c.usuarioId && !c.rolAprobador)) {
       /*
        * Un nivel sin usuario y sin rol no lo puede aprobar nadie en

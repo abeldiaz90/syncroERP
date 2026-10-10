@@ -1,4 +1,5 @@
 import { EstadoCuota } from '../entities/amortizacion-cuota.entity';
+import { fechaContableNegocio } from '../../common/utils/business-time.util';
 
 /**
  * ============================================================================
@@ -30,7 +31,12 @@ export function estadoDeUnaCuota(
   const total = Number(cuota.montoCuota ?? 0);
 
   if (pagado + 0.001 >= total) return EstadoCuota.PAGADA;
-  if (new Date(cuota.fechaVencimiento).getTime() < ahora.getTime()) {
+  /*
+   * Contra el DÍA y no contra el instante: una cuota que vence hoy no está en
+   * mora hasta mañana. Comparar con `ahora` la daba por vencida desde las
+   * 00:00:01, que es el mismo defecto que tenía `actualizarVencidos`.
+   */
+  if (new Date(cuota.fechaVencimiento).getTime() < fechaContableNegocio(ahora).getTime()) {
     return EstadoCuota.VENCIDA;
   }
   return pagado > 0.0001 ? EstadoCuota.PAGO_PARCIAL : EstadoCuota.PENDIENTE;
