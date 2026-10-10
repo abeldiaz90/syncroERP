@@ -9,16 +9,31 @@ import { PLANTILLAS_PERMISOS } from './data/plantillas-permisos';
  * QUÉ ES ESTO
  *
  * `npm run keycloak:roles` declara en Keycloak un rol de realm por cada
- * plantilla del ERP, con el prefijo `erp:`. Es el paso 1 del plan, y es **lo
- * único de todo el plan que no cambia el comportamiento de nada**: el ERP sigue
- * leyendo el rol de la ficha, como hasta hoy. El realm queda listo; el día que
- * se decida leerlo, ya está.
+ * plantilla del ERP, con el prefijo `erp:`. No cambia el comportamiento de
+ * nada: el ERP lee el rol de la ficha, y va a seguir leyéndolo de ahí.
  *
- * (El paso 2 —que el ERP lea el rol del token— está escrito y guardado sin
- * aplicar. La corrección del 10 de octubre en la propuesta explica por qué no
- * antes de producción: vive en `jwt.strategy.ts`, por donde pasa toda petición
- * de todo el mundo, y el beneficio real resultó ser menor de lo que yo mismo
- * había escrito.)
+ * ── LA DECISIÓN, 10-OCT-2026 ────────────────────────────────────────────────
+ *
+ * **Los roles se quedan donde viven.** Los del ERP en el ERP, los del portal en
+ * Fineract. No se mueven a Keycloak.
+ *
+ * Lo que se movía era *dónde se teclea* el rol, no quién decide. Hoy ya se
+ * administra desde una sola pantalla del ERP, así que el trámite que esto
+ * quitaba no existía; y lo que costaba era real: el cambio vive en
+ * `jwt.strategy.ts`, por donde pasa **toda petición de todo el mundo**. Si algo
+ * ahí sale mal no falla una pantalla, no entra nadie.
+ *
+ * En Fineract es más claro todavía: su sistema de roles es completo y el portal
+ * le pregunta a él. Sacarlo de ahí sería cambiar una autoridad que funciona por
+ * otra que habría que mantener al día.
+ *
+ * Lo que SÍ se queda es el realm por empresa, que es otra cosa y resuelve algo
+ * que ningún rol resuelve: que dos clientes no compartan directorio.
+ *
+ * El guion se conserva —no estorba, nunca escribe sin `--crear`, y deja el
+ * camino hecho si algún día la decisión cambia—. El paquete del paso 2 se
+ * retiró a `claude/_to_delete/pendiente-keycloak-descartado-2026-10-10`.
+ * ────────────────────────────────────────────────────────────────────────────
  *
  * QUÉ CUIDA ESTA PRUEBA
  *
@@ -181,9 +196,11 @@ describe('los roles del ERP en el realm', () => {
 
   it('el ERP sigue sin leer roles del token', () => {
     /*
-     * El trinquete de la decisión. Si alguien aplicara el paso 2 sin querer
-     * —o sin decirlo— esto se pone rojo: declarar roles en el realm no puede
-     * convertirse, de callada, en empezar a obedecerlos.
+     * El trinquete de la decisión del 10-oct-2026. Ya no vigila una pausa:
+     * vigila un acuerdo. Declarar roles en el realm no puede convertirse, de
+     * callada, en empezar a obedecerlos; y quien quiera cambiarlo tiene que
+     * borrar esta prueba, que es justo el momento en que alguien pregunta por
+     * qué estaba.
      */
     const estrategia = readFileSync(
       join(__dirname, 'strategies', 'jwt.strategy.ts'),
