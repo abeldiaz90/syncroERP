@@ -62,7 +62,10 @@ export class EstadoCuentaService {
       -- Alias entrecomillados: sin comillas Postgres los pliega a minúsculas
       -- y el código, que los lee en camelCase, recibe undefined.
       SELECT cc.id, cc.folio, cc.fechaInicio AS "fechaVenta",
-             cc.montoTotal AS total, cc.tipoCredito AS "metodoPago"
+             cc.montoTotal AS total, cc.tipoCredito AS "metodoPago",
+             -- Lo que se le devolvió al cliente sobre este crédito. Sin esta
+             -- columna el documento cobra mercancía que el ERP ya canceló.
+             COALESCE(cc.montoAjustesDevolucion, 0) AS "ajustesDevolucion"
       FROM creditos_clientes cc
       WHERE cc.clienteId = $1 AND cc.empresaId = $2
         AND cc.estado != 'CANCELADO'
@@ -183,6 +186,14 @@ export class EstadoCuentaService {
             ${desde ? 'AND cc3.fechaInicio < $3' : ''}
         ), 0) -
         COALESCE((
+          -- Y los ajustes por devolución de esos mismos créditos: si no, el
+          -- arrastre vuelve a meter el importe devuelto por la puerta de atrás.
+          SELECT SUM(COALESCE(cc4.montoAjustesDevolucion, 0)) FROM creditos_clientes cc4
+          WHERE cc4.clienteId = $1 AND cc4.empresaId = $2
+            AND cc4.estado != 'CANCELADO'
+            ${desde ? 'AND cc4.fechaInicio < $3' : ''}
+        ), 0) -
+        COALESCE((
           SELECT SUM(pc2.montoPagado) FROM pagos_cobranza pc2
           JOIN creditos_clientes cc2 ON cc2.id = pc2.creditoId
           -- Misma razón: el saldo anterior no descuenta pagos cancelados.
@@ -218,9 +229,31 @@ export class EstadoCuentaService {
     const movimientos: any[] = [];
     let saldoActual = saldoAnterior;
 
+    /*
+     * ══════════════════════════════════════════════════════════════════════
+     * DOS DEFECTOS EN ESTE MISMO BLOQUE, Y ES EL DOCUMENTO QUE VE EL CLIENTE
+     * ----------------------------------------------------------------------
+     * 31 · El estado de cuenta tomaba `montoTotal` del crédito y no miraba
+     *      `montoAjustesDevolucion`, que es lo que se le devolvió al cliente.
+     *      El crédito sí baja su `saldoPendiente` cuando hay una devolución
+     *      —lo hacen `devoluciones-ventas` y `cobranza`—, pero este documento
+     *      seguía cobrando el importe completo. O sea que cobranza perseguía
+     *      dinero que el propio ERP ya había cancelado, con un papel firmado
+     *      por la empresa en la mano. Ahora la devolución aparece como un
+     *      renglón propio, que es como lo entiende quien lo lee: el cargo
+     *      completo y debajo su nota de crédito.
+     *
+     * 32 · `new Date(columna date).toISOString()` imprime el día ANTERIOR en
+     *      México. El helper `soloFecha` existe en este archivo desde el
+     *      27-sep, con su comentario explicando justo esto, y sólo lo usaban
+     *      los renglones de City Ledger. Los de crédito y cobranza seguían con
+     *      `toISOString()`: un estado de cuenta donde la venta del día 1
+     *      aparece el 30 del mes anterior, y por tanto en otro período.
+     * ══════════════════════════════════════════════════════════════════════
+     */
     const todos = [
       ...ventasCredito.map((v: any) => ({
-        fecha: new Date(v.fechaVenta).toISOString().split('T')[0],
+        fecha: soloFecha(v.fechaVenta),
         tipo: 'VENTA' as const,
         folio: `#${String(v.folio).padStart(5, '0')}`,
         descripcion: `Crédito otorgado — ${v.metodoPago}`,
@@ -228,8 +261,20 @@ export class EstadoCuentaService {
         abono: 0,
         _ts: new Date(v.fechaVenta).getTime(),
       })),
+      ...ventasCredito
+        .filter((v: any) => Number(v.ajustesDevolucion ?? 0) > 0)
+        .map((v: any) => ({
+          fecha: soloFecha(v.fechaVenta),
+          tipo: 'DEVOLUCION' as const,
+          folio: `#${String(v.folio).padStart(5, '0')}`,
+          descripcion: 'Ajuste por devolución de mercancía',
+          cargo: 0,
+          abono: Number(v.ajustesDevolucion),
+          /* Un milisegundo después del cargo: nunca por delante de lo que ajusta. */
+          _ts: new Date(v.fechaVenta).getTime() + 1,
+        })),
       ...pagos.map((p: any) => ({
-        fecha: new Date(p.fechaPago).toISOString().split('T')[0],
+        fecha: soloFecha(p.fechaPago),
         tipo: 'ABONO' as const,
         folio: p.creditoFolio,
         descripcion: `Abono — ${p.metodoPago ?? 'EFECTIVO'}`,
