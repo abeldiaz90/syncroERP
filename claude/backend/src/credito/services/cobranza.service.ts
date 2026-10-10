@@ -10,6 +10,7 @@ import {
   Repository,
   DataSource,
   EntityManager,
+  In,
   MoreThanOrEqual,
   Not,
 } from 'typeorm';
@@ -60,6 +61,7 @@ import {
 import { CarteraPublicadorService } from '../../integracion/services/cartera-publicador.service';
 import { anotarEnElCredito } from '../utils/anotar-en-el-credito.util';
 import { estadoDeUnaCuota } from '../utils/estado-de-una-cuota.util';
+import { seRegulariza } from '../utils/un-credito-se-regulariza.util';
 
 @Injectable()
 export class CobranzaService {
@@ -242,10 +244,18 @@ export class CobranzaService {
         credito.saldoPendiente = 0;
         credito.estado = EstadoCredito.LIQUIDADO;
       } else {
+        /*
+         * Contra el DÍA de negocio y no contra el instante: la cuota que vence
+         * hoy no está en mora hasta mañana. Era `Date.now()`, el mismo defecto
+         * que `actualizarVencidos` —hallazgo 27—, y aquí tenía una
+         * consecuencia propia: un cliente que paga el día del vencimiento
+         * quedaba VENCIDO justo después de pagar.
+         */
         const conservaVencido = cuotas.some(
           (cuota) =>
             cuota.estado !== EstadoCuota.PAGADA &&
-            new Date(cuota.fechaVencimiento).getTime() < Date.now(),
+            new Date(cuota.fechaVencimiento).getTime() <
+              fechaContableNegocio().getTime(),
         );
         credito.estado = conservaVencido ? EstadoCredito.VENCIDO : EstadoCredito.ACTIVO;
       }
@@ -1024,7 +1034,27 @@ export class CobranzaService {
       )
       .getRawMany<{ id: string }>();
 
-    for (const { id } of alCorriente) {
+    /*
+     * El segundo par de ojos. El `NOT EXISTS` de arriba hace el trabajo pesado
+     * en la base —son miles de créditos y no se pueden traer todos con sus
+     * cuotas—, pero la regla que decide quién deja de estar en mora vive en
+     * `utils/un-credito-se-regulariza` y se confirma aquí, sobre las pocas
+     * filas que de verdad van a cambiar de estado. Así la regla se puede
+     * probar llamándola, en vez de reimplementándola dentro de un test, que es
+     * lo que hacía la prueba hasta hoy.
+     */
+    const confirmados: string[] = [];
+    if (alCorriente.length) {
+      const candidatos = await creditoRepo.find({
+        where: { id: In(alCorriente.map((c) => c.id)) },
+        relations: ['cuotas'],
+      });
+      for (const credito of candidatos) {
+        if (seRegulariza(credito, hoy)) confirmados.push(credito.id);
+      }
+    }
+
+    for (const id of confirmados) {
       await creditoRepo.update(
         { id, estado: EstadoCredito.VENCIDO },
         { estado: EstadoCredito.ACTIVO },
@@ -1042,7 +1072,7 @@ export class CobranzaService {
 
     return {
       actualizadas: cuotasParaVencer.length,
-      regularizados: alCorriente.length,
+      regularizados: confirmados.length,
     };
   }
 
