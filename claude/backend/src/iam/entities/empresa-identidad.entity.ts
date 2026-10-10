@@ -68,7 +68,15 @@ export class EmpresaIdentidad {
   @Column({ type: 'varchar', length: 100 })
   clientIdPublico!: string;
 
-  /** Cliente de servicio del ERP contra el core. */
+  /**
+   * Cliente de servicio del ERP contra el core.
+   *
+   * **Se guarda y todavía no se usa** (11-oct-2026). Las escrituras al core
+   * salen con la credencial única de `FineractConfig`, que es de la
+   * instalación. Está anotado aquí para que nadie suponga, al ver la columna
+   * llena, que cada empresa ya escribe con la suya. Ver «El core habla con una
+   * sola voz».
+   */
   @Column({ type: 'varchar', length: 100, nullable: true })
   clientIdServicio!: string | null;
 

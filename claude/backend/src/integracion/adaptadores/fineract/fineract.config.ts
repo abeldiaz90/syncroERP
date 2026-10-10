@@ -25,7 +25,28 @@ export class FineractConfig {
   /** Milisegundos para llamadas de fondo (outbox, conciliación). */
   readonly timeoutFondoMs: number;
 
-  /** Autenticación por client_credentials contra el mismo Keycloak del ERP. */
+  /**
+   * Autenticación por client_credentials contra el mismo Keycloak del ERP.
+   *
+   * ── PENDIENTE CONOCIDO, 11-OCT-2026 ──────────────────────────────────────
+   * Esto es de la INSTALACIÓN, no de la empresa. `EmpresaIdentidad` guarda
+   * `clientIdServicio` y `secretoServicio` **por empresa** —el aprovisionamiento
+   * los recibe, los cifra y los guarda— y **no los lee nadie**: todas las
+   * escrituras al core salen con esta credencial única.
+   *
+   * El inquilino de cada operación sí se resuelve por empresa (ver
+   * `FineractHttpService.inquilinoDeLaOperacion`). Lo que no se resuelve es con
+   * qué credencial se escribe.
+   *
+   * No es un olvido reciente: es la mitad construida de un trabajo que no se
+   * terminó, y por eso parece hecho. Cambiarlo toca cómo el ERP se autentica
+   * contra el core en TODAS sus escrituras, así que no se hace sin dos
+   * inquilinos reales con los que probarlo.
+   *
+   * El análisis y lo que habría que hacer están en el documento
+   * «El core habla con una sola voz» (11-oct-2026).
+   * ─────────────────────────────────────────────────────────────────────────
+   */
   readonly clientId: string;
   readonly clientSecret: string;
   readonly issuerUrl: string;
