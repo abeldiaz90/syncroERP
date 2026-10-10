@@ -17,6 +17,12 @@ import {
   AsientoPendiente,
   EstadoAsiento,
 } from '../entities/asiento-pendiente.entity';
+import {
+  claveDeFolio,
+  patronDeFolio,
+  prefijoDePoliza,
+  siguienteFolio,
+} from '../utils/el-folio-de-la-poliza';
 
 @Injectable()
 export class PolizasService {
@@ -58,27 +64,52 @@ export class PolizasService {
   }
 
   // ── Folio correlativo compartido ─────────────────────────────────────────
-  private async generarFolio(empresaId: string, tipo: string): Promise<string> {
-    const prefijos: Record<string, string> = {
-      DIARIO: 'DI',
-      INGRESO: 'IN',
-      EGRESO: 'EG',
-    };
-    const pref = prefijos[tipo] ?? tipo.substring(0, 2).toUpperCase();
-    const anio = new Date().getFullYear();
+  /**
+   * El folio, con el año de la PÓLIZA y dentro del candado de la transacción.
+   *
+   * Tenía dos defectos y los dos salían del mismo descuido: esto se escribió
+   * como una consulta suelta y no como parte de la escritura.
+   *
+   *  · `new Date().getFullYear()` — el año del RELOJ. La póliza guarda
+   *    `anio = fecha.getFullYear()`, así que una póliza de diciembre capturada
+   *    en enero nacía con folio del año nuevo y campo `anio` del viejo. Ningún
+   *    reporte que agrupe por folio vuelve a cuadrar con uno que agrupe por
+   *    año, y la numeración del año nuevo arranca con un hueco.
+   *
+   *  · Sin candado y con `this.dataSource.query` — fuera de la transacción que
+   *    está creando la póliza. Dos capturas a la vez leen el mismo «último» y
+   *    nacen con el mismo folio. Un folio contable repetido no es un detalle:
+   *    es una póliza que tapa a otra en cualquier reporte que agrupe por folio.
+   *
+   * Ahora recibe el año y el ejecutor de la transacción, y toma la MISMA llave
+   * que el motor contable. Las tres puertas se serializan entre sí, que era lo
+   * que faltaba.
+   */
+  private async generarFolio(
+    ejecutor: { query(sql: string, params?: unknown[]): Promise<any> },
+    empresaId: string,
+    tipo: string,
+    anio: number,
+  ): Promise<string> {
+    const bloqueo = await ejecutor.query(
+      `SELECT 0 AS resultado, pg_advisory_xact_lock(hashtextextended($1::text, 0));`,
+      [claveDeFolio(empresaId, tipo, anio)],
+    );
+    if (Number(bloqueo?.[0]?.resultado ?? -999) < 0) {
+      throw new ConflictException('No fue posible reservar el folio contable.');
+    }
     /*
      * Este `.catch` devolvia `[null]`, con lo que un fallo de la consulta
      * reiniciaba la numeracion en 1 y la siguiente poliza intentaba nacer con
-     * un folio ya usado. Un folio contable repetido no es un error tecnico: es
-     * una poliza que tapa a otra en cualquier reporte que agrupe por folio.
-     * Si no se puede saber cual fue el ultimo, no se inventa el siguiente.
+     * un folio ya usado. Si no se puede saber cual fue el ultimo, no se inventa
+     * el siguiente.
      */
-    const [last] = await this.dataSource
+    const [last] = await ejecutor
       .query(
         `SELECT folio FROM polizas
        WHERE empresaId = $1 AND folio LIKE $2
        ORDER BY folio DESC LIMIT 1`,
-        [empresaId, `${pref}-${anio}-%`],
+        [empresaId, patronDeFolio(tipo, anio)],
       )
       .catch((error: unknown) => {
         throw new BadRequestException(
@@ -89,8 +120,7 @@ export class PolizasService {
             }`,
         );
       });
-    const seq = last ? parseInt(last.folio.split('-')[2] || '0') + 1 : 1;
-    return `${pref}-${anio}-${String(seq).padStart(5, '0')}`;
+    return siguienteFolio(tipo, anio, last?.folio);
   }
 
   // ── Verificar período cerrado ─────────────────────────────────────────────
@@ -356,9 +386,9 @@ export class PolizasService {
         datos.empresaId,
         fecha,
       );
-      const folio = await this.generarFolio(datos.empresaId, datos.tipo);
       const mes = fecha.getMonth() + 1;
       const anio = fecha.getFullYear();
+      const folio = await this.generarFolio(qr, datos.empresaId, datos.tipo, anio);
 
       const poliza = qr.manager.create(Poliza, {
         empresaId: datos.empresaId,
@@ -489,15 +519,10 @@ export class PolizasService {
       if (existente) return existente;
     }
 
-    const prefijos: Record<string, string> = {
-      DIARIO: 'DI',
-      INGRESO: 'IN',
-      EGRESO: 'EG',
-    };
-    const pref = prefijos[datos.tipo] ?? datos.tipo.substring(0, 2).toUpperCase();
+    const pref = prefijoDePoliza(datos.tipo);
     const lockFolio = await manager.query(
       `SELECT 0 AS resultado, pg_advisory_xact_lock(hashtextextended($1::text, 0));`,
-      [`FOLIO_POLIZA:${datos.empresaId}:${pref}:${anio}`],
+      [claveDeFolio(datos.empresaId, datos.tipo, anio)],
     );
     if (Number(lockFolio?.[0]?.resultado ?? -999) < 0) {
       throw new ConflictException('No fue posible reservar el folio contable.');
@@ -679,7 +704,12 @@ export class PolizasService {
     await qr.startTransaction();
     try {
       await this.bloquearPeriodoDuranteEscritura(qr, empresaId, fechaReverso);
-      const folio = await this.generarFolio(empresaId, original.tipo);
+      const folio = await this.generarFolio(
+        qr,
+        empresaId,
+        original.tipo,
+        fechaReverso.getFullYear(),
+      );
 
       const reversa = qr.manager.create(Poliza, {
         empresaId,

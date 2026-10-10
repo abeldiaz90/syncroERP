@@ -73,11 +73,42 @@ describe('El período cerrado, cuando la base no contesta', () => {
 });
 
 describe('El folio siguiente, cuando la base no contesta', () => {
+  /*
+   * `generarFolio` recibe desde el 10-oct el EJECUTOR de la transacción y el
+   * AÑO de la póliza: antes leía por `this.dataSource` —fuera de la
+   * transacción que estaba creando la póliza— y tomaba el año del reloj del
+   * servidor. El doble es el mismo de siempre; lo que cambia es por dónde
+   * entra.
+   */
+  /** El candado responde; lo que se rompe es la lectura del último folio. */
+  function ejecutorConLecturaRota() {
+    const query = jest.fn(async (sql: string, _params?: unknown[]) => {
+      if (/pg_advisory_xact_lock/.test(sql)) return [{ resultado: 0 }];
+      throw new Error('connection terminated');
+    });
+    return { query };
+  }
+
   it('no reinicia la numeración en 1: falla', async () => {
-    const { svc } = servicioConBaseRota();
+    const svc = Object.create(PolizasService.prototype);
+    const ejecutor = ejecutorConLecturaRota();
 
     await expect(
-      (svc as any).generarFolio('emp-1', 'INGRESO'),
+      (svc as any).generarFolio(ejecutor, 'emp-1', 'INGRESO', 2026),
     ).rejects.toThrow(/podría repetir uno existente/i);
+  });
+
+  it('y el candado del folio se pide antes de leer nada', async () => {
+    /*
+     * Si el último folio se leyera antes de reservar, dos capturas simultáneas
+     * nacerían con el mismo número aunque la base funcionara perfectamente.
+     */
+    const svc = Object.create(PolizasService.prototype);
+    const ejecutor = ejecutorConLecturaRota();
+    await expect(
+      (svc as any).generarFolio(ejecutor, 'emp-1', 'INGRESO', 2026),
+    ).rejects.toThrow();
+    expect(ejecutor.query.mock.calls[0][0]).toMatch(/pg_advisory_xact_lock/);
+    expect(ejecutor.query.mock.calls[0][1]).toEqual(['FOLIO_POLIZA:emp-1:IN:2026']);
   });
 });

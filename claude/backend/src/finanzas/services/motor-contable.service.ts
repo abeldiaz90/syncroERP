@@ -6,6 +6,11 @@ import { Poliza, TipoPoliza } from '../entities/poliza.entity';
 import { PartidaPoliza } from '../entities/partida-poliza.entity';
 import { RolCuentaSistema } from '../entities/cuenta-contable.entity';
 import { exigirQueYaHayaOcurrido } from '../utils/la-contabilidad-registra-lo-que-ya-paso.util';
+import {
+  claveDeFolio,
+  patronDeFolio,
+  siguienteFolio,
+} from '../utils/el-folio-de-la-poliza';
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 export interface DetalleVentaContable {
@@ -2056,21 +2061,13 @@ export class MotorContableService {
     anio: number,
     qr: QueryRunner,
   ): Promise<string> {
-    const prefijos: Record<TipoPoliza, string> = {
-      [TipoPoliza.DIARIO]: 'DI',
-      [TipoPoliza.INGRESO]: 'IN',
-      [TipoPoliza.EGRESO]: 'EG',
-    };
-    const pref = prefijos[tipo] ?? 'DI';
-    const like = `${pref}-${anio}-%`;
     const [last] = await qr.query(
       `SELECT folio FROM polizas
        WHERE empresaId = $1 AND folio LIKE $2
        ORDER BY folio DESC LIMIT 1`,
-      [empresaId, like],
+      [empresaId, patronDeFolio(tipo, anio)],
     );
-    const seq = last ? parseInt(last.folio.split('-')[2] || '0') + 1 : 1;
-    return `${pref}-${anio}-${String(seq).padStart(5, '0')}`;
+    return siguienteFolio(tipo, anio, last?.folio);
   }
 
   /**
@@ -2221,7 +2218,15 @@ export class MotorContableService {
     try {
       // Serializa la asignación del folio por empresa, tipo y año. El candado
       // pertenece a la transacción y SQL Server lo libera siempre al terminar.
-      const recurso = `POLIZA_FOLIO:${data.empresaId}:${data.tipo}:${anio}`;
+      /*
+       * La llave era `POLIZA_FOLIO:<empresa>:<TIPO>:<año>` —con el tipo
+       * entero— y la de `PolizasService` era `FOLIO_POLIZA:<empresa>:<PREF>:
+       * <año>` —con el prefijo—. Dos textos distintos son dos candados
+       * distintos: una póliza del motor y una de la captura podían asignarse
+       * el MISMO folio a la vez, cada una creyéndose serializada. Ahora las
+       * tres puertas piden la misma llave, que vive en `utils/el-folio-de-la-poliza`.
+       */
+      const recurso = claveDeFolio(data.empresaId, data.tipo, anio);
       const resultadoLock = await qr.query(
         `SELECT 0 AS resultado, pg_advisory_xact_lock(hashtextextended($1::text, 0));`,
         [recurso],

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager } from 'typeorm';
@@ -365,7 +366,11 @@ export class CreditosService {
         }
       }
 
-      const folio = await this.generarFolio(dto.empresaId, em);
+      const folio = await this.generarFolio(
+        dto.empresaId,
+        em,
+        fechaInicio.getFullYear(),
+      );
 
       const credito = em.create(CreditoCliente, {
         empresaId: dto.empresaId,
@@ -704,22 +709,57 @@ export class CreditosService {
     return resultado;
   }
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * `FOR UPDATE` SOBRE UNA CONSULTA SIN FILAS NO BLOQUEA NADA
+   * --------------------------------------------------------------------------
+   * `setLock('pessimistic_write')` bloquea las FILAS QUE DEVUELVE la consulta.
+   * Si no devuelve ninguna —el primer crédito de la empresa, o el primero de un
+   * año nuevo, que es el 1 de enero de cada año— no hay nada que bloquear y dos
+   * transacciones simultáneas leen las dos «ninguno» y generan las dos
+   * `CRD-2026-0001`.
+   *
+   * Hoy eso no produce un folio duplicado porque lo ataja el índice único
+   * `UX_creditos_empresa_folio`: la segunda transacción revienta con un error
+   * de base de datos en la cara de quien estaba dando de alta el crédito, a
+   * mitad de una venta. Es decir, el candado no protegía; sólo convertía una
+   * carrera en una caída.
+   *
+   * El remedio ya está en la casa y en este mismo módulo: `cobranza.service` y
+   * `operacion-hotel.service` reservan su numeración con un
+   * `pg_advisory_xact_lock` sobre un texto. Un candado sobre un NOMBRE no
+   * necesita que exista una fila, que es exactamente el caso que fallaba.
+   *
+   * Y el año sale de la fecha de inicio del crédito, no del reloj: un crédito
+   * capturado el 2 de enero con fecha de inicio del 31 de diciembre pertenece a
+   * la numeración del año viejo, que es donde lo van a buscar.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
   private async generarFolio(
     empresaId: string,
     manager?: EntityManager,
+    anio: number = new Date().getFullYear(),
   ): Promise<string> {
-    const año = new Date().getFullYear();
+    const ejecutor = manager ?? this.creditoRepo.manager;
+    const bloqueo = await ejecutor.query(
+      `SELECT 0 AS resultado, pg_advisory_xact_lock(hashtextextended($1::text, 0));`,
+      [`FOLIO_CREDITO:${empresaId}:${anio}`],
+    );
+    if (Number(bloqueo?.[0]?.resultado ?? -999) < 0) {
+      throw new ConflictException(
+        'No fue posible reservar el folio del crédito. Intenta de nuevo.',
+      );
+    }
     const repo = manager
       ? manager.getRepository(CreditoCliente)
       : this.creditoRepo;
-    const qb = repo
+    const last = await repo
       .createQueryBuilder('c')
       .where('c.empresaId = :empresaId', { empresaId })
-      .andWhere('c.folio LIKE :p', { p: `CRD-${año}-%` })
-      .orderBy('c.folio', 'DESC');
-    if (manager) qb.setLock('pessimistic_write');
-    const last = await qb.getOne();
+      .andWhere('c.folio LIKE :p', { p: `CRD-${anio}-%` })
+      .orderBy('c.folio', 'DESC')
+      .getOne();
     const seq = last ? parseInt(last.folio.split('-')[2]) + 1 : 1;
-    return `CRD-${año}-${String(seq).padStart(4, '0')}`;
+    return `CRD-${anio}-${String(seq).padStart(4, '0')}`;
   }
 }
