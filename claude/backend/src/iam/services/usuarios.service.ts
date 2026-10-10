@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Usuario } from '../entities/usuario.entity';
 import * as bcrypt from 'bcrypt';
 import { exigirPoliticaPassword } from '../security/password-policy';
@@ -518,7 +518,7 @@ export class UsuariosService {
 
     const usuario = await this.usuarioRepo.findOne({
       where: {
-        tokenVerificacion: In([this.hashToken(token), token]),
+        tokenVerificacion: this.hashToken(token),
       },
     });
     if (!usuario)
@@ -545,11 +545,36 @@ export class UsuariosService {
   // ──────────────────────────────────────────────────────────────────────────
   // DATOS DE LA INVITACIÓN — para mostrar nombre/email en la página de aceptar
   // ──────────────────────────────────────────────────────────────────────────
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * EL HASH GUARDADO ERA, ÉL MISMO, UNA INVITACIÓN VÁLIDA
+   * --------------------------------------------------------------------------
+   * La columna guarda `sha256(token)` justamente para que quien lea la base no
+   * pueda activar cuentas ajenas. Pero las dos consultas que resuelven una
+   * invitación buscaban con:
+   *
+   *     tokenVerificacion: In([this.hashToken(token), token])
+   *
+   * La segunda rama compara el valor CRUDO contra la columna. O sea que
+   * presentar el hash almacenado —el que cualquiera con lectura a la tabla, un
+   * respaldo, un volcado de soporte o un log de consultas puede ver— encontraba
+   * la fila y activaba la cuenta con la contraseña que quisiera. El hash dejaba
+   * de ser una protección y pasaba a ser una credencial en claro, que es
+   * exactamente lo que se quería evitar; y como `sanear()` ya quita la columna
+   * de las respuestas, el único sitio donde el dato vive es la base: el
+   * atacante que importa es justo el que la ve.
+   *
+   * La rama se quita. El precio es real y conviene decirlo: una invitación de
+   * antes de que se empezara a guardar el hash —si queda alguna— deja de
+   * resolver, y hay que reenviarla desde Usuarios. Duran 48 horas, así que el
+   * precio se paga una vez; la puerta estaba abierta todo el tiempo.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
   async obtenerInvitacion(token: string) {
     if (!token) throw new BadRequestException('Token no proporcionado');
     const usuario = await this.usuarioRepo.findOne({
       where: {
-        tokenVerificacion: In([this.hashToken(token), token]),
+        tokenVerificacion: this.hashToken(token),
       },
     });
     if (!usuario)

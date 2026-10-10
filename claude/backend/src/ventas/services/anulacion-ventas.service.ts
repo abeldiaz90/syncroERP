@@ -334,8 +334,28 @@ export class AnulacionVentasService {
       /* ══ 2. Cancelar el crédito ══ */
 
       let creditoCancelado = false;
+      /*
+       * ── UNA LECTURA SIN CANDADO DECIDÍA SI HABÍA PAGOS ────────────────────
+       * La transacción bloquea la VENTA, y con eso se creía protegido todo lo
+       * que cuelga de ella. El crédito no cuelga de la venta para quien cobra:
+       * `CobranzaService.registrarPago` entra por el crédito y lo bloquea a él
+       * —`setLock('pessimistic_write')` sobre `CreditoCliente`—, no por la
+       * venta. Son dos puertas distintas a la misma fila.
+       *
+       * Así que una anulación podía leer el crédito mientras cobranza tenía su
+       * pago a medias: veía `saldoPendiente` sin tocar, calculaba `pagado = 0`,
+       * pasaba la guardia de «tiene abonos» —la que existe justo para no dejar
+       * un pago sin documento— y escribía CANCELADO. El pago confirmaba
+       * después, contra un crédito cancelado: dinero cobrado sobre una venta
+       * que el ERP dice que no existe, y la guardia que lo impedía mirando un
+       * dato viejo.
+       *
+       * Con el candado, la anulación espera a que el pago confirme y entonces
+       * ve `pagado > 0` y se detiene, que es lo que la regla quería decir.
+       */
       const credito = await em.findOne(CreditoCliente, {
         where: { ventaId: venta.id, empresaId },
+        lock: { mode: 'pessimistic_write' },
       });
 
       if (credito) {
