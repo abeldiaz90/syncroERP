@@ -58,6 +58,7 @@ import {
   TipoMovimientoCaja,
 } from '../../caja/entities/movimiento-caja.entity';
 import { CarteraPublicadorService } from '../../integracion/services/cartera-publicador.service';
+import { anotarEnElCredito } from '../utils/anotar-en-el-credito.util';
 
 @Injectable()
 export class CobranzaService {
@@ -828,8 +829,10 @@ export class CobranzaService {
       credito.montoAjustesDevolucion = this.redondear(
         Number(credito.montoAjustesDevolucion ?? 0) + aplicar,
       );
-      credito.notas =
-        `${credito.notas ?? ''}\nAjuste por devolución externa ${datos.idTransaccionExterna}: -${aplicar.toFixed(2)}. Pendiente de nota de crédito.`.trim();
+      credito.notas = anotarEnElCredito(
+        credito.notas,
+        `Ajuste por devolución externa ${datos.idTransaccionExterna}: -${aplicar.toFixed(2)}. Pendiente de nota de crédito.`,
+      );
       if (Number(credito.saldoPendiente) <= 0.0001) {
         credito.saldoPendiente = 0;
         credito.estado = EstadoCredito.LIQUIDADO;

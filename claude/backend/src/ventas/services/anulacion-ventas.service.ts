@@ -46,6 +46,7 @@ import {
   UMBRAL_APROBACION_ANULACION,
   normalizarRolAutorizador,
 } from '../constants/autorizacion-ventas';
+import { anotarEnElCredito } from '../../credito/utils/anotar-en-el-credito.util';
 
 /**
  * ============================================================================
@@ -379,8 +380,10 @@ export class AnulacionVentasService {
         }
 
         credito.estado = EstadoCredito.CANCELADO;
-        credito.notas =
-          `${credito.notas ?? ''}\nCancelado por anulación de la venta #${venta.folio}: ${motivo}`.trim();
+        credito.notas = anotarEnElCredito(
+          credito.notas,
+          `Cancelado por anulación de la venta #${venta.folio}: ${motivo}`,
+        );
         await em.save(credito);
         creditoCancelado = true;
 

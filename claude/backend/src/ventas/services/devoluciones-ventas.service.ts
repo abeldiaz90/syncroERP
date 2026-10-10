@@ -71,6 +71,7 @@ import {
   NaturalezaMovimientoCaja,
   TipoMovimientoCaja,
 } from '../../caja/entities/movimiento-caja.entity';
+import { anotarEnElCredito } from '../../credito/utils/anotar-en-el-credito.util';
 
 const redondear = (valor: number, decimales = 2) => {
   const factor = 10 ** decimales;
@@ -760,8 +761,10 @@ export class DevolucionesVentasService {
           Number(credito.montoAjustesDevolucion ?? 0) + ajusteCxC,
           4,
         );
-        credito.notas =
-          `${credito.notas ?? ''}\nAjuste DEV-${folio}: -${ajusteCxC.toFixed(2)}. ${dto.motivo}`.trim();
+        credito.notas = anotarEnElCredito(
+          credito.notas,
+          `Ajuste DEV-${folio}: -${ajusteCxC.toFixed(2)}. ${dto.motivo}`,
+        );
         if (Number(credito.saldoPendiente) <= 0.0001) {
           credito.saldoPendiente = 0;
           credito.estado = EstadoCredito.LIQUIDADO;
