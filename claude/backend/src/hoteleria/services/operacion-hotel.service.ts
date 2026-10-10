@@ -676,6 +676,8 @@ export class OperacionHotelService {
         ok: true,
         folioId: folio.id,
         consumiblesDescontados: insumos.consumibles,
+        /* Lo que no alcanzó, dicho donde lo ve quien está en el mostrador. */
+        dotacionOmitida: insumos.omitidos,
         blancosEnUso: insumos.blancos,
         totalFolio: folio.total,
       };
@@ -719,7 +721,7 @@ export class OperacionHotelService {
     hotel: Hotel,
     empresaId: string,
     folioId: string,
-  ): Promise<{ consumibles: number; blancos: number }> {
+  ): Promise<{ consumibles: number; blancos: number; omitidos: string[] }> {
     const dotacion = await manager.getRepository(DotacionTipoHabitacion).find({
       where: { tipoHabitacionId, empresaId },
       order: { productoId: 'ASC' },
@@ -728,7 +730,7 @@ export class OperacionHotelService {
       .filter((d) => (d.tipoArticulo ?? 'CONSUMIBLE') === 'CONSUMIBLE')
       .sort((a, b) => a.productoId.localeCompare(b.productoId));
     const blancos = dotacion.filter((d) => d.tipoArticulo === 'BLANCO');
-    if (!consumibles.length) return { consumibles: 0, blancos: blancos.length };
+    if (!consumibles.length) return { consumibles: 0, blancos: blancos.length, omitidos: [] };
     if (!hotel.almacenId) {
       if (hotel.exigirInventarioDotacion) {
         throw new BadRequestException(
@@ -738,27 +740,70 @@ export class OperacionHotelService {
       this.logger.warn(
         `Hotel ${hotel.id} sin almacén; se omite la dotación por configuración.`,
       );
-      return { consumibles: 0, blancos: blancos.length };
+      return { consumibles: 0, blancos: blancos.length, omitidos: [] };
     }
+    /*
+     * ══════════════════════════════════════════════════════════════════════
+     * `exigirInventarioDotacion = false` NO EXIMÍA DE NADA
+     * ----------------------------------------------------------------------
+     * La bandera sólo se consultaba arriba, en la rama del hotel SIN almacén.
+     * Con almacén configurado —que es el caso normal— se entraba aquí y se
+     * llamaba a `registrarSalida` sin red: si faltaba un jabón, la salida
+     * lanzaba «Disponibilidad insuficiente» o «No existe resumen de stock», y
+     * como esto corre DENTRO de la transacción del check-in, el check-in
+     * entero se caía.
+     *
+     * O sea que el hotel que declaró «no me exijas inventario para la
+     * dotación» no podía recibir a NINGÚN huésped en cuanto se acabara
+     * cualquier amenidad. Y el mensaje que llegaba al mostrador hablaba de
+     * disponibilidad de un producto, no de la dotación: nadie relaciona eso
+     * con una bandera de configuración del hotel.
+     *
+     * Ahora la bandera significa lo que dice. Con `true` se sigue exigiendo —y
+     * la negativa nombra el artículo—. Con `false` el artículo que no alcanza
+     * se omite, se deja dicho en el aviso y en la respuesta, y el huésped
+     * entra. Lo que NO se hace es tragarse cualquier error: sólo se omiten las
+     * negativas de disponibilidad, que son validaciones de la aplicación. Un
+     * fallo de base de datos sigue tirando el check-in, porque la transacción
+     * ya no sirve y fingir que sí es peor.
+     * ══════════════════════════════════════════════════════════════════════
+     */
+    const omitidos: string[] = [];
+    let descontados = 0;
     for (const item of consumibles) {
-      await this.inventarioService.registrarSalida(
-        item.productoId,
-        hotel.almacenId,
-        Number(item.cantidad),
-        `Dotación habitación ${habitacion.numero}`,
-        empresaId,
-        undefined,
-        undefined,
-        manager,
-        /*
-         * El folio, no la habitación: es lo que suma el asiento al cerrar. La
-         * habitación sigue dicha en el motivo, que es donde sirve —para leer el
-         * kardex—, y no donde hace falta que coincidan dos consultas.
-         */
-        { id: folioId, tipo: 'HOTEL_DOTACION' },
-      );
+      try {
+        await this.inventarioService.registrarSalida(
+          item.productoId,
+          hotel.almacenId,
+          Number(item.cantidad),
+          `Dotación habitación ${habitacion.numero}`,
+          empresaId,
+          undefined,
+          undefined,
+          manager,
+          /*
+           * El folio, no la habitación: es lo que suma el asiento al cerrar. La
+           * habitación sigue dicha en el motivo, que es donde sirve —para leer el
+           * kardex—, y no donde hace falta que coincidan dos consultas.
+           */
+          { id: folioId, tipo: 'HOTEL_DOTACION' },
+        );
+        descontados += 1;
+      } catch (error) {
+        if (
+          hotel.exigirInventarioDotacion ||
+          !(error instanceof BadRequestException)
+        ) {
+          throw error;
+        }
+        omitidos.push(item.productoId);
+        this.logger.warn(
+          `Hotel ${hotel.id}: no se pudo descontar la dotación del producto ${item.productoId} ` +
+            `(${error.message}). El hotel no exige inventario de dotación, así que el check-in sigue.`,
+        );
+      }
     }
-    return { consumibles: consumibles.length, blancos: blancos.length };
+    return { consumibles: descontados, blancos: blancos.length, omitidos };
   }
 
   async agregarConsumo(

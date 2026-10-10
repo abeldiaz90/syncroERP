@@ -59,6 +59,7 @@ import {
 } from '../../caja/entities/movimiento-caja.entity';
 import { CarteraPublicadorService } from '../../integracion/services/cartera-publicador.service';
 import { anotarEnElCredito } from '../utils/anotar-en-el-credito.util';
+import { estadoDeUnaCuota } from '../utils/estado-de-una-cuota.util';
 
 @Injectable()
 export class CobranzaService {
@@ -604,10 +605,14 @@ export class CobranzaService {
         if (pagado <= 0.0001) continue;
         const quitar = Math.min(pagado, porDevolver);
         cuota.montoPagado = this.redondear(pagado - quitar);
-        cuota.estado =
-          Number(cuota.montoPagado) + 0.001 >= Number(cuota.montoCuota)
-            ? EstadoCuota.PAGADA
-            : EstadoCuota.PENDIENTE;
+        /*
+         * La regla vive en `utils/estado-de-una-cuota`, con su porqué escrito.
+         * Aquí había dos estados donde el enum tiene cuatro: una cuota con
+         * abono parcial volvía a PENDIENTE —`registrarPago` la llama
+         * PAGO_PARCIAL— y una cuota ya vencida se quedaba al día, así que un
+         * crédito moroso se limpiaba solo cancelando un pago.
+         */
+        cuota.estado = estadoDeUnaCuota(cuota);
         if (Number(cuota.montoPagado) <= 0.0001) cuota.fechaPago = null;
         porDevolver = this.redondear(porDevolver - quitar);
         afectadas.push(cuota);
