@@ -49,11 +49,26 @@ function servicioCon(hermanas: any[], cotizacion: any) {
   const servicio: any = Object.create(CotizacionesService.prototype);
   servicio.cotizacionRepo = cotizacionRepo;
   servicio.ordenRepo = { findOne: jest.fn(async () => null) };
+  /*
+   * Desde el 10-oct la matriz se elige por `proceso` + `departamentoId` —antes
+   * se filtraba sólo por proceso y salían los niveles de dos matrices a la
+   * vez—, así que el servicio lee las configuraciones con `find` y pregunta
+   * por el departamento de quien solicita. Para esta prueba no hay ninguna
+   * matriz: lo que se mide aquí es la regla de las hermanas, y la ruta
+   * ausente es lo que hace que la llamada termine donde termina.
+   */
   servicio.configuracionRepo = {
+    find: jest.fn(async () => []),
     createQueryBuilder: jest.fn(() => ({
       where: () => ({
         andWhere: () => ({ orderBy: () => ({ getMany: async () => [] }) }),
       }),
+    })),
+  };
+  servicio.dataSource = {
+    getRepository: jest.fn(() => ({
+      findOne: jest.fn(async () => ({ id: 'usr-1', empresaId: 'emp-1', departamentoId: null })),
+      find: jest.fn(async () => []),
     })),
   };
   servicio.obtenerPorId = jest.fn(async () => cotizacion);
