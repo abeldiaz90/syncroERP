@@ -144,11 +144,75 @@ export class ListasPrecioService {
     return this.listaPrecioRepository.save(lista);
   }
 
-  async eliminarLista(id: string, empresaId: string) {
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * BORRAR UNA LISTA BORRABA MILES DE PRECIOS, EN SILENCIO
+   * --------------------------------------------------------------------------
+   * `ProductoPrecio.listaPrecio` está declarado `onDelete: 'CASCADE'`. Así que
+   * este `remove` de una fila arrastraba con ella TODOS los precios de la
+   * lista: en una instalación con catálogo completo, varios miles de renglones
+   * capturados a mano durante meses. Sin confirmación, sin contarlos y sin
+   * avisar, desde un botón de papelera en un renglón de una tabla. Y no hay
+   * reversa: los precios no están en ningún otro sitio.
+   *
+   * Además la lista la pueden estar apuntando cosas que sí importan: una venta
+   * guarda `listaPrecioId` —y una venta vieja que se queda sin su lista deja de
+   * poder explicar a qué precio se vendió— y una caja la tiene configurada como
+   * la lista con la que cobra.
+   *
+   * Tres reglas, de la más dura a la más blanda:
+   *
+   *   · Si hay VENTAS que la apuntan, no se borra nunca. Es un documento
+   *     fiscal: su referencia no se puede dejar colgando por limpiar el
+   *     catálogo.
+   *   · Si hay CAJAS que cobran con ella, no se borra hasta que se les asigne
+   *     otra. Borrarla deja la caja sin precios y nadie se entera hasta que el
+   *     primer cliente está en el mostrador.
+   *   · Si sólo tiene precios, se puede borrar, pero diciendo cuántos se van y
+   *     exigiendo que quien lo pide lo confirme. Un número delante cambia la
+   *     decisión: «se van a borrar 4,312 precios» no se pulsa por accidente.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  async eliminarLista(id: string, empresaId: string, confirmar = false) {
     const lista = await this.listaPrecioRepository.findOne({
       where: { id, empresaId },
     });
     if (!lista) throw new NotFoundException('Lista no encontrada');
+
+    const [[{ total: enVentas }], [{ total: enCajas }], [{ total: precios }]] =
+      await Promise.all([
+        this.dataSource.query(
+          'SELECT COUNT(*)::int AS total FROM ventas WHERE empresaId = $1 AND listaPrecioId = $2',
+          [empresaId, id],
+        ),
+        this.dataSource.query(
+          'SELECT COUNT(*)::int AS total FROM cuentas_bancarias WHERE empresaId = $1 AND listaPrecioId = $2',
+          [empresaId, id],
+        ),
+        this.dataSource.query(
+          'SELECT COUNT(*)::int AS total FROM productos_precios WHERE listaPrecioId = $1',
+          [id],
+        ),
+      ]);
+
+    if (Number(enVentas) > 0) {
+      throw new ConflictException(
+        `No se puede borrar «${lista.nombre}»: ${enVentas} venta(s) registrada(s) la tienen como lista de precios. ` +
+          'Borrarla dejaría esos documentos sin poder explicar a qué precio se vendió.',
+      );
+    }
+    if (Number(enCajas) > 0) {
+      throw new ConflictException(
+        `No se puede borrar «${lista.nombre}»: ${enCajas} caja(s) cobran con ella. ` +
+          'Asígnales otra lista en Finanzas → Cuentas bancarias y vuelve a intentarlo.',
+      );
+    }
+    if (Number(precios) > 0 && !confirmar) {
+      throw new ConflictException(
+        `«${lista.nombre}» tiene ${precios} precio(s) capturados y borrarla los borra todos, sin reversa. ` +
+          'Vuelve a enviar la petición con confirmar=true si es lo que quieres.',
+      );
+    }
 
     await this.dataSource.transaction(async (em) => {
       const repo = em.getRepository(ListaPrecio);
@@ -164,6 +228,9 @@ export class ListasPrecioService {
         }
       }
     });
-    return { mensaje: 'Lista eliminada correctamente' };
+    return {
+      mensaje: `Lista «${lista.nombre}» eliminada` + (Number(precios) > 0 ? ` junto con sus ${precios} precio(s)` : ''),
+      preciosBorrados: Number(precios),
+    };
   }
 }

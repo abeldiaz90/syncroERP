@@ -181,8 +181,31 @@ describe('Inventario · la existencia que entra y no se ubica', () => {
     };
     recorrer(SRC);
 
-    /* Ocho, medidas el 7-oct-2026. Si cambia el numero, hay que mirar. */
-    expect(llamadas.sort()).toHaveLength(8);
+    /*
+     * Eran ocho el 7-oct-2026 y son NUEVE desde el 10-oct: `producir` registra
+     * lo producido, que antes no registraba nadie —los insumos salian y el
+     * producto terminado no entraba por ningun lado—. Esa novena no pasa
+     * ubicacion y esta bien que no la pase: una produccion no tiene posicion
+     * que dar, asi que cae en la de recepcion y el almacenista la reubica,
+     * que es exactamente para lo que existe el arreglo que vigila esta prueba.
+     *
+     * Se comparan ARCHIVOS y no un numero: cuando aparezca la decima, el fallo
+     * dira cual es y quien lo lea podra decidir si tiene posicion que pasar,
+     * en vez de ver un 9 donde esperaba un 8 y tener que buscarla a mano. Las
+     * lineas no entran en la comparacion porque se mueven con cualquier
+     * comentario.
+     */
+    const archivos = [...new Set(llamadas.map((l) => l.split(':')[0].replace(/\\/g, '/')))].sort();
+    expect(archivos).toEqual([
+      'catalogo/services/importacion-stock-inicial-masiva.service.ts',
+      'catalogo/services/inventario.service.ts',
+      'catalogo/services/productos.service.ts',
+      'catalogo/services/wms.service.ts',
+      'compras/services/ordenes-compra.service.ts',
+      'recetas/services/consumo-recetas.service.ts',
+      'recetas/services/recetas.service.ts',
+    ]);
+    expect(llamadas).toHaveLength(9);
   });
 
   it('las cuatro que ya ubicaban siguen diciendo donde', () => {

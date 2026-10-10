@@ -59,7 +59,12 @@ export class ListasPrecioController {
   eliminarLista(
     @Param('id') id: string,
     @ActiveUser('empresaId') empresaId: string,
+    @Query('confirmar') confirmar?: string,
   ) {
-    return this.listasPrecioService.eliminarLista(id, empresaId);
+    return this.listasPrecioService.eliminarLista(
+      id,
+      empresaId,
+      String(confirmar ?? '').toLowerCase() === 'true',
+    );
   }
 }
