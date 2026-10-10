@@ -18,6 +18,7 @@ import { ActualizarUsuarioDto } from '../dto/actualizar-usuario.dto';
 import { MailService } from '../../common/services/mail.service';
 import { esRolAdministrador } from '../utils/roles.util';
 import { ConfigService } from '@nestjs/config';
+import { IdentidadEmpresaService } from './identidad-empresa.service';
 import { DirectorioIdentidadService } from './directorio-identidad.service';
 import { PermisosDinamicosService } from './permisos-dinamicos.service';
 
@@ -31,6 +32,7 @@ export class UsuariosService {
     private readonly mailService: MailService,
     private readonly config: ConfigService,
     private readonly directorio: DirectorioIdentidadService,
+    private readonly identidades: IdentidadEmpresaService,
     private readonly permisos: PermisosDinamicosService,
   ) {}
 
@@ -314,8 +316,35 @@ export class UsuariosService {
       estado: 'no-configurado',
     };
 
-    if (enDirectorio && this.directorio.configurado) {
-      const alta = await this.directorio.crearIdentidad({
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * El directorio DE ESTA EMPRESA, no el de la instalación
+     * ------------------------------------------------------------------------
+     * Con un realm por empresa, crear la identidad con el provisionador del
+     * entorno la crea EN EL REALM COMÚN. Y no falla: Keycloak contesta 201, el
+     * ERP guarda el `sub`, y la persona queda sellada con un directorio que no
+     * es el de su empresa. Nadie se entera hasta que intenta entrar.
+     *
+     * `paraIdentidad()` existía desde que se escribió este servicio y **no la
+     * llamaba nadie**: la pieza buena estaba hecha y el camino real seguía
+     * usando el entorno. Encontrado el 10-oct-2026 recorriendo el aislamiento
+     * multiempresa, con el primer realm propio ya creado.
+     *
+     * Cuando la empresa no tiene identidad propia, `deEmpresa()` devuelve la
+     * del entorno y `paraIdentidad()` se queda con `this`: la instalación de
+     * una sola empresa se comporta exactamente igual que antes.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    const identidadDeLaEmpresa = await this.identidades.deEmpresa(empresaId);
+    const directorio = this.directorio.paraIdentidad({
+      emisor: identidadDeLaEmpresa.emisor,
+      clientIdProvisionador: identidadDeLaEmpresa.clientIdProvisionador,
+      secretoProvisionador: identidadDeLaEmpresa.secretoProvisionador,
+      dominiosPermitidos: identidadDeLaEmpresa.dominiosPermitidos,
+    });
+
+    if (enDirectorio && directorio.configurado) {
+      const alta = await directorio.crearIdentidad({
         email: emailNorm,
         nombre: dto.nombreCompleto.trim().split(/\s+/)[0] ?? dto.nombreCompleto,
         apellido: dto.nombreCompleto.trim().split(/\s+/).slice(1).join(' '),

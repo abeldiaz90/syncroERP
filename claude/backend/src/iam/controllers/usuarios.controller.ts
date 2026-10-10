@@ -8,6 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { UsuariosService } from '../services/usuarios.service';
+import { IdentidadEmpresaService } from '../services/identidad-empresa.service';
 import { DirectorioIdentidadService } from '../services/directorio-identidad.service';
 import { ConfigService } from '@nestjs/config';
 import { CrearUsuarioDto } from '../dto/crear-usuario.dto';
@@ -23,6 +24,7 @@ import { SkipPermisos } from '../decorators/skip-permisos.decorator';
 export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService,
     private readonly directorio: DirectorioIdentidadService,
+    private readonly identidades: IdentidadEmpresaService,
     private readonly config: ConfigService,
   ) {}
 
@@ -98,7 +100,7 @@ export class UsuariosController {
    * llenar el formulario, no después.
    */
   @Get('directorio')
-  async estadoDirectorio() {
+  async estadoDirectorio(@ActiveUser('empresaId') empresaId: string) {
     /*
      * `configurado` sólo dice que las variables están puestas, y eso no
      * distingue el caso que de verdad se da: cuenta de servicio con
@@ -106,12 +108,26 @@ export class UsuariosController {
      * problema y revienta con 403 justo al guardar el alta, con el formulario
      * lleno y sin decir qué rol falta. El diagnóstico lee los permisos del
      * propio token, que es lo que Keycloak va a mirar.
+     *
+     * Y lee el directorio DE ESTA EMPRESA. Diagnosticar el del entorno
+     * mientras el alta escribe en el de la empresa es un control que se cree
+     * puesto: diría «todo bien» de un realm que no es el que se va a usar.
      */
-    const diagnostico = await this.directorio.diagnostico();
+    const identidad = await this.identidades.deEmpresa(empresaId);
+    const directorio = this.directorio.paraIdentidad({
+      emisor: identidad.emisor,
+      clientIdProvisionador: identidad.clientIdProvisionador,
+      secretoProvisionador: identidad.secretoProvisionador,
+      dominiosPermitidos: identidad.dominiosPermitidos,
+    });
+    const diagnostico = await directorio.diagnostico();
     return {
-      configurado: this.directorio.configurado,
-      motivo: this.directorio.motivoNoConfigurado,
-      dominios: this.directorio.dominiosPermitidos,
+      configurado: directorio.configurado,
+      motivo: directorio.motivoNoConfigurado,
+      dominios: directorio.dominiosPermitidos,
+      /* De qué realm habla todo lo de arriba. */
+      realm: identidad.realm,
+      origenIdentidad: identidad.origen,
       identidadEnDirectorio:
         this.config.get<string>('AUTH_MODE', 'keycloak') === 'keycloak',
       puedeLeer: diagnostico.puedeLeer,

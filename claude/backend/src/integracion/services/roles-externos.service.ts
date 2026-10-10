@@ -18,6 +18,7 @@ import { MapeoRolExterno } from '../entities/mapeo-rol-externo.entity';
 import { PuertoUsuariosExternos } from '../ports/usuarios-externos.port';
 import { IntegracionVinculosService } from './integracion-vinculos.service';
 import { IntegracionModoService } from './integracion-modo.service';
+import { IdentidadEmpresaService } from '../../iam/services/identidad-empresa.service';
 import { DirectorioIdentidadService } from '../../iam/services/directorio-identidad.service';
 
 export interface EstadoUsuarioExterno {
@@ -108,6 +109,7 @@ export class RolesExternosService {
     private readonly configEmpresa: Repository<ConfiguracionIntegracionEmpresa>,
     private readonly vinculos: IntegracionVinculosService,
     private readonly directorio: DirectorioIdentidadService,
+    private readonly identidades: IdentidadEmpresaService,
     private readonly modos: IntegracionModoService,
     @Inject(PUERTO_USUARIOS_EXTERNOS)
     private readonly externos: PuertoUsuariosExternos,
@@ -277,6 +279,21 @@ export class RolesExternosService {
     const cfg = await this.configEmpresa.findOne({ where: { empresaId } });
     const oficinaEsperada = cfg?.oficinaContableExterna ?? null;
 
+    /*
+     * El directorio DE ESTA EMPRESA. Preguntarle al del entorno por la gente
+     * de una empresa que tiene su propio realm contesta «no está en el
+     * directorio» para todo el mundo: una alarma falsa, en la pantalla que
+     * existe para detectar alarmas de verdad. Se resuelve una vez y fuera del
+     * bucle, que además evita pedir un token por persona.
+     */
+    const identidadEmpresa = await this.identidades.deEmpresa(empresaId);
+    const directorio = this.directorio.paraIdentidad({
+      emisor: identidadEmpresa.emisor,
+      clientIdProvisionador: identidadEmpresa.clientIdProvisionador,
+      secretoProvisionador: identidadEmpresa.secretoProvisionador,
+      dominiosPermitidos: identidadEmpresa.dominiosPermitidos,
+    });
+
     const salida: EstadoUsuarioExterno[] = [];
     /** Permisos por rol externo: `null` es «no se pudo preguntar». */
     const permisosPorRol = new Map<string, number | null>();
@@ -295,7 +312,7 @@ export class RolesExternosService {
        * casual: si la persona no existe en el directorio, no puede entrar ni al
        * ERP, así que da igual lo bien mapeada que esté del otro lado.
        */
-      const identidad = await this.directorio.buscarPorCorreo(u.email);
+      const identidad = await directorio.buscarPorCorreo(u.email);
       const enDirectorio = identidad === undefined ? null : identidad !== null;
       const habilitadoEnDirectorio =
         identidad === undefined || identidad === null ? null : identidad.habilitado;
