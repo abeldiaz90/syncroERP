@@ -57,6 +57,8 @@ export default function UsuariosPage() {
      * antes de pulsar el botón y no meses después.
      */
     realm?: string | null; origenIdentidad?: 'empresa' | 'entorno' | 'suspendida';
+    /* `null` es «no se sabe», y se dice así. No es lo mismo que «no». */
+    correoSaliente?: boolean | null; remitente?: string | null;
     configurado: boolean; motivo: string | null; dominios: string[]; identidadEnDirectorio: boolean;
   } | null>(null);
 
@@ -435,6 +437,16 @@ export default function UsuariosPage() {
                 ? ', el propio de esta empresa.'
                 : ', el común de la instalación — esta empresa todavía no tiene el suyo.'}
             </span>
+          )}
+          {directorio.correoSaliente === false && (
+            <span className="block mt-1 font-medium text-amber-800">
+              Este directorio no tiene servidor de correo, así que el enlace no va a salir y
+              esta persona no podrá entrar. Se puede crear igual y reenviarle la invitación
+              cuando el correo funcione.
+            </span>
+          )}
+          {directorio.correoSaliente === true && directorio.remitente && (
+            <span className="block mt-1">El enlace saldrá desde {directorio.remitente}.</span>
           )}
         </p>
       ) : (

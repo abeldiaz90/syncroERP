@@ -256,6 +256,17 @@ export class DirectorioIdentidadService {
     puedeCrear: boolean;
     faltan: string[];
     detalle: string | null;
+    /**
+     * Si este realm puede mandar el correo de invitación.
+     *
+     * `null` es «no se sabe», y no es lo mismo que «no». Keycloak contesta a
+     * `GET /admin/realms/<realm>` aunque la cuenta no tenga `view-realm`, pero
+     * devuelve una representación RECORTADA: `smtpServer` no viene, y leer esa
+     * ausencia como «no hay correo» sería afirmar lo que no se sabe. Es el
+     * mismo error que ya costó un diagnóstico entero el 10-oct.
+     */
+    correoSaliente: boolean | null;
+    remitente: string | null;
   }> {
     const base = {
       configurado: this.configurado,
@@ -266,6 +277,8 @@ export class DirectorioIdentidadService {
       puedeCrear: false,
       faltan: [] as string[],
       detalle: null as string | null,
+      correoSaliente: null as boolean | null,
+      remitente: null as string | null,
     };
     if (!this.configurado) return base;
 
@@ -309,6 +322,41 @@ export class DirectorioIdentidadService {
       ...(puedeCrear ? [] : ['manage-users']),
     ];
 
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * ¿Puede salir la invitación?
+     * ------------------------------------------------------------------------
+     * La identidad se crea SIN contraseña a propósito y la persona la fija por
+     * un enlace. Si el realm no tiene servidor de correo, ese enlace no sale y
+     * el alta deja a alguien dado de alta que no puede entrar nunca.
+     *
+     * Hasta ahora eso sólo se sabía DESPUÉS, en el mensaje del alta. Decirlo
+     * antes es la diferencia entre no crear a nadie y tener que ir a Keycloak
+     * a reenviar a mano.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    let correoSaliente: boolean | null = null;
+    let remitente: string | null = null;
+    try {
+      const { data } = await axios.get<Record<string, unknown>>(
+        `${this.baseAdmin}`,
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 },
+      );
+      /*
+       * La representación recortada trae poco más que el nombre. Si no vienen
+       * ni los ajustes de sesión, es que no se está viendo el realm entero y
+       * la ausencia de `smtpServer` no significa nada.
+       */
+      const recortada = data?.ssoSessionIdleTimeout === undefined;
+      if (!recortada) {
+        const smtp = (data?.smtpServer ?? {}) as Record<string, string>;
+        correoSaliente = Boolean(smtp.host && smtp.from);
+        remitente = smtp.from ?? null;
+      }
+    } catch {
+      /* Sigue siendo «no se sabe». No se afirma nada. */
+    }
+
     return {
       configurado: true,
       motivo: null,
@@ -317,6 +365,8 @@ export class DirectorioIdentidadService {
       puedeLeer,
       puedeCrear,
       faltan,
+      correoSaliente,
+      remitente,
       detalle: faltan.length
         ? `A la cuenta de servicio de «${this.clientId}» le falta ${faltan.join(
             ' y ',

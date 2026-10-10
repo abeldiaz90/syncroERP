@@ -135,6 +135,13 @@ export class UsuariosController {
       faltan: diagnostico.faltan,
       alcanzable: diagnostico.alcanzable,
       detalle: diagnostico.detalle,
+      /*
+       * `null` es «no se sabe», y la pantalla lo dice así. Afirmar que no hay
+       * correo cuando lo que pasa es que no se puede mirar mandaría a
+       * configurar algo que quizá ya está puesto.
+       */
+      correoSaliente: diagnostico.correoSaliente,
+      remitente: diagnostico.remitente,
     };
   }
 
