@@ -47,6 +47,16 @@ export default function UsuariosPage() {
    * ANTES de llenar el formulario, no después.
    */
   const [directorio, setDirectorio] = useState<{
+    /*
+     * `realm` y `origenIdentidad` dicen EN QUÉ DIRECTORIO se va a crear la
+     * identidad. No es un adorno: hasta el 10-oct-2026 el alta la creaba
+     * siempre en el realm común, aunque la empresa tuviera el suyo, y la
+     * persona quedaba sellada con un directorio que no era el de su empresa —
+     * sin error, sin aviso, y sin vuelta atrás, porque una identidad no se muda
+     * de realm. Decirlo en la pantalla es lo que hace que un error así se vea
+     * antes de pulsar el botón y no meses después.
+     */
+    realm?: string | null; origenIdentidad?: 'empresa' | 'entorno' | 'suspendida';
     configurado: boolean; motivo: string | null; dominios: string[]; identidadEnDirectorio: boolean;
   } | null>(null);
 
@@ -418,6 +428,14 @@ export default function UsuariosPage() {
           No se captura contraseña: se crea su identidad en SUMA y el directorio le manda el
           enlace para que la fije él mismo.
           {directorio.dominios.length > 0 && <> Solo se aceptan correos de <b>{directorio.dominios.join(', ')}</b>.</>}
+          {directorio.realm && (
+            <span className="block mt-1">
+              Se creará en el directorio <b>{directorio.realm}</b>
+              {directorio.origenIdentidad === 'empresa'
+                ? ', el propio de esta empresa.'
+                : ', el común de la instalación — esta empresa todavía no tiene el suyo.'}
+            </span>
+          )}
         </p>
       ) : (
         <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
