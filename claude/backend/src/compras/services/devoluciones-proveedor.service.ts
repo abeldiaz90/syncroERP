@@ -26,6 +26,7 @@ import { InventarioService } from '../../catalogo/services/inventario.service';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { OrdenesCompraService } from './ordenes-compra.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
+import { diaDeCalendarioAFecha, fechaContableNegocio } from '../../common/utils/business-time.util';
 
 /**
  * ============================================================================
@@ -240,6 +241,25 @@ export class DevolucionesProveedorService {
        * Con el manager de ESTA transacción: si el alta de la devolución falla
        * el número se devuelve y la numeración no queda con huecos.
        */
+      /*
+       * ── LA FECHA SE CORRÍA UN DÍA, Y VACÍA REVENTABA ──────────────────────
+       * Era `new Date(datos.fecha)`, dos veces: en la cabecera y en la carga
+       * del asiento. Con '2026-10-05' eso es medianoche UTC, o sea las 18:00
+       * del 4 en zona de negocio: la devolución quedaba fechada el día
+       * anterior, y con ella su póliza. Un día de diferencia no se nota hasta
+       * que cae en el cambio de mes y la devolución aparece en el período
+       * equivocado.
+       *
+       * Y el DTO declara la fecha OPCIONAL —`@IsFechaOpcional` convierte la
+       * cadena vacía en `undefined` antes de validar—, así que la petición
+       * pasaba y aquí se hacía `new Date(undefined)`: Invalid Date, y el error
+       * que veía quien devolvía mercancía era de la base de datos.
+       *
+       * Sin fecha, la devolución es de hoy, que es lo único que puede ser.
+       */
+      const fechaDeLaDevolucion =
+        diaDeCalendarioAFecha(datos.fecha) ?? fechaContableNegocio();
+
       const folio = await this.siguienteFolio(empresaId, manager);
       const cabecera = manager.create(DevolucionProveedor, {
         empresaId,
@@ -247,7 +267,7 @@ export class DevolucionesProveedorService {
         ordenCompraId: datos.ordenCompraId,
         proveedorId: disponible.proveedorId,
         almacenId: datos.almacenId,
-        fecha: new Date(datos.fecha),
+        fecha: fechaDeLaDevolucion,
         motivo: datos.motivo.trim(),
         notaCreditoProveedor: datos.notaCreditoProveedor?.trim() || null,
         estado: EstadoDevolucionProveedor.REGISTRADA,
@@ -358,7 +378,7 @@ export class DevolucionesProveedorService {
           devolucionId: guardada.id,
           empresaId,
           folio,
-          fecha: new Date(datos.fecha),
+          fecha: fechaDeLaDevolucion,
           ivaYaPagado: disponible.estadoPago === 'PAGADA',
           detalles: paraContabilidad,
         },

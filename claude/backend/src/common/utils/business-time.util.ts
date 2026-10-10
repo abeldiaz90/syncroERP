@@ -170,3 +170,37 @@ export function fechaContableNegocio(
     .map(Number);
   return new Date(anio, mes - 1, dia);
 }
+
+/**
+ * ============================================================================
+ * Un día de calendario escrito por una persona no es un instante UTC
+ * ----------------------------------------------------------------------------
+ * `new Date('2026-10-05')` es medianoche UTC, que en la zona de negocio son las
+ * 18:00 del día ANTERIOR. Guardado en una columna `date`, queda el 4 de octubre:
+ * la fecha se corre un día, siempre, y hacia atrás. Es el mismo error que ya
+ * pagamos en el estado de cuenta y en la devolución a proveedor.
+ *
+ * Esto toma lo que capturó la persona —`YYYY-MM-DD`, con o sin hora detrás— y
+ * devuelve ese día a medianoche LOCAL, que es lo que TypeORM escribe tal cual.
+ * Si no viene nada, o viene algo que no es una fecha, devuelve `null`: quien
+ * llama decide si eso es el día de hoy o un error, porque no es lo mismo en
+ * todos los sitios.
+ * ============================================================================
+ */
+export function diaDeCalendarioAFecha(
+  texto: string | Date | undefined | null,
+  timeZone = DEFAULT_TIME_ZONE,
+): Date | null {
+  if (texto instanceof Date) {
+    return Number.isNaN(texto.getTime()) ? null : fechaContableNegocio(texto, timeZone);
+  }
+  const limpio = String(texto ?? '').trim();
+  if (!limpio) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(limpio);
+  if (m) {
+    const fecha = new Date(+m[1], +m[2] - 1, +m[3]);
+    return Number.isNaN(fecha.getTime()) ? null : fecha;
+  }
+  const suelta = new Date(limpio);
+  return Number.isNaN(suelta.getTime()) ? null : fechaContableNegocio(suelta, timeZone);
+}

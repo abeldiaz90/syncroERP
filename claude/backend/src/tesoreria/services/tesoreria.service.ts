@@ -48,6 +48,7 @@ import { CrearMovimientoTesoreriaDto } from '../dto/tesoreria.dto';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
 import {
+  diaDeCalendarioAFecha,
   exigirRangoDeFechas,
   fechaContableNegocio,
 } from '../../common/utils/business-time.util';
@@ -478,10 +479,17 @@ export class TesoreriaService {
     if (filtros.conciliacion)
       q.andWhere('m.estadoConciliacion = :ec', { ec: filtros.conciliacion });
     if (filtros.desde && filtros.hasta) {
-      q.andWhere('m.fecha BETWEEN :desde AND :hasta', {
-        desde: new Date(filtros.desde),
-        hasta: new Date(filtros.hasta),
-      });
+      /*
+       * Mismo corrimiento que arriba, y además hacia el otro lado: `desde` y
+       * `hasta` llegan como día de calendario ('2026-10-05'), que `new Date`
+       * interpreta en UTC —las 18:00 del día anterior en zona de negocio—. El
+       * listado perdía el primer día por un extremo y el último por el otro.
+       */
+      const desde = diaDeCalendarioAFecha(filtros.desde) ?? new Date(filtros.desde);
+      const hastaDia = diaDeCalendarioAFecha(filtros.hasta) ?? new Date(filtros.hasta);
+      const hasta = new Date(hastaDia.getTime());
+      hasta.setHours(23, 59, 59, 999);
+      q.andWhere('m.fecha BETWEEN :desde AND :hasta', { desde, hasta });
     }
     if (filtros.busqueda) {
       q.andWhere(
@@ -1099,7 +1107,17 @@ export class TesoreriaService {
     if (!estado) throw new NotFoundException('El estado de cuenta no existe.');
 
     const primerDia = new Date(estado.ejercicio, estado.mes - 1, 1);
-    const ultimoDia = new Date(estado.ejercicio, estado.mes, 0);
+    /*
+     * ── EL ÚLTIMO DÍA DEL MES TAMBIÉN TIENE HORAS ─────────────────────────
+     * `new Date(ejercicio, mes, 0)` es el día 30 o 31 a MEDIANOCHE. La columna
+     * `fecha` de un movimiento guarda hora, así que un `Between(primero,
+     * ultimo)` dejaba fuera todo lo registrado ese último día desde las 00:00:01
+     * en adelante: es decir, todo. Si el mes no tenía más movimientos, el
+     * saldo según libros se reportaba en CERO y la conciliación se negaba sobre
+     * una cuenta correcta. El remedio ya existía en la casa —`exigirRangoDeFechas`
+     * devuelve el final del día— y sólo lo usaba el flujo de efectivo.
+     */
+    const ultimoDia = new Date(estado.ejercicio, estado.mes, 0, 23, 59, 59, 999);
 
     /*
      * ══════════════════════════════════════════════════════════════════════
