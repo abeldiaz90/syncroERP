@@ -44,7 +44,8 @@ export class RecetasController {
   producir(
     @Body() dto: ProducirDto,
     @ActiveUser('empresaId') e: string,
+    @ActiveUser('sub') usuarioId: string,
   ): Promise<any> {
-    return this.svc.producir(dto, e);
+    return this.svc.producir(dto, e, usuarioId);
   }
 }

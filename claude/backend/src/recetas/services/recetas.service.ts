@@ -7,9 +7,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In } from 'typeorm';
+import { randomUUID } from 'crypto';
 import { Receta } from '../entities/receta.entity';
 import { RecetaInsumo } from '../entities/receta-insumo.entity';
-import { Producto } from '../../catalogo/entities/producto.entity';
+import { Producto, TipoProducto } from '../../catalogo/entities/producto.entity';
+import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
+import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
+import { fechaContableNegocio } from '../../common/utils/business-time.util';
 import { InventarioService } from '../../catalogo/services/inventario.service';
 import { GuardarRecetaDto, ProducirDto } from '../dtos/recetas.dtos';
 
@@ -35,6 +39,7 @@ export class RecetasService {
     @InjectRepository(Receta) private readonly recetaRepo: Repository<Receta>,
     private readonly inventarioService: InventarioService,
     private readonly dataSource: DataSource,
+    private readonly asientos: AsientosPendientesService,
   ) {}
 
   // ── GUARDAR RECETA (crea o reemplaza) ────────────────────────────────────
@@ -165,9 +170,45 @@ export class RecetasService {
   // ── PRODUCIR/VENDER: explota la receta y descuenta insumos del inventario ─
   // Este es el corazón. Cuando se vende una margarita, se llama aquí con
   // cantidad=1, y descuenta el tequila, licor, etc. del almacén.
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * PRODUCIR SACABA VALOR DEL INVENTARIO Y NO PONÍA NADA A CAMBIO
+   * --------------------------------------------------------------------------
+   * Esto descontaba los insumos con `registrarSalida` y devolvía el costo. Nada
+   * más. Y `registrarSalida` no encola asiento a propósito —lo encola quien
+   * tiene el documento—, así que aquí no lo encolaba nadie.
+   *
+   * O sea que cada producción bajaba el valor del inventario y el mayor no se
+   * enteraba. Producir cien litros de salsa restaba del almacén el costo de la
+   * carne, el tomate y la sal, y la contabilidad seguía valorando el inventario
+   * como si siguieran ahí. Descuadre permanente, en la dirección que nadie
+   * sospecha: la balanza dice que hay más mercancía de la que hay.
+   *
+   * Y faltaba la otra mitad, que el barrido no vio: **no se registraba lo
+   * producido**. Los insumos salían y el producto terminado no entraba por
+   * ningún lado. El valor no se movía de sitio: se evaporaba.
+   *
+   * Qué pasa con el valor depende de qué se produce, y eso lo dice el catálogo:
+   *
+   *   · FISICO o MATERIA_PRIMA → es mercancía que se almacena. Entra al almacén
+   *     con el costo REAL de los lotes que se consumieron, no con el teórico de
+   *     la receta. El valor sólo cambia de renglón, así que el mayor no tiene
+   *     nada que registrar: inventario contra inventario.
+   *
+   *   · KIT, SERVICIO o CONSUMIBLE → no se almacena. Entonces el costo de los
+   *     insumos es un consumo de verdad y tiene que llegar al mayor, que es lo
+   *     que ahora se encola. Se manda como CONSUMO y no como MERMA: no se echó
+   *     a perder nada, se usó.
+   *
+   * Y la receta tiene que estar ACTIVA. `tieneReceta` y `ConsumoRecetasService`
+   * ya filtran por `activa: true`; este camino era el único que no, así que una
+   * receta retirada seguía pudiendo descontar insumos por esta puerta.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
   async producir(
     dto: ProducirDto,
     empresaId: string,
+    usuarioId?: string,
   ): Promise<ResultadoProduccion> {
     if (!Number.isFinite(Number(dto.cantidad)) || Number(dto.cantidad) <= 0) {
       throw new BadRequestException(
@@ -175,11 +216,13 @@ export class RecetasService {
       );
     }
     const receta = await this.recetaRepo.findOne({
-      where: { productoId: dto.productoId, empresaId },
+      where: { productoId: dto.productoId, empresaId, activa: true },
       relations: ['insumos'],
     });
     if (!receta)
-      throw new NotFoundException('Este producto no tiene receta definida');
+      throw new NotFoundException(
+        'Este producto no tiene una receta activa. Si la receta existe pero está retirada, actívala antes de producir.',
+      );
     if (!receta.insumos?.length)
       throw new BadRequestException('La receta no tiene insumos');
 
@@ -188,6 +231,7 @@ export class RecetasService {
 
     return this.dataSource.transaction(async (manager) => {
       const descontados: ResultadoProduccion['insumosDescontados'] = [];
+      const consumidos: Array<{ productoId: string; cantidad: number; costoUnitario: number }> = [];
       let costoTotal = 0;
 
       for (const ins of receta.insumos) {
@@ -209,6 +253,11 @@ export class RecetasService {
         // Usa el costo real de los lotes consumidos, no el costo teórico
         // congelado cuando se creó la receta.
         costoTotal += Number(salida.costoTotal);
+        consumidos.push({
+          productoId: ins.insumoId,
+          cantidad: Number(salida.cantidadTotal),
+          costoUnitario: Number(salida.costoUnitarioPromedio),
+        });
         descontados.push({
           insumoId: ins.insumoId,
           insumoNombre: ins.insumoNombre,
@@ -217,12 +266,74 @@ export class RecetasService {
         });
       }
 
+      const costo = Math.round(costoTotal * 100) / 100;
+      const advertencias: string[] = [];
+
+      const producto = await manager.findOne(Producto, {
+        where: { id: dto.productoId, empresaId },
+      });
+      const seAlmacena =
+        !!producto &&
+        [TipoProducto.FISICO, TipoProducto.MATERIA_PRIMA].includes(producto.tipo);
+
+      if (seAlmacena) {
+        await this.inventarioService.registrarCompra(
+          dto.productoId,
+          dto.almacenId,
+          dto.cantidad,
+          `Producción de ${receta.productoNombre ?? producto!.nombre}`,
+          empresaId,
+          undefined,
+          undefined,
+          undefined,
+          manager,
+          costo / dto.cantidad,
+          { id: receta.id, tipo: 'PRODUCCION_RECETA' },
+          undefined,
+          usuarioId,
+        );
+      } else {
+        /*
+         * No se almacena, así que el costo de los insumos salió del inventario
+         * para quedarse fuera. Va al mayor como consumo, en un solo asiento con
+         * un renglón por insumo: así la póliza dice QUÉ se consumió, que es lo
+         * que el contador necesita cuando pregunta de dónde salió el importe.
+         */
+        const movimientoId = randomUUID();
+        await this.asientos.encolarEnTransaccion(
+          manager,
+          TipoAsiento.SALIDA_INVENTARIO,
+          {
+            movimientoId,
+            tipo: 'CONSUMO',
+            motivo:
+              dto.motivo ??
+              `Producción de ${receta.productoNombre ?? dto.productoId} (${dto.cantidad})`,
+            fecha: fechaContableNegocio(),
+            empresaId,
+            detalles: consumidos.map((c) => ({
+              productoId: c.productoId,
+              cantidad: c.cantidad,
+              costoUnitario: c.costoUnitario,
+            })),
+          },
+          empresaId,
+          `PRODUCCION-${movimientoId.slice(0, 8)}`,
+          movimientoId,
+        );
+        advertencias.push(
+          `«${receta.productoNombre ?? 'El producto'}» no se almacena (${producto?.tipo ?? 'sin tipo'}), ` +
+            'así que el costo de los insumos se registró como consumo en la contabilidad ' +
+            'en vez de entrar al almacén.',
+        );
+      }
+
       return {
         productoId: dto.productoId,
         cantidadProducida: dto.cantidad,
         insumosDescontados: descontados,
-        costoTotal: Math.round(costoTotal * 100) / 100,
-        advertencias: [],
+        costoTotal: costo,
+        advertencias,
       };
     });
   }
