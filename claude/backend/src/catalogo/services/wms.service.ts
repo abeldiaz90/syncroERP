@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, Not, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, Not, Repository } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import { Almacen } from '../entities/almacen.entity';
@@ -384,8 +384,47 @@ export class WmsService implements OnModuleInit {
                     throw new BadRequestException('La cantidad recibida más dañada no puede superar la enviada');
                 if (recibida !== enviada || danada > 0)
                     diferencias = true;
-                if (recibida > 0)
-                    await this.inventario.registrarCompra(d.productoId, t.almacenDestinoId, recibida, `Recepción transferencia ${t.folio}`, empresaId, d.numeroLote, d.fechaCaducidad ? new Date(d.fechaCaducidad).toISOString() : undefined, undefined, em, n(d.costoUnitario), { id: t.id, tipo: 'TRANSFERENCIA_RECEPCION' }, r.ubicacionDestinoId);
+                /*
+                 * ── LA MERCANCÍA DAÑADA SE EVAPORABA ──────────────────────
+                 * Aquí entraba `recibida` y nada más. Las unidades dañadas
+                 * habían salido del origen en el envío y no entraban en
+                 * ninguna parte: ni al almacén destino, ni al kardex, ni al
+                 * mayor. El único rastro era `cantidadDanada` en el renglón de
+                 * la transferencia, que no es un movimiento de inventario ni
+                 * una partida contable. Medido: 100 piezas enviadas a 50, 10
+                 * dañadas, y el mayor seguía valorando 100 × 50 = 5,000
+                 * mientras el almacén tenía 90. Quinientos pesos de descuadre
+                 * permanente, y cero en la cuenta de mermas.
+                 *
+                 * Ahora entra TODO lo que llegó —bueno y dañado— y lo dañado
+                 * sale enseguida como merma, que es lo que hacen los ERP que
+                 * manejan recepciones con daño: Odoo recibe la cantidad
+                 * completa y genera un `scrap` sobre el lote recibido. Hacerlo
+                 * en ese orden no es cosmético: la merma consume el LOTE que
+                 * acaba de llegar, con su costo exacto, en vez de dejar que el
+                 * consumo por caducidad eligiera otro lote del destino y
+                 * cargara a mermas un costo que no es el de lo que se rompió.
+                 *
+                 * Las dos operaciones van en `em`, dentro de la transacción de
+                 * la recepción: no existe el estado intermedio en el que lo
+                 * dañado está en existencia.
+                 */
+                const aIngresar = recibida + danada;
+                if (aIngresar > 0)
+                    await this.inventario.registrarCompra(d.productoId, t.almacenDestinoId, aIngresar, `Recepción transferencia ${t.folio}`, empresaId, d.numeroLote, d.fechaCaducidad ? new Date(d.fechaCaducidad).toISOString() : undefined, undefined, em, n(d.costoUnitario), { id: t.id, tipo: 'TRANSFERENCIA_RECEPCION' }, r.ubicacionDestinoId, usuarioId);
+                if (danada > 0) {
+                    const loteRecibido = await em.findOne(LoteInventario, { where: { empresaId, productoId: d.productoId, almacenId: t.almacenDestinoId, numeroLote: d.numeroLote || 'ÚNICO' } });
+                    await this.inventario.mermaEnTransaccion(em, {
+                        productoId: d.productoId,
+                        almacenId: t.almacenDestinoId,
+                        cantidad: danada,
+                        motivo: `Mercancía dañada en la recepción de la transferencia ${t.folio}`,
+                        empresaId,
+                        usuarioId,
+                        loteEspecificoId: loteRecibido?.id,
+                        ubicacionId: r.ubicacionDestinoId,
+                    });
+                }
                 d.ubicacionDestinoId = r.ubicacionDestinoId;
                 d.cantidadRecibida = recibida;
                 d.cantidadDanada = danada;
@@ -642,9 +681,19 @@ export class WmsService implements OnModuleInit {
              * lote, que es exactamente lo que son, en vez de inventarle uno.
              */
             if (pendiente > 0) {
-                let fila = await em.findOne(StockUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId: destinoUb.id, loteId: undefined as any, estado: EstadoStockUbicacion.DISPONIBLE } });
+                /*
+                 * `loteId: undefined` NO es «sin lote» para TypeORM: la clave
+                 * se descarta del `where` y la consulta queda «cualquier lote».
+                 * Devolvía la primera fila del producto en esa posición —casi
+                 * siempre una CON lote— y le sumaba el excedente sin lote. A
+                 * partir de ahí ese lote decía tener en la posición unidades
+                 * que no son suyas: la trazabilidad por lote miente, y miente
+                 * hacia arriba, que es la dirección que nadie va a sospechar.
+                 * Se pide explícitamente la fila sin lote.
+                 */
+                let fila = await em.findOne(StockUbicacion, { where: { empresaId, productoId, almacenId, ubicacionId: destinoUb.id, loteId: IsNull(), estado: EstadoStockUbicacion.DISPONIBLE } });
                 if (!fila)
-                    fila = em.create(StockUbicacion, { empresaId, productoId, almacenId, ubicacionId: destinoUb.id, loteId: undefined, estado: EstadoStockUbicacion.DISPONIBLE, cantidad: 0 });
+                    fila = em.create(StockUbicacion, { empresaId, productoId, almacenId, ubicacionId: destinoUb.id, loteId: null as any, estado: EstadoStockUbicacion.DISPONIBLE, cantidad: 0 });
                 fila.cantidad = n(fila.cantidad) + pendiente;
                 await em.save(fila);
                 colocado.push({ loteId: null, numeroLote: 'S/L', cantidad: pendiente });
@@ -702,8 +751,30 @@ export class WmsService implements OnModuleInit {
                 throw new NotFoundException('Existencia por ubicación no encontrada');
             if (origen.ubicacionId === dto.ubicacionDestinoId)
                 throw new BadRequestException('La ubicación origen y destino deben ser diferentes');
-            if (n(origen.cantidad) < cantidad)
-                throw new BadRequestException(`Cantidad insuficiente en origen. Disponible: ${n(origen.cantidad)}`);
+            /*
+             * ── LO APARTADO NO SE PUEDE MOVER ─────────────────────────────
+             * La comprobación miraba `cantidad` a secas, y `StockUbicacion`
+             * tiene `reservado`: las unidades que una transferencia o una
+             * venta ya apartaron en ESA posición. El resto del servicio sí lo
+             * respeta —al reservar pide `cantidad-reservado>0`, y la salida
+             * sólo consume la parte no reservada—; la reubicación no.
+             *
+             * Así que se podían mover unidades apartadas a otra posición. El
+             * `reservado` NO viajaba con ellas, de modo que el origen quedaba
+             * con `cantidad < reservado` —una reserva sobre mercancía que ya
+             * no está ahí, que la salida ya no puede consumir— y en el destino
+             * las mismas unidades aparecían libres: existencia fantasma,
+             * vendible dos veces.
+             *
+             * Se mide contra lo disponible, y la negativa dice cuánto hay
+             * apartado para que el almacenista sepa qué documento lo tiene.
+             */
+            const disponibleOrigen = n(origen.cantidad) - n(origen.reservado);
+            if (disponibleOrigen < cantidad)
+                throw new BadRequestException(
+                    `Cantidad insuficiente en origen. Disponible: ${Math.max(0, disponibleOrigen)}` +
+                    (n(origen.reservado) > 0 ? ` (${n(origen.reservado)} apartadas por un documento en curso)` : ''),
+                );
             const destinoUb = await em.findOne(UbicacionAlmacen, { where: { id: dto.ubicacionDestinoId, empresaId, almacenId: origen.almacenId, activo: true } });
             if (!destinoUb)
                 throw new BadRequestException('La ubicación destino no existe, está inactiva o pertenece a otro almacén');

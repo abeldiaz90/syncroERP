@@ -613,11 +613,51 @@ export class InventarioService {
           (acc, x) => acc + Math.max(0, Number(x.cantidad || 0) - Number(x.reservado || 0)),
           0,
         );
+        /*
+         * ══════════════════════════════════════════════════════════════════
+         * «SIN FILAS» NO QUIERE DECIR LO MISMO CON FILTRO QUE SIN ÉL
+         * ------------------------------------------------------------------
+         * La regla de abajo era: si el lote no tiene filas de ubicación es un
+         * lote legado y se descuenta del lote completo. Correcta mientras la
+         * consulta mira TODAS las posiciones. Pero cuando quien llama pide una
+         * posición concreta, la consulta lleva `su.ubicacionId = :ubicacionId`,
+         * y entonces «sin filas» significa otra cosa muy distinta: el lote SÍ
+         * está localizado, sólo que no ahí.
+         *
+         * Y se tomaba la rama de lote legado: se descontaba del lote entero sin
+         * tocar una sola fila de `stock_ubicaciones`. El total del almacén
+         * bajaba y lo ubicado no, así que a partir de ese momento el almacén
+         * tenía MÁS mercancía localizada que existente —ubicado > existencia—,
+         * un descuadre que no se corrige solo y que luego denuncia
+         * `verificarConsistenciaUbicaciones` sin poder decir de dónde salió.
+         *
+         * Ahora se pregunta por separado si el lote está localizado en algún
+         * sitio. Si lo está y no es el que se pidió, este lote no se consume:
+         * se pasa al siguiente. Si no queda ninguno, la salida falla con la
+         * negativa de disponibilidad de siempre, que es lo correcto —sacar
+         * mercancía de una posición donde no está no es una salida, es un
+         * descuadre—.
+         * ══════════════════════════════════════════════════════════════════
+         */
+        const localizadoEnOtraParte =
+          ubicacionId && stocksUbicacion.length === 0
+            ? (await em
+                .createQueryBuilder(StockUbicacion, 'su')
+                .where('su.empresaId = :empresaId', { empresaId })
+                .andWhere('su.productoId = :productoId', { productoId })
+                .andWhere('su.almacenId = :almacenId', { almacenId })
+                .andWhere('su.loteId = :loteId', { loteId: lote.id })
+                .andWhere('su.cantidad > 0')
+                .getCount()) > 0
+            : false;
+
         // Si el lote está localizado, solo se consume la parte no reservada.
         // Si es un lote legado sin ubicaciones, se conserva la salida por lote.
         const disponibleConsumible = stocksUbicacion.length > 0
           ? Math.min(disponibleLote, totalLocalizadoDisponible)
-          : disponibleLote;
+          : localizadoEnOtraParte
+            ? 0
+            : disponibleLote;
         const aDescontar = Math.min(disponibleConsumible, restante);
         if (aDescontar <= 0) continue;
 
@@ -976,6 +1016,55 @@ export class InventarioService {
   }
 
   /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * LA MERMA QUE LA DECLARA OTRO FLUJO
+   * --------------------------------------------------------------------------
+   * `movimientoSinDocumento` es privado a propósito: es el dueño de la regla y
+   * no quiero diez llamadores decidiendo por su cuenta a qué cuenta va el valor
+   * que se pierde. Pero hay un caso que no es un ajuste manual y necesita
+   * exactamente esa maquinaria: **la mercancía que llega dañada en una
+   * transferencia**.
+   *
+   * Hasta hoy esa mercancía se evaporaba. El envío la descontaba del origen sin
+   * asiento —una transferencia no mueve el mayor, y eso es correcto— y la
+   * recepción sólo daba entrada a la parte buena. Las unidades dañadas quedaban
+   * anotadas en `cantidadDanada` del renglón de la transferencia y en ningún
+   * otro sitio: no había movimiento de inventario que las nombrara, el kardex
+   * no las mostraba, y el mayor seguía valorando un inventario que ya no
+   * existía. Descuadre permanente, del tamaño del costo de lo dañado, y sin un
+   * peso en la cuenta de mermas, que es justo la que mira el contador para
+   * saber si hay un problema en el almacén.
+   *
+   * Esto es la puerta estrecha para ese caso: `em` obligatorio, porque quien
+   * declara una merma de recepción ya está dentro de la transacción de la
+   * recepción y las dos cosas confirman juntas o ninguna. La razón no se elige:
+   * es MERMA. Una pérdida física declarada por quien recibe es exactamente lo
+   * que esa cuenta existe para recoger.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  async mermaEnTransaccion(
+    em: EntityManager,
+    datos: {
+      productoId: string;
+      almacenId: string;
+      cantidad: number;
+      motivo: string;
+      empresaId: string;
+      usuarioId?: string;
+      loteEspecificoId?: string;
+      ubicacionId?: string;
+    },
+  ) {
+    if (datos.cantidad <= 0)
+      throw new BadRequestException('La cantidad debe ser mayor a cero');
+    return this.movimientoSinDocumento(em, {
+      ...datos,
+      direccion: 'SALIDA',
+      razon: 'MERMA',
+    });
+  }
+
+  /**
    * La entrada y la salida de los dos botones del renglón del catálogo.
    *
    * Existe para que el controlador no entre directo al movimiento: por aquí
@@ -1255,8 +1344,32 @@ export class InventarioService {
       });
       await em.save(lote);
     } else if (fechaCaducidad) {
-      lote.fechaCaducidad = fechaCaducidad;
-      await em.save(lote);
+      /*
+       * ══════════════════════════════════════════════════════════════════════
+       * UNA ENTRADA NUEVA NO LE ALARGA LA VIDA A LA QUE YA ESTABA
+       * ----------------------------------------------------------------------
+       * Esto era `lote.fechaCaducidad = fechaCaducidad` sin más. Como el número
+       * de lote por omisión es `'ÚNICO'`, casi todas las entradas de un producto
+       * caen en el MISMO lote: la segunda entrada reescribía la caducidad de la
+       * primera. Cuarenta piezas que vencían en nueve días pasaban a vencer el
+       * año que viene porque llegó mercancía fresca, y el consumo por caducidad
+       * —que es quien decide qué se vende primero— dejaba de sacarlas a tiempo.
+       * Mercancía caducada en el anaquel, y el sistema diciendo que está bien.
+       *
+       * La fecha de un lote mezclado sólo puede ser la MÁS PRÓXIMA: es la única
+       * que no promete de más. Adelantarla es prudente —obliga a sacarla antes—;
+       * retrasarla es afirmar algo que no se sabe sobre piezas que ya estaban.
+       *
+       * Lo correcto de verdad es no mezclar: una entrada con caducidad propia
+       * debería traer su propio número de lote. Mientras el alta no lo exija,
+       * esto es el suelo, no el techo.
+       * ══════════════════════════════════════════════════════════════════════
+       */
+      const actual = lote.fechaCaducidad ? new Date(lote.fechaCaducidad) : null;
+      if (!actual || fechaCaducidad.getTime() < actual.getTime()) {
+        lote.fechaCaducidad = fechaCaducidad;
+        await em.save(lote);
+      }
     }
 
     return lote;
