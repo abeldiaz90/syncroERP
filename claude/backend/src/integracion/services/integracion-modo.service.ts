@@ -8,7 +8,7 @@ import {
   modoContabilidadGlobal as modoContabilidadGlobalPuro,
 } from '../utils/modo-contabilidad.util';
 import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integracion-empresa.entity';
-import { ContextoPeticionAlmacen } from '../../common/contexto/contexto-peticion';
+import { ContextoPeticionAlmacen, nombreDelActor } from '../../common/contexto/contexto-peticion';
 
 /**
  * ============================================================================
@@ -286,7 +286,7 @@ export class IntegracionModoService {
       const quien = ContextoPeticionAlmacen.actual();
       this.logger.warn(
         `Modo de cartera de la empresa ${empresaId}: ${anterior} → ${modo}, ` +
-          `por ${quien?.email ?? quien?.usuarioId ?? 'un proceso sin sesión'}.`,
+          `por ${nombreDelActor(quien)}.`,
       );
     }
 
@@ -353,7 +353,7 @@ export class IntegracionModoService {
       const quien = ContextoPeticionAlmacen.actual();
       this.logger.warn(
         `Modo de contabilidad de la empresa ${empresaId}: ${anterior} → ${modo}, ` +
-          `por ${quien?.email ?? quien?.usuarioId ?? 'un proceso sin sesión'}.`,
+          `por ${nombreDelActor(quien)}.`,
       );
     }
 

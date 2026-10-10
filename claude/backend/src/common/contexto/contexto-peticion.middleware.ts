@@ -7,6 +7,7 @@ interface UsuarioActivo {
   rol?: string;
   email?: string;
   keycloakSub?: string;
+  suplantacion?: { realId?: string; realEmail?: string; realRol?: string };
 }
 
 /**
@@ -42,6 +43,13 @@ export function contextoPeticion(
     rol: { get: () => usuario()?.rol, enumerable: true },
     email: { get: () => usuario()?.email, enumerable: true },
     keycloakSub: { get: () => usuario()?.keycloakSub, enumerable: true },
+    /*
+     * Bajo suplantación, `usuarioId` y `email` son los del SUPLANTADO —tiene
+     * que ser así, los controles de autorización miran eso—. Quien de verdad
+     * está actuando vive aquí, y sin esto la bitácora atribuía los cambios a
+     * quien no fue.
+     */
+    suplantacion: { get: () => usuario()?.suplantacion, enumerable: true },
   });
 
   ContextoPeticionAlmacen.ejecutarCon(contexto, () => next());
