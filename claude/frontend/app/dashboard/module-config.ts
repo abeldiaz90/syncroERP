@@ -307,6 +307,11 @@ export const MODULOS: ModuleConfig[] = [
         grupo: "Ciclo de compra",
       },
       {
+        label: "Facturas de proveedor",
+        href: "/dashboard/compras/facturas-proveedor",
+        grupo: "Cuentas por pagar",
+      },
+      {
         label: "Pago a proveedores",
         href: "/dashboard/compras/pago-proveedores",
         grupo: "Cuentas por pagar",

@@ -37,6 +37,17 @@ export class PagoProveedor {
    * migración, no por un `NOT NULL` que tumbaría el arranque. El servicio
    * siempre lo escribe al crear.
    */
+  /**
+   * La factura del proveedor que este pago liquida.
+   *
+   * Nulo en los pagos anteriores al 11-oct-2026, y NULL significa «no se sabe
+   * con qué comprobante se pagó» — que es exactamente la verdad de esos pagos:
+   * se hicieron contra la recepción, porque la factura no existía como
+   * documento en el sistema.
+   */
+  @Column({ type: 'uuid', nullable: true })
+  facturaProveedorId!: string | null;
+
   @Column({ type: 'varchar', length: 32, nullable: true })
   folio?: string;
 

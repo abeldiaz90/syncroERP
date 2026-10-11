@@ -51,6 +51,7 @@ import {
   TipoMovimiento,
 } from '../../tesoreria/entities/tesoreria.entity';
 import { fechaContableNegocio } from '../../common/utils/business-time.util';
+import { techoDeFacturas } from '../utils/el-techo-que-pone-la-factura';
 
 @Injectable()
 export class OrdenesCompraService {
@@ -1070,19 +1071,53 @@ export class OrdenesCompraService {
        * ====================================================================
        */
       const devuelto = await this.devueltoVigenteDeOrden(em, empresaId, id);
-      const pagable = Math.max(
+      const recibido = Math.max(
         0,
         Math.round((valorRecibidoOC(oc.detalles ?? []) - devuelto) * 100) / 100,
       );
+      /*
+       * ====================================================================
+       * El tercer lado del triángulo: lo facturado
+       * --------------------------------------------------------------------
+       * Hasta aquí el pago se validaba contra lo RECIBIDO y nada más. Faltaba
+       * la mitad del control clásico de compras: se paga el MENOR de lo que
+       * llegó y lo que el proveedor facturó.
+       *
+       * Pagar más de lo recibido es pagar mercancía que no está —eso ya estaba
+       * tapado—. Pagar más de lo facturado es pagar sin comprobante, y en
+       * México además es acreditar un IVA que ningún CFDI respalda: la
+       * reclasificación a la 118 se asienta igual, y la diferencia aparece el
+       * día que el contador cruza la contabilidad con el visor del SAT.
+       *
+       * `techoDeFacturas` devuelve `null` si la orden no tiene facturas
+       * capturadas, y entonces todo esto no existe y el pago se comporta
+       * exactamente como antes. No se obliga a capturar la factura para poder
+       * pagar: quien no la captura queda como estaba, quien la captura gana el
+       * control desde la primera.
+       * ====================================================================
+       */
+      const techo = await techoDeFacturas(em, empresaId, id);
+      const pagable =
+        techo !== null ? Math.min(recibido, techo.total) : recibido;
       const saldo = Math.max(0, pagable - pagadoAnterior);
       if (monto - saldo > 0.009) {
-        throw new BadRequestException(
-          oc.estadoRecepcion === 'COMPLETA'
+        /* La negativa dice cuál de los dos números es el que aprieta: sin eso,
+         * quien captura no sabe si le falta mercancía o le falta papel. */
+        const laFacturaEsElTope = techo !== null && techo.total < recibido;
+        const porQue = laFacturaEsElTope
+          ? `De esta orden llegó ${recibido.toFixed(2)} pero el proveedor sólo ha facturado ` +
+            `${techo!.total.toFixed(2)} en ${techo!.cuantas} comprobante(s)` +
+            (techo!.conDiferencias.length
+              ? ` —y ${techo!.conDiferencias.join(', ')} tiene diferencias sin resolver—`
+              : '') +
+            `. Ya se pagaron ${pagadoAnterior.toFixed(2)}: el máximo ahora es ${saldo.toFixed(2)}. ` +
+            'Captura la factura que falta y el resto se podrá pagar.'
+          : oc.estadoRecepcion === 'COMPLETA'
             ? `El pago excede el saldo pendiente de ${saldo.toFixed(2)}.`
             : `De esta orden se ha recibido ${pagable.toFixed(2)} y ya se pagaron ` +
               `${pagadoAnterior.toFixed(2)}: el máximo a pagar ahora es ${saldo.toFixed(2)}. ` +
-              'El resto podrá pagarse conforme llegue la mercancía.',
-        );
+              'El resto podrá pagarse conforme llegue la mercancía.';
+        throw new BadRequestException(porQue);
       }
 
       const [acumuladoIva] = await em.query(
@@ -1104,7 +1139,16 @@ export class OrdenesCompraService {
           WHERE ordencompraid = $1`,
         [id],
       );
-      const ivaTotal = Number(sumaIva?.iva ?? 0);
+      /*
+       * El IVA acreditable tampoco puede pasar del que viene en los
+       * comprobantes. La orden puede llevar IVA en todas sus partidas y el
+       * proveedor haber facturado la mitad: acreditar el de la orden completa
+       * sería acreditar un impuesto que no está en ningún CFDI.
+       */
+      const ivaTotal =
+        techo !== null
+          ? Math.min(Number(sumaIva?.iva ?? 0), techo.iva)
+          : Number(sumaIva?.iva ?? 0);
       const ivaRestante = Math.max(
         0,
         Math.round(

@@ -344,6 +344,7 @@ describe('Nadie vuelve a armar el folio a mano', () => {
       'app/dashboard/compras/aprobaciones/page.tsx',
       'app/dashboard/compras/pago-proveedores/page.tsx',
       'app/dashboard/compras/devoluciones/page.tsx',
+      'app/dashboard/compras/facturas-proveedor/page.tsx',
       'app/dashboard/inventario/recepciones/page.tsx',
       'app/dashboard/inventario/recepciones/[id]/page.tsx',
     ];

@@ -61,6 +61,14 @@ export const TIPOS_DE_FOLIO = {
   ORDEN_COMPRA: 'OC',
   RECEPCION: 'REC',
   PAGO_PROVEEDOR: 'PP',
+  /*
+   * La factura del proveedor lleva folio INTERNO aparte de su folio fiscal.
+   * No se usa el del proveedor como identificador nuestro porque dos
+   * proveedores distintos repiten folios —el «A-1» existe en todas partes— y
+   * porque hay comprobantes sin folio. El del proveedor se guarda tal cual, en
+   * su propia columna, que es donde sirve.
+   */
+  FACTURA_PROVEEDOR: 'FP',
 } as const;
 
 export type TipoDeFolio = (typeof TIPOS_DE_FOLIO)[keyof typeof TIPOS_DE_FOLIO];

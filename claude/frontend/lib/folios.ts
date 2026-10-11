@@ -28,6 +28,7 @@ export const FOLIO = {
   ORDEN_COMPRA: 'OC',
   RECEPCION: 'REC',
   PAGO_PROVEEDOR: 'PP',
+  FACTURA_PROVEEDOR: 'FP',
 } as const;
 
 export function folioDe(
