@@ -327,6 +327,13 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Centros de costo',
     ordenMenu: 44,
   },
+  'GET /finanzas/presupuestos': {
+    rutaFrontend: '/dashboard/finanzas/presupuestos',
+    titulo: 'Presupuestos',
+    /* Entero: `endpoints.orden_menu` es `int` y un decimal aquí tumba el
+     * arranque de la API. Los empates sólo desempatan el orden del menú. */
+    ordenMenu: 44,
+  },
   'GET /finanzas/polizas/balance': {
     rutaFrontend: '/dashboard/finanzas/balance-general',
     titulo: 'Balance general',
