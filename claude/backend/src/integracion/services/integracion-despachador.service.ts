@@ -370,11 +370,80 @@ export class IntegracionDespachadorService {
     const cfg = await this.configEmpresa.findOne({
       where: { empresaId: evento.empresaId },
     });
-    const oficina = cfg?.oficinaContableExterna;
-    if (!oficina) {
+    const oficinaDeLaEmpresa = cfg?.oficinaContableExterna;
+    if (!oficinaDeLaEmpresa) {
       throw new ErrorIntegracionExterna(
         'La empresa no tiene configurada la oficina contable del mayor externo.',
         false,
+      );
+    }
+
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * FINERACT ADMITE UNA OFICINA POR ASIENTO, NO UNA POR PARTIDA
+     * ------------------------------------------------------------------------
+     * El ERP lleva la dimensión en la PARTIDA, que es donde tiene que estar:
+     * una factura de luz repartida entre tres sucursales es una póliza con tres
+     * partidas. Fineract lleva la suya en el ENCABEZADO: `officeId` es un campo
+     * del asiento completo.
+     *
+     * Son dos modelos distintos y no hay forma de que uno contenga al otro, así
+     * que hay que elegir y decirlo:
+     *
+     *  · Si todas las partidas con centro caen en la MISMA oficina, se manda
+     *    ésa. Es el caso normal y el espejo gana precisión sin perder nada.
+     *  · Si caen en VARIAS, se manda la de la empresa y se dice en el
+     *    comentario del asiento. El importe total sigue siendo exacto —los dos
+     *    mayores siguen cuadrando, que es para lo que existe el espejo—; lo que
+     *    no se puede es repartirlo allá, y quien mire Fineract lo lee en vez de
+     *    suponer que esa oficina lo gastó todo.
+     *
+     * Partir la póliza en una por oficina sería la otra opción, y se descarta:
+     * el espejo dejaría de ser uno a uno y la conciliación, que compara por
+     * referencia, no sabría qué comparar con qué. Un espejo que no se puede
+     * conciliar deja de ser un control.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    const centrosDeLaPoliza = [
+      ...new Set(partidas.map((p) => p.centroCostoId).filter((c): c is string => !!c)),
+    ];
+    /*
+     * Se consulta la oficina por el id del centro y no por una relación cargada
+     * con la partida. Una relación aquí obligaría a que TODO el que lea
+     * partidas la pida, y el que se olvide leería `undefined` y concluiría «sin
+     * oficina»: el espejo caería a la oficina de la empresa sin que nada lo
+     * dijera. Un dato que falta por no haberlo pedido se lee igual que un dato
+     * que no existe, y ése es justamente el defecto que llevamos una semana
+     * cerrando.
+     */
+    const oficinasDeLosCentros = new Set<string>(
+      centrosDeLaPoliza.length
+        ? (
+            await this.partidasRepo.manager.query(
+              /* Con `empresaid`, aunque el id ya sea único: una consulta cruda
+               * sin inquilino es exactamente lo que el detector de aislamiento
+               * existe para impedir, y «el id ya es único» es el argumento que
+               * precede a la fuga. */
+              `SELECT DISTINCT oficinaexternaid AS oficina
+                 FROM centros_costo
+                WHERE empresaid = $1
+                  AND id = ANY($2::uuid[])
+                  AND oficinaexternaid IS NOT NULL`,
+              [evento.empresaId, centrosDeLaPoliza],
+            )
+          ).map((f: { oficina: string }) => f.oficina)
+        : [],
+    );
+    const variasOficinas = oficinasDeLosCentros.size > 1;
+    const oficina =
+      oficinasDeLosCentros.size === 1
+        ? [...oficinasDeLosCentros][0]
+        : oficinaDeLaEmpresa;
+    if (variasOficinas) {
+      this.logger.warn(
+        `La póliza ${poliza.folio} reparte entre ${oficinasDeLosCentros.size} oficinas del mayor externo ` +
+          `(${[...oficinasDeLosCentros].join(', ')}). Fineract admite una por asiento, así que se espeja ` +
+          `con la de la empresa (${oficinaDeLaEmpresa}) y queda dicho en el comentario del asiento.`,
       );
     }
 
@@ -428,7 +497,9 @@ export class IntegracionDespachadorService {
         polizaId,
         folio: poliza.folio,
         fecha: iso(poliza.fecha),
-        concepto: poliza.concepto,
+        concepto: variasOficinas
+          ? `${poliza.concepto} · reparte entre varios centros de costo; el mayor externo lo registra en una sola oficina`
+          : poliza.concepto,
         moneda: 'MXN',
         oficinaIdExterna: oficina,
         movimientos: partidas.map((p) => {

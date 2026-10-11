@@ -4,6 +4,9 @@ import { CuentaContable } from '../entities/cuenta-contable.entity';
 import { Poliza } from '../entities/poliza.entity';
 import { PartidaPoliza } from '../entities/partida-poliza.entity';
 import { CuentasContablesController } from '../controllers/cuentas-contables.controller';
+import { CentrosCostoController } from '../controllers/centros-costo.controller';
+import { CentrosCostoService } from '../services/centros-costo.service';
+import { CentroCosto } from '../entities/centro-costo.entity';
 import { PolizasController } from '../controllers/polizas.controller';
 import { CuentasContablesService } from '../services/cuentas-contables.service';
 import { PolizasService } from '../services/polizas.service';
@@ -39,6 +42,7 @@ import { IntegridadFinancieraService } from '../services/integridad-financiera.s
   imports: [
     TypeOrmModule.forFeature([
       CuentaContable,
+      CentroCosto,
       Poliza,
       PartidaPoliza,
       Producto,
@@ -58,6 +62,7 @@ import { IntegridadFinancieraService } from '../services/integridad-financiera.s
   ],
   controllers: [
     CuentasContablesController,
+    CentrosCostoController,
     PolizasController,
     AsientosPendientesController,
     ActivacionFinancieraController,
@@ -67,6 +72,7 @@ import { IntegridadFinancieraService } from '../services/integridad-financiera.s
     IntegridadFinancieraController,
   ],
   providers: [
+    CentrosCostoService,
     CuentasContablesService,
     PolizasService,
     MotorContableService,
@@ -79,6 +85,7 @@ import { IntegridadFinancieraService } from '../services/integridad-financiera.s
     IntegridadFinancieraService,
   ],
   exports: [
+    CentrosCostoService,
     MotorContableService,
     CuentasContablesService,
     PolizasService,

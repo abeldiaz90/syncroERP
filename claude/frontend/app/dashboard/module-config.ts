@@ -622,6 +622,16 @@ export const MODULOS: ModuleConfig[] = [
         grupo: "Estados financieros",
       },
       {
+        label: "Resultado por centro de costo",
+        href: "/dashboard/finanzas/resultado-por-centro",
+        grupo: "Estados financieros",
+      },
+      {
+        label: "Centros de costo",
+        href: "/dashboard/finanzas/centros-costo",
+        grupo: "Configuración",
+      },
+      {
         label: "Declaración de IVA",
         href: "/dashboard/finanzas/declaracion-iva",
         grupo: "Fiscal",

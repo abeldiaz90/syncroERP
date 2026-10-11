@@ -317,6 +317,16 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Estado de resultados',
     ordenMenu: 44,
   },
+  'GET /finanzas/polizas/resultado-por-centro': {
+    rutaFrontend: '/dashboard/finanzas/resultado-por-centro',
+    titulo: 'Resultado por centro de costo',
+    ordenMenu: 44,
+  },
+  'GET /finanzas/centros-costo': {
+    rutaFrontend: '/dashboard/finanzas/centros-costo',
+    titulo: 'Centros de costo',
+    ordenMenu: 44,
+  },
   'GET /finanzas/polizas/balance': {
     rutaFrontend: '/dashboard/finanzas/balance-general',
     titulo: 'Balance general',

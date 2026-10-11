@@ -85,12 +85,21 @@ export class PolizasController {
     @ActiveUser('empresaId') empresaId: string,
     @Query('fechaDesde') fechaDesde?: string,
     @Query('fechaHasta') fechaHasta?: string,
+    /**
+     * El centro de costo, si se quiere el resultado de uno solo.
+     * `SIN_CLASIFICAR` pide las partidas que no lo traen — las anteriores a
+     * que existiera la dimensión, y las de los generadores que todavía no la
+     * resuelven. Sin ese valor, la suma de los centros no da el total y nadie
+     * sabría dónde está la diferencia.
+     */
+    @Query('centroCostoId') centroCostoId?: string,
   ) {
     // Mismo endpoint que balanza — el frontend decide cómo presentarlo
     return this.polizasService.obtenerBalanzaComprobacion(
       empresaId,
       fechaDesde,
       fechaHasta,
+      centroCostoId,
     );
   }
 
@@ -106,6 +115,25 @@ export class PolizasController {
       fechaDesde,
       fechaHasta,
     );
+  }
+
+  /**
+   * El resultado abierto por centro de costo: la pregunta por la que existe la
+   * dimensión. Incluye el renglón de lo no clasificado, porque sin él la suma
+   * de los centros no da el total de la empresa.
+   */
+  @Navegable(
+    '/dashboard/finanzas/resultado-por-centro',
+    'Resultado por centro de costo',
+    54,
+  )
+  @Get('resultado-por-centro')
+  resultadoPorCentro(
+    @ActiveUser('empresaId') empresaId: string,
+    @Query('fechaDesde') fechaDesde?: string,
+    @Query('fechaHasta') fechaHasta?: string,
+  ) {
+    return this.polizasService.resultadoPorCentro(empresaId, fechaDesde, fechaHasta);
   }
 
   @Navegable('/dashboard/finanzas/balance-general', 'Balance General', 55)
@@ -127,11 +155,13 @@ export class PolizasController {
     @ActiveUser('empresaId') empresaId: string,
     @Query('fechaDesde') fechaDesde?: string,
     @Query('fechaHasta') fechaHasta?: string,
+    @Query('centroCostoId') centroCostoId?: string,
   ) {
     return this.polizasService.obtenerBalanzaComprobacion(
       empresaId,
       fechaDesde,
       fechaHasta,
+      centroCostoId,
     );
   }
 

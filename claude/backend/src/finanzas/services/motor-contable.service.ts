@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, QueryRunner } from 'typeorm';
+import { Repository, DataSource, EntityManager, In, QueryRunner } from 'typeorm';
 import { Producto } from '../../catalogo/entities/producto.entity';
 import { Poliza, TipoPoliza } from '../entities/poliza.entity';
 import { PartidaPoliza } from '../entities/partida-poliza.entity';
@@ -11,6 +11,10 @@ import {
   patronDeFolio,
   siguienteFolio,
 } from '../utils/el-folio-de-la-poliza';
+import {
+  centroDeLaPartida,
+  laEmpresaLlevaCentros,
+} from '../utils/el-centro-de-la-partida';
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 export interface DetalleVentaContable {
@@ -83,6 +87,22 @@ type PartidaInput = {
   cargo: number;
   abono: number;
   referencia: string;
+  /**
+   * A qué centro de costo pertenece.
+   *
+   * Opcional porque los generadores automáticos —venta, compra, nómina,
+   * hospedaje— todavía no lo resuelven: la venta sabe de qué almacén salió y
+   * la nómina de qué departamento, pero ninguno lo trae hasta aquí. Mientras
+   * no lo hagan, sus partidas de resultado nacen SIN clasificar y el reporte
+   * por centro las junta en su propio renglón.
+   *
+   * Eso es deliberado y se prefiere a la alternativa: inventarles un centro
+   * por omisión daría un reporte de aspecto correcto donde todo el costo de
+   * ventas de la empresa cae en el mismo sitio. La prueba
+   * `que-generadores-todavia-no-dicen-el-centro.spec.ts` lleva la lista, para
+   * que el hueco se sepa ausente en vez de creerse puesto.
+   */
+  centroCostoId?: string | null;
 };
 
 @Injectable()
@@ -2055,6 +2075,62 @@ export class MotorContableService {
   }
 
   // ── Folio correlativo: DI-2026-0001, IN-2026-0001, EG-2026-0001 ──────────
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * EL MOTOR VALIDA EL CENTRO, PERO NO LO EXIGE
+   * --------------------------------------------------------------------------
+   * La captura manual sí lo exige en cuentas de resultado cuando la empresa
+   * lleva centros. Aquí NO, y es una decisión, no un olvido:
+   *
+   * Por este camino nacen casi todas las pólizas del sistema —ventas, compras,
+   * cobranza, nómina, hospedaje, depreciación, cierres de caja— y **ninguno de
+   * esos generadores resuelve todavía el centro**. Si el motor exigiera, dar de
+   * alta el primer centro de costo de una empresa dejaría de golpe sin poder
+   * facturar, sin poder recibir mercancía y sin poder cobrar. Un catálogo nuevo
+   * no puede apagar la operación.
+   *
+   * Así que: lo que venga se valida —un centro inexistente, de otra empresa o
+   * acumulador se rechaza igual que en la captura manual, porque descuadra el
+   * reporte venga de una persona o de una máquina—, y lo que no venga se queda
+   * sin clasificar y el reporte lo dice en su propio renglón.
+   *
+   * Esto deja de ser cierto el día que los generadores aprendan a decir su
+   * centro. La lista de los que faltan está en
+   * `que-todavia-no-dice-su-centro.spec.ts`, y cuando se vacíe, este comentario
+   * y esta exención se van con ella.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  private async resolverCentros(
+    em: EntityManager,
+    empresaId: string,
+    partidas: PartidaInput[],
+  ): Promise<Array<string | null>> {
+    /*
+     * Sin un solo centro capturado no hay nada que validar, y se sale ANTES de
+     * tocar la base. No es sólo una optimización: es lo que mantiene este
+     * camino idéntico al de antes para toda instalación que no use centros.
+     */
+    if (!partidas.some((p) => p.centroCostoId)) {
+      return partidas.map(() => null);
+    }
+    const resueltos: Array<string | null> = [];
+    for (const partida of partidas) {
+      resueltos.push(
+        partida.centroCostoId
+          ? await centroDeLaPartida(em, empresaId, {
+              centroCostoId: partida.centroCostoId,
+              /* El motor nunca exige, así que el tipo de cuenta no decide
+               * nada aquí: con `llevaCentros` en falso, lo único que corre es
+               * la comprobación de que el centro mandado sirva. */
+              tipoCuenta: 'GASTO' as any,
+              llevaCentros: false,
+            })
+          : null,
+      );
+    }
+    return resueltos;
+  }
+
   private async generarFolio(
     empresaId: string,
     tipo: TipoPoliza,
@@ -2295,10 +2371,28 @@ export class MotorContableService {
         origenId: data.origenId ?? null,
       });
       const saved = await qr.manager.save(poliza);
+      /*
+       * El centro se valida también por aquí. El motor es un «proceso
+       * automático» para la regla de cuentas controladas —puede mover el
+       * auxiliar—, pero no para ésta: una partida de resultado con un centro
+       * que no existe, o que agrupa a otros, descuadra el reporte igual venga
+       * de una persona o de una máquina.
+       *
+       * Lo que el motor SÍ puede es no traer centro: ver `PartidaInput`.
+       */
+      const centros = await this.resolverCentros(
+        qr.manager,
+        data.empresaId,
+        data.partidas,
+      );
       await qr.manager.save(
         PartidaPoliza,
-        data.partidas.map((p) =>
-          qr.manager.create(PartidaPoliza, { polizaId: saved.id, ...p }),
+        data.partidas.map((p, i) =>
+          qr.manager.create(PartidaPoliza, {
+            polizaId: saved.id,
+            ...p,
+            centroCostoId: centros[i],
+          }),
         ),
       );
       await qr.commitTransaction();

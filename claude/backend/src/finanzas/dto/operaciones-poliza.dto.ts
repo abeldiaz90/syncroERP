@@ -7,6 +7,13 @@ export class PartidaPolizaManualDto {
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) cargo!: number;
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) abono!: number;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(300) referencia?: string;
+  /**
+   * El centro de costo de esta partida. Opcional en el DTO y obligatorio en el
+   * servicio cuando la cuenta es de resultado y la empresa lleva centros: la
+   * regla depende de la CUENTA, que el DTO no conoce, así que validarla aquí
+   * sería adivinar. La negativa del servicio dice qué cuenta y por qué.
+   */
+  @IsOptional() @IsSqlServerGuid() centroCostoId?: string;
 }
 export class CrearPolizaManualDto {
   @Transform(trim) @IsString() @MinLength(1) @MaxLength(30) tipo!: string;

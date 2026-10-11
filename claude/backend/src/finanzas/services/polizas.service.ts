@@ -23,6 +23,10 @@ import {
   prefijoDePoliza,
   siguienteFolio,
 } from '../utils/el-folio-de-la-poliza';
+import {
+  centroDeLaPartida,
+  laEmpresaLlevaCentros,
+} from '../utils/el-centro-de-la-partida';
 
 @Injectable()
 export class PolizasService {
@@ -403,13 +407,19 @@ export class PolizasService {
       });
       const guardada = await qr.manager.save(poliza);
 
-      const partidas = datos.partidas.map((p) =>
+      const centros = await this.resolverCentros(
+        qr.manager,
+        datos.empresaId,
+        datos.partidas,
+      );
+      const partidas = datos.partidas.map((p, i) =>
         qr.manager.create(PartidaPoliza, {
           polizaId: guardada.id,
           cuentaContableId: p.cuentaContableId,
           cargo: Number(p.cargo),
           abono: Number(p.abono),
           referencia: p.referencia || datos.concepto.substring(0, 50),
+          centroCostoId: centros[i],
         }),
       );
       await qr.manager.save(PartidaPoliza, partidas);
@@ -550,9 +560,14 @@ export class PolizasService {
       origenTipo: datos.origenTipo ?? null,
     });
     const guardada = await manager.save(poliza);
+    const centrosEnTransaccion = await this.resolverCentros(
+      manager,
+      datos.empresaId,
+      datos.partidas,
+    );
     await manager.save(
       PartidaPoliza,
-      datos.partidas.map((partida) =>
+      datos.partidas.map((partida, i) =>
         manager.create(PartidaPoliza, {
           polizaId: guardada.id,
           cuentaContableId: partida.cuentaContableId,
@@ -560,10 +575,45 @@ export class PolizasService {
           abono: Number(partida.abono),
           referencia:
             partida.referencia || datos.concepto.substring(0, 50),
+          centroCostoId: centrosEnTransaccion[i],
         }),
       ),
     );
     return guardada;
+  }
+
+  /**
+   * El centro de cada partida, resuelto contra el catálogo.
+   *
+   * La cuenta de la partida decide si se exige: sólo las de resultado. Se
+   * cargan todas de una vez —no una consulta por partida— y se pregunta UNA
+   * vez si la empresa lleva centros, que es lo que no cambia entre partidas.
+   */
+  private async resolverCentros(
+    em: EntityManager,
+    empresaId: string,
+    partidas: Array<{ cuentaContableId: string; centroCostoId?: string | null }>,
+  ): Promise<Array<string | null>> {
+    if (!partidas.length) return [];
+    const lleva = await laEmpresaLlevaCentros(em, empresaId);
+    const cuentas = await em.getRepository(CuentaContable).find({
+      where: { id: In([...new Set(partidas.map((p) => p.cuentaContableId))]), empresaId },
+    });
+    const porId = new Map(cuentas.map((c) => [c.id, c]));
+
+    const resueltos: Array<string | null> = [];
+    for (const partida of partidas) {
+      const cuenta = porId.get(partida.cuentaContableId);
+      resueltos.push(
+        await centroDeLaPartida(em, empresaId, {
+          centroCostoId: partida.centroCostoId ?? null,
+          tipoCuenta: cuenta?.tipo as any,
+          cuenta: cuenta ? `${cuenta.numeroCuenta} ${cuenta.nombre}` : undefined,
+          llevaCentros: lleva,
+        }),
+      );
+    }
+    return resueltos;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -735,6 +785,15 @@ export class PolizasService {
           cargo: Number(p.abono),
           abono: Number(p.cargo),
           referencia: `REV ${original.folio}`.substring(0, 255),
+          /*
+           * La reversa vuelve AL MISMO CENTRO. No se revalida y no se vuelve a
+           * elegir: si el centro se desactivó después de la póliza original, la
+           * reversa tiene que poder hacerse igual —y tiene que caer donde cayó
+           * el gasto, o el centro se quedaría con el cargo y sin su reverso—.
+           * Espejar el importe y no la dimensión es exactamente el defecto que
+           * ya pagamos al reversar una venta con enganche.
+           */
+          centroCostoId: p.centroCostoId ?? null,
         }),
       );
       await qr.manager.save(PartidaPoliza, partidas);
@@ -915,10 +974,138 @@ export class PolizasService {
   // ══════════════════════════════════════════════════════════════════════════
   // BALANZA DE COMPROBACIÓN
   // ══════════════════════════════════════════════════════════════════════════
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * EL RESULTADO, ABIERTO POR CENTRO
+   * --------------------------------------------------------------------------
+   * Ésta es la pregunta por la que existe la dimensión: *cuánto costó el hotel
+   * contra cuánto costó la ferretería*. La balanza filtrada contesta por uno;
+   * esto los pone a todos en la misma tabla, que es como se comparan.
+   *
+   * Tres decisiones que conviene tener escritas:
+   *
+   *  · **Sólo cuentas de resultado.** Ingreso, costo y gasto. El balance no se
+   *    abre por centro porque el saldo de un banco no es de ninguna sucursal.
+   *
+   *  · **Lo no clasificado tiene su propio renglón**, con el centro en nulo. Es
+   *    lo que hace que la suma de la tabla dé el total de la empresa. Si se
+   *    escondiera, el reporte cuadraría consigo mismo y no con la contabilidad,
+   *    que es la peor combinación posible: un control que siempre pasa.
+   *
+   *  · **Las canceladas no entran.** `estatus <> 'CANCELADA'` deja fuera la
+   *    póliza anulada; su reversa sí entra, con el signo contrario y en el
+   *    mismo centro, así que el neto es cero donde debe serlo.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  async resultadoPorCentro(
+    empresaId: string,
+    fechaDesde?: string,
+    fechaHasta?: string,
+  ) {
+    const params: any[] = [empresaId];
+    let rango = '';
+    if (fechaDesde) {
+      params.push(this.aFecha(fechaDesde));
+      rango += ` AND pol.fecha >= $${params.length}`;
+    }
+    if (fechaHasta) {
+      const hasta = this.aFecha(fechaHasta);
+      hasta.setHours(23, 59, 59, 999);
+      params.push(hasta);
+      rango += ` AND pol.fecha <= $${params.length}`;
+    }
+
+    const filas = await this.dataSource.query(
+      `SELECT cc.id             AS "centroCostoId",
+              cc.codigo         AS "codigo",
+              cc.nombre         AS "centro",
+              c.tipo            AS "tipo",
+              COALESCE(SUM(p.cargo), 0)::float AS "cargos",
+              COALESCE(SUM(p.abono), 0)::float AS "abonos"
+         FROM partidas_poliza p
+         JOIN polizas pol        ON pol.id = p.polizaid AND pol.empresaid = $1
+         JOIN cuentas_contables c ON c.id  = p.cuentacontableid
+         LEFT JOIN centros_costo cc ON cc.id = p.centrocostoid
+        WHERE pol.estatus <> 'CANCELADA'
+          AND c.tipo IN ('INGRESO','COSTO','GASTO')${rango}
+        GROUP BY cc.id, cc.codigo, cc.nombre, c.tipo
+        ORDER BY cc.codigo NULLS LAST, c.tipo`,
+      params,
+    );
+
+    /* Un renglón por centro, con las tres medidas y el resultado neto. */
+    const porCentro = new Map<string, any>();
+    for (const f of filas) {
+      const llave = f.centroCostoId ?? 'SIN_CLASIFICAR';
+      if (!porCentro.has(llave)) {
+        porCentro.set(llave, {
+          centroCostoId: f.centroCostoId ?? null,
+          codigo: f.codigo ?? null,
+          centro: f.centro ?? 'Sin clasificar',
+          ingresos: 0,
+          costos: 0,
+          gastos: 0,
+          resultado: 0,
+        });
+      }
+      const fila = porCentro.get(llave);
+      /*
+       * El ingreso es acreedor y el costo y el gasto son deudores, así que
+       * cada uno se mide en su sentido. Restar siempre cargos menos abonos
+       * daría el ingreso en negativo, que es el defecto que ya costó una
+       * corrección en la balanza el 26-sep.
+       */
+      if (f.tipo === 'INGRESO') fila.ingresos += Number(f.abonos) - Number(f.cargos);
+      if (f.tipo === 'COSTO') fila.costos += Number(f.cargos) - Number(f.abonos);
+      if (f.tipo === 'GASTO') fila.gastos += Number(f.cargos) - Number(f.abonos);
+    }
+    const redondear = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+    const centros = [...porCentro.values()].map((c) => ({
+      ...c,
+      ingresos: redondear(c.ingresos),
+      costos: redondear(c.costos),
+      gastos: redondear(c.gastos),
+      resultado: redondear(c.ingresos - c.costos - c.gastos),
+    }));
+
+    return {
+      centros,
+      total: {
+        ingresos: redondear(centros.reduce((a, c) => a + c.ingresos, 0)),
+        costos: redondear(centros.reduce((a, c) => a + c.costos, 0)),
+        gastos: redondear(centros.reduce((a, c) => a + c.gastos, 0)),
+        resultado: redondear(centros.reduce((a, c) => a + c.resultado, 0)),
+      },
+      /*
+       * Se dice en voz alta cuánto quedó sin clasificar. Un reporte por centro
+       * con la mitad del gasto en «sin clasificar» no es un reporte: es un
+       * aviso de que falta capturar, y tiene que leerse como tal.
+       */
+      sinClasificar:
+        centros.find((c) => c.centroCostoId === null) ?? null,
+    };
+  }
+
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * LA BALANZA, Y AHORA TAMBIÉN POR CENTRO DE COSTO
+   * --------------------------------------------------------------------------
+   * `centroCostoId` filtra; `'SIN_CLASIFICAR'` pide justamente las partidas que
+   * no lo tienen. Las dos cosas hacen falta y la segunda más que la primera:
+   * sin ella, la suma de todos los centros no da el total de la empresa y nadie
+   * puede decir dónde está la diferencia. Las partidas anteriores a la
+   * migración son todas así, y van a serlo durante meses.
+   *
+   * No se reparte lo no clasificado entre los centros, ni se esconde. Un
+   * reporte de aspecto correcto construido sobre una regla inventada es peor
+   * que uno que dice lo que no sabe.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
   async obtenerBalanzaComprobacion(
     empresaId: string,
     fechaDesde?: string,
     fechaHasta?: string,
+    centroCostoId?: string,
   ) {
     let joinCondicion = 'p.polizaId = pol.id AND pol.empresaId = :empresaId';
     const joinParams: Record<string, any> = { empresaId };
@@ -974,7 +1161,25 @@ export class PolizasService {
         'COALESCE(SUM(p.abono), 0) AS abonos',
       ])
       .from(CuentaContable, 'c')
-      .leftJoin(PartidaPoliza, 'p', 'p.cuentaContableId = c.id')
+      .leftJoin(
+        PartidaPoliza,
+        'p',
+        /*
+         * El filtro del centro va en el JOIN y no en el WHERE, a propósito. En
+         * el WHERE descartaría las CUENTAS que no tienen partidas de ese
+         * centro, y la balanza dejaría de listarlas: quien la lee no vería la
+         * cuenta en cero, vería que la cuenta no existe. En el JOIN, la cuenta
+         * sigue apareciendo con saldo cero, que es la verdad.
+         */
+        centroCostoId
+          ? centroCostoId === 'SIN_CLASIFICAR'
+            ? 'p.cuentaContableId = c.id AND p.centroCostoId IS NULL'
+            : 'p.cuentaContableId = c.id AND p.centroCostoId = :centroCostoId'
+          : 'p.cuentaContableId = c.id',
+        centroCostoId && centroCostoId !== 'SIN_CLASIFICAR'
+          ? { centroCostoId }
+          : {},
+      )
       .leftJoin(Poliza, 'pol', joinCondicion, joinParams)
       .where('c.empresaId = :empresaId', { empresaId })
       .andWhere('(p.id IS NULL OR pol.id IS NOT NULL)')
