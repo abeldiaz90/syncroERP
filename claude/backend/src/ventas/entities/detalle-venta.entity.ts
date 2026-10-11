@@ -29,24 +29,24 @@ export class DetalleVenta {
   @Column({ type: 'uuid' })
   productoId: string;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4 })
   cantidad: number;
 
   @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })
   cantidadDevuelta: number;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4 })
   precioUnitario: number;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2, default: 0 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })
   descuento: number;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2, default: 0 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })
   subtotal: number;
 
   @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 5, scale: 2, default: 0 })
   impuestoPorcentaje: number;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2, default: 0 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })
   impuestoMonto: number;
 }

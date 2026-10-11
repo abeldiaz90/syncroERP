@@ -28,13 +28,13 @@ export class DetalleOrdenCompra {
   @Column({ type: 'uuid' })
   productoId: string;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4 })
   cantidad: number;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4 })
   precioUnitario: number;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4 })
   subtotal: number;
 
   /**
@@ -52,10 +52,10 @@ export class DetalleOrdenCompra {
   impuestoImporte: number;
 
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2, default: 0 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })
   cantidadRecibidaOk: number;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2, default: 0 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })
   cantidadRechazada: number;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

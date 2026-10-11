@@ -70,16 +70,16 @@ export class Venta {
   listaPrecioId?: string | null;
 
   // ── TOTALES ────────────────────────────────────────────────────
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 12, scale: 4, default: 0 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })
   subtotal: number;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 12, scale: 4, default: 0 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })
   descuento: number;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 12, scale: 4, default: 0 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })
   impuestoTotal: number;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 12, scale: 4, default: 0 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })
   total: number;
 
   /** Saldo a favor del cliente consumido como forma de pago. */
@@ -102,11 +102,11 @@ export class Venta {
   cuentaBancariaId?: string | null;
 
   /** Monto recibido (para calcular cambio en efectivo) */
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 12, scale: 4, nullable: true })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, nullable: true })
   montoRecibido?: number;
 
   /** Cambio realmente entregado al cliente; se calcula y persiste en servidor. */
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 12, scale: 4, default: 0 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })
   cambio!: number;
 
   @Column({ type: 'varchar', length: 30, default: 'COMPLETADA' })

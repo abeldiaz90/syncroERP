@@ -28,7 +28,7 @@ export class DetalleRequisicion {
   @Column({ type: 'uuid' })
   productoId: string;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4 })
   cantidadSolicitada: number;
 
   @Column({ type: 'text', nullable: true })

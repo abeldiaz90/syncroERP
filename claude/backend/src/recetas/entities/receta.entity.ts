@@ -35,7 +35,7 @@ export class Receta {
 
   // Cuántas porciones/unidades produce esta receta (normalmente 1).
   // Ej: una receta de salsa puede rendir 10 porciones.
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2, default: 1 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 1 })
   rendimiento!: number;
 
   // Costo teórico calculado (suma del costo de sus insumos). Se recalcula

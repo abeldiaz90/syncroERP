@@ -203,7 +203,7 @@ export class Producto {
   puntoReorden!: number;
 
   /** Cantidad mínima de compra al proveedor */
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 3, nullable: true })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, nullable: true })
   cantidadMinimaPedido!: number;
 
   @Column({ default: false })

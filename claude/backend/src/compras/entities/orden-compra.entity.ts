@@ -73,7 +73,7 @@ export class OrdenCompra {
   @Column({ type: 'uuid' })
   proveedorId: string;
 
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4 })
   total: number;
 
   @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 0 })

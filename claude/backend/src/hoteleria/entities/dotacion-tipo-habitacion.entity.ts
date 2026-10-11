@@ -46,7 +46,7 @@ export class DotacionTipoHabitacion {
   productoNombre!: string | null;
 
   // Cantidad estándar por estancia
-  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 10, scale: 2, default: 1 })
+  @Column({ type: 'decimal', transformer: decimalNumberTransformer, precision: 18, scale: 4, default: 1 })
   cantidad!: number;
 
   // CONSUMIBLE (descuenta inventario) | BLANCO (no descuenta)
