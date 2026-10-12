@@ -93,6 +93,20 @@ const ROLES_SISTEMA = [
   ["COSTO_VENTAS", "Costo de ventas"],
   ["MERMAS", "Mermas"],
   ["SALDOS_INICIALES", "Saldos iniciales"],
+  ["BANCOS", "Bancos"],
+  ["SALDOS_FAVOR_CLIENTES", "Saldos a favor de clientes"],
+  ["OTROS_INGRESOS", "Otros ingresos"],
+  ["OTROS_GASTOS", "Otros gastos"],
+  ["INGRESOS_HOSPEDAJE", "Ingresos por hospedaje"],
+  ["IMPUESTO_HOSPEDAJE_POR_PAGAR", "Impuesto de hospedaje por pagar"],
+  /*
+   * Los dos del cierre del ejercicio. Faltaban, y el resultado era un callejón
+   * sin salida perfecto: la pantalla del cierre decía «asígnale ese rol a la
+   * cuenta de capital» y aquí no había forma de asignarlo. *Un hueco que se
+   * cree puesto.* Lo encontró el primer recorrido por el navegador.
+   */
+  ["RESULTADO_EJERCICIO_UTILIDAD", "Resultado del ejercicio · utilidad (SAT 305.01)"],
+  ["RESULTADO_EJERCICIO_PERDIDA", "Resultado del ejercicio · pérdida (SAT 305.02)"],
 ] as const;
 
 const FORM_VACIO = {

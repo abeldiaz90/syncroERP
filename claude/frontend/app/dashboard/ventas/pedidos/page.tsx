@@ -120,7 +120,16 @@ export default function PedidosVentaPage() {
       setEspera(Array.isArray(es.valor) ? es.valor : []);
       setClientes(Array.isArray(cs.valor) ? cs.valor : (cs.valor?.data ?? []));
       setAlmacenes(Array.isArray(als.valor) ? als.valor : (als.valor?.almacenes ?? []));
-      const lp = Array.isArray(prs.valor) ? prs.valor : (prs.valor?.data ?? []);
+      /*
+       * `/catalogo/productos` contesta `{ productos, total, paginaActual }`,
+       * no `{ data }`. Lo leí como `.data` y el desplegable salía vacío
+       * SIEMPRE: la pantalla cargaba, se veía entera y no se podía capturar
+       * ni un pedido. Ninguna prueba lo vio porque ninguna prueba abre la
+       * pantalla; lo vio el primer clic.
+       */
+      const lp = Array.isArray(prs.valor)
+        ? prs.valor
+        : (prs.valor?.productos ?? []);
       setProductos(lp);
       setVedado({ pedidos: ps.vedado, clientes: cs.vedado, almacenes: als.vedado });
     } catch (e) {

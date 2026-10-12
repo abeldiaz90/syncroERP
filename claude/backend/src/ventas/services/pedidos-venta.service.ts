@@ -100,6 +100,16 @@ export class PedidosVentaService {
    * ══════════════════════════════════════════════════════════════════════════
    */
   async crear(empresaId: string, usuarioId: string | undefined, dto: any) {
+    const id = await this.crearEnTransaccion(empresaId, usuarioId, dto);
+    return this.obtener(id, empresaId);
+  }
+
+  /** El alta propiamente dicha. Devuelve el id; la lectura va fuera. */
+  private async crearEnTransaccion(
+    empresaId: string,
+    usuarioId: string | undefined,
+    dto: any,
+  ): Promise<string> {
     const lineas = Array.isArray(dto.detalles) ? dto.detalles : [];
     if (!lineas.length) {
       throw new BadRequestException('El pedido necesita al menos un producto.');
@@ -191,7 +201,17 @@ export class PedidosVentaService {
         ),
       );
 
-      return this.obtener(pedido.id, empresaId);
+      /*
+       * Se devuelve el ID, no el pedido leído de vuelta. Aquí estaba un
+       * defecto que ninguna prueba con dobles podía ver: `obtener()` usa el
+       * repositorio normal, que NO está dentro de esta transacción, así que no
+       * veía la fila recién insertada y lanzaba «El pedido no existe» — y ese
+       * NotFound revertía la transacción entera. El POST contestaba 404 y el
+       * pedido no nacía nunca. Lo encontró el primer clic.
+       *
+       * La lectura de vuelta va FUERA, cuando ya está confirmada.
+       */
+      return pedido.id;
     });
   }
 
@@ -217,6 +237,16 @@ export class PedidosVentaService {
    * ══════════════════════════════════════════════════════════════════════════
    */
   async confirmar(id: string, empresaId: string, usuarioId?: string) {
+    await this.confirmarEnTransaccion(id, empresaId, usuarioId);
+    /* La lectura de vuelta, con la transacción ya confirmada. */
+    return this.obtener(id, empresaId);
+  }
+
+  private async confirmarEnTransaccion(
+    id: string,
+    empresaId: string,
+    usuarioId?: string,
+  ): Promise<void> {
     return this.dataSource.transaction(async (em) => {
       const pedido = await em
         .createQueryBuilder(PedidoVenta, 'p')
@@ -245,7 +275,6 @@ export class PedidosVentaService {
 
       pedido.estado = 'CONFIRMADO';
       await em.save(pedido);
-      return this.obtener(id, empresaId);
     });
   }
 
@@ -363,6 +392,16 @@ export class PedidosVentaService {
    * que se confirmó.
    */
   async reintentarApartado(id: string, empresaId: string, usuarioId?: string) {
+    await this.reintentarApartadoEnTransaccion(id, empresaId, usuarioId);
+    /* La lectura de vuelta, con la transacción ya confirmada. */
+    return this.obtener(id, empresaId);
+  }
+
+  private async reintentarApartadoEnTransaccion(
+    id: string,
+    empresaId: string,
+    usuarioId?: string,
+  ): Promise<void> {
     return this.dataSource.transaction(async (em) => {
       const pedido = await em
         .createQueryBuilder(PedidoVenta, 'p')
@@ -382,7 +421,6 @@ export class PedidosVentaService {
         await this.reservarRenglon(em, pedido, d, usuarioId);
         await em.save(d);
       }
-      return this.obtener(id, empresaId);
     });
   }
 
@@ -612,6 +650,15 @@ export class PedidosVentaService {
    * contabilidad discrepando.
    */
   async cancelar(id: string, empresaId: string, motivo: string) {
+    await this.cancelarEnTransaccion(id, empresaId, motivo);
+    return this.obtener(id, empresaId);
+  }
+
+  private async cancelarEnTransaccion(
+    id: string,
+    empresaId: string,
+    motivo: string,
+  ): Promise<void> {
     if (!motivo?.trim() || motivo.trim().length < 5) {
       throw new BadRequestException(
         'Di por qué se cancela el pedido: es lo único que explicará dentro de seis meses por qué se soltó la mercancía.',
@@ -642,7 +689,6 @@ export class PedidosVentaService {
       pedido.estado = 'CANCELADO';
       pedido.motivoCancelacion = motivo.trim().slice(0, 300);
       await em.save(pedido);
-      return this.obtener(id, empresaId);
     });
   }
 

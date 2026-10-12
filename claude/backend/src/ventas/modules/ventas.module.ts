@@ -74,10 +74,30 @@ import { ImpresoraTermicaService } from '../impresion/impresora-termica.service'
     CommonModule,
   ],
   controllers: [
+    /*
+     * ────────────────────────────────────────────────────────────────────────
+     * EL ORDEN DE ESTA LISTA ES PARTE DEL CONTRATO
+     * ------------------------------------------------------------------------
+     * `VentasController` es `@Controller('ventas')` y tiene un `@Get(':id')`.
+     * Nest resuelve las rutas por orden de registro, así que con el de pedidos
+     * declarado DESPUÉS, `GET /ventas/pedidos` casaba con `GET /ventas/:id`
+     * tomando «pedidos» por un uuid, y contestaba 400.
+     *
+     * La pantalla no se caía: cargaba entera y con sus desplegables VACÍOS,
+     * porque el 400 tumbaba el `Promise.all` que también traía clientes,
+     * almacenes y productos. Se veía una pantalla completa en la que no se
+     * podía capturar nada. Lo encontró el primer clic en el navegador, no las
+     * 2,647 pruebas.
+     *
+     * Es el mismo defecto que ya documentó `almacenes.controller.ts` con
+     * «para-venta», y por eso ahora lo vigila
+     * `una-ruta-literal-no-se-esconde-tras-un-parametro.spec.ts`.
+     * ────────────────────────────────────────────────────────────────────────
+     */
+    PedidosVentaController,
     VentasController,
     DashboardEjecutivoController,
     ImpresionTicketsController,
-    PedidosVentaController,
   ],
   providers: [
     VentasService,
