@@ -61,9 +61,18 @@ const producto = (f: Fila) =>
  * El servicio con lo justo para que `analizarReposicion` corra: el repositorio
  * de productos y el `DataSource` del que sale la suma de existencias.
  */
+/**
+ * La existencia de un producto, como la ve el resumen de stock. Un número
+ * suelto significa «todo físico y nada apartado», que es como estaba escrita
+ * cada prueba antes de que la reposición mirara lo disponible.
+ */
+type Existencia = number | { fisico: number; reservado?: number; bloqueado?: number };
+
 const servicioCon = (
   productos: any[],
-  stocks: Record<string, number>,
+  stocks: Record<string, Existencia>,
+  /** Lo que los clientes esperan y no hay: el backorder de los pedidos. */
+  enEspera: Record<string, number> = {},
 ): { servicio: ProductosService; relacionesPedidas: string[][] } => {
   const relacionesPedidas: string[][] = [];
   const qb: any = {
@@ -73,9 +82,11 @@ const servicioCon = (
     andWhere: () => qb,
     groupBy: () => qb,
     getRawMany: async () =>
-      Object.entries(stocks).map(([productoId, totalStock]) => ({
+      Object.entries(stocks).map(([productoId, e]) => ({
         productoId,
-        totalStock: String(totalStock),
+        totalStock: String(typeof e === 'number' ? e : e.fisico),
+        totalReservado: String(typeof e === 'number' ? 0 : (e.reservado ?? 0)),
+        totalBloqueado: String(typeof e === 'number' ? 0 : (e.bloqueado ?? 0)),
       })),
   };
   const productoRepository: any = {
@@ -84,7 +95,15 @@ const servicioCon = (
       return productos;
     },
   };
-  const dataSource: any = { getRepository: () => ({ createQueryBuilder: () => qb }) };
+  const dataSource: any = {
+    getRepository: () => ({ createQueryBuilder: () => qb }),
+    /* El backorder sale de los pedidos de venta con una consulta propia. */
+    query: async () =>
+      Object.entries(enEspera).map(([productoId, cantidad]) => ({
+        productoId,
+        enEspera: cantidad,
+      })),
+  };
   const servicio = new ProductosService(
     productoRepository,
     null as any,
@@ -100,9 +119,14 @@ const servicioCon = (
 
 const analizar = (
   productos: any[],
-  stocks: Record<string, number> = {},
+  stocks: Record<string, Existencia> = {},
   opciones: Parameters<ProductosService['analizarReposicion']>[1] = {},
-) => servicioCon(productos, stocks).servicio.analizarReposicion(EMPRESA, opciones);
+  enEspera: Record<string, number> = {},
+) =>
+  servicioCon(productos, stocks, enEspera).servicio.analizarReposicion(
+    EMPRESA,
+    opciones,
+  );
 
 describe('El disparo es el punto de reorden, no el mínimo', () => {
   /*
@@ -300,5 +324,116 @@ describe('La consulta pide relaciones que existen', () => {
       { p1: 0 },
     );
     expect(renglones[0].unidad).toBe('CAJA');
+  });
+});
+
+describe('Se repone lo que se puede VENDER, no lo que está en el edificio', () => {
+  /*
+   * ==========================================================================
+   * EL HUECO QUE ABRIÓ EL PEDIDO DE VENTA
+   * --------------------------------------------------------------------------
+   * Hasta el 12-oct-2026 esta lista miraba `cantidad`: lo FÍSICO. Un producto
+   * con 50 piezas en el anaquel, las 50 apartadas para el pedido de un cliente
+   * y punto de reorden 20, no salía en la lista. El ERP veía 50 contra 20 y
+   * callaba, mientras el mostrador no tenía ni una que vender.
+   *
+   * El hueco existía desde que el WMS podía apartar; se volvió grave cuando
+   * nació el pedido de venta, que aparta de verdad y en volumen.
+   * ==========================================================================
+   */
+  it('lo apartado no cuenta como existencia para decidir la compra', async () => {
+    const { renglones } = await analizar(
+      [producto({ id: 'p1', puntoReorden: 20, stockMaximo: 60 })],
+      { p1: { fisico: 50, reservado: 50 } },
+    );
+    expect(renglones).toHaveLength(1);
+    expect(renglones[0].disponible).toBe(0);
+    /* Y se enseñan los tres: «tengo 50 y no puedo vender ninguna» no es lo
+       mismo que «no tengo nada», y se trabajan distinto. */
+    expect(renglones[0].stockActual).toBe(50);
+    expect(renglones[0].comprometido).toBe(50);
+    expect(renglones[0].estado).toBe('AGOTADO');
+    /* Y se pide hasta el máximo contra lo disponible, no contra lo físico. */
+    expect(renglones[0].sugerido).toBe(60);
+  });
+
+  it('lo bloqueado por el almacén cuenta igual que lo reservado', async () => {
+    /* Mercancía en cuarentena está en el edificio y no se puede vender. Para
+       decidir la compra es exactamente lo mismo que si no estuviera. */
+    const { renglones } = await analizar(
+      [producto({ id: 'p1', puntoReorden: 10 })],
+      { p1: { fisico: 30, bloqueado: 25 } },
+    );
+    expect(renglones).toHaveLength(1);
+    expect(renglones[0].disponible).toBe(5);
+  });
+
+  it('con todo libre se comporta exactamente como antes', async () => {
+    /*
+     * La mitad que no debe cambiar. Una instalación sin apartados ni pedidos
+     * tiene que ver la misma lista de siempre: el cambio corrige lo que se
+     * medía mal, no mueve el umbral de nadie.
+     */
+    const { renglones } = await analizar(
+      [producto({ id: 'p1', puntoReorden: 20, stockMaximo: 100 })],
+      { p1: { fisico: 15, reservado: 0 } },
+    );
+    expect(renglones[0].disponible).toBe(15);
+    expect(renglones[0].sugerido).toBe(85);
+  });
+
+  it('un resumen inconsistente no produce una sugerencia absurda', async () => {
+    /* Si lo reservado superara a lo físico —un resumen que se descuadró—, el
+       disponible negativo inflaría el faltante con un número inventado. */
+    const { renglones } = await analizar(
+      [producto({ id: 'p1', puntoReorden: 10, stockMaximo: 40 })],
+      { p1: { fisico: 10, reservado: 30 } },
+    );
+    expect(renglones[0].disponible).toBe(0);
+    expect(renglones[0].sugerido).toBe(40);
+  });
+});
+
+describe('Lo que un cliente ya está esperando es una necesidad de compra', () => {
+  it('el backorder se SUMA al faltante, no se compara con él', async () => {
+    /*
+     * Si sólo se repusiera hasta el objetivo, la mercancía entraría y se iría
+     * entera al pedido pendiente: el anaquel quedaría igual de vacío que antes
+     * y la lista diría que ya se repuso. Son dos necesidades distintas.
+     */
+    const { renglones } = await analizar(
+      [producto({ id: 'p1', puntoReorden: 20, stockMaximo: 100 })],
+      { p1: 15 },
+      {},
+      { p1: 30 },
+    );
+    expect(renglones[0].enEspera).toBe(30);
+    /* 85 para volver al máximo + 30 que ya están prometidas. */
+    expect(renglones[0].sugerido).toBe(115);
+  });
+
+  it('entra en la lista aunque el umbral no se haya tocado', async () => {
+    /*
+     * Existencia cómoda, muy por encima del reorden, y un cliente esperando
+     * veinte piezas que no se le pudieron apartar. Sin esto, la promesa con
+     * fecha no aparecería en ninguna lista de compra.
+     */
+    const { renglones, resumen } = await analizar(
+      [producto({ id: 'p1', puntoReorden: 10, stockMaximo: 50 })],
+      { p1: 45 },
+      {},
+      { p1: 20 },
+    );
+    expect(renglones).toHaveLength(1);
+    expect(renglones[0].sugerido).toBe(25);
+    expect(resumen.conClienteEsperando).toBe(1);
+  });
+
+  it('sin pedidos pendientes el resumen no inventa urgencias', async () => {
+    const { resumen } = await analizar(
+      [producto({ id: 'p1', puntoReorden: 20 })],
+      { p1: 5 },
+    );
+    expect(resumen.conClienteEsperando).toBe(0);
   });
 });

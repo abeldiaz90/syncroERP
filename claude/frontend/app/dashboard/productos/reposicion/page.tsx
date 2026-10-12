@@ -47,6 +47,12 @@ interface Renglon {
   codigoProveedor: string | null;
   precioCompra: number;
   stockActual: number;
+  /** Lo apartado para pedidos y lo bloqueado por el almacén. */
+  comprometido: number;
+  /** Lo que de verdad se puede vender hoy: es lo que dispara la reposición. */
+  disponible: number;
+  /** Lo que un cliente ya pidió y no hay: el backorder. */
+  enEspera: number;
   stockMinimo: number;
   puntoReorden: number;
   stockMaximo: number;
@@ -62,6 +68,7 @@ interface Resumen {
   criticos: number;
   bajos: number;
   costoEstimado: number;
+  conClienteEsperando: number;
   sinUmbralConfigurado: number;
   productosEvaluados: number;
 }
@@ -145,14 +152,23 @@ export default function ReposicionPage() {
     setCreando(true);
     try {
       await api.post('/compras/requisiciones', {
-        prioridad: seleccionados.some((r) => r.estado === 'AGOTADO')
-          ? 'ALTA'
-          : 'NORMAL',
-        notas: `Reposición automática · ${seleccionados.length} artículo(s) bajo punto de reorden`,
+        prioridad:
+          seleccionados.some((r) => r.estado === 'AGOTADO' || r.enEspera > 0)
+            ? 'ALTA'
+            : 'NORMAL',
+        /* La prioridad sube si hay alguien esperando: una promesa con fecha
+           pesa más que un anaquel bajo. */
+        notas:
+          `Reposición automática · ${seleccionados.length} artículo(s)` +
+          (seleccionados.some((r) => r.enEspera > 0)
+            ? ` · ${seleccionados.filter((r) => r.enEspera > 0).length} con cliente esperando`
+            : ' bajo punto de reorden'),
         detalles: seleccionados.map((r) => ({
           productoId: r.id,
           cantidadSolicitada: pedido(r.id),
-          notas: `Existencia ${r.stockActual}, reorden ${r.umbral}`,
+          notas:
+            `Disponible ${r.disponible} de ${r.stockActual} en piso, reorden ${r.umbral}` +
+            (r.enEspera > 0 ? `, ${r.enEspera} ya prometidas a un cliente` : ''),
         })),
       });
       setAviso({
@@ -215,6 +231,7 @@ export default function ReposicionPage() {
             { etiqueta: 'Agotados', valor: resumen.agotados, color: 'text-rose-600', detalle: 'sin una sola pieza' },
             { etiqueta: 'Bajo mínimo', valor: resumen.criticos, color: 'text-amber-600', detalle: 'por debajo del suelo' },
             { etiqueta: 'En punto de reorden', valor: resumen.bajos, color: 'text-slate-700', detalle: 'toca pedir ya' },
+            { etiqueta: 'Clientes esperando', valor: resumen.conClienteEsperando, color: 'text-amber-700', detalle: 'ya prometido y sin surtir' },
             { etiqueta: 'Compra estimada', valor: dinero(resumen.costoEstimado), color: 'text-blue-700', detalle: 'a costo de reposición' },
           ].map((k) => (
             <div key={k.etiqueta} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
@@ -287,7 +304,8 @@ export default function ReposicionPage() {
                     <th className="px-4 py-3 w-10" />
                     <th className="px-4 py-3 text-left">Artículo</th>
                     <th className="px-4 py-3 text-left">Estado</th>
-                    <th className="px-4 py-3 text-right">Existencia</th>
+                    <th className="px-4 py-3 text-right">Disponible</th>
+                    <th className="px-4 py-3 text-right">Esperan</th>
                     <th className="px-4 py-3 text-right">Reorden</th>
                     <th className="px-4 py-3 text-right">Máximo</th>
                     <th className="px-4 py-3 text-right">Pedir</th>
@@ -323,7 +341,21 @@ export default function ReposicionPage() {
                           </span>
                         </td>
                         <td className={`px-4 py-3 text-right font-black ${r.estado === 'AGOTADO' ? 'text-rose-600' : 'text-slate-800'}`}>
-                          {r.stockActual} <span className="text-[11px] font-medium text-slate-400">{r.unidad}</span>
+                          {r.disponible} <span className="text-[11px] font-medium text-slate-400">{r.unidad}</span>
+                          {/* Tener y no poder vender no es lo mismo que no tener:
+                              el que mira la lista necesita distinguirlos. */}
+                          {r.comprometido > 0 && (
+                            <div className="text-[11px] font-medium text-slate-400">
+                              {r.stockActual} en piso · {r.comprometido} apartadas
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {r.enEspera > 0 ? (
+                            <span className="font-black text-amber-700">{r.enEspera}</span>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right text-slate-500">{r.umbral}</td>
                         <td className="px-4 py-3 text-right text-slate-400">

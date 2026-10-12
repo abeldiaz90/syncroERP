@@ -928,6 +928,19 @@ export class ProductosService {
       .createQueryBuilder('s')
       .select('s.productoId', 'productoId')
       .addSelect('COALESCE(SUM(s.cantidad), 0)', 'totalStock')
+      /*
+       * Y lo apartado. Hasta el 12-oct-2026 esta consulta sólo miraba
+       * `cantidad`, lo FÍSICO, y decidía reponer con ello. Un producto con 50
+       * piezas en el anaquel, las 50 apartadas para el pedido de un cliente y
+       * punto de reorden 20, no salía en la lista: el ERP veía 50 contra 20 y
+       * callaba, mientras el mostrador no tenía ni una que vender.
+       *
+       * Reponer se decide sobre lo que se puede VENDER, no sobre lo que está
+       * en el edificio. El hueco existía desde que el WMS podía apartar, y se
+       * volvió grave al nacer el pedido de venta, que aparta de verdad.
+       */
+      .addSelect('COALESCE(SUM(s.reservado), 0)', 'totalReservado')
+      .addSelect('COALESCE(SUM(s.bloqueado), 0)', 'totalBloqueado')
       .where('s.empresaId = :empresaId', { empresaId });
     if (opciones.almacenId) {
       consulta.andWhere('s.almacenId = :almacenId', {
@@ -936,9 +949,41 @@ export class ProductosService {
     }
     const stocksRaw = await consulta
       .groupBy('s.productoId')
-      .getRawMany<{ productoId: string; totalStock: string }>();
+      .getRawMany<{
+        productoId: string;
+        totalStock: string;
+        totalReservado: string;
+        totalBloqueado: string;
+      }>();
     const stockMap = new Map(
       stocksRaw.map((s) => [s.productoId, Number(s.totalStock)]),
+    );
+    const comprometidoMap = new Map(
+      stocksRaw.map((s) => [
+        s.productoId,
+        Number(s.totalReservado ?? 0) + Number(s.totalBloqueado ?? 0),
+      ]),
+    );
+
+    /*
+     * Y lo que un cliente YA está esperando y no existe: el backorder de los
+     * pedidos de venta. Es la necesidad de compra mejor fundada que hay en el
+     * sistema, porque no es una proyección — es mercancía con nombre y fecha
+     * prometida. Antes no entraba en la lista de reposición por ningún lado.
+     */
+    const esperaRaw = (await this.dataSource.query(
+      `SELECT d.productoid AS "productoId",
+              COALESCE(SUM(d.cantidad - d.cantidadsurtida - d.cantidadreservada), 0)::float AS "enEspera"
+         FROM pedidos_venta_detalle d
+         JOIN pedidos_venta p ON p.id = d.pedidoid
+        WHERE p.empresaid = $1
+          AND p.estado IN ('CONFIRMADO', 'SURTIDO_PARCIAL')
+          AND (d.cantidad - d.cantidadsurtida - d.cantidadreservada) > 0.0001
+        GROUP BY d.productoid`,
+      [empresaId],
+    ).catch(() => [])) as Array<{ productoId: string; enEspera: number }>;
+    const esperaMap = new Map(
+      esperaRaw.map((e) => [e.productoId, Number(e.enEspera ?? 0)]),
     );
 
     const where: Record<string, unknown> = { empresaId, activo: true };
@@ -973,6 +1018,11 @@ export class ProductosService {
       .filter((p) => p.tipo !== TipoProducto.SERVICIO)
       .map((p) => {
         const stockActual = stockMap.get(p.id) ?? 0;
+        const comprometido = comprometidoMap.get(p.id) ?? 0;
+        const enEspera = esperaMap.get(p.id) ?? 0;
+        /* Lo que de verdad se puede vender hoy. Nunca negativo: un resumen
+           inconsistente no debe convertirse en una sugerencia absurda. */
+        const disponible = Math.max(0, stockActual - comprometido);
         const minimo = Number(p.stockMinimo ?? 0);
         const reorden = Number(p.puntoReorden ?? 0);
         /* El disparo es el punto de reorden; a falta de él, el mínimo. */
@@ -981,7 +1031,14 @@ export class ProductosService {
           Number(p.stockMaximo ?? 0) > 0
             ? Number(p.stockMaximo)
             : Math.max(umbral * 2, umbral + 1);
-        const faltante = Math.max(0, objetivo - stockActual);
+        /*
+         * Lo que un cliente espera se SUMA al faltante, no se compara con él.
+         * Volver al objetivo y además cubrir lo prometido son dos necesidades
+         * distintas: si sólo se repusiera hasta el objetivo, la mercancía
+         * entraría y se iría entera al pedido pendiente, dejando el anaquel
+         * igual de vacío que antes y a la lista diciendo que ya se repuso.
+         */
+        const faltante = Math.max(0, objetivo - disponible) + enEspera;
         const multiplo = Number(p.cantidadMinimaPedido ?? 0);
         const sugerido =
           multiplo > 1 ? Math.ceil(faltante / multiplo) * multiplo : faltante;
@@ -994,6 +1051,11 @@ export class ProductosService {
           codigoProveedor: p.codigoProveedor ?? null,
           precioCompra: Number(p.precioCompra ?? 0),
           stockActual,
+          /* Los tres se enseñan por separado: «tengo 50 pero no puedo vender
+             ninguna» y «no tengo nada» se trabajan distinto. */
+          comprometido,
+          disponible,
+          enEspera,
           stockMinimo: minimo,
           puntoReorden: reorden,
           stockMaximo: Number(p.stockMaximo ?? 0),
@@ -1007,21 +1069,28 @@ export class ProductosService {
            * es cuál.
            */
           estado:
-            stockActual <= 0
+            disponible <= 0
               ? ('AGOTADO' as const)
-              : stockActual <= minimo
+              : disponible <= minimo
                 ? ('CRITICO' as const)
                 : ('BAJO' as const),
           sinConfigurar: umbral <= 0,
         };
       })
-      .filter((r) => !r.sinConfigurar && r.stockActual <= r.umbral)
+      /*
+       * Entra en la lista lo que está en o bajo el umbral POR DISPONIBLE, y
+       * también lo que alguien espera aunque el umbral no se haya tocado: una
+       * promesa a un cliente es una necesidad de compra por sí sola.
+       */
+      .filter(
+        (r) => !r.sinConfigurar && (r.disponible <= r.umbral || r.enEspera > 0),
+      )
       .filter((r) => !opciones.soloCriticos || r.estado !== 'BAJO')
       .sort((a, b) => {
         const orden = { AGOTADO: 0, CRITICO: 1, BAJO: 2 };
         if (orden[a.estado] !== orden[b.estado])
           return orden[a.estado] - orden[b.estado];
-        return a.stockActual - b.stockActual;
+        return a.disponible - b.disponible;
       });
 
     const sinConfigurar = reponibles.filter(
@@ -1044,6 +1113,10 @@ export class ProductosService {
          * reposición que calla lo que no miró se lee como «no falta nada más»,
          * y con la mitad del catálogo sin umbrales configurados eso es falso.
          */
+        /* Cuántos renglones están en la lista porque hay un cliente esperando.
+           No es lo mismo comprar para el anaquel que comprar para una promesa
+           con fecha. */
+        conClienteEsperando: renglones.filter((r) => r.enEspera > 0).length,
         sinUmbralConfigurado: sinConfigurar,
         productosEvaluados: reponibles.length - sinConfigurar,
       },
