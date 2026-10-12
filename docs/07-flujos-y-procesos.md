@@ -158,6 +158,19 @@ discusión no ocurra en el mostrador.
 3. Eliges el **destino del importe**: reembolso, o saldo a favor del cliente.
 4. La venta queda **PARCIALMENTE_DEVUELTA** o **DEVUELTA**.
 
+## Dónde queda la mercancía que regresa
+
+Lo devuelto en condición **«Regresa a existencia»** vuelve a su lote original
+—con el costo con el que salió, no con uno nuevo— y se guarda en el **andén de
+recepción** del almacén, no en la posición de donde salió.
+
+Es a propósito: lo que vuelve llega al mostrador y alguien tiene que mirarlo
+antes de guardarlo. Queda localizado desde el primer segundo y el almacén lo
+reubica, que es para lo que existe esa pantalla.
+
+Lo devuelto como **dañado** no vuelve a existencia: entra y sale en el mismo
+acto, y queda como merma con su costo.
+
 ## Qué te va a negar el sistema
 
 | Si intentas… | Te dirá |
@@ -653,15 +666,16 @@ cliente aunque hayan pasado tres semanas.
 ## Un límite que conviene conocer
 
 **El apartado se decide con el resumen del almacén y la salida se sirve de las
-ubicaciones.** Mientras los dos coincidan —y coinciden salvo que alguien haya
-movido existencia por fuera— no se nota. Cuando no coinciden, el pedido puede
-prometer una pieza que la salida no encuentra, y el surtido se niega con
-«Stock insuficiente no reservado».
+ubicaciones.** Mientras los dos coincidan no se nota. Cuando no coinciden, el
+pedido promete una pieza que la salida no encuentra, y el surtido se niega con
+«Stock insuficiente no reservado» —con el cliente delante, no al confirmar—.
 
-Se vio en vivo el 12 de octubre con una pieza de diferencia. **No es un defecto
-del pedido**: es que hay dos verdades sobre la misma existencia. Lo que
-corresponde cuando pasa es un ajuste de inventario que las vuelva a igualar.
-Está anotado en `06-limites-conocidos.md`.
+El 12 de octubre pasó con una pieza, y resultó no ser un misterio de almacén:
+**la metía una devolución**. La devolución y la anulación de venta subían la
+existencia sin ponerla en ninguna posición. Ya está corregido: lo que vuelve
+cae en el andén de recepción, igual que una recepción. La historia completa, y
+las dos piezas que quedaron sueltas antes del arreglo, están en
+`06-limites-conocidos.md`.
 
 ![Existencias por ubicación y lote: el casco de seguridad tiene 98 piezas físicas en A-01-01, mientras el resumen del almacén decía 99. Ésa es la pieza de diferencia.](img/existencias.jpg)
 

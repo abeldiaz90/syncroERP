@@ -33,6 +33,10 @@ import {
 } from '../../catalogo/entities/producto.entity';
 import { StockService } from '../../catalogo/services/stock.service';
 import {
+  resolverPosicionDeEntrada,
+  sumarEnPosicion,
+} from '../../catalogo/utils/una-entrada-cae-en-una-posicion';
+import {
   CreditoCliente,
   EstadoCredito,
 } from '../../credito/entities/credito-cliente.entity';
@@ -691,6 +695,47 @@ export class DevolucionesVentasService {
               costoDanado += costo;
             } else {
               costoReintegrado += costo;
+              /*
+               * ── Y LA PIEZA TIENE QUE QUEDAR EN ALGÚN SITIO ──────────────
+               * Hasta el 12 de octubre esto terminaba aquí: subía el lote,
+               * escribía el movimiento, sincronizaba el resumen del almacén y
+               * NO tocaba `stock_ubicaciones`. La mercancía devuelta existía
+               * para la contabilidad y para el kardex, y no estaba en ninguna
+               * posición.
+               *
+               * Medido: FER-CAS-SEG con 99 en el resumen y 98 localizadas. El
+               * kardex dice de dónde salía esa pieza —«6/10 ENTRADA +1 ·
+               * Devolución DEV-1»—, y durante seis días se creyó que alguien
+               * la había movido a mano.
+               *
+               * Y el hueco se cobraba en otro módulo: el apartado de un pedido
+               * mira el resumen y la salida se sirve de las posiciones, así que
+               * el pedido prometía una pieza que la salida no encontraba y el
+               * surtido se negaba con el cliente delante.
+               *
+               * Va al andén de recepción, no a la posición de donde salió: lo
+               * devuelto llega físicamente al mostrador y alguien tiene que
+               * mirarlo antes de guardarlo. Queda localizado desde el primer
+               * segundo y el almacén lo reubica, que es para lo que existe esa
+               * pantalla. Es la MISMA pieza que usa la recepción —
+               * `una-entrada-cae-en-una-posicion.ts`—, no una copia.
+               */
+              const posicion = await resolverPosicionDeEntrada(em, {
+                empresaId,
+                productoId: movimiento.productoId,
+                almacenId: movimiento.almacenId,
+                cantidad,
+              });
+              if (posicion) {
+                await sumarEnPosicion(em, {
+                  empresaId,
+                  productoId: movimiento.productoId,
+                  almacenId: movimiento.almacenId,
+                  ubicacionId: posicion.id,
+                  loteId: lote.id,
+                  cantidad,
+                });
+              }
             }
             combinacionesStock.add(
               `${movimiento.productoId}|${movimiento.almacenId}`,

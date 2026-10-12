@@ -41,37 +41,42 @@ import { join } from 'path';
  * ============================================================================
  */
 
+/*
+ * ── DÓNDE VIVE AHORA LO QUE ESTA PRUEBA MIRA (12-oct-2026) ─────────────────
+ * En `catalogo/utils/una-entrada-cae-en-una-posicion.ts`, y no en
+ * `inventario.service.ts`.
+ *
+ * Resultó que `registrarCompra` NO era la única vía que subía existencia: la
+ * devolución y la anulación de venta escriben el lote por su cuenta —necesitan
+ * el costo original de cada salida— y no ponían la mercancía en ninguna
+ * posición. Se midió: FER-CAS-SEG con 99 en el almacén y 98 localizadas.
+ * «Dónde cae una entrada» salió a una pieza compartida que usan las tres.
+ *
+ * Es la SEGUNDA vez que esta prueba se ancla a un texto que se mueve —la
+ * primera fue `if (ubicacionId) {` el 8 de octubre—. La lección no es elegir
+ * mejor el ancla: es que una prueba que lee código tiene que decir a qué
+ * archivo mira y fallar RUIDOSA cuando ese archivo deja de ser el bueno, que
+ * es justo lo que pasó aquí.
+ */
 const FUENTE = readFileSync(
-  join(__dirname, 'inventario.service.ts'),
+  join(__dirname, '..', 'utils', 'una-entrada-cae-en-una-posicion.ts'),
   'utf8',
 );
 
 /**
- * El cuerpo del bloque de ubicación de la ENTRADA de mercancía.
+ * El cuerpo de `resolverPosicionDeEntrada`, que es donde vive la decisión.
  *
- * ── El ancla, y por qué cambió ───────────────────────────────────────
- * Hasta el 8-oct-2026 este bloque se buscaba por `if (ubicacionId) {`. El
- * 7-oct la entrada pasó a resolver antes la posición de recepción —lo que
- * entra sin indicar posición cae en el andén— y la condición se llama ahora
- * `ubicacionElegida`.
- *
- * Esa misma cadena existe más abajo en `registrarSalida`, y ahí es correcta:
- * una salida sin posición no se inventa un andén, descuenta del almacén. Así
- * que el buscador no se quedó sin encontrar nada: encontró **el bloque
- * equivocado**, y las tres comprobaciones de abajo fallaron hablando de otra
- * función. Un ancla ambigua no avisa de que se movió: contesta otra cosa.
- *
- * Por eso ahora se ancla a la resolución de la entrada, que es única en el
- * archivo, y se comprueba que lo sea.
+ * Se ancla al nombre de la función exportada —no a una condición interna— por
+ * lo dicho arriba: un `if (…)` se renombra sin que nadie se entere y un ancla
+ * ambigua no avisa de que se movió, contesta otra cosa. El nombre de una
+ * función exportada tiene a sus llamadores vigilándolo.
  */
-function bloqueDeUbicacion(texto: string): string {
-  /* Única en el archivo: si algún día no lo fuera, esto lo dice. */
-  expect(texto.split('const ubicacionElegida =').length - 1).toBe(1);
-  const resolucion = texto.indexOf('const ubicacionElegida =');
-  expect(resolucion).toBeGreaterThan(-1);
-
-  const inicio = texto.indexOf('if (ubicacionElegida) {', resolucion);
+function cuerpoDeLaResolucion(texto: string): string {
+  const firma = 'export async function resolverPosicionDeEntrada';
+  expect(texto.split(firma).length - 1).toBe(1);
+  const inicio = texto.indexOf(firma);
   expect(inicio).toBeGreaterThan(-1);
+
   let nivel = 0;
   for (let i = texto.indexOf('{', inicio); i < texto.length; i++) {
     if (texto[i] === '{') nivel++;
@@ -88,7 +93,7 @@ const sinComentarios = (texto: string) =>
   texto.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
 describe('Entrada de mercancía · la posición nueva no rechaza la mercancía', () => {
-  const bloque = sinComentarios(bloqueDeUbicacion(FUENTE));
+  const bloque = sinComentarios(cuerpoDeLaResolucion(FUENTE));
 
   it('no exige un slotting previo para recibir en una posición', () => {
     expect(bloque).not.toMatch(/primero asigna el producto a la ubicaci/i);
@@ -113,5 +118,19 @@ describe('Entrada de mercancía · la posición nueva no rechaza la mercancía',
     expect(bloque).toMatch(
       /no existe, está inactiva o no pertenece al almacén seleccionado/,
     );
+  });
+
+  it('y el servicio de inventario usa esta pieza, no una copia suya', () => {
+    /*
+     * La prueba de la prueba. Todo lo de arriba mide un archivo de utilidades;
+     * si `registrarCompra` dejara de usarlo y se quedara con su propia copia,
+     * esta prueba seguiría verde hablando de código que ya no corre.
+     */
+    const servicio = sinComentarios(
+      readFileSync(join(__dirname, 'inventario.service.ts'), 'utf8'),
+    );
+    expect(servicio).toMatch(/una-entrada-cae-en-una-posicion/);
+    expect(servicio).toMatch(/await resolverPosicionDeEntrada\(em, \{/);
+    expect(servicio).not.toMatch(/em\.create\(\s*ProductoUbicacion/);
   });
 });

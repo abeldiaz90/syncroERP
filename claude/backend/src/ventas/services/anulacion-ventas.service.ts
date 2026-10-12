@@ -17,6 +17,10 @@ import {
   EstadoCredito,
 } from '../../credito/entities/credito-cliente.entity';
 import { StockService } from '../../catalogo/services/stock.service';
+import {
+  resolverPosicionDeEntrada,
+  sumarEnPosicion,
+} from '../../catalogo/utils/una-entrada-cae-en-una-posicion';
 import { AsientosPendientesService } from '../../finanzas/services/asientos-pendientes.service';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
 import { TesoreriaService } from '../../tesoreria/services/tesoreria.service';
@@ -222,6 +226,39 @@ export class AnulacionVentasService {
                 stockNuevo * Number(lote.costoUnitario),
               );
               await em.save(lote);
+
+              /*
+               * ── Y TIENE QUE QUEDAR EN ALGUN SITIO ────────────────────────
+               * Igual que la devolucion: hasta el 12 de octubre esto subia el
+               * lote y el resumen del almacen y NO tocaba `stock_ubicaciones`.
+               * La mercancia de una venta anulada existia para el kardex y no
+               * estaba en ninguna posicion, y ese hueco se cobra despues en el
+               * apartado de un pedido —que mira el resumen— contra la salida
+               * —que se sirve de las posiciones—.
+               *
+               * Va al anden de recepcion y no a la posicion de donde salio:
+               * lo que vuelve de una venta anulada llega al mostrador y
+               * alguien tiene que mirarlo antes de guardarlo.
+               *
+               * Misma pieza que la recepcion y que la devolucion. No es una
+               * copia: `catalogo/utils/una-entrada-cae-en-una-posicion.ts`.
+               */
+              const posicion = await resolverPosicionDeEntrada(em, {
+                empresaId,
+                productoId: mov.productoId,
+                almacenId: mov.almacenId,
+                cantidad: Number(mov.cantidad),
+              });
+              if (posicion) {
+                await sumarEnPosicion(em, {
+                  empresaId,
+                  productoId: mov.productoId,
+                  almacenId: mov.almacenId,
+                  ubicacionId: posicion.id,
+                  loteId: lote.id,
+                  cantidad: Number(mov.cantidad),
+                });
+              }
             } else {
               advertencias.push(
                 `El lote original de un producto ya no existe. La devolución se hizo sin reintegrarlo.`,

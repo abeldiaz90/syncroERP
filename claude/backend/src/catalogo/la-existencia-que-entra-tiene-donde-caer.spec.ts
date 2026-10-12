@@ -63,29 +63,32 @@ describe('Inventario · la existencia que entra y no se ubica', () => {
   });
 
   it('la entrada sin posicion cae en la de recepcion, no en ningun sitio', () => {
-    const texto = sinComentarios(leer('catalogo/services/inventario.service.ts'));
-    /* El parametro se resuelve ANTES de buscar la posicion. */
-    expect(texto).toMatch(
-      /const ubicacionElegida =\s*ubicacionId \?\?\s*\(await buscarUbicacionDeRecepcion\(em, empresaId, almacenId\)\)\?\.id;/,
-    );
     /*
-     * Y desde ahi sigue el MISMO camino. La comprobacion va ACOTADA a lo que
-     * sigue a la resolucion y no al archivo entero: `registrarSalida` tiene su
-     * propio `if (ubicacionId)` mas abajo, que es correcto —una salida sin
-     * posicion no se inventa un anden, descuenta del almacen—. Una negativa
-     * sobre todo el archivo se pondria roja por eso, y la forma de callarla
-     * seria tocar la salida, que esta bien.
+     * Esto vivia dentro de `registrarCompra`. Desde el 12-oct vive en
+     * `utils/una-entrada-cae-en-una-posicion.ts`, porque hubo una SEGUNDA via
+     * que subia existencia —la devolucion de venta— y copiarselo habria dejado
+     * dos implementaciones de la misma regla. Ver el capitulo de abajo.
      */
-    expect(texto).toMatch(
-      /const ubicacionElegida =[\s\S]{0,160}if \(ubicacionElegida\) \{/,
+    const util = sinComentarios(
+      leer('catalogo/utils/una-entrada-cae-en-una-posicion.ts'),
     );
-    /* Y dentro de ese bloque ya no se mira el parametro crudo. */
-    const bloque = texto.slice(
-      texto.indexOf('const ubicacionElegida ='),
-      texto.indexOf('const loteActual = await em'),
+    expect(util).toMatch(
+      /const elegida =\s*datos\.ubicacionId \?\?\s*\(await buscarUbicacionDeRecepcion\(em, empresaId, almacenId\)\)\?\.id;/,
     );
-    expect(bloque).not.toMatch(/\{ id: ubicacionId,/);
-    expect(bloque.length).toBeGreaterThan(400);
+    /* Y desde ahi sigue el MISMO camino: estado, slotting y capacidad. */
+    expect(util).toMatch(/no admite recepciones en estado/);
+    expect(util).toMatch(/excederia su capacidad|excedería su capacidad/);
+    expect(util).toMatch(/ProductoUbicacion/);
+
+    /* El servicio ya no resuelve por su cuenta: delega. */
+    const inventario = sinComentarios(
+      leer('catalogo/services/inventario.service.ts'),
+    );
+    expect(inventario).toMatch(/await resolverPosicionDeEntrada\(em, \{/);
+    expect(inventario).toMatch(/await sumarEnPosicion\(em, \{/);
+    /* Y no se quedo una copia del camino viejo. */
+    expect(inventario).not.toMatch(/buscarUbicacionDeRecepcion/);
+    expect(inventario).not.toMatch(/capacidadMaxima \?\? asignacion\.capacidadAsignada/);
   });
 
   it('la de recepcion nace con la primera posicion del almacen', () => {
@@ -137,12 +140,13 @@ describe('Inventario · la existencia que entra y no se ubica', () => {
     expect(util).toMatch(/export async function buscarUbicacionDeRecepcion/);
     expect(util).not.toMatch(/throw new/);
 
-    const inventario = sinComentarios(
-      leer('catalogo/services/inventario.service.ts'),
+    const compartida = sinComentarios(
+      leer('catalogo/utils/una-entrada-cae-en-una-posicion.ts'),
     );
-    /* Ni una negativa colgando de la resolucion. */
-    expect(inventario).not.toMatch(
-      /ubicacionElegida[\s\S]{0,200}throw new BadRequestException\([^)]*recepci/i,
+    /* Ni una negativa colgando de la resolucion: sin anden, devuelve null. */
+    expect(compartida).toMatch(/if \(!elegida\) return null;/);
+    expect(compartida).not.toMatch(
+      /const elegida =[\s\S]{0,200}throw new BadRequestException\([^)]*recepci/i,
     );
   });
 
@@ -206,6 +210,134 @@ describe('Inventario · la existencia que entra y no se ubica', () => {
       'recetas/services/recetas.service.ts',
     ]);
     expect(llamadas).toHaveLength(9);
+  });
+
+  describe('la puerta que el barrido no miraba', () => {
+    /*
+     * ========================================================================
+     * QUE PASO EL 12 DE OCTUBRE
+     * ------------------------------------------------------------------------
+     * Todo lo de arriba descansa sobre una frase que esta escrita en este
+     * mismo archivo: «`registrarCompra` es el unico sitio por el que sube la
+     * existencia». **Era falsa.**
+     *
+     * La devolucion de venta sube existencia por su cuenta —escribe
+     * `lote.stockRestante`, escribe el movimiento y sincroniza el resumen— y
+     * tiene un motivo legitimo para no pasar por `registrarCompra`: necesita
+     * recuperar el costo ORIGINAL de cada salida, y `registrarCompra`
+     * calcularia un promedio nuevo. La anulacion de venta hace lo mismo.
+     *
+     * Ninguna de las dos tocaba `stock_ubicaciones`. Medido en vivo:
+     *
+     *   FER-CAS-SEG · resumen 99 · localizado 98
+     *   FER-CAB-12  · resumen 2000 · localizado 1999
+     *
+     * El kardex del casco dice de donde salia la pieza: «6/10 ENTRADA +1 ·
+     * Devolucion DEV-1». Durante seis dias se creyo que alguien la habia
+     * movido a mano, y el hueco se cobro en otro modulo: el apartado de un
+     * pedido mira el resumen, la salida se sirve de las posiciones, y el
+     * surtido se nego con el cliente delante.
+     *
+     * EL BARRIDO DE ABAJO MIRABA LOS LLAMADORES DE `registrarCompra`, asi que
+     * no podia ver una via que no lo llama. Un barrido que mira por la puerta
+     * equivocada da verde y no prueba nada.
+     *
+     * Este mira lo que de verdad define una entrada: **quien sube
+     * `stockRestante`**. Si manana nace una cuarta via, el fallo la nombra.
+     * ========================================================================
+     */
+    const SUBEN_EXISTENCIA = [
+      /* La puerta oficial. Resuelve y ubica dentro de `registrarCompra`. */
+      'catalogo/services/inventario.service.ts',
+      /* Devuelve al lote original con su costo; ubica en el anden. */
+      'ventas/services/devoluciones-ventas.service.ts',
+      /* Anula una venta y reintegra con el costo con que salio; idem. */
+      'ventas/services/anulacion-ventas.service.ts',
+    ];
+
+    const archivosQueSuben = () => {
+      const encontrados: string[] = [];
+      const recorrer = (dir: string) => {
+        for (const entrada of readdirSync(dir, { withFileTypes: true })) {
+          if (entrada.name === 'node_modules' || entrada.name.startsWith('.')) continue;
+          const camino = join(dir, entrada.name);
+          if (entrada.isDirectory()) {
+            /* Los comandos de base de datos siembran, no operan. */
+            if (entrada.name === 'database') continue;
+            recorrer(camino);
+            continue;
+          }
+          if (!entrada.name.endsWith('.ts') || entrada.name.endsWith('.spec.ts')) continue;
+          const texto = sinComentarios(readFileSync(camino, 'utf8'));
+          if (/\.stockRestante\s*(=|\+=)/.test(texto)) {
+            encontrados.push(relative(SRC, camino).replace(/\\/g, '/'));
+          }
+        }
+      };
+      recorrer(SRC);
+      return [...new Set(encontrados)].sort();
+    };
+
+    it('las vias que suben existencia son las declaradas', () => {
+      expect(archivosQueSuben()).toEqual([...SUBEN_EXISTENCIA].sort());
+    });
+
+    it('y las que no pasan por registrarCompra ubican lo que suben', () => {
+      /*
+       * Lo que importa no es que llamen a algo, sino que llamen a LA MISMA
+       * pieza: dos implementaciones de «donde cae una entrada» divergen, y la
+       * que diverge es la que nadie mira.
+       */
+      for (const archivo of SUBEN_EXISTENCIA) {
+        if (archivo === 'catalogo/services/inventario.service.ts') continue;
+        const texto = sinComentarios(leer(archivo));
+        expect([archivo, /resolverPosicionDeEntrada\(/.test(texto)]).toEqual([
+          archivo,
+          true,
+        ]);
+        expect([archivo, /sumarEnPosicion\(/.test(texto)]).toEqual([archivo, true]);
+        /* Y de la pieza compartida, no de una copia local. */
+        expect([archivo, /una-entrada-cae-en-una-posicion/.test(texto)]).toEqual([
+          archivo,
+          true,
+        ]);
+      }
+    });
+
+    it('la pieza compartida existe y es una sola', () => {
+      /* La prueba de la prueba: si el archivo no existiera, los `toMatch` de
+       * arriba fallarian al leerlo, pero conviene decirlo aqui. */
+      expect(
+        existsSync(join(SRC, 'catalogo/utils/una-entrada-cae-en-una-posicion.ts')),
+      ).toBe(true);
+      /* Nadie reimplementa el upsert de `stock_ubicaciones` por su cuenta. */
+      const copias: string[] = [];
+      const recorrer = (dir: string) => {
+        for (const entrada of readdirSync(dir, { withFileTypes: true })) {
+          if (entrada.name === 'node_modules' || entrada.name.startsWith('.')) continue;
+          const camino = join(dir, entrada.name);
+          if (entrada.isDirectory()) {
+            if (entrada.name === 'database') continue;
+            recorrer(camino);
+            continue;
+          }
+          if (!entrada.name.endsWith('.ts') || entrada.name.endsWith('.spec.ts')) continue;
+          const corto = relative(SRC, camino).replace(/\\/g, '/');
+          if (
+            corto === 'catalogo/utils/una-entrada-cae-en-una-posicion.ts' ||
+            corto === 'catalogo/services/wms.service.ts'
+          ) {
+            /* El WMS mueve existencia ENTRE posiciones —reubicar, transferir,
+             * contar—, que es otra operacion y tiene sus propias reglas. */
+            continue;
+          }
+          const texto = sinComentarios(readFileSync(camino, 'utf8'));
+          if (/em\.create\(StockUbicacion/.test(texto)) copias.push(corto);
+        }
+      };
+      recorrer(SRC);
+      expect(copias.sort()).toEqual([]);
+    });
   });
 
   it('las cuatro que ya ubicaban siguen diciendo donde', () => {

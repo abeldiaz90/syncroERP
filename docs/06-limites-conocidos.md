@@ -77,35 +77,83 @@ Ordenados por lo que más se usa el día uno:
 | **Reversa de pagos a proveedor** | El ERP no la tiene, y por eso el movimiento de tesorería de un pago no se puede cancelar (ver `03-manual-por-rol.md`). `CobranzaService.cancelarPago` es la plantilla natural, pero toca tesorería, turno de caja, póliza e IVA reclasificado. |
 | **Umbrales por monto en compras** | Implementados, sin configurar. Hoy toda requisición sube al mando. Los números los pone el cliente. |
 | **Un hallazgo que dice *cuáles*, no *cuántas*** | El hallazgo de «cuentas con saldo contrario» dice cuántas y manda a revisar la balanza. Con cuatro entre cientos, es hacerle al contador el trabajo que el sistema ya hizo. |
-| **Reubicar lo que ya quedó sin ubicar** | Desde el 8 de octubre, toda entrada cae en una posición —el andén de recepción— y el descuadre no se puede volver a producir. Lo que existía antes sigue existiendo: en SUMA Local queda **una pieza sin ubicar en FER-CAS-SEG, Almacén Central** (99 en el almacén, 98 en las posiciones). Corregirlo es decidir dónde va esa pieza, y eso lo sabe el almacén, no el sistema. |
+| **Ubicar lo que quedó sin ubicar** | No hay pantalla para meter en una posición existencia que el almacén tiene y las posiciones no. Reubicar mueve de una posición a otra y un conteo bajaría el resumen, que sería dar por perdida mercancía que está. Hoy hacen falta para dos piezas (ver §4bis); desde el 12 de octubre no se producen nuevas. |
 
 ---
 
-## 4bis. Dos verdades sobre la misma existencia
+## 4bis. La pieza que metía una devolución
 
-**El apartado de un pedido de venta se decide con el resumen del almacén; la
-salida de la venta se sirve de las ubicaciones.** Son dos fuentes para el mismo
-dato, y mientras coinciden no se nota.
+**Esto estaba escrito como una decisión pendiente y resultó ser un defecto.**
+Queda aquí la historia completa porque explica tres cosas que parecían
+distintas.
 
-Visto en vivo el 12 de octubre: el resumen del almacén decía **99** piezas y
-`stock_ubicaciones` tenía **98**. El pedido apartó 99 —prometió lo que el
-resumen le dijo que había— y al surtir, la salida, que mira las ubicaciones, se
-negó:
+### El síntoma
+
+El apartado de un pedido de venta se decide con el **resumen del almacén** y la
+salida de la venta se sirve de las **posiciones**. El 12 de octubre el resumen
+decía 99 piezas de `FER-CAS-SEG` y las posiciones 98, así que el pedido apartó
+99 y el surtido se negó:
 
 > «Stock insuficiente no reservado. Faltan 1 unidades.»
 
-La diferencia es anterior a los pedidos: viene de existencia movida sin pasar
-por una ubicación. **Lo que hay que decidir** no es cómo tapar el mensaje, sino
-cuál de las dos cosas se hace:
+Durante seis días se creyó que esa pieza la había movido alguien a mano.
 
-- **(a)** Un ajuste de inventario que vuelva a igualar las dos vistas, y a
-  vigilar que no se separen otra vez. Arregla el dato de hoy.
-- **(b)** Que el apartado se haga también contra ubicaciones, igual que la
-  salida. Quita la posibilidad de que vuelva a pasar, y es más trabajo.
+### La causa
 
-Mientras no se decida, un pedido puede prometer hasta una pieza que la salida no
-encuentra, y el aviso sale **al surtir**, con el cliente esperando, no al
-confirmar.
+El kardex del producto lo decía:
+
+```
+30/9  ENTRADA  +100  Recepción OC        → 100
+30/9  SALIDA     1   Ticket #1           →  99
+6/10  SALIDA     1   Ticket #2           →  98
+6/10  ENTRADA   +1   Devolución DEV-1    →  99
+```
+
+**La pieza la metió una devolución.** El 8 de octubre se cerró que toda entrada
+cayera en una posición —el andén de recepción—, pero ese arreglo se escribió
+dentro de `registrarCompra`, y la devolución de venta **no pasa por ahí**:
+escribe el lote, escribe el movimiento y sincroniza el resumen, por un motivo
+legítimo —necesita recuperar el costo original de cada salida, y
+`registrarCompra` calcularía un promedio nuevo—. Nunca tocaba
+`stock_ubicaciones`.
+
+La **anulación de venta** hacía exactamente lo mismo.
+
+Se comprobó haciendo una devolución nueva por pantalla, DEV-2 del 12 de
+octubre: contabilidad impecable —dos pólizas cuadradas del día— y el cable
+quedó con 2000 en el resumen y 1999 localizadas.
+
+### Lo que el sistema sí estaba diciendo
+
+La verificación de integridad lo nombraba, con SKU, almacén y las dos cifras.
+Nadie la miró.
+
+![La verificación de integridad nombraba las dos piezas sueltas: el cable con 2000 consolidado y 1999 localizado, y el casco con 99 y 98.](img/integridad-stock-localizado.jpg)
+
+### Lo que se hizo
+
+«Dónde cae una entrada» salió de `registrarCompra` a una pieza propia
+—`catalogo/utils/una-entrada-cae-en-una-posicion.ts`— y ahora la usan las tres
+vías que suben existencia: la recepción, la devolución y la anulación. Lo
+devuelto va al **andén de recepción** y no a la posición de donde salió: lo que
+vuelve llega al mostrador y alguien tiene que mirarlo antes de guardarlo.
+
+El barrido que vigilaba esto miraba **los llamadores de `registrarCompra`**, así
+que no podía ver una vía que no lo llama. Ahora mira lo que de verdad define una
+entrada: **quién sube `stockRestante`**. Son tres archivos, están declarados uno
+por uno, y el día que nazca un cuarto la prueba lo nombra.
+
+### Lo que queda
+
+**Dos piezas sueltas en SUMA Local** —una de `FER-CAS-SEG` y una de
+`FER-CAB-12`, las dos en Almacén Central—. Existen de verdad: el kardex tiene
+razón. Lo que falta es **meterlas en una posición**, y para eso el ERP todavía
+no tiene pantalla: reubicar mueve de una posición a otra, y un conteo físico
+bajaría el resumen a 98, que sería dar por perdida una pieza que está.
+
+Mientras no se corrijan, la verificación de integridad sigue en rojo y un
+pedido sobre esos dos artículos puede prometer una pieza que la salida no
+encuentra.
 
 ---
 
