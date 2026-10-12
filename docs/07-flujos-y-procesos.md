@@ -34,6 +34,11 @@ Cuando el sistema te lo dice, no estás ante un error de permisos: estás ante u
 control funcionando. La respuesta correcta nunca es pedir más permisos, sino
 que firme quien le toca.
 
+Y lo que espera una firma no se queda escondido en el documento: está todo junto
+en **Aprobaciones**, la bandeja central.
+
+![La bandeja central de aprobaciones: arriba lo que espera tu firma y, abajo, la bandeja de decisiones ya tomadas con quién decidió y cuándo.](img/aprobaciones.jpg)
+
 ---
 
 # 1 · Vender en mostrador
@@ -50,6 +55,18 @@ que firme quien le toca.
 
 La venta **nace completada**. No hay borrador ni pendiente: o se cobró o no
 existe.
+
+## La caja se abre en su propia ventana
+
+El punto de venta **ya no vive dentro del área de trabajo**: se abre aparte, a
+pantalla completa y sin menús. Entrar a «Punto de venta» desde el menú no te
+pone a cobrar, te ofrece abrirla.
+
+Es deliberado: cobrar no comparte sitio con la administración. Quien está en el
+mostrador no tiene a un clic el catálogo de cuentas ni la nómina, y la pantalla
+de cobro no pierde la mitad del ancho en un menú que ahí no se usa.
+
+![El punto de venta no se dibuja dentro del área de trabajo: ofrece abrir la caja en su propia ventana, a pantalla completa y sin menús.](img/pos.jpg)
 
 ## Lo que la caja decide por ti
 
@@ -688,6 +705,8 @@ cuántos.
 
 Las tolerancias, y por qué existen:
 
+![El cotejo de FP-2026-000002: «5 de 5 partida(s) no coinciden», y en cada renglón lo pedido, lo recibido y lo facturado con la frase que lo resume — «Pagar esto es pagar mercancía que no está».](img/factura-proveedor-diferencias.jpg)
+
 | Qué se compara | Tolerancia | Por qué |
 |---|---|---|
 | Cantidad | 0.0001 | Es el ruido de cuatro decimales, no una diferencia |
@@ -760,6 +779,8 @@ puede abrir por lugar, que es la pregunta que se hace de verdad en una junta.
 Los centros cuelgan unos de otros. De eso salen dos negativas que al principio
 sorprenden y luego se agradecen:
 
+![El catálogo de centros de costo, todavía vacío. El aviso dice lo que cambia al dar de alta el primero: desde ese momento toda partida manual de ingreso, costo o gasto tendrá que decir a cuál pertenece.](img/centros-costo.jpg)
+
 | Lo que lees | Por qué |
 |---|---|
 | ««…» agrupa a N centro(s): su saldo es la suma de ellos. Si recibiera movimientos propios, el reporte por centro dejaría de cuadrar con el total.» | Un agrupador con movimientos propios hace que el total no sea la suma de las partes |
@@ -797,6 +818,13 @@ que al final del año coincide con el gasto, y entonces no sirvió para nada.
 centro y por mes. Lo ejercido sale de las partidas de póliza, que es la misma
 fuente que la balanza: el comparativo y la contabilidad no pueden diferir porque
 leen lo mismo.
+
+![Resultado por centro de costo. El renglón «Sin clasificar» recoge las partidas que todavía no llevan centro: sin él, la suma de los centros no daría el total de la empresa.](img/resultado-por-centro.jpg)
+
+Y hay un renglón que conviene mirar antes que ninguno: **«Sin clasificar»**. Son
+las partidas que todavía no llevan centro. No se reparten entre los demás ni se
+esconden, porque las dos cosas harían que el reporte cuadrara mintiendo. Si ese
+renglón es grande, el reporte por centro todavía no sirve para decidir.
 
 ---
 

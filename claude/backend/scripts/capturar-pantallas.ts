@@ -77,8 +77,19 @@ interface Pantalla {
   rol: string;
   /** Algo que tiene que estar en la página antes de disparar. */
   espera?: string;
-  /** Texto de un botón que hay que pulsar antes (para capturar un modal). */
+  /**
+   * Texto de un botón que hay que pulsar antes, para capturar un modal. Se
+   * busca por su texto visible, por su `title` y por su `aria-label`: los
+   * botones de acción de un renglón son iconos y no tienen texto, que es por lo
+   * que la primera versión de esto no encontraba ninguno.
+   */
   pulsar?: string;
+  /**
+   * Y en qué renglón. Sin esto se pulsa el primero que aparezca, que en una
+   * tabla de resultados casi nunca es el interesante: el cotejo que hay que
+   * enseñar es el de la factura CON DIFERENCIAS, no el de la que cuadra.
+   */
+  enElRenglon?: string;
   /** Milisegundos extra, para pantallas que piden varias consultas. */
   calma?: number;
 }
@@ -119,7 +130,9 @@ const PANTALLAS: Pantalla[] = [
     ruta: '/dashboard/compras/facturas-proveedor',
     pie: 'Una factura CON DIFERENCIAS dice cuáles renglones y con qué números.',
     rol: 'comprador',
-    calma: 1200,
+    calma: 1500,
+    pulsar: 'Ver el cotejo',
+    enElRenglon: 'CON DIFERENCIAS',
   },
   // 13 · Centros de costo y presupuestos
   {
@@ -206,7 +219,7 @@ const PANTALLAS: Pantalla[] = [
     ruta: '/dashboard/ayuda',
     pie: 'La documentación, dentro del propio ERP.',
     rol: 'cualquiera',
-    espera: 'Documentación',
+    espera: 'Ayuda y documentación',
   },
 ];
 
@@ -295,8 +308,14 @@ async function main(): Promise<void> {
         await dormir(p.calma ?? 700);
 
         if (p.espera) {
+          /*
+           * Sin mayúsculas. «Documentación» no aparecía en la pantalla de
+           * ayuda porque el encabezado dice «Ayuda y documentación», con
+           * minúscula, y la captura se descartaba sin que nada estuviera mal.
+           */
           const vista = await pagina.evaluate(
-            (texto: string) => document.body.innerText.includes(texto),
+            (texto: string) =>
+              document.body.innerText.toLowerCase().includes(texto.toLowerCase()),
             p.espera,
           );
           if (!vista) {
@@ -311,18 +330,49 @@ async function main(): Promise<void> {
         }
 
         if (p.pulsar) {
-          const pulsado = await pagina.evaluate((texto: string) => {
-            const botones = [...document.querySelectorAll('button, a')];
-            const b = botones.find((x) => (x.textContent ?? '').trim().includes(texto));
-            if (!b) return false;
-            (b as HTMLElement).click();
-            return true;
-          }, p.pulsar);
+          const pulsado = await pagina.evaluate(
+            (texto: string, enElRenglon: string | null) => {
+              const nombre = (x: Element) =>
+                `${x.textContent ?? ''} ${x.getAttribute('title') ?? ''} ${x.getAttribute('aria-label') ?? ''}`;
+              let ambito: ParentNode = document;
+              if (enElRenglon) {
+                const fila = [...document.querySelectorAll('tr, li, [role="row"]')].find((f) =>
+                  (f.textContent ?? '').includes(enElRenglon),
+                );
+                if (!fila) return false;
+                ambito = fila;
+              }
+              const b = [...ambito.querySelectorAll('button, a')].find((x) =>
+                nombre(x).includes(texto),
+              );
+              if (!b) return false;
+              (b as HTMLElement).click();
+              return true;
+            },
+            p.pulsar,
+            p.enElRenglon ?? null,
+          );
           if (!pulsado) {
-            fallidas.push(`${p.archivo}: no encontré el botón «${p.pulsar}» en ${p.ruta}`);
+            fallidas.push(
+              `${p.archivo}: no encontré el botón «${p.pulsar}»` +
+                (p.enElRenglon ? ` en el renglón «${p.enElRenglon}»` : '') +
+                ` de ${p.ruta}`,
+            );
             continue;
           }
-          await dormir(900);
+          /*
+           * Y se espera a que el modal esté. Un `dormir` fijo daba una captura
+           * de la pantalla sin abrir cuando la petición del detalle tardaba:
+           * salía publicada la lista en vez del detalle, y nadie lo notaba
+           * porque la captura era de una pantalla de verdad.
+           */
+          const antes = await pagina.evaluate(() => document.body.innerText.length);
+          for (let intento = 0; intento < 12; intento++) {
+            await dormir(400);
+            const ahora = await pagina.evaluate(() => document.body.innerText.length);
+            if (ahora > antes) break;
+          }
+          await dormir(400);
         }
 
         const alto = await pagina.evaluate(() =>
