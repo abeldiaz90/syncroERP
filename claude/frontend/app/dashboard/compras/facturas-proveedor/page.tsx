@@ -6,6 +6,7 @@ import { api, ApiError, conPermiso } from '@/lib/api';
 import { useAvisos } from '@/components/ui';
 import { fechaNumerica, hoyISO } from '@/lib/fechas';
 import { FOLIO, folioDe } from '@/lib/folios';
+import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
 
 /**
  * ============================================================================
@@ -107,6 +108,10 @@ export default function FacturasProveedorPage() {
     Array<{ detalleOrdenId: string | null; productoId?: string; descripcion: string; cantidad: string; precioUnitario: string; tasaIva: number }>
   >([]);
   const [detalle, setDetalle] = useState<{ factura: Factura; cotejo: Cotejo | null } | null>(null);
+
+  /* El detalle del cotejo se cierra con Escape: un modal del que sólo se
+     sale con el ratón es uno del que la gente sale recargando. */
+  useCerrarConEscape(!!detalle, () => setDetalle(null));
 
   const cargar = async () => {
     setCargando(true);

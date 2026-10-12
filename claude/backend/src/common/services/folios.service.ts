@@ -69,6 +69,7 @@ export const TIPOS_DE_FOLIO = {
    * su propia columna, que es donde sirve.
    */
   FACTURA_PROVEEDOR: 'FP',
+  PEDIDO_VENTA: 'PV',
 } as const;
 
 export type TipoDeFolio = (typeof TIPOS_DE_FOLIO)[keyof typeof TIPOS_DE_FOLIO];

@@ -29,6 +29,7 @@ export const FOLIO = {
   RECEPCION: 'REC',
   PAGO_PROVEEDOR: 'PP',
   FACTURA_PROVEEDOR: 'FP',
+  PEDIDO_VENTA: 'PV',
 } as const;
 
 export function folioDe(

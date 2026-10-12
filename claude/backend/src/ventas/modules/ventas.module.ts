@@ -3,12 +3,19 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { Venta } from '../entities/venta.entity';
 import { DetalleVenta } from '../entities/detalle-venta.entity';
+import {
+  DetallePedidoVenta,
+  PedidoVenta,
+} from '../entities/pedido-venta.entity';
 import { Cliente } from '../../clientes/entities/cliente.entity';
 import { Almacen } from '../../catalogo/entities/almacen.entity';
 import { StockPorAlmacen } from '../../catalogo/entities/stock-por-almacen.entity';
 
 import { VentasController } from '../controllers/ventas.controller';
 import { VentasService } from '../services/ventas.service';
+import { PedidosVentaController } from '../controllers/pedidos-venta.controller';
+import { PedidosVentaService } from '../services/pedidos-venta.service';
+import { CommonModule } from '../../common/modules/common.module';
 import { DashboardEjecutivoController } from '../controllers/dashboard-ejecutivo.controller';
 import { DashboardEjecutivoService } from '../services/dashboard-ejecutivo.service';
 
@@ -51,6 +58,8 @@ import { ImpresoraTermicaService } from '../impresion/impresora-termica.service'
       SaldoFavorClienteMovimiento,
       Empresa,
       ImpresoraCaja,
+      PedidoVenta,
+      DetallePedidoVenta,
     ]),
     CatalogoModule,
     FinanzasModule,
@@ -60,11 +69,15 @@ import { ImpresoraTermicaService } from '../impresion/impresora-termica.service'
     CfdiModule,
     NotificacionesModule,
     IntegracionModule,
+    /* Por `FoliosService`: el pedido lleva folio PV-2026-000001, que es lo que
+       el cliente dice por teléfono. */
+    CommonModule,
   ],
   controllers: [
     VentasController,
     DashboardEjecutivoController,
     ImpresionTicketsController,
+    PedidosVentaController,
   ],
   providers: [
     VentasService,
@@ -74,6 +87,7 @@ import { ImpresoraTermicaService } from '../impresion/impresora-termica.service'
     SaldosFavorService,
     ImpresionTicketsService,
     ImpresoraTermicaService,
+    PedidosVentaService,
   ],
 })
 export class VentasModule {}

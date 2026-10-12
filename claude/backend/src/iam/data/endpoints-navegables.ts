@@ -103,6 +103,12 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     ordenMenu: 3,
   },
 
+  'GET /ventas/pedidos': {
+    rutaFrontend: '/dashboard/ventas/pedidos',
+    titulo: 'Pedidos de venta',
+    ordenMenu: 4,
+  },
+
   /* ── COMPRAS ───────────────────────────────────────────────────────────── */
   'GET /compras/requisiciones': {
     rutaFrontend: '/dashboard/compras/requisiciones',

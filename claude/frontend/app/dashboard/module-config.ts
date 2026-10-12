@@ -226,6 +226,12 @@ export const MODULOS: ModuleConfig[] = [
         oculto: true,
       },
       {
+        label: "Pedidos de venta",
+        href: "/dashboard/ventas/pedidos",
+        grupo: "Operación",
+        etiqueta: "Nuevo",
+      },
+      {
         label: "Historial de ventas",
         href: "/dashboard/ventas/historial",
         grupo: "Operación",
