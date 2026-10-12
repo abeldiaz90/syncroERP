@@ -345,7 +345,35 @@ palabra.
 
 Lo captura el almacén; **lo cierra gerencia**. Las diferencias se convierten en
 entradas o salidas de ajuste con su póliza, y quien contó no es quien acepta la
-diferencia.
+diferencia: el sistema niega el cierre a quien abrió o capturó el conteo.
+
+> «La autorización del ajuste debe realizarla una persona distinta de quien
+> abrió o capturó el conteo.»
+
+**Cómo se valúa lo que aparece de más:** al costo de su lote; si el lote no
+tiene costo, al del último lote con costo de ese producto en ese almacén; y si
+tampoco, al costo estándar o al precio de compra del catálogo. Si no hay
+ninguno de los tres, el cierre se niega y lo dice —no inventa un costo cero,
+que metería mercancía al almacén sin valor—. Lo que falta sale al costo
+promedio del lote de donde se descuenta.
+
+### Un conteo cuenta POSICIONES, no el total del almacén
+
+La hoja de conteo se arma con lo que hay en `stock_ubicaciones`: cada producto,
+en cada posición, con su lote. Es lo correcto —un almacenista cuenta un rack,
+no un número abstracto— pero tiene una consecuencia que conviene entender:
+
+**si un almacén tiene existencia que no está en ninguna posición, el conteo no
+la ve, y contarla la duplica.** La hoja diría 98 donde el almacén cree tener
+99; el almacenista contaría las 99 piezas que están ahí; la diferencia de +1
+entraría como sobrante y el total del almacén pasaría a 100.
+
+Por eso un conteo **no es** la herramienta para cuadrar un descuadre entre el
+resumen del almacén y sus posiciones. Para eso está **Almacenes →
+Reubicaciones**, que más abajo lista «Existencias sin posición» con un botón
+**Ubicar** por renglón. Colocar una existencia sin posición no cambia ningún
+total ni genera póliza: la mercancía ya está en el almacén y ya está valuada;
+lo único que cambia es dónde dice el sistema que está.
 
 ## Entrada y salida rápidas desde el catálogo
 

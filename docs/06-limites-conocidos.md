@@ -77,7 +77,7 @@ Ordenados por lo que más se usa el día uno:
 | **Reversa de pagos a proveedor** | El ERP no la tiene, y por eso el movimiento de tesorería de un pago no se puede cancelar (ver `03-manual-por-rol.md`). `CobranzaService.cancelarPago` es la plantilla natural, pero toca tesorería, turno de caja, póliza e IVA reclasificado. |
 | **Umbrales por monto en compras** | Implementados, sin configurar. Hoy toda requisición sube al mando. Los números los pone el cliente. |
 | **Un hallazgo que dice *cuáles*, no *cuántas*** | El hallazgo de «cuentas con saldo contrario» dice cuántas y manda a revisar la balanza. Con cuatro entre cientos, es hacerle al contador el trabajo que el sistema ya hizo. |
-| **Ubicar lo que quedó sin ubicar** | No hay pantalla para meter en una posición existencia que el almacén tiene y las posiciones no. Reubicar mueve de una posición a otra y un conteo bajaría el resumen, que sería dar por perdida mercancía que está. Hoy hacen falta para dos piezas (ver §4bis); desde el 12 de octubre no se producen nuevas. |
+| ~~Ubicar lo que quedó sin ubicar~~ | **Ya existe**: Almacenes → Reubicaciones, sección «Existencias sin posición». Esta tabla la daba por ausente; ver §4bis. |
 
 ---
 
@@ -143,17 +143,32 @@ que no podía ver una vía que no lo llama. Ahora mira lo que de verdad define u
 entrada: **quién sube `stockRestante`**. Son tres archivos, están declarados uno
 por uno, y el día que nazca un cuarto la prueba lo nombra.
 
-### Lo que queda
+### Lo que queda, y cómo se arregla
 
 **Dos piezas sueltas en SUMA Local** —una de `FER-CAS-SEG` y una de
 `FER-CAB-12`, las dos en Almacén Central—. Existen de verdad: el kardex tiene
-razón. Lo que falta es **meterlas en una posición**, y para eso el ERP todavía
-no tiene pantalla: reubicar mueve de una posición a otra, y un conteo físico
-bajaría el resumen a 98, que sería dar por perdida una pieza que está.
+razón. Lo que falta es ponerlas en una posición.
 
-Mientras no se corrijan, la verificación de integridad sigue en rojo y un
-pedido sobre esos dos artículos puede prometer una pieza que la salida no
-encuentra.
+**Y para eso sí hay pantalla**: **Almacenes → Reubicaciones**. Abajo tiene
+«Existencias sin posición», con el producto, el almacén, lo que dice el almacén,
+lo que está ubicado y la diferencia, y un botón **Ubicar** por renglón que
+rellena la cantidad. Colocar una existencia sin posición **no cambia ningún
+total y no genera póliza**: la mercancía ya está en el almacén y ya está
+valuada; lo único que cambia es dónde dice el sistema que está.
+
+> Esta nota decía, hasta el 12 de octubre, que «no hay pantalla para eso».
+> Era falso, y es el defecto de documentación que más caro sale: **un manual
+> que afirma un hueco que no existe hace que nadie use la herramienta que sí
+> está.** La pantalla se construyó con su propio porqué —un detector sin
+> remedio, que avisa de algo que nadie puede arreglar, se acaba ignorando—.
+
+**Lo que NO sirve para esto es un conteo físico, y además lo empeora.** La hoja
+de conteo se arma con lo que hay en las posiciones: diría 98 donde el almacén
+cree tener 99, el almacenista contaría las 99 que están ahí, y el sobrante de
++1 dejaría el total del almacén en 100.
+
+Mientras no se coloquen, la verificación de integridad sigue en rojo y un pedido
+sobre esos dos artículos puede prometer una pieza que la salida no encuentra.
 
 ---
 
