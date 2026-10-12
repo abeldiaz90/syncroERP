@@ -458,6 +458,14 @@ export class PolizasService {
         cargo: number;
         abono: number;
         referencia: string;
+        /*
+         * El centro, cuando quien llama ya lo sabe. `resolverCentros` lo leía
+         * desde siempre y el tipo no lo declaraba, así que nadie podía
+         * mandarlo por esta puerta: el cierre del ejercicio salda POR CENTRO
+         * —si no, la dimensión no cierra en cero y el resultado por centro del
+         * año siguiente arrastra el anterior—.
+         */
+        centroCostoId?: string | null;
       }>;
     },
   ) {

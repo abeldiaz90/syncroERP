@@ -109,6 +109,12 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     ordenMenu: 4,
   },
 
+  'GET /finanzas/cierre-anual/:ejercicio': {
+    rutaFrontend: '/dashboard/finanzas/cierre-anual',
+    titulo: 'Cierre del ejercicio',
+    ordenMenu: 29,
+  },
+
   /* ── COMPRAS ───────────────────────────────────────────────────────────── */
   'GET /compras/requisiciones': {
     rutaFrontend: '/dashboard/compras/requisiciones',

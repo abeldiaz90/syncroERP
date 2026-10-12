@@ -41,6 +41,9 @@ import { CatalogosSatService } from '../services/catalogos-sat.service';
 import { IntegridadFinancieraController } from '../controllers/integridad-financiera.controller';
 import { IntegridadFinancieraService } from '../services/integridad-financiera.service';
 
+import { CierreAnualController } from '../controllers/cierre-anual.controller';
+import { CierreAnualService } from '../services/cierre-anual.service';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -66,6 +69,7 @@ import { IntegridadFinancieraService } from '../services/integridad-financiera.s
     ]),
   ],
   controllers: [
+    CierreAnualController,
     CuentasContablesController,
     CentrosCostoController,
     PresupuestosController,
@@ -78,6 +82,7 @@ import { IntegridadFinancieraService } from '../services/integridad-financiera.s
     IntegridadFinancieraController,
   ],
   providers: [
+    CierreAnualService,
     CentrosCostoService,
     PresupuestosService,
     CuentasContablesService,

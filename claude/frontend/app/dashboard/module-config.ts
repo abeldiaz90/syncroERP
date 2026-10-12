@@ -665,6 +665,12 @@ export const MODULOS: ModuleConfig[] = [
         etiqueta: "Guiado",
       },
       {
+        label: "Cierre del ejercicio",
+        href: "/dashboard/finanzas/cierre-anual",
+        grupo: "Fiscal",
+        etiqueta: "Nuevo",
+      },
+      {
         label: "Conciliación inicial",
         href: "/dashboard/finanzas/conciliacion-inicial",
         grupo: "Control",

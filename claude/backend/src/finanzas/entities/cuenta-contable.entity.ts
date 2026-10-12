@@ -59,6 +59,20 @@ export enum RolCuentaSistema {
   OTROS_INGRESOS = 'OTROS_INGRESOS',
   /** Pérdida en baja de activo fijo y otros gastos no operativos. */
   OTROS_GASTOS = 'OTROS_GASTOS',
+  /**
+   * Donde aterriza el resultado al cerrar el ejercicio (SAT 305.01).
+   *
+   * Es de CAPITAL, no de resultado: al traspasar, las cuentas de ingreso,
+   * costo y gasto quedan en cero y su diferencia se queda aquí, que es lo que
+   * hace que el balance siga cuadrando y que el año nuevo empiece limpio.
+   */
+  RESULTADO_EJERCICIO_UTILIDAD = 'RESULTADO_EJERCICIO_UTILIDAD',
+  /**
+   * La pérdida, cuando se quiere separada (SAT 305.02). Es opcional: sin ella,
+   * la pérdida se asienta como cargo en la cuenta de utilidad, que es correcto
+   * —el saldo deudor ya la identifica— aunque menos fiel al catálogo del SAT.
+   */
+  RESULTADO_EJERCICIO_PERDIDA = 'RESULTADO_EJERCICIO_PERDIDA',
 }
 
 @Entity('cuentas_contables')
