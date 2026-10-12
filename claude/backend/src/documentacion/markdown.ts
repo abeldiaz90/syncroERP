@@ -27,6 +27,21 @@
  *   >                  citas, que pueden contener listas y párrafos
  *   ```                bloques de código
  *   **negrita**  *cursiva*  `código`  [texto](destino)
+ *   ![pie](img/x.png)  una captura, EN SU PROPIA LÍNEA
+ *
+ * ── LAS CAPTURAS ───────────────────────────────────────────────────────────
+ *
+ * Una captura va sola en su línea y su destino tiene que empezar por `img/`:
+ * los archivos viven en `docs/img/`, junto a los documentos. El renderizador
+ * NO lee del disco —es puro, y así se puede probar— sino que recibe un mapa
+ * `img/x.png → data:...` que arma el servicio.
+ *
+ * Y lo que importa: una captura que no está **se ve**. Antes de esto, un
+ * `![algo](img/no-existe.png)` caía en el reconocedor de enlaces, se quedaba
+ * sin el destino que no sabía resolver y salía publicado como el texto
+ * «!algo» —un hueco que se cree lleno—. Ahora sale un recuadro que dice qué
+ * archivo falta y dónde tiene que estar. Vale más una página que admite que
+ * le falta una figura que una que finge no tenerla.
  *
  * LO QUE NO ENTIENDE, A PROPÓSITO
  *
@@ -49,6 +64,14 @@ export interface EntradaIndice {
   texto: string;
   ancla: string;
 }
+
+/**
+ * Las capturas ya leídas, por el nombre con el que el Markdown las nombra.
+ * El valor es lo que va en `src`: un `data:` que el servicio armó leyendo el
+ * archivo. Un nombre que no esté en el mapa es una captura que falta, y se
+ * dice en la página.
+ */
+export type Capturas = Record<string, string>;
 
 export interface DocumentoRenderizado {
   html: string;
@@ -119,8 +142,21 @@ function enLinea(texto: string, enlaces: EnlaceInterno[]): string {
 
   // 2 · Enlaces.
   t = t.replace(
-    /\[([^\]]+)\]\(([^)\s]+)\)/g,
-    (todo: string, rotulo: string, destino: string) => {
+    /(!?)\[([^\]]+)\]\(([^)\s]+)\)/g,
+    (todo: string, admiracion: string, rotulo: string, destino: string) => {
+      /*
+       * Una captura se reconoce como bloque, en `renderizar`, porque una
+       * `<figure>` no puede vivir dentro de un `<p>`. Si llega hasta aquí es
+       * que está metida en un párrafo, una celda o una viñeta: no se puede
+       * pintar, pero tampoco se calla. Se dice, con el nombre del archivo.
+       */
+      if (admiracion) {
+        return (
+          '<span class="captura-mal-puesta">Captura <code>' +
+          escapar(destino) +
+          '</code>: tiene que ir sola en su línea.</span>'
+        );
+      }
       const interno = enlaces.find((e) => destino.startsWith(e.archivo));
       if (interno) {
         /*
@@ -154,12 +190,95 @@ function enLinea(texto: string, enlaces: EnlaceInterno[]): string {
   return t.replace(/\u0000(\d+)\u0000/g, (_, i: string) => codigos[Number(i)]);
 }
 
+/**
+ * Qué nombre de archivo se acepta para una captura.
+ *
+ * Cerrado a propósito: `img/` y nada más, sin `..`, sin ruta absoluta, sin
+ * `http`. El servicio va a construir una ruta de disco con esto, así que la
+ * forma se comprueba aquí —donde se puede probar sin montar un servidor— y no
+ * sólo allá. Una captura remota además haría que abrir el manual pidiera un
+ * archivo a un tercero, y un manual no espía a quien lo lee.
+ */
+const NOMBRE_DE_CAPTURA = /^img\/[a-z0-9][a-z0-9._-]*\.(png|jpg|jpeg|webp)$/i;
+
+export function esNombreDeCaptura(destino: string): boolean {
+  return NOMBRE_DE_CAPTURA.test(destino) && !destino.includes('..');
+}
+
+/**
+ * Qué capturas nombra un documento. Lo usan el servicio —para leer sólo esos
+ * archivos y no la carpeta entera— y la prueba que comprueba que cada captura
+ * prometida existe de verdad.
+ */
+export function capturasQueNombra(markdown: string): string[] {
+  const nombres = new Set<string>();
+  /*
+   * Los bloques de código se saltan, igual que hace el renderizador —que los
+   * consume antes de buscar figuras—. Sin esto, un documento que EXPLICA cómo
+   * se escribe una captura hacía que la prueba exigiera un archivo que el
+   * ejemplo nunca pretendió tener. Un escáner que no ve lo mismo que el
+   * renderizador es un desacuerdo entre dos lecturas del mismo archivo, y el
+   * que pierde es quien tiene que entender por qué está roja la suite.
+   */
+  let enCodigo = false;
+  for (const linea of markdown.replace(/\r\n/g, '\n').split('\n')) {
+    if (/^\s*```/.test(linea)) {
+      enCodigo = !enCodigo;
+      continue;
+    }
+    if (enCodigo) continue;
+    const m = /^\s*!\[([^\]]*)\]\(([^)\s]+)\)\s*$/.exec(linea);
+    if (m) nombres.add(m[2]);
+  }
+  return [...nombres];
+}
+
+/** Una línea que no es más que una captura. */
+const LINEA_DE_CAPTURA = /^\s*!\[([^\]]*)\]\(([^)\s]+)\)\s*$/;
+
+function figuraDe(destino: string, pie: string, capturas: Capturas): string {
+  const aviso = (texto: string) =>
+    `<figure class="captura falta"><figcaption>${texto}</figcaption></figure>`;
+
+  if (!esNombreDeCaptura(destino)) {
+    return aviso(
+      `Captura <code>${escapar(destino)}</code>: el destino tiene que ser ` +
+        '<code>img/archivo.png</code>, dentro de <code>docs/img/</code>.',
+    );
+  }
+  const fuente = capturas[destino];
+  if (!fuente) {
+    /*
+     * Esto es el corazón del asunto. Un documento que promete una figura y no
+     * la tiene lo dice en la cara de quien lo lee —y la prueba
+     * `una-captura-que-se-promete-y-no-esta.spec.ts` lo dice antes, en rojo,
+     * mientras alguien todavía puede arreglarlo.
+     */
+    return aviso(
+      `Falta la captura <code>${escapar(destino)}</code>: el documento la nombra ` +
+        'y el archivo no está en <code>docs/img/</code>.',
+    );
+  }
+  const alt = escapar(pie.trim());
+  return (
+    '<figure class="captura">' +
+    `<img src="${fuente}" alt="${alt}" loading="lazy" />` +
+    (alt ? `<figcaption>${alt}</figcaption>` : '') +
+    '</figure>'
+  );
+}
+
 function esSeparadorDeTabla(linea: string): boolean {
   return /^\s*\|?[\s:-]*-[\s|:-]*\|?\s*$/.test(linea) && linea.includes('-');
 }
 
 /** Renderiza un bloque de líneas que ya no contiene tablas ni código. */
-function bloques(lineas: string[], enlaces: EnlaceInterno[], indice: EntradaIndice[]): string {
+function bloques(
+  lineas: string[],
+  enlaces: EnlaceInterno[],
+  indice: EntradaIndice[],
+  anclasUsadas: Map<string, number>,
+): string {
   const salida: string[] = [];
   /*
    * ==========================================================================
@@ -177,13 +296,31 @@ function bloques(lineas: string[], enlaces: EnlaceInterno[], indice: EntradaIndi
    * leyendo «Los pasos» de Ventas sin que nada le avise de que se movió de
    * sección. Un índice que lleva a otra parte es peor que no tener índice.
    *
-   * El contador vive aquí, en el renderizado, porque es el único punto donde
-   * el `id` del encabezado y la entrada del índice salen del MISMO valor. Si
-   * se resolviera en la pantalla —poniendo la posición en la `key` de React—
-   * el aviso desaparecería y los enlaces seguirían rotos.
+   * El contador vive en el renderizado, porque es el único punto donde el `id`
+   * del encabezado y la entrada del índice salen del MISMO valor. Si se
+   * resolviera en la pantalla —poniendo la posición en la `key` de React— el
+   * aviso desaparecería y los enlaces seguirían rotos.
+   *
+   * ── POR QUÉ EL CONTADOR LLEGA DE FUERA (12 de octubre) ────────────────────
+   *
+   * Porque cuando nacía AQUÍ, el arreglo no servía casi nunca.
+   *
+   * `renderizar` no llama a esta función una vez: la llama una vez por cada
+   * tramo que queda ENTRE una tabla, un bloque de código o una figura. Con el
+   * contador naciendo dentro, cada tabla lo ponía a cero. En un documento con
+   * tablas —o sea, en todos los de `docs/`— tres secciones «Los pasos»
+   * separadas por tablas producían el MISMO `id` tres veces, que es
+   * exactamente el defecto que esto decía haber cerrado el 1 de octubre.
+   *
+   * Se vio el 12 de octubre en la consola del navegador, con el manual de
+   * flujos abierto: «Encountered two children with the same key, los-pasos».
+   * La prueba de entonces no lo veía porque su documento de ejemplo no tenía
+   * ninguna tabla entre los encabezados repetidos: probaba el caso fácil.
+   *
+   * Un arreglo que sólo funciona cuando el documento no tiene tablas es peor
+   * que no haberlo hecho, porque nadie vuelve a mirar.
    * ==========================================================================
    */
-  const anclasUsadas = new Map<string, number>();
   const anclaUnica = (texto: string): string => {
     const base = anclaDe(texto);
     const vistas = anclasUsadas.get(base) ?? 0;
@@ -233,7 +370,7 @@ function bloques(lineas: string[], enlaces: EnlaceInterno[], indice: EntradaIndi
         dentro.push(lineas[i].replace(/^\s*>\s?/, ''));
         i++;
       }
-      salida.push(`<blockquote>${bloques(dentro, enlaces, [])}</blockquote>`);
+      salida.push(`<blockquote>${bloques(dentro, enlaces, [], anclasUsadas)}</blockquote>`);
       continue;
     }
 
@@ -330,15 +467,22 @@ function bloques(lineas: string[], enlaces: EnlaceInterno[], indice: EntradaIndi
 export function renderizar(
   markdown: string,
   enlaces: EnlaceInterno[] = [],
+  capturas: Capturas = {},
 ): DocumentoRenderizado {
   const indice: EntradaIndice[] = [];
   const lineas = markdown.replace(/\r\n/g, '\n').split('\n');
   const partes: string[] = [];
   let sueltas: string[] = [];
 
+  /*
+   * Uno por documento, y pasa por todos los tramos. Ver el porqué, largo, en
+   * `bloques`: aquí es donde el arreglo del 1 de octubre se perdía.
+   */
+  const anclasUsadas = new Map<string, number>();
+
   const vaciar = () => {
     if (sueltas.length) {
-      partes.push(bloques(sueltas, enlaces, indice));
+      partes.push(bloques(sueltas, enlaces, indice, anclasUsadas));
       sueltas = [];
     }
   };
@@ -392,6 +536,20 @@ export function renderizar(
       partes.push(
         `<div class="tabla"><table><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div>`,
       );
+      continue;
+    }
+
+    // ── Captura ─────────────────────────────────────────────────────────────
+    /*
+     * Va aquí arriba, con las tablas y el código, y no en `bloques`, porque una
+     * `<figure>` dentro de un `<p>` es HTML inválido: el navegador cierra el
+     * párrafo por su cuenta y el texto que venía después se queda fuera.
+     */
+    const captura = LINEA_DE_CAPTURA.exec(lineas[i]);
+    if (captura) {
+      vaciar();
+      partes.push(figuraDe(captura[2], captura[1], capturas));
+      i++;
       continue;
     }
 

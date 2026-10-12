@@ -8,7 +8,13 @@ import {
   DocumentoPublicado,
   documentoDe,
 } from './documentacion.catalogo';
-import { EnlaceInterno, renderizar } from './markdown';
+import {
+  Capturas,
+  EnlaceInterno,
+  capturasQueNombra,
+  esNombreDeCaptura,
+  renderizar,
+} from './markdown';
 import { paginaImprimible } from './plantilla-impresion';
 import { cargarPuppeteer, elegirNavegador } from './navegador-para-el-pdf';
 
@@ -123,7 +129,60 @@ export class DocumentacionService {
         `El documento «${doc.titulo}» está en el catálogo pero falta su archivo ${doc.archivo} en ${ruta}.`,
       );
     }
-    return { doc, markdown: readFileSync(archivo, 'utf8'), archivo };
+    return { doc, markdown: readFileSync(archivo, 'utf8'), archivo, carpeta: ruta };
+  }
+
+  /**
+   * ==========================================================================
+   * Las capturas viajan dentro del HTML, no por una URL
+   * --------------------------------------------------------------------------
+   * POR QUÉ NO UN `/documentacion/img/x.png`
+   *
+   * Porque un `<img src>` no lleva el token: el navegador pide la imagen por su
+   * cuenta, sin el encabezado `Authorization` que pone `lib/api`. Un endpoint
+   * para las capturas tendría que quedar abierto, y entonces las pantallas del
+   * ERP de una empresa —con sus folios, sus clientes y sus importes— serían
+   * públicas para quien adivine el nombre del archivo. No es un riesgo
+   * teórico: las capturas son de pantallas con datos dentro.
+   *
+   * La alternativa era copiarlas al `public/` del frontend. Dos copias del
+   * mismo archivo divergen, que es justo lo que este módulo evita con el texto.
+   *
+   * Así que van incrustadas en el HTML que ya está autenticado. Y de paso es lo
+   * ÚNICO que funciona en el PDF: puppeteer recibe el HTML con `setContent`,
+   * sin dirección base, así que una ruta relativa ahí no resuelve a nada y el
+   * PDF saldría con los huecos de las figuras.
+   *
+   * El precio es el peso, y por eso está medido: `una-captura-que-se-promete-y-
+   * no-esta.spec.ts` pone un techo por archivo y por documento. Un manual que
+   * tarda en abrir no se lee.
+   * ==========================================================================
+   */
+  private capturasDe(carpeta: string, markdown: string): Capturas {
+    const mapa: Capturas = {};
+    for (const nombre of capturasQueNombra(markdown)) {
+      /* La forma se comprueba antes de tocar el disco: nunca se arma una ruta
+       * con algo que no haya pasado por `esNombreDeCaptura`. */
+      if (!esNombreDeCaptura(nombre)) continue;
+      const archivo = join(carpeta, nombre);
+      try {
+        const bytes = readFileSync(archivo);
+        const tipo = nombre.toLowerCase().endsWith('.png')
+          ? 'image/png'
+          : nombre.toLowerCase().endsWith('.webp')
+            ? 'image/webp'
+            : 'image/jpeg';
+        mapa[nombre] = `data:${tipo};base64,${bytes.toString('base64')}`;
+      } catch {
+        /*
+         * No se pone nada: el renderizador pinta el recuadro de «falta la
+         * captura», que es más útil que un hueco. Y se deja dicho en el
+         * registro, porque en un servidor nadie lee los recuadros.
+         */
+        this.logger.warn(`El documento nombra la captura ${nombre} y no está en ${carpeta}.`);
+      }
+    }
+    return mapa;
   }
 
   private enlacesPara(rol: string | undefined): EnlaceInterno[] {
@@ -136,8 +195,12 @@ export class DocumentacionService {
   }
 
   leer(id: string, rol: string | undefined) {
-    const { doc, markdown, archivo } = this.fuente(id, rol);
-    const { html, indice } = renderizar(markdown, this.enlacesPara(rol));
+    const { doc, markdown, archivo, carpeta } = this.fuente(id, rol);
+    const { html, indice } = renderizar(
+      markdown,
+      this.enlacesPara(rol),
+      this.capturasDe(carpeta, markdown),
+    );
     return {
       id: doc.id,
       titulo: doc.titulo,
@@ -168,7 +231,7 @@ export class DocumentacionService {
    * la salida que siempre existe.
    */
   async pdf(id: string, rol: string | undefined): Promise<Buffer> {
-    const { doc, markdown, archivo } = this.fuente(id, rol);
+    const { doc, markdown, archivo, carpeta } = this.fuente(id, rol);
     // En el PDF nada es navegable: los enlaces internos van como texto.
     const { html, indice } = renderizar(
       markdown,
@@ -178,6 +241,7 @@ export class DocumentacionService {
         titulo: d.titulo,
         visible: false,
       })),
+      this.capturasDe(carpeta, markdown),
     );
     const pagina = paginaImprimible({
       titulo: doc.titulo,

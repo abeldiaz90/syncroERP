@@ -79,6 +79,23 @@ export function paginaImprimible(datos: {
   th { background: #f1f2f4; font-weight: 600; }
   tr { page-break-inside: avoid; }
   .casilla { font-family: 'Segoe UI Symbol', sans-serif; }
+  /*
+   * Las capturas en papel. El alto máximo en centímetros evita lo que pasa si
+   * no se pone: una captura alta ocupa hoja y media y parte el texto que la
+   * explica a dos páginas de distancia.
+   *
+   * (Sin acentos graves en este comentario: va DENTRO de la plantilla, que es
+   * una cadena con acentos graves. Uno aquí la cierra a media hoja de estilos
+   * y el archivo deja de compilar.)
+   */
+  figure.captura { margin: 1.1em 0; page-break-inside: avoid; break-inside: avoid; text-align: center; }
+  figure.captura img { max-width: 100%; max-height: 16cm; height: auto;
+    border: 1px solid #c7ccd4; border-radius: 4px; }
+  figure.captura figcaption { font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 8.5pt; color: #5b616b; margin-top: .4em; text-align: left; }
+  figure.captura.falta figcaption, .captura-mal-puesta {
+    display: block; border: 1px dashed #a07400; background: #fdf6e3;
+    color: #6b4e00; padding: .5em .7em; border-radius: 4px; text-align: left; }
 </style></head>
 <body>
   <section class="portada">

@@ -1,6 +1,6 @@
 # SyncroERP + Apache Fineract · Documentación
 
-**Revisión:** 28 de septiembre de 2026
+**Revisión:** 12 de octubre de 2026
 **Alcance:** lo que el sistema **hace**, verificado contra el sistema corriendo.
 
 > Esta carpeta documenta únicamente lo que se considera **terminado y estable**.
@@ -34,6 +34,44 @@ sólo el administrador. El detalle está en `01-instalacion-y-puesta-en-marcha.m
 | 04 | [Compras y nómina](04-compras-y-nomina.md) | Los dos ciclos que firma más de una persona. |
 | 05 | [Aprovisionamiento y consola SUMA](05-aprovisionamiento-y-consola-suma.md) | SUMA. Cómo se da de alta una empresa nueva en cada uno de los tres modos. |
 | 06 | [Límites conocidos](06-limites-conocidos.md) | Todos. Lo que no está probado y lo que falta, con el motivo. |
+| 07 | [Flujos y procesos, paso a paso](07-flujos-y-procesos.md) | Usuarios finales. Catorce procesos de punta a punta, con quién firma cada paso y el texto exacto de cada negativa. |
+| 08 | [El portal de Fineract](08-fineract-portal.md) | Quien opera crédito y captación. Las ocho áreas del portal y el ciclo de un crédito acto por acto. |
+
+> El 07 existía desde el 9 de octubre y **no estaba en esta tabla**. Un índice al
+> que le falta un documento no se lee como incompleto: se lee como que ese
+> documento no existe.
+
+---
+
+## Las capturas
+
+Las capturas de pantalla viven en `img/` y los documentos las nombran así:
+
+```
+![La lista de pedidos, con el estado derivado de lo que falta por surtir.](img/pedido-lista.jpg)
+```
+
+Una captura va **sola en su línea** y su destino empieza por `img/`. El pie es
+también el texto alternativo, así que se escribe como una frase, no como un
+nombre de archivo.
+
+Se sacan con un script, no a mano:
+
+```
+cd claude/backend
+npm run docs:capturar            # todas
+npm run docs:capturar -- pedido  # sólo las que coincidan
+```
+
+Abre una ventana de verdad y **espera a que entres con tu usuario**: no escribe
+contraseñas ni las pide. Las captura con el rol de quien entró, y al terminar
+avisa si alguna documenta una pantalla de otro puesto — un manual que enseña
+botones que el lector no tiene es peor que uno sin capturas.
+
+Dos cosas las vigila la suite, no la buena voluntad: que **toda captura que un
+documento nombra exista** —si no, sale un recuadro que lo dice, y la prueba se
+pone roja antes— y que **ninguna pase de 400 KB**. Las capturas viajan dentro
+del HTML del manual, así que su peso es el tiempo que tarda en abrir.
 
 ---
 
@@ -53,13 +91,19 @@ no las guarda y no las cambia. Si hay que reponer una, se repone en Keycloak.
 
 ---
 
-## Estado de las pruebas en esta revisión
+## Estado de las pruebas
 
-| Suite | Pruebas | Suites |
-|---|---|---|
-| ERP (backend) | 1 075 | 170 |
-| Portal Fineract | 106 | 14 |
-| Consola SUMA | 8 | 1 |
+Aquí había una tabla con el número de pruebas de cada suite. Se quita, y el
+motivo vale más que la tabla: **decía 1 075 cuando ya eran más del doble**. Un
+número copiado a mano envejece en silencio y, mientras envejece, se lee como
+medido.
 
-Toda prueba que fija un defecto se verificó **en rojo** antes de aceptarse: una
-prueba que nunca falló no demuestra nada.
+El número de verdad lo imprime la suite al correr:
+
+```
+cd claude/backend && npx jest
+```
+
+Lo que sí es una promesa de este proyecto, y no un número: **toda prueba que
+fija un defecto se verificó en rojo antes de aceptarse.** Una prueba que nunca
+falló no demuestra nada.

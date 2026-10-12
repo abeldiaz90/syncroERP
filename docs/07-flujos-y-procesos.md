@@ -1,6 +1,6 @@
 # 07 · Flujos y procesos, paso a paso
 
-**Revisión:** 9 de octubre de 2026
+**Revisión:** 12 de octubre de 2026
 **Para:** usuarios finales, quien los capacita y quien recibe el sistema.
 
 > Cada flujo de este documento está **ejercido contra el sistema corriendo o
@@ -367,6 +367,8 @@ Caja, corte y arqueo, y el Punto de venta.
 Este flujo está probado con **dos cajas abiertas a la vez** y una ráfaga de seis
 cobros simultáneos, tres por caja: folios 4 a 9, sin repetidos y sin huecos.
 
+![Dos cajas abiertas a la vez. En el turno: fondo inicial, lo que entró, lo que salió y el efectivo que debería haber en el cajón.](img/caja.jpg)
+
 ## Cómo está armado
 
 Una **caja** es una cuenta bancaria de tipo CAJA, con su cuenta contable y, si
@@ -550,7 +552,310 @@ No se limitan a avisar que algo no cuadra; dicen hacia dónde y qué implica:
 
 ---
 
-# 10 · Cuando el sistema te dice que no
+# 10 · Pedido de venta: apartar, surtir y lo que queda en espera
+
+**Quién:** `empleado` de ventas. **Dónde:** Ventas → Pedidos.
+
+Una venta de mostrador **nace completada**: el cliente está delante y se lleva
+la mercancía. Un pedido es lo otro: una promesa para después. Y una promesa que
+no aparta nada es una promesa que el siguiente cliente se puede llevar.
+
+## Los estados, y por qué no se escriben a mano
+
+| Estado | Qué significa |
+|---|---|
+| **BORRADOR** | Capturado, sin apartar nada. Se edita libremente |
+| **CONFIRMADO** | Comprometido con el cliente y con la mercancía apartada que hubiera |
+| **SURTIDO_PARCIAL** | Se entregó parte. Lo que falta sigue comprometido |
+| **SURTIDO** | No queda nada por entregar |
+| **CANCELADO** | Se soltó lo apartado, con motivo escrito |
+
+Los tres de en medio **se deducen de lo que falta por surtir**, no se guardan a
+mano. Es a propósito: un estado que alguien pone con un botón y una cantidad que
+cambia sola acaban diciendo cosas distintas, y el que miente es el estado.
+
+## Los pasos
+
+| # | Qué pasa | Dónde queda |
+|---|---|---|
+| 1 | Capturas cliente, almacén y renglones | **BORRADOR** |
+| 2 | Confirmas | **CONFIRMADO**, y se intenta apartar cada renglón |
+| 3 | Entregas, una o varias veces | **SURTIDO_PARCIAL** → **SURTIDO** |
+
+Cada entrega **genera una venta de verdad**, con su folio, su póliza y su salida
+de inventario. El pedido no es un documento contable: es el acuerdo. Lo que
+mueve dinero es la venta que sale de él.
+
+![La pantalla de pedidos de venta. Abajo, «Comprometido sin mercancía»: el pedido PV-2026-000001 tiene 401 piezas prometidas y sin surtir.](img/pedido-lista.jpg)
+
+## Lo que el apartado hace, y lo que no
+
+Confirmar **aparta** la existencia disponible en el almacén del pedido. Apartada
+quiere decir que sigue en el piso pero ya no está disponible: el punto de venta
+no la va a vender, la reposición la cuenta como comprometida.
+
+Y **lo que no alcanzó no se inventa**. Si pides 500 y hay 99, se apartan 99 y
+las 401 restantes quedan **en espera**: el pedido se confirma igual —el cliente
+hizo su pedido— pero el sistema sabe que debe 401 piezas.
+
+## El backorder se ve desde donde se compra
+
+Esas 401 no se quedan en el pedido esperando a que alguien se acuerde. Aparecen
+en **Productos → Reposición**, que por eso dice cuatro cosas y no una:
+
+> Agotado · 99 en piso · 99 apartadas · esperan 401
+
+![La pantalla de reposición. En el casco de seguridad: agotado, 99 en piso, 99 apartadas y 401 esperando, y por eso sugiere pedir 501 y no 100.](img/reposicion.jpg)
+
+Lo que hay que comprar no es lo que falta para el mínimo: es lo que falta para
+el mínimo **más lo que un cliente ya está esperando**. Un reporte de reposición
+que no cuenta los pedidos pendientes manda a comprar de menos justo cuando más
+hace falta.
+
+Cuando entra la remesa, se vuelve a intentar el apartado desde el pedido y lo
+que llegó queda comprometido con quien lo esperaba.
+
+## Entregas parciales
+
+Se surte indicando cuánto de cada renglón. Lo que se entrega sale de lo
+apartado, no del piso libre: si el apartado se hizo, la mercancía es de ese
+cliente aunque hayan pasado tres semanas.
+
+## Qué te va a negar el sistema
+
+| Lo que lees | Por qué |
+|---|---|
+| «La fecha de compromiso es anterior a la del pedido: se estaría prometiendo entregar antes de recibirlo.» | Un compromiso hacia atrás no es una fecha, es una errata |
+| «Dile de qué almacén se compromete la mercancía: la reserva se hace ahí.» | Apartar sin almacén es apartar en ninguna parte |
+| «El pedido todavía es un borrador: confírmalo antes de surtir.» | Un borrador no aparta nada, así que no hay de dónde entregar |
+| «No hay nada apartado que surtir. Si entró mercancía, vuelve a intentar el apartado.» | Dice además qué hacer: el apartado se reintenta |
+| «De «…» sólo hay N apartadas y se piden M. Quedan K en espera de mercancía: entra la remesa, vuelve a intentar el apartado y surte después.» | La negativa distingue «te equivocaste al capturar» de «todavía no ha llegado» |
+| «Di por qué se cancela el pedido: es lo único que explicará dentro de seis meses por qué se soltó la mercancía.» | Cancelar suelta existencia que otro pudo haber comprado |
+| «El pedido ya se surtió completo: lo que corresponde es una devolución de venta, no una cancelación.» | Lo entregado se devuelve; no se desaparece |
+
+## Un límite que conviene conocer
+
+**El apartado se decide con el resumen del almacén y la salida se sirve de las
+ubicaciones.** Mientras los dos coincidan —y coinciden salvo que alguien haya
+movido existencia por fuera— no se nota. Cuando no coinciden, el pedido puede
+prometer una pieza que la salida no encuentra, y el surtido se niega con
+«Stock insuficiente no reservado».
+
+Se vio en vivo el 12 de octubre con una pieza de diferencia. **No es un defecto
+del pedido**: es que hay dos verdades sobre la misma existencia. Lo que
+corresponde cuando pasa es un ajuste de inventario que las vuelva a igualar.
+Está anotado en `06-limites-conocidos.md`.
+
+![Existencias por ubicación y lote: el casco de seguridad tiene 98 piezas físicas en A-01-01, mientras el resumen del almacén decía 99. Ésa es la pieza de diferencia.](img/existencias.jpg)
+
+---
+
+# 11 · Factura de proveedor y el cotejo de tres vías
+
+**Quién:** `comprador` o cuentas por pagar. **Dónde:** Compras → Facturas de
+proveedor.
+
+Hasta aquí el ciclo de compra tenía dos lados: lo que se **pidió** (la orden) y
+lo que **llegó** (la recepción). Falta el tercero, que es el que cobra: lo que
+el proveedor **factura**. Pagar comparando sólo dos de los tres es cómo se paga
+mercancía que no llegó, o se paga dos veces la que sí.
+
+## Los estados
+
+| Estado | Qué significa |
+|---|---|
+| **CAPTURADA** | Registrada, sin cotejar todavía |
+| **CONCILIADA** | Cotejada contra la orden y la recepción: cuadra |
+| **CON_DIFERENCIAS** | Cotejada y **no** cuadra. Dice cuáles renglones y con qué números |
+| **CANCELADA** | Anulada con motivo. No se vuelve a cotejar |
+
+## Los pasos
+
+| # | Qué pasa | Estado |
+|---|---|---|
+| 1 | Capturas el comprobante y, si la tiene, su orden de compra | **CAPTURADA** |
+| 2 | Cotejas | **CONCILIADA** o **CON_DIFERENCIAS** |
+| 3 | El pago de la orden ya cuenta con ella | — |
+
+![Facturas de proveedor: dos comprobantes del mismo importe y la misma fecha, el primero CONCILIADA y el segundo CON DIFERENCIAS.](img/factura-proveedor-lista.jpg)
+
+## El cotejo es renglón por renglón, no de totales
+
+Dos facturas pueden sumar lo mismo y estar mal las dos: una con el doble de un
+producto y la mitad de otro cuadra en el total. Así que se compara **cada
+renglón** contra lo pedido y lo recibido, y el hallazgo dice **cuáles**, no
+cuántos.
+
+Las tolerancias, y por qué existen:
+
+| Qué se compara | Tolerancia | Por qué |
+|---|---|---|
+| Cantidad | 0.0001 | Es el ruido de cuatro decimales, no una diferencia |
+| Precio | **$1.00** o **0.5%**, el que resulte mayor | El redondeo de un proveedor en un renglón de $12,000 no es una incidencia; un peso en un renglón de $20 sí |
+
+Lo que no es tolerancia es **mercancía que no llegó**: eso sale como diferencia
+siempre, por pequeña que sea.
+
+## El CFDI duplicado se niega con nombre y apellido
+
+> «Ese CFDI ya está capturado como FP-2026-000001 (2026-10-11, $23,200.00).
+> Capturarlo dos veces es cómo se paga dos veces.»
+
+No dice «duplicado»: dice **cuál** es el que ya estaba, con su fecha y su
+importe, para que quien captura pueda ver en dos segundos si es el mismo papel o
+uno parecido.
+
+## El techo que pone la factura
+
+Antes, el máximo pagable de una orden era **lo recibido**. Ahora es el **menor**
+entre lo recibido y lo facturado:
+
+> De esta orden llegó 23200.00 pero el proveedor sólo ha facturado 11600.00 en 1
+> comprobante(s). Ya se pagaron 0.00: el máximo ahora es 11600.00. Captura la
+> factura que falta y el resto se podrá pagar.
+
+La negativa **dice cuál de los dos números aprieta**. Sin eso, quien captura el
+pago no sabe si le falta mercancía o le falta papel, y son dos llamadas
+distintas a dos personas distintas.
+
+![La orden OC-2026-000001, PARCIALMENTE_PAGADA: el techo de lo que se puede pagar es el menor entre lo recibido y lo facturado.](img/orden-compra.jpg)
+
+Si alguna factura de la orden tiene diferencias sin resolver, el mensaje también
+lo nombra: pagar contra un comprobante que no cuadra es pagar la diferencia.
+
+## Qué te va a negar el sistema
+
+| Lo que lees | Por qué |
+|---|---|
+| «El UUID fiscal no tiene la forma de un folio fiscal del SAT (8-4-4-4-12). Si el comprobante no es un CFDI —un proveedor del extranjero, un recibo simple—, déjalo vacío.» | Un UUID mal escrito no detecta el duplicado, que es para lo único que sirve |
+| «La factura dice estar emitida el … que todavía no llega.» | Una fecha futura casi siempre es un año mal teclado |
+| «El total del comprobante dice $… y sus partidas suman $…. Revisa la captura: la diferencia no es un redondeo.» | El total es lo que se va a pagar; si no sale de los renglones, uno de los dos está mal |
+| «Esta factura no tiene orden de compra, así que no hay contra qué cotejarla. Las facturas sin orden —luz, honorarios— se revisan a mano.» | No finge un cotejo que no puede hacer |
+| «Esta factura tiene N pago(s) registrados y no se cancela: el pago quedaría sin documento que lo respalde. Si el proveedor la canceló ante el SAT, registra su nota de crédito.» | Y dice cuál es el camino correcto |
+
+## Lo que todavía no hace
+
+- **El pago no se ata a una factura concreta.** Sube el techo del pago de la
+  orden, pero no queda registrado *qué comprobante* se pagó con *qué
+  transferencia*. El campo existe en la base; falta usarlo.
+- **La nota de crédito de proveedor** no está. Cuando el proveedor factura de
+  más y lo corrige, hoy se arregla cancelando y recapturando.
+- En la pantalla de pago, el «Máximo a pagar ahora» que ves **se calcula sin
+  saber del techo de la factura**: puede ofrecerte más de lo que el servidor va
+  a aceptar. El servidor es el que manda, y te lo dirá con el mensaje de arriba.
+
+---
+
+# 12 · Centros de costo y presupuestos
+
+**Quién:** `contador`, `finanzas`. **Dónde:** Finanzas → Centros de costo y
+Finanzas → Presupuestos.
+
+Un catálogo contable dice **en qué** se gastó. Un centro de costo dice **dónde**:
+la sucursal, el departamento, la obra. Con los dos, el estado de resultados se
+puede abrir por lugar, que es la pregunta que se hace de verdad en una junta.
+
+## El árbol, y las dos reglas que lo sostienen
+
+Los centros cuelgan unos de otros. De eso salen dos negativas que al principio
+sorprenden y luego se agradecen:
+
+| Lo que lees | Por qué |
+|---|---|
+| ««…» agrupa a N centro(s): su saldo es la suma de ellos. Si recibiera movimientos propios, el reporte por centro dejaría de cuadrar con el total.» | Un agrupador con movimientos propios hace que el total no sea la suma de las partes |
+| ««…» tiene N partida(s) de póliza registradas y no se puede borrar: los reportes por centro dejarían de cuadrar. Desactívalo en su lugar — deja de ofrecerse para capturar y su historia se conserva.» | Borrar un centro con historia reescribe el pasado |
+| ««…» ya cuelga de este centro: ponerlo como padre cerraría un círculo.» | Un árbol con un ciclo no tiene totales |
+| «No se puede desactivar: N centro(s) activo(s) cuelgan de éste y quedarían colgando de un padre inactivo. Desactiva primero los hijos.» | Dice el orden, no sólo el impedimento |
+
+## El presupuesto
+
+Un presupuesto es, por ejercicio: **cuenta + centro + mes + importe**. Se captura
+en borrador, se aprueba, y desde ese momento **ya no se edita**.
+
+![La pantalla de presupuestos, todavía sin ninguno capturado: «Un reporte por centro dice cuánto se gastó; esto dice si estaba previsto.»](img/presupuestos.jpg)
+
+> «Este presupuesto está APROBADO y ya no se edita: contra él se está midiendo.
+> Si las cifras cambiaron, crea una revisión —«Revisión de junio»— y compara
+> contra ésa. **Un presupuesto que se ajusta al real no tiene desviaciones
+> nunca.**»
+
+Esa última frase es el motivo entero. Un presupuesto editable es un presupuesto
+que al final del año coincide con el gasto, y entonces no sirvió para nada.
+
+### Qué se puede presupuestar y qué no
+
+| Lo que lees | Por qué |
+|---|---|
+| «La cuenta … es de BALANCE y no se presupuesta aquí: este presupuesto es de resultado —ingresos, costos y gastos—. El saldo de una cuenta de balance no se ejerce, así que compararlo contra un presupuesto no diría nada.» | Un banco no se «ejerce» |
+| «… es una cuenta de mayor: su saldo es la suma de sus hijas. Presupuéstalas a ellas, o el comparativo contaría el mismo importe dos veces.» | La misma regla del árbol, en el catálogo |
+| «El importe presupuestado se captura en positivo, en el sentido natural de la cuenta: lo que se espera ingresar en una de ingreso, lo que se espera gastar en una de gasto.» | Evita el signo al revés, que invierte la desviación |
+| «No se puede aprobar un presupuesto sin líneas: el comparativo diría que todo el gasto del ejercicio es desviación.» | Un presupuesto vacío no es un presupuesto en cero |
+
+## El comparativo
+
+**Finanzas → Resultado por centro** cruza lo presupuestado con lo ejercido, por
+centro y por mes. Lo ejercido sale de las partidas de póliza, que es la misma
+fuente que la balanza: el comparativo y la contabilidad no pueden diferir porque
+leen lo mismo.
+
+---
+
+# 13 · Cerrar el ejercicio
+
+**Quién:** `contador`. **Dónde:** Finanzas → Cierre del ejercicio.
+
+Cerrar el año es un asiento: los saldos de **ingresos, costos y gastos** se
+saldan contra la cuenta de **Resultado del ejercicio**. Al terminar, esas
+cuentas arrancan el año siguiente en cero y el capital refleja lo que se ganó o
+se perdió.
+
+## Primero el diagnóstico, y nombra cada impedimento
+
+La pantalla **no** ofrece un botón de cerrar hasta que puede. Antes dice, en
+palabras, qué falta:
+
+![El diagnóstico del cierre del ejercicio: los doce meses con su estado y, abajo, los impedimentos escritos uno por uno.](img/cierre-anual.jpg)
+
+| Lo que lees | Qué hacer |
+|---|---|
+| «Faltan por cerrar los meses 1, 2, 3… El resultado del año se arma con los doce, y un mes abierto todavía puede cambiarlo.» | Cerrar los meses pendientes |
+| «No hay cuenta marcada como «Resultado del ejercicio» (SAT 305.01). Asígnale ese rol de sistema a la cuenta de capital correspondiente en el catálogo contable.» | Marcar la cuenta en Finanzas → Cuentas contables |
+| «No hay saldos de ingreso, costo ni gasto en el ejercicio: no hay nada que traspasar.» | Nada: no hay ejercicio que cerrar |
+| «Diciembre ya está cerrado y la póliza de traspaso lleva fecha de diciembre. Reábrelo con su motivo, asienta el traspaso y vuelve a cerrarlo: ése es el acto que sella el ejercicio.» | Reabrir diciembre, traspasar, cerrar |
+| «El resultado de este ejercicio ya se traspasó. Volver a hacerlo lo contaría dos veces.» | Nada. Ya está |
+
+**Diciembre tiene que estar abierto** cuando se traspasa, porque la póliza lleva
+fecha de diciembre y el candado de período la rechazaría. El orden es: once
+meses cerrados, diciembre abierto, traspaso, y entonces cerrar diciembre. Ese
+último cierre es el que sella el año.
+
+## Lo que hace el traspaso
+
+- **El signo lo decide el saldo, no el tipo de cuenta.** Una cuenta de ingreso
+  con saldo deudor —pasa, con devoluciones y cancelaciones— se salda del otro
+  lado. Decidir por el tipo produce un asiento que cuadra y miente.
+- **Se salda por cuenta y por centro de costo.** Si una cuenta tuvo movimientos
+  en tres centros, salen tres partidas. Saldarla en bloque dejaría el reporte
+  por centro con saldos de un ejercicio que ya cerró.
+- **La partida del resultado va sin centro.** El resultado del ejercicio es de
+  la empresa, no de una sucursal.
+- **Va por la misma puerta que cualquier póliza manual**: su folio, su candado
+  de período, su validación de cuentas afectables y su cuadre. El cierre del año
+  no merece una puerta propia — y una puerta propia es como se pierden esas
+  cuatro cosas de golpe.
+- **Se puede pulsar dos veces sin miedo.** El asiento lleva una clave de origen
+  por empresa y ejercicio; el segundo intento no crea nada y lo dice.
+
+## Antes de diciembre
+
+Hay una cosa que no se puede dejar para el 31: **marcar la cuenta de capital con
+el rol «Resultado del ejercicio»**. Se hace en Finanzas → Cuentas contables, en
+la ficha de la cuenta. Sin eso el cierre no procede, y el 31 de diciembre no es
+el día de descubrirlo.
+
+---
+
+# 14 · Cuando el sistema te dice que no
 
 Tres respuestas distintas que conviene no confundir:
 
@@ -564,3 +869,19 @@ La diferencia entre las dos primeras es la que más tiempo ahorra. **Si el
 mensaje te explica una regla, pedir más permisos no sirve de nada**: el sistema
 no te está negando el acceso, te está diciendo que esa operación necesita a otra
 persona.
+
+---
+
+# 15 · Dónde se lee esto
+
+Todo este documento, y los demás, están **dentro del propio ERP**: menú
+**Ayuda → Ayuda y documentación**. Se leen en pantalla, con su índice lateral, y
+se descargan en PDF.
+
+![La pantalla de Ayuda del ERP: los manuales de usuario y, marcados como técnicos, los que sólo ve el administrador.](img/ayuda.jpg)
+
+El backend los lee del repositorio en cada petición, así que **corregir un
+documento lo corrige también en la pantalla**, sin volver a desplegar nada. Los
+cuatro documentos técnicos —instalación, arquitectura, aprovisionamiento y
+límites— los ve sólo el administrador, y por eso ni siquiera aparecen en el
+índice de quien no puede abrirlos: nadie choca contra una puerta cerrada.

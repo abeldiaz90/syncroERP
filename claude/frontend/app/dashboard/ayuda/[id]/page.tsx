@@ -130,6 +130,38 @@ const ESTILOS = `
         .doc th { background: #f8fafc; font-weight: 650; color: #0f172a; white-space: nowrap; }
         .doc .casilla { font-family: 'Segoe UI Symbol', sans-serif; margin-right: 0.15em; }
 
+        /* Capturas de pantalla. El marco es para que se vea dónde acaba la
+           captura y empieza la página: una pantalla clara sobre fondo claro
+           sin borde parece parte del manual. */
+        .doc .captura { margin: 1.6em 0; }
+        .doc .captura img {
+          display: block;
+          width: 100%;
+          height: auto;
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+        }
+        .doc .captura figcaption {
+          margin-top: 0.55em;
+          font-size: 12.5px;
+          color: #64748b;
+          line-height: 1.5;
+        }
+        /* Una captura prometida que no está se ve. No es decoración: es la
+           diferencia entre un hueco y un hueco que se sabe. */
+        .doc .captura.falta figcaption,
+        .doc .captura-mal-puesta {
+          display: block;
+          margin: 1.2em 0;
+          padding: 0.7em 0.9em;
+          border: 1px dashed #f0b100;
+          border-radius: 8px;
+          background: #fffbeb;
+          color: #854d0e;
+          font-size: 12.5px;
+        }
+
         /* Imprimir desde el navegador da un documento, no una captura. */
         @media print {
           .no-imprimir,
@@ -140,6 +172,7 @@ const ESTILOS = `
           .doc pre { background: #f1f5f9; color: #0f172a; border: 1px solid #cbd5e1; }
           .doc h1, .doc h2, .doc h3, .doc h4 { break-after: avoid; }
           .doc .tabla, .doc tr, .doc pre, .doc blockquote { break-inside: avoid; }
+          .doc .captura { break-inside: avoid; }
         }
       `;
 

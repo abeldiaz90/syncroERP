@@ -161,6 +161,35 @@ describe('lo que se publica, y a quién', () => {
       });
     }
 
+    it('ningún documento repite un `id`, y su índice no repite un ancla', () => {
+      /*
+       * Esto es el caso REAL del defecto de las anclas. La prueba de
+       * `un-indice-que-llevaba-a-otra-seccion` usa un documento de ejemplo; el
+       * 12 de octubre resultó que el ejemplo no tenía tablas y los documentos
+       * de verdad sí, y que una tabla en medio reiniciaba el contador. El
+       * síntoma estaba en la consola del navegador —tres avisos de clave
+       * repetida en el manual de flujos— y ninguna prueba lo veía.
+       *
+       * Así que se comprueba contra los documentos que se publican, que son los
+       * que la gente abre.
+       */
+      const repetidos: string[] = [];
+      for (const doc of DOCUMENTOS_PUBLICADOS) {
+        const { html, indice } = servicio.leer(doc.id, 'administrador');
+        const ids = [...html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]);
+        if (new Set(ids).size !== ids.length) {
+          const vistos = new Set<string>();
+          const dobles = ids.filter((i) => (vistos.has(i) ? true : (vistos.add(i), false)));
+          repetidos.push(`${doc.archivo}: id ${[...new Set(dobles)].join(', ')}`);
+        }
+        const anclas = indice.map((e) => e.ancla);
+        if (new Set(anclas).size !== anclas.length) {
+          repetidos.push(`${doc.archivo}: el índice repite un ancla`);
+        }
+      }
+      expect(repetidos.sort()).toEqual([]);
+    });
+
     it('ninguna tabla pierde columnas por una barra dentro de `código`', () => {
       /*
        * `| `A | B` |` es UNA celda. Partir por toda barra la convertía en dos y

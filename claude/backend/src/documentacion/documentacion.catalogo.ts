@@ -60,10 +60,23 @@ export const DOCUMENTOS_PUBLICADOS: ReadonlyArray<DocumentoPublicado> = [
     titulo: 'Flujos y procesos, paso a paso',
     resumen:
       'Cada proceso de punta a punta: venta, devolución, anulación, facturación, ' +
-      'transferencias entre almacenes, vacaciones, incidencias y nómina. Con quién firma ' +
-      'cada paso y qué te va a negar el sistema, con el texto exacto y el porqué.',
+      'transferencias entre almacenes, caja, vacaciones, incidencias y nómina; pedidos de ' +
+      'venta con apartado y backorder, factura de proveedor con el cotejo de tres vías, ' +
+      'centros de costo y presupuestos, y el cierre del ejercicio. Con quién firma cada ' +
+      'paso y qué te va a negar el sistema, con el texto exacto y el porqué.',
     restringido: false,
     orden: 15,
+  },
+  {
+    id: 'fineract-portal',
+    archivo: '08-fineract-portal.md',
+    titulo: 'El portal de Fineract',
+    resumen:
+      'Las ocho áreas del portal de crédito y captación, el ciclo de un crédito acto por ' +
+      'acto con el permiso que exige cada uno, cobranza, captación, mesa de control, caja ' +
+      'del core y qué contesta cada sistema cuando van juntos.',
+    restringido: false,
+    orden: 25,
   },
   {
     id: 'instalacion',

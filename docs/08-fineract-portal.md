@@ -1,0 +1,254 @@
+# 08 · El portal de Fineract, paso a paso
+
+**Revisión:** 12 de octubre de 2026
+**Para:** quien opera crédito y captación, y quien los capacita.
+**Dónde:** el portal, aparte del ERP. En la instalación local, en el puerto 3002.
+
+> Lo que está aquí se leyó del código que se despliega: las ocho áreas del menú,
+> los comandos que el portal deja ejecutar sobre un crédito y el permiso que
+> cada uno exige. Lo que **todavía no** está aquí, y se dice sin rodeos, son los
+> recorridos con capturas pantalla por pantalla: eso va en la siguiente
+> revisión, igual que se hizo con los flujos del ERP.
+
+**El estado real de cada dominio** —qué está completo, qué parcial y qué falta,
+dominio por dominio— lo mantiene el equipo en
+`fineract/docs/FINERACT_UI_COVERAGE.md`, medido contra la instancia corriendo.
+Este documento no lo repite: una segunda copia de ese estado envejecería, y
+entonces habría dos verdades.
+
+---
+
+## Qué es el portal, y qué no es
+
+Apache Fineract es el **core bancario**: lleva clientes, créditos, ahorro,
+depósitos, acciones y su contabilidad. El portal es la pantalla con la que SUMA
+lo opera, en español y con los controles que una institución mexicana necesita.
+
+Dos cosas que conviene tener claras desde el primer día:
+
+- **El portal no guarda nada propio.** Todo vive en Fineract. El portal valida,
+  traduce y normaliza los errores del core, pero el dato es del core.
+- **El portal no es un proxy abierto al core.** Cada operación pasa por un
+  endpoint propio que comprueba la sesión, valida lo que entra y exige el
+  permiso de Fineract que corresponde. Una consola que mandara llamadas
+  arbitrarias al core sería más corta de escribir y una superficie de riesgo
+  mucho mayor; está decidido que no se hace.
+
+### Y el ERP, ¿dónde queda?
+
+El producto se vende de tres formas —sólo ERP, sólo Fineract, ERP + Fineract—.
+Cuando van juntos, el reparto es:
+
+| Lo que se pregunta | Quién lo contesta |
+|---|---|
+| Qué le vendí a este cliente | El ERP |
+| Cuánto me debe y en qué plan de pagos | Fineract |
+| Qué cobré hoy en el mostrador | El ERP |
+| Qué cobré hoy de cartera | Fineract |
+| La póliza de todo eso | El ERP, con el espejo contable del core |
+
+El detalle de la integración está en `02-arquitectura.md`, y cómo se da de alta
+una institución en `05-aprovisionamiento-y-consola-suma.md`.
+
+---
+
+## Las ocho áreas del menú
+
+| Área | Qué se hace ahí |
+|---|---|
+| **Inicio** | Mi jornada, mis pendientes, notificaciones y la búsqueda global |
+| **Personas** | Clientes, grupos y centros. El expediente: identificadores, domicilios, familiares, garantías, notas y documentos |
+| **Crédito** | Cartera y originación, cobranza, hoja de cobranza, cartera vencida, riesgo y provisiones |
+| **Captación** | Centro de captación, cuentas de ahorro, depósitos a plazo, depósitos recurrentes y acciones |
+| **Operación** | Centro de operaciones (transferencias e instrucciones permanentes) y caja y tesorería |
+| **Control** | Mesa de control, reportes y contabilidad |
+| **Productos** | Las definiciones: crédito, ahorro, plazo fijo, recurrente y acciones |
+| **Administración** | Configuración institucional: oficinas, personal, usuarios, roles, catálogos, día operativo, trabajos, integraciones |
+
+El menú **no enseña lo que no se puede abrir**: cada entrada depende de los
+permisos de la sesión en Fineract. Si alguien no ve un área, lo que le falta es
+un permiso en su rol, no una actualización del portal.
+
+---
+
+# 1 · El ciclo de un crédito, de la solicitud al finiquito
+
+Es el flujo que más se usa y el único que este documento cuenta completo, porque
+es el que se pudo verificar comando por comando.
+
+## Los actos, y el permiso que exige cada uno
+
+| Acto | Qué hace | Permiso en Fineract |
+|---|---|---|
+| **Aprobar** | Autoriza la solicitud | `APPROVE_LOAN` |
+| **Deshacer la aprobación** | La devuelve a solicitud | `APPROVALUNDO_LOAN` |
+| **Rechazar** | La cierra negada, con fecha | `REJECT_LOAN` |
+| **Retirar** | La cierra porque el solicitante se retiró | `WITHDRAW_LOAN` |
+| **Desembolsar** | Entrega el dinero | `DISBURSE_LOAN` |
+| **Deshacer el desembolso** | Revierte la entrega | `DISBURSALUNDO_LOAN` |
+| **Asignar responsable** | Pone al promotor del crédito | `UPDATELOANOFFICER_LOAN` |
+| **Quitar responsable** | Lo libera | `REMOVELOANOFFICER_LOAN` |
+| **Recuperar garantías** | Ejecuta el colateral | `RECOVERGUARANTEES_LOAN` |
+
+Y sobre un crédito ya vivo:
+
+| Movimiento | Qué hace | Permiso |
+|---|---|---|
+| **Pago** | Abona al crédito, con su forma de pago | `REPAYMENT_LOAN` |
+| **Condonar interés** | Perdona una porción de interés | `WAIVEINTERESTPORTION_LOAN` |
+| **Castigar (quebranto)** | Lo da por perdido, **con causa** | `WRITEOFF_LOAN` |
+| **Deshacer el castigo** | Lo revive | `UNDOWRITEOFF_LOAN` |
+| **Pago de recuperación** | Cobra sobre un crédito ya castigado | `RECOVERYPAYMENT_LOAN` |
+| **Devolución en efectivo** | Regresa dinero al cliente | `REFUNDBYCASH_LOAN` |
+| **Finiquito anticipado** | Lo liquida antes del plazo | `FORECLOSURE_LOAN` |
+| **Devolución de saldo a favor** | Regresa un sobrepago | `CREDITBALANCEREFUND_LOAN` |
+
+**Un «no autorizado» en cualquiera de estos actos es un permiso del rol en
+Fineract**, no un problema del portal. Se reparte en Administración → Usuarios y
+roles.
+
+## El castigo lleva motivo, y no es burocracia
+
+Castigar admite y **pide** la causa del quebranto. Sin ella el crédito queda
+castigado sin razón registrada, y el reporte de cartera castigada por motivo
+—el que se presenta— sale vacío. Un número sin desglose no se puede defender
+ante nadie.
+
+## Aprobar puede recalendarizar en el mismo acto
+
+Al aprobar se pueden redefinir los **tramos de desembolso**: aprobar un monto
+menor al solicitado y repartirlo distinto, en una sola operación. Lo que no deja
+es que no cuadre:
+
+> «La suma de los tramos (45000.00) debe igualar el monto aprobado (50000.00).»
+
+Antes había que aprobar primero y corregir los tramos con otra operación, con el
+crédito aprobado por un reparto que nadie quería.
+
+## El desembolso directo a la cuenta de ahorro está cerrado, a propósito
+
+Si se intenta, el portal contesta:
+
+> «El desembolso a cuenta de ahorro está deshabilitado en esta institución:
+> Fineract no ofrece segunda firma para esa operación, así que sería un camino
+> para desembolsar sin la autorización que sí exige el desembolso normal.
+> Desembolsa por el camino habitual y, si el dinero debe quedar en la cuenta de
+> ahorro del socio, hazlo después como transferencia entre cuentas.»
+
+**No se pierde una capacidad, se pierde un atajo**: el desembolso sigue
+existiendo por el camino con doble firma, y la transferencia a la cuenta de
+ahorro se hace después, desde Operación → Centro de operaciones.
+
+Se puede abrir —`DESEMBOLSO_A_AHORRO=permitido` en el entorno del portal— y si
+se abre, **hay que dejarlo escrito en el expediente del control**: es la primera
+cosa que un auditor va a preguntar cuando vea que el desembolso normal exige dos
+firmas y ése no.
+
+---
+
+# 2 · Cobranza
+
+Tres pantallas, y no hacen lo mismo:
+
+| Pantalla | Para qué |
+|---|---|
+| **Cobranza** | El día a día: a quién hay que cobrarle y qué se cobró |
+| **Hoja de cobranza** | La hoja de un grupo o centro para una fecha de reunión. Se puede ver antes sin afectar nada |
+| **Cartera vencida** | La foto de lo atrasado, por rango de mora |
+
+**Riesgo y provisiones** es otra cosa: define los rangos y los cubos de mora,
+las categorías y criterios de provisión, y corre las provisiones —con o sin
+generar las pólizas contables—.
+
+El ERP también lee la cartera: la conciliación de cartera del ERP compara lo que
+el core dice que se debe con lo que el ERP tiene registrado. Está en
+`07-flujos-y-procesos.md`.
+
+---
+
+# 3 · Captación
+
+| Qué | Dónde |
+|---|---|
+| Cuentas de ahorro: apertura, aprobación, activación, depósitos, retiros, interés, retenciones, bloqueos, cierre | Captación → Cuentas de ahorro |
+| Depósitos a plazo y recurrentes: solicitud, ciclo de vida, aportes, intereses, vencimiento y cierre anticipado | Captación → Depósitos |
+| Acciones: compra, aprobación, redención, cierre y dividendos | Captación → Acciones |
+
+Cada familia tiene su **producto** detrás, en el área de Productos, y ahí se
+define lo que después no se puede cambiar a mano: moneda, tasas, cargos y las
+cuentas contables con las que cada movimiento se asienta.
+
+---
+
+# 4 · La mesa de control
+
+Es la pantalla de quien responde por la institución, y reúne cuatro cosas que
+suelen vivir separadas:
+
+- **Autorizaciones (cuatro ojos).** La bandeja de lo que espera una segunda
+  firma, con lo que falta por decidir.
+- **Procesos.** El programador de trabajos del core: qué está corriendo, qué
+  falló y qué está programado.
+- **Día operativo y COB.** La fecha lógica de la institución y el cierre de día.
+  **No es la fecha del calendario**: es la fecha con la que el core contabiliza,
+  y moverla mueve todo.
+- **Trazabilidad.** La actividad reciente y la auditoría, con quién capturó qué.
+
+---
+
+# 5 · Caja y tesorería
+
+Las cajas del core —*tellers*— y sus cajeros, con sus movimientos. La pantalla
+está ordenada por **fecha operativa**, no por la del reloj: un movimiento de
+caja pertenece al día operativo abierto, y por eso el día operativo se cierra
+después de la caja y no antes.
+
+La caja del ERP es **otra**, para el mostrador, y está en
+`07-flujos-y-procesos.md` §6. Dos cajas distintas para dos cosas distintas: una
+cobra una venta, la otra cobra una letra.
+
+---
+
+# 6 · Contabilidad del core
+
+El portal lleva el catálogo de cuentas de Fineract, las pólizas manuales
+balanceadas, la consulta y reversa de asientos, los cierres por sucursal, los
+saldos iniciales y las reglas contables.
+
+Y una decisión que conviene entender antes de buscar el error donde no está:
+**el core asienta lo suyo y el ERP asienta lo suyo**, y el ERP mantiene un
+espejo contable del core para que el estado de resultados de la empresa sea uno.
+No son dos contabilidades compitiendo: es una, con dos orígenes. El porqué y el
+cómo están en `02-arquitectura.md`.
+
+---
+
+# 7 · Administración
+
+Lo que se toca una vez y se revisa cada tanto: oficinas, personal, usuarios,
+roles y permisos, matriz de cuatro ojos, catálogos y valores, formatos de
+numeración de cuentas, días festivos y hábiles, monedas, cargos, fondos, formas
+de pago, tasas, impuestos, buró de crédito, tablas de datos, encuestas,
+*webhooks*, servicios externos e importaciones.
+
+**Las identidades.** Igual que en el ERP, **Keycloak es la autoridad**: el
+portal no guarda contraseñas y no las cambia. Si hay que reponer una, se repone
+en Keycloak.
+
+---
+
+# 8 · Lo que falta de este documento
+
+Dicho aquí para que nadie lo descubra buscándolo:
+
+- **Los recorridos con capturas.** Las ocho áreas están descritas; el paso a
+  paso pantalla por pantalla, como en `07-flujos-y-procesos.md`, es la siguiente
+  revisión.
+- **El manual por rol del portal.** El ERP tiene el suyo en
+  `03-manual-por-rol.md`, medido contra sus plantillas de permisos. El del
+  portal se mide contra los roles de Fineract, que son otros, y no se ha hecho.
+- **Dónde se publica este documento en una instalación de sólo Fineract.** Hoy
+  lo sirve el ERP, desde su pantalla de Ayuda, porque esta instalación lleva los
+  dos. Una institución que compre sólo Fineract no tendría dónde leerlo: el
+  portal no tiene todavía pantalla de documentación. Está anotado en
+  `06-limites-conocidos.md`.

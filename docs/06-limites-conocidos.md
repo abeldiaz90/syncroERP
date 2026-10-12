@@ -81,6 +81,54 @@ Ordenados por lo que más se usa el día uno:
 
 ---
 
+## 4bis. Dos verdades sobre la misma existencia
+
+**El apartado de un pedido de venta se decide con el resumen del almacén; la
+salida de la venta se sirve de las ubicaciones.** Son dos fuentes para el mismo
+dato, y mientras coinciden no se nota.
+
+Visto en vivo el 12 de octubre: el resumen del almacén decía **99** piezas y
+`stock_ubicaciones` tenía **98**. El pedido apartó 99 —prometió lo que el
+resumen le dijo que había— y al surtir, la salida, que mira las ubicaciones, se
+negó:
+
+> «Stock insuficiente no reservado. Faltan 1 unidades.»
+
+La diferencia es anterior a los pedidos: viene de existencia movida sin pasar
+por una ubicación. **Lo que hay que decidir** no es cómo tapar el mensaje, sino
+cuál de las dos cosas se hace:
+
+- **(a)** Un ajuste de inventario que vuelva a igualar las dos vistas, y a
+  vigilar que no se separen otra vez. Arregla el dato de hoy.
+- **(b)** Que el apartado se haga también contra ubicaciones, igual que la
+  salida. Quita la posibilidad de que vuelva a pasar, y es más trabajo.
+
+Mientras no se decida, un pedido puede prometer hasta una pieza que la salida no
+encuentra, y el aviso sale **al surtir**, con el cliente esperando, no al
+confirmar.
+
+---
+
+## 4ter. El manual del portal lo publica el ERP
+
+`08-fineract-portal.md` se sirve desde la pantalla de **Ayuda del ERP**, porque
+esta instalación lleva los dos sistemas y el ERP ya tiene el publicador —con su
+control de quién ve qué, su índice y su PDF—.
+
+**Una institución que compre sólo Fineract no tendría dónde leerlo.** El portal
+no tiene pantalla de documentación. Las dos salidas:
+
+- **(a)** Darle al portal su propia pantalla de documentación. Es correcto y
+  cuesta duplicar el renderizador de Markdown, que es justo lo que este proyecto
+  evita: dos copias del mismo código divergen.
+- **(b)** Sacar el renderizador a una pieza compartida entre los dos
+  despliegues. Más limpio y más trabajo.
+
+Mientras no se decida, el manual del portal existe y se lee —desde el ERP— en
+los dos modos que SUMA vende hoy. En el modo de sólo Fineract, no.
+
+---
+
 ## 5. Decisiones abiertas
 
 | # | Qué hay que decidir |

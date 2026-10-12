@@ -101,6 +101,89 @@ describe('Cada sección tiene su propia ancla', () => {
     expect(pasos).toEqual(['los-pasos', 'los-pasos-2', 'los-pasos-3']);
   });
 
+  describe('y una tabla en medio no pone el contador a cero', () => {
+    /*
+     * ========================================================================
+     * EL CASO QUE LA PRUEBA DE ARRIBA NO VEÍA
+     * ------------------------------------------------------------------------
+     * `DOC` no tiene ninguna tabla. Y `renderizar` no llama a `bloques` una
+     * vez: la llama una vez por cada tramo que queda entre una tabla, un
+     * bloque de código o una figura. Mientras el contador de anclas nacía
+     * dentro de `bloques`, cada tabla lo reiniciaba.
+     *
+     * O sea: el arreglo del 1 de octubre funcionaba en el documento de ejemplo
+     * y NO funcionaba en los documentos de verdad, que están llenos de tablas.
+     * Se descubrió el 12 de octubre mirando la consola del navegador con el
+     * manual de flujos abierto: «Encountered two children with the same key,
+     * los-pasos», tres veces.
+     *
+     * Esto es «una prueba que no puede fallar»: probaba el caso fácil y daba
+     * verde mientras el defecto seguía vivo en la pantalla.
+     * ========================================================================
+     */
+    const CON_TABLA = [
+      '# Manual',
+      '',
+      '## Compras',
+      '',
+      '### Los pasos',
+      '',
+      '| Qué | Estado |',
+      '|---|---|',
+      '| Capturar | BORRADOR |',
+      '',
+      '## Ventas',
+      '',
+      '### Los pasos',
+      '',
+      '```',
+      'un bloque de código',
+      '```',
+      '',
+      '## Almacén',
+      '',
+      '### Los pasos',
+      '',
+      'Y al final.',
+    ].join('\n');
+
+    const { html: conTabla, indice: indiceConTabla } = renderizar(CON_TABLA, []);
+
+    it('las tres secciones reciben anclas distintas', () => {
+      const pasos = indiceConTabla
+        .filter((e) => e.texto === 'Los pasos')
+        .map((e) => e.ancla);
+      expect(pasos).toEqual(['los-pasos', 'los-pasos-2', 'los-pasos-3']);
+    });
+
+    it('y el HTML no repite ningún id', () => {
+      const ids = [...conTabla.matchAll(/id="([^"]+)"/g)].map((m) => m[1]);
+      expect(ids.length).toBeGreaterThan(5);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('una figura en medio tampoco lo reinicia', () => {
+      const conFigura = [
+        '## Uno',
+        '',
+        '### Los pasos',
+        '',
+        '![pie](img/x.png)',
+        '',
+        '## Dos',
+        '',
+        '### Los pasos',
+      ].join('\n');
+      const { indice: i } = renderizar(conFigura, [], {
+        'img/x.png': 'data:image/png;base64,iVBORw0KGgo=',
+      });
+      expect(i.filter((e) => e.texto === 'Los pasos').map((e) => e.ancla)).toEqual([
+        'los-pasos',
+        'los-pasos-2',
+      ]);
+    });
+  });
+
   it('cada entrada del índice apunta a un encabezado que existe', () => {
     /*
      * La prueba que de verdad cierra el agujero: no basta con que las anclas
