@@ -566,6 +566,18 @@ export class PedidosVentaService {
         clienteId: pedido.clienteId ?? undefined,
         metodoPago: dto.metodoPago as any,
         cuentaBancariaId: dto.cuentaBancariaId ?? undefined,
+        /*
+         * El importe recibido. La venta en efectivo lo exige —«el monto
+         * recibido debe cubrir…»— y sin él surtir contestaba 400 SIEMPRE: la
+         * entrega era imposible con el método de pago más común. Lo encontró
+         * el primer clic en «Surtir lo apartado».
+         *
+         * Se entrega el importe EXACTO de lo que sale, que es lo que una
+         * entrega contra pedido cobra. Cobrar de más y dar cambio es un acto
+         * de mostrador y vive en la caja, con su arqueo y su turno; aquí
+         * inventar un cambio sería mover efectivo que nadie contó.
+         */
+        montoRecibido: resuelta.total,
         almacenId: pedido.almacenId ?? undefined,
         listaPrecioId: pedido.listaPrecioId ?? undefined,
         notas:
