@@ -41,3 +41,5 @@ _to_delete/
 _pruebas/
 MENSAJE-COMMIT-PENDIENTE.txt
 claude/MENSAJE-COMMIT-PENDIENTE.txt
+
+claude/_mensaje-commit*.txt
