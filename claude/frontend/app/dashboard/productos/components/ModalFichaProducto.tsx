@@ -20,6 +20,7 @@ import {
 import { IFormData, ICatalogoBasico, IImpuesto, IListaPrecio } from '../types/producto.types';
 import SelectConCrear from './SelectConCrear';
 import { usePermiso } from '@/hooks/use-permisos';
+import { plural } from '@/lib/format';
 
 // ─── Tipos internos ───────────────────────────────────────────────
 interface IAtributo {
@@ -587,7 +588,7 @@ export default function ModalFichaProducto({
                 <div className="mb-5 rounded-lg border border-rose-200 bg-rose-50 p-4" role="alert">
                   <p className="font-bold text-rose-800">No se puede guardar el producto</p>
                   <p className="mt-1 text-sm text-rose-700">
-                    Corrige {Object.keys(errores).length} campo(s) marcado(s)
+                    Corrige {plural(Object.keys(errores).length, "campo marcado", "campos marcados")}
                     {seccionesConError.length > 0 && (
                       <> en {seccionesConError.map((s) => NOMBRE_SECCION[s]).join(', ')}</>
                     )}
@@ -1090,7 +1091,7 @@ export default function ModalFichaProducto({
                 <div className={sec}>
                   <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
                     <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><ImageIcon className="w-4 h-4 text-blue-500" /> Galería</h3>
-                    <span className="text-xs font-semibold text-slate-500">{formData.imagenes.length} imagen(es)</span>
+                    <span className="text-xs font-semibold text-slate-500">{plural(formData.imagenes.length, "imagen", "imágenes")}</span>
                   </div>
                   <div className="grid grid-cols-4 gap-4">
                     <div onClick={() => inputFileRef.current?.click()}

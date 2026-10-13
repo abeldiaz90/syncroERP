@@ -13,6 +13,7 @@ import {
 import { Indicador } from '@/components/ui';
 import { TableroVerificaciones } from '@/components/verificaciones/tablero-verificaciones';
 import { hoyISO } from '@/lib/fechas';
+import { plural } from '@/lib/format';
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 export interface ICliente {
@@ -487,7 +488,7 @@ export default function ClientesPage() {
         touchAll(); setSubmitTried(true);
         const errs = validar(formData);
         if (Object.keys(errs).length > 0) {
-            showToast(`Corrige ${Object.keys(errs).length} campo(s) con error antes de continuar`, 'err');
+            showToast(`Corrige ${plural(Object.keys(errs).length, "campo")} con error antes de continuar`, 'err');
             return;
         }
         setGuardando(true);

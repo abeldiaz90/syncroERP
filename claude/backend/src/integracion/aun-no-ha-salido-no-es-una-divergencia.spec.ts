@@ -258,9 +258,19 @@ describe('Y la pantalla las dice con dos palabras distintas', () => {
      * pólizas que ni han salido, decirlo sólo abajo deja la frase de arriba
      * afirmando más de lo que se midió.
      */
-    const iCoinciden = pantalla.indexOf('Coinciden en las');
+    /*
+     * El ancla era «Coinciden en las», con el artículo dentro, y se movió el
+     * 13-oct-2026 al corregir la concordancia: con una sola póliza la pantalla
+     * decía «coinciden en las 1 póliza». Lo que esta prueba defiende es el
+     * ORDEN de las dos frases, no cómo se escribe el artículo. Se ancla en lo
+     * que no puede cambiar sin cambiar la regla.
+     */
+    const iCoinciden = pantalla.indexOf('Coinciden en ');
     const iAviso = pantalla.indexOf('Faltan {conciliacion.enCamino!.length} por salir');
     expect(iCoinciden).toBeGreaterThan(-1);
     expect(iAviso).toBeGreaterThan(iCoinciden);
+    // Y que la frase siga nombrando lo que cuenta: un «Coinciden en» a secas
+    // satisfaría el orden sin decir en qué coinciden.
+    expect(pantalla).toMatch(/Coinciden en [^\n]*póliza/);
   });
 });

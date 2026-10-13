@@ -42,6 +42,7 @@ import {
   LayoutDashboard, Link2, ShieldCheck, HelpCircle, type LucideIcon,
 } from 'lucide-react';
 import { esRolAdministrador } from '@/lib/roles';
+import { plural } from '@/lib/format';
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -483,7 +484,7 @@ export default function PermisosPage() {
                       {r.etiqueta}
                     </p>
                     {r.usuarios > 0 && (
-                      <span title={`${r.usuarios} usuario(s) con este rol`} style={{
+                      <span title={`${plural(r.usuarios, "usuario")} con este rol`} style={{
                         display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700,
                         color: '#475569', background: '#f1f5f9', borderRadius: 20, padding: '2px 7px', flexShrink: 0,
                       }}>

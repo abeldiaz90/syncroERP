@@ -7,6 +7,7 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { useAvisos } from '@/components/ui';
 import { hoyISO } from '@/lib/fechas';
+import { plural } from '@/lib/format';
 
 /**
  * ============================================================================
@@ -234,7 +235,7 @@ export default function SaldosInicialesPage() {
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm text-amber-800">
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold mb-1">Ya hay {estado.totalPolizas} póliza(s) registradas</p>
+            <p className="font-bold mb-1">Ya hay {plural(estado.totalPolizas, "póliza registrada", "pólizas registradas")}</p>
             <p className="text-xs">Una apertura fechada antes de lo ya contabilizado desordena todo lo que vino después. Revisa la fecha con cuidado.</p>
           </div>
         </div>

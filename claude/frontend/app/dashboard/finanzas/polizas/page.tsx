@@ -283,7 +283,7 @@ export default function LibroDiarioPage() {
         {/* KPIs del filtro */}
         {filtradas.length > 0 && (
           <div className="flex gap-4 mt-3 pt-3 border-t border-slate-100 text-xs">
-            <span className="text-slate-500">{filtradas.length} póliza(s)</span>
+            <span className="text-slate-500">{plural(filtradas.length, "póliza")}</span>
             <span className="text-blue-600 font-bold">Debe: {fmt$(totalDebe)}</span>
             <span className="text-emerald-600 font-bold">Haber: {fmt$(totalHaber)}</span>
             <span className={`font-bold ${Math.abs(totalDebe - totalHaber) < 0.01 ? 'text-emerald-600' : 'text-rose-600'}`}>

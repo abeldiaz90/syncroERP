@@ -398,7 +398,7 @@ export default function PagoProveedoresPage() {
                   <p className="text-[11px] mt-1 text-amber-700 font-semibold">
                     Lo topa la factura: llegó {fmt$(ordenSeleccionada.limite.recibido)} y el
                     proveedor ha facturado {fmt$(Number(ordenSeleccionada.limite.facturado ?? 0))} en{' '}
-                    {ordenSeleccionada.limite.cuantasFacturas} comprobante(s).
+                    {plural(ordenSeleccionada.limite.cuantasFacturas, "comprobante")}.
                     {ordenSeleccionada.limite.conDiferencias.length > 0 && (
                       <> Con diferencias sin resolver: {ordenSeleccionada.limite.conDiferencias.join(', ')}.</>
                     )}{' '}

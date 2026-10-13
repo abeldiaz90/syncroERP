@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { fechaHora } from "@/lib/format";
+import { fechaHora, plural } from "@/lib/format";
 import { useAccion, useDatos } from "@/hooks/use-datos";
 import { usePermiso } from "@/hooks/use-permisos";
 import {
@@ -276,7 +276,7 @@ export default function EspejoContablePage() {
     avisar(
       r.encoladas === 0
         ? "No quedaba ninguna por encolar."
-        : `${r.encoladas} póliza(s) encolada(s): ${r.folios.join(", ")}. ` +
+        : `${plural(r.encoladas, "póliza encolada", "pólizas encoladas")}: ${r.folios.join(", ")}. ` +
           "Todavía no han salido: despacha la cola.",
       r.encoladas === 0 ? "info" : "exito",
     );
@@ -291,7 +291,7 @@ export default function EspejoContablePage() {
     setSimulacion(r);
     avisar(
       r.creadas.length
-        ? `Se crearían ${r.creadas.length} cuenta(s) en el mayor externo.`
+        ? `Se crearía${r.creadas.length === 1 ? "" : "n"} ${plural(r.creadas.length, "cuenta")} en el mayor externo.`
         : "No hace falta crear ninguna cuenta.",
       "info",
     );
@@ -304,7 +304,7 @@ export default function EspejoContablePage() {
     );
     setSimulacion(null);
     avisar(
-      `${r.creadas.length} creada(s), ${r.reutilizadas.length} reutilizada(s)` +
+      `${plural(r.creadas.length, "creada")}, ${plural(r.reutilizadas.length, "reutilizada")}` +
         (r.problemas.length ? `, ${r.problemas.length} con problema` : "") +
         ".",
       r.problemas.length ? "error" : "exito",
@@ -349,20 +349,20 @@ export default function EspejoContablePage() {
       : "";
     if (r.procesados > 0) {
       avisar(
-        `${r.procesados} póliza(s) enviada(s) al mayor externo` +
+        `${plural(r.procesados, "póliza enviada", "pólizas enviadas")} al mayor externo` +
           (r.fallidos > 0 ? `; ${r.fallidos} con error.` : ".") +
           aplazadas,
         r.fallidos > 0 ? "alerta" : "exito",
       );
     } else if (r.fallidos > 0) {
       avisar(
-        `Ninguna pasó: ${r.fallidos} evento(s) con error. El motivo de cada uno está en la tabla.` +
+        `Ninguna pasó: ${plural(r.fallidos, "evento")} con error. El motivo de cada uno está en la tabla.` +
           aplazadas,
         "error",
       );
     } else if (r.aplazados) {
       avisar(
-        `Nada por enviar todavía: ${r.aplazados} póliza(s) llevan fecha posterior a hoy y el mayor externo no puede asentarlas aún. Se envían solas cuando llegue esa fecha; no hay nada que corregir.`,
+        `Nada por enviar todavía: ${plural(r.aplazados, "póliza")} ${r.aplazados === 1 ? "lleva" : "llevan"} fecha posterior a hoy y el mayor externo no puede asentarla${r.aplazados === 1 ? "" : "s"} aún. Se envía${r.aplazados === 1 ? "" : "n"} sola${r.aplazados === 1 ? "" : "s"} cuando llegue esa fecha; no hay nada que corregir.`,
         "info",
       );
     } else if (r.motivo === "SIN_ENLACE") {
@@ -374,7 +374,7 @@ export default function EspejoContablePage() {
       avisar("Ya hay un despacho en curso. Vuelve a intentar en un momento.", "info");
     } else if (r.motivo === "SOLO_DETENIDOS") {
       avisar(
-        `No se movió nada: ${r.detenidos} evento(s) están detenidos y no vuelven solos a la cola. Pulsa «Reintentar» en cada uno.`,
+        `No se movió nada: ${plural(r.detenidos ?? 0, "evento detenido", "eventos detenidos")} que no ${(r.detenidos ?? 0) === 1 ? "vuelve solo" : "vuelven solos"} a la cola. Pulsa «Reintentar» en cada uno.`,
         "alerta",
       );
     } else {
@@ -411,8 +411,8 @@ export default function EspejoContablePage() {
     } else {
       avisar(
         r.discrepancias === 0
-          ? `Los dos mayores coinciden en las ${r.revisados} póliza(s) espejadas.`
-          : `${r.discrepancias} diferencia(s) entre el ERP y el mayor externo.`,
+          ? `Los dos mayores coinciden en ${r.revisados === 1 ? "la" : "las"} ${plural(r.revisados, "póliza espejada", "pólizas espejadas")}.`
+          : `${plural(r.discrepancias, "diferencia")} entre el ERP y el mayor externo.`,
         r.discrepancias === 0 ? "exito" : "alerta",
       );
     }
@@ -644,7 +644,7 @@ export default function EspejoContablePage() {
                     <td>
                       {c.urgente ? (
                         <Distintivo tono="peligro">
-                          {c.usos ?? 0} póliza(s) detenida(s)
+                          {plural(c.usos ?? 0, "póliza detenida", "pólizas detenidas")}
                         </Distintivo>
                       ) : (
                         <Distintivo tono="alerta">
@@ -693,7 +693,7 @@ export default function EspejoContablePage() {
           <div className="panel-cabecera">
             <div>
               <p className="text-[13px] font-semibold text-slate-900">
-                {totalSinEncolar} póliza(s) que nunca se encolaron
+                {plural(totalSinEncolar, "póliza")} que nunca {totalSinEncolar === 1 ? "se encoló" : "se encolaron"}
               </p>
               <p className="text-[12px] text-slate-500 mt-0.5">
                 No están detenidas: no llegaron a entrar en la bandeja. Nacieron
@@ -894,7 +894,7 @@ export default function EspejoContablePage() {
         ) : conciliacion.discrepancias === 0 ? (
           <div className="p-4">
             <p className="text-[13px] font-semibold text-emerald-700">
-              Coinciden en las {conciliacion.revisados} póliza(s) espejadas
+              Coinciden en {conciliacion.revisados === 1 ? "la" : "las"} {plural(conciliacion.revisados, "póliza espejada", "pólizas espejadas")}
             </p>
             <p className="text-[12px] text-slate-500 mt-0.5">
               Comparación del {fechaHora(conciliacion.fecha)} · alcance{" "}

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Plus, Target } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
+import { plural } from '@/lib/format';
 
 /*
  * ============================================================================
@@ -232,7 +233,7 @@ export default function PresupuestosPage() {
 
       {comparativo && comparativo.sinPresupuesto > 0 && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          {comparativo.sinPresupuesto} cuenta(s) con gasto ejercido y sin presupuesto.
+          {plural(comparativo.sinPresupuesto, "cuenta")} con gasto ejercido y sin presupuesto.
           Eso no es una desviación: es que el plan no las contempló.
         </div>
       )}

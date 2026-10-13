@@ -30,6 +30,7 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { useContratacion } from '@/lib/contratacion';
+import { plural } from '@/lib/format';
 
 type Estado = 'PENDIENTE' | 'PROCESADO' | 'IGNORADO' | 'FALLIDO' | 'DESCARTADO';
 
@@ -213,7 +214,7 @@ export default function AvisosDelCorePage() {
           <div>
             <p className="font-medium text-gray-900">
               {pidenAlgo > 0
-                ? `${pidenAlgo} aviso(s) piden una decisión`
+                ? `${plural(pidenAlgo, "aviso")} ${pidenAlgo === 1 ? "pide" : "piden"} una decisión`
                 : 'Nada pendiente'}
             </p>
             <p className="text-sm text-gray-600">
@@ -255,7 +256,7 @@ export default function AvisosDelCorePage() {
               Sin correspondencia en el ERP
             </h2>
             <span className="text-xs text-gray-500">
-              {huerfanos.length} aviso(s) sobre recursos que este ERP no conoce
+              {plural(huerfanos.length, "aviso")} sobre recursos que este ERP no conoce
             </span>
           </div>
           {/*

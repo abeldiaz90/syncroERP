@@ -221,7 +221,7 @@ export default function CreditosPage() {
                           <Icon className="w-3 h-3" /> {cfg.label}
                         </span>
                         {venc > 0 && (
-                          <p className="text-[10px] text-rose-600 font-bold mt-0.5">{venc} cuota(s) vencida(s)</p>
+                          <p className="text-[10px] text-rose-600 font-bold mt-0.5">{plural(venc, "cuota vencida", "cuotas vencidas")}</p>
                         )}
                       </td>
                       <td className="px-5 py-4 text-right font-mono text-slate-700">{fmt$(c.montoTotal)}</td>

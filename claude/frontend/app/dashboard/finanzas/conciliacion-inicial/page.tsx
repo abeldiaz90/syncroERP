@@ -19,6 +19,7 @@ import {
 
 import { api, ApiError } from "@/lib/api";
 import { useDatos } from "@/hooks/use-datos";
+import { plural } from '@/lib/format';
 
 type ClaveArea = "CAJA" | "BANCOS" | "CLIENTES" | "PROVEEDORES" | "INVENTARIO";
 type EstadoResolucion = "CONFIRMADA" | "JUSTIFICADA" | "REQUIERE_AJUSTE";
@@ -497,7 +498,7 @@ export default function ConciliacionInicialPage() {
                 <p className="font-bold">Finalizar revisión</p>
                 <p className="text-sm text-slate-300 mt-0.5">
                   {pendientes > 0
-                    ? `Aún faltan ${pendientes} sección(es).`
+                    ? `Aún ${pendientes === 1 ? "falta" : "faltan"} ${plural(pendientes, "sección", "secciones")}.`
                     : requiereAjuste
                       ? "Hay correcciones pendientes. Corrígelas y toma una nueva fotografía."
                       : "Todo está revisado; ya puedes guardar la conciliación."}

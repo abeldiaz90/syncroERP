@@ -4,6 +4,7 @@ import { fechaCorta } from '@/lib/fechas';
 import { AlertTriangle, TrendingDown, Clock, Users, DollarSign, RefreshCw, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { ProtectedElement } from '@/app/components/ProtectedElement';
+import { plural } from '@/lib/format';
 
 interface IAgingItem {
   cuota: {
@@ -245,7 +246,7 @@ export default function CarteraVencidaPage() {
         return (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className={`flex items-center justify-between px-6 py-4 ${bucket.bg} border-b ${bucket.border}`}>
-              <h3 className={`font-bold ${bucket.text}`}>{bucket.label} — {items.length} cuota(s)</h3>
+              <h3 className={`font-bold ${bucket.text}`}>{bucket.label} — {plural(items.length, "cuota")}</h3>
               <span className={`font-black text-lg ${bucket.text}`}>{fmt$(totalBucket(items))}</span>
             </div>
             <div className="overflow-x-auto">

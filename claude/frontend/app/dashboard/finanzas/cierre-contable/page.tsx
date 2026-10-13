@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { api, ApiError } from "@/lib/api";
+import { plural } from '@/lib/format';
 
 interface Periodo {
   mes: number;
@@ -427,7 +428,7 @@ export default function CierreContablePage() {
               </div>
               <div className="flex items-center gap-2 mt-4 mb-4 text-xs text-slate-500">
                 <FileText className="w-3.5 h-3.5" />
-                {periodo.totalPolizas} póliza(s)
+                {plural(periodo.totalPolizas, "póliza")}
               </div>
               <button
                 disabled={!periodo.cerrado && !periodo.cerrable}
@@ -726,7 +727,7 @@ function Wizard({
       {diagnostico.bloqueos > 0 ? (
         <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-sm text-rose-800">
           <p className="font-bold">
-            No puede cerrarse: hay {diagnostico.bloqueos} bloqueo(s).
+            No puede cerrarse: hay {plural(diagnostico.bloqueos, "bloqueo")}.
           </p>
           <p className="mt-1">
             Corrige los puntos rojos y usa “Volver a calcular”. No se generará

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { ProtectedElement } from '@/app/components/ProtectedElement';
 import { FOLIO, folioDe } from '@/lib/folios';
+import { plural } from '@/lib/format';
 
 interface IProducto { nombre: string; sku?: string; }
 interface IDetalle { productoId: string; cantidadSolicitada: number; producto?: IProducto; }
@@ -533,7 +534,7 @@ export default function AprobacionesPage() {
                           </span>
                           <span className="flex items-center gap-1.5 text-slate-600">
                             <Package className="w-4 h-4 text-slate-400"/>
-                            <span className="font-medium">{req.detalles?.length ?? 0} producto(s)</span>
+                            <span className="font-medium">{plural(req.detalles?.length ?? 0, "producto")}</span>
                           </span>
                         </div>
 
@@ -717,7 +718,7 @@ function HistorialDeFirmas({
                       {ap.requisicion?.usuarioSolicitante?.nombreCompleto ?? '—'}
                     </strong>
                     {' · '}
-                    {ap.requisicion?.detalles?.length ?? 0} producto(s)
+                    {plural(ap.requisicion?.detalles?.length ?? 0, "producto")}
                   </p>
                   {ap.comentario && (
                     <p className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs italic text-slate-600">

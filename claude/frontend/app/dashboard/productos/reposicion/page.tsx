@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 
 import { api, ApiError } from '@/lib/api';
+import { plural } from '@/lib/format';
 
 interface Renglon {
   id: string;
@@ -159,7 +160,7 @@ export default function ReposicionPage() {
         /* La prioridad sube si hay alguien esperando: una promesa con fecha
            pesa más que un anaquel bajo. */
         notas:
-          `Reposición automática · ${seleccionados.length} artículo(s)` +
+          `Reposición automática · ${plural(seleccionados.length, "artículo")}` +
           (seleccionados.some((r) => r.enEspera > 0)
             ? ` · ${seleccionados.filter((r) => r.enEspera > 0).length} con cliente esperando`
             : ' bajo punto de reorden'),
@@ -404,7 +405,7 @@ export default function ReposicionPage() {
               <p className="text-sm font-bold text-slate-800">
                 {seleccionados.length === 0
                   ? 'Elige qué pedir'
-                  : `${seleccionados.length} artículo(s) · ${dinero(costoSeleccion)}`}
+                  : `${plural(seleccionados.length, "artículo")} · ${dinero(costoSeleccion)}`}
               </p>
               <p className="text-[12px] text-slate-500">
                 La requisición sale a nombre de tu departamento y sigue el circuito
