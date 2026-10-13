@@ -118,6 +118,13 @@ export async function completarSesionKeycloak(query: URLSearchParams) {
     // no había forma de renovar la sesión.
     refresh_token?: string;
     expires_in?: number;
+    /*
+     * El plazo que de verdad manda: cuándo deja de poderse renovar, que es el
+     * *SSO Session Idle* del realm. Sin él, `guardarSesion` programaba la
+     * renovación contra los sesenta minutos del token de acceso y la sesión se
+     * moría antes, por inactividad. Ver el encabezado de `guardarSesion`.
+     */
+    refresh_expires_in?: number;
     error_description?: string;
   };
   if (!respuesta.ok || !tokens.access_token || !tokens.id_token) {
@@ -131,6 +138,7 @@ export async function completarSesionKeycloak(query: URLSearchParams) {
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,
     expires_in: tokens.expires_in,
+    refresh_expires_in: tokens.refresh_expires_in,
   });
   sessionStorage.setItem(CLAVE_ID_TOKEN, tokens.id_token);
   /*

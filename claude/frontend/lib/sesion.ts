@@ -108,8 +108,52 @@ export interface TokensKeycloak {
   access_token: string;
   refresh_token?: string;
   expires_in?: number;
+  /**
+   * Cuánto dura el token de RENOVACIÓN. Keycloak lo manda en cada respuesta y
+   * refleja el *SSO Session Idle* del realm. Ver `guardarSesion`.
+   */
+  refresh_expires_in?: number;
 }
 
+/**
+ * ============================================================================
+ * LA SESIÓN NO MUERE CUANDO VENCE EL TOKEN DE ACCESO
+ * ----------------------------------------------------------------------------
+ * CÓMO SALIÓ
+ *
+ * 13-oct. El ERP dejaba a la persona en /login a los ~15 minutos de no tocarlo,
+ * con toda esta maquinaria puesta y funcionando. Se había dado por hecho que
+ * era cosa de la automatización —una pestaña en segundo plano con el
+ * temporizador estrangulado—, hasta que el portal de Fineract, en una pestaña
+ * igual de inactiva, aguantó la noche entera. Esa asimetría era el dato.
+ *
+ * Keycloak manda DOS plazos en cada respuesta:
+ *
+ *     expires_in          cuándo deja de servir el token de acceso    (60 min)
+ *     refresh_expires_in  cuándo deja de poderse renovar — el idle    (~15 min)
+ *
+ * Aquí sólo se leía el primero. Con un acceso de sesenta minutos el
+ * temporizador se programaba para el minuto 59, y la sesión moría en el 15 por
+ * el otro lado: Keycloak cierra la sesión por inactividad, y a partir de ahí el
+ * token de acceso —criptográficamente válido todavía— lo rechaza el servidor
+ * con «emitido antes del cierre de sesión». El temporizador no llegaba a correr
+ * ni una vez.
+ *
+ * O sea: se renovaba contra el plazo que no mandaba. El archivo entero está
+ * escrito para que no pase justo esto —«una venta a la mitad con el cliente
+ * enfrente»— y lo seguía permitiendo por mirar el reloj equivocado.
+ *
+ * QUÉ SE GUARDA AHORA
+ *
+ * El plazo EFECTIVO: el menor de los dos. Renovar antes de que venza el de
+ * renovación reinicia la ventana de inactividad, así que la sesión se sostiene
+ * mientras la aplicación esté abierta, que es lo que esta pieza prometía.
+ *
+ * No cambia la decisión de cuánto dura una sesión: ésa es del realm —*SSO
+ * Session Idle* y *SSO Session Max*—. Lo que cambia es que trabajar con el ERP
+ * abierto ya no la deja morir sola.
+ * ============================================================================
+ */
 export function guardarSesion(tokens: TokensKeycloak) {
   token.set(tokens.access_token);
   try {
@@ -118,7 +162,17 @@ export function guardarSesion(tokens: TokensKeycloak) {
     }
     // Si Keycloak no dice cuánto dura, se asume corto y se renueva pronto:
     // equivocarse por abajo cuesta una renovación de más; por arriba, la sesión.
-    const segundos = Number(tokens.expires_in ?? 60);
+    const acceso = Number(tokens.expires_in ?? 60);
+    /*
+     * El de renovación sólo acorta, nunca alarga: si no viene, o viene basura,
+     * se queda el del acceso y estamos como antes —que era lo correcto para el
+     * token de acceso, sólo que incompleto—.
+     */
+    const renovacion = Number(tokens.refresh_expires_in);
+    const segundos =
+      Number.isFinite(renovacion) && renovacion > 0
+        ? Math.min(acceso, renovacion)
+        : acceso;
     localStorage.setItem(CLAVE_EXPIRA, String(Date.now() + segundos * 1000));
   } catch {
     /* sin almacenamiento no hay renovación programada, sólo la sesión actual */
