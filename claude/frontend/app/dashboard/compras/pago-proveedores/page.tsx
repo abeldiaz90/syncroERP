@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { plural } from '@/lib/format';
 import { FOLIO, folioDe } from '@/lib/folios';
 import { hoyISO } from '@/lib/fechas';
 import {
@@ -14,6 +15,20 @@ interface IOrden {
   estadoRecepcion?: 'PENDIENTE' | 'PARCIAL' | 'COMPLETA';
   estadoPago?: 'PENDIENTE' | 'PARCIAL' | 'PAGADA';
   totalPagado?: number;
+  /**
+   * Lo que el servidor va a aceptar hoy, y por qué. Llega calculado desde
+   * `/compras/ordenes/por-pagar`; esta pantalla NO lo recalcula —ver el
+   * comentario de `valorRecibido`, abajo—.
+   */
+  limite?: {
+    recibido: number;
+    facturado: number | null;
+    cuantasFacturas: number;
+    conDiferencias: string[];
+    pagado: number;
+    maximo: number;
+    aprieta: 'RECIBIDO' | 'FACTURADO' | 'PAGADO';
+  };
   proveedor?: IProveedor;
   detalles?: Array<{
     cantidad: number; cantidadRecibidaOk: number; precioUnitario: number;
@@ -23,36 +38,29 @@ interface IOrden {
 }
 
 /**
- * Lo que se le puede pagar HOY al proveedor: el valor de lo que ya llegó, con
- * su impuesto proporcional, menos lo ya pagado.
+ * ============================================================================
+ * EL MÁXIMO LO DICE EL SERVIDOR; AQUÍ SÓLO SE ENSEÑA
+ * ----------------------------------------------------------------------------
+ * Aquí vivía una copia de la regla del servidor, con un comentario que decía
+ * «se calcula igual que en el servidor». Dejó de ser verdad dos veces, en
+ * silencio:
  *
- * Se calcula igual que en el servidor. La pantalla ofrecía «Registrar pago»
- * con el total de la orden precargado incluso en órdenes entregadas a medias:
- * el servidor lo rechazaba y el usuario veía un error sin saber qué cifra
- * poner.
+ *   · cuando el servidor empezó a restar las devoluciones vigentes al
+ *     proveedor — la pantalla ofrecía pagar mercancía ya devuelta;
+ *   · cuando empezó a topar con lo facturado — ofrecía pagar sin comprobante.
+ *
+ * Las dos veces el servidor rechazaba el pago con un mensaje correcto, después
+ * de que esta pantalla hubiera precargado una cifra que no iba a aceptar.
+ *
+ * Ahora la pantalla pide `/compras/ordenes/por-pagar`, que devuelve sólo las
+ * que admiten pago y, en `limite`, el MISMO número que va a aceptar el pago
+ * —`compras/utils/el-maximo-a-pagar.ts`— con el motivo de lo que aprieta.
+ * ============================================================================
  */
-const valorRecibido = (o: IOrden): number => {
-  if (!o.detalles?.length) return o.total;
-  let recibido = 0;
-  for (const d of o.detalles) {
-    const ordenada = Number(d.cantidad ?? 0);
-    if (ordenada <= 0) continue;
-    const aceptada = Math.min(Number(d.cantidadRecibidaOk ?? 0), ordenada);
-    const linea = Number(d.subtotal ?? d.cantidad * d.precioUnitario) + Number(d.impuestoImporte ?? 0);
-    recibido += linea * (aceptada / ordenada);
-  }
-  return Math.round(recibido * 100) / 100;
-};
+const saldoPagable = (o: IOrden): number => Number(o.limite?.maximo ?? 0);
 
-const saldoPagable = (o: IOrden): number =>
-  Math.max(0, Math.round((valorRecibido(o) - Number(o.totalPagado ?? 0)) * 100) / 100);
-
-/** ¿Admite un pago ahora mismo? Mismas condiciones que el servidor. */
-const admitePago = (o: IOrden): boolean =>
-  o.estado !== 'CANCELADA' &&
-  (o.estadoRecepcion ?? 'PENDIENTE') !== 'PENDIENTE' &&
-  (o.estadoPago ?? 'PENDIENTE') !== 'PAGADA' &&
-  saldoPagable(o) > 0;
+/** ¿Admite un pago ahora mismo? Lo decidió el servidor al listarlas. */
+const admitePago = (o: IOrden): boolean => saldoPagable(o) > 0;
 interface ICuentaBancaria { id: string; nombre: string; tipo: string; esPorDefecto: boolean; activo: boolean; }
 
 const fmt$ = (n: number) => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(n);
@@ -95,7 +103,7 @@ export default function PagoProveedoresPage() {
   const cargar = useCallback(async () => {
     setCargando(true);
     const [rO, rCB] = await Promise.all([
-      fetch(`${api}/compras/ordenes`, { headers: h() }),
+      fetch(`${api}/compras/ordenes/por-pagar`, { headers: h() }),
       fetch(`${api}/credito/cuentas-bancarias`, { headers: h() }),
     ]);
     /*
@@ -247,7 +255,7 @@ export default function PagoProveedoresPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-900 text-white px-6 py-3 flex justify-between items-center">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Órdenes de Compra</p>
-          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${filtradas.length} orden(es)`}</p>
+          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : plural(filtradas.length, 'orden', 'órdenes')}</p>
         </div>
 
         {cargando ? (
@@ -357,7 +365,7 @@ export default function PagoProveedoresPage() {
                        * total y se lleve un rechazo sin entender por qué.
                        */
                       <p className="text-[11px] text-amber-600 mt-1 font-semibold">
-                        Recibido {fmt$(valorRecibido(ordenSeleccionada))}
+                        Recibido {fmt$(Number(ordenSeleccionada.limite?.recibido ?? 0))}
                       </p>
                     )}
                   </div>
@@ -380,6 +388,29 @@ export default function PagoProveedoresPage() {
                     <> · ya pagado <span className="font-mono">{fmt$(Number(ordenSeleccionada.totalPagado))}</span></>
                   )}
                 </p>
+                {/*
+                  Y por qué ese máximo y no otro. «Te falta mercancía» y «te
+                  falta papel» se resuelven con personas distintas: una es el
+                  almacén, la otra el proveedor. Decirlo aquí ahorra el viaje
+                  de teclear un importe, que lo rechacen y leerlo entonces.
+                */}
+                {ordenSeleccionada.limite?.aprieta === 'FACTURADO' && (
+                  <p className="text-[11px] mt-1 text-amber-700 font-semibold">
+                    Lo topa la factura: llegó {fmt$(ordenSeleccionada.limite.recibido)} y el
+                    proveedor ha facturado {fmt$(Number(ordenSeleccionada.limite.facturado ?? 0))} en{' '}
+                    {ordenSeleccionada.limite.cuantasFacturas} comprobante(s).
+                    {ordenSeleccionada.limite.conDiferencias.length > 0 && (
+                      <> Con diferencias sin resolver: {ordenSeleccionada.limite.conDiferencias.join(', ')}.</>
+                    )}{' '}
+                    Captura la factura que falta y el resto se podrá pagar.
+                  </p>
+                )}
+                {ordenSeleccionada.limite?.aprieta === 'RECIBIDO' &&
+                  ordenSeleccionada.estadoRecepcion !== 'COMPLETA' && (
+                  <p className="text-[11px] mt-1 text-slate-500">
+                    Lo topa lo recibido: el resto podrá pagarse conforme llegue la mercancía.
+                  </p>
+                )}
               </div>
 
               {/* Cuenta bancaria */}

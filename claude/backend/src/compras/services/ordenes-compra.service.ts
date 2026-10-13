@@ -52,6 +52,7 @@ import {
 } from '../../tesoreria/entities/tesoreria.entity';
 import { fechaContableNegocio } from '../../common/utils/business-time.util';
 import { techoDeFacturas } from '../utils/el-techo-que-pone-la-factura';
+import { maximoAPagar } from '../utils/el-maximo-a-pagar';
 
 @Injectable()
 export class OrdenesCompraService {
@@ -234,6 +235,41 @@ export class OrdenesCompraService {
       relations: ['detalles', 'detalles.producto', 'proveedor'],
       order: { fechaCreacion: 'DESC' },
     });
+  }
+
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * LAS ÓRDENES QUE ADMITEN UN PAGO HOY, CON SU TOPE YA CALCULADO
+   * --------------------------------------------------------------------------
+   * La pantalla de pago a proveedores pedía TODAS las órdenes y decidía en el
+   * navegador cuáles admitían pago y cuánto. Esa cuenta es del servidor —resta
+   * devoluciones vigentes y topa con lo facturado— y la copia del navegador se
+   * había quedado dos versiones atrás: ofrecía pagar mercancía ya devuelta y
+   * pagar sin comprobante, y el servidor lo rechazaba después.
+   *
+   * Aquí sale el mismo número que va a aceptar el pago, con el motivo de lo que
+   * aprieta. La pantalla lo enseña; no lo deduce.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  async obtenerPorPagar(empresaId: string) {
+    const ordenes = await this.ocRepo.find({
+      where: { empresaId },
+      relations: ['detalles', 'detalles.producto', 'proveedor'],
+      order: { fechaCreacion: 'DESC' },
+    });
+
+    const em = this.ocRepo.manager;
+    const salida = [];
+    for (const oc of ordenes) {
+      /* Las mismas tres puertas que `pagarOrden`, antes de gastar consultas. */
+      if (oc.estado === 'CANCELADA') continue;
+      if ((oc.estadoRecepcion ?? 'PENDIENTE') === 'PENDIENTE') continue;
+      if ((oc.estadoPago ?? 'PENDIENTE') === 'PAGADA') continue;
+
+      const limite = await maximoAPagar(em, empresaId, oc);
+      salida.push({ ...oc, limite });
+    }
+    return salida;
   }
 
   async obtenerPorId(id: string, empresaId: string) {
@@ -1070,11 +1106,15 @@ export class OrdenesCompraService {
        * Sólo cuentan las devoluciones VIGENTES: una cancelada no reduce nada.
        * ====================================================================
        */
-      const devuelto = await this.devueltoVigenteDeOrden(em, empresaId, id);
-      const recibido = Math.max(
-        0,
-        Math.round((valorRecibidoOC(oc.detalles ?? []) - devuelto) * 100) / 100,
-      );
+      /*
+       * El cálculo completo —recibido menos devoluciones, topado por lo
+       * facturado— vive en `utils/el-maximo-a-pagar.ts` desde el 12 de
+       * octubre, porque la PANTALLA de pago tenía su propia copia y se había
+       * quedado dos versiones atrás. Aquí se usa el mismo, para que no haya
+       * forma de que vuelvan a separarse.
+       */
+      const limite = await maximoAPagar(em, empresaId, oc);
+      const recibido = limite.recibido;
       /*
        * ====================================================================
        * El tercer lado del triángulo: lo facturado
@@ -1099,7 +1139,7 @@ export class OrdenesCompraService {
       const techo = await techoDeFacturas(em, empresaId, id);
       const pagable =
         techo !== null ? Math.min(recibido, techo.total) : recibido;
-      const saldo = Math.max(0, pagable - pagadoAnterior);
+      const saldo = limite.maximo;
       if (monto - saldo > 0.009) {
         /* La negativa dice cuál de los dos números es el que aprieta: sin eso,
          * quien captura no sabe si le falta mercancía o le falta papel. */

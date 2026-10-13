@@ -36,6 +36,15 @@ export class OrdenesCompraController {
     return this.ordenesService.obtenerTodas(empresaId);
   }
 
+  /*
+   * Antes de `@Get(':id')`, como todas las rutas literales: Nest resuelve por
+   * orden de registro y `por-pagar` se leería como un identificador.
+   */
+  @Get('por-pagar')
+  async obtenerPorPagar(@ActiveUser('empresaId') empresaId: string) {
+    return this.ordenesService.obtenerPorPagar(empresaId);
+  }
+
   @Navegable('/dashboard/inventario/recepciones', 'Recepciones', 6)
   @Get('recepciones')
   async obtenerRecepciones(@ActiveUser('empresaId') empresaId: string) {
