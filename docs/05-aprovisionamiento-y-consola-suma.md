@@ -72,9 +72,75 @@ detalle.
 
 | Modo | Qué se le pide a la consola |
 |---|---|
-| **Sólo ERP** | Empresa, catálogo, administrador. Sin inquilino. |
-| **ERP + Fineract** | Todo lo anterior más el inquilino del core. |
-| **Sólo Fineract** | **No se da de alta desde aquí.** El portal no menciona el ERP en ninguna parte: una institución que no usa el ERP no es cliente del ERP. |
+| **Sólo ERP** | Empresa, catálogo, administrador, realm propio. Sin inquilino. |
+| **ERP + Fineract** | Todo lo anterior, más el inquilino del core **y el cliente `fineract-erp-portal` en su realm**, que es por donde la institución entra al portal. |
+| **Sólo Fineract** | **No se da de alta desde aquí.** Una institución que no usa el ERP no es cliente del ERP: se le prepara un inquilino y opera con el portal. Darla de alta aquí creaba el híbrido imposible —cartera en el core y sin ERP que la mande—. |
+
+> Esa explicación vivía sólo en la cabecera de una prueba del backend
+> (`tres-modos-de-contratacion.spec.ts`), que es exactamente donde no la lee
+> quien opera la consola. Desde el 13-oct-2026 está **en la consola**, debajo de
+> los dos botones de «¿Qué contrata?».
+
+#### Qué se puede dar de alta HOY (13-oct-2026)
+
+| Modo | Estado |
+|---|---|
+| **Sólo ERP** | **Se aprovisiona de verdad.** Probado contra el Keycloak real: realm creado, activado y verificado contra su `.well-known/openid-configuration`. Lo único que falla es la invitación, por el SMTP. |
+| **ERP + Fineract** | **Bloqueado.** No hay inquilinos libres en la reserva y el core tampoco tiene ninguno: sólo construye el esquema al arrancar, así que hay que preparar inquilinos en una ventana de mantenimiento. Sus pantallas sí se prueban contra *SUMA Local*. |
+| **Sólo Fineract** | No aplica (ver arriba). |
+
+> **Las dos cosas que faltan son de operación, no de código**: el correo saliente
+> y la ventana de mantenimiento del core. Sin la primera, una empresa recién
+> dada de alta queda creada y **nadie puede entrar en ella** —la invitación es
+> el único camino la primera vez, porque la identidad se crea sin contraseña a
+> propósito—.
+
+---
+
+### El alta, paso por paso, en pantalla
+
+El resultado no dice «listo»: dice qué quedó hecho y qué no, uno por uno.
+
+![El resultado del alta, con cada paso en «listo» o «pendiente» y su detalle.](img/consola-alta-con-realm-propio.jpg)
+
+---
+
+## 3 bis. Quién ve el realm de una empresa
+
+**MEDIDO el 13-oct-2026.** La consola creó un realm, Keycloak lo servía —su
+`.well-known/openid-configuration` contestaba 200— y en «Manage realms» no
+aparecía. Sólo salían `suma`, `suma-consola` y `master`.
+
+No fallaba el alta. **«Manage realms» no lista los realms que existen: lista
+aquellos sobre los que quien mira tiene `view-realm`.** Al crear un realm,
+Keycloak crea en `master` un cliente `<realm>-realm` con los roles de su
+administración y se los concede **a quien lo creó** —la cuenta de servicio de la
+consola—. A nadie más.
+
+> Consecuencia: cada empresa dada de alta nacía **invisible** para quien tiene
+> que darle soporte. No se descubre probando el alta, que sale verde: se
+> descubre el primer día que un cliente llama.
+
+### Cómo queda
+
+| | |
+|---|---|
+| **Quién administra** | Un **grupo de `master`**, en `KEYCLOAK_GRUPO_ADMINISTRADORES`. Un grupo y no una lista de personas: la pertenencia se administra una vez y vale para todos los realms, los de ayer y los de mañana. |
+| **Qué se concede** | Todos los roles de `<realm>-realm` **menos `impersonation`**, que permite iniciar sesión *como* un cliente. Para soporte no hace falta, y concederlo por omisión convierte un permiso excepcional en el estado normal. `ROLES_ADMIN_REALM_EXTRA` deja cambiar de opinión, y entonces consta en el `.env`. |
+| **Cuándo** | Un paso del alta, «Quién lo ve en Keycloak», después del registro en el ERP: si falla, el realm es bueno y la empresa opera. Es un pendiente de soporte, no un reparo. |
+| **Los que ya existen** | `npm run realms:visibles -- --aplicar`. |
+| **Lo que NO hace** | Crear el grupo ni meter a nadie dentro. Eso es decidir quién administra la plataforma, y no lo decide un alta. |
+
+### Puesta en marcha, una vez
+
+1. En Keycloak, realm `master` → **Groups** → crear `administradores-de-plataforma`.
+2. **Members** → añadir a quienes dan soporte.
+3. `npm run realms:visibles -- --aplicar` para los realms ya creados.
+4. Cerrar sesión y volver a entrar: los permisos viajan en el token.
+
+> La cuenta de la consola necesita `manage-users` del cliente `master-realm`
+> para conceder los roles, además del `create-realm` que ya tenía. Si le falta,
+> el paso devuelve 403 **diciendo exactamente ese nombre**.
 
 ---
 

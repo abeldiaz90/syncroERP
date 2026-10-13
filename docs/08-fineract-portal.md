@@ -34,6 +34,20 @@ Dos cosas que conviene tener claras desde el primer día:
   arbitrarias al core sería más corta de escribir y una superficie de riesgo
   mucho mayor; está decidido que no se hace.
 
+### La sesión caduca por inactividad, y lo dice
+
+La sesión inactiva del directorio está en **30 minutos**, y el portal sólo
+renueva su token cuando llega una petición. Un portal abierto sin usarse pasado
+ese plazo vuelve al acceso **por sí solo**; eso no es una avería, pero una
+pantalla de acceso que aparece sola se lee como si algo se hubiera roto, así que
+lo dice:
+
+![La pantalla de acceso explica que la sesión caducó por inactividad y qué se perdió.](img/portal-sesion-caducada-lo-dice.png)
+
+Lo guardado está guardado; lo que se estuviera capturando sin guardar hay que
+volver a escribirlo. **Los 30 minutos son una decisión de operación**: para un
+mostrador son cortos, y se cambian en el directorio, no en el portal.
+
 ### Y el ERP, ¿dónde queda?
 
 El producto se vende de tres formas —sólo ERP, sólo Fineract, ERP + Fineract—.
@@ -64,6 +78,23 @@ una institución en `05-aprovisionamiento-y-consola-suma.md`.
 | **Control** | Mesa de control, reportes y contabilidad |
 | **Productos** | Las definiciones: crédito, ahorro, plazo fijo, recurrente y acciones |
 | **Administración** | Configuración institucional: oficinas, personal, usuarios, roles, catálogos, día operativo, trabajos, integraciones |
+
+### Mi jornada, que es por donde se empieza
+
+La bandeja ordena lo que requiere intervención por prioridad, y cada renglón
+lleva su acción a la derecha:
+
+![La bandeja operativa, con cada pendiente en un renglón y su acción a la derecha.](img/portal-bandeja-enlace-en-una-linea.png)
+
+### Un cero también se dice
+
+Las franjas de indicadores **esconden las métricas en cero** —en una institución
+en marcha la mayoría lo están, y llenaban la parte de arriba de tarjetas que
+sólo confirmaban que no había nada que hacer—. Cuando esa franja **es** toda la
+sección, esconderla dejaría un hueco que se lee como una pantalla a medio
+cargar, así que en su lugar se dice con palabras:
+
+![El Centro de operaciones dice «hoy no hay movimiento» en vez de dejar la sección vacía.](img/portal-operacion-de-hoy-sin-movimiento.png)
 
 El menú **no enseña lo que no se puede abrir**: cada entrada depende de los
 permisos de la sesión en Fineract. Si alguien no ve un área, lo que le falta es

@@ -813,6 +813,19 @@ distintas a dos personas distintas.
 Si alguna factura de la orden tiene diferencias sin resolver, el mensaje también
 lo nombra: pagar contra un comprobante que no cuadra es pagar la diferencia.
 
+## Cancelar una factura capturada por error
+
+Se cancela desde la lista, y **el motivo se teclea dentro del propio diálogo**:
+el botón está apagado hasta que el texto alcanza el mínimo y dice cuántos
+caracteres faltan.
+
+![El diálogo de cancelación pide el motivo dentro, con el botón apagado hasta que el texto alcanza el mínimo.](img/erp-cancelar-factura-con-motivo.png)
+
+La factura **no se borra: se marca**, y el motivo queda en la bitácora con quién
+y cuándo. Si el servidor se niega —porque la factura ya tiene pagos— la negativa
+se pinta **dentro del diálogo, sin borrar lo escrito**, para corregir y
+reintentar sin volver a teclearlo.
+
 ## Qué te va a negar el sistema
 
 | Lo que lees | Por qué |
@@ -963,6 +976,14 @@ Tres respuestas distintas que conviene no confundir:
 | «Tu perfil no incluye esta acción. Pide acceso al administrador.» | **Permiso.** Tu rol no tiene esa pantalla o ese botón | Pedir el acceso, si de verdad te toca |
 | Un mensaje que explica una regla —«Quien solicita… no puede…», «La venta tiene N días…» | **Regla de negocio.** Tu permiso está bien | Que firme quien le toca, o corregir el documento |
 | «No hay conexión con el servidor.» | El backend no responde | Avisar a sistemas |
+
+Y una regla de redacción que atraviesa las tres: **cuando un mensaje trae un
+importe, va en pesos y con su formato**, igual que en el resto de la pantalla.
+Un número crudo se lee mal a la primera —«-6150.00» puede ser seis mil o
+seiscientos quince hasta que uno cuenta los dígitos— y una tolerancia sin unidad
+parece un conteo:
+
+![La conciliación de cartera dice la diferencia y la tolerancia en pesos, con el mismo formato que la línea de abajo.](img/erp-conciliacion-importes-en-pesos.png)
 
 La diferencia entre las dos primeras es la que más tiempo ahorra. **Si el
 mensaje te explica una regla, pedir más permisos no sirve de nada**: el sistema
@@ -1131,6 +1152,15 @@ donde va. Si el prospecto trae empresa, el cliente es la empresa y la persona
 pasa a ser el contacto:
 
 ![El alta se abre con la empresa como cliente y la persona como contacto; falta el RFC, que es lo que el aviso anunciaba.](img/crm-alta-desde-prospecto.jpg)
+
+## Las actividades cuelgan de una oportunidad abierta
+
+Llamadas, reuniones y visitas se agendan **contra una oportunidad**, no sueltas:
+es lo que permite saber después qué se hizo para ganar o perder un negocio. Por
+eso, si no hay ninguna oportunidad abierta, la pantalla lo dice y lleva al
+Pipeline en vez de abrir un formulario que no se podría contestar:
+
+![Sin oportunidades abiertas, el selector sale apagado diciéndolo y el estado vacío lleva al Pipeline.](img/erp-actividad-sin-oportunidad-abierta.png)
 
 Los datos viajan **por la API y no por la barra de direcciones**: en el enlace
 sólo va el identificador del prospecto. Un nombre y un teléfono en la URL
