@@ -41,6 +41,10 @@ import {
   TipoEtapa,
 } from '../entities/crm.entity';
 import { exigirRangoDeFechas } from '../../common/utils/business-time.util';
+import {
+  diaCalendario,
+  fechaCalendario,
+} from '../../common/utils/fecha-calendario.util';
 
 const aCent = (v: number | string) => Math.round(Number(v ?? 0) * 100);
 const aPesos = (c: number) => Math.round(c) / 100;
@@ -652,14 +656,38 @@ export class CrmService {
       0,
     );
 
-    // Tiempo de ciclo: de la creación al cierre, sólo de las ganadas.
+    /*
+     * Tiempo de ciclo: de la creación al cierre, sólo de las ganadas.
+     *
+     * ── UN CICLO DE VENTA DE −1 DÍAS ───────────────────────────────────────
+     * MEDIDO el 13-oct-2026 con una oportunidad creada y ganada el mismo día:
+     * la pantalla decía «-1 días».
+     *
+     * `fechaCierreReal` es una columna `date` —un día del calendario, que al
+     * leerse queda a medianoche— y `fechaCreacion` es un `timestamp` con la
+     * hora real. Restar un instante de las 14:00 a una medianoche del mismo día
+     * da catorce horas NEGATIVAS, y `Math.floor(-0.58)` es -1.
+     *
+     * Es la misma trampa que `fecha-calendario.util`: un día de calendario no
+     * es un instante. Se comparan los dos como lo que son —días—, y el mismo
+     * día da cero, que es la respuesta correcta y la que entiende quien lee el
+     * reporte.
+     *
+     * El `Math.max(0, ...)` no es un parche sobre lo anterior: cubre el caso de
+     * un cierre fechado a mano ANTES de la creación, que el formulario permite.
+     * Un ciclo negativo no significa nada y arrastraría el promedio hacia
+     * abajo sin que nadie supiera por qué.
+     */
     const ciclos = ganadas
       .filter((o) => o.fechaCierreReal)
       .map((o) =>
-        Math.floor(
-          (new Date(o.fechaCierreReal).getTime() -
-            new Date(o.fechaCreacion).getTime()) /
-            DIA_MS,
+        Math.max(
+          0,
+          Math.round(
+            (fechaCalendario(diaCalendario(o.fechaCierreReal)).getTime() -
+              fechaCalendario(diaCalendario(o.fechaCreacion)).getTime()) /
+              DIA_MS,
+          ),
         ),
       );
 

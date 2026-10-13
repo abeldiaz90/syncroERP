@@ -10,6 +10,7 @@
  * ============================================================================
  */
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import {
   CalendarClock, CheckCircle2, FileText, Handshake, Mail,
@@ -99,6 +100,14 @@ export default function ActividadesPage() {
     void actividades.recargar();
     void agenda.recargar();
   });
+
+  /*
+   * Mientras la consulta no ha vuelto no se sabe, y suponer que NO hay manda a
+   * alguien al Pipeline sin motivo. Se da por buena sólo con la respuesta en la
+   * mano.
+   */
+  const hayOportunidadesAbiertas =
+    oportunidades.cargando || (oportunidades.datos?.length ?? 0) > 0;
 
   const tituloOportunidad = useMemo(() => {
     const m = new Map<string, string>();
@@ -199,12 +208,22 @@ export default function ActividadesPage() {
         ) : (actividades.datos?.length ?? 0) === 0 ? (
           <SinDatos
             titulo={soloPendientes ? 'Nada pendiente en este rango' : 'Sin actividades en este rango'}
-            descripcion="Agenda llamadas y reuniones para no perder el seguimiento de tus oportunidades."
+            descripcion={
+              hayOportunidadesAbiertas
+                ? 'Agenda llamadas y reuniones para no perder el seguimiento de tus oportunidades.'
+                : 'Una actividad cuelga de una oportunidad abierta, y ahora mismo no hay ninguna. Abre una en el Pipeline y vuelve.'
+            }
             icono={<CalendarClock className="w-5 h-5" />}
             accion={
-              <Boton variante="primario" onClick={() => setModalAbierto(true)}>
-                Agendar la primera
-              </Boton>
+              hayOportunidadesAbiertas ? (
+                <Boton variante="primario" onClick={() => setModalAbierto(true)}>
+                  Agendar la primera
+                </Boton>
+              ) : (
+                <Link href="/dashboard/crm/pipeline" className="btn btn-primario">
+                  Ir al Pipeline
+                </Link>
+              )
             }
           />
         ) : (
@@ -402,13 +421,32 @@ function ModalNuevaActividad({
           />
         </Campo>
 
-        <Campo etiqueta="Oportunidad" requerido error={errores.oportunidadId}>
+        {/*
+          * Una actividad SIEMPRE cuelga de una oportunidad abierta, y cuando no
+          * hay ninguna esta lista sale vacía. Antes se veía sólo «Elige una…»
+          * sin nada detrás: un formulario obligatorio que no se puede
+          * contestar, y nada en la pantalla explicando por qué. Decirlo aquí
+          * —y dónde se arregla— cuesta dos líneas.
+          */}
+        <Campo
+          etiqueta="Oportunidad"
+          requerido
+          error={errores.oportunidadId}
+          ayuda={
+            oportunidades.length
+              ? undefined
+              : 'No hay ninguna oportunidad abierta a la que colgar esta actividad. Ábrela primero en el Pipeline.'
+          }
+        >
           <Seleccion
             value={form.oportunidadId}
             onChange={(e) => cambiar('oportunidadId', e.target.value)}
             error={!!errores.oportunidadId}
+            disabled={!oportunidades.length}
           >
-            <option value="">Elige una…</option>
+            <option value="">
+              {oportunidades.length ? 'Elige una…' : 'No hay oportunidades abiertas'}
+            </option>
             {oportunidades.map((o) => (
               <option key={o.id} value={o.id}>{o.folio} · {o.titulo}</option>
             ))}

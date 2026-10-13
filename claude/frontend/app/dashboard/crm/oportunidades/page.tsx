@@ -14,7 +14,7 @@ import { useMemo, useState } from 'react';
 import { Briefcase, Clock, Search, TrendingDown, Trophy } from 'lucide-react';
 
 import { api } from '@/lib/api';
-import { dinero, fecha, isoCorto, porcentaje } from '@/lib/format';
+import { dinero, fecha, isoCorto, porcentaje, plural } from '@/lib/format';
 import { useDatos } from '@/hooks/use-datos';
 import {
   Cargando, Distintivo, Entrada, EncabezadoPantalla, ErrorPantalla,
@@ -129,7 +129,7 @@ export default function OportunidadesPage() {
         <Indicador
           etiqueta="Ciclo de venta" color="#ea580c" cargando={metricas.cargando}
           icono={<Clock className="w-4 h-4" />}
-          valor={`${metricas.datos?.cicloPromedioDias ?? 0} días`}
+          valor={plural(metricas.datos?.cicloPromedioDias ?? 0, "día")}
           detalle="de creación a cierre ganado"
         />
       </div>
