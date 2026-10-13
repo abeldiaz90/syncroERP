@@ -132,8 +132,12 @@ export default function VacacionesPage() {
     finally { setProcesando(null); }
   }
   async function resolver(s: Solicitud, aprobar: boolean) {
-    const motivo = aprobar ? await solicitarTexto('Puedes dejar evidencia de la revisión.', { titulo: 'Aprobar vacaciones' }) : await solicitarTexto('Explica por qué se rechaza la solicitud.', { titulo: 'Rechazar vacaciones', obligatorio: true });
-    if (!aprobar && (!motivo || motivo.trim().length < 5)) return;
+    const motivo = aprobar ? await solicitarTexto('Puedes dejar evidencia de la revisión.', { titulo: 'Aprobar vacaciones' }) : await solicitarTexto('Explica por qué se rechaza la solicitud.', { titulo: 'Rechazar vacaciones', obligatorio: true, minimo: 5 });
+    /* El mínimo lo exige ya el diálogo, con el botón apagado y los caracteres
+       que faltan a la vista. Aquí sólo queda el caso de cerrarlo sin escribir:
+       antes, tres letras y «Continuar» se iban por este `return` sin decir nada,
+       y la pantalla se leía como si el clic no hubiera hecho nada. */
+    if (!aprobar && !motivo?.trim()) return;
     setProcesando(s.id);
     try { const resultado = await api.patch<Solicitud>(`/rrhh/vacaciones/solicitudes/${s.id}/resolver`, { aprobar, motivo: motivo || undefined }); avisar(aprobar && resultado.estado === 'EN_REVISION' ? 'Nivel aprobado; continúa con el siguiente aprobador.' : aprobar ? 'Vacaciones aprobadas e incidencia generada.' : 'Solicitud rechazada y saldo liberado.', 'exito'); await cargar(); }
     catch (e) { avisar(e instanceof ApiError ? e.mensajeParaPantalla() : e instanceof Error ? e.message : 'No se pudo resolver.', 'error'); }

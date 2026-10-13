@@ -11,6 +11,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Info, Loader2, X, XCircle, Inbox } from 'lucide-react';
+import { plural } from '@/lib/format';
 
 /* ── Encabezado de pantalla ──────────────────────────────────────────────── */
 
@@ -349,6 +350,128 @@ export function Confirmacion({
       }
     >
       <p className="text-[13px] text-slate-600 leading-relaxed">{mensaje}</p>
+      {error && (
+        <div
+          role="alert"
+          className="mt-3.5 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5"
+        >
+          <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-px" />
+          <p className="text-[12.5px] text-rose-700 leading-snug">{error}</p>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+/* ── Confirmación con motivo ─────────────────────────────────── */
+
+/*
+ * Cancelar una factura o un pedido exige un motivo, y el motivo acaba en la
+ * bitácora. Eso se pedía con `window.prompt`, y `window.prompt` falla de tres
+ * maneras que no se ven:
+ *
+ *  · El navegador lo puede SUPRIMIR. Chrome ofrece «evitar que esta página
+ *    cree más diálogos» y, una vez marcado, `prompt` devuelve `null` para
+ *    siempre sin abrir nada. El código lee `null` como «se arrepintió» y no
+ *    hace nada: el botón deja de servir y la pantalla no lo dice. En una
+ *    pestaña de fondo ni siquiera aparece.
+ *  · La negativa del servidor no cabe. El prompt ya se cerró cuando llega la
+ *    respuesta, así que un «no se puede cancelar: tiene un pago aplicado» se
+ *    va a un aviso de esquina de 4.5 segundos, con los ojos en otro lado.
+ *  · La regla del mínimo se comprueba DESPUÉS de cerrar. Quien escribe tres
+ *    letras pierde lo escrito y tiene que empezar de nuevo.
+ *
+ * Aquí el motivo se teclea dentro del diálogo, el botón está apagado hasta que
+ * el texto alcanza el mínimo —y dice cuánto falta—, y la negativa se pinta
+ * debajo sin borrar lo escrito, para poder corregir y reintentar.
+ *
+ * Quien pase `error` debe construir su acción con `{ errorVisible: true }`,
+ * para que el mensaje no salga dos veces.
+ *
+ * NO es un duplicado de `solicitarTexto` de `@/components/ui/dialogos`. Aquel
+ * resuelve una promesa y se cierra, y sirve para los casos en que lo que viene
+ * después casi siempre funciona. Éste se queda abierto con lo escrito intacto
+ * cuando el servidor contesta que no, que es justo lo que pasa al cancelar una
+ * factura con un pago aplicado o un pedido ya surtido.
+ */
+export function ConfirmacionConMotivo({
+  abierto, titulo, mensaje, etiqueta = 'Motivo', ayuda,
+  minimo = 5, textoConfirmar = 'Confirmar', peligroso = true,
+  onConfirmar, onCancelar, procesando = false, error = null,
+}: {
+  abierto: boolean;
+  titulo: string;
+  mensaje: string;
+  etiqueta?: string;
+  ayuda?: string;
+  minimo?: number;
+  textoConfirmar?: string;
+  peligroso?: boolean;
+  onConfirmar: (motivo: string) => void;
+  onCancelar: () => void;
+  procesando?: boolean;
+  error?: string | null;
+}) {
+  const [motivo, setMotivo] = useState('');
+  const referencia = React.useRef<HTMLTextAreaElement>(null);
+
+  /* Al abrirse se vacía y toma el foco: el motivo de la cancelación anterior
+     no es el de ésta, y heredarlo es firmar algo que nadie escribió. */
+  useEffect(() => {
+    if (!abierto) return;
+    setMotivo('');
+    const t = setTimeout(() => referencia.current?.focus(), 30);
+    return () => clearTimeout(t);
+  }, [abierto]);
+
+  const limpio = motivo.trim();
+  const falta = Math.max(0, minimo - limpio.length);
+  const listo = falta === 0;
+
+  return (
+    <Modal
+      abierto={abierto}
+      onCerrar={onCancelar}
+      titulo={titulo}
+      ancho={460}
+      pie={
+        <>
+          <Boton variante="neutro" onClick={onCancelar} disabled={procesando}>
+            Cerrar
+          </Boton>
+          <Boton
+            variante={peligroso ? 'peligro' : 'primario'}
+            onClick={() => onConfirmar(limpio)}
+            cargando={procesando}
+            disabled={!listo}
+          >
+            {error ? 'Reintentar' : textoConfirmar}
+          </Boton>
+        </>
+      }
+    >
+      <p className="text-[13px] text-slate-600 leading-relaxed">{mensaje}</p>
+      <div className="mt-3.5">
+        <Campo
+          etiqueta={etiqueta}
+          requerido
+          ayuda={
+            listo
+              ? (ayuda ?? 'Queda en la bitácora, con tu nombre y la fecha.')
+              : `${plural(falta, 'carácter', 'caracteres')} más para poder continuar.`
+          }
+        >
+          <textarea
+            ref={referencia}
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            rows={3}
+            disabled={procesando}
+            className="campo resize-y"
+            placeholder="Por qué se cancela"
+          />
+        </Campo>
+      </div>
       {error && (
         <div
           role="alert"

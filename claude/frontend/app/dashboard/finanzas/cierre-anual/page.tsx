@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CalendarCheck, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
-import { useAvisos } from '@/components/ui';
+import { Confirmacion, useAvisos } from '@/components/ui';
+import { plural } from '@/lib/format';
 
 /**
  * ============================================================================
@@ -50,6 +51,8 @@ export default function CierreAnualPage() {
   const { avisar } = useAvisos();
   const [ejercicio, setEjercicio] = useState(new Date().getFullYear() - 1);
   const [d, setD] = useState<Diagnostico | null>(null);
+  const [preguntando, setPreguntando] = useState(false);
+  const [errorTraspaso, setErrorTraspaso] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [traspasando, setTraspasando] = useState(false);
 
@@ -71,16 +74,16 @@ export default function CierreAnualPage() {
     void cargar(ejercicio);
   }, [ejercicio]);
 
+  /*
+   * El traspaso es el asiento menos deshacible del año, y `window.confirm` era
+   * mal sitio para pedirlo: el navegador lo puede suprimir —y entonces
+   * devuelve `false` para siempre, así que el botón deja de servir sin decirlo—
+   * y la negativa del servidor llega cuando el diálogo ya se cerró. Ahora la
+   * pregunta y la negativa viven en el mismo diálogo.
+   */
   const traspasar = async () => {
-    if (
-      !window.confirm(
-        `Se asentará la póliza de cierre del ${ejercicio} con fecha 31 de diciembre. ` +
-          'Deja en cero las cuentas de ingreso, costo y gasto y manda el resultado al capital. ¿Continuar?',
-      )
-    ) {
-      return;
-    }
     setTraspasando(true);
+    setErrorTraspaso(null);
     try {
       const r = await api.post<any>(`/finanzas/cierre-anual/${ejercicio}/traspasar`, {});
       avisar(
@@ -88,11 +91,11 @@ export default function CierreAnualPage() {
           `${dinero(Math.abs(r.resultado))}. ${r.siguientePaso}`,
         'exito',
       );
+      setPreguntando(false);
       await cargar(ejercicio);
     } catch (e) {
-      avisar(
+      setErrorTraspaso(
         e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo traspasar el resultado.',
-        'error',
       );
     } finally {
       setTraspasando(false);
@@ -208,12 +211,13 @@ export default function CierreAnualPage() {
                 Listo para traspasar
               </h2>
               <p className="text-sm text-emerald-900">
-                Se saldarán <b>{d.cuentasPorSaldar}</b> cuenta(s) y se asentará{' '}
+                {d.cuentasPorSaldar === 1 ? 'Se saldará' : 'Se saldarán'}{' '}
+                <b>{plural(d.cuentasPorSaldar, 'cuenta')}</b> y se asentará{' '}
                 {d.resultado >= 0 ? 'una utilidad' : 'una pérdida'} de{' '}
                 <b>{dinero(Math.abs(d.resultado))}</b>.
               </p>
               <button
-                onClick={() => void traspasar()}
+                onClick={() => { setErrorTraspaso(null); setPreguntando(true); }}
                 disabled={traspasando || !puede}
                 className="px-5 py-2 rounded-xl bg-slate-900 text-white font-bold disabled:opacity-50"
               >
@@ -232,6 +236,18 @@ export default function CierreAnualPage() {
           )}
         </>
       )}
+
+      <Confirmacion
+        abierto={preguntando}
+        titulo={`Traspasar el resultado del ${ejercicio}`}
+        mensaje={`Se asentará la póliza de cierre del ${ejercicio} con fecha 31 de diciembre. Deja en cero las cuentas de ingreso, costo y gasto y manda el resultado al capital.`}
+        textoConfirmar="Asentar la póliza de cierre"
+        peligroso
+        procesando={traspasando}
+        error={errorTraspaso}
+        onConfirmar={() => void traspasar()}
+        onCancelar={() => { setPreguntando(false); setErrorTraspaso(null); }}
+      />
     </div>
   );
 }

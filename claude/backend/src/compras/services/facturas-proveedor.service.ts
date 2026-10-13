@@ -380,7 +380,8 @@ export class FacturasProveedorService {
        * el SAT, lo que corresponde es su nota de crédito.
        */
       throw new ConflictException(
-        `Esta factura tiene ${total} pago(s) registrados y no se cancela: el pago quedaría sin ` +
+        `Esta factura tiene ${total} ${Number(total) === 1 ? 'pago registrado' : 'pagos registrados'} ` +
+          `y no se cancela: ${Number(total) === 1 ? 'ese pago quedaría' : 'esos pagos quedarían'} sin ` +
           'documento que lo respalde. Si el proveedor la canceló ante el SAT, registra su nota de crédito.',
       );
     }

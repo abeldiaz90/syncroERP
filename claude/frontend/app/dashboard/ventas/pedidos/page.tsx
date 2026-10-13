@@ -10,7 +10,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { api, ApiError, conPermiso } from '@/lib/api';
-import { useAvisos } from '@/components/ui';
+import { Confirmacion, ConfirmacionConMotivo, useAvisos } from '@/components/ui';
 import { fechaNumerica, hoyISO } from '@/lib/fechas';
 import { FOLIO, folioDe } from '@/lib/folios';
 import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
@@ -99,6 +99,14 @@ export default function PedidosVentaPage() {
   ]);
   const [detalle, setDetalle] = useState<Pedido | null>(null);
   const [espera, setEspera] = useState<EnEspera[]>([]);
+  const [cancelando, setCancelando] = useState<string | null>(null);
+  const [cancelandoProcesa, setCancelandoProcesa] = useState(false);
+  const [errorCancelar, setErrorCancelar] = useState<string | null>(null);
+  /* El precio pactado se movió. Se guarda el pedido Y el mensaje del
+     servidor, que trae los dos números: sin el mensaje, la pregunta queda
+     en «¿cobrar el precio de hoy?» sin decir cuál era ni cuál es. */
+  const [precioMovido, setPrecioMovido] = useState<{ id: string; mensaje: string } | null>(null);
+  const [surtiendo, setSurtiendo] = useState(false);
   const [metodoPago, setMetodoPago] = useState('EFECTIVO');
 
   const cargar = async () => {
@@ -231,26 +239,32 @@ export default function PedidosVentaPage() {
        * cobrar otro precio del pactado es una decisión de una persona.
        */
       if (/precio cambió/i.test(mensaje)) {
-        if (window.confirm(`${mensaje}\n\n¿Cobrar el precio de hoy?`)) {
-          return surtir(id, true);
-        }
+        setPrecioMovido({ id, mensaje });
         return;
       }
       avisar(mensaje, 'error');
     }
   };
 
-  const cancelar = async (id: string) => {
-    const motivo = window.prompt('¿Por qué se cancela el pedido? (queda en la bitácora)');
-    if (motivo === null) return;
-    if (motivo.trim().length < 5) return avisar('El motivo necesita al menos cinco caracteres.', 'alerta');
+  /* La negativa se queda en el diálogo, con lo escrito intacto: un pedido ya
+     surtido no se cancela, y eso se contesta después del clic. */
+  const cancelar = async (motivo: string) => {
+    const id = cancelando;
+    if (!id) return;
+    setCancelandoProcesa(true);
+    setErrorCancelar(null);
     try {
-      await api.patch(`/ventas/pedidos/${id}/cancelar`, { motivo: motivo.trim() });
+      await api.patch(`/ventas/pedidos/${id}/cancelar`, { motivo });
       avisar('Pedido cancelado y mercancía liberada.', 'exito');
+      setCancelando(null);
       setDetalle(null);
       await cargar();
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cancelar.', 'error');
+      setErrorCancelar(
+        e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cancelar.',
+      );
+    } finally {
+      setCancelandoProcesa(false);
     }
   };
 
@@ -572,7 +586,7 @@ export default function PedidosVentaPage() {
               )}
               {detalle.estado !== 'CANCELADO' && detalle.estado !== 'SURTIDO' && (
                 <button
-                  onClick={() => void cancelar(detalle.id)}
+                  onClick={() => { setErrorCancelar(null); setCancelando(detalle.id); }}
                   className="px-4 py-2 rounded-xl border font-semibold text-red-700"
                 >
                   <Ban className="inline w-4 h-4 mr-1" />
@@ -583,6 +597,34 @@ export default function PedidosVentaPage() {
           </div>
         </div>
       )}
+
+      <ConfirmacionConMotivo
+        abierto={!!cancelando}
+        titulo="Cancelar el pedido"
+        mensaje="Se cancela el pedido y se libera la mercancía apartada, que vuelve a estar disponible para vender. El motivo queda en la bitácora."
+        textoConfirmar="Cancelar el pedido"
+        onConfirmar={(motivo) => void cancelar(motivo)}
+        onCancelar={() => { setCancelando(null); setErrorCancelar(null); }}
+        procesando={cancelandoProcesa}
+        error={errorCancelar}
+      />
+
+      <Confirmacion
+        abierto={!!precioMovido}
+        titulo="El precio pactado ya no es el vigente"
+        mensaje={precioMovido?.mensaje ?? ''}
+        textoConfirmar="Cobrar el precio de hoy"
+        peligroso
+        procesando={surtiendo}
+        onConfirmar={() => {
+          const pendiente = precioMovido;
+          if (!pendiente) return;
+          setPrecioMovido(null);
+          setSurtiendo(true);
+          void surtir(pendiente.id, true).finally(() => setSurtiendo(false));
+        }}
+        onCancelar={() => setPrecioMovido(null)}
+      />
     </div>
   );
 }

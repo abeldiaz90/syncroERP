@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { FileText, RefreshCw, ScanSearch, Ban, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { api, ApiError, conPermiso } from '@/lib/api';
-import { useAvisos } from '@/components/ui';
+import { ConfirmacionConMotivo, useAvisos } from '@/components/ui';
 import { fechaNumerica, hoyISO } from '@/lib/fechas';
 import { FOLIO, folioDe } from '@/lib/folios';
 import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
@@ -108,6 +108,11 @@ export default function FacturasProveedorPage() {
     Array<{ detalleOrdenId: string | null; productoId?: string; descripcion: string; cantidad: string; precioUnitario: string; tasaIva: number }>
   >([]);
   const [detalle, setDetalle] = useState<{ factura: Factura; cotejo: Cotejo | null } | null>(null);
+  /* `null` = nadie está cancelando. El id, no un booleano: el diálogo tiene
+     que saber QUÉ factura, y un booleano obliga a guardarlo en otro sitio. */
+  const [cancelando, setCancelando] = useState<string | null>(null);
+  const [cancelandoProcesa, setCancelandoProcesa] = useState(false);
+  const [errorCancelar, setErrorCancelar] = useState<string | null>(null);
 
   /* El detalle del cotejo se cierra con Escape: un modal del que sólo se
      sale con el ratón es uno del que la gente sale recargando. */
@@ -262,18 +267,35 @@ export default function FacturasProveedorPage() {
     }
   };
 
-  const cancelar = async (id: string) => {
-    const motivo = window.prompt('¿Por qué se cancela esta factura? (queda en la bitácora)');
-    if (motivo === null) return;
-    if (motivo.trim().length < 5) return avisar('El motivo necesita al menos cinco caracteres.', 'alerta');
+  /*
+   * La negativa se pinta DENTRO del diálogo y no se cierra: una factura con un
+   * pago aplicado no se puede cancelar, y eso se contesta después del clic.
+   * Cerrando el diálogo, el motivo escrito se pierde y el mensaje se va a un
+   * aviso de esquina mientras los ojos están en el centro de la pantalla.
+   */
+  const cancelar = async (motivo: string) => {
+    const id = cancelando;
+    if (!id) return;
+    setCancelandoProcesa(true);
+    setErrorCancelar(null);
     try {
-      const r = await api.patch<any>(`/compras/facturas-proveedor/${id}/cancelar`, { motivo: motivo.trim() });
+      const r = await api.patch<any>(`/compras/facturas-proveedor/${id}/cancelar`, { motivo });
       avisar(r.mensaje ?? 'Factura cancelada.', 'exito');
+      setCancelando(null);
       setDetalle(null);
       await cargar();
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cancelar.', 'error');
+      setErrorCancelar(
+        e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cancelar.',
+      );
+    } finally {
+      setCancelandoProcesa(false);
     }
+  };
+
+  const pedirMotivo = (id: string) => {
+    setErrorCancelar(null);
+    setCancelando(id);
   };
 
   return (
@@ -503,7 +525,7 @@ export default function FacturasProveedorPage() {
                       </button>
                     )}
                     {f.estado !== 'CANCELADA' && (
-                      <button onClick={() => void cancelar(f.id)} className="px-2 py-1 border rounded-lg" title="Cancelar">
+                      <button onClick={() => pedirMotivo(f.id)} className="px-2 py-1 border rounded-lg" title="Cancelar">
                         <Ban className="inline w-4 h-4" />
                       </button>
                     )}
@@ -573,6 +595,17 @@ export default function FacturasProveedorPage() {
           </div>
         </div>
       )}
+
+      <ConfirmacionConMotivo
+        abierto={!!cancelando}
+        titulo="Cancelar la factura del proveedor"
+        mensaje="La factura queda cancelada y deja de contar para el cotejo y para el pago. No se borra: se marca, y el motivo queda en la bitácora."
+        textoConfirmar="Cancelar la factura"
+        onConfirmar={(motivo) => void cancelar(motivo)}
+        onCancelar={() => { setCancelando(null); setErrorCancelar(null); }}
+        procesando={cancelandoProcesa}
+        error={errorCancelar}
+      />
     </div>
   );
 }
