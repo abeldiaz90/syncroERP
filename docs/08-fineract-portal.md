@@ -1,6 +1,6 @@
 # 08 · El portal de Fineract, paso a paso
 
-**Revisión:** 12 de octubre de 2026
+**Revisión:** 13 de octubre de 2026
 **Para:** quien opera crédito y captación, y quien los capacita.
 **Dónde:** el portal, aparte del ERP. En la instalación local, en el puerto 3002.
 
@@ -237,13 +237,72 @@ en Keycloak.
 
 ---
 
-# 8 · Lo que falta de este documento
+# 8 · Cartera vencida y estimaciones preventivas
+
+**Dónde:** Crédito → Cartera vencida, y Crédito → Riesgo y provisiones.
+
+## Lo que el portal considera vencido
+
+La pantalla **no inventa la clasificación**: enseña lo que Fineract ya decidió,
+agrupado por la escala de mora que configuró la institución. Cada tramo es un
+filtro: se toca y la lista de abajo se reduce a ese tramo.
+
+![Cartera vencida: $3,000.00 en un crédito, 9.70 % sobre saldo vivo, 23 días de atraso máximo, y los tramos de la escala con su importe.](img/portal-cartera-vencida.jpg)
+
+Los cuatro números de arriba se leen juntos: **vencido total**, **cartera
+activa** (saldo vivo), **en riesgo** —el vencido sobre el saldo vivo— y el
+**atraso máximo**. Medido el 12-oct: $3,000.00 vencidos sobre $30,913.15 vivos
+dan 9.70 %, y el crédito más atrasado arrastra desde el 19 de septiembre, 23
+días. Las tres cuentas cuadran contra el renglón de la lista.
+
+**Dos tramos que no son un tramo**, y conviene saber qué significan:
+
+- **«sin días (cierre pendiente)»** — el core todavía no ha corrido el cierre
+  del día, así que no ha calculado los días de atraso de esos créditos.
+- **«sin escala de mora (producto sin cubeta)»** — su producto de crédito no
+  tiene una escala atada. Fineract reporta el importe vencido pero no lo
+  clasifica, y entonces los días los calcula el portal contra la fecha de
+  negocio. Es una cosa que se arregla en el producto, no en la pantalla.
+
+El desplegable **«De dónde salen estos números»** dice de qué consulta del core
+sale cada cifra. Un número de cartera sin su procedencia no se puede defender
+ante nadie.
+
+## El motor de estimaciones preventivas
+
+**Crédito → Riesgo y provisiones** tiene las dos mitades separadas en pestañas:
+**Mora** —los rangos de días y las escalas que se asignan a los productos— y
+**Provisiones** —las categorías contables, los criterios con su porcentaje y las
+corridas—.
+
+![Riesgo y provisiones: cuatro categorías contables y el criterio «Estimación preventiva SUMA» cubriendo los cinco productos de crédito.](img/portal-riesgo-provisiones.jpg)
+
+La cadena completa, en orden:
+
+1. **Rangos de mora** — ventanas de días de atraso (1–29, 30–59, 60–89, 90–179,
+   180 o más).
+2. **Escalas de mora** — ordenan varios rangos y se asignan a los **productos de
+   crédito**. Un producto sin escala es el caso «sin cubeta» de arriba.
+3. **Categorías de provisión** — las etiquetas contables que agrupan la cartera
+   (A riesgo normal, B medio, C alto, D irrecuperable).
+4. **Criterios de provisión** — el porcentaje de estimación por rango, **con la
+   cuenta de gasto y la de pasivo** que se van a afectar.
+5. **Corridas** — calculan la estimación a una fecha y, si se pide,
+   **generan las pólizas contables**.
+
+Es la misma escala la que clasifica la cartera vencida y la que decide el
+porcentaje de estimación: una sola definición para las dos cosas, que es lo que
+evita que el reporte de mora y el de provisiones discrepen.
+
+---
+
+# 9 · Lo que falta de este documento
 
 Dicho aquí para que nadie lo descubra buscándolo:
 
-- **Los recorridos con capturas.** Las ocho áreas están descritas; el paso a
-  paso pantalla por pantalla, como en `07-flujos-y-procesos.md`, es la siguiente
-  revisión.
+- **Los recorridos con capturas.** Las ocho áreas están descritas y el apartado
+  8 ya lleva el suyo, con capturas. El resto del paso a paso pantalla por
+  pantalla, como en `07-flujos-y-procesos.md`, es la siguiente revisión.
 - **El manual por rol del portal.** El ERP tiene el suyo en
   `03-manual-por-rol.md`, medido contra sus plantillas de permisos. El del
   portal se mide contra los roles de Fineract, que son otros, y no se ha hecho.

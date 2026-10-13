@@ -80,7 +80,20 @@ Ordenados por lo que más se usa el día uno:
    Y una limitación que salió al leerla, en la tabla de abajo: **la adjudicación
    es por proveedor completo, no por partida**.
 
-7. **Las 85 pantallas del portal de Fineract.**
+7. **Las 85 pantallas del portal de Fineract.** Recorridas por pantalla: Mi
+   jornada, Cartera y originación, Mesa de control, **Cartera vencida** y
+   **Riesgo y provisiones** —estas dos documentadas con capturas en
+   `08-fineract-portal.md` §8, con las tres cuentas verificadas contra el
+   renglón—. El resto, pendiente.
+
+   Una cosa que **no** se tocó, a propósito: el portal escribe sus conteos con
+   el paréntesis —«5 producto(s)», «28 solicitud(es)»—, que es la forma que el
+   ERP acaba de abandonar por `plural()`. Aquí no es un defecto: «0
+   producto(s)» se lee bien con cualquier número, mientras que el «1 registros»
+   del ERP estaba mal. Y dos pruebas del portal fijan esas cadenas, su suite no
+   corre fuera de Windows, y son 19 archivos. Cambiar lo que no se puede probar,
+   por una mejora cosmética, no sale a cuenta — queda anotado para cuando haya
+   con qué verificarlo.
 
 ---
 
