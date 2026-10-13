@@ -1084,7 +1084,61 @@ dos. Está anotado en `06-limites-conocidos.md`.
 
 ---
 
-# 17 · Dónde se lee esto
+# 17 · El embudo de ventas, de prospecto a cliente
+
+**Quién:** `ventas`. **Dónde:** CRM → Pipeline.
+
+## Las cinco etapas, y por qué llevan un porcentaje
+
+| Etapa | Probabilidad |
+|---|---|
+| Prospecto | 10 % |
+| Contactado | 25 % |
+| Calificado | 45 % |
+| Propuesta | 65 % |
+| Negociación | 85 % |
+
+El tablero suma dos cosas distintas y las enseña separadas: el **valor total**
+—lo que suman las oportunidades abiertas— y el **pronóstico ponderado**, que
+multiplica cada una por la probabilidad de su etapa. Una oportunidad de $185,000
+vale $18,500 de pronóstico en Prospecto y $157,250 en Negociación. Mover una
+tarjeta recalcula los dos al instante.
+
+También cuenta las **estancadas**: las que llevan tiempo sin moverse. Un embudo
+sin esa columna se llena de oportunidades que nadie ha tocado en meses y sigue
+pronosticando sobre ellas.
+
+## Dar de alta un prospecto sin salir de la oportunidad
+
+El alta del prospecto está **dentro** del formulario de la oportunidad: no hay
+que ir a otra pantalla y volver. Y pide lo mínimo con una regla escrita:
+
+> «Escribe un correo o un teléfono: sin uno de los dos no hay forma de
+> contactarlo.»
+
+## Ganar no es terminar
+
+Al mover una oportunidad a **Ganada**, el sistema no se calla ni da por hecho
+que ya hay cliente:
+
+![Al ganar, el pipeline avisa de que el prospecto todavía no es cliente y pone el enlace que abre el alta.](img/crm-ganada-falta-el-cliente.jpg)
+
+> «La oportunidad quedó ganada, pero el prospecto todavía no es cliente: sin
+> RFC, régimen fiscal y domicilio no se le puede facturar. El alta los pide.»
+
+El enlace abre el alta de clientes **con lo que ya se sabe**, y reparte cada dato
+donde va. Si el prospecto trae empresa, el cliente es la empresa y la persona
+pasa a ser el contacto:
+
+![El alta se abre con la empresa como cliente y la persona como contacto; falta el RFC, que es lo que el aviso anunciaba.](img/crm-alta-desde-prospecto.jpg)
+
+Los datos viajan **por la API y no por la barra de direcciones**: en el enlace
+sólo va el identificador del prospecto. Un nombre y un teléfono en la URL
+acabarían en el historial del navegador y en los registros del servidor.
+
+---
+
+# 18 · Dónde se lee esto
 
 Todo este documento, y los demás, están **dentro del propio ERP**: menú
 **Ayuda → Ayuda y documentación**. Se leen en pantalla, con su índice lateral, y

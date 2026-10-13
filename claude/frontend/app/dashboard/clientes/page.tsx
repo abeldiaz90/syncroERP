@@ -347,12 +347,29 @@ export default function ClientesPage() {
             setExpediente(null);
             setErrors({}); setTouched({}); setSubmitTried(false);
             setPestana('identidad'); setCpSugiere(null); setCpCatalogo(null);
+            /*
+             * Quién es el cliente y quién es la persona con la que se habló NO
+             * son lo mismo cuando el prospecto trae empresa.
+             *
+             * Antes el nombre de la persona caía en «Nombre comercial» y el
+             * contacto quedaba vacío: el alta decía que el cliente se llama
+             * «Rosa Elena Cárdenas Vigil» y que su razón social es «Muebles del
+             * Centro SA de CV». Para una persona moral el cliente es la empresa,
+             * y la persona es por quién se pregunta al llamar — que es
+             * exactamente el campo «Nombre del contacto», que quedaba en blanco.
+             *
+             * Sin empresa no hay nada que separar: el prospecto es la persona, y
+             * esa persona es el cliente.
+             */
+            const esMoral = Boolean(p.empresa);
             setFormData({
               ...formVacio,
               paisId: mx?.id || '', pais: mx?.nombre || 'México',
-              nombre: p.nombre ?? '',
-              razonSocial: p.empresa ?? '',
-              tipoPersona: p.empresa ? 'MORAL' : 'FISICA',
+              nombre: esMoral ? p.empresa : (p.nombre ?? ''),
+              razonSocial: esMoral ? p.empresa : '',
+              tipoPersona: esMoral ? 'MORAL' : 'FISICA',
+              contactoNombre: esMoral ? (p.nombre ?? '') : '',
+              contactoTelefono: esMoral ? (p.telefono ?? '') : '',
               email: p.correo ?? p.email ?? '',
               telefono: p.telefono ?? '',
             });

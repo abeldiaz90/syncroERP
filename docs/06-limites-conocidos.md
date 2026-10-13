@@ -66,7 +66,11 @@ Ordenados por lo que más se usa el día uno:
 4. ~~RRHH: incidencias y vacaciones.~~ **Recorridas** (§7 y §8): falta de tres
    días con su efecto en nómina, solicitud de vacaciones con el desglose de
    laborables, y las dos negativas por cuatro ojos.
-5. **CRM de punta a punta:** prospecto → oportunidad → venta ganada.
+5. ~~CRM de punta a punta: prospecto → oportunidad → venta ganada.~~
+   **Recorrido** (§17): prospecto con la regla de contacto, oportunidad por las
+   cinco etapas con el pronóstico ponderado cuadrando en cada una, cierre en
+   Ganada y el paso a cliente. Falta ejercitar **Perdida** y las **Actividades**
+   de seguimiento.
 6. ~~Compras: cotizaciones y adjudicación~~ **Leída** sobre REQ-2026-000001, con
    dos ofertas compitiendo, la descartada marcada y la orden de compra generada
    (§16). **No se ha capturado una cotización nueva de principio a fin**: las dos
