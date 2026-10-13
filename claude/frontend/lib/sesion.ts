@@ -180,9 +180,58 @@ export function guardarSesion(tokens: TokensKeycloak) {
   programarRenovacion();
 }
 
+/**
+ * Cuándo caduca el token de RENOVACIÓN, leído del propio token.
+ *
+ * ── POR QUÉ NO BASTA CON `refresh_expires_in` ──────────────────────────────
+ * MEDIDO EL 13-OCT-2026, contra el sistema corriendo. Tras desplegar el
+ * arreglo que guarda el menor de los dos plazos, el navegador seguía diciendo
+ * que a la sesión le quedaban 43 minutos mientras el token de renovación
+ * caducaba en 13. El arreglo estaba servido —el bundle ya traía el campo— pero
+ * la fecha la había escrito el código viejo al iniciar sesión, y nadie la
+ * volvía a mirar.
+ *
+ * O sea: un arreglo que sólo entra en vigor en el siguiente inicio de sesión
+ * deja a todo el que ya estaba dentro con la avería puesta. Y no hacía falta
+ * preguntarle a nadie: el token de renovación es un JWT y lleva su propia
+ * fecha. Es la fuente autorizada, está en la mano, y leerla no cuesta una
+ * petición.
+ *
+ * Así que el plazo se corrige en cada lectura. Además de curar las fechas
+ * viejas, cubre el caso de un Keycloak que no mande `refresh_expires_in`.
+ *
+ * Devuelve 0 cuando no hay token, no es un JWT —puede ser opaco— o no trae
+ * `exp`. Cero significa «no se sabe», y quien llama ya sabe qué hacer con eso.
+ */
+function venceElRefresh(): number {
+  const bruto = leer(CLAVE_REFRESH);
+  if (!bruto) return 0;
+  try {
+    const cuerpo = bruto.split('.')[1];
+    if (!cuerpo) return 0;
+    const json = atob(cuerpo.replace(/-/g, '+').replace(/_/g, '/'));
+    const exp = Number((JSON.parse(json) as { exp?: unknown }).exp);
+    return Number.isFinite(exp) && exp > 0 ? exp * 1000 : 0;
+  } catch {
+    /* No es un JWT, o viene mal. No se sabe, y no se inventa. */
+    return 0;
+  }
+}
+
+/**
+ * El plazo EFECTIVO de la sesión: lo que ocurra antes, que deje de servir el
+ * token de acceso o que ya no se pueda renovar.
+ *
+ * El del refresh sólo acorta, nunca alarga: si no se puede leer, se queda la
+ * fecha guardada, que es lo que había siempre.
+ */
 function venceEn(): number {
   const valor = Number(leer(CLAVE_EXPIRA));
-  return Number.isFinite(valor) && valor > 0 ? valor : 0;
+  const guardado = Number.isFinite(valor) && valor > 0 ? valor : 0;
+  const refresh = venceElRefresh();
+  if (!guardado) return refresh;
+  if (!refresh) return guardado;
+  return Math.min(guardado, refresh);
 }
 
 /**

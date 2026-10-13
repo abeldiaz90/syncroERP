@@ -90,6 +90,58 @@ describe('la renovación mira el plazo que manda', () => {
   });
 
   /*
+   * ── LA SEGUNDA MITAD, MEDIDA EL MISMO DÍA ────────────────────────────────
+   * Con el arreglo de arriba ya desplegado, el navegador seguía diciendo que a
+   * la sesión le quedaban 43 minutos mientras el token de renovación caducaba
+   * en 13. El bundle servido YA traía `refresh_expires_in`: lo que pasaba es
+   * que la fecha la había escrito el código viejo al iniciar sesión, y nadie
+   * la volvía a mirar.
+   *
+   * Un arreglo que sólo entra en vigor en el siguiente inicio de sesión deja
+   * con la avería puesta a todo el que ya estaba dentro. Y no hacía falta
+   * preguntar: el token de renovación es un JWT y lleva su propia fecha.
+   */
+  it('el plazo se corrige leyendo el token de renovación, no sólo al guardarlo', () => {
+    expect(SESION).toMatch(/function venceElRefresh\(\): number/);
+    /* Se lee del JWT, con base64url, y sin inventar nada si no se puede. */
+    expect(SESION).toMatch(/replace\(\/-\/g, '\+'\)\.replace\(\/_\/g, '\/'\)/);
+    expect(SESION).toMatch(/return Number\.isFinite\(exp\) && exp > 0 \? exp \* 1000 : 0;/);
+  });
+
+  it('`venceEn` devuelve el menor de los dos, y el refresh sólo acorta', () => {
+    const cuerpo = SESION.slice(
+      SESION.indexOf('function venceEn(): number'),
+      SESION.indexOf('function venceEn(): number') + 420,
+    );
+    expect(cuerpo).toMatch(/const refresh = venceElRefresh\(\);/);
+    expect(cuerpo).toMatch(/if \(!guardado\) return refresh;/);
+    expect(cuerpo).toMatch(/if \(!refresh\) return guardado;/);
+    expect(cuerpo).toMatch(/return Math\.min\(guardado, refresh\);/);
+  });
+
+  it('un token opaco o sin `exp` no rompe nada: se queda la fecha guardada', () => {
+    /*
+     * La cuenta, sobre la misma regla. Un refresh que no es JWT da 0, y 0
+     * significa «no se sabe» —no «vence ya»—, que es la diferencia entre
+     * seguir trabajando y que la sesión se caiga por un formato inesperado.
+     */
+    const efectivo = (guardado: number, refresh: number) => {
+      if (!guardado) return refresh;
+      if (!refresh) return guardado;
+      return Math.min(guardado, refresh);
+    };
+    const ahora = 1_000_000;
+    /* El caso medido: guardado a 43 min, refresh a 13. Manda el refresh. */
+    expect(efectivo(ahora + 43 * 60_000, ahora + 13 * 60_000)).toBe(ahora + 13 * 60_000);
+    /* Token opaco: se respeta lo guardado. */
+    expect(efectivo(ahora + 43 * 60_000, 0)).toBe(ahora + 43 * 60_000);
+    /* Sin fecha guardada: sirve la del refresh. */
+    expect(efectivo(0, ahora + 13 * 60_000)).toBe(ahora + 13 * 60_000);
+    /* Ninguna de las dos: cero, que `porVencer` ya sabe tratar. */
+    expect(efectivo(0, 0)).toBe(0);
+  });
+
+  /*
    * La prueba de la prueba. Lo de arriba mira texto; esto comprueba la cuenta,
    * con los números reales del realm: acceso de 60 minutos, idle de 15. Si
    * alguien invirtiera el `Math.min`, el temporizador volvería al minuto 59 y
