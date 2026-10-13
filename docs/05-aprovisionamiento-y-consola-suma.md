@@ -1,6 +1,6 @@
 # 05 · Aprovisionamiento y consola SUMA
 
-**Revisión:** 28 de septiembre de 2026
+**Revisión:** 13 de octubre de 2026
 **Para:** SUMA. Cómo se da de alta una empresa cliente.
 
 > La consola es **una aplicación aparte, a propósito**, y vive en su propio
@@ -168,6 +168,48 @@ acceso local— para poder reenviarle la invitación sin ir a buscarla a Keycloa
 > Esa lista existía en el ERP desde el principio y **ninguna pantalla la
 > enseñaba**. Es la familia *un control que no se puede satisfacer*: un estado que
 > el sistema sabe calcular y nadie puede resolver.
+
+---
+
+## 6 bis. El diagnóstico se intenta, no se declara
+
+La consola abre con un diagnóstico de lo que le falta para funcionar: las
+variables, el realm, el grupo, el mapeador de grupos, la pertenencia de tu
+cuenta, el provisionador de identidades y el enlace con el ERP. Existe porque
+montar todo eso son cinco pasos en una consola ajena y equivocarse en cualquiera
+produce el mismo síntoma —«no puedo entrar»— sin decir cuál falló.
+
+Hasta el 13-oct, **dos de esos puntos se declaraban desde el `.env.local`** en
+vez de comprobarse, y de la credencial que crea los realms no había punto
+ninguno. Un secreto rotado, un cliente al que nadie dio `create-realm` o un ERP
+apagado dejaban la pantalla entera en verde, y el fallo aparecía a mitad del
+alta de un cliente: con el realm ya creado, o con la empresa ya escrita a
+medias. *Un control que se cree puesto.*
+
+Ahora las dos credenciales de las que depende aprovisionar **se prueban de
+verdad**, y ninguna de las dos llamadas cambia nada:
+
+| Punto | Qué intenta | Qué distingue |
+|---|---|---|
+| **La consola puede crear realms** | Pide el token a `master` y lee sus roles | Sin configurar · Keycloak no responde · secreto rotado · entra pero **sin `create-realm`** |
+| **Enlace con el ERP** | `GET /aprovisionamiento/empresas/reserva` con la clave de servicio | ERP apagado · **401/403** (las dos cadenas no coinciden) · **404** (el ERP no tiene `APROVISIONAMIENTO_TOKEN` y niega que las rutas existan) |
+
+Los dos casos que más tiempo ahorran son los dos últimos de cada fila:
+
+- **Entra pero no puede crear realms.** La credencial es válida y el token no
+  trae `create-realm`. Se arregla en Keycloak → realm `master` → Clients → el
+  cliente → **Service accounts roles** → Assign role → `create-realm`. Es el
+  único permiso que hace falta: Keycloak concede al creador la administración
+  del realm que crea, así que esa llave no alcanza a los realms que no creó.
+
+- **El ERP contesta 404.** No es que la ruta no exista: es que el ERP **niega
+  que exista** cuando no tiene `APROVISIONAMIENTO_TOKEN` configurada, que es el
+  estado correcto para una instalación sin consola. Se declara la variable en el
+  ERP con la misma cadena que `ERP_APROVISIONAMIENTO_TOKEN` de la consola, y se
+  reinicia.
+
+**Corre el diagnóstico antes de necesitarlo.** Es gratis, no crea nada, y es la
+diferencia entre enterarte ahora o a mitad del alta de un cliente.
 
 ---
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { plural } from "@/lib/format";
 import {
   ShieldCheck, Search, X, ChevronLeft, ChevronRight,
   Filter, RefreshCw, User, Clock, FileText, AlertTriangle,
@@ -212,7 +213,7 @@ export default function AuditoriaPage() {
             {resp.totalPaginas > 1 && (
               <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50">
                 <p className="text-xs text-slate-400">
-                  Página {resp.pagina} de {resp.totalPaginas} · {resp.total} registros
+                  Página {resp.pagina} de {resp.totalPaginas} · {plural(resp.total, 'registro')}
                 </p>
                 <div className="flex gap-1">
                   <button aria-label="Anterior" title="Anterior" onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={resp.pagina === 1}

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { plural } from '@/lib/format';
 import { diaISO, mesHastaHoy } from '@/lib/fechas';
 import { BarChart2, RefreshCw, TrendingUp, DollarSign, ShoppingBag, CreditCard } from 'lucide-react';
 import { ExportBar } from '../../../components/export-bar';
@@ -211,7 +212,7 @@ export default function ReporteVentasPage() {
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
             {agrupacion === 'dia' ? 'Por Día' : agrupacion === 'metodo' ? 'Por Método de Pago' : 'Por Cliente'}
           </p>
-          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${ventasFiltradas.length} ventas`}</p>
+          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : plural(ventasFiltradas.length, 'venta')}</p>
         </div>
         {cargando ? (
           <div className="p-12 text-center">

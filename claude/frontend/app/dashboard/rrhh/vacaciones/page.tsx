@@ -3,10 +3,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, CheckCircle2, Clock3, Palmtree, XCircle } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
-import { fecha, isoCorto } from '@/lib/format';
+import { fecha, isoCorto, plural } from '@/lib/format';
 import { solicitarTexto } from '@/components/ui/dialogos';
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
 import { Boton, Cargando, Distintivo, EncabezadoPantalla, Panel, SinDatos, useAvisos } from '@/components/ui';
+
+/*
+ * El desglose del rango, tal y como lo cuenta el servidor.
+ *
+ * La pantalla contaba días NATURALES y el servidor descuenta LABORABLES, así
+ * que «40 días naturales seleccionados» acababa en «Saldo insuficiente.
+ * Disponibles: 14; solicitados: 34» después de pulsar. El servidor ya sabía
+ * explicarlo —`explicarDiasLaborables`, con su comentario diciendo este mismo
+ * problema—, pero no tenía ruta ni quien la llamara. Ahora la tiene.
+ */
+type Desglose = {
+  laborables: number;
+  naturales: number;
+  noLaborables: Array<{ fecha: string; motivo: string }>;
+};
 
 type Empleado = { id: string; numeroEmpleado: string; nombreCompleto?: string; nombres?: string; apellidoPaterno?: string; estado?: string };
 type Solicitud = { id: string; empleadoId: string; fechaInicio: string; fechaFin: string; diasSolicitados: number; estado: string; motivo?: string; motivoResolucion?: string; fechaCreacion: string };
@@ -44,6 +59,35 @@ export default function VacacionesPage() {
   useEffect(() => { if (!form.empleadoId) return setSaldo(null); api.get<Saldo>(`/rrhh/vacaciones/saldo/${form.empleadoId}`).then(setSaldo).catch(() => setSaldo(null)); }, [form.empleadoId]);
 
   /*
+   * El desglose se pide al servidor cada vez que cambia el rango. No se calcula
+   * aquí a propósito: los días que no cuentan salen del calendario laboral de
+   * la empresa y de los descansos obligatorios de la LFT, y una segunda copia
+   * de esa regla en la pantalla volvería a separarse de la del servidor —que es
+   * exactamente la avería que esto arregla—.
+   */
+  const [desglose, setDesglose] = useState<Desglose | null>(null);
+  const [midiendo, setMidiendo] = useState(false);
+  useEffect(() => {
+    const { fechaInicio, fechaFin } = form;
+    if (!fechaInicio || !fechaFin || fechaFin < fechaInicio) { setDesglose(null); return; }
+    let vigente = true;
+    setMidiendo(true);
+    api
+      .get<Desglose>(`/rrhh/vacaciones/dias-laborables?desde=${fechaInicio}&hasta=${fechaFin}`)
+      .then((d) => { if (vigente) setDesglose(d); })
+      .catch(() => { if (vigente) setDesglose(null); })
+      .finally(() => { if (vigente) setMidiendo(false); });
+    return () => { vigente = false; };
+  }, [form.fechaInicio, form.fechaFin]);
+
+  /* Lo que de verdad se va a consumir, y si cabe en el saldo. */
+  const consume = desglose?.laborables ?? null;
+  const seExcede =
+    consume !== null && saldo?.tieneDerecho !== false && typeof saldo?.disponible === 'number'
+      ? consume > saldo.disponible
+      : false;
+
+  /*
    * Antes se podia elegir al empleado, poner las fechas, escribir el motivo y
    * pulsar enviar para enterarse de que todavia no tiene derecho a vacaciones.
    * El saldo ya trae el veredicto: se dice aqui, con la fecha en que nace el
@@ -75,7 +119,15 @@ export default function VacacionesPage() {
   async function solicitar() {
     if (!form.empleadoId || form.fechaFin < form.fechaInicio) return avisar('Selecciona empleado y un rango de fechas válido.', 'alerta');
     setProcesando('nueva');
-    try { await api.post('/rrhh/vacaciones/solicitudes', form); avisar('Solicitud enviada a la ruta de aprobación.', 'exito'); setForm((f) => ({ ...f, motivo: '' })); await cargar(); if (form.empleadoId) setSaldo(await api.get(`/rrhh/vacaciones/saldo/${form.empleadoId}`)); }
+    try { await api.post('/rrhh/vacaciones/solicitudes', form); avisar('Solicitud enviada a la ruta de aprobación.', 'exito'); /*
+       * Las fechas también vuelven a su sitio, no sólo el motivo.
+       *
+       * Dejándolas puestas, el aviso «este rango no cabe en el saldo» aparecía
+       * justo después de enviar —el saldo ya estaba reservado y el rango seguía
+       * en el formulario—, y se leía como si la solicitud hubiera fallado
+       * cuando acababa de entrar.
+       */
+      setForm((f) => ({ ...f, fechaInicio: hoy(), fechaFin: hoy(), motivo: '' })); await cargar(); if (form.empleadoId) setSaldo(await api.get(`/rrhh/vacaciones/saldo/${form.empleadoId}`)); }
     catch (e) { avisar(e instanceof ApiError ? e.mensajeParaPantalla() : e instanceof Error ? e.message : 'No se pudo registrar.', 'error'); }
     finally { setProcesando(null); }
   }
@@ -98,7 +150,56 @@ export default function VacacionesPage() {
           <BuscadorSeleccion valor={form.empleadoId} onChange={(empleadoId) => setForm({ ...form, empleadoId })} opciones={empleados.map((e) => ({ valor: e.id, etiqueta: nombre(e.id), busqueda: e.numeroEmpleado }))} placeholder="Buscar empleado…" />
           <div className="grid grid-cols-2 gap-3"><label className="text-sm">Desde<input type="date" className="entrada mt-1 w-full" value={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })}/></label><label className="text-sm">Hasta<input type="date" className="entrada mt-1 w-full" value={form.fechaFin} min={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaFin: e.target.value })}/></label></div>
           <label className="text-sm">Motivo o referencia<textarea className="entrada mt-1 min-h-20 w-full py-2" maxLength={400} value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })}/></label>
-          <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><b>{diasNaturales === null ? 'Elige un rango de fechas válido.' : `${diasNaturales} días naturales seleccionados.`}</b><br/>El sistema descontará exclusivamente los días laborables del calendario de la empresa.</div>
+          <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+            {diasNaturales === null ? (
+              <b>Elige un rango de fechas válido.</b>
+            ) : midiendo ? (
+              <b>Midiendo el rango…</b>
+            ) : desglose === null ? (
+              <>
+                <b>{plural(diasNaturales, 'día natural', 'días naturales')} seleccionados.</b>
+                <br />
+                Ahora mismo no se pudo calcular cuántos son laborables. Al
+                enviar la solicitud se calcula igualmente: el sistema descontará
+                exclusivamente los días laborables.
+              </>
+            ) : (
+              <>
+                <b>
+                  {plural(desglose.laborables, 'día laborable', 'días laborables')} de{' '}
+                  {plural(desglose.naturales, 'natural', 'naturales')}.
+                </b>
+                <br />
+                El sistema descontará exclusivamente los días laborables.
+                {desglose.noLaborables.length > 0 && (
+                  <ul className="mt-1.5 space-y-0.5 text-slate-500">
+                    {desglose.noLaborables.slice(0, 6).map((d) => (
+                      <li key={d.fecha}>· {fecha(d.fecha)} — {d.motivo}</li>
+                    ))}
+                    {desglose.noLaborables.length > 6 && (
+                      <li>· y {plural(desglose.noLaborables.length - 6, 'día más', 'días más')}.</li>
+                    )}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+          {/*
+            * El aviso llega ANTES de pulsar. El servidor niega con «Saldo
+            * insuficiente. Disponibles: N; solicitados: M», y hasta ahora ésa
+            * era la primera vez que alguien veía el número que de verdad
+            * importaba. Un botón que lleva a un no.
+            */}
+          {seExcede && saldo && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">
+              <b>Este rango no cabe en el saldo.</b>
+              <p className="mt-1">
+                Consume {plural(consume ?? 0, 'día laborable', 'días laborables')} y quedan{' '}
+                {plural(saldo.disponible, 'día disponible', 'días disponibles')}. Acorta el
+                rango o espera a que devengue más.
+              </p>
+            </div>
+          )}
           {sinDerecho && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
             <b>Todavía no tiene derecho a vacaciones.</b>
             <p className="mt-1">
@@ -108,7 +209,7 @@ export default function VacacionesPage() {
             {sinDerecho.fechaIngreso && <p className="mt-1 text-amber-700">Ingresó el {fecha(sinDerecho.fechaIngreso)}.</p>}
             <p className="mt-1 text-amber-700">Mientras tanto, un permiso con o sin goce se registra en Incidencias.</p>
           </div>}
-          <Boton variante="primario" cargando={procesando === 'nueva'} disabled={!form.empleadoId || form.fechaFin < form.fechaInicio || Boolean(sinDerecho)} onClick={() => void solicitar()} className="w-full">Enviar a aprobación</Boton>
+          <Boton variante="primario" cargando={procesando === 'nueva'} disabled={!form.empleadoId || form.fechaFin < form.fechaInicio || Boolean(sinDerecho) || midiendo || seExcede} onClick={() => void solicitar()} className="w-full">Enviar a aprobación</Boton>
         </div>
       </Panel>
       <div className="space-y-5">

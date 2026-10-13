@@ -71,7 +71,23 @@ describe('diasNaturales · sólo cuenta lo que se puede contar', () => {
   });
 
   it('la pantalla no imprime el número cuando no hay número', () => {
-    expect(codigo).toMatch(/diasNaturales === null \? 'Elige un rango de fechas válido\.'/);
+    /*
+     * El 13-oct esta rama pasó de una plantilla a JSX, porque el bloque dejó de
+     * decir sólo «N días naturales» y pasó a traer el desglose de laborables que
+     * manda el servidor. La condición es la misma; lo que cambió es cómo se
+     * escribe. Así que se exige la GUARDA y el texto, no su ortografía: que la
+     * rama de `diasNaturales === null` siga existiendo y siga llevando a esa
+     * frase, esté en una plantilla o en un elemento.
+     */
+    expect(codigo).toMatch(/diasNaturales === null \?/);
+    expect(codigo).toContain('Elige un rango de fechas válido.');
+    /*
+     * Y que la frase viva DENTRO de esa rama, no suelta en cualquier parte: si
+     * alguien moviera el texto a otro sitio, las dos comprobaciones de arriba
+     * seguirían verdes con el número otra vez impreso.
+     */
+    const rama = codigo.slice(codigo.indexOf('diasNaturales === null ?'));
+    expect(rama.slice(0, 200)).toContain('Elige un rango de fechas válido.');
     /*
      * El `(?<!\$)` importa: sin él, este regex tambien encaja con el
      * `${diasNaturales}` de la plantilla nueva —que es correcto— y la prueba

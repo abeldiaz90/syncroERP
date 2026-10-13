@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { plural } from '@/lib/format';
 import { Package, RefreshCw, Search, AlertTriangle } from 'lucide-react';
 import { ExportBar } from '../../../components/export-bar';
 
@@ -180,7 +181,7 @@ export default function ReporteInventarioPage() {
             se afirma ningún número.
           */}
           <p className={`text-2xl font-black ${stockBajo > 0 ? 'text-rose-600' : 'text-slate-600'}`}>
-            {cargando ? '—' : `${stockBajo} productos`}
+            {cargando ? '—' : plural(stockBajo, 'producto')}
           </p>
         </div>
       </div>
@@ -203,7 +204,7 @@ export default function ReporteInventarioPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-between">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Productos</p>
-          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${filtrados.length} productos`}</p>
+          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : plural(filtrados.length, 'producto')}</p>
         </div>
         {cargando ? (
           <div className="p-12 text-center">

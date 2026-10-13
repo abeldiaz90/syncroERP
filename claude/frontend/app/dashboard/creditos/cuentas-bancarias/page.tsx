@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { plural } from '@/lib/format';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
 import {
@@ -249,7 +250,7 @@ export default function CuentasBancariasPage() {
                   <p className={`font-bold text-${color}-900`}>{titulo}</p>
                   <p className={`text-xs text-${color}-700`}>{desc}</p>
                 </div>
-                <span className={`ml-auto text-sm font-bold text-${color}-700`}>{cargando ? 'Consultando…' : `${lista.length} cuenta(s)`}</span>
+                <span className={`ml-auto text-sm font-bold text-${color}-700`}>{cargando ? 'Consultando…' : plural(lista.length, 'cuenta')}</span>
               </div>
 
               {lista.length === 0 ? (

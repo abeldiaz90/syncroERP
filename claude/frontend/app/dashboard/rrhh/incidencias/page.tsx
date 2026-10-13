@@ -14,7 +14,7 @@ import { useMemo, useState } from 'react';
 import { CalendarX2, Check, Plus } from 'lucide-react';
 
 import { api } from '@/lib/api';
-import { fecha, isoCorto } from '@/lib/format';
+import { fecha, isoCorto, plural} from '@/lib/format';
 import { useAccion, useDatos } from '@/hooks/use-datos';
 import {
   Boton, Campo, Cargando, Distintivo, Entrada, EncabezadoPantalla,
@@ -202,7 +202,7 @@ export default function IncidenciasPage() {
             <span className="text-slate-300 text-[12px]">a</span>
             <Entrada type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="w-36" />
           </div>
-          <p className="text-[12px] text-slate-500 cifra">{resumen.total} registros</p>
+          <p className="text-[12px] text-slate-500 cifra">{plural(resumen.total, 'registro')}</p>
         </div>
 
         {incidencias.cargando ? (
@@ -472,8 +472,12 @@ function ModalNuevaIncidencia({
           {form.tipo === 'HORAS_EXTRA'
             ? 'se pagan como tiempo extraordinario — dobles las primeras 9 de la semana, triples el excedente.'
             : tipoActual.pagaPorOmision
-              ? `los ${dias || 0} días se pagan de forma normal.`
-              : `los ${dias || 0} días se descuentan del periodo.`}
+              ? ((dias || 0) === 1
+                  ? 'el día se paga de forma normal.'
+                  : `los ${dias || 0} días se pagan de forma normal.`)
+              : ((dias || 0) === 1
+                  ? 'el día se descuenta del periodo.'
+                  : `los ${dias || 0} días se descuentan del periodo.`)}
         </div>
 
         {error && <p className="text-[12.5px] text-rose-600 font-medium">{error}</p>}

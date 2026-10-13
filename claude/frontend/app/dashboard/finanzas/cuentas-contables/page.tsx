@@ -1,5 +1,6 @@
 "use client";
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { plural } from '@/lib/format';
 import { useState, useEffect } from "react";
 import { confirmarElegante } from '@/components/ui/dialogos';
 import {
@@ -379,7 +380,7 @@ export default function CuentasContablesPage() {
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
             Plan de Cuentas
           </p>
-          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${filtradas.length} cuenta(s)`}</p>
+          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : plural(filtradas.length, 'cuenta')}</p>
         </div>
 
         {cargando ? (

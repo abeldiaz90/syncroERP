@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fechaCorta, mesEnCurso } from '@/lib/fechas';
+import { plural } from '@/lib/format';
 import Link from 'next/link';
 import {
   BookOpen, FileText, Search, X, Plus,
@@ -17,6 +18,12 @@ interface IPoliza {
   id: string; folio: string; tipo: 'DIARIO' | 'INGRESO' | 'EGRESO';
   concepto: string; fecha: string; fechaCreacion: string;
   partidas: IPartida[];
+  /*
+   * De qué nació la póliza. Hace falta en la pantalla porque no todas las
+   * cancelaciones quieren lo mismo: ver `REGENERAR_ESTORBA`.
+   */
+  origenTipo?: string | null;
+  origenClave?: string | null;
   // ── Cancelación / reverso ──
   estatus?: 'VIGENTE' | 'CANCELADA' | 'REVERSA';
   polizaOrigenId?: string | null;
@@ -25,6 +32,25 @@ interface IPoliza {
   canceladaPor?: string | null;
   fechaCancelacion?: string | null;
 }
+
+/*
+ * Orígenes para los que «volver a generar» NO es lo que se quiere.
+ *
+ * Una depreciación no nace de un documento que haya que dejar contabilizado:
+ * nace de una corrida que se está deshaciendo. Si al cancelar la póliza se
+ * vuelve a encolar el asiento, el motor la rehace en segundos y la reversión
+ * de la corrida —que exige que el periodo NO tenga pólizas vigentes— se vuelve
+ * a negar. Con la casilla encendida por omisión, quien sigue al pie de la letra
+ * el mensaje de Activos fijos da vueltas sin que nada le explique por qué.
+ *
+ * Para estos orígenes la casilla nace apagada y dice qué pasa si se enciende.
+ */
+const REGENERAR_ESTORBA: Record<string, string> = {
+  DEPRECIACION:
+    'Esta póliza nació de una corrida de depreciación, no de un documento. ' +
+    'Si la vuelves a generar, el asiento se rehace enseguida y Activos fijos ' +
+    'no te dejará revertir el periodo. Déjala apagada si vas a revertir la corrida.',
+};
 
 const ESTATUS_CFG: Record<string, { cls: string; label: string }> = {
   CANCELADA: { cls: 'bg-rose-100 text-rose-700 border-rose-200',       label: 'Cancelada' },
@@ -161,7 +187,9 @@ export default function LibroDiarioPage() {
   };
 
   const abrirDetalle = (p: IPoliza) => {
-    setDetalle(p); setMotivo(''); setRegenerar(true); setErrCancel(null); setOkCancel(null);
+    setDetalle(p); setMotivo('');
+    setRegenerar(!REGENERAR_ESTORBA[p.origenTipo ?? '']);
+    setErrCancel(null); setOkCancel(null);
   };
 
   // Filtros en frontend
@@ -269,7 +297,7 @@ export default function LibroDiarioPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-between">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Pólizas</p>
-          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${filtradas.length} registros`}</p>
+          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : plural(filtradas.length, 'registro')}</p>
         </div>
 
         {cargando ? (
@@ -340,7 +368,7 @@ export default function LibroDiarioPage() {
             {totalPaginas > 1 && (
               <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50">
                 <p className="text-xs text-slate-400">
-                  Página {pagina} de {totalPaginas} · {filtradas.length} registros
+                  Página {pagina} de {totalPaginas} · {plural(filtradas.length, 'registro')}
                 </p>
                 <div className="flex gap-1">
                   <button aria-label="Página anterior" title="Página anterior" onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
@@ -465,6 +493,11 @@ export default function LibroDiarioPage() {
                     póliza nació de una recepción, una venta o un cobro, su
                     asiento vuelve a la cola y se rehace. Sin esto, ese
                     documento se queda sin contabilidad.
+                    {REGENERAR_ESTORBA[detalle.origenTipo ?? ''] && (
+                      <b className="block mt-1 text-amber-700">
+                        {REGENERAR_ESTORBA[detalle.origenTipo ?? '']}
+                      </b>
+                    )}
                   </span>
                 </label>
                 <div className="flex flex-col sm:flex-row gap-2">

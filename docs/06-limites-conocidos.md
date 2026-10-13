@@ -1,6 +1,6 @@
 # 06 · Límites conocidos
 
-**Revisión:** 9 de octubre de 2026
+**Revisión:** 13 de octubre de 2026
 
 > Esta es la parte del conjunto que más vale. Una lista de verdes no dice nada si
 > no va acompañada de lo que **no** se ha mirado y por qué. Aquí está todo en un
@@ -57,16 +57,26 @@ existe (`dominiosPermitidos`); la decisión no está tomada.
 
 Ordenados por lo que más se usa el día uno:
 
-1. **Devoluciones de venta.** El corte de caja ya está documentado y recorrido
-   (ver `07-flujos-y-procesos.md` §6); la devolución no.
-2. **Conteos físicos de inventario y ajustes (WMS).** Existe la pantalla; no se ha
-   contado nunca, así que no se sabe qué hace un ajuste con la valuación ni con la
-   contabilidad.
-3. **Depreciación de activos fijos.**
-4. **RRHH: incidencias y vacaciones.** La nómina corrió; el resto del módulo no.
+1. ~~Devoluciones de venta.~~ **Recorrida** (ver `07-flujos-y-procesos.md` §2).
+2. ~~Conteos físicos de inventario y ajustes (WMS).~~ **Recorrido**, con las
+   reglas de valuación y la negativa por cuatro ojos (§5).
+3. ~~Depreciación de activos fijos.~~ **Recorrida de punta a punta, incluida la
+   reversa** (§15). Queda un conteo abierto: `CNT-20261012224356-57F675`, que
+   sólo puede cerrar alguien distinto de quien lo capturó.
+4. ~~RRHH: incidencias y vacaciones.~~ **Recorridas** (§7 y §8): falta de tres
+   días con su efecto en nómina, solicitud de vacaciones con el desglose de
+   laborables, y las dos negativas por cuatro ojos.
 5. **CRM de punta a punta:** prospecto → oportunidad → venta ganada.
-6. **Compras: cotizaciones y adjudicación** con dos proveedores compitiendo. La
-   segregación está verificada; la comparación de ofertas no.
+6. ~~Compras: cotizaciones y adjudicación~~ **Leída** sobre REQ-2026-000001, con
+   dos ofertas compitiendo, la descartada marcada y la orden de compra generada
+   (§16). **No se ha capturado una cotización nueva de principio a fin**: las dos
+   requisiciones vivas esperan la firma de otra persona, que es justo lo que la
+   segregación exige.
+
+   Y una limitación que salió al leerla, en la tabla de abajo: **la adjudicación
+   es por proveedor completo, no por partida**.
+
+7. **Las 85 pantallas del portal de Fineract.**
 
 ---
 
@@ -77,6 +87,7 @@ Ordenados por lo que más se usa el día uno:
 | **Reversa de pagos a proveedor** | El ERP no la tiene, y por eso el movimiento de tesorería de un pago no se puede cancelar (ver `03-manual-por-rol.md`). `CobranzaService.cancelarPago` es la plantilla natural, pero toca tesorería, turno de caja, póliza e IVA reclasificado. |
 | **Umbrales por monto en compras** | Implementados, sin configurar. Hoy toda requisición sube al mando. Los números los pone el cliente. |
 | **Un hallazgo que dice *cuáles*, no *cuántas*** | El hallazgo de «cuentas con saldo contrario» dice cuántas y manda a revisar la balanza. Con cuatro entre cientos, es hacerle al contador el trabajo que el sistema ya hizo. |
+| **Adjudicar por partida** | La comparación de cotizaciones adjudica a **un** proveedor la requisición entera. En REQ-2026-000001 ganó Ferretera del Bajío por el total ($96,152.40 contra $97,672.00), y aun así el otro proveedor era más barato en tres de las cinco partidas —casco, azúcar y café—. Repartir la orden entre proveedores por renglón es lo que haría un comprador con esos dos PDF delante, y hoy hay que hacerlo a mano creando dos requisiciones. |
 | ~~Ubicar lo que quedó sin ubicar~~ | **Ya existe**: Almacenes → Reubicaciones, sección «Existencias sin posición». Esta tabla la daba por ausente; ver §4bis. |
 
 ---

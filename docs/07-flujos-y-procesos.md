@@ -1,6 +1,6 @@
 # 07 · Flujos y procesos, paso a paso
 
-**Revisión:** 12 de octubre de 2026
+**Revisión:** 13 de octubre de 2026
 **Para:** usuarios finales, quien los capacita y quien recibe el sistema.
 
 > Cada flujo de este documento está **ejercido contra el sistema corriendo o
@@ -350,6 +350,8 @@ diferencia: el sistema niega el cierre a quien abrió o capturó el conteo.
 > «La autorización del ajuste debe realizarla una persona distinta de quien
 > abrió o capturó el conteo.»
 
+![El conteo queda en PENDIENTE AUTORIZACION y el cierre se niega a quien lo capturó. El botón «Cerrar» sigue ahí porque para otra persona sí funciona.](img/conteo-cuatro-ojos.jpg)
+
 **Cómo se valúa lo que aparece de más:** al costo de su lote; si el lote no
 tiene costo, al del último lote con costo de ese producto en ese almacén; y si
 tampoco, al costo estándar o al precio de compra del catálogo. Si no hay
@@ -535,6 +537,26 @@ Si hay diferencia, las observaciones son obligatorias. No es burocracia: es el
    UMA al año (LISR art. 93-XIV). No se captura en ninguna parte: sale de la
    incidencia.
 
+## La pantalla cuenta lo mismo que el servidor, y lo dice antes
+
+Al elegir el rango, la pantalla pregunta al servidor cuántos de esos días son
+laborables y **enseña cuáles no cuentan y por qué** —domingo, día del art. 74,
+excepción del calendario de la empresa—. Y compara ese número con el saldo:
+
+![Del 2 de noviembre al 11 de diciembre son 40 días naturales y 34 laborables; con 14 disponibles, la pantalla lo dice y no deja enviar.](img/vacaciones-no-cabe-en-el-saldo.jpg)
+
+> «Este rango no cabe en el saldo. Consume 34 días laborables y quedan 14 días
+> disponibles. Acorta el rango o espera a que devengue más.»
+
+Hasta el 13-oct la pantalla contaba **naturales** —«40 días naturales
+seleccionados»— y el número que de verdad importaba aparecía después de pulsar,
+dentro de la negativa del servidor: «Saldo insuficiente. Disponibles: 14;
+solicitados: 34». Un botón que llevaba a un no.
+
+El cálculo lo hace el servidor, no la pantalla. Es a propósito: los días que no
+cuentan salen del calendario laboral de la empresa y de la LFT, y una segunda
+copia de esa regla en el navegador volvería a separarse de la buena.
+
 ## Qué te va a negar el sistema
 
 > «Quien solicita vacaciones no puede aprobarlas.»
@@ -553,6 +575,13 @@ horas extra se los suman. Por eso:
 
 > «Quien registra una incidencia no puede aprobarla. Debe autorizarla Gerencia u
 > otra persona de Recursos humanos.»
+
+![Una falta de tres días registrada: tres días no pagados, una pendiente de aprobar, y el efecto en nómina dicho en la propia fila.](img/incidencia-falta-registrada.jpg)
+
+La fila dice el **efecto en nómina** sin que haya que abrirla —«Se descuenta»—,
+y el formulario lo adelanta mientras se captura: «los 3 días se descuentan del
+periodo». El botón «Aprobar» sigue a la vista porque para otra persona sí
+funciona; lo que cambia es quién lo pulsa.
 
 ## Los estados, y qué significa cada uno en la pantalla
 
@@ -942,7 +971,120 @@ persona.
 
 ---
 
-# 15 · Dónde se lee esto
+# 15 · Depreciación de activos fijos (y cómo deshacerla)
+
+Un activo se da de alta en **Activos fijos → Registro de activos** con su costo,
+su categoría y la fecha en que empieza a depreciarse. La categoría trae la tasa
+anual y las dos cuentas —gasto y depreciación acumulada—, así que el alta no
+pide números contables.
+
+## La corrida
+
+**Activos fijos → Corrida de depreciación.** Se elige mes y ejercicio y se
+ejecuta. La pantalla no deprecia nada hasta que se confirma, y enseña el detalle
+activo por activo antes de que nada llegue a la contabilidad.
+
+![La corrida antes de ejecutarse: se elige el periodo y no hay nada registrado todavía.](img/depreciacion-sin-corrida.jpg)
+
+**Se deprecia por meses completos y vencidos.** Un periodo que aún no termina se
+niega:
+
+![Octubre en curso: «No se puede depreciar un periodo que aún no termina», dicho dentro del propio diálogo.](img/depreciacion-periodo-no-terminado.jpg)
+
+Y **no se puede saltar un mes**: si un activo tiene periodos anteriores
+pendientes, la corrida se niega y **nombra el activo** que la detiene —«existen
+activos con periodos anteriores pendientes (AF-000002)»—, para que no haya que
+adivinar cuál es.
+
+Ejecutar dos veces el mismo periodo **no duplica el gasto**: los activos ya
+depreciados se omiten, y la columna de observación dice por qué quedó fuera cada
+uno —«Su depreciación inicia después de este periodo», «Ya depreciado en este
+periodo»—.
+
+![Agosto 2026: un activo depreciado por $100.00 (12 000 × 10% ÷ 12), uno omitido con su motivo.](img/depreciacion-corrida-agosto.jpg)
+
+## La póliza
+
+La corrida escribe su propia póliza de diario: cargo a la cuenta de gasto de la
+categoría, abono a la de depreciación acumulada. Si la contabilidad estuviera mal
+configurada, la operación **no se cae**: queda en **Finanzas → Asientos
+pendientes** para resolverla sin perder la corrida.
+
+![El asiento DEP-2026-08 en la bandeja, resuelto y generado correctamente.](img/depreciacion-asiento-resuelto.jpg)
+
+## La cédula
+
+**Activos fijos → Cédula de depreciación** es el reporte del ejercicio, activo
+por activo, con el valor en libros al cierre. Se exporta e imprime.
+
+![Cédula del ejercicio 2026: $100.00 del ejercicio, $36,900.00 en libros.](img/depreciacion-cedula.jpg)
+
+## Deshacer una corrida
+
+Se revierte **sólo el último periodo depreciado** —revertir en medio dejaría un
+hueco en la cadena— y **sólo si ese mes ya no está contabilizado**. Si la póliza
+sigue vigente, el sistema se niega y dice exactamente qué hacer:
+
+![La negativa aparece dentro del diálogo, con el folio de la póliza y la instrucción completa.](img/depreciacion-reversion-negada.jpg)
+
+> «La depreciación de 2026-08 ya está contabilizada en la póliza DI-2026-00019.
+> Cancélala primero desde Finanzas → Pólizas, SIN marcar «Volver a generar la
+> póliza del documento» […], y vuelve a intentar. […] Ninguna depreciación fue
+> revertida.»
+
+**Por qué importa esa casilla.** En **Finanzas → Libro diario** se abre la
+póliza y se cancela con un motivo. Cancelar **no borra**: genera una póliza de
+reversa con los importes invertidos y conserva la original en el libro. La
+casilla «Volver a generar la póliza del documento» viene encendida por omisión
+—es lo correcto para una recepción o una venta, que no pueden quedarse sin
+contabilidad—, pero **para una depreciación hay que dejarla apagada**: si se
+vuelve a generar, el asiento se rehace en segundos y la reversión se niega otra
+vez. La pantalla la apaga sola cuando la póliza nació de una depreciación, y
+dice por qué.
+
+![La póliza de depreciación: la casilla nace apagada y explica qué pasa si se enciende.](img/poliza-depreciacion-cancelar.jpg)
+
+Con la póliza cancelada, la reversión procede: la depreciación acumulada de cada
+activo vuelve a su valor anterior, el contador de meses baja y el activo que
+hubiera quedado al 100% vuelve a estar activo.
+
+![La cédula después de revertir: $0.00 de depreciación y $37,000.00 en libros.](img/depreciacion-cedula-revertida.jpg)
+
+**El orden, en una línea:** cancelar la póliza (sin regenerar) → revertir la
+corrida → corregir lo que haya que corregir → volver a correr el periodo.
+
+---
+
+# 16 · Cotizar y adjudicar
+
+**Quién:** `compras`. **De dónde viene:** una requisición ya firmada.
+
+Las requisiciones autorizadas bajan solas a **Compras → Cotizaciones**. Mientras
+esperan firma, la pantalla lo dice en vez de enseñar una lista vacía:
+
+> «Nada por cotizar todavía. 2 requisiciones esperan autorización. Bajan aquí en
+> cuanto se firmen.»
+
+Cada proveedor manda su propuesta, y la pantalla las pone **una debajo de otra
+con las mismas partidas**: cantidad, precio unitario, importe, subtotal, IVA y
+total ofertado, más las condiciones tal y como las escribió el proveedor
+—«Entrega en 3 días hábiles. Pago a 30 días. Precios firmes 15 días.»— y el PDF
+original de cada una.
+
+Al adjudicar, el ganador queda marcado y **la orden de compra nace sola**; la
+otra propuesta se queda en el expediente como **DESCARTADA**, no se borra.
+
+![La propuesta ganadora, con la orden de compra ya generada; arriba, la descartada se conserva en el expediente.](img/cotizacion-adjudicada.jpg)
+
+**Un límite que conviene saber antes de usarlo:** se adjudica a **un proveedor la
+requisición entera**, no partida por partida. En el ejemplo ganó quien daba el
+total más bajo y, aun así, el otro era más barato en tres de los cinco renglones.
+Repartir una requisición entre dos proveedores hoy se hace a mano, partiéndola en
+dos. Está anotado en `06-limites-conocidos.md`.
+
+---
+
+# 17 · Dónde se lee esto
 
 Todo este documento, y los demás, están **dentro del propio ERP**: menú
 **Ayuda → Ayuda y documentación**. Se leen en pantalla, con su índice lateral, y

@@ -38,15 +38,44 @@ const FRONTEND = ['frontend', '../frontend', 'claude/frontend']
   .map((nombre) => join(RAIZ, nombre))
   .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
 
-/** Pantalla → el conteo que pinta, por el texto que lo acompaña. */
-const PANTALLAS: Array<{ ruta: string; cola: string }> = [
-  { ruta: 'app/dashboard/creditos/creditos/page.tsx', cola: 'crédito(s)' },
-  { ruta: 'app/dashboard/finanzas/cuentas-contables/page.tsx', cola: 'cuenta(s)' },
-  { ruta: 'app/dashboard/creditos/cuentas-bancarias/page.tsx', cola: 'cuenta(s)' },
-  { ruta: 'app/dashboard/compras/requisiciones/page.tsx', cola: 'registros' },
-  { ruta: 'app/dashboard/reportes/inventario/page.tsx', cola: 'productos' },
-  { ruta: 'app/dashboard/hoteleria/configuracion/DotacionInsumos.tsx', cola: 'producto(s)' },
+/**
+ * Pantalla → la palabra que acompaña al conteo, en singular.
+ *
+ * ANTES llevaba la cola literal —«crédito(s)», «registros»— porque todas
+ * interpolaban la palabra ya escrita. El 13-oct llegó `plural()` en
+ * `lib/format`, que acabó con «1 registros» y con los «(s)» entre paréntesis,
+ * y estas pantallas pasaron a `plural(n, 'crédito')`.
+ *
+ * Esta prueba dice de sí misma que NO fija el texto, sino que el número no
+ * viaje solo. Al migrar se puso roja igualmente: estaba fijando la forma de la
+ * plantilla. Se corrigió para aceptar las dos maneras de poner la guarda, que
+ * es lo único que aquí importa.
+ */
+const PANTALLAS: Array<{ ruta: string; palabra: string }> = [
+  { ruta: 'app/dashboard/creditos/creditos/page.tsx', palabra: 'crédito' },
+  { ruta: 'app/dashboard/finanzas/cuentas-contables/page.tsx', palabra: 'cuenta' },
+  { ruta: 'app/dashboard/creditos/cuentas-bancarias/page.tsx', palabra: 'cuenta' },
+  { ruta: 'app/dashboard/compras/requisiciones/page.tsx', palabra: 'registro' },
+  { ruta: 'app/dashboard/reportes/inventario/page.tsx', palabra: 'producto' },
+  { ruta: 'app/dashboard/hoteleria/configuracion/DotacionInsumos.tsx', palabra: 'producto' },
 ];
+
+/**
+ * Las dos formas buenas de pintar un conteo, y sólo esas dos:
+ *
+ *   {cargando ? 'Consultando…' : `${n} crédito(s)`}      ← la plantilla
+ *   {cargando ? 'Consultando…' : plural(n, 'crédito')}   ← con `plural()`
+ *
+ * Lo que se exige es la guarda delante. Cómo se escriba el plural da igual.
+ */
+function guardaConConteo(palabra: string): RegExp {
+  const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const p = esc(palabra);
+  return new RegExp(
+    `cargando \\? ('Consultando…'|'—') : ` +
+      `(\`\\$\\{[^}]+\\} ${p}|plural\\([^)]*'${p}')`,
+  );
+}
 
 /** Sin comentarios: aquí se mide código, no explicaciones. */
 const sinComentarios = (s: string) =>
@@ -60,7 +89,7 @@ describe('ninguna pantalla afirma un cero mientras sigue consultando', () => {
     expect(FRONTEND).toBeDefined();
   });
 
-  for (const { ruta, cola } of PANTALLAS) {
+  for (const { ruta, palabra } of PANTALLAS) {
     it(`${ruta} espera a saber antes de contar`, () => {
       const s = sinComentarios(readFileSync(join(FRONTEND!, ruta), 'utf8'));
 
@@ -72,7 +101,7 @@ describe('ninguna pantalla afirma un cero mientras sigue consultando', () => {
        * `{filtrados.length} crédito(s)`. Se exige que el que quede lleve la
        * guarda delante.
        */
-      const escape = cola.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escape = palabra.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       /*
        * El `(?<!\$)` NO es un detalle: sin él, el patrón encuentra el hueco de
        * la plantilla que ya lleva la guarda —`${filtrados.length} crédito(s)`
@@ -82,7 +111,7 @@ describe('ninguna pantalla afirma un cero mientras sigue consultando', () => {
        */
       const pelado = new RegExp(`(?<!\\$)\\{\\s*[A-Za-z_$][\\w$.]*(?:\\.length)?\\s*\\}\\s*${escape}`);
       expect(s).not.toMatch(pelado);
-      expect(s).toMatch(new RegExp(`cargando \\? 'Consultando…' : \`\\$\\{[^}]+\\} ${escape}`));
+      expect(s).toMatch(guardaConConteo(palabra));
     });
   }
 
@@ -232,17 +261,17 @@ describe('ninguna pantalla afirma un cero mientras sigue consultando', () => {
     const casos: Array<[string, string, string]> = [
       [
         'app/dashboard/finanzas/polizas/page.tsx',
-        "{cargando ? 'Consultando\u2026' : `${filtradas.length} registros`}",
+        "{cargando ? 'Consultando\u2026' : plural(filtradas.length, 'registro')}",
         '{filtradas.length} registros',
       ],
       [
         'app/dashboard/compras/pago-proveedores/page.tsx',
-        "{cargando ? 'Consultando\u2026' : `${filtradas.length} orden(es)`}",
-        '{filtradas.length} orden(es)',
+        "{cargando ? 'Consultando\u2026' : plural(filtradas.length, 'orden', '\u00f3rdenes')}",
+        '{filtradas.length} ordenes',
       ],
       [
         'app/dashboard/reportes/ventas/page.tsx',
-        "{cargando ? 'Consultando\u2026' : `${ventasFiltradas.length} ventas`}",
+        "{cargando ? 'Consultando\u2026' : plural(ventasFiltradas.length, 'venta')}",
         '{ventasFiltradas.length} ventas',
       ],
     ];
@@ -256,6 +285,21 @@ describe('ninguna pantalla afirma un cero mientras sigue consultando', () => {
       /* Sin el arreglo: el barrido lo canta. */
       expect(conteosSinGuarda(texto.replace(puesto, quitado))).toEqual([quitado]);
     }
+  });
+
+  it('`plural()` existe y concuerda: es lo que sostiene la mitad de estas pantallas', () => {
+    /*
+     * Seis de las pantallas de arriba ya no interpolan la palabra: llaman a
+     * `plural(n, 'registro')`. Si esa función desapareciera o dejara de
+     * distinguir el uno, volverían «1 registros» y «0 crédito(s)» sin que el
+     * resto de este archivo se enterara —la guarda seguiría puesta—.
+     */
+    const fuente = readFileSync(join(FRONTEND!, 'lib/format.ts'), 'utf8');
+    expect(fuente).toMatch(
+      /export function plural\(\s*n: number,\s*singular: string,\s*enPlural\?: string,?\s*\): string/,
+    );
+    /* El uno se trata aparte, y el plural por omisión añade la «s». */
+    expect(fuente).toMatch(/n === 1 \? singular : \(enPlural \?\? singular \+ 's'\)/);
   });
 
   it('y el detector reconoce la forma mala cuando la ve', () => {
@@ -281,7 +325,7 @@ describe('ninguna pantalla afirma un cero mientras sigue consultando', () => {
     const s = sinComentarios(
       readFileSync(join(FRONTEND!, 'app/dashboard/reportes/inventario/page.tsx'), 'utf8'),
     );
-    expect(s).toMatch(/\{cargando \? '—' : `\$\{stockBajo\} productos`\}/);
+    expect(s).toMatch(/\{cargando \? '—' : plural\(stockBajo, 'producto'\)\}/);
     expect(s).not.toMatch(/>\{stockBajo\} productos</);
   });
 

@@ -74,6 +74,23 @@ function aFecha(v: string | Date): Date {
   return new Date(a, mes - 1, dia);
 }
 
+/**
+ * Concordancia de número. «1 registros» y «los 1 días» son el mismo descuido
+ * repetido por media docena de pantallas: se interpola el número junto a una
+ * palabra escrita siempre en plural.
+ *
+ *   plural(1, 'registro')          → '1 registro'
+ *   plural(3, 'registro')          → '3 registros'
+ *   plural(1, 'día', 'días')       → '1 día'
+ *   plural(2, 'mes', 'meses')      → '2 meses'
+ *
+ * El plural por omisión es añadir «s», que cubre la mayoría; las palabras que
+ * no lo siguen —mes, póliza no, pero sí interés, nivel— pasan el segundo.
+ */
+export function plural(n: number, singular: string, enPlural?: string): string {
+  return `${n} ${n === 1 ? singular : (enPlural ?? singular + 's')}`;
+}
+
 export function fecha(v: string | Date | null | undefined): string {
   if (!v) return '—';
   const d = aFecha(v);

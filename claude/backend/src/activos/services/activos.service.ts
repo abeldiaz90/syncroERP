@@ -838,13 +838,26 @@ export class ActivosService {
         (p: Poliza) => ((p as any).estatus ?? 'VIGENTE') === 'VIGENTE',
       );
       if (vigentes.length) {
+        /*
+         * El mensaje nombra la casilla a propósito.
+         *
+         * La pantalla de pólizas trae «Volver a generar la póliza del documento»
+         * encendida por omisión, que es lo correcto para una recepción o una
+         * venta. Para una depreciación no: el asiento vuelve a la cola, el motor
+         * rehace la póliza en segundos y esta misma negativa se repite. Quien
+         * siguiera la instrucción al pie de la letra daría vueltas sin que nada
+         * se lo explicara, así que la instrucción tiene que estar completa.
+         */
+        const cuales = vigentes.map((p: Poliza) => p.folio).join(', ');
         throw new ConflictException(
           `La depreciación de ${ejercicio}-${String(mes).padStart(2, '0')} ya está ` +
             `contabilizada en ${vigentes.length === 1 ? 'la póliza' : 'las pólizas'} ` +
-            `${vigentes.map((p: Poliza) => p.folio).join(', ')}. ` +
-            'Cancélala primero desde Finanzas → Pólizas y vuelve a intentar: si ' +
-            'sólo se borra el auxiliar, el mayor conserva el cargo y ambos quedan ' +
-            'desalineados de forma permanente. Ninguna depreciación fue revertida.',
+            `${cuales}. Cancéla${vigentes.length === 1 ? 'la' : 'las'} primero desde ` +
+            'Finanzas → Pólizas, SIN marcar «Volver a generar la póliza del ' +
+            'documento» —si se vuelve a generar, el asiento se rehace y esta ' +
+            'reversión se niega otra vez—, y vuelve a intentar. Si sólo se borra ' +
+            'el auxiliar, el mayor conserva el cargo y ambos quedan desalineados ' +
+            'de forma permanente. Ninguna depreciación fue revertida.',
         );
       }
 

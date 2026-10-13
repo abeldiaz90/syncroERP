@@ -16,7 +16,7 @@ import { useState } from "react";
 import { CheckCircle2, RefreshCw, ShieldAlert, XCircle } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { fechaHora } from "@/lib/format";
+import { fechaHora, plural } from "@/lib/format";
 import { useAccion, useDatos } from "@/hooks/use-datos";
 import {
   Boton,
@@ -211,7 +211,7 @@ export default function AsientosPendientesPage() {
             <option value="DESCARTADO">Descartados</option>
           </Seleccion>
           <p className="text-[12px] text-slate-500 cifra">
-            {asientos.datos?.length ?? 0} registros
+            {plural(asientos.datos?.length ?? 0, 'registro')}
           </p>
         </div>
 

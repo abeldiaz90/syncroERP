@@ -53,22 +53,37 @@ export default function DepreciacionPage() {
     setResultado(r);
     setConfirmarCorrida(false);
     avisar(
-      r.activosProcesados > 0
-        ? `${r.activosProcesados} activos depreciados por ${dinero(r.importeTotal)}.`
-        : 'No había activos por depreciar en ese periodo.',
+      r.activosProcesados === 1
+        ? `1 activo depreciado por ${dinero(r.importeTotal)}.`
+        : r.activosProcesados > 1
+          ? `${r.activosProcesados} activos depreciados por ${dinero(r.importeTotal)}.`
+          : 'No había activos por depreciar en ese periodo.',
       r.activosProcesados > 0 ? 'exito' : 'info',
     );
     return r;
-    // `errorVisible`: esta pantalla pinta `correr.error` en su propio bloque.
+    // `errorVisible`: la negativa se pinta dentro del diálogo de confirmación,
+    // que es donde están los ojos cuando el servidor contesta que no.
   }, { errorVisible: true });
 
+  /*
+   * `errorVisible`: la negativa de revertir se pinta dentro del propio diálogo.
+   * El servidor contesta aquí cosas largas y accionables —«ya está contabilizada
+   * en la póliza DI-…, cancélala primero desde Finanzas → Pólizas»— que no caben
+   * en un aviso de esquina de 4.5 segundos. Antes el diálogo se quedaba abierto
+   * sin decir nada y el clic parecía no haber hecho nada.
+   */
   const revertir = useAccion(async () => {
     const r = await api.post<{ revertidos: number }>('/activos/depreciacion/revertir', { ejercicio, mes });
     setResultado(null);
     setConfirmarReversion(false);
-    avisar(`Se revirtieron ${r.revertidos} registros de depreciación.`, 'exito');
+    avisar(
+      r.revertidos === 1
+        ? 'Se revirtió 1 registro de depreciación.'
+        : `Se revirtieron ${r.revertidos} registros de depreciación.`,
+      'exito',
+    );
     return r;
-  });
+  }, { errorVisible: true });
 
   const anios = Array.from({ length: 6 }, (_, i) => ahora.getFullYear() - 4 + i);
 
@@ -100,7 +115,7 @@ export default function DepreciacionPage() {
           <Boton
             variante="primario"
             icono={<CalendarCheck className="w-3.5 h-3.5" />}
-            onClick={() => setConfirmarCorrida(true)}
+            onClick={() => { correr.limpiarError(); setConfirmarCorrida(true); }}
             cargando={correr.ejecutando}
           >
             Ejecutar corrida
@@ -110,7 +125,7 @@ export default function DepreciacionPage() {
             <Boton
               variante="neutro"
               icono={<RotateCcw className="w-3.5 h-3.5" />}
-              onClick={() => setConfirmarReversion(true)}
+              onClick={() => { revertir.limpiarError(); setConfirmarReversion(true); }}
             >
               Revertir este periodo
             </Boton>
@@ -122,10 +137,6 @@ export default function DepreciacionPage() {
           Ejecutar dos veces el mismo periodo no duplica el gasto: los activos ya
           depreciados se omiten.
         </p>
-
-        {correr.error && (
-          <p className="text-[12.5px] text-rose-600 mt-2 font-medium">{correr.error}</p>
-        )}
       </Panel>
 
       {/* Resultado */}
@@ -197,8 +208,9 @@ export default function DepreciacionPage() {
         mensaje={`Se depreciarán todos los activos elegibles de ${MESES[mes - 1]} ${ejercicio}. La operación queda registrada y afecta el valor en libros.`}
         textoConfirmar="Ejecutar"
         procesando={correr.ejecutando}
+        error={correr.error}
         onConfirmar={() => void correr.ejecutar()}
-        onCancelar={() => setConfirmarCorrida(false)}
+        onCancelar={() => { correr.limpiarError(); setConfirmarCorrida(false); }}
       />
 
       <Confirmacion
@@ -208,8 +220,9 @@ export default function DepreciacionPage() {
         mensaje={`Se eliminarán los registros de ${MESES[mes - 1]} ${ejercicio} y la depreciación acumulada de cada activo volverá a su valor anterior. Sólo se puede revertir el último periodo depreciado.`}
         textoConfirmar="Revertir"
         procesando={revertir.ejecutando}
+        error={revertir.error}
         onConfirmar={() => void revertir.ejecutar()}
-        onCancelar={() => setConfirmarReversion(false)}
+        onCancelar={() => { revertir.limpiarError(); setConfirmarReversion(false); }}
       />
     </div>
   );

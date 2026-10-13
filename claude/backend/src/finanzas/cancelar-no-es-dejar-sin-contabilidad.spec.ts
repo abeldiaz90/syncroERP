@@ -159,7 +159,37 @@ describe('La pantalla ofrece la decisión y repite lo que contestó el servidor'
   it('viene encendida: corregir es lo normal, dejar sin póliza es lo raro', () => {
     if (!hay) return;
     expect(pantalla).toMatch(/useState\(true\);/);
-    expect(pantalla).toMatch(/setRegenerar\(true\);/);
+    /*
+     * La regla se afinó el 13-oct y esta comprobación con ella.
+     *
+     * Antes aquí decía `setRegenerar(true);` literal. Sigue siendo cierto que
+     * encendida es lo normal —cancelar una recepción o una venta para dejarla
+     * sin contabilidad es lo raro—, pero hay un origen para el que encenderla
+     * es directamente un callejón sin salida: una póliza de DEPRECIACION no
+     * nace de un documento, nace de una corrida que se está deshaciendo, y
+     * rehacerla hace que Activos fijos vuelva a negar la reversión. Con la
+     * casilla encendida por omisión, quien seguía el mensaje de Activos fijos
+     * daba vueltas sin que nada se lo explicara.
+     *
+     * Así que lo que se exige es la REGLA, no su ortografía: encendida salvo
+     * para los orígenes declarados en `REGENERAR_ESTORBA`, y que cada uno de
+     * ésos traiga escrito el motivo —si no, apagarla sería otra decisión
+     * silenciosa, que es la avería al revés—.
+     */
+    expect(pantalla).toMatch(/setRegenerar\(!REGENERAR_ESTORBA\[/);
+    expect(pantalla).toMatch(/const REGENERAR_ESTORBA: Record<string, string>/);
+    expect(pantalla).toMatch(/REGENERAR_ESTORBA\[[\s\S]{0,40}\] && \(/);
+
+    /*
+     * La prueba de la prueba: que la lista no esté vacía. Un
+     * `REGENERAR_ESTORBA` sin entradas haría pasar todo lo de arriba y la
+     * casilla volvería a estar siempre encendida.
+     */
+    const lista = pantalla.match(
+      /const REGENERAR_ESTORBA: Record<string, string> = \{([\s\S]*?)\n\};/,
+    );
+    expect(lista).not.toBeNull();
+    expect(lista![1]).toContain('DEPRECIACION:');
   });
 
   it('el aviso de éxito dice qué pasó con el documento', () => {

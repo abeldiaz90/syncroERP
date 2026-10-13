@@ -5,6 +5,7 @@
  */
 
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -282,6 +283,39 @@ export class RrhhController {
     @Query('empleadoId') empleadoId?: string,
   ) {
     return this.svc.listarSolicitudesVacaciones(empresaId, empleadoId);
+  }
+
+  /*
+   * El desglose del rango, para que la pantalla pueda decir lo mismo que el
+   * servidor ANTES de enviar.
+   *
+   * `explicarDiasLaborables` existía desde hacía semanas, con su comentario
+   * explicando el problema exacto —«la pantalla decía 5 días naturales y el
+   * servidor contestaba 4 laborables»—, y no tenía ruta ni quien la llamara.
+   * La pantalla seguía contando días naturales y el usuario se enteraba de los
+   * laborables al chocar con «Saldo insuficiente».
+   *
+   * Va ANTES de `vacaciones/saldo/:empleadoId`: Nest resuelve por orden de
+   * registro y una ruta literal detrás de una paramétrica no se alcanza nunca.
+   */
+  @Get('vacaciones/dias-laborables')
+  diasLaborables(
+    @ActiveUser('empresaId') empresaId: string,
+    @Query('desde') desde: string,
+    @Query('hasta') hasta: string,
+  ) {
+    if (!desde || !hasta) {
+      throw new BadRequestException('Faltan las fechas: desde y hasta.');
+    }
+    const inicio = new Date(`${desde}T00:00:00`);
+    const fin = new Date(`${hasta}T00:00:00`);
+    if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) {
+      throw new BadRequestException('Las fechas no son válidas.');
+    }
+    if (fin < inicio) {
+      throw new BadRequestException('La fecha final no puede ser anterior a la inicial.');
+    }
+    return this.svc.explicarDiasLaborables(empresaId, inicio, fin);
   }
 
   @Get('vacaciones/saldo/:empleadoId')

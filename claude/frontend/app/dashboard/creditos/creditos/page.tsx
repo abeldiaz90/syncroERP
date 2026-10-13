@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { plural } from '@/lib/format';
 import { fechaCorta } from '@/lib/fechas';
 import { CreditCard, Search, Filter, RefreshCw, DollarSign,
   User, ChevronRight, CheckCircle2, Clock, AlertCircle, XCircle } from 'lucide-react';
@@ -142,7 +143,7 @@ export default function CreditosPage() {
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
             Registro de Créditos
           </p>
-          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : `${filtrados.length} crédito(s)`}</p>
+          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : plural(filtrados.length, 'crédito')}</p>
         </div>
 
         {cargando ? (

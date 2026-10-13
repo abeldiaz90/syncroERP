@@ -300,9 +300,22 @@ export function ProveedorAvisos({ children }: { children: React.ReactNode }) {
 
 /* ── Confirmación ────────────────────────────────────────────────────────── */
 
+/*
+ * `error`: la negativa se pinta DENTRO del diálogo, no en un aviso de esquina.
+ *
+ * Un aviso vive 4.5 segundos en la esquina inferior derecha mientras los ojos
+ * están en el centro de la pantalla, y las negativas que importan —la de
+ * revertir una depreciación ya contabilizada, por ejemplo— pasan de los 300
+ * caracteres y explican qué hacer. Se alcanza a leer la mitad. Peor aún: el
+ * diálogo se quedaba abierto e idéntico, así que la pantalla se leía como si
+ * el clic no hubiera hecho nada, cuando el servidor sí había contestado que no.
+ *
+ * Quien pase `error` debe construir su acción con `useAccion(..., { errorVisible:
+ * true })`, para que el mensaje no salga dos veces.
+ */
 export function Confirmacion({
   abierto, titulo, mensaje, textoConfirmar = 'Confirmar', peligroso = false,
-  onConfirmar, onCancelar, procesando = false,
+  onConfirmar, onCancelar, procesando = false, error = null,
 }: {
   abierto: boolean;
   titulo: string;
@@ -312,6 +325,7 @@ export function Confirmacion({
   onConfirmar: () => void;
   onCancelar: () => void;
   procesando?: boolean;
+  error?: string | null;
 }) {
   return (
     <Modal
@@ -321,18 +335,29 @@ export function Confirmacion({
       ancho={420}
       pie={
         <>
-          <Boton variante="neutro" onClick={onCancelar} disabled={procesando}>Cancelar</Boton>
+          <Boton variante="neutro" onClick={onCancelar} disabled={procesando}>
+            {error ? 'Cerrar' : 'Cancelar'}
+          </Boton>
           <Boton
             variante={peligroso ? 'peligro' : 'primario'}
             onClick={onConfirmar}
             cargando={procesando}
           >
-            {textoConfirmar}
+            {error ? 'Reintentar' : textoConfirmar}
           </Boton>
         </>
       }
     >
       <p className="text-[13px] text-slate-600 leading-relaxed">{mensaje}</p>
+      {error && (
+        <div
+          role="alert"
+          className="mt-3.5 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5"
+        >
+          <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-px" />
+          <p className="text-[12.5px] text-rose-700 leading-snug">{error}</p>
+        </div>
+      )}
     </Modal>
   );
 }

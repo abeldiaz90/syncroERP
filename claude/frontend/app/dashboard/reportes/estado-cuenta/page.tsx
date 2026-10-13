@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fechaCorta, mesHastaHoy } from '@/lib/fechas';
+import { plural } from '@/lib/format';
 import {
   User, FileText, RefreshCw,
   AlertCircle, CheckCircle2
@@ -234,7 +235,7 @@ export default function EstadoCuentaClientePage() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-between">
               <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Movimientos</p>
-              <p className="text-xs text-slate-400">{datos.movimientos.length} registros</p>
+              <p className="text-xs text-slate-400">{plural(datos.movimientos.length, 'registro')}</p>
             </div>
             {datos.movimientos.length === 0 ? (
               <div className="p-12 text-center">
