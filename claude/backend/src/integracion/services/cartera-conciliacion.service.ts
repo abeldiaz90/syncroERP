@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { fechaContableNegocio } from '../../common/utils/business-time.util';
+import { pesos } from '../../common/utils/pesos.util';
 import { omitirTareaProgramada } from '../../common/utils/tareas-programadas.util';
 import {
   PREFIJO_REFERENCIA_ERP,
@@ -129,7 +130,9 @@ export class CarteraConciliacionService {
             entidadId: vinculo.entidadId,
             valorErp: saldoErp,
             valorExterno: remoto.saldoTotal,
-            detalle: `Diferencia de ${diferencia.toFixed(2)} sobre una tolerancia de ${tolerancia}.`,
+            detalle:
+              `Diferencia de ${pesos(diferencia)}, por encima de la tolerancia de ` +
+              `${pesos(tolerancia)}.`,
           });
           encontradas += 1;
         }
@@ -232,7 +235,8 @@ export class CarteraConciliacionService {
             valorErp: saldoErp,
             valorExterno: remoto.saldoTotal,
             detalle:
-              `Diferencia de ${diferencia.toFixed(2)} sobre una tolerancia de ${tolerancia}. ` +
+              `Diferencia de ${pesos(diferencia)}, por encima de la tolerancia de ` +
+              `${pesos(tolerancia)}. ` +
               `Externo ${vinculo.idExterno}, estado ${remoto.estado || '—'}.`,
           });
           encontradas += 1;
@@ -268,7 +272,8 @@ export class CarteraConciliacionService {
             valorErp: vencidoErp,
             valorExterno: vencidoExterno,
             detalle:
-              `El ERP reporta ${vencidoErp.toFixed(2)} vencido y el registro externo ${vencidoExterno.toFixed(2)}. ` +
+              `El ERP reporta ${pesos(vencidoErp)} vencido y el registro externo ` +
+              `${pesos(vencidoExterno)}. ` +
               'Los saldos pueden cuadrar y aun así estar en desacuerdo sobre la mora.',
           });
           encontradas += 1;
@@ -469,7 +474,7 @@ export class CarteraConciliacionService {
           entidadId: creditoId,
           valorErp: t.monto,
           valorExterno: 0,
-          detalle: `La transacción ${t.idExterno} (${t.referenciaErp}) de ${t.monto.toFixed(2)} fue reversada en el registro externo el ${t.fecha}. El ERP la sigue dando por válida.`,
+          detalle: `La transacción ${t.idExterno} (${t.referenciaErp}) de ${pesos(t.monto)} fue reversada en el registro externo el ${t.fecha}. El ERP la sigue dando por válida.`,
         });
         encontradas += 1;
         continue;
@@ -518,7 +523,7 @@ export class CarteraConciliacionService {
         entidadId: creditoId,
         valorErp: 0,
         valorExterno: t.monto,
-        detalle: `La transacción ${t.idExterno} de tipo ${tipo}, ${t.monto.toFixed(2)} el ${t.fecha}, se registró directamente en el externo y no está reflejada en el ERP.`,
+        detalle: `La transacción ${t.idExterno} de tipo ${tipo}, ${pesos(t.monto)} el ${t.fecha}, se registró directamente en el externo y no está reflejada en el ERP.`,
       });
       encontradas += 1;
     }

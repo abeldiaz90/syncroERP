@@ -271,3 +271,28 @@ Lo demás de la puesta en marcha está en
   disculpa, quien comprueba el PDF de verdad es `npm run documentacion:pdf`, no
   `npm test`. Es el mismo patrón que la resolución del navegador, que durante
   meses tuvo una rama que no se tomaba nunca sin que nadie lo notara.
+- **Ochenta importes escritos a mano en los mensajes del servidor.** Visto el
+  13-oct-2026 en la conciliación de cartera, donde dos líneas seguidas decían el
+  mismo dinero de dos formas: «Diferencia de -6150.00 sobre una tolerancia de 1»
+  y, debajo, «ERP $0.00 · core $6,150.00». El número crudo se lee mal a la
+  primera, y el «1» sin unidad parece un conteo. Se encontró la misma forma en
+  ochenta sitios más —nómina (11), órdenes de compra (8), tesorería (8)—, en
+  mensajes que se leen al decidir si se paga o si se aprueba. Hay una pieza
+  compartida (`common/utils/pesos.util.ts`), se migraron los cinco de la
+  conciliación, y el resto está **congelado por un trinquete**
+  (`un-importe-se-lee-en-pesos.spec.ts`): no puede crecer, y quien baje uno deja
+  el número fijado. No se migró todo de golpe porque muchos de esos textos están
+  pinchados letra por letra en las pruebas, y son ochenta cirugías cuyo
+  resultado no se puede medir de una vez a días de producción.
+- **Quedan unos cuarenta `(s)` en textos del ERP.** `plural()` existe y se
+  migraron veintidós renglones más el 13-oct-2026 —el espejo contable entero,
+  pólizas, cierre contable, saldos iniciales, presupuestos, conciliación
+  inicial, aprobaciones de compra, pago a proveedores, avisos de crédito,
+  cartera vencida, créditos, clientes, ficha de producto, reposición y
+  permisos—. **No hay trinquete y es deliberado**: un patrón que busque `(s)`
+  también encuentra `new Date(s)` y `map((s) => …)`, y una prueba que grita en
+  falso lo primero que provoca es que alguien la borre. La cuenta se lleva aquí.
+- **El portal conserva sus `(s)`.** Mismo caso, agravado: dos de sus pruebas
+  fijan esos textos letra por letra y su `vitest` no corre en este entorno
+  (binarios nativos de rollup para Windows). Visto el 13-oct en «0 caja(s)
+  configurada(s)».
