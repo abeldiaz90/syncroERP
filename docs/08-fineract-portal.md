@@ -107,6 +107,84 @@ un permiso en su rol, no una actualización del portal.
 Es el flujo que más se usa y el único que este documento cuenta completo, porque
 es el que se pudo verificar comando por comando.
 
+## Un ciclo completo, verificado en pantalla
+
+Ejercido de punta a punta el 14-oct-2026 sobre el crédito `000000024` de Maria
+Elena Robles, $10,000.00, producto «Crédito simple a 30 días». Es la primera vez
+que el circuito se corre entero por el portal, y queda aquí porque los números
+que salieron son los que hay que esperar.
+
+### 1 · Desembolsar
+
+**Dónde:** Crédito → el expediente del crédito → **Desembolsar**.
+
+El diálogo pide **fecha de operación**, **monto**, **motivo/nota**, y deja
+registrar la **forma de pago** con su referencia, cuenta, cheque, clave de
+rastreo y banco. El monto llega propuesto con el aprobado.
+
+| Lo que cambió | |
+|---|---|
+| Estado | Aprobado → **Activo** |
+| Transacción | `62 · Desembolso · $10,000.00 · Transferencia electrónica · Aplicada` |
+| Póliza | `L62`, con la **fecha de operación capturada**, no la del día |
+| Calendario | un pago de $10,000.00 con vencimiento a 7 días |
+
+Partida generada por el core:
+
+```
+106.01  Cartera de crédito vigente     Cargo   $10,000.00
+102.01  Bancos nacionales              Abono   $10,000.00
+```
+
+### 2 · Registrar el pago
+
+**Dónde:** el mismo expediente → **Registrar pago**.
+
+Con este producto —0% de interés— el pago completo liquidó el crédito:
+
+| Lo que cambió | |
+|---|---|
+| Estado | Activo → **Cerrado (liquidado)** |
+| Transacción | `63 · Pago · $10,000.00 · Aplicada`, con **Ajustar** disponible |
+| Acciones | «No hay acciones principales para este estado» |
+
+```
+102.01  Bancos nacionales              Cargo   $10,000.00
+106.01  Cartera de crédito vigente     Abono   $10,000.00
+```
+
+**Un pago no se edita: se ajusta.** El botón «Ajustar» existe porque Fineract no
+corrige una transacción en su sitio — revierte la anterior y crea la corregida,
+de modo que el rastro de las dos queda.
+
+### 3 · Un pago con interés, que es el caso normal
+
+El de arriba no toca la cuenta de ingresos, porque el producto no cobra interés.
+Se repitió sobre el crédito `000000011`, producto «Mensualidades con interés» al
+2.5% mensual, con **$230.45 de capital y $4.70 de interés pendientes**.
+
+Pago parcial de **$50.00**:
+
+```
+102.01  Bancos nacionales                        Cargo   $50.00
+106.01  Cartera de crédito vigente               Abono   $45.30
+401.32  Ingresos por intereses (actividad propia) Abono    $4.70
+```
+
+**Fineract aplica primero el interés y el resto a capital.** Los $4.70 eran
+exactamente el interés pendiente: quedó en cero y el capital bajó a $185.15. El
+crédito siguió **Activo**, con su siguiente cuota el 14/11.
+
+Quien revise el reparto de un pago tiene ahí la regla: no es proporcional, es
+interés primero.
+
+### Lo que este recorrido dejó anotado para decidir
+
+- **La forma de pago no decide la cuenta de salida.** Ver §6, «El medio de pago
+  no decide la cuenta de salida».
+- **Nada de esto llega a la contabilidad del ERP.** Ver §6, «El espejo va en un
+  solo sentido».
+
 ## Los actos, y el permiso que exige cada uno
 
 | Acto | Qué hace | Permiso en Fineract |
@@ -209,6 +287,27 @@ Cada familia tiene su **producto** detrás, en el área de Productos, y ahí se
 define lo que después no se puede cambiar a mano: moneda, tasas, cargos y las
 cuentas contables con las que cada movimiento se asienta.
 
+## Un depósito, verificado
+
+Hecho el 14-oct-2026 sobre la cuenta `000000001`. Desde el expediente de la
+cuenta → **Depósito**: monto, fecha y forma de pago.
+
+| Lo que cambió | |
+|---|---|
+| Saldo | $1,650.00 → **$2,150.00** |
+| Movimiento | `Depósito · $500.00 · Efectivo en ventanilla · Aplicada`, con **Modificar** y **Revertir** |
+
+```
+102.01  Bancos nacionales                 Cargo   $500.00
+203.01  Depósitos de ahorro de clientes   Abono   $500.00
+```
+
+El expediente separa **saldo contable** de **disponible para retiro**, que no
+son lo mismo en cuanto hay una retención o un bloqueo de débitos.
+
+Y repárese en la forma de pago: se capturó «Efectivo en ventanilla» y el asiento
+cargó Bancos nacionales. El porqué —y la decisión pendiente— está en §6.
+
 ---
 
 # 4 · La mesa de control
@@ -238,19 +337,159 @@ La caja del ERP es **otra**, para el mostrador, y está en
 `07-flujos-y-procesos.md` §6. Dos cajas distintas para dos cosas distintas: una
 cobra una venta, la otra cobra una letra.
 
+## Antes de que una caja pueda cobrar: dos pasos de configuración
+
+Verificado el 14-oct-2026 partiendo de cero —la institución no tenía ninguna
+caja dada de alta—.
+
+**1 · Crear la caja.** Caja y tesorería → **Nueva caja**. Pide oficina, nombre,
+descripción y la vigencia (inicio obligatorio, fin opcional). Queda **Activa**
+desde su fecha de inicio.
+
+**2 · Asignar un cajero.** Dentro de la caja → **Asignar cajero**. Pide la
+persona del personal operativo, la vigencia —propone un mes— y si atiende **día
+completo** u **horario parcial**.
+
+Mientras no haya un cajero vigente para la fecha operativa, la jornada dice
+**«Sin cajeros vigentes»** y lo explica: *«No hay cajeros vigentes para la fecha
+operativa actual. Asigna o ajusta la vigencia de un cajero antes de operar.»*
+Con uno asignado pasa a **«Lista para operar»**.
+
+Sólo entonces aparecen **Asignar efectivo** y **Liquidar**, que son los dos
+actos que mueven dinero.
+
+**La vigencia se mide contra la fecha operativa del core, no contra el reloj de
+la computadora.** La propia pantalla lo advierte. Un cajero asignado «desde hoy»
+en una institución cuya fecha operativa va atrasada no está vigente todavía.
+
 ---
 
 # 6 · Contabilidad del core
+
 
 El portal lleva el catálogo de cuentas de Fineract, las pólizas manuales
 balanceadas, la consulta y reversa de asientos, los cierres por sucursal, los
 saldos iniciales y las reglas contables.
 
-Y una decisión que conviene entender antes de buscar el error donde no está:
-**el core asienta lo suyo y el ERP asienta lo suyo**, y el ERP mantiene un
-espejo contable del core para que el estado de resultados de la empresa sea uno.
-No son dos contabilidades compitiendo: es una, con dos orígenes. El porqué y el
-cómo están en `02-arquitectura.md`.
+## El espejo va en un solo sentido, y conviene saberlo
+
+**El core asienta lo suyo y el ERP asienta lo suyo.** Lo que existe entre los
+dos es un espejo **del ERP hacia el core**: cualquier póliza que nace en el ERP
+—una venta, una compra, la nómina, la depreciación— se publica en el mayor de
+Fineract. Está hecho así a propósito y el porqué está en `02-arquitectura.md`.
+
+**Lo que nace en el core no viaja de vuelta.** Un desembolso, un pago de
+crédito, el reconocimiento de interés, un depósito de ahorro o una corrida de
+estimaciones preventivas se asientan en el mayor de Fineract y **no aparecen en
+la contabilidad del ERP**.
+
+Medido el 14-oct-2026, con los dos sistemas encendidos:
+
+| | |
+|---|---|
+| Asientos en el mayor del core | 434 |
+| Espejados desde el ERP (`SYNCRO-*`) | 383 |
+| **Nacidos en el core** | **51**, en 18 transacciones |
+| Pólizas del ERP que vienen del core | **0** |
+
+O sea: hoy el estado de resultados del ERP **no incluye los ingresos por
+intereses de la cartera**, y nada avisa de ello.
+
+Dicho sin rodeos porque es una decisión de negocio pendiente, no un defecto que
+alguien vaya a arreglar solo. Las tres salidas posibles —vuelta del espejo,
+póliza de concentración periódica, o dos contabilidades consolidadas fuera—
+están planteadas en `claude/lo-que-nace-en-el-core-no-llega-al-erp-2026-10-14`.
+
+## Y la conciliación mira la mitad que viaja
+
+`Finanzas → Espejo contable` compara las dos contabilidades, y es el único sitio
+donde eso ocurre. Su alcance es `POLIZAS_VINCULADAS`: recorre las pólizas **del
+ERP** que tienen vínculo y las contrasta contra su asiento en el core.
+
+Eso significa que puede decir «coinciden» con los 51 asientos de crédito fuera
+del cuadro. No es un error del control —su alcance está en su nombre—, pero
+conviene no leer ese verde como «las dos contabilidades dicen lo mismo»: dice
+«lo que mandé llegó bien».
+
+## Las tres cuentas que sólo existen de un lado
+
+De las 73 cuentas del mayor del core, **70 corresponden una a una con el
+catálogo del ERP**. Tres no:
+
+| Cuenta | | |
+|---|---|---|
+| `101.02` | Efectivo en ventanilla | hoy sin movimientos |
+| `703.22` | Quebrantos por cartera incobrable | |
+| `703.23` | Creación de estimaciones preventivas | **con movimientos** |
+
+Son cuentas de operación crediticia: el cajón de la ventanilla y las de pérdida
+de cartera. No tienen contraparte en el catálogo del ERP, que es el que lleva
+los códigos agrupadores del SAT.
+
+## Qué póliza genera cada acto, verificado
+
+Ejercido en pantalla el 14-oct-2026, crédito por crédito. Las partidas son las
+que el core genera solo: no hay captura manual en ninguna.
+
+### Desembolsar un crédito
+
+| Cuenta | | |
+|---|---|---|
+| `106.01` Cartera de crédito vigente | Cargo | monto desembolsado |
+| `102.01` Bancos nacionales | Abono | monto desembolsado |
+
+Nace cartera y sale dinero. La fecha del asiento es **la fecha de operación que
+se capturó**, no la del día.
+
+### Registrar un pago
+
+Con un producto sin interés, dos patas —el espejo del desembolso—. Con interés,
+**tres**, y el reparto lo decide el core:
+
+| Cuenta | | |
+|---|---|---|
+| `102.01` Bancos nacionales | Cargo | lo que entró |
+| `106.01` Cartera de crédito vigente | Abono | la parte de capital |
+| `401.32` Ingresos por intereses | Abono | la parte de interés |
+
+**Fineract aplica primero el interés y el resto a capital.** Medido: un pago de
+$50.00 sobre un crédito con $4.70 de interés pendiente se repartió en $4.70 de
+interés y $45.30 de capital, y el interés pendiente quedó en cero.
+
+### Un depósito de ahorro
+
+| Cuenta | | |
+|---|---|---|
+| `102.01` Bancos nacionales | Cargo | depósito |
+| `203.01` Depósitos de ahorro de clientes | Abono | depósito |
+
+### La corrida de estimaciones preventivas
+
+| Cuenta | | |
+|---|---|---|
+| `703.23` Creación de estimaciones preventivas | Cargo | estimación |
+| `106.03` Estimación preventiva para riesgos crediticios | Abono | estimación |
+
+## El medio de pago no decide la cuenta de salida
+
+Una decisión de configuración que conviene tomar antes de operar con público.
+
+El desembolso y el depósito preguntan el **medio de pago** —transferencia,
+efectivo en ventanilla, contracargo…— y lo guardan en la transacción, donde se
+ve. Pero **la cuenta contable no cambia con él**: sale de la cuenta de fondeo
+configurada en el producto, que hoy es `102.01 Bancos nacionales` tanto para el
+crédito como para el ahorro.
+
+Verificado: un depósito capturado como «Efectivo en ventanilla» cargó
+`102.01 Bancos nacionales`. Y `101.02 Efectivo en ventanilla` existe en el
+catálogo, con cero movimientos.
+
+Fineract sí permite decidirlo: en el producto, con las **reglas contables
+avanzadas** (`paymentChannelToFundSourceMappings`), se mapea cada forma de pago
+a su cuenta de salida. Hoy los productos tienen **cero** de esos mapeos.
+
+Para una institución con cajón de efectivo, dejarlo así significa que los libros
+dicen que el dinero está en el banco cuando está en la ventanilla.
 
 ---
 
@@ -332,8 +571,13 @@ evita que el reporte de mora y el de provisiones discrepen.
 Dicho aquí para que nadie lo descubra buscándolo:
 
 - **Los recorridos con capturas.** Las ocho áreas están descritas y el apartado
-  8 ya lleva el suyo, con capturas. El resto del paso a paso pantalla por
-  pantalla, como en `07-flujos-y-procesos.md`, es la siguiente revisión.
+  8 ya lleva el suyo, con capturas. El 14-oct se añadieron cuatro recorridos
+  verificados en pantalla y **con su póliza**: el ciclo de un crédito (§1), un
+  depósito de ahorro (§3), el alta de una caja con su cajero (§5) y la tabla de
+  qué asiento genera cada acto (§6). Lo que falta de capturas es el resto.
+- **Los actos que mueven dinero se documentaron con una persona oprimiendo el
+  botón.** Conviene saberlo al leer: lo verificado es el resultado —estado,
+  transacción y partida contable—, no una simulación.
 - **El manual por rol del portal.** El ERP tiene el suyo en
   `03-manual-por-rol.md`, medido contra sus plantillas de permisos. El del
   portal se mide contra los roles de Fineract, que son otros, y no se ha hecho.
