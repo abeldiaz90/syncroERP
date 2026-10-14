@@ -1,14 +1,14 @@
 # 08 · El portal de Fineract, paso a paso
 
-**Revisión:** 13 de octubre de 2026
+**Revisión:** 14 de octubre de 2026
 **Para:** quien opera crédito y captación, y quien los capacita.
 **Dónde:** el portal, aparte del ERP. En la instalación local, en el puerto 3002.
 
 > Lo que está aquí se leyó del código que se despliega: las ocho áreas del menú,
 > los comandos que el portal deja ejecutar sobre un crédito y el permiso que
-> cada uno exige. Lo que **todavía no** está aquí, y se dice sin rodeos, son los
-> recorridos con capturas pantalla por pantalla: eso va en la siguiente
-> revisión, igual que se hizo con los flujos del ERP.
+> cada uno exige. Los recorridos con capturas van llegando por áreas: los §1,
+> §3, §5 y §6 ya los llevan, y el **§9** documenta el barrido de interfaz del
+> 14 de octubre con las suyas. Lo que falta de capturas se dice en el §10.
 
 **El estado real de cada dominio** —qué está completo, qué parcial y qué falta,
 dominio por dominio— lo mantiene el equipo en
@@ -566,7 +566,216 @@ evita que el reporte de mora y el de provisiones discrepen.
 
 ---
 
-# 9 · Lo que falta de este documento
+# 9 · Qué cambió en la pantalla el 14 de octubre, y por qué
+
+Este apartado documenta un barrido de la interfaz hecho pantalla por pantalla y
+verificado en vivo. No es una lista de retoques: cada punto nace de algo que se
+midió, y tres de ellos no eran cuestión de estética sino de que el portal estaba
+diciendo algo que no era cierto.
+
+## 9.1 · La fuente del sistema se declaraba y nunca se cargaba
+
+`globals.css` pide Inter desde siempre, y el sistema visual está afinado para
+ella: el interletraje de los títulos está calculado sobre su ancho, y
+`font-feature-settings:"cv05"` es una variante de carácter que **sólo existe en
+Inter**. No había `@font-face` en ninguna parte.
+
+Medido en la máquina donde se opera (Windows 10, Chrome), midiendo el ancho de
+la misma cadena en canvas:
+
+| Fuente pedida | Ancho |
+|---|---:|
+| Inter | 670.59 px |
+| una fuente inventada que no existe | 670.59 px |
+| Segoe UI | 698.77 px |
+
+Idéntico al de una fuente que no existe: Inter no estaba. El portal se veía en
+Segoe UI —el siguiente de la lista en Windows— con un interletraje apretado para
+otra letra, y **se veía distinto en cada equipo**, porque cada sistema cae en
+una fuente diferente de la lista.
+
+Queda servida desde el repositorio (`public/fuentes`, licencia SIL OFL al lado).
+Es variable: un archivo de 48 KB cubre los seis pesos que usa el portal. El
+subconjunto extendido sólo se baja si aparece un carácter que lo necesite.
+
+## 9.2 · La hoja de cobranza decía que no había nada que cobrar
+
+Medido con la ventana abierta de 2020 a 2030: de **siete** cuotas programadas,
+**seis** llegaban del reporte de Fineract con el total vacío, y la pantalla las
+presentaba con «$0.00 por cobrar». El total de la ventana decía cero. Lo que
+realmente había que cobrar eran **$20,863.15**, con **$3,000.00 ya vencidos**.
+
+La fila se contradecía a sí misma y nadie lo veía: el renglón del crédito
+000000010 mostraba «Capital $600.00» y «A cobrar $0.00» en la misma línea.
+
+El origen está en el SQL del reporte «Expected Payments By Date - Basic», que es
+de Fineract. «Total Due» es la suma de cuatro términos y los importes base van
+**sin `coalesce`**. En SQL, `600 + NULL` es NULL: un crédito sin interés guarda
+`interest_amount` nulo y anula la suma entera. «Principal Due» sobrevive porque
+es un término suelto — de ahí la contradicción visible. Y el portal remataba
+convirtiendo el nulo en 0.
+
+No se parchea el reporte del core: es una consulta guardada que cada instalación
+puede editar, y tocarla aquí significa que la siguiente vuelve a traer el
+defecto. El total se rearma con sus propias partes y la pantalla **dice** cuántas
+veces hizo falta.
+
+![Cobranza: «Por cobrar · MXN $600.00» donde antes decía $0.00, con el aviso de cuántos totales se reconstruyeron.](img/portal-cobranza-total-rearmado.jpg)
+
+## 9.3 · Nueve de los diecisiete roles no dan acceso a nada
+
+Leyendo los permisos de cada rol directo del core y cruzándolos contra las 54
+pantallas declaradas del portal:
+
+| Rol | Permisos | Pantallas (de 54) |
+|---|---:|---:|
+| Super user | 3 (`ALL_FUNCTIONS`) | 54 |
+| Crédito | 4 | 13 |
+| Cobranza | 5 | 13 |
+| Contador / Finanzas | 5 | 9 |
+| Autorizador | sólo `_CHECKER` | 6 |
+| Administrador, Empleado, Almacenista, Hotelería, Gerencia, Dirección, **Tesorería**, RH, Comprador | **ninguno** | **4** |
+
+Esas cuatro son las que no exigen permiso: Mi jornada, Notificaciones, Búsqueda
+global y Diagnóstico. Quien entra con uno de los nueve ve un portal vacío **y no
+recibe ningún error**, así que parece que el sistema está descompuesto.
+Tesorería, que es quien abriría la caja, es uno de los nueve.
+
+Son los roles espejados desde SyncroERP; su propia descripción lo dice —«Espejo
+del rol ADMIN de SyncroERP. Sin permisos: asígnalos aquí»— y nadie los asignó.
+
+Asignar permisos es decisión de la institución. Lo que sí era un defecto del
+portal es que la consola daba un punto verde a los diecisiete y callaba: para
+saber si un rol servía había que seleccionarlo, diecisiete clics. Ahora cada
+renglón trae su recuento o la marca «Sin permisos», y un aviso arriba dice
+cuántos son y qué significa. Y la jornada de quien no tiene permisos lo explica
+en vez de salir con guiones.
+
+![La consola de seguridad avisa que 9 de 16 roles habilitados no tienen ningún permiso, y marca cada uno en su renglón.](img/portal-roles-sin-permisos.jpg)
+
+> La matriz completa, con una propuesta mínima de permisos por rol, está en el
+> documento «Los roles no abren nada».
+
+## 9.4 · La pantalla con la que se abre el día tenía tres menús y ningún dato
+
+«Mi jornada» tenía **tres** puertas a los mismos seis sitios: la barra lateral,
+una rejilla de «Atajos de operación» y tres tarjetas numeradas 01-02-03. Entre
+las tres ocupaban dos tercios de la pantalla, y debajo quedaban doscientos
+píxeles en blanco.
+
+Lo que no estaba en ninguna parte era el día. Ahora:
+
+- **«Lo que espera hoy»** ocupa el centro, con el trabajo detenido en el core y
+  su importe: «2 créditos por aprobar · $20,000.00 solicitados».
+- **«Vence hoy»** trae la hoja de cobranza del día, con enlace a cada crédito.
+- **«Iniciar»** conserva seis atajos, pero de **altas** —las que la barra
+  lateral no da en un clic— y no de navegación repetida.
+- Las tarjetas 01-02-03 se fueron: eran un instructivo, y un instructivo se lee
+  una vez y estorba cada mañana.
+
+Cada bloque se pide sólo si la sesión puede verlo, y la pantalla **dice** lo que
+no pudo consultar: «no se pudo consultar crédito: ese recuento falta, no es
+cero». Ningún renglón lleva a donde el permiso va a negar el paso.
+
+![Mi jornada: cinco cifras, el trabajo detenido con su importe, lo que vence hoy y las altas.](img/portal-mi-jornada-lo-que-espera.jpg)
+
+## 9.5 · El expediente de crédito del Cliente 360 no traía una sola cifra
+
+La tabla de créditos tenía cuatro columnas —cuenta, producto, estado y «Tipo»,
+que decía «Individual» en los ocho renglones— y **ningún importe**. Para saber
+cuánto debe una persona con ocho créditos había que abrirlos de uno en uno.
+
+Los datos ya venían: `/clients/{id}/accounts` entrega `originalLoan`,
+`loanBalance`, `amountPaid` e `inArrears` por cada crédito. La pantalla los leía
+y los tiraba.
+
+Dos cosas que el recorrido destapó:
+
+- **La mora no se deduce del estado.** Un crédito activo puede estar al
+  corriente o atrasado y el estado dice «Activa» en los dos casos. Ahora el
+  renglón lo marca.
+- **Un crédito liquidado no trae `loanBalance`**: el core omite el campo. El
+  guion que salía ahí se lee como «no se sabe», y de un crédito «Cerrada
+  (liquidada)» sí se sabe. El guion queda para lo que de verdad no se sabe: un
+  crédito aprobado y todavía sin desembolsar.
+
+![Cliente 360: la tabla de crédito con Otorgado y Por pagar, y el tipo como línea de apoyo.](img/portal-cliente-360-con-importes.jpg)
+
+## 9.6 · La ficha del crédito, en el orden en que se lee
+
+Las tres pestañas vivían en el `layout.tsx`, y un layout envuelve a su página:
+se pintaban **arriba** del encabezado. Lo primero que veía quien abría un
+crédito era «Resumen y operación · Cargos… · Reprogramación», y sólo después el
+número de cuenta y el deudor. Ahora van detrás del encabezado, como en el
+Cliente 360.
+
+Y la franja no traía **ni una fecha**: cuatro importes, y ninguna respuesta a la
+primera pregunta de un mostrador. Ahora hay «Próximo pago», con su importe y su
+vencimiento, sacado del mismo calendario que la pantalla ya tenía cargado.
+
+![Ficha de crédito: pestañas bajo el encabezado y «Próximo pago $185.15 · cuota 3 · vence 14/12/2026».](img/portal-credito-proximo-pago.jpg)
+
+## 9.7 · Nueve botones del mismo tamaño no son una lista de acciones
+
+Una cuenta de ahorro activa ofrecía nueve botones en una sola hilera y sólo uno
+—«Depósito»— se distinguía. Al lado, con el mismo peso y a la misma distancia:
+«Bloquear cuenta», «Bloquear créditos», «Bloquear débitos» y «Cerrar cuenta».
+
+Un cajero deposita todo el día y bloquea una cuenta dos veces al año. Ahora la
+hilera de arriba es la operación del día y debajo, bajo «Restricciones y
+cierre», va lo que restringe o cierra. No se esconde: sigue a un clic.
+
+![Cuenta de ahorro: la operación del día arriba, las restricciones y el cierre en su propia fila.](img/portal-ahorro-restricciones-aparte.jpg)
+
+## 9.8 · El directorio dedicaba su columna más ancha a un UUID
+
+La segunda columna del directorio de clientes —más ancha que el nombre— mostraba
+`syncro:cliente:bb9c64f8-985c-4ae7-af04-324bb8fe7718` en los diecisiete
+renglones. Es correcto y hay que poder consultarlo, pero nadie lo lee ni lo
+dicta por teléfono.
+
+Ahora el directorio trae **contacto** (móvil arriba, correo debajo), **oficina**
+y **alta**: con eso se da con la persona y se le llama sin abrir su expediente.
+La referencia sigue en el Cliente 360. Y la regla no es el prefijo sino la
+forma: una referencia aparece si una persona puede leerla en voz alta y volver a
+teclearla —«CL-4471» sí, un UUID no, lleve el prefijo que lleve—.
+
+![Directorio de clientes: contacto, oficina, alta y estado.](img/portal-directorio-con-contacto.jpg)
+
+## 9.9 · La espera tenía forma de muro
+
+Mientras el portal resolvía la sesión, toda pantalla enseñaba una tarjeta vacía
+con «Comprobando tus permisos…» en medio del lienzo. Medido entrando a
+Contabilidad, a Captación y a Caja: entre ocho y diez segundos de eso. Y las
+seis pantallas de detalle tenían su propio muro: dieciséis segundos de
+«Consultando cuenta de ahorro…» sin siquiera decir de qué cuenta se trataba.
+
+Dos cosas pasaban, y las dos se sienten como lentitud aunque sólo una lo sea: no
+se podía empezar a leer nada, y al llegar los datos el contenido saltaba de
+golpe, porque el muro no ocupaba el sitio de lo que venía.
+
+Ahora se dibuja la silueta de la pantalla que viene. No acelera nada —el core
+tarda lo que tarda— pero la espera deja de ser un muro y lo que llega no salta.
+
+![La silueta de la pantalla mientras el core contesta: encabezado, cuatro cifras y los renglones de la tabla.](img/portal-esqueleto-de-espera.jpg)
+
+## 9.10 · Lo demás del barrido
+
+- **La caja mostraba el tipo de movimiento en inglés** («Allocate Cash»,
+  «Settle Cash»). Son cuatro valores fijos en el core —`CashierTxnType.java`— y
+  se tradujeron por su cadena exacta, no por aproximación.
+- **El perfil de la sesión se pedía hasta tres veces por pantalla.** Medido en
+  Cartera: nueve llamadas para cinco direcciones, y `/api/auth/me` tres veces.
+  Ahora se pide una vez y cada quien recibe su copia.
+- **La franja de cifras de la jornada crecía de una casilla a cinco** mientras
+  cargaba, empujando todo lo de abajo. La franja ya sabía esperar; esta pantalla
+  era de las tres que no se lo decían.
+- **El código del permiso de Fineract vivía impreso bajo cada botón** del ciclo
+  de vida del cliente: «Cerrar cliente» con «CLOSE_CLIENT» debajo. Pasa al
+  atributo que el navegador enseña al posar el ratón, que es donde sirve.
+
+
+# 10 · Lo que falta de este documento
 
 Dicho aquí para que nadie lo descubra buscándolo:
 
