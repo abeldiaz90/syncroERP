@@ -135,9 +135,15 @@ No todo depende de que alguien se acuerde de actualizar:
 | Que toda captura prometida en un documento exista de verdad | `una-captura-que-se-promete-y-no-esta.spec.ts` |
 | Que el índice lleve a la sección que nombra | `un-indice-que-llevaba-a-otra-seccion.spec.ts` |
 
-Lo que **no** se mide solo es la cobertura de este documento: los números de
-§3 se contaron a mano el 15-oct. Dejarlos atados a un conteo automático es el
-siguiente paso natural, y está anotado abajo.
+Y desde el 15-oct, **este documento también**:
+`un-inventario-contado-a-mano-envejece.spec.ts` exige que el número de
+pantallas que cita §3 sea el que hay, que todo documento de `docs/` esté en la
+tabla de §1 y en el catálogo que publica el ERP, y que todo documento publicado
+exista de verdad.
+
+Lo que sigue sin medirse solo es la columna **Estado** de §3: si un flujo está
+documentado o sólo mencionado es un juicio, y eso lo decide quien escribe. Lo
+que no puede pasar —y ya no pasa— es que el conteo envejezca en silencio.
 
 ---
 
@@ -148,5 +154,8 @@ siguiente paso natural, y está anotado abajo.
    delante y los dos sin pantallas.
 3. ~~**Los seis asistentes**~~ **Hecho el 15-oct** (§3.2).
 4. ~~**Reportes**~~ **Hecho el 15-oct** (§3.3).
-5. Atar §3 a un conteo automático, para que este documento no sea otra cosa que
-   se cree al día.
+5. ~~Atar §3 a un conteo automático~~ **Hecho el 15-oct** (§4).
+6. Recorrer los asistentes sobre una **empresa recién creada**, no sobre la de
+   demostración (§3.2).
+7. El **estado de cuenta** y el **corte de caja** con datos que los ejerciten
+   (§3.3).
