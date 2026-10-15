@@ -75,6 +75,20 @@ export class HousekeepingController {
     return this.svc.cambiarEstadoHabitacion(id, estado, e);
   }
 
+  /*
+   * Liberar una habitación ocupada por nadie. No es un cambio de estado más:
+   * sólo procede cuando ninguna reservación en casa apunta a esa habitación,
+   * que es justo cuando el check-out no se puede hacer. Ver el servicio.
+   */
+  @Post('habitaciones/:id/liberar-sin-huesped')
+  liberarSinHuesped(
+    @Param('id') id: string,
+    @Body('motivo') motivo: string,
+    @ActiveUser('empresaId') e: string,
+  ) {
+    return this.svc.liberarHabitacionSinHuesped(id, motivo, e);
+  }
+
   // Devuelve a qué estados puede pasar una habitación desde su estado actual
   @Get('transiciones/:estado')
   transiciones(@Param('estado') estado: string) {

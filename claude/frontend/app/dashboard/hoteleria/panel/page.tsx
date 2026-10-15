@@ -4,19 +4,39 @@ import { useCallback, useEffect, useState } from "react";
 import {
   BedDouble,
   CalendarCheck,
+  CheckCircle2,
   CircleDollarSign,
   ClipboardCheck,
   Hotel,
   Loader2,
   RefreshCw,
+  ShieldAlert,
   Users,
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
+import { solicitarTexto } from "@/components/ui/dialogos";
 import { fechaCorta } from "@/lib/fechas";
+import { plural } from "@/lib/format";
 
 type Propiedad = { id: string; nombre: string };
+type OcupadaSinHuesped = { id: string; numero: string };
 type Panel = {
   fechaOperativa: string;
+  /*
+   * Una habitación OCUPADA sin nadie dentro no se puede vender y no se puede
+   * liberar con un check-out, porque no hay a quién hacérselo. Si no sale
+   * aquí, no sale en ningún lado.
+   */
+  integridad: {
+    ok: boolean;
+    ocupadasSinHuesped: OcupadaSinHuesped[];
+    huespedSinHabitacionOcupada: {
+      reservacionId: string;
+      codigo: string;
+      huesped: string | null;
+      habitacion: string | null;
+    }[];
+  };
   habitaciones: {
     total: number;
     operativas: number;
@@ -50,6 +70,7 @@ export default function PanelHoteleroPage() {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [liberando, setLiberando] = useState("");
 
   const cargarHoteles = useCallback(async () => {
     try {
@@ -89,6 +110,42 @@ export default function PanelHoteleroPage() {
       setCargando(false);
     }
   }, [hotelId]);
+
+  /*
+   * El motivo no es un trámite: es lo único que explica, meses después, por
+   * qué una habitación ocupada dejó de estarlo sin pasar por caja.
+   */
+  const liberar = useCallback(
+    async (hab: OcupadaSinHuesped) => {
+      const motivo = await solicitarTexto(
+        `La ${hab.numero} figura ocupada y no hay nadie dentro. Queda en limpieza y el motivo se guarda en la bitácora. ¿Por qué se libera?`,
+        {
+          titulo: `Liberar la habitación ${hab.numero}`,
+          obligatorio: true,
+          minimo: 10,
+        },
+      );
+      if (!motivo) return;
+      setLiberando(hab.id);
+      setError("");
+      try {
+        await api.post(
+          `/hoteleria/housekeeping/habitaciones/${hab.id}/liberar-sin-huesped`,
+          { motivo },
+        );
+        await cargarPanel();
+      } catch (e) {
+        setError(
+          e instanceof ApiError
+            ? e.mensajeParaPantalla()
+            : "No se pudo liberar la habitación.",
+        );
+      } finally {
+        setLiberando("");
+      }
+    },
+    [cargarPanel],
+  );
 
   useEffect(() => {
     void cargarHoteles();
@@ -161,16 +218,108 @@ export default function PanelHoteleroPage() {
         </div>
       ) : panel ? (
         <>
+          <section
+            className={`rounded-2xl border p-4 ${
+              panel.integridad.ok
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-amber-200 bg-amber-50 text-amber-900"
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              {panel.integridad.ok ? (
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+              ) : (
+                <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
+              )}
+              <div className="min-w-0">
+                <b className="text-sm">
+                  {panel.integridad.ok
+                    ? "El rack coincide con quién está en casa"
+                    : "El rack no coincide con quién está en casa"}
+                </b>
+                {panel.integridad.ok ? (
+                  <p className="mt-1 text-sm">
+                    Cada habitación ocupada tiene su huésped, y cada huésped su
+                    habitación.
+                  </p>
+                ) : (
+                  <div className="mt-2 space-y-3 text-sm">
+                    {panel.integridad.ocupadasSinHuesped.length > 0 && (
+                      <div>
+                        <p>
+                          {plural(
+                            panel.integridad.ocupadasSinHuesped.length,
+                            "habitación figura ocupada",
+                            "habitaciones figuran ocupadas",
+                          )}{" "}
+                          sin nadie dentro. Una habitación así no se puede
+                          vender, y tampoco se libera con un check-out: no hay
+                          huésped a quien hacérselo.
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {panel.integridad.ocupadasSinHuesped.map((hab) => (
+                            <button
+                              key={hab.id}
+                              onClick={() => void liberar(hab)}
+                              disabled={liberando === hab.id}
+                              className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-semibold disabled:opacity-50"
+                            >
+                              {liberando === hab.id
+                                ? "Liberando…"
+                                : `Liberar ${hab.numero}`}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="mt-2 text-xs text-amber-800/80">
+                          Liberar la deja en <b>limpieza</b>, nunca disponible:
+                          lo que estuvo ocupado se limpia e inspecciona antes de
+                          volver a venderse. Pide el motivo y queda en la
+                          bitácora.
+                        </p>
+                      </div>
+                    )}
+                    {panel.integridad.huespedSinHabitacionOcupada.length > 0 && (
+                      <div>
+                        <p>
+                          {plural(
+                            panel.integridad.huespedSinHabitacionOcupada.length,
+                            "huésped está en casa",
+                            "huéspedes están en casa",
+                          )}{" "}
+                          y su habitación no figura ocupada. Esto se resuelve en
+                          recepción, no desde aquí: revisa el check-in.
+                        </p>
+                        <ul className="mt-1 list-disc pl-5">
+                          {panel.integridad.huespedSinHabitacionOcupada.map(
+                            (r) => (
+                              <li key={r.reservacionId}>
+                                {r.codigo}
+                                {r.huesped ? ` · ${r.huesped}` : ""}
+                                {r.habitacion
+                                  ? ` · habitación ${r.habitacion}`
+                                  : " · sin habitación asignada"}
+                              </li>
+                            ),
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
               [
-                "Llegadas de hoy",
+                "Llegadas del día",
                 panel.operacion.llegadasHoy,
                 CalendarCheck,
                 "text-blue-600",
               ],
               [
-                "Salidas de hoy",
+                "Salidas del día",
                 panel.operacion.salidasHoy,
                 BedDouble,
                 "text-violet-600",
@@ -257,8 +406,18 @@ export default function PanelHoteleroPage() {
                 {dinero(panel.operacion.saldoFoliosAbiertos)}
               </p>
               <p className="mt-6 text-sm text-white/70">
-                {panel.operacion.reservacionesActivas} reservaciones activas y{" "}
-                {panel.habitaciones.operativas} habitaciones operativas.
+                {plural(
+                  panel.operacion.reservacionesActivas,
+                  "reservación activa",
+                  "reservaciones activas",
+                )}{" "}
+                y{" "}
+                {plural(
+                  panel.habitaciones.operativas,
+                  "habitación operativa",
+                  "habitaciones operativas",
+                )}
+                .
               </p>
             </div>
           </section>

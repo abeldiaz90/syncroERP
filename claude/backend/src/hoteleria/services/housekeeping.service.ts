@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -11,6 +12,10 @@ import {
   EstadoTarea,
 } from '../entities/tarea-housekeeping.entity';
 import { Habitacion, EstadoHabitacion } from '../entities/habitacion.entity';
+import {
+  Reservacion,
+  EstadoReservacion,
+} from '../entities/reservacion.entity';
 import {
   AsignarCamaristaDto,
   InspeccionarTareaDto,
@@ -250,5 +255,81 @@ export class HousekeepingService {
 
     hab.estado = estado;
     return this.habRepo.save(hab);
+  }
+
+  /*
+   * ── LIBERAR UNA HABITACIÓN QUE NADIE OCUPA ──────────────────────────────
+   *
+   * `OCUPADA` no tiene transición manual y eso está bien: mientras haya
+   * alguien dentro, la única salida tiene que ser el check-out, que cierra el
+   * folio y lo contabiliza. Pero esa misma regla deja sin salida el caso en
+   * que NO hay nadie dentro —una reservación borrada, un check-in que se
+   * quedó a medias—: no existe check-out que hacer, y la habitación se queda
+   * ocupada para siempre. Medido el 15-oct: la 101 del hotel de
+   * demostración, con cero huéspedes en casa y cero folios abiertos.
+   *
+   * Esto NO es una puerta trasera a `cambiarEstadoHabitacion`:
+   *
+   *   · la condición de entrada es exactamente aquella en la que el
+   *     check-out es imposible —ninguna reservación en CHECK_IN apunta a
+   *     esta habitación—, y se comprueba con la habitación bloqueada, para
+   *     que un check-in simultáneo no se cuele entre la comprobación y el
+   *     cambio;
+   *   · deja la habitación en LIMPIEZA, nunca en DISPONIBLE: lo que estuvo
+   *     ocupado se limpia e inspecciona antes de volver a venderse, y eso lo
+   *     sigue firmando el supervisor en su tarea;
+   *   · exige un motivo escrito, que queda en la bitácora con el endpoint.
+   *
+   * Con un huésped dentro contesta que no, y dice que el camino es el
+   * check-out.
+   */
+  async liberarHabitacionSinHuesped(
+    habitacionId: string,
+    motivo: string,
+    empresaId: string,
+  ) {
+    const razon = (motivo ?? '').trim();
+    if (razon.length < 10) {
+      throw new BadRequestException(
+        'Escribe por qué se libera esta habitación: queda en la bitácora y es lo único que explica, meses después, por qué una habitación ocupada dejó de estarlo sin check-out.',
+      );
+    }
+    return this.dataSource.transaction(async (manager) => {
+      const hab = await manager
+        .getRepository(Habitacion)
+        .createQueryBuilder('hab')
+        .setLock('pessimistic_write')
+        .where('hab.id = :id AND hab.empresaId = :empresaId', {
+          id: habitacionId,
+          empresaId,
+        })
+        .getOne();
+      if (!hab) throw new NotFoundException('Habitación no encontrada');
+      if (hab.estado !== EstadoHabitacion.OCUPADA) {
+        throw new ConflictException(
+          `La habitación ${hab.numero} no está ocupada: está en ${hab.estado}. Esto sólo resuelve una habitación ocupada por nadie.`,
+        );
+      }
+      const dentro = await manager.getRepository(Reservacion).findOne({
+        where: {
+          empresaId,
+          habitacionId: hab.id,
+          estado: EstadoReservacion.CHECK_IN,
+        },
+      });
+      if (dentro) {
+        throw new ConflictException(
+          `La habitación ${hab.numero} tiene un huésped alojado. Se libera con el check-out, que cierra su folio y lo contabiliza.`,
+        );
+      }
+      hab.estado = EstadoHabitacion.LIMPIEZA;
+      await manager.getRepository(Habitacion).save(hab);
+      return {
+        ok: true,
+        habitacion: hab.numero,
+        estado: hab.estado,
+        motivo: razon,
+      };
+    });
   }
 }

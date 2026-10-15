@@ -330,11 +330,63 @@ export class OperacionHotelService {
         .andWhere('reserva.hotelId = :hotelId', { hotelId })
         .getMany(),
     ]);
+    /*
+     * El día del hotel es la `fechaOperativa`, no la del calendario. Lo dice
+     * la auditoría nocturna en su propio código —«`fechaOperativa` es la
+     * autoridad»— y este panel contaba con la del calendario mientras
+     * rotulaba arriba la operativa: enseñaba una fecha y contaba otra. Se nota
+     * justo en el peor momento, entre que corre la auditoría y llega la
+     * medianoche real, que es cuando recepción mira este panel.
+     */
+    const diaDelHotel = hotel.fechaOperativa ?? hoy;
     const habitacionesOperativas = habitaciones.filter(
       (habitacion) =>
         habitacion.estado !== EstadoHabitacion.MANTENIMIENTO &&
         habitacion.estado !== EstadoHabitacion.BLOQUEADA,
     );
+    /*
+     * ── UNA HABITACIÓN OCUPADA POR NADIE ──────────────────────────────────
+     * OCUPADA no tiene salida manual a propósito: la única forma de sacar una
+     * habitación de ahí es el check-out, que cierra folio y contabiliza. La
+     * regla es buena mientras dentro haya alguien. Cuando no lo hay —una
+     * reservación borrada, un check-in a medias— no existe check-out que
+     * hacer, y la habitación se queda ocupada para siempre sin que nadie se
+     * entere: no se puede vender y nada en pantalla dice por qué.
+     *
+     * Medido el 15-oct en el hotel de demostración: la 101, ocupada, con cero
+     * huéspedes en casa y cero folios abiertos.
+     *
+     * Aquí sólo se MIDE. La salida está en «liberar sin huésped», y exige
+     * exactamente esta condición.
+     */
+    const enCasa = reservaciones.filter(
+      (reserva) => reserva.estado === EstadoReservacion.CHECK_IN,
+    );
+    const habitacionesConHuesped = new Set(
+      enCasa.map((reserva) => reserva.habitacionId).filter(Boolean),
+    );
+    const ocupadasSinHuesped = habitaciones
+      .filter(
+        (habitacion) =>
+          habitacion.estado === EstadoHabitacion.OCUPADA &&
+          !habitacionesConHuesped.has(habitacion.id),
+      )
+      .map((habitacion) => ({ id: habitacion.id, numero: habitacion.numero }));
+    /* El reverso: alguien en casa y su habitación sin marcar. */
+    const porId = new Map(habitaciones.map((h) => [h.id, h]));
+    const huespedSinHabitacionOcupada = enCasa
+      .filter((reserva) => {
+        const suya = reserva.habitacionId ? porId.get(reserva.habitacionId) : null;
+        return !suya || suya.estado !== EstadoHabitacion.OCUPADA;
+      })
+      .map((reserva) => ({
+        reservacionId: reserva.id,
+        codigo: reserva.codigo ?? reserva.id,
+        huesped: reserva.clienteNombre,
+        habitacion: reserva.habitacionId
+          ? (porId.get(reserva.habitacionId)?.numero ?? null)
+          : null,
+      }));
     const ocupadas = habitaciones.filter(
       (habitacion) => habitacion.estado === EstadoHabitacion.OCUPADA,
     ).length;
@@ -350,7 +402,12 @@ export class OperacionHotelService {
     );
     return {
       hotelId,
-      fechaOperativa: hotel.fechaOperativa ?? hoy,
+      fechaOperativa: diaDelHotel,
+      integridad: {
+        ok: ocupadasSinHuesped.length === 0 && huespedSinHabitacionOcupada.length === 0,
+        ocupadasSinHuesped,
+        huespedSinHabitacionOcupada,
+      },
       habitaciones: {
         total: habitaciones.length,
         operativas: habitacionesOperativas.length,
@@ -368,12 +425,12 @@ export class OperacionHotelService {
         llegadasHoy: reservaciones.filter(
           (reserva) =>
             reserva.estado === EstadoReservacion.CONFIRMADA &&
-            reserva.fechaEntrada === hoy,
+            reserva.fechaEntrada === diaDelHotel,
         ).length,
         salidasHoy: reservaciones.filter(
           (reserva) =>
             reserva.estado === EstadoReservacion.CHECK_IN &&
-            reserva.fechaSalida === hoy,
+            reserva.fechaSalida === diaDelHotel,
         ).length,
         huespedesEnCasa: reservaciones
           .filter((reserva) => reserva.estado === EstadoReservacion.CHECK_IN)
