@@ -256,6 +256,74 @@ hay botón que valga.
 
 ---
 
+## 4 bis. Cuando la base del core la pone el cliente
+
+**Desde el 15-oct-2026.**
+
+La reserva de arriba resuelve el caso normal: SUMA aprovisiona la base y
+entrega un inquilino ya construido. Hay instituciones que no lo aceptan —una
+SOFOM o una caja popular con su propio reglamento de datos— y quieren su
+cartera en su servidor, con su respaldo y su auditoría. Pagan distinto por
+ello, y eso es exactamente lo que esta opción separa.
+
+**El ERP no cambia.** Sigue siendo multiempresa dentro de la suite de SUMA:
+una sola base y los inquilinos separados por empresa. Lo que se mueve es el
+inquilino del **core**, que es lo que Fineract sabe hacer de nacimiento: cada
+inquilino lleva su propia conexión en `tenant_server_connections`.
+
+### Lo que hay que saber ANTES de venderlo
+
+> Fineract construye el esquema de un inquilino nuevo **únicamente al
+> arrancar**.
+
+Es la misma restricción que obligó a inventar la reserva, y con la base del
+cliente no hay reserva posible: esa base no existe hasta que el cliente la da.
+Así que **un inquilino on-premise no puede ser instantáneo**. Entra en servicio
+en el siguiente reinicio programado del core. Decirlo al firmar cuesta una
+frase; descubrirlo con el cliente enfrente cuesta la confianza.
+
+### Los cuatro pasos
+
+En el alta se elige «La pone el cliente» y **no se consume inquilino de la
+reserva**. La empresa nace con su integración **apagada**, que es lo honesto:
+ese inquilino todavía no está, y una empresa en sombra le estaría mandando
+hechos a una base que no existe. Después, en su ficha:
+
+| paso | qué hace | en qué queda |
+|---|---|---|
+| **Guardar la conexión** | servidor, puerto, base, usuario y clave. La clave se cifra al guardarla y no vuelve a salir por ninguna respuesta | `CAPTURADO` |
+| **Probar la conexión** | la abre de verdad y dice qué pasó: nombre que no resuelve, puerto cerrado, cortafuegos que no contesta, clave incorrecta, base que no existe, `pg_hba.conf` que no nos deja | `VERIFICADO` o `FALLIDO` con el motivo |
+| **Anotar el inquilino en el core** | escribe el inquilino y su conexión en el registro del core | `ESPERANDO_REINICIO` |
+| **Activar** | comprueba que el esquema ya está construido y enciende la integración en sombra | `ACTIVO` |
+
+Capturar no es activar, por la misma razón por la que registrar un realm no es
+encenderlo: un origen a medio armar no debe atender a nadie.
+
+### Dos decisiones que conviene conocer
+
+**La fila de conexión se copia, no se inventa.** `tenant_server_connections`
+lleva columnas que cambian entre versiones del core —el tamaño del pool, los
+reintentos, los tiempos de espera—. Una fila escrita a mano con la mitad de las
+columnas produce un inquilino que arranca y se porta raro bajo carga, y eso se
+descubre con gente dentro. Se toma la fila de un inquilino que ya funciona y se
+le cambia **únicamente** de dónde salen los datos. Las columnas de sólo lectura
+se pisan también: dejarlas apuntando al molde haría que los informes de este
+cliente leyeran la base de otro, y sería silencioso.
+
+**Mover de servidor una empresa que ya opera no se hace desde aquí.** Eso es
+una migración de datos, con su ventana y su respaldo, y la pantalla lo dice en
+vez de ofrecer un botón que parecería hacerlo.
+
+### Lo que sigue sin decidirse
+
+Si el core de SUMA se conecta hacia la base del cliente hace falta VPN o túnel,
+y cada consulta cruza esa red. La alternativa —todo corriendo dentro del
+cliente— no necesita red pero sí un paquete de despliegue y una forma de
+actualizar. El modelo de arriba no exige elegir: la conexión se captura y se
+verifica igual.
+
+---
+
 ## 5. El realm por empresa
 
 **Escrito, probado por unidad, y dormido hasta que exista la credencial.**

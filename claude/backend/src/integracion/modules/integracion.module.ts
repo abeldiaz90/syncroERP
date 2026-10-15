@@ -37,6 +37,9 @@ import { AltaEmpresasController } from '../controllers/alta-empresas.controller'
 import { AccesoExternoService } from '../services/acceso-externo.service';
 import { AvisosIntegracionService } from '../services/avisos-integracion.service';
 import { AltaEmpresasService } from '../services/alta-empresas.service';
+import { OrigenCoreService } from '../services/origen-core.service';
+import { RegistroDelCoreService } from '../services/registro-del-core.service';
+import { OrigenCoreEmpresa } from '../entities/origen-core.entity';
 import { CarteraConciliacionService } from '../services/cartera-conciliacion.service';
 import { CarteraPublicadorService } from '../services/cartera-publicador.service';
 import { ClienteCarteraSubscriber } from '../services/cliente-cartera.subscriber';
@@ -108,6 +111,7 @@ import { FineractAdapterModule } from '../adaptadores/fineract/fineract.module';
       VinculoIntegracion,
       AvisoIntegracion,
       TenantReserva,
+      OrigenCoreEmpresa,
       Empresa,
       EventoIntegracion,
       DiscrepanciaIntegracion,
@@ -148,6 +152,8 @@ import { FineractAdapterModule } from '../adaptadores/fineract/fineract.module';
     { provide: APP_INTERCEPTOR, useClass: ContextoInquilinoInterceptor },
     ContabilidadConciliacionService,
     AltaEmpresasService,
+    OrigenCoreService,
+    RegistroDelCoreService,
     AvisosIntegracionService,
     IntegracionModoService,
     IntegracionVinculosService,

@@ -13,12 +13,14 @@ import { ConfigService } from '@nestjs/config';
 import { Public } from '../../common/decorators/public.decorator';
 import {
   AsignarAdministradorDto,
+  ConexionDelClienteDto,
   CrearEmpresaDto,
   RegistrarIdentidadDto,
   RegistrarReservaDto,
   SolicitadoPorDto,
 } from '../dto/alta-empresas.dto';
 import { AltaEmpresasService } from '../services/alta-empresas.service';
+import { OrigenCoreService } from '../services/origen-core.service';
 import { IdentidadEmpresaService } from '../../iam/services/identidad-empresa.service';
 import { revisarRfc } from '../../common/utils/rfc.util';
 
@@ -50,6 +52,7 @@ export class AltaEmpresasController {
     private readonly alta: AltaEmpresasService,
     private readonly cfg: ConfigService,
     private readonly identidades: IdentidadEmpresaService,
+    private readonly origenes: OrigenCoreService,
   ) {}
 
   /**
@@ -141,6 +144,7 @@ export class AltaEmpresasController {
       nombreComercial: String(cuerpo?.nombreComercial ?? ''),
       rfc,
       usaFineract: cuerpo?.usaFineract === true,
+      origenCore: cuerpo?.origenCore === 'CLIENTE' ? 'CLIENTE' : 'SUMA',
       solicitadoPor: cuerpo.solicitadoPor,
       administrador: cuerpo?.administrador?.correo?.trim()
         ? {
@@ -331,5 +335,98 @@ export class AltaEmpresasController {
   ) {
     this.exigirServicio(clave);
     return this.alta.asignarInquilino(id, cuerpo.solicitadoPor);
+  }
+
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * De dónde salen los datos bancarios de esta empresa
+   * --------------------------------------------------------------------------
+   * Cuatro rutas y cuatro pasos, por la misma razón por la que registrar un
+   * realm e ENCENDERLO son dos: entre «el operador tecleó una conexión» y «el
+   * core está leyendo de ahí» hay cosas que fallan, y no son la misma cosa.
+   *
+   *   capturar   guarda la conexión cifrada. No prueba nada.
+   *   verificar  la abre de verdad y dice qué pasó, en palabras usables.
+   *   registrar  anota el inquilino en el registro del core. Queda esperando
+   *              el reinicio: Fineract construye el esquema de un inquilino
+   *              nuevo sólo al arrancar.
+   *   activar    comprueba que el esquema ya está, y recién entonces enciende
+   *              la integración de esa empresa.
+   *
+   * El ERP sigue siendo multiempresa en la suite de SUMA. Esto mueve el
+   * inquilino del CORE, que es lo que Fineract sabe hacer de nacimiento.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+
+  /** Qué origen tiene una empresa. **Nunca devuelve la clave**, ni cifrada. */
+  @Public()
+  @Get(':empresaId/origen-core')
+  async consultarOrigen(
+    @Headers('x-aprovisionamiento') clave: string | undefined,
+    @Param('empresaId') empresaId: string,
+  ) {
+    this.exigirServicio(clave);
+    this.exigirGuid(empresaId);
+    return this.origenes.consultar(empresaId);
+  }
+
+  @Public()
+  @Post(':empresaId/origen-core')
+  async capturarOrigen(
+    @Headers('x-aprovisionamiento') clave: string | undefined,
+    @Param('empresaId') empresaId: string,
+    @Body() cuerpo: ConexionDelClienteDto,
+  ) {
+    this.exigirServicio(clave);
+    this.exigirGuid(empresaId);
+    return this.origenes.capturar(
+      empresaId,
+      {
+        inquilino: cuerpo.inquilino,
+        servidor: cuerpo.servidor,
+        puerto: cuerpo.puerto,
+        baseDatos: cuerpo.baseDatos,
+        usuario: cuerpo.usuario,
+        clave: cuerpo.clave,
+        parametros: cuerpo.parametros ?? null,
+      },
+      cuerpo.solicitadoPor,
+    );
+  }
+
+  @Public()
+  @Post(':empresaId/origen-core/verificar')
+  async verificarOrigen(
+    @Headers('x-aprovisionamiento') clave: string | undefined,
+    @Param('empresaId') empresaId: string,
+    @Body() _cuerpo: SolicitadoPorDto,
+  ) {
+    this.exigirServicio(clave);
+    this.exigirGuid(empresaId);
+    return this.origenes.verificar(empresaId);
+  }
+
+  @Public()
+  @Post(':empresaId/origen-core/registrar')
+  async registrarOrigen(
+    @Headers('x-aprovisionamiento') clave: string | undefined,
+    @Param('empresaId') empresaId: string,
+    @Body() cuerpo: SolicitadoPorDto,
+  ) {
+    this.exigirServicio(clave);
+    this.exigirGuid(empresaId);
+    return this.origenes.registrarEnElCore(empresaId, cuerpo.solicitadoPor);
+  }
+
+  @Public()
+  @Post(':empresaId/origen-core/activar')
+  async activarOrigen(
+    @Headers('x-aprovisionamiento') clave: string | undefined,
+    @Param('empresaId') empresaId: string,
+    @Body() cuerpo: SolicitadoPorDto,
+  ) {
+    this.exigirServicio(clave);
+    this.exigirGuid(empresaId);
+    return this.origenes.activar(empresaId, cuerpo.solicitadoPor);
   }
 }

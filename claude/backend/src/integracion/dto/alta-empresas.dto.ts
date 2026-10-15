@@ -5,10 +5,14 @@ import {
   IsArray,
   IsBoolean,
   IsEmail,
+  IsIn,
+  IsInt,
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -108,6 +112,17 @@ export class CrearEmpresaDto extends SolicitadoPorDto {
   @IsOptional() @Transform(trim) @IsString() @MaxLength(13) rfc?: string;
 
   @IsOptional() @IsBoolean() usaFineract?: boolean;
+
+  /*
+   * De dónde van a salir los datos bancarios de esta empresa.
+   *
+   * Omitido vale `SUMA`, que es el camino de siempre: se toma un inquilino de
+   * la reserva. `CLIENTE` significa que la base la pone el cliente, y entonces
+   * NO se consume reserva: el inquilino se captura, se verifica y se registra
+   * después, por sus propias rutas.
+   */
+  @IsOptional() @Transform(trim) @IsString() @IsIn(['SUMA', 'CLIENTE'])
+  origenCore?: 'SUMA' | 'CLIENTE';
 
   @IsOptional()
   @ValidateNested()
@@ -219,4 +234,43 @@ export class RegistrarIdentidadDto extends SolicitadoPorDto {
 export class EmpresaPorRutaDto {
   @IsSqlServerGuid()
   empresaId!: string;
+}
+
+/**
+ * ============================================================================
+ * La conexión a la base que pone el cliente
+ * ----------------------------------------------------------------------------
+ * Todo lo que hace falta para que el core lea y escriba en la base del cliente,
+ * y nada más. La clave entra aquí una sola vez: se cifra al guardarla y no
+ * vuelve a salir por ninguna respuesta.
+ *
+ * El identificador del inquilino se acota a propósito: el core lo compara en
+ * crudo, así que un espacio o una mayúscula de más son DOS inquilinos y sólo
+ * uno existe.
+ * ============================================================================
+ */
+export class ConexionDelClienteDto extends SolicitadoPorDto {
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsString()
+  @Matches(/^[a-z0-9][a-z0-9_-]{1,59}$/, {
+    message:
+      'El identificador del inquilino sólo admite letras sin acento, números, guion y guion bajo.',
+  })
+  inquilino!: string;
+
+  @Transform(trim) @IsString() @MinLength(1) @MaxLength(200) servidor!: string;
+
+  @Type(() => Number) @IsInt() @Min(1) @Max(65535) puerto!: number;
+
+  @Transform(trim) @IsString() @MinLength(1) @MaxLength(120) baseDatos!: string;
+
+  @Transform(trim) @IsString() @MinLength(1) @MaxLength(120) usuario!: string;
+
+  /* No se recorta: una clave puede llevar espacios a propósito. */
+  @IsString() @MinLength(1) @MaxLength(300) clave!: string;
+
+  /** Parámetros extra de la conexión, p. ej. `sslmode=require`. */
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(500) parametros?: string;
 }

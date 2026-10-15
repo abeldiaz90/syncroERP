@@ -16,6 +16,12 @@ import { CATALOGO_POR_OMISION } from '../../credito/services/productos-credito.s
 import { ProductoCredito, EstadoProductoCredito } from '../../credito/entities/producto-credito.entity';
 import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integracion-empresa.entity';
 import { EstadoTenantReserva, TenantReserva } from '../entities/tenant-reserva.entity';
+import { RegistroDelCoreService } from './registro-del-core.service';
+import {
+  EstadoOrigenCore,
+  OrigenCore,
+  OrigenCoreEmpresa,
+} from '../entities/origen-core.entity';
 import { ModoCartera, ModoContabilidad } from '../integracion.constants';
 import { plural } from '../../common/plural';
 
@@ -69,6 +75,13 @@ export class AltaEmpresasService {
     private readonly usuarios: Repository<Usuario>,
     /* Para avisar en cuanto una empresa estrena inquilino. Ver `tomarInquilino`. */
     private readonly inquilinos: ContextoInquilinoService,
+    /*
+     * Dónde está el registro de inquilinos del core y cómo se le habla lo sabe
+     * UN solo sitio. Vivía aquí dentro como método privado; desde que también
+     * se escribe en él —cuando la base la pone el cliente— tenerlo en dos
+     * clases sería tener dos verdades sobre la misma base.
+     */
+    private readonly registro: RegistroDelCoreService,
   ) {}
 
   /**
@@ -190,40 +203,15 @@ export class AltaEmpresasService {
    * Si la base maestra no se puede leer, esto FALLA en vez de seguir. Continuar
    * significaría aceptar cualquier identificador, que es el estado del que
    * venimos.
+   *
+   * La conexión a esa base maestra vive en `RegistroDelCoreService`, que es
+   * ahora el único sitio que sabe dónde está y cómo se le habla: desde que
+   * también se ESCRIBE en ella —cuando la base del inquilino la pone el
+   * cliente— tenerla en dos clases sería tener dos verdades sobre la misma
+   * base.
    */
-  private conexionRegistro: DataSource | null = null;
-
-  private async registroDelCore(): Promise<DataSource> {
-    if (this.conexionRegistro?.isInitialized) return this.conexionRegistro;
-
-    const url = (process.env.FINERACT_TENANTS_DB_URL ?? '').trim();
-    if (!url) {
-      throw new BadRequestException(
-        'Falta FINERACT_TENANTS_DB_URL: sin acceso al registro de inquilinos del core no se puede ' +
-          'comprobar que un inquilino exista, y aceptar cualquiera produce empresas que se ven ' +
-          'correctas y comparten cartera.',
-      );
-    }
-
-    this.conexionRegistro = new DataSource({
-      type: 'postgres',
-      url,
-      // Sin entidades ni migraciones: esta conexión sólo hace una consulta.
-      synchronize: false,
-      logging: false,
-      extra: { max: 2 },
-    });
-    await this.conexionRegistro.initialize();
-    return this.conexionRegistro;
-  }
-
-  /** Identificadores que el core reconoce, tal como los tiene anotados. */
   async tenantsDelCore(): Promise<string[]> {
-    const ds = await this.registroDelCore();
-    const filas: { identifier: string }[] = await ds.query(
-      'SELECT identifier FROM tenants ORDER BY id',
-    );
-    return filas.map((f) => String(f.identifier).trim().toLowerCase()).filter(Boolean);
+    return this.registro.tenants();
   }
 
   /**
@@ -303,6 +291,22 @@ export class AltaEmpresasService {
     nombreComercial: string;
     rfc?: string | null;
     usaFineract: boolean;
+    /**
+     * De dónde van a salir los datos bancarios de esta empresa.
+     *
+     * `SUMA` —lo de siempre, y lo que vale si no se dice nada— toma un
+     * inquilino de la reserva y la empresa nace hablando con el core en
+     * SOMBRA.
+     *
+     * `CLIENTE` significa que la base la pone el cliente en sus
+     * instalaciones. Entonces NO se toca la reserva: ese inquilino todavía no
+     * existe en ningún sitio, y gastar uno de los preconstruidos sería
+     * regalarlo. La empresa nace con la integración APAGADA y con su renglón
+     * de origen en DECLARADO, que es el estado que dice «falta la conexión»
+     * con todas sus letras. Se captura, se verifica y se registra después, por
+     * sus propias rutas.
+     */
+    origenCore?: 'SUMA' | 'CLIENTE';
     /** Quién autorizó el alta del lado de SUMA. Va a la bitácora. */
     solicitadoPor: string;
     /**
@@ -375,8 +379,10 @@ export class AltaEmpresasService {
         }),
       );
 
+      const laPoneElCliente = datos.origenCore === 'CLIENTE' && datos.usaFineract;
+
       let tenant: TenantReserva | null = null;
-      if (datos.usaFineract) {
+      if (datos.usaFineract && !laPoneElCliente) {
         /*
          * `FOR UPDATE SKIP LOCKED` es lo que hace segura la entrega cuando dos
          * altas ocurren a la vez: cada transacción toma un renglón distinto en
@@ -406,15 +412,44 @@ export class AltaEmpresasService {
         await em.save(tenant);
       }
 
+      if (laPoneElCliente) {
+        /*
+         * El renglón nace aquí y no en la primera captura para que la empresa
+         * nunca esté en el limbo: desde el instante en que existe, el sistema
+         * puede decir de dónde van a salir sus datos y qué falta para que
+         * salgan.
+         */
+        await em.save(
+          em.create(OrigenCoreEmpresa, {
+            empresaId: empresa.id,
+            origen: OrigenCore.CLIENTE,
+            estado: EstadoOrigenCore.DECLARADO,
+            registradoPor: datos.solicitadoPor,
+          }),
+        );
+      }
+
       await em.save(
         em.create(ConfiguracionIntegracionEmpresa, {
           empresaId: empresa.id,
-          // Nace en SOMBRA cuando contrata: el externo registra pero no manda
-          // hasta que la conciliación demuestre que los dos sistemas cuadran.
-          modo: datos.usaFineract ? ModoCartera.SOMBRA : ModoCartera.APAGADO,
-          modoContabilidad: datos.usaFineract
-            ? ModoContabilidad.ESPEJO
-            : ModoContabilidad.APAGADO,
+          /*
+           * Nace en SOMBRA cuando contrata: el externo registra pero no manda
+           * hasta que la conciliación demuestre que los dos sistemas cuadran.
+           *
+           * Pero si la base la pone el cliente nace APAGADA, y eso no es
+           * prudencia: ese inquilino todavía NO EXISTE para el core —se
+           * construye en el próximo arranque— así que una empresa en SOMBRA
+           * estaría mandándole hechos a una base que no está. Se enciende al
+           * activar el origen, cuando el esquema ya contestó.
+           */
+          modo:
+            datos.usaFineract && !laPoneElCliente
+              ? ModoCartera.SOMBRA
+              : ModoCartera.APAGADO,
+          modoContabilidad:
+            datos.usaFineract && !laPoneElCliente
+              ? ModoContabilidad.ESPEJO
+              : ModoContabilidad.APAGADO,
           parametrosProveedor: tenant ? { tenant: tenant.identificador } : {},
         }),
       );
