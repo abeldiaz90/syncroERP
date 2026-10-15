@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { config as cargarEnv } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { plural } from '../../common/plural';
 
 /*
  * La conexión se arma aquí y no se toma de `data-source.ts` a propósito: ese
@@ -421,8 +422,8 @@ async function main() {
     if (!conDatos.length) nota('(ya está limpio)');
     else console.table(conDatos);
     console.log(
-      `Total a borrar: ${antes.reduce((a, f) => a + f.filas, 0)} fila(s) en ` +
-        `${conDatos.length} tabla(s).`,
+      `Total a borrar: ${plural(antes.reduce((a, f) => a + f.filas, 0), 'fila', 'filas')} en ` +
+        `${plural(conDatos.length, 'tabla', 'tablas')}.`,
     );
 
     if (plan.length) {
@@ -550,7 +551,7 @@ async function main() {
       }
       pendientes = trabadas;
     }
-    if (ronda > 1) nota(`Hicieron falta ${ronda} ronda(s) por las llaves foráneas.`);
+    if (ronda > 1) nota(`Hicieron falta ${plural(ronda, 'ronda', 'rondas')} por las llaves foráneas.`);
 
     /*
      * La comprobación que justifica la transacción: si una cascada se llevó
@@ -573,7 +574,7 @@ async function main() {
 
     await qr.commitTransaction();
     titulo('LISTO');
-    console.log(`${borradas} fila(s) de operación borradas.`);
+    console.log(`${plural(borradas, 'fila', 'filas')} de operación borradas.`);
     nota('La configuración quedó verificada fila por fila: nada se perdió.');
     nota('Siguiente paso: cargar el catálogo de productos desde la plantilla.');
   } catch (e) {

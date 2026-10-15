@@ -24,6 +24,7 @@ import {
 import { api, ApiError, conPermiso } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { PuedeCrear, PuedeEditar } from '@/app/components/ProtectedElement';
+import { plural } from '@/lib/format';
 
 interface IProducto {
   id: string; codigo: string; nombre: string; descripcion: string|null;
@@ -148,7 +149,7 @@ export default function ProductosCreditoPage() {
       if (!r.cuadra) {
         // Se lanza para que el aviso salga en rojo: «no cuadra» no es un éxito
         // sólo porque la llamada haya respondido 200.
-        throw new ApiError(400, r.error ?? `No cuadra con el registro externo: ${r.diferencias?.length ?? 0} diferencia(s). Abre el detalle para verlas.`);
+        throw new ApiError(400, r.error ?? `No cuadra con el registro externo: ${plural(r.diferencias?.length ?? 0, 'diferencia', 'diferencias')}. Abre el detalle para verlas.`);
       }
     });
 
@@ -319,7 +320,7 @@ export default function ProductosCreditoPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      cada {p.cadaCuantos} {p.unidadPlazo==='MESES'?'mes(es)':'días'}
+                      cada {p.unidadPlazo==='MESES'?plural(p.cadaCuantos,'mes','meses'):plural(p.cadaCuantos,'día','días')}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{p.cuotasMinimas}–{p.cuotasMaximas}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -410,9 +411,9 @@ export default function ProductosCreditoPage() {
                 if (!r) return <p className="text-slate-400">Todavía no se ha verificado.</p>;
                 return (
                   <>
-                    {!!r.capital&&(
+                    {!!r.capital&&r.numeroCuotas!=null&&(
                       <p className="text-xs text-slate-400 mb-3">
-                        Prueba con ${fmt(r.capital)} a {r.numeroCuotas} cuota(s) desde {r.fechaInicio}.
+                        Prueba con ${fmt(r.capital)} a {plural(r.numeroCuotas, 'cuota', 'cuotas')} desde {r.fechaInicio}.
                       </p>
                     )}
                     {!!(r.error??r.motivo)&&(

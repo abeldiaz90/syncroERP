@@ -24,6 +24,7 @@ import {
 import { espejoEncendido } from '../../integracion/utils/modo-contabilidad.util';
 import { ConfigService } from '@nestjs/config';
 import { EVENTOS_DE_CONTABILIDAD } from '../../integracion/integracion.constants';
+import { plural } from '../../common/plural';
 
 type Consultar = (sql: string, parametros?: unknown[]) => Promise<any[]>;
 
@@ -640,7 +641,7 @@ export class CierreContableService {
         titulo: 'El mes tiene registros contables',
         descripcion:
           totalPolizas > 0
-            ? `Se encontraron ${totalPolizas} póliza(s).`
+            ? `Se encontraron ${plural(totalPolizas, 'póliza', 'pólizas')}.`
             : 'No hay pólizas. Un mes vacío no debe cerrarse por accidente.',
         estado: totalPolizas > 0 ? 'CORRECTO' : 'BLOQUEO',
         bloquea: totalPolizas === 0,
@@ -661,7 +662,7 @@ export class CierreContableService {
         descripcion:
           polizasSinPartidas === 0 && polizasDescuadradas === 0
             ? 'No se detectaron pólizas incompletas.'
-            : `${polizasSinPartidas} sin partidas y ${polizasDescuadradas} descuadrada(s).`,
+            : `${polizasSinPartidas} sin partidas y ${plural(polizasDescuadradas, 'descuadrada', 'descuadradas')}.`,
         estado:
           polizasSinPartidas === 0 && polizasDescuadradas === 0
             ? 'CORRECTO'
@@ -674,7 +675,7 @@ export class CierreContableService {
         descripcion:
           pendientes.length === 0
             ? 'Todas las operaciones del período llegaron a contabilidad.'
-            : `${pendientes.length} operación(es) requieren atención en Asientos pendientes.`,
+            : `${plural(pendientes.length, 'operación', 'operaciones')} requieren atención en Asientos pendientes.`,
         estado: pendientes.length === 0 ? 'CORRECTO' : 'BLOQUEO',
         bloquea: pendientes.length > 0,
       },
@@ -684,7 +685,7 @@ export class CierreContableService {
         descripcion:
           totalSinContabilizar === 0
             ? 'No se detectaron operaciones definitivas sin póliza.'
-            : `${totalSinContabilizar} operación(es) definitiva(s) siguen sin póliza: ${detalleOperaciones
+            : `${plural(totalSinContabilizar, 'operación definitiva', 'operaciones definitivas')} siguen sin póliza: ${detalleOperaciones
                 .map((fila) => `${fila.clave}=${fila.cantidad}`)
                 .join(', ')}.`,
         estado: totalSinContabilizar === 0 ? 'CORRECTO' : 'BLOQUEO',
@@ -697,7 +698,7 @@ export class CierreContableService {
           ? cuentasActivas === 0
             ? 'No hay cuentas bancarias activas.'
             : 'Los estados de cuenta activos aparecen conciliados y cerrados.'
-          : `${estadosCerrados} de ${cuentasActivas} cuenta(s) tienen conciliación cerrada.`,
+          : `${estadosCerrados} de ${plural(cuentasActivas, 'cuenta', 'cuentas')} tienen conciliación cerrada.`,
         estado: coberturaCompleta
           ? 'CORRECTO'
           : exigirConciliacionBancaria
@@ -732,10 +733,10 @@ export class CierreContableService {
               descripcion:
                 espejoSinEntregar === 0
                   ? 'Todas las pólizas del período llegaron al mayor externo: los dos libros dicen lo mismo.'
-                  : `${espejoSinEntregar} asiento(s) no han llegado al mayor externo ` +
-                    `(${Number(espejo.fallidos ?? 0)} fallido(s), ` +
-                    `${Number(espejo.reintentables ?? 0)} reintentable(s), ` +
-                    `${Number(espejo.pendientes ?? 0)} pendiente(s)` +
+                  : `${plural(espejoSinEntregar, 'asiento', 'asientos')} no han llegado al mayor externo ` +
+                    `(${plural(Number(espejo.fallidos ?? 0), 'fallido', 'fallidos')}, ` +
+                    `${plural(Number(espejo.reintentables ?? 0), 'reintentable', 'reintentables')}, ` +
+                    `${plural(Number(espejo.pendientes ?? 0), 'pendiente', 'pendientes')}` +
                     (espejoSinEncolar > 0
                       ? `, y ${espejoSinEncolar} que nunca se encolaron`
                       : '') +
@@ -773,7 +774,7 @@ export class CierreContableService {
               clave: 'CONCILIACION_CARTERA',
               titulo: 'Diferencias de cartera sin resolver',
               descripcion:
-                `${carteraAbiertas} diferencia(s) entre la cartera del ERP y ` +
+                `${plural(carteraAbiertas, 'diferencia', 'diferencias')} entre la cartera del ERP y ` +
                 'la del registro externo siguen abiertas. No detienen este ' +
                 'cierre —la cartera es otro eje— pero cada una es un saldo que ' +
                 'los dos sistemas cuentan distinto. Se revisan en Integración › ' +
@@ -1165,7 +1166,7 @@ export class CierreContableService {
         respaldo,
         mensaje:
           `Período ${revision.mes}/${revision.anio} cerrado con revisión completa. ` +
-          `${diagnostico.contabilidad.totalPolizas} póliza(s) quedaron protegidas. ` +
+          `${plural(diagnostico.contabilidad.totalPolizas, 'póliza', 'pólizas')} quedaron protegidas. ` +
           `Respaldo previo verificado: ${respaldo.archivo} (${respaldo.bytes} bytes).`,
       };
     } catch (error) {
@@ -1317,7 +1318,7 @@ export class CierreContableService {
       cuadrada: Math.abs(diagnostico.contabilidad.diferencia) < 0.01,
       advertencia:
         diagnostico.bloqueos > 0
-          ? `${diagnostico.bloqueos} control(es) bloquean el cierre.`
+          ? `${plural(diagnostico.bloqueos, 'control', 'controles')} bloquean el cierre.`
           : null,
       diagnostico,
     };

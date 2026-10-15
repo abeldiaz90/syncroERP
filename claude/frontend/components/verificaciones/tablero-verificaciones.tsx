@@ -38,6 +38,7 @@ import {
   CONTROLES, RES, EST, fechaLarga, dinero,
   type TipoPaso, type Resultado, type EstadoExp,
 } from '@/components/clientes/expediente-cliente';
+import { plural } from '@/lib/format';
 
 interface IControl {
   tipo: TipoPaso;
@@ -174,7 +175,7 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
                     <p className="text-[13px] font-semibold text-slate-800 truncate">{nombre}</p>
                   </div>
                   {c?.simulaciones ? (
-                    <span title={`${c.simulaciones} ensayo(s) simulado(s)`}
+                    <span title={`${plural(c.simulaciones, 'ensayo simulado', 'ensayos simulados')}`}
                       className="shrink-0 inline-flex items-center gap-1 text-[10.5px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-1.5 py-0.5">
                       <FlaskConical className="w-3 h-3" /> {c.simulaciones}
                     </span>

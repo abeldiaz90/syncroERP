@@ -62,6 +62,7 @@ import { CarteraPublicadorService } from '../../integracion/services/cartera-pub
 import { anotarEnElCredito } from '../utils/anotar-en-el-credito.util';
 import { estadoDeUnaCuota } from '../utils/estado-de-una-cuota.util';
 import { seRegulariza } from '../utils/un-credito-se-regulariza.util';
+import { plural } from '../../common/plural';
 
 @Injectable()
 export class CobranzaService {
@@ -581,7 +582,7 @@ export class CobranzaService {
       });
       if (posteriores > 0) {
         throw new ConflictException(
-          `Este crédito tiene ${posteriores} pago(s) posterior(es) vigentes. Cancélalos primero: deshacer uno intermedio dejaría el reparto entre cuotas mal calculado.`,
+          `Este crédito tiene ${plural(posteriores, 'pago posterior vigente', 'pagos posteriores vigentes')}. Cancélalos primero: deshacer uno intermedio dejaría el reparto entre cuotas mal calculado.`,
         );
       }
 

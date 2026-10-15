@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, ClipboardList, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
+import { plural } from '@/lib/format';
 
 type Pendiente = {
   codigo: string;
@@ -45,7 +46,7 @@ export default function OperacionesPendientesPage() {
         <Kpi titulo="No verificadas" valor={data.noVerificados.length} icono={<AlertTriangle/>}/>
       </div>
       {data.pendientes.length === 0 ? <div className="rounded-xl border bg-white p-10 text-center"><CheckCircle2 className="mx-auto mb-3 text-emerald-600"/><div className="font-medium">No hay operaciones pendientes detectadas</div></div> :
-      <div className="overflow-hidden rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50 text-left"><tr><th className="p-3">Prioridad</th><th className="p-3">Módulo</th><th className="p-3">Pendiente</th><th className="p-3">Responsable</th><th className="p-3">Siguiente acción</th></tr></thead><tbody>{data.pendientes.map(p=><tr key={p.codigo} className="border-t"><td className="p-3"><span className={`rounded-full px-2 py-1 text-xs font-medium ${p.prioridad==='ALTA'?'bg-red-100 text-red-700':p.prioridad==='MEDIA'?'bg-amber-100 text-amber-700':'bg-slate-100'}`}>{p.prioridad}</span></td><td className="p-3">{p.modulo}</td><td className="p-3"><div className="font-medium">{p.titulo}</div><div className="text-slate-500">{p.cantidad} registro(s)</div></td><td className="p-3">{p.responsable}</td><td className="p-3"><Link href={p.ruta} className="font-medium text-indigo-600 hover:underline">{p.accion}</Link></td></tr>)}</tbody></table></div>}
+      <div className="overflow-hidden rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50 text-left"><tr><th className="p-3">Prioridad</th><th className="p-3">Módulo</th><th className="p-3">Pendiente</th><th className="p-3">Responsable</th><th className="p-3">Siguiente acción</th></tr></thead><tbody>{data.pendientes.map(p=><tr key={p.codigo} className="border-t"><td className="p-3"><span className={`rounded-full px-2 py-1 text-xs font-medium ${p.prioridad==='ALTA'?'bg-red-100 text-red-700':p.prioridad==='MEDIA'?'bg-amber-100 text-amber-700':'bg-slate-100'}`}>{p.prioridad}</span></td><td className="p-3">{p.modulo}</td><td className="p-3"><div className="font-medium">{p.titulo}</div><div className="text-slate-500">{plural(p.cantidad, 'registro', 'registros')}</div></td><td className="p-3">{p.responsable}</td><td className="p-3"><Link href={p.ruta} className="font-medium text-indigo-600 hover:underline">{p.accion}</Link></td></tr>)}</tbody></table></div>}
       {data.noVerificados.length>0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">No fue posible verificar: {data.noVerificados.join(', ')}. Ejecuta la verificación de esquema.</div>}
     </>}
   </div>;

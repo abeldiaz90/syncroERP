@@ -12,6 +12,7 @@ import {
   ResolverAreaConciliacionDto,
 } from '../dto/conciliacion-financiera.dto';
 import { ActivacionFinancieraService } from './activacion-financiera.service';
+import { plural } from '../../common/plural';
 
 type Area = 'CAJA' | 'BANCOS' | 'CLIENTES' | 'PROVEEDORES' | 'INVENTARIO';
 type Resoluciones = Partial<
@@ -363,7 +364,7 @@ export class ConciliacionFinancieraService {
     const inventarioAdvertencias =
       inventario.lotesCostoCero > 0
         ? [
-            `${inventario.lotesCostoCero} lote(s) con existencia conservan costo cero.`,
+            `${plural(inventario.lotesCostoCero, 'lote', 'lotes')} con existencia conservan costo cero.`,
           ]
         : [];
 

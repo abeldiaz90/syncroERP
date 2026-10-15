@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { fechaCorta } from "@/lib/fechas";
 import { hoyISO } from '@/lib/fechas';
+import { plural } from '@/lib/format';
 
 interface IHotel {
   id: string;
@@ -954,7 +955,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
                 >
                   {t.nombre} · ${t.tarifaBase}/noche
                   {disponibilidad[t.id] !== undefined
-                    ? ` · ${disponibilidad[t.id]} disponible(s)`
+                    ? ` · ${plural(disponibilidad[t.id], 'disponible', 'disponibles')}`
                     : ""}
                 </option>
               ))}

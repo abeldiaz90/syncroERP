@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { CreditoCliente } from '../entities/credito-cliente.entity';
 import { CobranzaService } from './cobranza.service';
 import { omitirTareaProgramada } from '../../common/utils/tareas-programadas.util';
+import { plural } from '../../common/plural';
 
 /**
  * Mantiene la cartera vencida para todas las empresas. Vive en Crédito para
@@ -33,7 +34,7 @@ export class CobranzaCronService {
       try {
         const resultado = await this.cobranza.actualizarVencidos(empresaId);
         this.logger.log(
-          `Cartera ${empresaId}: ${resultado.actualizadas} cuota(s) actualizada(s).`,
+          `Cartera ${empresaId}: ${plural(resultado.actualizadas, 'cuota actualizada', 'cuotas actualizadas')}.`,
         );
       } catch (error) {
         this.logger.error(

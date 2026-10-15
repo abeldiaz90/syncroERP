@@ -5,6 +5,7 @@ import {
   ChefHat, Plus, X, Loader2, CheckCircle2, Search, Trash2, Package, Calculator, FlaskConical,
 } from 'lucide-react';
 import WizardRecetas from './WizardRecetas';
+import { plural } from '@/lib/format';
 
 interface IProducto { id: string; nombre: string; unidadMedida?: string; precioCompra?: number; tipo?: string; }
 interface IInsumo { insumoId: string; insumoNombre: string; cantidad: number; unidad: string; mermaPorcentaje: number; }
@@ -213,7 +214,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
           <div className="flex items-center gap-3">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Rendimiento</label>
             <input type="number" min={1} value={rendimiento} onChange={e => setRendimiento(Number(e.target.value))} className="w-20 px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-center" />
-            <span className="text-xs text-slate-400">porción(es) que produce esta receta</span>
+            <span className="text-xs text-slate-400">porciones que produce esta receta</span>
           </div>
 
           {/* Insumos */}

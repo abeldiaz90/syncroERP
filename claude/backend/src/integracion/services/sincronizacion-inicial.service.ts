@@ -5,6 +5,7 @@ import { ModoCartera, TipoVinculo } from '../integracion.constants';
 import { VinculoIntegracion } from '../entities/vinculo-integracion.entity';
 import { CarteraPublicadorService } from './cartera-publicador.service';
 import { IntegracionModoService } from './integracion-modo.service';
+import { plural } from '../../common/plural';
 
 export interface InformeSincronizacionInicial {
   simulacion: boolean;
@@ -158,7 +159,7 @@ export class SincronizacionInicialService {
 
     if (!simulacion) {
       this.logger.log(
-        `Sincronización inicial ${empresaId}: ${informe.clientes} cliente(s), ${informe.creditos} crédito(s), ${informe.pagos} pago(s), ${informe.excluidos.length} excluido(s).`,
+        `Sincronización inicial ${empresaId}: ${plural(informe.clientes, 'cliente', 'clientes')}, ${plural(informe.creditos, 'crédito', 'créditos')}, ${plural(informe.pagos, 'pago', 'pagos')}, ${plural(informe.excluidos.length, 'excluido', 'excluidos')}.`,
       );
     }
 

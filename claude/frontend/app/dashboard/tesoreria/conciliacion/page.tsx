@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react';
 import { CheckCheck, ClipboardPaste, FileSpreadsheet, Lock, Scale } from 'lucide-react';
 
 import { api, ApiError } from '@/lib/api';
-import { dinero, fecha, isoCorto } from '@/lib/format';
+import { dinero, fecha, isoCorto, plural } from '@/lib/format';
 import { useAccion, useDatos } from '@/hooks/use-datos';
 import {
   Boton, Campo, Cargando, Distintivo, Entrada, EncabezadoPantalla,
@@ -287,7 +287,7 @@ export default function ConciliacionPage() {
                   {!reporte.cuadra
                     ? `Hay una diferencia de ${dinero(Math.abs(reporte.diferencia))}`
                     : pendientesBanco > 0
-                      ? `Quedan ${pendientesBanco} movimiento(s) del banco sin explicar`
+                      ? `Quedan ${plural(pendientesBanco, 'movimiento', 'movimientos')} del banco sin explicar`
                       : 'La conciliación cuadra'}
                 </p>
                 <p className="text-[12.5px] text-slate-500 mt-0.5">

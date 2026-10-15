@@ -1,3 +1,4 @@
+import { plural } from '../../common/plural';
 /**
  * ============================================================================
  * EL COTEJO DE TRES VÍAS
@@ -184,7 +185,7 @@ export function cotejarTresVias(entrada: {
     conciliado: conDiferencias.length === 0,
     renglones,
     resumen: conDiferencias.length
-      ? `${conDiferencias.length} de ${renglones.length} partida(s) no coinciden con la orden o con lo recibido.`
-      : `Las ${renglones.length} partida(s) coinciden con lo pedido, lo recibido y el precio pactado.`,
+      ? `${conDiferencias.length} de ${plural(renglones.length, 'partida', 'partidas')} no coinciden con la orden o con lo recibido.`
+      : `Las ${plural(renglones.length, 'partida', 'partidas')} coinciden con lo pedido, lo recibido y el precio pactado.`,
   };
 }

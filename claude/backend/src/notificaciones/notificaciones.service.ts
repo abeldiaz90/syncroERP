@@ -16,6 +16,7 @@ import {
   htmlStockBajo,
   htmlBienvenidaUsuario,
 } from './email-templates';
+import { plural } from '../common/plural';
 
 @Injectable()
 export class NotificacionesService {
@@ -139,7 +140,7 @@ export class NotificacionesService {
     try {
       await this.mailService.enviarCorreo({
         destinatario: emails,
-        asunto: `⚠️ Alerta: ${productos.length} producto(s) bajo el mínimo de stock`,
+        asunto: `⚠️ Alerta: ${plural(productos.length, 'producto', 'productos')} bajo el mínimo de stock`,
         cuerpo: `${productos.length} productos requieren reabastecimiento urgente.`,
         cuerpoHtml: htmlStockBajo(productos),
       });

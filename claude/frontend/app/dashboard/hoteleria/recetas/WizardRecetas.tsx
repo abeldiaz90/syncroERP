@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { CheckCircle2, XCircle, Loader2, Sparkles, AlertTriangle, ArrowRight, X, Wallet, FolderTree, Package } from 'lucide-react';
+import { plural } from '@/lib/format';
 
 interface IDiagnostico {
   listoParaRecetas: boolean;
@@ -110,7 +111,7 @@ export default function WizardRecetas({ api, h, onListo, onClose }: {
 
               <Item ok={diag.checks.tieneInsumos} icon={Package}
                 titulo="Productos disponibles como insumos"
-                detalle={`${diag.detalle.totalProductos} producto(s) en tu catálogo.`}
+                detalle={`${plural(diag.detalle.totalProductos, 'producto', 'productos')} en tu catálogo.`}
                 accion={null} textoAccion="" />
 
               {!diag.checks.tieneInsumos && (

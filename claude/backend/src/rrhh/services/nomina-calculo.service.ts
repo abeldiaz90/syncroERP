@@ -47,6 +47,7 @@ import {
   obtenerTarifas,
 } from '../data/tarifas-fiscales';
 import { FIRMAS_NOMINA } from '../advanced/matriz-de-firmas';
+import { plural } from '../../common/plural';
 
 const MOTOR_VERSION = 'SYNCRO-NOMINA-MX-2.0.0';
 const MS_DIA = 86_400_000;
@@ -853,7 +854,7 @@ export class NominaCalculoService {
         prioridad: 55,
       });
       alertas.push(
-        `Se aplican ${diasNoPagadosRetro} día(s) no pagado(s) de periodos ya ` +
+        `Se aplican ${plural(diasNoPagadosRetro, 'día no pagado', 'días no pagados')} de periodos ya ` +
           `cerrados (${periodos}), por $${descuento.toFixed(2)}. Se capturaron ` +
           'después de que su periodo se calculó.',
       );

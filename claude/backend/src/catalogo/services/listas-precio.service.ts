@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { ListaPrecio } from '../entities/lista-precio.entity';
+import { plural } from '../../common/plural';
 
 @Injectable()
 export class ListasPrecioService {
@@ -197,19 +198,19 @@ export class ListasPrecioService {
 
     if (Number(enVentas) > 0) {
       throw new ConflictException(
-        `No se puede borrar «${lista.nombre}»: ${enVentas} venta(s) registrada(s) la tienen como lista de precios. ` +
+        `No se puede borrar «${lista.nombre}»: ${plural(enVentas, 'venta registrada', 'ventas registradas')} la tienen como lista de precios. ` +
           'Borrarla dejaría esos documentos sin poder explicar a qué precio se vendió.',
       );
     }
     if (Number(enCajas) > 0) {
       throw new ConflictException(
-        `No se puede borrar «${lista.nombre}»: ${enCajas} caja(s) cobran con ella. ` +
+        `No se puede borrar «${lista.nombre}»: ${plural(enCajas, 'caja', 'cajas')} cobran con ella. ` +
           'Asígnales otra lista en Finanzas → Cuentas bancarias y vuelve a intentarlo.',
       );
     }
     if (Number(precios) > 0 && !confirmar) {
       throw new ConflictException(
-        `«${lista.nombre}» tiene ${precios} precio(s) capturados y borrarla los borra todos, sin reversa. ` +
+        `«${lista.nombre}» tiene ${plural(precios, 'precio', 'precios')} capturados y borrarla los borra todos, sin reversa. ` +
           'Vuelve a enviar la petición con confirmar=true si es lo que quieres.',
       );
     }
@@ -229,7 +230,7 @@ export class ListasPrecioService {
       }
     });
     return {
-      mensaje: `Lista «${lista.nombre}» eliminada` + (Number(precios) > 0 ? ` junto con sus ${precios} precio(s)` : ''),
+      mensaje: `Lista «${lista.nombre}» eliminada` + (Number(precios) > 0 ? ` junto con sus ${plural(precios, 'precio', 'precios')}` : ''),
       preciosBorrados: Number(precios),
     };
   }

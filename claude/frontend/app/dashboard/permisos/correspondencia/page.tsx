@@ -34,6 +34,7 @@ import {
   UserPlus, Link2, AlertTriangle, RefreshCw,
 } from 'lucide-react';
 import { api, ApiError, intentar } from '@/lib/api';
+import { plural } from '@/lib/format';
 
 interface IRolErp { rol: string; etiqueta: string; descripcion: string }
 interface IRolExterno { id: string; nombre: string; descripcion?: string; creadoDesdeErp?: boolean }
@@ -261,7 +262,7 @@ export default function CorrespondenciaRolesPage() {
               <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-amber-900">
-                  El registro externo sólo tiene {rolesExternos.length} rol(es), y ninguno operativo
+                  El registro externo sólo tiene {plural(rolesExternos.length, 'rol', 'roles')}, y ninguno operativo
                 </p>
                 <p className="text-sm text-amber-800 mt-0.5">
                   Hoy sólo existen los roles que trae de fábrica y la cuenta técnica de la

@@ -1126,7 +1126,7 @@ export default function ModalFichaProducto({
           <p className="text-xs text-slate-400">
             {atributos.filter(a => a.valor?.trim()).length > 0 && (
               <span className="text-purple-600 font-bold">
-                {atributos.filter(a => a.valor?.trim()).length} atributo(s) sectorial(es) listos
+                {plural(atributos.filter(a => a.valor?.trim()).length, 'atributo sectorial listo', 'atributos sectoriales listos')}
               </span>
             )}
           </p>

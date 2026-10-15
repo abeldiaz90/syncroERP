@@ -34,6 +34,7 @@ import { api, ApiError, intentar } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { TableroVerificaciones } from '@/components/verificaciones/tablero-verificaciones';
 import { PuedeCrear } from '@/app/components/ProtectedElement';
+import { plural } from '@/lib/format';
 
 type TipoPaso =
   | 'IDENTIDAD_INE' | 'BURO_CREDITO' | 'CIRCULO_CREDITO' | 'HISTORIAL_INTERNO'
@@ -594,7 +595,7 @@ export default function FlujoVerificacionPage() {
                     {f.activo
                       ? <span className="px-2 py-0.5 text-xs rounded-full bg-green-50 text-green-700 border border-green-300">activo</span>
                       : <span className="px-2 py-0.5 text-xs rounded-full bg-gray-50 text-gray-600 border">borrador</span>}
-                    <span className="text-xs text-gray-500">{f.pasos?.length ?? 0} paso(s)</span>
+                    <span className="text-xs text-gray-500">{plural(f.pasos?.length ?? 0, 'paso', 'pasos')}</span>
                   </div>
                   {f.descripcion && <p className="text-sm text-gray-600 mt-1">{f.descripcion}</p>}
                   <p className="text-xs text-gray-500 mt-1">

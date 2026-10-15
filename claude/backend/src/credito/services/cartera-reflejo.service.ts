@@ -22,6 +22,7 @@ import { AvisosIntegracionService } from '../../integracion/services/avisos-inte
 import { MetodoPagoCobranza } from '../dto/registrar-pago-cobranza.dto';
 import { CreditoCliente, EstadoCredito } from '../entities/credito-cliente.entity';
 import { CobranzaService } from './cobranza.service';
+import { plural } from '../../common/plural';
 
 export interface ResultadoReflejo {
   revisados: number;
@@ -105,8 +106,8 @@ export class CarteraReflejoService {
           const r = await this.reflejarEmpresa(empresa.empresaId);
           if (r.aplicados || r.omitidos.length || r.descartados.length) {
             this.logger.log(
-              `Reflejo externo ${empresa.empresaId}: ${r.aplicados} aplicado(s), ` +
-                `${r.omitidos.length} omitido(s), ${r.descartados.length} sin clasificar o fuera de estado.`,
+              `Reflejo externo ${empresa.empresaId}: ${plural(r.aplicados, 'aplicado', 'aplicados')}, ` +
+                `${plural(r.omitidos.length, 'omitido', 'omitidos')}, ${r.descartados.length} sin clasificar o fuera de estado.`,
             );
           }
         } catch (error) {

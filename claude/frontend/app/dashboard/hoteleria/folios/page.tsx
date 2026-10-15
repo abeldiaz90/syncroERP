@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BedDouble, CreditCard, Plus, RefreshCw, X } from "lucide-react";
 import { api, ApiError, conPermiso } from "@/lib/api";
 import { fechaCorta } from "@/lib/fechas";
+import { plural } from '@/lib/format';
 
 type Reserva = {
   id: string;
@@ -408,7 +409,7 @@ export default function FoliosHotelPage() {
             </div>
             {Number(folio.nochesPendientes || 0) > 0 && (
               <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                El cierre incluirá {folio.nochesPendientes} noche(s) aún no
+                El cierre incluirá {plural(Number(folio.nochesPendientes || 0), 'noche', 'noches')} aún no
                 posteadas. El total mostrado ya las considera.
               </div>
             )}

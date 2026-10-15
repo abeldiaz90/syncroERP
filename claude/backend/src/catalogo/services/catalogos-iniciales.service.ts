@@ -6,6 +6,7 @@ import { CategoriasService } from './categorias.service';
 import { FormaPago } from '../entities/forma-pago.entity';
 import { Categoria } from '../entities/categoria.entity';
 import { Producto, TipoProducto } from '../entities/producto.entity';
+import { plural } from '../../common/plural';
 
 /**
  * Garantiza que una instalación recién creada y las empresas existentes
@@ -124,7 +125,7 @@ export class CatalogosInicialesService implements OnApplicationBootstrap {
       const tocadas = Number((r as { actualizadas?: number })?.actualizadas ?? 0);
       if (tocadas > 0) {
         this.logger.log(
-          `Cuentas de categoria: ${tocadas} categoria(s) sin cuentas quedaron configuradas en ${empresaId}.`,
+          `Cuentas de categoria: ${plural(tocadas, 'categoria', 'categorias')} sin cuentas quedaron configuradas en ${empresaId}.`,
         );
       }
     } catch (error) {
@@ -218,7 +219,7 @@ export class CatalogosInicialesService implements OnApplicationBootstrap {
       { categoriaId: porDefecto.id },
     );
     this.logger.warn(
-      `${huerfanos.length} producto(s) con inventario no tenían categoría y por tanto ` +
+      `${plural(huerfanos.length, 'producto', 'productos')} con inventario no tenían categoría y por tanto ` +
         `ninguna cuenta contable: quedaron en «${porDefecto.nombre}». ` +
         'Reclasifícalos cuando puedas; mientras tanto, sus compras ya pueden contabilizarse.',
     );

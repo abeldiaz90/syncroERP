@@ -50,6 +50,7 @@ import { AsientosPendientesService } from '../../finanzas/services/asientos-pend
 import { Poliza } from '../../finanzas/entities/poliza.entity';
 import { CuentaContable } from '../../finanzas/entities/cuenta-contable.entity';
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
+import { plural } from '../../common/plural';
 
 /* ── Utilidades de dinero ─────────────────────────────────────────────────── */
 
@@ -398,7 +399,7 @@ export class ActivosService {
       });
       if (corridas > 0) {
         throw new ConflictException(
-          `«${activo.codigo}» ya tiene ${corridas} mes(es) de depreciación corridos, así que no se ` +
+          `«${activo.codigo}» ya tiene ${plural(corridas, 'mes', 'meses')} de depreciación corridos, así que no se ` +
             `puede cambiar ${tocaLaBase.map(([, nombre]) => nombre).join(', ')}: los meses ya ` +
             'asentados quedarían calculados con una base y los nuevos con otra, y la depreciación ' +
             'acumulada sería la suma de dos cosas distintas. Revierte esas corridas desde ' +

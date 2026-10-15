@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { plural } from '../../common/plural';
 
 export type Estado = 'NO_INICIADO' | 'EN_PROGRESO' | 'LISTO_CON_ADVERTENCIAS' | 'LISTO' | 'BLOQUEADO';
 export interface Requisito { codigo: string; titulo: string; completo: boolean; bloqueante: boolean; ruta: string; detalle?: string; }
@@ -177,7 +178,7 @@ export class DiagnosticoConfiguracionService {
             productosSinClaveSat === null
               ? 'Claves del SAT en los productos (no se pudo comprobar)'
               : productosSinClaveSat > 0
-                ? `${productosSinClaveSat} producto(s) sin clave del SAT`
+                ? `${plural(productosSinClaveSat, 'producto', 'productos')} sin clave del SAT`
                 : 'Claves del SAT en los productos',
           detalle:
             productosSinClaveSat && productosSinClaveSat > 0
@@ -203,7 +204,7 @@ export class DiagnosticoConfiguracionService {
             bancosSinCuenta === null
               ? 'Cuenta bancaria o caja (no se pudo comprobar)'
               : bancosSinCuenta > 0
-                ? `${bancosSinCuenta} cuenta(s) de banco o caja sin cuenta contable`
+                ? `${plural(bancosSinCuenta, 'cuenta', 'cuentas')} de banco o caja sin cuenta contable`
                 : 'Cuenta bancaria o caja',
           detalle:
             bancosSinCuenta && bancosSinCuenta > 0

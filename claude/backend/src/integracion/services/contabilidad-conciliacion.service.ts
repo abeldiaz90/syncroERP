@@ -19,6 +19,7 @@ import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integ
 import { AvisoIntegracion, EstadoAviso } from '../entities/aviso-integracion.entity';
 import { EventoIntegracion } from '../entities/evento-integracion.entity';
 import { IntegracionModoService } from './integracion-modo.service';
+import { plural } from '../../common/plural';
 
 /**
  * Corta en el último espacio, no a media palabra. Un mensaje técnico cortado en
@@ -264,7 +265,7 @@ export class ContabilidadConciliacionService {
         if (!this.externa.disponible()) {
           interrumpida =
             `El enlace con el mayor externo se cortó tras revisar ${revisados} ` +
-            `de ${links.length} póliza(s) (${causa}). Las demás no se compararon: ` +
+            `de ${plural(links.length, 'póliza', 'pólizas')} (${causa}). Las demás no se compararon: ` +
             'no se sabe nada de ellas hasta la próxima corrida.';
           pendientesDeComparar = links.length - revisados;
           break;

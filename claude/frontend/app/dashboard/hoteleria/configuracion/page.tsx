@@ -16,6 +16,7 @@ import {
   MapPin,
   Package,
 } from "lucide-react";
+import { plural } from '@/lib/format';
 
 interface IHotel {
   id: string;
@@ -441,7 +442,7 @@ export default function ConfiguracionHotelPage() {
           onOk={(n: number) => {
             setModalHab(false);
             cargarHabs();
-            mostrar(`${n} habitación(es) creada(s)`);
+            mostrar(`${plural(n, 'habitación creada', 'habitaciones creadas')}`);
           }}
         />
       )}

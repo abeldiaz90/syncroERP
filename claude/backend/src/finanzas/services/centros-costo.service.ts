@@ -13,6 +13,7 @@ import {
   centroDeLaPartida,
   laEmpresaLlevaCentros,
 } from '../utils/el-centro-de-la-partida';
+import { plural } from '../../common/plural';
 
 @Injectable()
 export class CentrosCostoService {
@@ -154,7 +155,7 @@ export class CentrosCostoService {
           const hijos = await repo.count({ where: { padreId: id } });
           if (hijos > 0) {
             throw new BadRequestException(
-              `«${centro.nombre}» agrupa a ${hijos} centro(s): su saldo es la suma de ellos. ` +
+              `«${centro.nombre}» agrupa a ${plural(hijos, 'centro', 'centros')}: su saldo es la suma de ellos. ` +
                 'Si recibiera movimientos propios, el reporte por centro dejaría de cuadrar con el total.',
             );
           }
@@ -195,7 +196,7 @@ export class CentrosCostoService {
     );
     if (Number(total) > 0) {
       throw new ConflictException(
-        `«${centro.nombre}» tiene ${total} partida(s) de póliza registradas y no se puede borrar: ` +
+        `«${centro.nombre}» tiene ${plural(total, 'partida', 'partidas')} de póliza registradas y no se puede borrar: ` +
           'los reportes por centro dejarían de cuadrar. Desactívalo en su lugar — deja de ofrecerse ' +
           'para capturar y su historia se conserva.',
       );
@@ -203,7 +204,7 @@ export class CentrosCostoService {
     const hijos = await this.repo.count({ where: { padreId: id } });
     if (hijos > 0) {
       throw new ConflictException(
-        `«${centro.nombre}» agrupa a ${hijos} centro(s). Muévelos o bórralos primero.`,
+        `«${centro.nombre}» agrupa a ${plural(hijos, 'centro', 'centros')}. Muévelos o bórralos primero.`,
       );
     }
     await this.repo.remove(centro);
@@ -258,7 +259,7 @@ export class CentrosCostoService {
     const hijos = await repo.count({ where: { padreId: id, activo: true } });
     if (hijos > 0) {
       throw new BadRequestException(
-        `No se puede desactivar: ${hijos} centro(s) activo(s) cuelgan de éste y quedarían ` +
+        `No se puede desactivar: ${plural(hijos, 'centro activo', 'centros activos')} cuelgan de éste y quedarían ` +
           'colgando de un padre inactivo. Desactiva primero los hijos.',
       );
     }

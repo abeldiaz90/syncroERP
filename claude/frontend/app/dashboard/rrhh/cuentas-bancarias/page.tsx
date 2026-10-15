@@ -5,6 +5,7 @@ import { Building2, CheckCircle2, Clock3, KeyRound, Search, ShieldCheck, XCircle
 import { api } from '@/lib/api';
 import { confirmarElegante, solicitarTexto } from '@/components/ui/dialogos';
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
+import { plural } from '@/lib/format';
 
 type Empleado = {
   id: string;
@@ -98,8 +99,8 @@ export default function CuentasBancariasPage() {
         {},
       );
       setMensaje(
-        `Migración concluida: ${resultado?.migradas ?? 0} cuenta(s) cifrada(s)` +
-        `${resultado?.omitidas ? ` y ${resultado.omitidas} omitida(s)` : ''}. Deben validarse nuevamente antes de dispersar.`,
+        `Migración concluida: ${plural(resultado?.migradas ?? 0, 'cuenta cifrada', 'cuentas cifradas')}` +
+        `${resultado?.omitidas ? ` y ${plural(resultado.omitidas, 'omitida', 'omitidas')}` : ''}. Deben validarse nuevamente antes de dispersar.`,
       );
       await cargar();
     } catch (e) {

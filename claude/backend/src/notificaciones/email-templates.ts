@@ -2,6 +2,7 @@ import {
   TIPOS_DE_FOLIO,
   folioDe,
 } from '../common/services/folios.service';
+import { plural } from '../common/plural';
 // ─── Plantillas HTML para SyncroERP ──────────────────────────────────────────
 // Base de diseño: header oscuro, contenido limpio, footer de marca
 
@@ -209,7 +210,7 @@ export function htmlCuotaVencida(
     `
     <h2 style="color:#dc2626">⚠️ Pago vencido</h2>
     <p>Hola <strong>${cliente?.nombre ?? 'estimado cliente'}</strong>,<br>
-    detectamos que tu pago venció hace <strong>${diasVencida} día(s)</strong>. Por favor regulariza tu cuenta a la brevedad.</p>
+    detectamos que tu pago venció hace <strong>${plural(diasVencida, 'día', 'días')}</strong>. Por favor regulariza tu cuenta a la brevedad.</p>
     <div class="highlight" style="background:#fef2f2;border-color:#fca5a5">
       <table style="width:100%;font-size:14px">
         <tr><td><strong>Crédito:</strong></td><td>${credito.folio}</td></tr>
@@ -282,7 +283,7 @@ export function htmlStockBajo(productos: any[]): string {
 
   return wrap(
     'Alerta de Stock',
-    `${productos.length} producto(s) bajo el mínimo`,
+    `${plural(productos.length, 'producto', 'productos')} bajo el mínimo`,
     `
     <h2 style="color:#dc2626">⚠️ Alerta de inventario bajo</h2>
     <p>Los siguientes productos han bajado del nivel mínimo de stock y requieren reabastecimiento urgente:</p>

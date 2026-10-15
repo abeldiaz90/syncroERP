@@ -53,6 +53,7 @@ import {
 import { fechaContableNegocio } from '../../common/utils/business-time.util';
 import { techoDeFacturas } from '../utils/el-techo-que-pone-la-factura';
 import { maximoAPagar } from '../utils/el-maximo-a-pagar';
+import { plural } from '../../common/plural';
 
 @Injectable()
 export class OrdenesCompraService {
@@ -1146,7 +1147,7 @@ export class OrdenesCompraService {
         const laFacturaEsElTope = techo !== null && techo.total < recibido;
         const porQue = laFacturaEsElTope
           ? `De esta orden llegó ${recibido.toFixed(2)} pero el proveedor sólo ha facturado ` +
-            `${techo!.total.toFixed(2)} en ${techo!.cuantas} comprobante(s)` +
+            `${techo!.total.toFixed(2)} en ${plural(techo!.cuantas, 'comprobante', 'comprobantes')}` +
             (techo!.conDiferencias.length
               ? ` —y ${techo!.conDiferencias.join(', ')} tiene diferencias sin resolver—`
               : '') +

@@ -52,6 +52,7 @@ import {
   exigirRangoDeFechas,
   fechaContableNegocio,
 } from '../../common/utils/business-time.util';
+import { plural } from '../../common/plural';
 
 const aCent = (v: number | string) => Math.round(Number(v ?? 0) * 100);
 const aPesos = (c: number) => Math.round(c) / 100;
@@ -1339,12 +1340,12 @@ export class TesoreriaService {
      */
     if (reporte.pendientes.lineasDelBanco > 0) {
       throw new BadRequestException(
-        `Quedan ${reporte.pendientes.lineasDelBanco} línea(s) del estado de ` +
+        `Quedan ${plural(reporte.pendientes.lineasDelBanco, 'línea', 'líneas')} del estado de ` +
           'cuenta sin explicar. Cada movimiento del banco tiene que quedar ' +
           'emparejado con uno de tus movimientos o registrado como movimiento ' +
           'nuevo: el banco ya movió ese dinero. ' +
           (reporte.pendientes.movimientosEnTransito > 0
-            ? `Tus ${reporte.pendientes.movimientosEnTransito} movimiento(s) en ` +
+            ? `Tus ${plural(reporte.pendientes.movimientosEnTransito, 'movimiento', 'movimientos')} en ` +
               'tránsito sí pueden quedarse así: son los que el banco acreditará ' +
               'después. '
             : '') +

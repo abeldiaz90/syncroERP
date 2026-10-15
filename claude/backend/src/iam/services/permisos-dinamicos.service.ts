@@ -32,6 +32,7 @@ import { esRolAdministrador, normalizarRol } from '../utils/roles.util';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { SKIP_PERMISOS_KEY } from '../decorators/skip-permisos.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { plural } from '../../common/plural';
 
 /**
  * El enum `RequestMethod` de NestJS, tal cual. Estaba mal: tenia 3 como PATCH
@@ -895,7 +896,7 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
 
     if (repuestas || retiradas) {
       this.logger.log(
-        `Contrato de roles aplicado: ${repuestas} acción(es) repuesta(s) y ${retiradas} retirada(s).`,
+        `Contrato de roles aplicado: ${plural(repuestas, 'acción repuesta', 'acciones repuestas')} y ${plural(retiradas, 'retirada', 'retiradas')}.`,
       );
     }
   }
@@ -1275,7 +1276,7 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       }
       if (repuestos) {
         this.logger.warn(
-          `Se intentó quitar ${repuestos} acción(es) con las que opera el rol "${rol}"; se repusieron. Un rol se amplía, no se recorta por debajo de su trabajo.`,
+          `Se intentó quitar ${plural(repuestos, 'acción', 'acciones')} con las que opera el rol "${rol}"; se repusieron. Un rol se amplía, no se recorta por debajo de su trabajo.`,
         );
       }
     }
@@ -1334,12 +1335,12 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       }
       if (repuestas) {
         this.logger.warn(
-          `Se repusieron ${repuestas} acción(es) irrenunciables del rol "${rol}".`,
+          `Se repusieron ${plural(repuestas, 'acción', 'acciones')} irrenunciables del rol "${rol}".`,
         );
       }
       if (vedadas) {
         this.logger.warn(
-          `Se retiraron ${vedadas} acción(es) vedadas al rol "${rol}" por separación de funciones.`,
+          `Se retiraron ${plural(vedadas, 'acción', 'acciones')} vedadas al rol "${rol}" por separación de funciones.`,
         );
       }
     }
@@ -2243,7 +2244,7 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     }
     if (apagadas) {
       this.logger.warn(
-        `Modulos recien separados: ${apagadas} permiso(s) retirado(s) de roles que ya no los tienen en su contrato.`,
+        `Modulos recien separados: ${plural(apagadas, 'permiso retirado', 'permisos retirados')} de roles que ya no los tienen en su contrato.`,
       );
     }
     return apagadas;

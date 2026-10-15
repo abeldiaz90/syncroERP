@@ -18,6 +18,7 @@ import { DiscrepanciaIntegracion } from '../entities/discrepancia-integracion.en
 import { PuertoCarteraExterna } from '../ports/cartera-externa.port';
 import { IntegracionModoService } from './integracion-modo.service';
 import { IntegracionVinculosService } from './integracion-vinculos.service';
+import { plural } from '../../common/plural';
 
 /**
  * Compara la cartera del ERP con la del registro externo, cliente por cliente.
@@ -50,7 +51,7 @@ export class CarteraConciliacionService {
       try {
         const resultado = await this.conciliarEmpresa(empresa.empresaId);
         this.logger.log(
-          `Conciliación ${empresa.empresaId}: ${resultado.revisados} cliente(s), ${resultado.discrepancias} discrepancia(s).`,
+          `Conciliación ${empresa.empresaId}: ${plural(resultado.revisados, 'cliente', 'clientes')}, ${plural(resultado.discrepancias, 'discrepancia', 'discrepancias')}.`,
         );
       } catch (error) {
         this.logger.error(

@@ -21,6 +21,7 @@ import { AsientosPendientesService } from '../../finanzas/services/asientos-pend
 import { TipoAsiento } from '../../finanzas/entities/asiento-pendiente.entity';
 import { omitirTareaProgramada } from '../../common/utils/tareas-programadas.util';
 import { fechaContableNegocio } from '../../common/utils/business-time.util';
+import { plural } from '../../common/plural';
 const n = (v: unknown) => Number(v ?? 0);
 const folio = (prefijo: string) => `${prefijo}-${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}-${randomUUID().slice(0, 6).toUpperCase()}`;
 @Injectable()
@@ -182,7 +183,7 @@ export class WmsService implements OnModuleInit {
                 }
             }
             if (repuestas) {
-                this.logger.log(`Posición de recepción repuesta en ${repuestas} almacén(es) que manejaban posiciones y no la tenían.`);
+                this.logger.log(`Posición de recepción repuesta en ${plural(repuestas, 'almacén', 'almacenes')} que manejaban posiciones y no la tenían.`);
             }
         } catch (e: any) {
             this.logger.warn(`No se pudo revisar las posiciones de recepción al arrancar: ${e?.message ?? e}`);

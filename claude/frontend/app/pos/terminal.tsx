@@ -15,6 +15,7 @@ import { useAcciones } from '@/hooks/use-acciones';
 import { leerSesion } from '@/lib/session';
 import { token as sesionToken } from '@/lib/sesion';
 import { EVENTO_VER_COMO, quienAtiende } from '@/lib/ver-como';
+import { plural } from '@/lib/format';
 
 const n   = (v: any): number => Number(v) || 0;
 /*
@@ -1459,7 +1460,7 @@ export default function TerminalPos() {
               <div className="mt-2 bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-800">
                 <div className="flex items-center gap-2 font-bold">
                   <Clock className="w-3.5 h-3.5"/>
-                  Pago total en {productoSel.cadaCuantos} {productoSel.unidadPlazo==='MESES'?'mes(es)':'días'}: <span className="text-base">${fmt(total-saldoAplicado)}</span>
+                  Pago total en {productoSel.unidadPlazo==='MESES'?plural(productoSel.cadaCuantos,'mes','meses'):plural(productoSel.cadaCuantos,'día','días')}: <span className="text-base">${fmt(total-saldoAplicado)}</span>
                 </div>
                 {/*
                   * La fecha se toma de la tabla simulada, que es la que aplica la

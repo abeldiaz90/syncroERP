@@ -13,6 +13,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { fechaCorta } from "@/lib/fechas";
+import { plural } from '@/lib/format';
 
 interface IHotel {
   id: string;
@@ -118,7 +119,7 @@ export default function AuditoriaPage() {
         mostrar(d.motivo || "La auditoría no se ejecutó.", false);
       } else {
         mostrar(
-          `Auditoría completada: ${d.nochesPosteadas} noche(s) posteadas`,
+          `Auditoría completada: ${plural(d.nochesPosteadas, 'noche posteada', 'noches posteadas')}`,
         );
       }
       cargarEstado();

@@ -5,6 +5,7 @@ import { ConfiguracionAprobacion } from '../entities/configuracion-aprobacion.en
 import { Departamento } from '../../departamentos/entities/departamento.entity';
 import { Usuario } from '../../iam/entities/usuario.entity';
 import { normalizarRol } from '../../iam/utils/roles.util';
+import { plural } from '../../common/plural';
 
 /**
  * ============================================================================
@@ -60,7 +61,7 @@ export class RutasAprobacionInicialesService implements OnApplicationBootstrap {
       const creadas = await this.asegurarRutasDeRequisicion();
       if (creadas > 0) {
         this.logger.log(
-          `Rutas de aprobación de requisición creadas para ${creadas} área(s) que no tenían ninguna.`,
+          `Rutas de aprobación de requisición creadas para ${plural(creadas, 'área', 'áreas')} que no tenían ninguna.`,
         );
       }
       await this.avisarRutasSinFirmante();
@@ -123,7 +124,7 @@ export class RutasAprobacionInicialesService implements OnApplicationBootstrap {
 
     if (huecos.length) {
       this.logger.warn(
-        `Hay ${huecos.length} nivel(es) de aprobación enrutados a un rol que ninguna persona activa tiene: ` +
+        `Hay ${plural(huecos.length, 'nivel', 'niveles')} de aprobación enrutados a un rol que ninguna persona activa tiene: ` +
           `${huecos.join('; ')}. Esos documentos no van a avanzar hasta que alguien tenga ese rol.`,
       );
     }

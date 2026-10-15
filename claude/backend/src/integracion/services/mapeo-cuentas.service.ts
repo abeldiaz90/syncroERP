@@ -238,7 +238,7 @@ export class MapeoCuentasService {
       });
       const codigos = cuentas.map((c) => c.numeroCuenta ?? c.id).join(', ');
       throw new ErrorIntegracionExterna(
-        `Falta mapear al mayor externo la(s) cuenta(s): ${codigos || faltantes.join(', ')}.`,
+        `Falta mapear al mayor externo ${faltantes.length === 1 ? 'la cuenta' : 'las cuentas'}: ${codigos || faltantes.join(', ')}.`,
         // No es reintentable: reintentar no crea el mapeo. Alguien tiene que
         // capturarlo.
         false,

@@ -51,6 +51,7 @@ import {
   useAvisos,
 } from "@/components/ui";
 import { solicitarTexto } from "@/components/ui/dialogos";
+import { plural } from '@/lib/format';
 
 interface Discrepancia {
   id: string;
@@ -186,7 +187,7 @@ export default function ConciliacionCarteraPage() {
     avisar(
       r.discrepancias === 0
         ? `Revisadas ${r.revisados} entidades. Ninguna diferencia.`
-        : `Revisadas ${r.revisados} entidades. ${r.discrepancias} diferencia(s).`,
+        : `Revisadas ${r.revisados} entidades. ${plural(r.discrepancias, 'diferencia', 'diferencias')}.`,
       r.discrepancias === 0 ? "exito" : "alerta",
     );
     await abiertas.recargar();

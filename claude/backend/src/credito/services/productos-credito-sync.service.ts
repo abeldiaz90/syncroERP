@@ -22,6 +22,7 @@ import { ProductosCreditoService } from './productos-credito.service';
 import { diaCalendario } from '../../common/utils/fecha-calendario.util';
 import { CreditosService } from './creditos.service';
 import { PoliticaVencimientoService } from './politica-vencimiento.service';
+import { plural } from '../../common/plural';
 
 /**
  * ============================================================================
@@ -515,7 +516,7 @@ export class ProductosCreditoSyncService {
 
     if (!cuadra) {
       this.logger.warn(
-        `El producto ${producto.codigo} no corresponde con el registro externo: ${diferencias.length} diferencia(s).`,
+        `El producto ${producto.codigo} no corresponde con el registro externo: ${plural(diferencias.length, 'diferencia', 'diferencias')}.`,
       );
     }
 

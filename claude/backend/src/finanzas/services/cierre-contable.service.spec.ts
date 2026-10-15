@@ -182,7 +182,7 @@ describe('CierreContableService — cierre mensual guiado', () => {
       (control: any) => control.clave === 'ESPEJO_CONTABLE',
     );
     expect(espejo?.bloquea).toBe(true);
-    expect(espejo?.descripcion).toContain('5 asiento(s)');
+    expect(espejo?.descripcion).toContain('5 asientos');
     expect(resultado.snapshot.bloqueos).toBeGreaterThan(0);
   });
 
@@ -207,7 +207,7 @@ describe('CierreContableService — cierre mensual guiado', () => {
       (control: any) => control.clave === 'ESPEJO_CONTABLE',
     );
     expect(espejo?.bloquea).toBe(true);
-    expect(espejo?.descripcion).toContain('2 asiento(s)');
+    expect(espejo?.descripcion).toContain('2 asientos');
   });
 
   it('con el espejo encendido y la bandeja limpia, el control pasa', async () => {

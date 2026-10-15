@@ -7,6 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { useDatos } from "@/hooks/use-datos";
 import { Boton, Cargando, Distintivo, EncabezadoPantalla, ErrorPantalla, Panel, SinDatos, useAvisos } from "@/components/ui";
 import { usePermiso } from '@/hooks/use-permisos';
+import { plural } from '@/lib/format';
 
 type Estado = "PENDIENTE_GERENCIA" | "PENDIENTE_FINANZAS" | "APROBADA" | "RECHAZADA" | "CANCELADA";
 type Solicitud = {
@@ -92,7 +93,7 @@ export default function AprobacionesEstructuraPage() {
             return <tr key={s.id}>
               <td><p className="font-bold text-slate-900">{s.nombreSolicitado}</p><p className="text-[11px] text-slate-500">{s.tipo === "AREA" ? "Área organizacional" : `Puesto · ${String(datos.clave ?? "")}`}</p></td>
               <td className="max-w-xs whitespace-normal text-xs text-slate-600">{s.motivo}</td>
-              <td className="text-xs text-slate-500">{s.tipo === "PUESTO" ? `${Number(datos.plazasAutorizadas ?? 0)} plaza(s) · $${Number(datos.salarioMinimo ?? 0).toFixed(2)}–$${Number(datos.salarioMaximo ?? 0).toFixed(2)}` : "Nueva unidad organizacional"}</td>
+              <td className="text-xs text-slate-500">{s.tipo === "PUESTO" ? `${plural(Number(datos.plazasAutorizadas ?? 0), 'plaza', 'plazas')} · $${Number(datos.salarioMinimo ?? 0).toFixed(2)}–$${Number(datos.salarioMaximo ?? 0).toFixed(2)}` : "Nueva unidad organizacional"}</td>
               <td><Distintivo tono={s.estado === "APROBADA" ? "exito" : s.estado === "RECHAZADA" ? "peligro" : "alerta"}>{textoEstado[s.estado]}</Distintivo>{s.comentarioResolucion && <p className="mt-1 max-w-xs whitespace-normal text-[10px] text-slate-500">{s.comentarioResolucion}</p>}</td>
               <td className="text-xs text-slate-500">{new Date(s.fechaCreacion).toLocaleDateString("es-MX")}</td>
               <td className="text-right">{pendiente && puedeFirmar(s.estado) ? <div className="flex justify-end gap-2"><Boton variante="neutro" icono={<CircleX className="h-3.5 w-3.5" />} onClick={() => void resolver(s, "RECHAZAR")} disabled={procesando === s.id}>Rechazar</Boton><Boton variante="primario" icono={<BadgeCheck className="h-3.5 w-3.5" />} onClick={() => void resolver(s, "APROBAR")} cargando={procesando === s.id}>Aprobar</Boton></div> : pendiente ? <span className="text-xs text-slate-500">Espera a {s.estado === "PENDIENTE_GERENCIA" ? "Gerencia" : "Finanzas"}</span> : "—"}</td>

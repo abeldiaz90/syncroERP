@@ -9,6 +9,7 @@ import {
 } from '../utils/modo-contabilidad.util';
 import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integracion-empresa.entity';
 import { ContextoPeticionAlmacen, nombreDelActor } from '../../common/contexto/contexto-peticion';
+import { plural } from '../../common/plural';
 
 /**
  * ============================================================================
@@ -260,14 +261,14 @@ export class IntegracionModoService {
       if (enVuelo > 0) {
         return {
           aplicado: false,
-          motivo: `Hay ${enVuelo} evento(s) de integración sin entregar. Apagar ahora los deja sin despachar para siempre: resuélvelos o descártalos primero.`,
+          motivo: `Hay ${plural(enVuelo, 'evento', 'eventos')} de integración sin entregar. Apagar ahora los deja sin despachar para siempre: resuélvelos o descártalos primero.`,
         };
       }
       const abiertas = await sondas.discrepanciasAbiertas(empresaId);
       if (abiertas > 0) {
         return {
           aplicado: false,
-          motivo: `Hay ${abiertas} discrepancia(s) de conciliación sin resolver. Al apagar ya no habrá contra qué compararlas.`,
+          motivo: `Hay ${plural(abiertas, 'discrepancia', 'discrepancias')} de conciliación sin resolver. Al apagar ya no habrá contra qué compararlas.`,
         };
       }
     }
@@ -333,14 +334,14 @@ export class IntegracionModoService {
       if (enVuelo > 0) {
         return {
           aplicado: false,
-          motivo: `Hay ${enVuelo} asiento(s) sin llegar al mayor externo. Apagar ahora los deja sin despachar para siempre: resuélvelos o descártalos desde el espejo contable primero.`,
+          motivo: `Hay ${plural(enVuelo, 'asiento', 'asientos')} sin llegar al mayor externo. Apagar ahora los deja sin despachar para siempre: resuélvelos o descártalos desde el espejo contable primero.`,
         };
       }
       const abiertas = await sondas.discrepanciasAbiertas(empresaId);
       if (abiertas > 0) {
         return {
           aplicado: false,
-          motivo: `Hay ${abiertas} diferencia(s) entre las dos contabilidades sin resolver. Al apagar ya no habrá contra qué compararlas.`,
+          motivo: `Hay ${plural(abiertas, 'diferencia', 'diferencias')} entre las dos contabilidades sin resolver. Al apagar ya no habrá contra qué compararlas.`,
         };
       }
     }

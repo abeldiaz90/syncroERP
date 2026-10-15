@@ -30,6 +30,7 @@ import {
   EventoSinDestino,
   PuertoCarteraExterna,
 } from '../ports/cartera-externa.port';
+import { plural } from '../../common/plural';
 /**
  * Lo que un despacho forzado tiene que poder contar.
  *
@@ -252,9 +253,9 @@ export class IntegracionDespachadorService {
 
     if (procesados || fallidos || descartados || aplazados) {
       this.logger.log(
-        `Outbox de cartera: ${procesados} aplicado(s), ${fallidos} con error` +
-          (descartados ? `, ${descartados} descartado(s) por no tener destino` : '') +
-          (aplazados ? `, ${aplazados} aplazado(s) hasta que llegue su fecha` : '') +
+        `Outbox de cartera: ${plural(procesados, 'aplicado', 'aplicados')}, ${fallidos} con error` +
+          (descartados ? `, ${plural(descartados, 'descartado', 'descartados')} por no tener destino` : '') +
+          (aplazados ? `, ${plural(aplazados, 'aplazado', 'aplazados')} hasta que llegue su fecha` : '') +
           '.',
       );
       return {

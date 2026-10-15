@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { api, conPermiso } from '@/lib/api';
 import { usePermiso } from '@/hooks/use-permisos';
-import { dinero, fecha } from '@/lib/format';
+import { dinero, fecha, plural } from '@/lib/format';
 
 type Periodo = { id:string; ejercicio:number; numero:number; regimen:string; fechaInicio:string; fechaFin:string; estado:string; totalNeto:number };
 type Tablero = { empleados:number; periodos:Periodo[]; saldoPrestamos:number; configuracionCompleta:boolean; incidenciasPendientes:number; cuentasPendientes?:number; obligacionesActivas?:number };
@@ -134,7 +134,7 @@ export default function CentroNominaPage() {
   async function prepararAprobacion() {
     if (!pre) return;
     const aceptarAlertas = pre.alertas > 0;
-    if (aceptarAlertas && !await confirmarElegante(`La prenómina contiene ${pre.alertas} alerta(s). ¿Deseas enviarla a revisión dejando evidencia de aceptación?`)) return;
+    if (aceptarAlertas && !await confirmarElegante(`La prenómina contiene ${plural(pre.alertas, 'alerta', 'alertas')}. ¿Deseas enviarla a revisión dejando evidencia de aceptación?`)) return;
     try {
       /* Sin `niveles`: cuántas firmas lleva una nómina lo decide la matriz de
          aprobaciones de la empresa, no la pantalla que las dispara. El campo se

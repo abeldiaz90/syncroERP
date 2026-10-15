@@ -1,4 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
+import { plural } from '../../../common/plural';
 
 /**
  * ============================================================================
@@ -66,7 +67,7 @@ export class ElDocumentoNoSeEntero1790530000000 implements MigrationInterface {
       `);
       if (filas?.length) {
         console.log(
-          `[ElDocumentoNoSeEntero] ${doc.tabla}: ${filas.length} documento(s) se enteraron de su póliza.`,
+          `[ElDocumentoNoSeEntero] ${doc.tabla}: ${plural(filas.length, 'documento', 'documentos')} se enteraron de su póliza.`,
         );
       }
     }

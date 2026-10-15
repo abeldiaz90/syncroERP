@@ -7,6 +7,7 @@ import {
   EVENTOS_DE_CONTABILIDAD,
   TipoEventoIntegracion,
 } from '../integracion.constants';
+import { plural } from '../../common/plural';
 
 export interface PublicarEventoInput {
   empresaId: string;
@@ -197,7 +198,7 @@ export class IntegracionOutboxService {
 
     if (definitivo) {
       this.logger.error(
-        `Evento ${evento.tipo} ${evento.id} quedó FALLIDO tras ${intentos} intento(s): ${error}`,
+        `Evento ${evento.tipo} ${evento.id} quedó FALLIDO tras ${plural(intentos, 'intento', 'intentos')}: ${error}`,
       );
     }
   }

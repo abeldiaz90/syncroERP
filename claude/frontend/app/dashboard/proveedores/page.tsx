@@ -9,6 +9,7 @@ import {
   Building2, User, MapPin, CreditCard, Phone, Briefcase, FileText
 } from 'lucide-react';
 import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement"; // ← NUEVO
+import { plural } from '@/lib/format';
 
 export interface IProveedor {
   id: string; nombre: string; tipoPersona: 'FISICA' | 'MORAL';
@@ -251,7 +252,7 @@ export default function ProveedoresPage() {
     const erroresValidacion = validarFormulario();
     if (Object.keys(erroresValidacion).length > 0) {
       setErrores(erroresValidacion);
-      setErrorGeneral(`Revisa ${Object.keys(erroresValidacion).length} campo(s) marcado(s) antes de guardar.`);
+      setErrorGeneral(`Revisa ${plural(Object.keys(erroresValidacion).length, 'campo marcado', 'campos marcados')} antes de guardar.`);
       enfocarPrimerError(erroresValidacion);
       return;
     }

@@ -44,6 +44,7 @@ import {
   XCircle, HelpCircle, UserSearch, ArrowLeft, FileText, Info, MinusCircle,
 } from 'lucide-react';
 import { api, ApiError, intentar } from '@/lib/api';
+import { plural } from '@/lib/format';
 
 type TipoPaso =
   | 'IDENTIDAD_INE' | 'BURO_CREDITO' | 'CIRCULO_CREDITO' | 'HISTORIAL_INTERNO'
@@ -298,7 +299,7 @@ export default function EjecutarVerificacionPage() {
           <div className="mb-6 p-4 rounded-lg border bg-gray-50 border-gray-200">
             <p className="font-medium text-gray-900">{flujo.nombre}</p>
             <p className="text-sm text-gray-600 mt-0.5">
-              {pasosDelFlujo.length} paso(s) · puntaje mínimo {minimo} ·{' '}
+              {plural(pasosDelFlujo.length, 'paso', 'pasos')} · puntaje mínimo {minimo} ·{' '}
               {tope > 0
                 ? <>aprobación automática hasta {dinero(tope)}</>
                 : <><strong>sin aprobación automática</strong>: todo pasa por revisión humana, saque el puntaje que saque</>}

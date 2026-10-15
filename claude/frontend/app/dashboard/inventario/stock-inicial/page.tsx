@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Boxes, CheckCircle2, Download, Loader2, PlayCircle, UploadCloud, XCircle } from "lucide-react";
+import { plural } from '@/lib/format';
 
 type Estado = "PENDIENTE" | "VALIDANDO" | "PROCESANDO" | "COMPLETADO" | "COMPLETADO_CON_ERRORES" | "FALLIDO" | "CANCELADO";
 interface Job {
@@ -129,7 +130,7 @@ export default function StockInicialPage() {
         <div className="bg-white border rounded-2xl p-5">
           <p className="font-semibold mb-2">1 · Plantilla</p>
           <p className="text-sm text-slate-500 mb-3">La plantilla se genera con tus productos y precarga un almacén activo en cada fila.</p>
-          <p className={`mb-4 rounded-lg px-3 py-2 text-xs ${almacenes.length ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{almacenes.length ? `${almacenes.length} almacén(es) activo(s): el stock quedará asociado al indicado en cada fila.` : "Falta un almacén activo. Créalo antes de descargar o importar."}</p>
+          <p className={`mb-4 rounded-lg px-3 py-2 text-xs ${almacenes.length ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{almacenes.length ? `${plural(almacenes.length, 'almacén activo', 'almacenes activos')}: el stock quedará asociado al indicado en cada fila.` : "Falta un almacén activo. Créalo antes de descargar o importar."}</p>
           <button onClick={descargarPlantilla} disabled={ocupado || activo || almacenes.length === 0} className="inline-flex items-center gap-2 bg-slate-800 text-white px-4 py-2.5 rounded-lg disabled:opacity-50"><Download className="w-4 h-4"/> Descargar</button>
           {almacenes.length === 0 && <Link href="/dashboard/almacenes" className="ml-3 text-sm font-bold text-indigo-700 underline">Crear almacén</Link>}
         </div>

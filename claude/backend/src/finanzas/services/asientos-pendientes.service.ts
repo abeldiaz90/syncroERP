@@ -11,6 +11,7 @@ import {
 import { MotorContableService } from './motor-contable.service';
 import { omitirTareaProgramada } from '../../common/utils/tareas-programadas.util';
 import { esViolacionUnicidad } from '../../common/database/errores-sql';
+import { plural } from '../../common/plural';
 
 /**
  * ============================================================================
@@ -444,7 +445,7 @@ export class AsientosPendientesService {
 
     if (resultado.affected) {
       this.logger.warn(
-        `Se liberaron ${resultado.affected} asiento(s) que quedaron en REINTENTANDO ` +
+        `Se liberaron ${plural(resultado.affected, 'asiento', 'asientos')} que quedaron en REINTENTANDO ` +
           'tras la caída de un proceso. Vuelven a la cola.',
       );
     }

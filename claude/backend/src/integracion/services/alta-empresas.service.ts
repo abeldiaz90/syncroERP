@@ -17,6 +17,7 @@ import { ProductoCredito, EstadoProductoCredito } from '../../credito/entities/p
 import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integracion-empresa.entity';
 import { EstadoTenantReserva, TenantReserva } from '../entities/tenant-reserva.entity';
 import { ModoCartera, ModoContabilidad } from '../integracion.constants';
+import { plural } from '../../common/plural';
 
 /**
  * ============================================================================
@@ -779,7 +780,7 @@ export class AltaEmpresasService {
           aplica: true,
           listo: catalogo.length > 0,
           detalle: catalogo.length
-            ? `${catalogo.length} producto(s).`
+            ? `${plural(catalogo.length, 'producto', 'productos')}.`
             : 'Sin productos: no se puede vender a crédito.',
           accion: catalogo.length
             ? null
@@ -798,12 +799,12 @@ export class AltaEmpresasService {
           aplica: true,
           listo: puedenEntrar > 0,
           detalle: puedenEntrar
-            ? `${puedenEntrar} usuario(s) activo(s) en el ERP` +
+            ? `${plural(puedenEntrar, 'usuario activo', 'usuarios activos')} en el ERP` +
               (totalUsuarios > puedenEntrar
-                ? `, de ${totalUsuarios} cuenta(s) en total.`
+                ? `, de ${plural(totalUsuarios, 'cuenta', 'cuentas')} en total.`
                 : '.')
             : totalUsuarios
-              ? `Nadie puede entrar: hay ${totalUsuarios} cuenta(s), ninguna activa.`
+              ? `Nadie puede entrar: hay ${plural(totalUsuarios, 'cuenta', 'cuentas')}, ninguna activa.`
               : 'Nadie puede entrar todavía a esta empresa.',
           accion: puedenEntrar
             ? null

@@ -173,7 +173,7 @@ export default function ReposicionPage() {
         })),
       });
       setAviso({
-        texto: `Requisición creada con ${seleccionados.length} artículo(s). Sigue en Compras → Requisiciones.`,
+        texto: `Requisición creada con ${plural(seleccionados.length, 'artículo', 'artículos')}. Sigue en Compras → Requisiciones.`,
         ok: true,
       });
       setElegidos({});
