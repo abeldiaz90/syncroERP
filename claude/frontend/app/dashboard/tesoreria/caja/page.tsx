@@ -238,6 +238,28 @@ export default function CajaPage() {
    * dirección— así que quien captura debe elegirla.
    */
   const [cuentasContables, setCuentasContables] = useState<CuentaContable[]>([]);
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Dos botones que pedían lo que esta sesión no puede dar
+   * --------------------------------------------------------------------------
+   * MEDIDO el 15-oct-2026 entrando como Empleado / Vendedor —el rol del
+   * mostrador, el que de verdad abre esta pantalla todo el día—: el catálogo
+   * de cuentas contables no está en su perfil. La pantalla ya lo decía con
+   * todas sus letras («lo lleva Contabilidad») y, justo debajo, ofrecía
+   * «Entrada» y «Retiro» encendidos.
+   *
+   * «Entrada» envía el formulario: el navegador se planta en el selector
+   * vacío con su mensaje de siempre. «Retiro» es `type="button"` y se salta
+   * la validación entera, así que llegaba a `registrarManual`, que contesta
+   * «Elige la cuenta contra la que se registra el movimiento» sobre un
+   * selector sin una sola opción que elegir.
+   *
+   * Un control que no se puede satisfacer no se deja encendido. Si no hay
+   * contrapartida posible, no hay movimiento manual que registrar, y los dos
+   * botones lo dicen apagándose: el motivo ya está escrito arriba.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const sinContrapartida = contablesVedadas || cuentasContables.length === 0;
   const [conteo, setConteo] = useState('');
   /** `null` = se teclea el total a mano. Un objeto = se está contando por montones. */
   const [montones, setMontones] = useState<Record<string, string> | null>(null);
@@ -484,7 +506,12 @@ export default function CajaPage() {
   async function registrarManual(tipo: 'entrada' | 'retiro') {
     if (!turno) return;
     if (!movimiento.cuentaContrapartidaId) {
-      setAviso({ texto: 'Elige la cuenta contra la que se registra el movimiento.', ok: false });
+      setAviso({
+        texto: sinContrapartida
+          ? 'Esta sesión no tiene ninguna cuenta contable contra la que registrar el movimiento. Lo lleva Contabilidad.'
+          : 'Elige la cuenta contra la que se registra el movimiento.',
+        ok: false,
+      });
       return;
     }
     const ok = await ejecutar(
@@ -730,7 +757,7 @@ export default function CajaPage() {
                     <option key={cuenta.id} value={cuenta.id}>{cuenta.numeroCuenta} · {cuenta.nombre}</option>
                   ))}
                 </select>
-                {(contablesVedadas || cuentasContables.length === 0) && (
+                {sinContrapartida && (
                   <p className="text-xs font-medium text-amber-700">
                     {contablesVedadas
                       ? 'El catálogo de cuentas contables no está en tu perfil, así que no hay contra qué registrar el movimiento. Lo lleva Contabilidad.'
@@ -741,8 +768,8 @@ export default function CajaPage() {
                   Un retiro puede ser un depósito al banco, un gasto o una entrega a dirección, y cada caso afecta una cuenta distinta. El movimiento se refleja en el turno, en Tesorería y en la contabilidad.
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  <button disabled={procesando} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white disabled:opacity-50"><ArrowDownCircle className="h-4 w-4" /> Entrada</button>
-                  <button disabled={procesando} type="button" onClick={() => void registrarManual('retiro')} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-600 text-sm font-semibold text-white disabled:opacity-50"><ArrowUpCircle className="h-4 w-4" /> Retiro</button>
+                  <button disabled={procesando || sinContrapartida} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white disabled:opacity-50"><ArrowDownCircle className="h-4 w-4" /> Entrada</button>
+                  <button disabled={procesando || sinContrapartida} type="button" onClick={() => void registrarManual('retiro')} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-600 text-sm font-semibold text-white disabled:opacity-50"><ArrowUpCircle className="h-4 w-4" /> Retiro</button>
                 </div>
               </form>
 

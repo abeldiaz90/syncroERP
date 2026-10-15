@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { api, conPermiso } from '@/lib/api';
 import { usePermiso } from '@/hooks/use-permisos';
+import { useRutasPermitidas } from '@/hooks/use-rutas-permitidas';
 import { dinero, fecha, plural } from '@/lib/format';
 
 type Periodo = { id:string; ejercicio:number; numero:number; regimen:string; fechaInicio:string; fechaFin:string; estado:string; totalNeto:number };
@@ -30,6 +31,13 @@ const ESTADOS_CALCULADOS = ['CALCULADO', 'CON_ALERTAS', 'EN_REVISION', 'APROBADO
 
 export default function CentroNominaPage() {
   const { tienePermiso } = usePermiso();
+  /*
+   * Esta pantalla la abren RRHH, Finanzas, Contabilidad y Tesorería: cada uno
+   * firma un tramo de la nómina y ninguno tiene el módulo entero. Los accesos
+   * del pie y la lista de requisitos llevan a pantallas de RRHH que la mayoría
+   * de ellos no abre, así que se ofrecen sólo a quien puede entrar.
+   */
+  const { puedeAbrir } = useRutasPermitidas();
   const [tablero, setTablero] = useState<Tablero | null>(null);
   const [preparacion, setPreparacion] = useState<Preparacion | null>(null);
   const [periodos, setPeriodos] = useState<Periodo[]>([]);
@@ -171,7 +179,7 @@ export default function CentroNominaPage() {
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Recursos Humanos y Nómina</h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300">Un solo recorrido para preparar la empresa, contratar personal, revisar incidencias, calcular, autorizar, timbrar, pagar y contabilizar.</p>
           </div>
-          <div className="flex flex-wrap gap-2"><Link href="/dashboard/rrhh/empleados" className="btn border-white/15 bg-white text-slate-950 hover:bg-slate-100"><Users className="h-4 w-4" />Alta de empleado</Link><button className="btn border-white/15 bg-white/10 text-white hover:bg-white/15" onClick={() => void cargarBase()}><RefreshCw className={`h-4 w-4 ${cargando ? 'animate-spin' : ''}`} />Actualizar</button></div>
+          <div className="flex flex-wrap gap-2">{puedeAbrir('/dashboard/rrhh/empleados') && <Link href="/dashboard/rrhh/empleados" className="btn border-white/15 bg-white text-slate-950 hover:bg-slate-100"><Users className="h-4 w-4" />Alta de empleado</Link>}<button className="btn border-white/15 bg-white/10 text-white hover:bg-white/15" onClick={() => void cargarBase()}><RefreshCw className={`h-4 w-4 ${cargando ? 'animate-spin' : ''}`} />Actualizar</button></div>
         </div>
         <div className="relative mt-7 grid grid-cols-2 gap-3 md:grid-cols-4">
           <KpiOscuro icono={<Users />} etiqueta="Plantilla activa" valor={tablero?.empleados ?? 0} />
@@ -196,7 +204,7 @@ export default function CentroNominaPage() {
           <div className="flex items-start justify-between"><div><p className="eyebrow">Antes de calcular</p><h2 className="mt-1 text-base font-bold text-slate-950">Preparación de la empresa</h2></div><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${avance === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{avance}%</span></div>
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${avance === 100 ? 'bg-emerald-500' : 'bg-indigo-600'}`} style={{ width: `${avance}%` }} /></div>
           <div className="mt-5 space-y-2">
-            {requisitos.map((r) => <Link key={r.titulo} href={r.href} className="group flex items-center gap-3 rounded-xl border border-slate-100 p-3 transition hover:border-indigo-200 hover:bg-indigo-50/40"><span className={`flex h-8 w-8 items-center justify-center rounded-full ${r.listo ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{r.listo ? <Check className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}</span><span className="min-w-0"><b className="block text-xs text-slate-900">{r.titulo}</b><span className="text-[11px] text-slate-500">{r.detalle}</span></span><ArrowRight className="ml-auto h-4 w-4 text-slate-300 group-hover:text-indigo-500" /></Link>)}
+            {requisitos.map((r) => <Renglon key={r.titulo} href={puedeAbrir(r.href) ? r.href : null} className="group flex items-center gap-3 rounded-xl border border-slate-100 p-3 transition hover:border-indigo-200 hover:bg-indigo-50/40"><span className={`flex h-8 w-8 items-center justify-center rounded-full ${r.listo ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{r.listo ? <Check className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}</span><span className="min-w-0"><b className="block text-xs text-slate-900">{r.titulo}</b><span className="text-[11px] text-slate-500">{r.detalle}</span></span><ArrowRight className="ml-auto h-4 w-4 text-slate-300 group-hover:text-indigo-500" /></Renglon>)}
           </div>
         </section>}
 
@@ -242,17 +250,21 @@ export default function CentroNominaPage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-950">Flujo de aprobación</h2><p className="mb-4 text-xs text-slate-500">Las aprobaciones son secuenciales y dejan trazabilidad.</p>{!aprobaciones.length ? <button disabled={!['CALCULADO','CON_ALERTAS'].includes(periodo?.estado ?? '')} onClick={() => void prepararAprobacion()} className="btn btn-primario w-full"><ShieldCheck className="h-4 w-4" />Enviar a aprobación</button> : <div className="space-y-2">{aprobaciones.map((a) => <div key={a.id} className="rounded-xl border border-slate-200 p-3"><div className="flex items-center justify-between"><b className="text-xs">Nivel {a.nivel}</b><span className="text-[10px] font-bold text-slate-500">{a.estado}</span></div><p className="mt-0.5 text-[11px] text-slate-500">{a.rolRequerido}</p>{a.estado === 'PENDIENTE' && (a.puedoResolver
   ? <div className="mt-3 flex gap-2"><button className="btn btn-primario btn-sm flex-1" onClick={() => void resolver(a.id, 'APROBADA')}>Aprobar</button><button className="btn btn-neutro btn-sm flex-1" onClick={() => void resolver(a.id, 'RECHAZADA')}>Rechazar</button></div>
   : <p className="mt-2 text-[11px] text-slate-500">{a.motivoBloqueo ?? `Esta firma es de ${a.rolRequerido}.`}</p>)}</div>)}</div>}</section>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-950">Siguientes pasos</h2><div className="mt-4 grid gap-2"><Link className="btn btn-neutro w-full justify-start" href={`/dashboard/rrhh/recibos?periodoId=${periodoId}`}><FileCheck2 className="h-4 w-4" />Revisar recibos</Link><Link className="btn btn-primario w-full justify-start" href={`/dashboard/rrhh/pagos?periodoId=${periodoId}`}><WalletCards className="h-4 w-4" />Dispersión y pago</Link><Link className="btn btn-neutro w-full justify-start" href={`/dashboard/rrhh/cumplimiento?periodoId=${periodoId}`}><Landmark className="h-4 w-4" />Póliza y cierre</Link></div></section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-950">Siguientes pasos</h2><div className="mt-4 grid gap-2">{puedeAbrir('/dashboard/rrhh/recibos') && <Link className="btn btn-neutro w-full justify-start" href={`/dashboard/rrhh/recibos?periodoId=${periodoId}`}><FileCheck2 className="h-4 w-4" />Revisar recibos</Link>}{puedeAbrir('/dashboard/rrhh/pagos') && <Link className="btn btn-primario w-full justify-start" href={`/dashboard/rrhh/pagos?periodoId=${periodoId}`}><WalletCards className="h-4 w-4" />Dispersión y pago</Link>}{puedeAbrir('/dashboard/rrhh/cumplimiento') && <Link className="btn btn-neutro w-full justify-start" href={`/dashboard/rrhh/cumplimiento?periodoId=${periodoId}`}><Landmark className="h-4 w-4" />Póliza y cierre</Link>}</div></section>
         </aside>
       </div>}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <Acceso icono={<Building2 />} titulo="Puestos y estructura" descripcion="Áreas, plazas y rangos salariales" href="/dashboard/rrhh/puestos" />
-        <Acceso icono={<ShieldCheck />} titulo="Aprobar estructura" descripcion="Solicitudes pendientes" href="/dashboard/rrhh/aprobaciones-estructura" />
-        <Acceso icono={<Settings2 />} titulo="Gobierno de flujos" descripcion="Aprobadores y niveles" href="/dashboard/configuraciones-aprobacion" />
-        <Acceso icono={<Users />} titulo="Expedientes" descripcion="Altas, contratos y datos fiscales" href="/dashboard/rrhh/empleados" />
-        <Acceso icono={<CalendarClock />} titulo="Tiempo e incidencias" descripcion="Asistencia, vacaciones e incapacidades" href="/dashboard/rrhh/incidencias" />
-        <Acceso icono={<Settings2 />} titulo="Configuración" descripcion="Patrón, impuestos y mapa contable" href="/dashboard/rrhh/configuracion-nomina" />
+        {[
+          { icono: <Building2 />, titulo: 'Puestos y estructura', descripcion: 'Áreas, plazas y rangos salariales', href: '/dashboard/rrhh/puestos' },
+          { icono: <ShieldCheck />, titulo: 'Aprobar estructura', descripcion: 'Solicitudes pendientes', href: '/dashboard/rrhh/aprobaciones-estructura' },
+          { icono: <Settings2 />, titulo: 'Gobierno de flujos', descripcion: 'Aprobadores y niveles', href: '/dashboard/configuraciones-aprobacion' },
+          { icono: <Users />, titulo: 'Expedientes', descripcion: 'Altas, contratos y datos fiscales', href: '/dashboard/rrhh/empleados' },
+          { icono: <CalendarClock />, titulo: 'Tiempo e incidencias', descripcion: 'Asistencia, vacaciones e incapacidades', href: '/dashboard/rrhh/incidencias' },
+          { icono: <Settings2 />, titulo: 'Configuración', descripcion: 'Patrón, impuestos y mapa contable', href: '/dashboard/rrhh/configuracion-nomina' },
+        ]
+          .filter((a) => puedeAbrir(a.href))
+          .map((a) => <Acceso key={a.titulo} icono={a.icono} titulo={a.titulo} descripcion={a.descripcion} href={a.href} />)}
       </section>
     </div>
   );
@@ -275,4 +287,15 @@ function FlujoNomina({ estado, periodoId }: { estado: string; periodoId: string 
 function VacioPeriodo() { return <div className="mt-8 flex flex-col items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-12 text-center"><CalendarClock className="h-9 w-9 text-slate-300" /><h3 className="mt-3 font-bold text-slate-900">Selecciona o crea un periodo</h3><p className="mt-1 max-w-sm text-xs text-slate-500">El asistente mostrará qué sigue según el estado real de la nómina.</p><Link href="/dashboard/rrhh/nomina" className="btn btn-primario mt-4">Administrar periodos<ArrowRight className="h-4 w-4" /></Link></div>; }
 function KpiOscuro({ icono, etiqueta, valor, alerta }: { icono:ReactNode; etiqueta:string; valor:string|number; alerta?:boolean }) { return <div className="rounded-xl border border-white/10 bg-white/[.07] p-4 backdrop-blur"><div className="flex items-center gap-2 text-slate-300"><span className={alerta ? 'text-amber-300' : 'text-indigo-300'}>{icono}</span><span className="text-[11px]">{etiqueta}</span></div><p className="mt-2 text-xl font-bold">{valor}</p></div>; }
 function MiniTotal({ etiqueta, valor, destacado }: { etiqueta:string; valor:string|number; destacado?:boolean }) { return <div className={`${destacado ? 'bg-indigo-50' : 'bg-white'} p-3`}><p className="text-[10px] uppercase tracking-wide text-slate-400">{etiqueta}</p><p className={`mt-1 text-sm font-bold cifra ${destacado ? 'text-indigo-700' : 'text-slate-900'}`}>{valor}</p></div>; }
+/**
+ * Un renglón que lleva a una pantalla cuando se puede abrir, y que se queda
+ * quieto cuando no. No se esconde: el requisito sigue contando para el avance
+ * y quien lo mira tiene que saber si está cumplido, aunque no sea quien lo
+ * cumple.
+ */
+function Renglon({ href, className, children }: { href: string | null; className?: string; children: ReactNode }) {
+  if (!href) return <div className={className}>{children}</div>;
+  return <Link href={href} className={className}>{children}</Link>;
+}
+
 function Acceso({ icono, titulo, descripcion, href }: { icono:ReactNode; titulo:string; descripcion:string; href:string }) { return <Link href={href} className="group flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600">{icono}</span><span><b className="block text-sm text-slate-900">{titulo}</b><span className="mt-0.5 block text-[11px] text-slate-500">{descripcion}</span></span><ArrowRight className="ml-auto mt-1 h-4 w-4 text-slate-300 group-hover:text-indigo-500" /></Link>; }
