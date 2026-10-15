@@ -340,6 +340,33 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
    * ==========================================================================
    */
   async onApplicationBootstrap() {
+    /*
+     * ESTO VA ANTES DEL ATAJO, Y A PROPÓSITO.
+     *
+     * Qué pantallas no piden permiso es una propiedad del CÓDIGO: lo dice un
+     * decorador, se sabe leyendo los handlers y no hace falta tocar la base.
+     * Estaba calculado dentro de la reconciliación, así que con
+     * `IAM_SYNC_AL_ARRANCAR=false` nunca se calculaba y el conjunto quedaba
+     * vacío.
+     *
+     * MEDIDO el 15-oct-2026 con «ver el ERP como» el rol empleado, en esta
+     * instalación, que lleva la bandera apagada: «Ayuda y documentación» no
+     * salía en el menú y `/dashboard/ayuda` contestaba «esta sección no está
+     * en tu perfil» — a los trece roles. Los cuatro manuales de usuario, que
+     * el propio controlador marca `@SkipPermisos()` para que los lea
+     * cualquiera, no los leía nadie.
+     *
+     * Y la negativa remataba mandando a «pedir al administrador que la
+     * agregue desde Roles y permisos», donde no hay nada que agregar: un
+     * endpoint sin permiso no tiene renglón que conceder. Un control que no se
+     * puede satisfacer.
+     *
+     * El censo es en memoria y no cuesta nada; lo caro de la reconciliación es
+     * la ida y vuelta a la base por endpoint. Separarlos es lo que hace que el
+     * atajo siga siendo un atajo y no una pérdida de pantallas.
+     */
+    this.censarPantallasSinPermiso();
+
     if (process.env.IAM_SYNC_AL_ARRANCAR === 'false') {
       this.logger.warn(
         'Reconciliación de permisos omitida en el arranque ' +
@@ -349,6 +376,63 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       return;
     }
     await this.sincronizarControladoresYEndpoints();
+  }
+
+  /**
+   * Las pantallas que se abren con cualquier sesión, leídas de los
+   * decoradores. Sin base de datos: `@SkipPermisos()` es del código.
+   */
+  censarPantallasSinPermiso(): number {
+    for (const [, modulo] of this.modulesContainer.entries()) {
+      for (const [, wrapper] of (modulo as any).controllers) {
+        const instance = wrapper.instance;
+        if (!instance) continue;
+        const metatype = wrapper.metatype;
+        const controladorPath: string =
+          Reflect.getMetadata(PATH_METADATA, metatype) || '';
+        const rutaBase =
+          ('/' + controladorPath).replace(/\/+/g, '/').replace(/\/$/, '') || '/';
+        const prototype = Object.getPrototypeOf(instance);
+        for (const key of Object.getOwnPropertyNames(prototype)) {
+          if (key === 'constructor') continue;
+          const metodoNum: number = Reflect.getMetadata(
+            METHOD_METADATA,
+            prototype[key],
+          );
+          if (metodoNum === undefined || metodoNum === null) continue;
+          const metodoStr = METHOD_MAP[metodoNum];
+          if (!metodoStr || metodoStr === 'ALL') continue;
+          const esPublico = this.reflector.getAllAndOverride<boolean>(
+            IS_PUBLIC_KEY,
+            [prototype[key], metatype],
+          );
+          const omitePermisos = this.reflector.getAllAndOverride<boolean>(
+            SKIP_PERMISOS_KEY,
+            [prototype[key], metatype],
+          );
+          /*
+           * `@Public()` no entra: eso es de antes de la sesión y no es una
+           * pantalla del panel. `@SkipPermisos()` sí: es una pantalla que se
+           * abre con cualquier sesión, y alguien tiene que decirlo.
+           */
+          if (!omitePermisos || esPublico) continue;
+          const rutaHandler: string =
+            Reflect.getMetadata(PATH_METADATA, prototype[key]) || '';
+          const rutaCompleta =
+            (rutaBase + '/' + rutaHandler)
+              .replace(/\/+/g, '/')
+              .replace(/\/$/, '') || '/';
+          const nav = navegableDe(
+            metodoStr,
+            normalizarParametrosDeRuta(rutaCompleta),
+          );
+          if (nav?.rutaFrontend) this.pantallasSinPermiso.add(nav.rutaFrontend);
+          for (const extra of nav?.rutasAdicionales ?? [])
+            this.pantallasSinPermiso.add(extra);
+        }
+      }
+    }
+    return this.pantallasSinPermiso.size;
   }
 
   async sincronizarControladoresYEndpoints() {
@@ -427,15 +511,8 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
               .replace(/\/$/, '') || '/';
           const rutaNormalizada = normalizarParametrosDeRuta(rutaCompleta);
 
-          /*
-           * `@Public()` no entra: eso es de antes de la sesion y no es una
-           * pantalla del panel. `@SkipPermisos()` si: es una pantalla que se
-           * abre con cualquier sesion, y alguien tiene que decirlo.
-           */
-          if (omitePermisos && !esPublico) {
-            const pantalla = navegableDe(metodoStr, rutaNormalizada)?.rutaFrontend;
-            if (pantalla) this.pantallasSinPermiso.add(pantalla);
-          }
+          /* El censo de pantallas libres lo hace `censarPantallasSinPermiso`,
+             que corre siempre y no toca la base. Aquí sólo se saltan. */
           if (esPublico || omitePermisos) continue;
 
           const yaExiste = entrada.endpoints.some(
