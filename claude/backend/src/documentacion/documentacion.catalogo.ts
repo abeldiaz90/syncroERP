@@ -80,6 +80,17 @@ export const DOCUMENTOS_PUBLICADOS: ReadonlyArray<DocumentoPublicado> = [
     orden: 25,
   },
   {
+    id: 'hoteleria',
+    archivo: '09-hoteleria.md',
+    titulo: 'Hotelería',
+    resumen:
+      'Las once pantallas del hotel: panel, rack, reservaciones, folios y check-out, ' +
+      'auditoría nocturna, housekeeping, city ledger y el costeo de recetas. La fecha ' +
+      'operativa, los estados de una habitación y qué te va a negar el sistema.',
+    restringido: false,
+    orden: 27,
+  },
+  {
     id: 'instalacion',
     archivo: '01-instalacion-y-puesta-en-marcha.md',
     titulo: 'Instalación y puesta en marcha',

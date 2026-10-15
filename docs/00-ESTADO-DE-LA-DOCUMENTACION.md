@@ -22,6 +22,7 @@
 | `06-limites-conocidos.md` | 298 | 1 | 13-oct |
 | `07-flujos-y-procesos.md` | 1 183 | 31 | 13-oct |
 | `08-fineract-portal.md` | 797 | 13 | 14-oct |
+| `09-hoteleria.md` | 284 | 6 | **15-oct** |
 
 Más `FINERACT_UI_COVERAGE.md`, que es la matriz pantalla por pantalla del
 portal, y el `LEEME.md` de la consola, que es su puesta en marcha.
@@ -74,7 +75,7 @@ cruzadas con lo documentado:
 | finanzas | 20 | Cubierto por los flujos 12 y 13 y cuatro manuales de `03`. |
 | rrhh | 17 | Cubierto por los flujos 7–9 y la parte 2 de `04`. |
 | compras | 13 | Cubierto por los flujos 11 y 16 y la parte 1 de `04`. |
-| **hotelería** | **11** | **NADA.** Ver abajo. |
+| hotelería | 11 | **Cubierto desde el 15-oct por `09`**, recorrido de punta a punta. |
 | inventario | 9 | Cubierto por el flujo 5. |
 | **configuración** | **9** | **Los seis asistentes no están documentados.** |
 | créditos | 8 | Parte en `03`, parte en el portal (`08`). |
@@ -84,15 +85,20 @@ cruzadas con lo documentado:
 | activos | 4 | Flujo 15. |
 | productos, catálogos, crm, almacenes, … | 20 | Parcial o por catálogo. |
 
-### 3.1 Hotelería · once pantallas, cero flujos
+### 3.1 Hotelería · cerrado el 15-oct
 
-`panel`, `rack`, `reservaciones`, `folios`, `housekeeping`, `city-ledger`,
-`auditoria`, `recetas`, `costos-recetas`, `configuracion` y su portada. Hay un
-rol HOTELERIA con su plantilla de permisos, y el módulo opera; lo que no existe
-es **un solo documento que diga cómo se usa**. Dos menciones de paso en `02` y
-`03` es todo.
+Era el hueco más grande: once pantallas, un rol con su plantilla de permisos,
+el módulo operando, y **ni un documento que dijera cómo se usa**. Dos menciones
+de paso en `02` y `03` era todo.
 
-Es el hueco más grande que tiene el ERP: un vertical entero sin manual.
+Lo cierra `09-hoteleria.md`, escrito recorriendo el módulo entero contra el
+sistema corriendo —reserva, check-in, folio, auditoría y rack— con sus seis
+capturas. Lo que ese recorrido destapó está en el propio documento: una
+habitación ocupada por nadie, y un panel que rotulaba la fecha operativa y
+contaba el día del calendario.
+
+Queda fuera el **cobro del check-out**, que mueve dinero a una caja y lo prueba
+quien opera.
 
 ### 3.2 Los seis asistentes de configuración
 
@@ -127,7 +133,7 @@ siguiente paso natural, y está anotado abajo.
 
 ## 5. Lo siguiente, en orden
 
-1. **Hotelería** (§3.1): el hueco más grande.
+1. ~~**Hotelería**~~ **Hecho el 15-oct** (§3.1).
 2. **Capturas en `03` y `04`** (§1): son los dos que se siguen con el sistema
    delante y los dos sin pantallas.
 3. **Los seis asistentes** (§3.2).

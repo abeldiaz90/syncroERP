@@ -50,6 +50,7 @@ interface IReserva {
   estado: string;
   tarifaNoche: number;
   habitacionId: string | null;
+  habitacionNumero: string | null;
 }
 interface ICliente {
   id: string;
@@ -249,6 +250,8 @@ export default function ReservacionesPage() {
                 <th className="px-4 py-3 text-left">Código</th>
                 <th className="px-4 py-3 text-left">Huésped</th>
                 <th className="px-4 py-3 text-left">Tipo</th>
+                {/* Recepción busca por habitación, no por el código. */}
+                <th className="px-4 py-3 text-left">Habitación</th>
                 <th className="px-4 py-3 text-left">Entrada</th>
                 <th className="px-4 py-3 text-left">Salida</th>
                 <th className="px-4 py-3 text-center">Estado</th>
@@ -266,6 +269,13 @@ export default function ReservacionesPage() {
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                     {nombreTipo(r.tipoHabitacionId)}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-slate-700">
+                    {r.habitacionNumero ?? (
+                      <span className="font-normal text-slate-400">
+                        sin asignar
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                     {fechaCorta(r.fechaEntrada)}

@@ -1,6 +1,6 @@
 // app/dashboard/hoteleria/auditoria/page.tsx
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Moon,
   Loader2,
@@ -55,6 +55,13 @@ export default function AuditoriaPage() {
   const [hotelId, setHotelId] = useState("");
   const [estado, setEstado] = useState<IEstado | null>(null);
   const [resultado, setResultado] = useState<IResultado | null>(null);
+  /*
+   * El resultado se pinta debajo del botón y, en una pantalla de portátil,
+   * fuera de vista: se corre la auditoría y no se mueve nada. El aviso
+   * emergente se va solo; el bloque es el que se queda, así que se trae a la
+   * vista en vez de confiar en que alguien se desplace.
+   */
+  const dondeSalgo = useRef<HTMLDivElement | null>(null);
   const [cargando, setCargando] = useState(true);
   const [corriendo, setCorriendo] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -109,6 +116,14 @@ export default function AuditoriaPage() {
     if (r.ok) {
       const d = await r.json();
       setResultado(d);
+      setTimeout(
+        () =>
+          dondeSalgo.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          }),
+        50,
+      );
       /*
         Un 200 no quiere decir que el día se haya cerrado. Cuando la fecha
         operativa todavía no termina, la auditoría se niega —correctamente— y
@@ -276,7 +291,10 @@ export default function AuditoriaPage() {
 
       {/* Resultado */}
       {resultado && (
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <div
+          ref={dondeSalgo}
+          className="bg-white border border-slate-200 rounded-2xl overflow-hidden"
+        >
           {resultado.ejecutada === false ? (
             <div className="p-5 border-b border-slate-100 bg-amber-50">
               <div className="flex items-center gap-2 font-semibold text-amber-800">

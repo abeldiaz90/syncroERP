@@ -15,6 +15,7 @@ type Reserva = {
   tarifaNoche: number;
   estado: string;
   habitacionId: string | null;
+  habitacionNumero: string | null;
   hotelId: string;
 };
 /* Lo que el check-out contesta y la pantalla tiraba. */
@@ -368,9 +369,19 @@ export default function FoliosHotelPage() {
                 CHECK-IN
               </span>
             </div>
+            {/*
+              * Quien está en el mostrador busca por habitación, no por el
+              * código del documento: «el de la 102 pregunta por su cuenta».
+              * Por eso va primero y en grande.
+              */}
             <h2 className="mt-4 text-lg font-bold">
-              {r.codigo || "Reservación"}
+              {r.habitacionNumero
+                ? `Habitación ${r.habitacionNumero}`
+                : r.codigo || "Reservación"}
             </h2>
+            {r.habitacionNumero && r.codigo && (
+              <p className="text-xs text-slate-400">{r.codigo}</p>
+            )}
             <p className="text-slate-600">{r.clienteNombre || "Huésped"}</p>
             <p className="mt-3 text-sm text-slate-500">
               {fechaCorta(r.fechaEntrada)} → {fechaCorta(r.fechaSalida)}
@@ -393,7 +404,12 @@ export default function FoliosHotelPage() {
           <div className="max-h-[92vh] w-full max-w-4xl overflow-auto rounded-3xl bg-white p-6 shadow-2xl">
             <div className="flex justify-between gap-3">
               <div>
-                <p className="text-sm text-teal-700">{seleccion.codigo}</p>
+                <p className="text-sm text-teal-700">
+                  {seleccion.codigo}
+                  {seleccion.habitacionNumero
+                    ? ` · habitación ${seleccion.habitacionNumero}`
+                    : ""}
+                </p>
                 <h2 className="text-2xl font-bold">
                   Folio de {seleccion.clienteNombre}
                 </h2>
@@ -409,8 +425,14 @@ export default function FoliosHotelPage() {
             </div>
             {Number(folio.nochesPendientes || 0) > 0 && (
               <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                El cierre incluirá {plural(Number(folio.nochesPendientes || 0), 'noche', 'noches')} aún no
-                posteadas. El total mostrado ya las considera.
+                {/*
+                  * «1 noche aún no posteadas» no concuerda, y con una sola
+                  * noche se dice «una», no «1»: aquí no sirve `plural`, que
+                  * siempre antepone la cifra.
+                  */}
+                {Number(folio.nochesPendientes || 0) === 1
+                  ? "El cierre incluirá una noche aún no posteada. El total mostrado ya la considera."
+                  : `El cierre incluirá ${Number(folio.nochesPendientes || 0)} noches aún no posteadas. El total mostrado ya las considera.`}
               </div>
             )}
             <div className="mt-5 grid gap-3 sm:grid-cols-5">

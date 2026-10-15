@@ -295,11 +295,24 @@ export class OperacionHotelService {
     });
   }
 
-  obtenerReservaciones(empresaId: string, hotelId?: string) {
-    return this.resRepo.find({
+  /*
+   * El número de habitación viaja con la reservación. Parece un adorno y no lo
+   * es: recepción busca a la gente por su habitación —«el de la 102 pregunta
+   * por su cuenta»—, y tanto la lista de reservaciones como la de folios
+   * enseñaban el código del documento y el nombre, que son justo lo que quien
+   * está en el mostrador no tiene a mano. Medido el 15-oct haciendo un
+   * check-out: hubo que abrir el rack para saber en qué habitación estaba.
+   */
+  async obtenerReservaciones(empresaId: string, hotelId?: string) {
+    const reservaciones = await this.resRepo.find({
       where: { empresaId, ...(hotelId ? { hotelId } : {}) },
+      relations: ['habitacion'],
       order: { fechaEntrada: 'DESC', fechaCreacion: 'DESC' },
     });
+    return reservaciones.map(({ habitacion, ...reserva }) => ({
+      ...reserva,
+      habitacionNumero: habitacion?.numero ?? null,
+    }));
   }
 
   async obtenerReservacion(id: string, empresaId: string) {
