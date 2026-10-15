@@ -1,6 +1,6 @@
 # 06 · Límites conocidos
 
-**Revisión:** 13 de octubre de 2026
+**Revisión:** 15 de octubre de 2026
 
 > Esta es la parte del conjunto que más vale. Una lista de verdes no dice nada si
 > no va acompañada de lo que **no** se ha mirado y por qué. Aquí está todo en un
@@ -86,14 +86,19 @@ Ordenados por lo que más se usa el día uno:
    `08-fineract-portal.md` §8, con las tres cuentas verificadas contra el
    renglón—. El resto, pendiente.
 
-   Una cosa que **no** se tocó, a propósito: el portal escribe sus conteos con
-   el paréntesis —«5 producto(s)», «28 solicitud(es)»—, que es la forma que el
-   ERP acaba de abandonar por `plural()`. Aquí no es un defecto: «0
-   producto(s)» se lee bien con cualquier número, mientras que el «1 registros»
-   del ERP estaba mal. Y dos pruebas del portal fijan esas cadenas, su suite no
-   corre fuera de Windows, y son 19 archivos. Cambiar lo que no se puede probar,
-   por una mejora cosmética, no sale a cuenta — queda anotado para cuando haya
-   con qué verificarlo.
+   ~~Una cosa que **no** se tocó, a propósito: el portal escribe sus conteos
+   con el paréntesis.~~ **Sí se tocó, ese mismo 14-oct.** Cuarenta y seis
+   frases —«0 caja(s) configurada(s)», «3 cuota(s)», «1 operación(es) por
+   autorizar»— y un trinquete en cero
+   (`pruebas/una-pantalla-no-habla-con-parentesis.test.ts`). Este renglón se
+   quedó escrito como si no se hubiera hecho: la decisión de no tocarlo se tomó
+   por la mañana y se cambió de opinión por la tarde, y el documento se quedó
+   con la de la mañana.
+
+   El 15-oct cerró el otro extremo del mismo asunto: la frase que el portal
+   enseñaba no siempre era suya. «5 producto(s)» en la consola SUMA la escribía
+   el **ERP**. Ver `00-ESTADO-DE-LA-DOCUMENTACION.md` y
+   `05-aprovisionamiento-y-consola-suma.md` §9.
 
 ---
 
