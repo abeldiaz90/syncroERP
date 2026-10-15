@@ -287,7 +287,9 @@ export default function ConciliacionPage() {
                   {!reporte.cuadra
                     ? `Hay una diferencia de ${dinero(Math.abs(reporte.diferencia))}`
                     : pendientesBanco > 0
-                      ? `Quedan ${plural(pendientesBanco, 'movimiento', 'movimientos')} del banco sin explicar`
+                      ? pendientesBanco === 1
+                        ? "Queda un movimiento del banco sin explicar"
+                        : `Quedan ${pendientesBanco} movimientos del banco sin explicar`
                       : 'La conciliación cuadra'}
                 </p>
                 <p className="text-[12.5px] text-slate-500 mt-0.5">

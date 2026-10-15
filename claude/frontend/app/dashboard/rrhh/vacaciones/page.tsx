@@ -161,7 +161,14 @@ export default function VacacionesPage() {
               <b>Midiendo el rango…</b>
             ) : desglose === null ? (
               <>
-                <b>{plural(diasNaturales, 'día natural', 'días naturales')} seleccionados.</b>
+                <b>
+                  {plural(
+                    diasNaturales,
+                    'día natural seleccionado',
+                    'días naturales seleccionados',
+                  )}
+                  .
+                </b>
                 <br />
                 Ahora mismo no se pudo calcular cuántos son laborables. Al
                 enviar la solicitud se calcula igualmente: el sistema descontará

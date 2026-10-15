@@ -190,10 +190,18 @@ export default function ConciliacionCarteraPage() {
   const ejecutar = async () => {
     const r = await conciliar.ejecutar();
     if (!r) return;
+    /*
+     * «Revisada una entidad» o «Revisadas 3 entidades»: con una sola no va la
+     * cifra delante, así que aquí no sirve `plural`, que siempre la antepone.
+     */
+    const revisadas =
+      r.revisados === 1
+        ? "Revisada una entidad"
+        : `Revisadas ${r.revisados} entidades`;
     avisar(
       r.discrepancias === 0
-        ? `Revisadas ${r.revisados} entidades. Ninguna diferencia.`
-        : `Revisadas ${r.revisados} entidades. ${plural(r.discrepancias, 'diferencia', 'diferencias')}.`,
+        ? `${revisadas}. Ninguna diferencia.`
+        : `${revisadas}. ${plural(r.discrepancias, "diferencia", "diferencias")}.`,
       r.discrepancias === 0 ? "exito" : "alerta",
     );
     await abiertas.recargar();

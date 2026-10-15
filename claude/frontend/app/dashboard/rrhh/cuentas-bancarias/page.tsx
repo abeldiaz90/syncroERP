@@ -100,7 +100,8 @@ export default function CuentasBancariasPage() {
       );
       setMensaje(
         `Migración concluida: ${plural(resultado?.migradas ?? 0, 'cuenta cifrada', 'cuentas cifradas')}` +
-        `${resultado?.omitidas ? ` y ${plural(resultado.omitidas, 'omitida', 'omitidas')}` : ''}. Deben validarse nuevamente antes de dispersar.`,
+        `${resultado?.omitidas ? ` y ${plural(resultado.omitidas, 'omitida', 'omitidas')}` : ''}. ` +
+          `${(resultado?.migradas ?? 0) + (resultado?.omitidas ?? 0) === 1 ? 'Debe validarse' : 'Deben validarse'} nuevamente antes de dispersar.`,
       );
       await cargar();
     } catch (e) {
