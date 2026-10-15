@@ -4111,23 +4111,24 @@ describe('Coherencia · una pantalla que no pide permiso sigue siendo una pantal
     const servicio = sinComentarios(
       leer(join(SRC, 'iam/services/permisos-dinamicos.service.ts')),
     );
-    // Se recogen al descubrirlas…
+    // Se recogen leyendo los decoradores…
     expect(servicio).toContain('pantallasSinPermiso');
-    expect(servicio).toMatch(/if \(omitePermisos && !esPublico\)/);
+    expect(servicio).toMatch(/censarPantallasSinPermiso\(\): number/);
+    expect(servicio).toMatch(/if \(!omitePermisos \|\| esPublico\) continue;/);
     // …y se añaden a la lista de rutas de CUALQUIER rol.
     expect(servicio).toMatch(
       /for \(const pantalla of this\.pantallasSinPermiso\) rutas\.add\(pantalla\)/,
     );
     /*
-     * Y el orden importa: la recolección tiene que ocurrir ANTES del `continue`
-     * que se salta estos endpoints. Si alguien la mueve después, el conjunto
-     * queda vacío y las pantallas vuelven a desaparecer sin que nada falle.
+     * El censo vivía DENTRO de la reconciliación de la base, que se puede
+     * saltar con `IAM_SYNC_AL_ARRANCAR=false`. Con la bandera apagada el
+     * conjunto quedaba vacío y las pantallas desaparecían del menú de todos
+     * —medido el 15-oct-2026 con los trece roles—. Ahora es un método propio
+     * que corre siempre y no toca la base; que corra ANTES del atajo lo fija
+     * `una-pantalla-libre-que-dependia-de-la-base.spec.ts`, que es donde vive
+     * esa regla. Aquí sólo se exige que exista y que alimente las rutas.
      */
-    const iRecoge = servicio.indexOf('this.pantallasSinPermiso.add');
-    const iSalta = servicio.indexOf('if (esPublico || omitePermisos) continue;');
-    expect(iRecoge).toBeGreaterThan(-1);
-    expect(iSalta).toBeGreaterThan(-1);
-    expect(iRecoge).toBeLessThan(iSalta);
+    expect(servicio).not.toMatch(/if \(omitePermisos && !esPublico\)/);
   });
 });
 

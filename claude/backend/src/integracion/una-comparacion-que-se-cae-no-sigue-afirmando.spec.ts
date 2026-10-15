@@ -85,7 +85,8 @@ describe('La comparación se detiene cuando el enlace se cae', () => {
 
   it('el motivo nombra cuántas se revisaron y cuántas había', () => {
     expect(servicio).toMatch(/tras revisar \$\{revisados\} /);
-    expect(servicio).toMatch(/de \$\{links\.length\} póliza\(s\)/);
+    /* El plural lo decide `plural`; lo que se exige es que diga el total. */
+    expect(servicio).toMatch(/de \$\{plural\(links\.length, 'póliza', 'pólizas'\)\}/);
     expect(servicio).toMatch(/no se sabe nada de ellas hasta la próxima corrida/);
   });
 });

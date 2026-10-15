@@ -129,7 +129,7 @@ describe('Tesoreria · cerrar la conciliacion del periodo', () => {
 
     await expect(
       svc.cerrarConciliacion('ec-1', 'emp-1', 'usuario-7'),
-    ).rejects.toThrow(/11 línea\(s\) del estado de cuenta sin explicar/);
+    ).rejects.toThrow(/Quedan 11 líneas del estado de cuenta sin explicar/);
     expect(guardados).toHaveLength(0);
   });
 

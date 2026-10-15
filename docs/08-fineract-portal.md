@@ -633,7 +633,7 @@ puede editar, y tocarla aquí significa que la siguiente vuelve a traer el
 defecto. El total se rearma con sus propias partes y la pantalla **dice** cuántas
 veces hizo falta.
 
-![Cobranza: «Por cobrar · MXN $600.00» donde antes decía $0.00, con el aviso de cuántos totales se reconstruyeron.](img/portal-cobranza-total-rearmado.jpg)
+![Cobranza: «Por cobrar · MXN $3,600.00» donde antes decía $0.00, con el aviso de que 2 de 2 cuotas llegaron del reporte sin total.](img/portal-cobranza-total-rearmado.jpg)
 
 ## 9.3 · Nueve de los diecisiete roles no dan acceso a nada
 
@@ -726,7 +726,7 @@ Y la franja no traía **ni una fecha**: cuatro importes, y ninguna respuesta a l
 primera pregunta de un mostrador. Ahora hay «Próximo pago», con su importe y su
 vencimiento, sacado del mismo calendario que la pantalla ya tenía cargado.
 
-![Ficha de crédito: pestañas bajo el encabezado y «Próximo pago $185.15 · cuota 3 · vence 14/12/2026».](img/portal-credito-proximo-pago.jpg)
+![Ficha de crédito: pestañas bajo el encabezado y «Próximo pago $6,150.00 · cuota 1 · vence 02/11/2026».](img/portal-credito-proximo-pago.jpg)
 
 ## 9.7 · Nueve botones del mismo tamaño no son una lista de acciones
 

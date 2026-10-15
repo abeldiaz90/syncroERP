@@ -178,7 +178,10 @@ describe('Los tres efectos retroactivos', () => {
 
   it('el cálculo avisa de lo que aplicó con retraso', () => {
     expect(codigo).toMatch(/de periodos ya /);
-    expect(codigo).toMatch(/alertas\.push\(\s*`Se aplican \$\{diasNoPagadosRetro\}/);
+    /* El número y su sustantivo los arma `plural`, que decide el singular. */
+    expect(codigo).toMatch(
+      /alertas\.push\(\s*`Se aplican \$\{plural\(\s*diasNoPagadosRetro,/,
+    );
   });
 
   it('las retroactivas NO reducen los días trabajados del periodo que las cobra', () => {

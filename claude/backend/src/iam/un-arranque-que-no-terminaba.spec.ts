@@ -61,10 +61,22 @@ describe('IAM_SYNC_AL_ARRANCAR', () => {
     (servicio as any).sincronizarControladoresYEndpoints = async () => {
       veces += 1;
     };
+    /*
+     * El censo de pantallas libres es lo único del arranque que corre SIEMPRE,
+     * atajo o no, y aquí se cuenta en vez de ejecutarse: lo que mide esta
+     * prueba es la bandera. Que el censo haga su trabajo lo fija
+     * `una-pantalla-libre-que-dependia-de-la-base.spec.ts`.
+     */
+    let censos = 0;
+    (servicio as any).censarPantallasSinPermiso = () => {
+      censos += 1;
+      return 0;
+    };
     return {
       servicio,
       avisos,
       reconciliaciones: () => veces,
+      censos: () => censos,
     };
   };
 
@@ -79,6 +91,24 @@ describe('IAM_SYNC_AL_ARRANCAR', () => {
     await servicio.onApplicationBootstrap();
     expect(reconciliaciones()).toBe(1);
     expect(avisos).toEqual([]);
+  });
+
+  it('el censo de pantallas libres corre aunque el atajo salte', async () => {
+    /*
+     * MEDIDO el 15-oct-2026: con la bandera apagada, «Ayuda y documentación»
+     * desaparecía del menú de los trece roles y `/dashboard/ayuda` contestaba
+     * «esta sección no está en tu perfil». El conjunto de pantallas que no
+     * piden permiso se llenaba DENTRO de la reconciliación, y el atajo se la
+     * saltaba entera.
+     *
+     * Qué pantallas son libres lo dice un decorador: es del código, no de la
+     * base, y por eso se cuenta siempre.
+     */
+    process.env.IAM_SYNC_AL_ARRANCAR = 'false';
+    const { servicio, reconciliaciones, censos } = nuevoServicio();
+    await servicio.onApplicationBootstrap();
+    expect(reconciliaciones()).toBe(0);
+    expect(censos()).toBe(1);
   });
 
   it('con `false` no reconcilia, y dice cómo hacerlo a mano', async () => {
