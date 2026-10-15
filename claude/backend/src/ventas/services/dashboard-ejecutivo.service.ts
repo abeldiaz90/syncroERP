@@ -97,7 +97,21 @@ export class DashboardEjecutivoService {
           'FROM detalles_venta dv JOIN productos p ON p.id=dv.productoId ' +
           'JOIN ventas v ON v.id=dv.ventaId ' +
           'WHERE v.empresaId=$1 AND v.estado!=$2 AND v.fechaVenta>=$3 AND v.fechaVenta<$4 ' +
-          'GROUP BY p.nombre,p.sku ORDER BY importe DESC LIMIT 5',
+          /*
+           * HAVING, y no un filtro en la pantalla: un producto que se vendió
+           * y se devolvió entero queda en cero unidades y cero pesos, y aun
+           * así entraba en «productos destacados». Medido el 15-oct: el panel
+           * destacaba «Cable eléctrico calibre 12 · 0 unidades · $0» y
+           * «Casco de seguridad · 0 unidades · $0» para rellenar tres
+           * renglones. Una lista de lo más vendido con ceros dentro no es una
+           * lista de lo más vendido: es relleno, y se lee como si esos
+           * productos se estuvieran moviendo.
+           *
+           * Si sólo hay un producto vendido, se enseña uno.
+           */
+          'GROUP BY p.nombre,p.sku ' +
+          'HAVING SUM(dv.cantidad-COALESCE(dv.cantidadDevuelta,0)) > 0 ' +
+          'ORDER BY importe DESC LIMIT 5',
         [empresaId, 'ANULADA', inicioMes, finHoy],
       ),
       /*

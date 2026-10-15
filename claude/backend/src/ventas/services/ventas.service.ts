@@ -760,6 +760,13 @@ export class VentasService {
       .groupBy('p.id')
       .addGroupBy('p.nombre')
       .addGroupBy('p.sku')
+      /*
+       * Lo mismo que en el panel ejecutivo: un producto vendido y devuelto
+       * entero queda en cero y no es «top» de nada. Medido el 15-oct, el
+       * cuarto renglón de «Top productos» era «Cable eléctrico calibre 12 ·
+       * $0.00 · 0 uds».
+       */
+      .having('SUM(d.cantidad - d.cantidadDevuelta) > 0')
       .orderBy('SUM(d.cantidad - d.cantidadDevuelta)', 'DESC')
       .limit(10)
       .getRawMany();
