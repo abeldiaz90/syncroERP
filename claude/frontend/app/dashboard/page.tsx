@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Banknote, Receipt, TrendingUp, Users2 } from 'lucide-react';
 
-import { MODULOS } from './module-config';
+import { MODULOS, destinoDelModulo } from './module-config';
 import { api, intentar, token } from '@/lib/api';
 import { leerSesion, puedeEntrar, puedeVerEnlace } from '@/lib/session';
 import { Indicador } from '@/components/ui';
@@ -258,7 +258,9 @@ export default function PanelPrincipal() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {modulosVisibles.map((m) => {
             const Icono = m.Icono;
-            const destino = m.href;
+            const destino = destinoDelModulo(m, m.accesibles, (r) =>
+              puedeEntrar(permisos, r),
+            );
             return (
               <Link
                 key={m.id}

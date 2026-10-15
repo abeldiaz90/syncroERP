@@ -1208,6 +1208,34 @@ export const RUTAS_CONTENEDOR = new Set<string>([
   "/dashboard/hoteleria",
 ]);
 
+/**
+ * A dónde lleva el nombre de un módulo PARA ESTE PERFIL.
+ *
+ * MEDIDO el 15-oct-2026 con «ver el ERP como» el rol almacenista: el menú
+ * lateral y la tarjeta del panel ofrecían «Configuración», y al pulsarla salía
+ * «Esta sección no está en tu perfil». De las diez pantallas de ese módulo
+ * alcanza una —«Operaciones pendientes»—, que es suficiente para que el módulo
+ * se vea, y el enlace apuntaba a la portada, que no alcanza.
+ *
+ * Un botón que lleva a una negativa es peor que no tener el botón; esto ya se
+ * corrigió en los accesos rápidos del panel y en los botones de acción de la
+ * barra. Faltaba el nombre del módulo, que es el enlace que más se pulsa.
+ *
+ * Las portadas de módulo y los centros de trabajo no se comprueban con el
+ * permiso: se abren cuando se alcanza algo de dentro, y eso ya es cierto si el
+ * módulo está visible.
+ */
+export function destinoDelModulo(
+  modulo: ModuleConfig,
+  accesibles: ModuleItem[],
+  puedeEntrar: (ruta: string) => boolean,
+): string {
+  const esContenedor =
+    modulo.href.startsWith('/dashboard/centros/') || RUTAS_CONTENEDOR.has(modulo.href);
+  if (esContenedor || puedeEntrar(modulo.href)) return modulo.href;
+  return accesibles[0]?.href ?? modulo.href;
+}
+
 /* ── Resolución de módulo ────────────────────────────────────────────────── */
 
 /**

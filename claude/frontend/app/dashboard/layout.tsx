@@ -36,7 +36,7 @@ import {
   Search, ShieldOff, Loader2, Landmark, ExternalLink,
 } from 'lucide-react';
 
-import { MODULOS, detectarModulo, detectarItem, agruparItems, RUTAS_CONTENEDOR } from './module-config';
+import { MODULOS, detectarModulo, detectarItem, agruparItems, destinoDelModulo, RUTAS_CONTENEDOR } from './module-config';
 import { establecerVerComo, verComoActual, type VerComo } from '@/lib/ver-como';
 import { api, token, intentar, rutaDeAccesoConRegreso } from '@/lib/api';
 import { leerSesion, sesionVigente, iniciales, puedeEntrar, puedeVerEnlace, type Sesion } from '@/lib/session';
@@ -229,7 +229,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [permisos, pathname, modulo, plan]);
 
   const modulosVisibles = useMemo(
-    () => MODULOS.filter((m) => m.items.some((i) => !i.oculto && puedeVerEnlace(permisos, i.href) && contratado(plan, i))),
+    () =>
+      MODULOS.map((m) => ({
+        ...m,
+        accesibles: m.items.filter(
+          (i) => !i.oculto && puedeVerEnlace(permisos, i.href) && contratado(plan, i),
+        ),
+      })).filter((m) => m.accesibles.length > 0),
     [permisos, plan],
   );
 
@@ -340,7 +346,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               return (
                 <div key={m.id}>
                   <Link
-                    href={m.href}
+                    href={destinoDelModulo(m, m.accesibles, (r) =>
+                      puedeEntrar(permisos, r),
+                    )}
                     title={t(m.nombre)}
                     className={`relative flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[12.5px] transition-colors ${
                       esActual
