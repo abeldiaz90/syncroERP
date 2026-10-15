@@ -1,6 +1,6 @@
 # SyncroERP + Apache Fineract · Documentación
 
-**Revisión:** 12 de octubre de 2026
+**Revisión:** 15 de octubre de 2026
 **Alcance:** lo que el sistema **hace**, verificado contra el sistema corriendo.
 
 > Esta carpeta documenta únicamente lo que se considera **terminado y estable**.
@@ -18,8 +18,8 @@ Aquí, como archivos del repositorio, y **dentro del ERP**: entrando en
 carpeta en cada petición, así que corregir un documento aquí lo corrige también
 en la pantalla, sin volver a desplegar nada.
 
-Los dos manuales de usuario los lee cualquiera; los cuatro documentos técnicos,
-sólo el administrador. El detalle está en `01-instalacion-y-puesta-en-marcha.md`
+Los cuatro manuales de usuario —`03`, `04`, `07` y `08`— los lee cualquiera;
+los cinco documentos técnicos, sólo el administrador. El detalle está en `01-instalacion-y-puesta-en-marcha.md`
 §2.9.
 
 ---
@@ -28,13 +28,14 @@ sólo el administrador. El detalle está en `01-instalacion-y-puesta-en-marcha.m
 
 | # | Documento | Para quién |
 |---|---|---|
+| 00 | [Estado de la documentación](00-ESTADO-DE-LA-DOCUMENTACION.md) | Quien decide qué documentar. Qué hay, qué falta y en qué orden conviene cerrarlo, contado contra las 146 pantallas del ERP. |
 | 01 | [Instalación y puesta en marcha](01-instalacion-y-puesta-en-marcha.md) | Quien despliega. Piezas, variables de entorno, orden de arranque, verificación. |
 | 02 | [Arquitectura](02-arquitectura.md) | Quien mantiene el código. Autenticación, autorización, aislamiento, contabilidad, integración. |
 | 03 | [Manual por rol](03-manual-por-rol.md) | Usuarios finales y quien los capacita. Los trece roles y los manuales de cierre, conciliación, póliza y crédito. |
 | 04 | [Compras y nómina](04-compras-y-nomina.md) | Los dos ciclos que firma más de una persona. |
 | 05 | [Aprovisionamiento y consola SUMA](05-aprovisionamiento-y-consola-suma.md) | SUMA. Cómo se da de alta una empresa nueva en cada uno de los tres modos. |
 | 06 | [Límites conocidos](06-limites-conocidos.md) | Todos. Lo que no está probado y lo que falta, con el motivo. |
-| 07 | [Flujos y procesos, paso a paso](07-flujos-y-procesos.md) | Usuarios finales. Catorce procesos de punta a punta, con quién firma cada paso y el texto exacto de cada negativa. |
+| 07 | [Flujos y procesos, paso a paso](07-flujos-y-procesos.md) | Usuarios finales. Diecisiete procesos de punta a punta, con quién firma cada paso y el texto exacto de cada negativa. |
 | 08 | [El portal de Fineract](08-fineract-portal.md) | Quien opera crédito y captación. Las ocho áreas del portal y el ciclo de un crédito acto por acto. |
 
 > El 07 existía desde el 9 de octubre y **no estaba en esta tabla**. Un índice al

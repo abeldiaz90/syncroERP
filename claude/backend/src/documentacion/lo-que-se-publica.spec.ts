@@ -55,12 +55,18 @@ describe('lo que se publica, y a quién', () => {
       expect(fuente).not.toMatch(/join\([^)]*\bid\b[^)]*\)/);
     });
 
-    it('los cuatro documentos técnicos están marcados como restringidos', () => {
+    it('los documentos técnicos están marcados como restringidos', () => {
       const restringidos = DOCUMENTOS_PUBLICADOS.filter((d) => d.restringido).map(
         (d) => d.id,
       );
       expect(restringidos.sort()).toEqual(
-        ['aprovisionamiento', 'arquitectura', 'instalacion', 'limites-conocidos'].sort(),
+        [
+          'aprovisionamiento',
+          'arquitectura',
+          'estado-de-la-documentacion',
+          'instalacion',
+          'limites-conocidos',
+        ].sort(),
       );
     });
   });

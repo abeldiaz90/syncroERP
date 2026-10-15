@@ -9,9 +9,10 @@
  *
  * ── LA DIVISIÓN, Y POR QUÉ ─────────────────────────────────────────────────
  *
- * De los seis documentos, dos son del USUARIO —el manual por rol y el de
- * compras y nómina— y cuatro son de quien instala y mantiene: variables de
- * entorno, claves de servicio, defectos corregidos y lo que falta por probar.
+ * De los ocho documentos, cuatro son del USUARIO —el manual por rol, el de
+ * compras y nómina, los flujos y el portal— y el resto son de quien instala y
+ * mantiene: variables de entorno, claves de servicio, defectos corregidos, lo
+ * que falta por probar y lo que falta por documentar.
  *
  * Publicar los cuatro dentro del ERP sería enseñarle a cada empresa cliente el
  * inventario de lo que todavía no está probado y los nombres de las llaves que
@@ -117,6 +118,17 @@ export const DOCUMENTOS_PUBLICADOS: ReadonlyArray<DocumentoPublicado> = [
       'Vale más que una lista de verdes.',
     restringido: true,
     orden: 60,
+  },
+  {
+    id: 'estado-de-la-documentacion',
+    archivo: '00-ESTADO-DE-LA-DOCUMENTACION.md',
+    titulo: 'Estado de la documentación',
+    resumen:
+      'Qué está documentado y qué no, contado: las 146 pantallas del ERP cruzadas con ' +
+      'los flujos escritos, los huecos nombrados por tamaño y en qué orden conviene ' +
+      'cerrarlos.',
+    restringido: true,
+    orden: 65,
   },
 ];
 
