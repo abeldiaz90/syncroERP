@@ -1,6 +1,6 @@
 # 04 · Compras y nómina
 
-**Revisión:** 8 de octubre de 2026
+**Revisión:** 15 de octubre de 2026
 **Para:** las personas que operan estos dos ciclos y quien las capacite.
 
 Los dos ciclos tienen algo en común y conviene decirlo antes de empezar: **los
@@ -24,6 +24,13 @@ almacenista           comprador            quien manda            tesorería
 **Comprar, autorizar, recibir y pagar son cuatro manos distintas.** El sistema lo
 impide activamente: quien pide no aprueba lo que pidió, quien pide la
 adjudicación no la aprueba, y el comprador no puede recibir ni pagar.
+
+![La bandeja de aprobaciones de compras, sin nada pendiente.](img/compras-bandeja-de-aprobaciones.jpg)
+
+**Compras → Aprobaciones** es donde cada quien ve **lo que espera su firma**, y
+sólo eso: requisiciones y adjudicaciones de cotización. Con la bandeja vacía
+dice «todo al día» en vez de enseñar una tabla sin filas, y el **Historial**,
+al lado, guarda lo ya resuelto con quién lo firmó.
 
 ---
 
@@ -227,6 +234,19 @@ Aquí las manos son tres, y el sistema no deja que una sola las junte:
 
 RRHH **prepara, mira y no firma**. Es lo correcto, y explica casi todos los «no me
 deja» de este módulo.
+
+![El centro integral de nómina: preparación de la empresa y asistente del período.](img/nomina-centro-integral.jpg)
+
+**RRHH → Centro integral de nómina** es el recorrido entero en una pantalla. A
+la izquierda, **preparación de la empresa** —estructura, plantilla, conceptos,
+tarifas fiscales y configuración patronal— con su porcentaje; a la derecha, el
+**asistente del período**, que enseña qué sigue según el estado real de la
+nómina en vez de una lista fija de pasos. Arriba, los cuatro números que
+deciden si se puede calcular hoy: plantilla activa, incidencias pendientes,
+saldo de préstamos y preparación.
+
+> Si el asistente no enseña nada, es que no hay período seleccionado: se crea o
+> se elige en **Administrar períodos**. No es un error.
 
 ---
 

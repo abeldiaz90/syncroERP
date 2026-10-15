@@ -16,8 +16,8 @@
 |---|---:|---:|---|
 | `01-instalacion-y-puesta-en-marcha.md` | 257 | 0 | 28-sep |
 | `02-arquitectura.md` | 518 | 0 | 28-sep |
-| `03-manual-por-rol.md` | 391 | **0** | 8-oct |
-| `04-compras-y-nomina.md` | 356 | **0** | 8-oct |
+| `03-manual-por-rol.md` | 410 | 2 | **15-oct** |
+| `04-compras-y-nomina.md` | 376 | 2 | **15-oct** |
 | `05-aprovisionamiento-y-consola-suma.md` | 461 | 6 | **15-oct** |
 | `06-limites-conocidos.md` | 298 | 1 | 13-oct |
 | `07-flujos-y-procesos.md` | 1 183 | 31 | 13-oct |
@@ -30,8 +30,11 @@ Más `FINERACT_UI_COVERAGE.md`, que es la matriz pantalla por pantalla del
 portal, y el `LEEME.md` de la consola, que es su puesta en marcha.
 
 **Que un documento no tenga capturas no lo invalida** —`02-arquitectura` no las
-necesita—, pero en `03` y `04` sí importa: son los dos que alguien sigue con el
-sistema abierto delante, y son los dos que no enseñan ni una pantalla.
+necesita—, pero en `03` y `04` sí importaba: son los dos que alguien sigue con
+el sistema abierto delante, y eran los dos que no enseñaban ni una pantalla.
+Desde el 15-oct llevan las cuatro que faltaban: la matriz de roles, «ver el ERP
+como otra persona», la bandeja de aprobaciones de compras y el centro integral
+de nómina.
 
 ---
 
@@ -150,8 +153,7 @@ que no puede pasar —y ya no pasa— es que el conteo envejezca en silencio.
 ## 5. Lo siguiente, en orden
 
 1. ~~**Hotelería**~~ **Hecho el 15-oct** (§3.1).
-2. **Capturas en `03` y `04`** (§1): son los dos que se siguen con el sistema
-   delante y los dos sin pantallas.
+2. ~~**Capturas en `03` y `04`**~~ **Hecho el 15-oct** (§1).
 3. ~~**Los seis asistentes**~~ **Hecho el 15-oct** (§3.2).
 4. ~~**Reportes**~~ **Hecho el 15-oct** (§3.3).
 5. ~~Atar §3 a un conteo automático~~ **Hecho el 15-oct** (§4).

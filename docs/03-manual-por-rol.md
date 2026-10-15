@@ -1,6 +1,6 @@
 # 03 · Manual por rol
 
-**Revisión:** 8 de octubre de 2026
+**Revisión:** 15 de octubre de 2026
 **Para:** usuarios finales y quien los capacite.
 
 > El alcance de cada rol está **medido contra el sistema corriendo**, no copiado
@@ -92,7 +92,26 @@ Tres lecturas que explican el reparto:
 
 ---
 
+## La matriz, en pantalla
+
+![Roles y permisos: un rol, lo que atiende y el ajuste fino por módulo.](img/roles-matriz-de-accesos.jpg)
+
+**Administración → Roles y permisos.** A la izquierda los roles de la empresa,
+cada uno con cuántas acciones tiene activas. A la derecha, el rol elegido con
+sus tres números —**módulos que atiende**, **acciones activas** sobre el total,
+y **cuántas personas lo tienen**— y, módulo por módulo, tres botones: sin
+acceso, sólo consulta, completo. Debajo de cada uno, «ajuste fino» abre la
+acción por acción para los casos que no caben en los tres botones.
+
+«Usar módulos sugeridos» vuelve a la plantilla del rol. Está arriba a la
+derecha, junto a «Sincronizar», que es lo que empuja los cambios al registro
+externo.
+
+---
+
 ## Probar el sistema con el rol de otro
+
+![Ver el ERP como otra persona: una cuenta de prueba por rol.](img/roles-ver-como-otra-persona.jpg)
 
 **Administración → Ver el ERP como otra persona.** Es la herramienta de quien
 capacita y de quien configura permisos: enseña el ERP exactamente como lo ve el
