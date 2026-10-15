@@ -377,12 +377,69 @@ export class CarteraConciliacionService {
     return { revisados: revisados + creditos.length, discrepancias: encontradas };
   }
 
-  /** Discrepancias abiertas. Mientras haya, no se sube el modo a AUTORIDAD. */
+  /*
+   * Discrepancias abiertas. Mientras haya, no se sube el modo a AUTORIDAD.
+   *
+   * ── DE QUIÉN ES LA DIFERENCIA ───────────────────────────────────────────
+   * MEDIDO el 15-oct: la pantalla enseñaba «El saldo del cliente no coincide ·
+   * diferencia de -$6,150.00 · ERP $0.00 · core $6,150.00» y, debajo, «revisa
+   * los cobros del cliente». De qué cliente, no lo decía en ningún sitio.
+   *
+   * La fila SÍ sabe de quién es —`entidadId`—, pero un identificador no es un
+   * nombre: con él en la mano todavía hay que ir a buscarlo. Y esta diferencia
+   * no es un aviso cualquiera: mientras esté abierta, la empresa no puede
+   * subir a AUTORIDAD. Un bloqueo que no dice a quién revisar es un bloqueo
+   * que nadie puede levantar —*un control que no se puede satisfacer*—.
+   *
+   * Se resuelve en dos consultas, no en una por renglón: los conceptos de
+   * cliente traen el nombre del cliente, los de crédito el folio y su cliente,
+   * y lo que sólo existe del otro lado se queda con su identificador externo,
+   * que ahí sí es lo único que hay.
+   */
   async abiertas(empresaId: string) {
-    return this.discrepancias.find({
+    const filas = await this.discrepancias.find({
       where: { empresaId, resuelta: false },
       order: { fechaCorte: 'DESC' },
       take: 200,
+    });
+    const ids = [...new Set(filas.map((f) => f.entidadId).filter(Boolean))];
+    if (!ids.length) return filas.map((f) => ({ ...f, sujeto: null }));
+
+    const manager = this.discrepancias.manager;
+    const clientes: { id: string; nombre: string }[] = await manager.query(
+      'SELECT id, nombre FROM clientes WHERE empresaid = $1 AND id = ANY($2)',
+      [empresaId, ids],
+    );
+    const creditos: { id: string; folio: string; cliente: string | null }[] =
+      await manager.query(
+        `SELECT c.id, c.folio, cl.nombre AS cliente
+           FROM creditos_clientes c
+           LEFT JOIN clientes cl ON cl.id = c.clienteid
+          WHERE c.empresaid = $1 AND c.id = ANY($2)`,
+        [empresaId, ids],
+      );
+    const porCliente = new Map(clientes.map((c) => [c.id, c.nombre]));
+    const porCredito = new Map(creditos.map((c) => [c.id, c]));
+
+    return filas.map((f) => {
+      const id = f.entidadId ?? '';
+      const credito = porCredito.get(id);
+      if (credito) {
+        return {
+          ...f,
+          sujeto: credito.cliente
+            ? `Crédito ${credito.folio} · ${credito.cliente}`
+            : `Crédito ${credito.folio}`,
+        };
+      }
+      const cliente = porCliente.get(id);
+      if (cliente) return { ...f, sujeto: cliente };
+      /*
+       * Ni cliente ni crédito del ERP. Es lo que sólo existe del otro lado, y
+       * entonces su identificador externo es exactamente el dato con el que se
+       * va a buscar allá: se dice tal cual, y se dice que es de allá.
+       */
+      return { ...f, sujeto: id ? `En el registro externo: ${id}` : null };
     });
   }
 

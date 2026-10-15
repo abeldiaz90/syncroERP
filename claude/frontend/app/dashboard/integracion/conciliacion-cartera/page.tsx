@@ -61,6 +61,12 @@ interface Discrepancia {
   valorErp: number;
   valorExterno: number;
   detalle?: string | null;
+  /*
+   * De quién es la diferencia, en palabras. El servidor ya tenía `entidadId`,
+   * pero un identificador no es un nombre: con él en la mano todavía hay que
+   * ir a buscarlo, y esta pantalla bloquea el paso a AUTORIDAD.
+   */
+  sujeto?: string | null;
   resuelta: boolean;
 }
 
@@ -332,6 +338,11 @@ export default function ConciliacionCarteraPage() {
                         {fechaCorta(d.fechaCorte)}
                       </span>
                     </div>
+                    {d.sujeto && (
+                      <p className="text-[12.5px] font-semibold text-slate-700 mt-0.5">
+                        {d.sujeto}
+                      </p>
+                    )}
                     {d.detalle && (
                       <p className="text-[12.5px] text-slate-600 mt-1 leading-relaxed">
                         {d.detalle}
