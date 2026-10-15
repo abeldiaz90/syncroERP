@@ -18,8 +18,8 @@ Aquí, como archivos del repositorio, y **dentro del ERP**: entrando en
 carpeta en cada petición, así que corregir un documento aquí lo corrige también
 en la pantalla, sin volver a desplegar nada.
 
-Los seis manuales de usuario —`03`, `04`, `07`, `08`, `09` y `10`— los lee
-cualquiera; los cinco documentos técnicos, sólo el administrador. El detalle está en `01-instalacion-y-puesta-en-marcha.md`
+Los siete manuales de usuario —`03`, `04`, `07`, `08`, `09`, `10` y `11`— los
+lee cualquiera; los cinco documentos técnicos, sólo el administrador. El detalle está en `01-instalacion-y-puesta-en-marcha.md`
 §2.9.
 
 ---
@@ -36,6 +36,7 @@ cualquiera; los cinco documentos técnicos, sólo el administrador. El detalle e
 | 05 | [Aprovisionamiento y consola SUMA](05-aprovisionamiento-y-consola-suma.md) | SUMA. Cómo se da de alta una empresa nueva en cada uno de los tres modos. |
 | 06 | [Límites conocidos](06-limites-conocidos.md) | Todos. Lo que no está probado y lo que falta, con el motivo. |
 | 07 | [Flujos y procesos, paso a paso](07-flujos-y-procesos.md) | Usuarios finales. Diecisiete procesos de punta a punta, con quién firma cada paso y el texto exacto de cada negativa. |
+| 11 | [Configuración y asistentes](11-configuracion-y-asistentes.md) | Quien pone una empresa en marcha. El centro de preparación, los seis asistentes y el orden de una empresa nueva. |
 | 10 | [Reportes](10-reportes.md) | Dirección, gerencia y caja. Las siete pantallas de reportes y de dónde sale cada número. |
 | 09 | [Hotelería](09-hoteleria.md) | Recepción, ama de llaves y alimentos y bebidas. Las once pantallas del hotel, recorridas de punta a punta contra el sistema corriendo. |
 | 08 | [El portal de Fineract](08-fineract-portal.md) | Quien opera crédito y captación. Las ocho áreas del portal y el ciclo de un crédito acto por acto. |

@@ -98,6 +98,7 @@ export default function WizardPreparacion({
   }));
   const obligatorios = estadoPasos.filter((p) => !p.opcional);
   const pendientesObligatorios = obligatorios.filter((p) => !p.completo);
+  const pendientesManuales = pendientesObligatorios.filter((p) => p.manual);
   const siguiente = pendientesObligatorios[0] ?? estadoPasos.find((p) => !p.completo);
   const hechos = obligatorios.filter((p) => p.completo).length;
   const porcentaje = obligatorios.length
@@ -136,8 +137,23 @@ export default function WizardPreparacion({
           <div className="h-3 rounded-full bg-emerald-400 transition-all" style={{ width: `${porcentaje}%` }} />
         </div>
         <p className="mt-2 text-sm text-slate-300">
-          {hechos} de {obligatorios.length} pasos obligatorios verificados
+          {hechos} de {obligatorios.length}{' '}
+          {obligatorios.length === 1 ? 'paso obligatorio verificado' : 'pasos obligatorios verificados'}
         </p>
+        {/*
+          * Lo que el sistema comprueba y lo que alguien declara no son lo
+          * mismo, y el centro de preparación sólo mide lo primero. Un
+          * asistente que dice «faltan pasos obligatorios» mientras el centro
+          * dice 100 % parece una contradicción; decir CUÁNTOS esperan tu
+          * confirmación la resuelve sin inventar un número nuevo.
+          */}
+        {pendientesManuales.length > 0 && (
+          <p className="mt-1 text-sm text-amber-200">
+            {pendientesManuales.length === 1
+              ? 'Uno de ellos no lo puede comprobar el sistema: espera tu confirmación.'
+              : `${pendientesManuales.length} de ellos no los puede comprobar el sistema: esperan tu confirmación.`}
+          </p>
+        )}
       </section>
 
       {error && (
@@ -179,7 +195,11 @@ export default function WizardPreparacion({
       <div className="flex flex-wrap gap-3">
         <button onClick={() => router.push('/dashboard/configuracion/centro')} className="rounded-xl border px-5 py-3 font-semibold">Volver al centro</button>
         <button disabled={pendientesObligatorios.length > 0} onClick={() => router.push(operacionRuta)} className="rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
-          {pendientesObligatorios.length ? `Faltan ${pendientesObligatorios.length} pasos obligatorios` : 'Ir a operar'}
+          {pendientesObligatorios.length
+            ? pendientesObligatorios.length === 1
+              ? 'Falta 1 paso obligatorio'
+              : `Faltan ${pendientesObligatorios.length} pasos obligatorios`
+            : 'Ir a operar'}
         </button>
       </div>
     </div>

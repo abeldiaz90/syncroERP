@@ -102,6 +102,17 @@ export const DOCUMENTOS_PUBLICADOS: ReadonlyArray<DocumentoPublicado> = [
     orden: 28,
   },
   {
+    id: 'configuracion-y-asistentes',
+    archivo: '11-configuracion-y-asistentes.md',
+    titulo: 'Configuración y asistentes',
+    resumen:
+      'El centro de preparación y los seis asistentes: qué mide cada requisito, qué ' +
+      'distingue un paso obligatorio de uno opcional y de uno que sólo tú puedes ' +
+      'confirmar, y en qué orden se recorre una empresa nueva.',
+    restringido: false,
+    orden: 5,
+  },
+  {
     id: 'instalacion',
     archivo: '01-instalacion-y-puesta-en-marcha.md',
     titulo: 'Instalación y puesta en marcha',

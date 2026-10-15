@@ -24,6 +24,7 @@
 | `08-fineract-portal.md` | 797 | 13 | 14-oct |
 | `09-hoteleria.md` | 284 | 6 | **15-oct** |
 | `10-reportes.md` | 127 | 2 | **15-oct** |
+| `11-configuracion-y-asistentes.md` | 112 | 2 | **15-oct** |
 
 Más `FINERACT_UI_COVERAGE.md`, que es la matriz pantalla por pantalla del
 portal, y el `LEEME.md` de la consola, que es su puesta en marcha.
@@ -78,7 +79,7 @@ cruzadas con lo documentado:
 | compras | 13 | Cubierto por los flujos 11 y 16 y la parte 1 de `04`. |
 | hotelería | 11 | **Cubierto desde el 15-oct por `09`**, recorrido de punta a punta. |
 | inventario | 9 | Cubierto por el flujo 5. |
-| **configuración** | **9** | **Los seis asistentes no están documentados.** |
+| configuración | 9 | **Cubierto desde el 15-oct por `11`.** |
 | créditos | 8 | Parte en `03`, parte en el portal (`08`). |
 | ventas | 7 | Cubierto por los flujos 1–4 y 10. |
 | reportes | 7 | **Cubierto desde el 15-oct por `10`.** |
@@ -101,12 +102,14 @@ contaba el día del calendario.
 Queda fuera el **cobro del check-out**, que mueve dinero a una caja y lo prueba
 quien opera.
 
-### 3.2 Los seis asistentes de configuración
+### 3.2 Los seis asistentes · cerrado el 15-oct
 
-`wizard-ventas`, `wizard-compras`, `wizard-inventario`, `wizard-finanzas`,
-`wizard-credito`, `wizard-importacion`. Son justo el camino de «antes de la
-primera venta / compra / factura», y cada flujo de `07` empieza dando por hecho
-que ya se recorrió. `01` describe la instalación, no los asistentes.
+Lo cierra `11-configuracion-y-asistentes.md`: el centro de preparación, los
+seis asistentes y qué distingue un paso obligatorio de uno opcional y de uno
+que sólo una persona puede confirmar.
+
+Queda por recorrer **sobre una empresa recién creada** —la de demostración ya
+está al 95 %—, que es el único recorrido que prueba el orden de verdad.
 
 ### 3.3 Reportes · cerrado el 15-oct
 
@@ -143,7 +146,7 @@ siguiente paso natural, y está anotado abajo.
 1. ~~**Hotelería**~~ **Hecho el 15-oct** (§3.1).
 2. **Capturas en `03` y `04`** (§1): son los dos que se siguen con el sistema
    delante y los dos sin pantallas.
-3. **Los seis asistentes** (§3.2).
+3. ~~**Los seis asistentes**~~ **Hecho el 15-oct** (§3.2).
 4. ~~**Reportes**~~ **Hecho el 15-oct** (§3.3).
 5. Atar §3 a un conteo automático, para que este documento no sea otra cosa que
    se cree al día.
