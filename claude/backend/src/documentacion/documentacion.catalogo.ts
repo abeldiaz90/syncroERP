@@ -91,6 +91,17 @@ export const DOCUMENTOS_PUBLICADOS: ReadonlyArray<DocumentoPublicado> = [
     orden: 27,
   },
   {
+    id: 'reportes',
+    archivo: '10-reportes.md',
+    titulo: 'Reportes',
+    resumen:
+      'Las siete pantallas de reportes y qué contesta cada una: panel ejecutivo, ' +
+      'ventas, top de productos, inventario valorizado, corte de caja y estado de ' +
+      'cuenta. De dónde sale cada número y qué cuenta una venta devuelta.',
+    restringido: false,
+    orden: 28,
+  },
+  {
     id: 'instalacion',
     archivo: '01-instalacion-y-puesta-en-marcha.md',
     titulo: 'Instalación y puesta en marcha',

@@ -23,6 +23,7 @@
 | `07-flujos-y-procesos.md` | 1 183 | 31 | 13-oct |
 | `08-fineract-portal.md` | 797 | 13 | 14-oct |
 | `09-hoteleria.md` | 284 | 6 | **15-oct** |
+| `10-reportes.md` | 127 | 2 | **15-oct** |
 
 Más `FINERACT_UI_COVERAGE.md`, que es la matriz pantalla por pantalla del
 portal, y el `LEEME.md` de la consola, que es su puesta en marcha.
@@ -80,7 +81,7 @@ cruzadas con lo documentado:
 | **configuración** | **9** | **Los seis asistentes no están documentados.** |
 | créditos | 8 | Parte en `03`, parte en el portal (`08`). |
 | ventas | 7 | Cubierto por los flujos 1–4 y 10. |
-| **reportes** | **7** | **Ninguno documentado.** |
+| reportes | 7 | **Cubierto desde el 15-oct por `10`.** |
 | tesorería | 5 | Flujo 6 y dos manuales de `03`. |
 | activos | 4 | Flujo 15. |
 | productos, catálogos, crm, almacenes, … | 20 | Parcial o por catálogo. |
@@ -107,11 +108,17 @@ quien opera.
 primera venta / compra / factura», y cada flujo de `07` empieza dando por hecho
 que ya se recorrió. `01` describe la instalación, no los asistentes.
 
-### 3.3 Reportes
+### 3.3 Reportes · cerrado el 15-oct
 
-Siete pantallas —ejecutivo, ventas, inventario, top de productos, estado de
-cuenta, corte de caja— sin un renglón que diga qué contesta cada una ni con qué
-números.
+Lo cierra `10-reportes.md`, recorriendo las siete pantallas con diez ventas de
+prueba delante. Ese recorrido destapó tres defectos, los tres arreglados y
+anotados en el §7 del propio documento: el desglose por día ponía las ventas en
+el día equivocado, el ticket promedio dividía entre documentos en vez de entre
+ventas con importe, y las listas de «lo más vendido» se rellenaban con
+productos de cero unidades.
+
+Queda por ejercitar el **estado de cuenta** con un cliente con crédito y
+abonos, y el **corte de caja** con varios medios de pago a la vez.
 
 ---
 
@@ -137,6 +144,6 @@ siguiente paso natural, y está anotado abajo.
 2. **Capturas en `03` y `04`** (§1): son los dos que se siguen con el sistema
    delante y los dos sin pantallas.
 3. **Los seis asistentes** (§3.2).
-4. **Reportes** (§3.3).
+4. ~~**Reportes**~~ **Hecho el 15-oct** (§3.3).
 5. Atar §3 a un conteo automático, para que este documento no sea otra cosa que
    se cree al día.
