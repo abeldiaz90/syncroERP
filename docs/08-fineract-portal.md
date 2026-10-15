@@ -395,10 +395,23 @@ Medido el 14-oct-2026, con los dos sistemas encendidos:
 O sea: hoy el estado de resultados del ERP **no incluye los ingresos por
 intereses de la cartera**, y nada avisa de ello.
 
-Dicho sin rodeos porque es una decisión de negocio pendiente, no un defecto que
-alguien vaya a arreglar solo. Las tres salidas posibles —vuelta del espejo,
-póliza de concentración periódica, o dos contabilidades consolidadas fuera—
-están planteadas en `claude/lo-que-nace-en-el-core-no-llega-al-erp-2026-10-14`.
+Dicho sin rodeos porque es una **decisión de negocio pendiente**, no un defecto
+que alguien vaya a arreglar solo. Si los libros fiscales de SUMA son los del
+ERP —los que llevan el agrupador del SAT—, la operación de crédito tiene que
+llegar ahí de alguna forma, y hay tres caminos:
+
+| Camino | Qué implica |
+|---|---|
+| **Vuelta del espejo** | Que el core publique sus asientos al ERP, igual que el ERP publica los suyos. Simétrico con lo que ya existe, y el más caro. |
+| **Póliza de concentración periódica** | El ERP registra un resumen mensual de la cartera leyendo el mayor del core. Más barato, menos detalle. |
+| **Dos contabilidades a propósito** | El ERP lleva la operación comercial y el core la financiera, y la consolidación se hace fuera. Entonces hay que decir **dónde**, y las tres cuentas que el core usa y el ERP no tiene se quedan como están. |
+
+Esas tres cuentas, medidas el 14-oct: `101.02` efectivo en ventanilla (sin
+movimientos), `703.22` quebrantos por cartera incobrable, y `703.23` creación
+de estimaciones preventivas, **que sí tiene movimientos**. Las otras 70 del
+core corresponden una a una con el catálogo del ERP.
+
+Lo que no es una opción es dejarlo sin decidir.
 
 ## Y la conciliación mira la mitad que viaja
 
