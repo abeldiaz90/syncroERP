@@ -423,7 +423,18 @@ export const MODULOS_NEGOCIO: ModuloNegocio[] = [
     icono: 'ShieldCheck',
     grupo: 'Sistema',
     orden: 52,
-    prefijos: ['/usuarios', '/admin', '/configuracion', '/auditoria', '/rpa'],
+    /*
+     * `/iam` es la suplantación —«ver el ERP como otra persona»—, y es
+     * administración del sistema como las demás. Sin declararla aquí caía en
+     * «Otros», que es justo lo que la regla de oro de arriba dice que no debe
+     * pasar: un endpoint en «Otros» es una declaración que falta, y en la
+     * pantalla de roles sale en un cajón de sastre en vez de junto a usuarios
+     * y permisos, que es donde quien reparte accesos lo va a buscar.
+     *
+     * No cambia quién puede: el controlador ya lleva `@Roles('ADMINISTRADOR')`.
+     * Cambia dónde se ve.
+     */
+    prefijos: ['/usuarios', '/admin', '/configuracion', '/auditoria', '/rpa', '/iam'],
     sensible: true,
   },
 
