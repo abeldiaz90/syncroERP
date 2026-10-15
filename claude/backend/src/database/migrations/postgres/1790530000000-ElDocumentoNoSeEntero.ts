@@ -67,7 +67,7 @@ export class ElDocumentoNoSeEntero1790530000000 implements MigrationInterface {
       `);
       if (filas?.length) {
         console.log(
-          `[ElDocumentoNoSeEntero] ${doc.tabla}: ${plural(filas.length, 'documento', 'documentos')} se enteraron de su póliza.`,
+          `[ElDocumentoNoSeEntero] ${doc.tabla}: ${plural(filas.length, 'documento se enteró de su póliza.', 'documentos se enteraron de su póliza.')}`,
         );
       }
     }

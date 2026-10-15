@@ -61,7 +61,7 @@ export class RutasAprobacionInicialesService implements OnApplicationBootstrap {
       const creadas = await this.asegurarRutasDeRequisicion();
       if (creadas > 0) {
         this.logger.log(
-          `Rutas de aprobación de requisición creadas para ${plural(creadas, 'área', 'áreas')} que no tenían ninguna.`,
+          `Rutas de aprobación de requisición creadas para ${plural(creadas, 'área que no tenía ninguna', 'áreas que no tenían ninguna')}.`,
         );
       }
       await this.avisarRutasSinFirmante();
@@ -124,7 +124,7 @@ export class RutasAprobacionInicialesService implements OnApplicationBootstrap {
 
     if (huecos.length) {
       this.logger.warn(
-        `Hay ${plural(huecos.length, 'nivel', 'niveles')} de aprobación enrutados a un rol que ninguna persona activa tiene: ` +
+        `Hay ${plural(huecos.length, 'nivel de aprobación enrutado', 'niveles de aprobación enrutados')} a un rol que ninguna persona activa tiene: ` +
           `${huecos.join('; ')}. Esos documentos no van a avanzar hasta que alguien tenga ese rol.`,
       );
     }

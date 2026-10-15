@@ -445,7 +445,7 @@ export class AsientosPendientesService {
 
     if (resultado.affected) {
       this.logger.warn(
-        `Se liberaron ${plural(resultado.affected, 'asiento', 'asientos')} que quedaron en REINTENTANDO ` +
+        `Liberados: ${plural(resultado.affected, 'asiento que quedaba en REINTENTANDO', 'asientos que quedaban en REINTENTANDO')} ` +
           'tras la caída de un proceso. Vuelven a la cola.',
       );
     }

@@ -68,7 +68,7 @@ export class CotizacionesService implements OnApplicationBootstrap {
       const cerradas = await this.cerrarHermanasHistoricas();
       if (cerradas > 0) {
         this.logger.warn(
-          `Se descartaron ${plural(cerradas, 'cotizacion', 'cotizaciones')} que seguian esperando firma en requisiciones ya adjudicadas. Eran pendientes que nadie podia resolver ni cerrar.`,
+          `Se descartaron ${plural(cerradas, 'cotizacion que seguia esperando firma', 'cotizaciones que seguian esperando firma')} en requisiciones ya adjudicadas: pendientes que nadie podia resolver ni cerrar.`,
         );
       }
     } catch (error) {

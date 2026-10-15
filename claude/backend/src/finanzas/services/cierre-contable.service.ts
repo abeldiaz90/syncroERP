@@ -675,7 +675,7 @@ export class CierreContableService {
         descripcion:
           pendientes.length === 0
             ? 'Todas las operaciones del período llegaron a contabilidad.'
-            : `${plural(pendientes.length, 'operación', 'operaciones')} requieren atención en Asientos pendientes.`,
+            : `${plural(pendientes.length, 'operación requiere atención', 'operaciones requieren atención')} en Asientos pendientes.`,
         estado: pendientes.length === 0 ? 'CORRECTO' : 'BLOQUEO',
         bloquea: pendientes.length > 0,
       },
@@ -685,7 +685,7 @@ export class CierreContableService {
         descripcion:
           totalSinContabilizar === 0
             ? 'No se detectaron operaciones definitivas sin póliza.'
-            : `${plural(totalSinContabilizar, 'operación definitiva', 'operaciones definitivas')} siguen sin póliza: ${detalleOperaciones
+            : `${plural(totalSinContabilizar, 'operación definitiva sigue sin póliza', 'operaciones definitivas siguen sin póliza')}: ${detalleOperaciones
                 .map((fila) => `${fila.clave}=${fila.cantidad}`)
                 .join(', ')}.`,
         estado: totalSinContabilizar === 0 ? 'CORRECTO' : 'BLOQUEO',
@@ -698,7 +698,7 @@ export class CierreContableService {
           ? cuentasActivas === 0
             ? 'No hay cuentas bancarias activas.'
             : 'Los estados de cuenta activos aparecen conciliados y cerrados.'
-          : `${estadosCerrados} de ${plural(cuentasActivas, 'cuenta', 'cuentas')} tienen conciliación cerrada.`,
+          : `Conciliación cerrada en ${estadosCerrados} de ${plural(cuentasActivas, 'cuenta', 'cuentas')}.`,
         estado: coberturaCompleta
           ? 'CORRECTO'
           : exigirConciliacionBancaria
@@ -733,7 +733,7 @@ export class CierreContableService {
               descripcion:
                 espejoSinEntregar === 0
                   ? 'Todas las pólizas del período llegaron al mayor externo: los dos libros dicen lo mismo.'
-                  : `${plural(espejoSinEntregar, 'asiento', 'asientos')} no han llegado al mayor externo ` +
+                  : `${plural(espejoSinEntregar, 'asiento no ha llegado al mayor externo', 'asientos no han llegado al mayor externo')} ` +
                     `(${plural(Number(espejo.fallidos ?? 0), 'fallido', 'fallidos')}, ` +
                     `${plural(Number(espejo.reintentables ?? 0), 'reintentable', 'reintentables')}, ` +
                     `${plural(Number(espejo.pendientes ?? 0), 'pendiente', 'pendientes')}` +
@@ -774,7 +774,7 @@ export class CierreContableService {
               clave: 'CONCILIACION_CARTERA',
               titulo: 'Diferencias de cartera sin resolver',
               descripcion:
-                `${plural(carteraAbiertas, 'diferencia', 'diferencias')} entre la cartera del ERP y ` +
+                `${plural(carteraAbiertas, 'diferencia entre la cartera del ERP y', 'diferencias entre la cartera del ERP y')} ` +
                 'la del registro externo siguen abiertas. No detienen este ' +
                 'cierre —la cartera es otro eje— pero cada una es un saldo que ' +
                 'los dos sistemas cuentan distinto. Se revisan en Integración › ' +
@@ -1166,7 +1166,7 @@ export class CierreContableService {
         respaldo,
         mensaje:
           `Período ${revision.mes}/${revision.anio} cerrado con revisión completa. ` +
-          `${plural(diagnostico.contabilidad.totalPolizas, 'póliza', 'pólizas')} quedaron protegidas. ` +
+          `${plural(diagnostico.contabilidad.totalPolizas, 'póliza quedó protegida', 'pólizas quedaron protegidas')}. ` +
           `Respaldo previo verificado: ${respaldo.archivo} (${respaldo.bytes} bytes).`,
       };
     } catch (error) {
@@ -1318,7 +1318,7 @@ export class CierreContableService {
       cuadrada: Math.abs(diagnostico.contabilidad.diferencia) < 0.01,
       advertencia:
         diagnostico.bloqueos > 0
-          ? `${plural(diagnostico.bloqueos, 'control', 'controles')} bloquean el cierre.`
+          ? `${plural(diagnostico.bloqueos, 'control bloquea el cierre.', 'controles bloquean el cierre.')}`
           : null,
       diagnostico,
     };

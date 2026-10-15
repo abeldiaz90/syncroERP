@@ -1340,7 +1340,11 @@ export class TesoreriaService {
      */
     if (reporte.pendientes.lineasDelBanco > 0) {
       throw new BadRequestException(
-        `Quedan ${plural(reporte.pendientes.lineasDelBanco, 'línea', 'líneas')} del estado de ` +
+        `${
+          reporte.pendientes.lineasDelBanco === 1
+            ? 'Queda una línea'
+            : `Quedan ${reporte.pendientes.lineasDelBanco} líneas`
+        } del estado de ` +
           'cuenta sin explicar. Cada movimiento del banco tiene que quedar ' +
           'emparejado con uno de tus movimientos o registrado como movimiento ' +
           'nuevo: el banco ya movió ese dinero. ' +

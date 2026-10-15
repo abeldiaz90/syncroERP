@@ -183,7 +183,7 @@ export class WmsService implements OnModuleInit {
                 }
             }
             if (repuestas) {
-                this.logger.log(`Posición de recepción repuesta en ${plural(repuestas, 'almacén', 'almacenes')} que manejaban posiciones y no la tenían.`);
+                this.logger.log(`Posición de recepción repuesta en ${plural(repuestas, 'almacén que manejaba posiciones y no la tenía', 'almacenes que manejaban posiciones y no la tenían')}.`);
             }
         } catch (e: any) {
             this.logger.warn(`No se pudo revisar las posiciones de recepción al arrancar: ${e?.message ?? e}`);

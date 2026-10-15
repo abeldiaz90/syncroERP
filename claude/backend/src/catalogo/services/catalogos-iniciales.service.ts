@@ -125,7 +125,7 @@ export class CatalogosInicialesService implements OnApplicationBootstrap {
       const tocadas = Number((r as { actualizadas?: number })?.actualizadas ?? 0);
       if (tocadas > 0) {
         this.logger.log(
-          `Cuentas de categoria: ${plural(tocadas, 'categoria', 'categorias')} sin cuentas quedaron configuradas en ${empresaId}.`,
+          `Cuentas de categoria: ${plural(tocadas, 'categoria sin cuentas quedó configurada', 'categorias sin cuentas quedaron configuradas')} en ${empresaId}.`,
         );
       }
     } catch (error) {
@@ -219,7 +219,7 @@ export class CatalogosInicialesService implements OnApplicationBootstrap {
       { categoriaId: porDefecto.id },
     );
     this.logger.warn(
-      `${plural(huerfanos.length, 'producto', 'productos')} con inventario no tenían categoría y por tanto ` +
+      `${plural(huerfanos.length, 'producto con inventario no tenía categoría', 'productos con inventario no tenían categoría')} y por tanto ` +
         `ninguna cuenta contable: quedaron en «${porDefecto.nombre}». ` +
         'Reclasifícalos cuando puedas; mientras tanto, sus compras ya pueden contabilizarse.',
     );

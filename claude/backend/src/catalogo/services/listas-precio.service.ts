@@ -198,19 +198,19 @@ export class ListasPrecioService {
 
     if (Number(enVentas) > 0) {
       throw new ConflictException(
-        `No se puede borrar «${lista.nombre}»: ${plural(enVentas, 'venta registrada', 'ventas registradas')} la tienen como lista de precios. ` +
+        `No se puede borrar «${lista.nombre}»: ${plural(enVentas, 'venta registrada la tiene', 'ventas registradas la tienen')} como lista de precios. ` +
           'Borrarla dejaría esos documentos sin poder explicar a qué precio se vendió.',
       );
     }
     if (Number(enCajas) > 0) {
       throw new ConflictException(
-        `No se puede borrar «${lista.nombre}»: ${plural(enCajas, 'caja', 'cajas')} cobran con ella. ` +
+        `No se puede borrar «${lista.nombre}»: ${plural(enCajas, 'caja cobra con ella', 'cajas cobran con ella')}. ` +
           'Asígnales otra lista en Finanzas → Cuentas bancarias y vuelve a intentarlo.',
       );
     }
     if (Number(precios) > 0 && !confirmar) {
       throw new ConflictException(
-        `«${lista.nombre}» tiene ${plural(precios, 'precio', 'precios')} capturados y borrarla los borra todos, sin reversa. ` +
+        `«${lista.nombre}» tiene ${plural(precios, 'precio capturado', 'precios capturados')} y borrarla los borra todos, sin reversa. ` +
           'Vuelve a enviar la petición con confirmar=true si es lo que quieres.',
       );
     }

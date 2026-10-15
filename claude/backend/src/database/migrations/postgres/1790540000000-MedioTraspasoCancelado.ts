@@ -51,7 +51,7 @@ export class MedioTraspasoCancelado1790540000000 implements MigrationInterface {
     `);
     if (filas?.length) {
       console.log(
-        `[MedioTraspasoCancelado] ${plural(filas.length, 'movimiento', 'movimientos')} de traspaso quedaron marcados: ` +
+        `[MedioTraspasoCancelado] ${plural(filas.length, 'movimiento de traspaso quedó marcado', 'movimientos de traspaso quedaron marcados')}: ` +
           'ya no se pueden cancelar de a una pierna.',
       );
     }

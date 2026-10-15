@@ -364,7 +364,7 @@ export class ConciliacionFinancieraService {
     const inventarioAdvertencias =
       inventario.lotesCostoCero > 0
         ? [
-            `${plural(inventario.lotesCostoCero, 'lote', 'lotes')} con existencia conservan costo cero.`,
+            `${plural(inventario.lotesCostoCero, 'lote con existencia conserva costo cero.', 'lotes con existencia conservan costo cero.')}`,
           ]
         : [];
 

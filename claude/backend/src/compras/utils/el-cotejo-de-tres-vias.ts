@@ -184,8 +184,18 @@ export function cotejarTresVias(entrada: {
   return {
     conciliado: conDiferencias.length === 0,
     renglones,
+    /*
+     * El verbo concuerda con lo que de verdad es el sujeto: en la primera
+     * frase, las partidas que no cuadran —«1 de 5 partidas no coincide»—; en
+     * la segunda, el total. Y ahí no va la cifra delante: se dice «la partida»
+     * o «las ocho partidas», no «1 partida». Por eso aquí no sirve `plural`,
+     * que siempre antepone el número.
+     */
     resumen: conDiferencias.length
-      ? `${conDiferencias.length} de ${plural(renglones.length, 'partida', 'partidas')} no coinciden con la orden o con lo recibido.`
-      : `Las ${plural(renglones.length, 'partida', 'partidas')} coinciden con lo pedido, lo recibido y el precio pactado.`,
+      ? `${conDiferencias.length} de ${plural(renglones.length, 'partida', 'partidas')} ` +
+        `${conDiferencias.length === 1 ? 'no coincide' : 'no coinciden'} con la orden o con lo recibido.`
+      : renglones.length === 1
+        ? 'La partida coincide con lo pedido, lo recibido y el precio pactado.'
+        : `Las ${renglones.length} partidas coinciden con lo pedido, lo recibido y el precio pactado.`,
   };
 }

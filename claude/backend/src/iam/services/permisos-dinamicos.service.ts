@@ -1276,7 +1276,7 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       }
       if (repuestos) {
         this.logger.warn(
-          `Se intentó quitar ${plural(repuestos, 'acción', 'acciones')} con las que opera el rol "${rol}"; se repusieron. Un rol se amplía, no se recorta por debajo de su trabajo.`,
+          `Se intentó quitar ${plural(repuestos, 'acción con la que opera el rol', 'acciones con las que opera el rol')} "${rol}"; se repusieron. Un rol se amplía, no se recorta por debajo de su trabajo.`,
         );
       }
     }
@@ -1335,12 +1335,12 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       }
       if (repuestas) {
         this.logger.warn(
-          `Se repusieron ${plural(repuestas, 'acción', 'acciones')} irrenunciables del rol "${rol}".`,
+          `Se repusieron ${plural(repuestas, 'acción irrenunciable', 'acciones irrenunciables')} del rol "${rol}".`,
         );
       }
       if (vedadas) {
         this.logger.warn(
-          `Se retiraron ${plural(vedadas, 'acción', 'acciones')} vedadas al rol "${rol}" por separación de funciones.`,
+          `Se retiraron ${plural(vedadas, 'acción vedada al rol', 'acciones vedadas al rol')} "${rol}" por separación de funciones.`,
         );
       }
     }

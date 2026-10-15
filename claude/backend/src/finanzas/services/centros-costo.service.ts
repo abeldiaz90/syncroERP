@@ -196,7 +196,7 @@ export class CentrosCostoService {
     );
     if (Number(total) > 0) {
       throw new ConflictException(
-        `«${centro.nombre}» tiene ${plural(total, 'partida', 'partidas')} de póliza registradas y no se puede borrar: ` +
+        `«${centro.nombre}» tiene ${plural(total, 'partida de póliza registrada', 'partidas de póliza registradas')} y no se puede borrar: ` +
           'los reportes por centro dejarían de cuadrar. Desactívalo en su lugar — deja de ofrecerse ' +
           'para capturar y su historia se conserva.',
       );
@@ -259,7 +259,7 @@ export class CentrosCostoService {
     const hijos = await repo.count({ where: { padreId: id, activo: true } });
     if (hijos > 0) {
       throw new BadRequestException(
-        `No se puede desactivar: ${plural(hijos, 'centro activo', 'centros activos')} cuelgan de éste y quedarían ` +
+        `No se puede desactivar: ${plural(hijos, 'centro activo cuelga de éste y quedaría', 'centros activos cuelgan de éste y quedarían')} ` +
           'colgando de un padre inactivo. Desactiva primero los hijos.',
       );
     }
