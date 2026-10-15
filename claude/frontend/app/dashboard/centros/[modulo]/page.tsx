@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { abrirPuntoDeVenta } from '@/lib/pos';
 import { useParams } from 'next/navigation';
 import { ArrowRight, Layers3, Link2, Sparkles, ExternalLink } from 'lucide-react';
-import { MODULOS, agruparItems } from '../../module-config';
+import { MODULOS, agruparItems, puedeAbrirRenglon } from '../../module-config';
 import { api, intentar, token } from '@/lib/api';
 import { esRolAdministrador } from '@/lib/roles';
-import { leerSesion, puedeVerEnlace } from '@/lib/session';
+import { leerSesion, puedeEntrar } from '@/lib/session';
 import { EVENTO_VER_COMO, verComoActual } from '@/lib/ver-como';
 import { usePermiso } from '@/hooks/use-permisos';
 import { useContratacion, contratado } from '@/lib/contratacion';
@@ -78,7 +78,9 @@ export default function CentroModuloPage() {
   if (!modulo) return <div className="p-8">Módulo no encontrado.</div>;
   const items = modulo.items.filter(
     (i) =>
-      !i.oculto && puedeVerEnlace(permisos, i.href) && contratado(plan, i),
+      !i.oculto &&
+      puedeAbrirRenglon(i.href, (r) => puedeEntrar(permisos, r)) &&
+      contratado(plan, i),
   );
   const grupos = agruparItems(items);
   /*
@@ -101,9 +103,13 @@ export default function CentroModuloPage() {
    */
   const acciones = (modulo.acciones ?? []).filter((a) => {
     if (a.accion && !tienePermiso(a.accion.metodo, a.accion.ruta)) return false;
-    return a.ventana || puedeVerEnlace(permisos, a.href);
+    return a.ventana || puedeAbrirRenglon(a.href, (r) => puedeEntrar(permisos, r));
   });
-  const relacionados = (modulo.relacionados ?? []).filter((a) => puedeVerEnlace(permisos, a.href));
+  /* Un «proceso relacionado» que no se puede abrir es el mismo botón que lleva
+     a una negativa, sólo que al final de la página. */
+  const relacionados = (modulo.relacionados ?? []).filter((a) =>
+    puedeAbrirRenglon(a.href, (r) => puedeEntrar(permisos, r)),
+  );
 
   return (
     <div className="p-5 lg:p-8 max-w-[1380px] mx-auto space-y-6">

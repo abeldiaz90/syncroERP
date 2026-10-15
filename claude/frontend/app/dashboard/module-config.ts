@@ -1225,6 +1225,34 @@ export const RUTAS_CONTENEDOR = new Set<string>([
  * permiso: se abren cuando se alcanza algo de dentro, y eso ya es cierto si el
  * módulo está visible.
  */
+/**
+ * ¿Se lista este renglón del menú?
+ *
+ * Los renglones son PANTALLAS, no secciones, y por eso se preguntan con
+ * «¿puedo abrirla?» y no con `puedeVerEnlace`, que además acepta que el
+ * permiso sea descendiente del enlace. Esa permisividad es la correcta para
+ * decidir qué MÓDULOS se ven —el módulo debe verse si algo de dentro se
+ * alcanza— y es la equivocada para los renglones de dentro.
+ *
+ * MEDIDO el 15-oct-2026 cruzando las rutas reales de los trece roles contra
+ * el menú: siete —cobranza, contador, crédito, finanzas, gobierno, rrhh y
+ * tesorería— veían «Catálogo de productos» y al pulsarlo salía «esta sección
+ * no está en tu perfil». Lo veían porque alcanzan `/dashboard/productos/
+ * atributos`, que es descendiente de `/dashboard/productos`; y ese renglón es
+ * a la vez una pantalla y el prefijo de otras, que es justo donde la regla de
+ * las secciones muerde.
+ *
+ * Las portadas y los centros de trabajo sí se listan sin permiso propio: el
+ * layout los abre cuando se alcanza algo de dentro.
+ */
+export function puedeAbrirRenglon(
+  href: string,
+  puedeEntrar: (ruta: string) => boolean,
+): boolean {
+  if (href.startsWith('/dashboard/centros/') || RUTAS_CONTENEDOR.has(href)) return true;
+  return puedeEntrar(href);
+}
+
 export function destinoDelModulo(
   modulo: ModuleConfig,
   accesibles: ModuleItem[],

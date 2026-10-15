@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Banknote, Receipt, TrendingUp, Users2 } from 'lucide-react';
 
-import { MODULOS, destinoDelModulo } from './module-config';
+import { MODULOS, destinoDelModulo, puedeAbrirRenglon } from './module-config';
 import { api, intentar, token } from '@/lib/api';
 import { leerSesion, puedeEntrar, puedeVerEnlace } from '@/lib/session';
 import { Indicador } from '@/components/ui';
@@ -172,7 +172,9 @@ export default function PanelPrincipal() {
 
   const modulosVisibles = MODULOS.map((m) => ({
     ...m,
-    accesibles: m.items.filter((i) => !i.oculto && puedeVerEnlace(permisos, i.href)),
+    accesibles: m.items.filter(
+      (i) => !i.oculto && puedeAbrirRenglon(i.href, (r) => puedeEntrar(permisos, r)),
+    ),
   })).filter((m) => m.accesibles.length > 0);
 
   /*

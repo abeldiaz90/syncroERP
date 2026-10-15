@@ -36,10 +36,10 @@ import {
   Search, ShieldOff, Loader2, Landmark, ExternalLink,
 } from 'lucide-react';
 
-import { MODULOS, detectarModulo, detectarItem, agruparItems, destinoDelModulo, RUTAS_CONTENEDOR } from './module-config';
+import { MODULOS, detectarModulo, detectarItem, agruparItems, destinoDelModulo, puedeAbrirRenglon, RUTAS_CONTENEDOR } from './module-config';
 import { establecerVerComo, verComoActual, type VerComo } from '@/lib/ver-como';
 import { api, token, intentar, rutaDeAccesoConRegreso } from '@/lib/api';
-import { leerSesion, sesionVigente, iniciales, puedeEntrar, puedeVerEnlace, type Sesion } from '@/lib/session';
+import { leerSesion, sesionVigente, iniciales, puedeEntrar, type Sesion } from '@/lib/session';
 import PaletaComandos from '@/components/PaletaComandos';
 import { esRolAdministrador } from '@/lib/roles';
 import { PermisosProvider } from '@/app/context/PermisosContext';
@@ -218,12 +218,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // Los centros de trabajo son contenedores de navegación. Se permiten cuando
     // el usuario tiene acceso al menos a una pantalla real del módulo.
     if (pathname.startsWith('/dashboard/centros/') && modulo) {
-      return !modulo.items.some((i) => !i.oculto && puedeVerEnlace(permisos, i.href) && contratado(plan, i));
+      return !modulo.items.some(
+        (i) =>
+          !i.oculto &&
+          puedeAbrirRenglon(i.href, (r) => puedeEntrar(permisos, r)) &&
+          contratado(plan, i),
+      );
     }
     // Las portadas de módulo —el índice de reportes, el centro de almacenes—
     // se tratan igual que los centros de trabajo: son navegación, no datos.
     if (RUTAS_CONTENEDOR.has(pathname) && modulo) {
-      return !modulo.items.some((i) => !i.oculto && puedeVerEnlace(permisos, i.href) && contratado(plan, i));
+      return !modulo.items.some(
+        (i) =>
+          !i.oculto &&
+          puedeAbrirRenglon(i.href, (r) => puedeEntrar(permisos, r)) &&
+          contratado(plan, i),
+      );
     }
     return !puedeEntrar(permisos, pathname);
   }, [permisos, pathname, modulo, plan]);
@@ -233,14 +243,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       MODULOS.map((m) => ({
         ...m,
         accesibles: m.items.filter(
-          (i) => !i.oculto && puedeVerEnlace(permisos, i.href) && contratado(plan, i),
+          (i) =>
+            !i.oculto &&
+            puedeAbrirRenglon(i.href, (r) => puedeEntrar(permisos, r)) &&
+            contratado(plan, i),
         ),
       })).filter((m) => m.accesibles.length > 0),
     [permisos, plan],
   );
 
   const itemsVisibles = useMemo(
-    () => (modulo?.items ?? []).filter((i) => !i.oculto && puedeVerEnlace(permisos, i.href) && contratado(plan, i)),
+    () =>
+      (modulo?.items ?? []).filter(
+        (i) =>
+          !i.oculto &&
+          puedeAbrirRenglon(i.href, (r) => puedeEntrar(permisos, r)) &&
+          contratado(plan, i),
+      ),
     [modulo, permisos, plan],
   );
 
