@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { plural } from '@/lib/format';
-import { diaISO, mesHastaHoy } from '@/lib/fechas';
+import { diaDe, diaISO, fechaCorta, mesHastaHoy } from '@/lib/fechas';
 import { BarChart2, RefreshCw, TrendingUp, DollarSign, ShoppingBag, CreditCard } from 'lucide-react';
 import { ExportBar } from '../../../components/export-bar';
 
@@ -15,7 +15,9 @@ interface IVenta {
 }
 
 const fmt$ = (n: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
-const fmtF = (s: string) => new Date(s).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+/* La misma lectura que `diaDe`, para que el desglose y el detalle no puedan
+   contradecirse. */
+const fmtF = (s: string) => fechaCorta(s);
 
 const METODO_LABEL: Record<string, string> = {
   EFECTIVO: 'Efectivo', TARJETA: 'Tarjeta', TRANSFERENCIA: 'SPEI',
@@ -96,7 +98,16 @@ export default function ReporteVentasPage() {
   // KPIs
   const totalVentas    = ventasFiltradas.reduce((s, v) => s + neto(v), 0);
   const totalIVA       = ventasFiltradas.reduce((s, v) => s + ivaNeto(v), 0);
-  const ticketPromedio = ventasFiltradas.length > 0 ? totalVentas / ventasFiltradas.length : 0;
+  /*
+   * El ticket promedio se saca sobre las ventas QUE DEJARON IMPORTE, no sobre
+   * todas. Medido el 15-oct: diez ventas, dos de ellas devueltas enteras, y
+   * el promedio salía $256 cuando ninguna venta de ese período fue de $256
+   * —las ocho que quedaron en pie eran de $320—. Un promedio que divide entre
+   * documentos en vez de entre ventas con importe dice un número que nadie
+   * cobró, y se lee como si fuera el ticket típico.
+   */
+  const conImporte = ventasFiltradas.filter((v) => neto(v) !== 0);
+  const ticketPromedio = conImporte.length > 0 ? totalVentas / conImporte.length : 0;
 
   // Agrupaciones
   const porMetodo = ventasFiltradas.reduce((acc, v) => {
@@ -108,7 +119,7 @@ export default function ReporteVentasPage() {
   }, {} as Record<string, { label: string; total: number; count: number }>);
 
   const porDia = ventasFiltradas.reduce((acc, v) => {
-    const k = v.fechaVenta?.split('T')[0] ?? '';
+    const k = diaDe(v.fechaVenta);
     if (!acc[k]) acc[k] = { total: 0, count: 0 };
     acc[k].total += neto(v);
     acc[k].count++;
@@ -186,7 +197,16 @@ export default function ReporteVentasPage() {
         {[
           { label: 'Total ventas', val: totalVentas, icon: DollarSign, color: 'indigo' },
           { label: 'Núm. ventas',  val: ventasFiltradas.length, icon: ShoppingBag, color: 'blue', noFmt: true },
-          { label: 'Ticket prom.', val: ticketPromedio, icon: TrendingUp, color: 'emerald' },
+          {
+            label: 'Ticket prom.',
+            val: ticketPromedio,
+            icon: TrendingUp,
+            color: 'emerald',
+            pie:
+              conImporte.length === ventasFiltradas.length
+                ? ''
+                : `sobre ${conImporte.length} de ${ventasFiltradas.length}; el resto se devolvió entero`,
+          },
           { label: 'IVA generado', val: totalIVA, icon: CreditCard, color: 'amber' },
         ].map(k => {
           const Icon = k.icon;
@@ -201,6 +221,9 @@ export default function ReporteVentasPage() {
               <p className={`text-xl font-black text-${k.color}-600`}>
                 {k.noFmt ? k.val : fmt$(Number(k.val))}
               </p>
+              {k.pie && (
+                <p className="mt-1 text-[11px] leading-tight text-slate-400">{k.pie}</p>
+              )}
             </div>
           );
         })}

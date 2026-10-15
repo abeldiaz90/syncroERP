@@ -106,6 +106,37 @@ export function fechaLarga(valor: string | Date | null | undefined): string {
  * ============================================================================
  */
 
+/*
+ * ----------------------------------------------------------------------------
+ * Y LA MISMA PUERTA, UN PASO MÁS ADELANTE: `fecha.split('T')[0]`
+ *
+ * Medido el 15-oct-2026 en el reporte de ventas. El desglose POR DÍA decía
+ * «06 oct · 9 ventas» y el detalle, debajo, enseñaba ocho de esas ventas con
+ * fecha «07 oct». El mismo reporte, la misma venta, dos días distintos.
+ *
+ * La causa son dos formas de leer la misma fecha en la misma pantalla:
+ *
+ *     const k = v.fechaVenta?.split('T')[0]        ← agrupa por el día UTC
+ *     ...toLocaleDateString('es-MX')               ← enseña el día LOCAL
+ *
+ * Partir por la «T» no es recortar una fecha: es quedarse con el día en UTC,
+ * que a este lado del meridiano es el de ayer durante buena parte de la
+ * jornada. Con las dos lecturas conviviendo, la suma del desglose cuadra con
+ * el total y aun así pone las ventas en el día equivocado — que es peor que
+ * descuadrar, porque nada avisa.
+ *
+ * `diaDe` existe para que la clave con la que se agrupa y la fecha que se
+ * enseña salgan del MISMO análisis. Ver también
+ * `una-fecha-no-se-lee-de-dos-maneras.spec.ts`.
+ * ----------------------------------------------------------------------------
+ */
+
+/** El día LOCAL de un valor cualquiera, como `2026-10-07`. `''` si no hay. */
+export function diaDe(valor: string | Date | null | undefined): string {
+  const d = aFecha(valor);
+  return d ? diaISO(d) : '';
+}
+
 /** `2026-10-01` a partir de las partes LOCALES del reloj, sin pasar por UTC. */
 export function diaISO(fecha: Date = new Date()): string {
   const mes = String(fecha.getMonth() + 1).padStart(2, '0');

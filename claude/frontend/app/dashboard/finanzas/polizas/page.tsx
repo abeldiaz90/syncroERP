@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { fechaCorta, mesEnCurso } from '@/lib/fechas';
+import { diaDe, fechaCorta, mesEnCurso } from '@/lib/fechas';
 import { plural } from '@/lib/format';
 import Link from 'next/link';
 import {
@@ -194,7 +194,9 @@ export default function LibroDiarioPage() {
 
   // Filtros en frontend
   const filtradas = polizas.filter(p => {
-    const fechaP = p.fecha?.split('T')[0] ?? '';
+    /* El mismo día que enseña la fila, no el día UTC: si no, una póliza se
+       filtra fuera de un rango al que la pantalla la pone dentro. */
+    const fechaP = diaDe(p.fecha);
     if (desde && fechaP < desde) return false;
     if (hasta && fechaP > hasta) return false;
     if (filtroTipo && p.tipo !== filtroTipo) return false;
@@ -350,7 +352,7 @@ export default function LibroDiarioPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-5 py-3 text-slate-500 text-xs">{fmtFecha(p.fecha?.split('T')[0])}</td>
+                        <td className="px-5 py-3 text-slate-500 text-xs">{fmtFecha(p.fecha)}</td>
                         <td className="px-5 py-3">
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.cls}`}>{cfg.label}</span>
                         </td>
@@ -396,7 +398,7 @@ export default function LibroDiarioPage() {
                 <p className="text-slate-300 text-sm mt-0.5">{detalle.concepto}</p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-400">{fmtFecha(detalle.fecha?.split('T')[0])}</span>
+                <span className="text-xs text-slate-400">{fmtFecha(detalle.fecha)}</span>
                 <button aria-label="Cerrar el detalle de la póliza" title="Cerrar el detalle de la póliza" onClick={() => setDetalle(null)}
                   className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
                   <X className="w-5 h-5"/>
