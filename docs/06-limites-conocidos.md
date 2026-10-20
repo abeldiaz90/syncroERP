@@ -289,14 +289,22 @@ Lo demás de la puesta en marcha está en
   el número fijado. No se migró todo de golpe porque muchos de esos textos están
   pinchados letra por letra en las pruebas, y son ochenta cirugías cuyo
   resultado no se puede medir de una vez a días de producción.
-- **Quedan unos cuarenta `(s)` en textos del ERP.** `plural()` existe y se
-  migraron veintidós renglones más el 13-oct-2026 —el espejo contable entero,
-  pólizas, cierre contable, saldos iniciales, presupuestos, conciliación
-  inicial, aprobaciones de compra, pago a proveedores, avisos de crédito,
-  cartera vencida, créditos, clientes, ficha de producto, reposición y
-  permisos—. **No hay trinquete y es deliberado**: un patrón que busque `(s)`
-  también encuentra `new Date(s)` y `map((s) => …)`, y una prueba que grita en
-  falso lo primero que provoca es que alguien la borre. La cuenta se lleva aquí.
+- ~~**Quedan unos cuarenta `(s)` en textos del ERP**, sin trinquete y a
+  propósito.~~ **Cerrado el 14-oct-2026, y este párrafo se quedó con la
+  decisión de la mañana.** Sí hay trinquete —`una-pantalla-no-habla-con-
+  parentesis.spec.ts`— y está **en cero**, midiendo los cuatro árboles:
+  `backend/src` y `frontend/{app,lib,components}`, más de setecientos archivos.
+
+  Lo que hacía falta para poder escribirlo era el patrón que no grita en falso:
+  se exige minúscula inicial y se descartan los finales `;`, `=>` y `)`, que es
+  lo que deja fuera `new Date(s)`, `fechaLarga(s)` y `map((s) => …)`. El miedo
+  era correcto —una prueba que grita en falso acaba borrada— y la respuesta no
+  era no tenerla, era afinarla.
+
+  Que este renglón siguiera diciendo lo contrario durante seis días es el mismo
+  defecto que describe: **un documento que afirma sobre el código sin
+  comprobarlo**. Por eso el inventario de pantallas y el de capturas tienen
+  prueba que los ata a la realidad, y éste todavía no.
 - **El portal conserva sus `(s)`.** Mismo caso, agravado: dos de sus pruebas
   fijan esos textos letra por letra y su `vitest` no corre en este entorno
   (binarios nativos de rollup para Windows). Visto el 13-oct en «0 caja(s)

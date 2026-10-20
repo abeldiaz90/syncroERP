@@ -15,6 +15,15 @@ type Hallazgo = {
   descripcion: string;
   accion: string;
   detalle?: string;
+  /*
+   * CUÁLES, no sólo cuántas. «ALTA: 4 · revisar en la balanza» es devolverle
+   * al contador el trabajo que el sistema ya hizo: acaba de encontrarlas y
+   * sabe cuáles son. Con cuatro entre cientos de cuentas, dar con ellas a
+   * mano es media mañana.
+   */
+  ejemplos?: string[];
+  /** Cuántos hay de más de los que se alcanzan a nombrar. */
+  masSinNombrar?: number;
 };
 type Diagnostico = {
   generadoEn: string;
@@ -109,6 +118,26 @@ export default function IntegridadFinancieraPage() {
                   )}
                 </div>
                 {h.detalle && <p className="mt-3 rounded-xl bg-slate-50 p-3 font-mono text-xs text-slate-600">{h.detalle}</p>}
+                {h.ejemplos && h.ejemplos.length > 0 && (
+                  <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
+                    {h.ejemplos.map((e) => (
+                      <li key={e} className="px-3 py-2 font-mono text-xs text-slate-700">{e}</li>
+                    ))}
+                    {h.masSinNombrar ? (
+                      /*
+                       * Decir cuántas faltan evita la lectura de que son éstas
+                       * y ya: quien ve ocho renglones y el contador en cuarenta
+                       * sabe que tiene que mirar la lista entera, no sólo
+                       * corregir lo que tiene delante.
+                       */
+                      <li className="px-3 py-2 text-[11px] text-slate-500">
+                        {h.masSinNombrar === 1
+                          ? 'Hay una más sin nombrar aquí.'
+                          : `Hay ${h.masSinNombrar} más sin nombrar aquí.`}
+                      </li>
+                    ) : null}
+                  </ul>
+                )}
                 <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700"><strong>Acción:</strong> {h.accion}</p>
               </article>
             ))}

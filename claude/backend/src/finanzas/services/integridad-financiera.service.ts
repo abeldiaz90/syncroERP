@@ -23,6 +23,20 @@ export interface HallazgoIntegridad {
   accion: string;
   /** Por qué no se pudo medir, cuando `estado` es NO_MEDIBLE. */
   detalle?: string;
+  /**
+   * CUÁLES, no sólo cuántas.
+   *
+   * «4 cuentas con saldo contrario · revisa la balanza» es hacerle al contador
+   * el trabajo que el sistema ya hizo: el sistema SABE cuáles son —acaba de
+   * contarlas— y lo que entrega es un número y un recado. Con cuatro entre
+   * cientos de cuentas, encontrarlas a mano es media mañana.
+   *
+   * Sólo lo traen las comprobaciones que declaran cómo nombrarlos, y sólo
+   * cuando hay algo que nombrar.
+   */
+  ejemplos?: string[];
+  /** Cuántos hay de más de los que se alcanzan a nombrar. */
+  masSinNombrar?: number;
 }
 
 @Injectable()
@@ -71,6 +85,39 @@ export class IntegridadFinancieraService {
     }
   }
 
+  /**
+   * Los primeros de la lista, por su nombre.
+   *
+   * TRES REGLAS, y las tres por el mismo motivo —que esto ayude en vez de
+   * estorbar—:
+   *
+   *  · Sólo se pregunta cuando ya se sabe que hay algo. Una consulta más por
+   *    comprobación, en una instalación limpia, es trabajo que no sirve a
+   *    nadie.
+   *  · Se traen pocos. Una lista de trescientos no es una lista: es otro
+   *    número, y además tapa la pantalla. Se dicen los primeros y cuántos
+   *    quedan.
+   *  · Si la consulta de los ejemplos falla, el hallazgo CONSERVA su cuenta.
+   *    «No pude nombrarlos» no es «no hay», y confundir las dos cosas aquí
+   *    sería exactamente el error que estas comprobaciones existen para
+   *    impedir.
+   */
+  private async nombrar(
+    sql: string,
+    empresaId: string,
+    tope: number,
+  ): Promise<string[] | null> {
+    try {
+      const rows = await this.dataSource.query(sql, [empresaId, tope]);
+      if (!Array.isArray(rows)) return null;
+      return rows
+        .map((r: Record<string, unknown>) => String(r.etiqueta ?? '').trim())
+        .filter(Boolean);
+    } catch {
+      return null;
+    }
+  }
+
   async diagnosticar(empresaId: string) {
     const definiciones: Array<{
       codigo: string;
@@ -78,6 +125,11 @@ export class IntegridadFinancieraService {
       severidad: SeveridadIntegridad;
       descripcion: string;
       accion: string;
+      /**
+       * Cómo nombrar a los primeros, cuando los haya. Devuelve una columna
+       * `etiqueta`; recibe `$1` = empresa y `$2` = cuántos como mucho.
+       */
+      sqlEjemplos?: string;
       sql: string;
     }> = [
       {
@@ -294,6 +346,27 @@ export class IntegridadFinancieraService {
                ) s
                WHERE (s.naturaleza='DEUDORA' AND s.saldo < -0.005)
                   OR (s.naturaleza='ACREEDORA' AND s.saldo > 0.005)`,
+        /*
+         * Y CUÁLES SON. Éste es el caso que lo pedía a gritos: cuatro cuentas
+         * entre cientos, y el recado era «revisar en la balanza». El sistema
+         * acaba de encontrarlas; decir sólo cuántas es devolverle al contador
+         * el trabajo ya hecho.
+         *
+         * Se nombran con número y nombre, y con el saldo que tienen al revés,
+         * que es lo que de verdad se necesita para decidir si es un sobregiro
+         * real o una póliza con las cuentas invertidas.
+         */
+        sqlEjemplos: `SELECT c.numeroCuenta || ' · ' || c.nombre || ' · saldo ' ||
+                             to_char(SUM(p.cargo) - SUM(p.abono), 'FM999999999990.00') AS etiqueta
+                        FROM partidas_poliza p
+                        JOIN cuentas_contables c ON c.id = p.cuentaContableId
+                        JOIN polizas z ON z.id = p.polizaId
+                       WHERE c.empresaId=$1 AND z.empresaId=$1 AND z.estatus='VIGENTE'
+                       GROUP BY c.id, c.numeroCuenta, c.nombre, c.naturaleza
+                      HAVING (c.naturaleza='DEUDORA' AND SUM(p.cargo) - SUM(p.abono) < -0.005)
+                          OR (c.naturaleza='ACREEDORA' AND SUM(p.cargo) - SUM(p.abono) > 0.005)
+                       ORDER BY ABS(SUM(p.cargo) - SUM(p.abono)) DESC
+                       LIMIT $2`,
       },
       /*
        * ======================================================================
@@ -489,6 +562,12 @@ export class IntegridadFinancieraService {
     const hallazgos = await Promise.all(
       definiciones.map(async (d): Promise<HallazgoIntegridad> => {
         const medicion = await this.contar(d.sql, empresaId);
+        /* Nombrar sólo cuando hay algo que nombrar y se sabe cómo. */
+        const TOPE = 8;
+        const nombres =
+          medicion.medida && medicion.cantidad > 0 && d.sqlEjemplos
+            ? await this.nombrar(d.sqlEjemplos, empresaId, TOPE)
+            : null;
         return {
           codigo: d.codigo,
           modulo: d.modulo,
@@ -504,6 +583,10 @@ export class IntegridadFinancieraService {
             ? d.accion
             : 'Revisa que el módulo esté instalado y que la consulta pueda ejecutarse; hasta entonces esta comprobación no dice nada.',
           ...(medicion.medida ? {} : { detalle: medicion.motivo }),
+          ...(nombres && nombres.length ? { ejemplos: nombres } : {}),
+          ...(nombres && medicion.cantidad > nombres.length
+            ? { masSinNombrar: medicion.cantidad - nombres.length }
+            : {}),
         };
       }),
     );
