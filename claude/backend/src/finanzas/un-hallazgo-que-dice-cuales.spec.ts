@@ -111,11 +111,24 @@ describe('un hallazgo dice cuáles, no sólo cuántas', () => {
   it('no pregunta por nombres cuando no hay nada que nombrar', async () => {
     const { dataSource, consultas } = baseFalsa({ cuantas: 0 });
     const servicio = new IntegridadFinancieraService(dataSource as never);
-    const h = delSaldoContrario(await servicio.diagnosticar('e1'));
+    const d = await servicio.diagnosticar('e1');
 
-    expect(h?.estado).toBe('LIMPIA');
-    expect(h?.ejemplos).toBeUndefined();
-    /* Ni una sola consulta de ejemplos: todas las que corrieron cuentan. */
+    /*
+     * Una comprobación limpia NO aparece en la lista: `diagnosticar` devuelve
+     * `[...conHallazgos, ...noMedibles]` y deja fuera lo que salió bien. Es
+     * deliberado —la pantalla enseña lo que hay que atender, no un inventario
+     * de todo lo que se miró— y aquí queda fijado, porque esa decisión es lo
+     * que hace que el recuento de abajo signifique algo.
+     */
+    expect(delSaldoContrario(d)).toBeUndefined();
+    expect(d.resumen.hallazgosActivos).toBe(0);
+
+    /*
+     * Lo que de verdad se está midiendo: ni UNA consulta de ejemplos. Todas
+     * las que corrieron cuentan. En una instalación limpia esto son treinta y
+     * tantas idas a la base que no sirven a nadie.
+     */
+    expect(consultas.length).toBeGreaterThan(10);
     expect(consultas.every((s) => /COUNT\(/i.test(s))).toBe(true);
   });
 

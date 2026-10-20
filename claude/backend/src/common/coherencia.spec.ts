@@ -3689,7 +3689,22 @@ describe('Coherencia · lo que la base recibe y lo que el codigo cree que mando'
         revisadas += 1;
         const exigidos = Math.max(...posiciones);
         // Contar argumentos del arreglo: se parte por comas de primer nivel.
-        const crudo = m[2].trim();
+        /*
+         * La coma final no es un parámetro.
+         *
+         * MEDIDO el 20-oct-2026: esta prueba denunció
+         * `registro-del-core.service.ts: el SQL usa $4 y recibe 5` sobre una
+         * llamada con cuatro parámetros bien puestos. El quinto era la coma
+         * que cierra un arreglo escrito en varias líneas —estilo del
+         * proyecto, y válida en JavaScript desde siempre—.
+         *
+         * Se arregla el LECTOR, no la regla: la regla sigue siendo que el
+         * mayor `$n` coincida con cuántos se pasan. Una prueba que grita en
+         * falso es la que acaba borrada, y entonces el defecto que sí vigila
+         * —el `sp_getapplock` con un parámetro de más que tumbaba el cierre
+         * del mes— vuelve a pasar sin que nadie se entere.
+         */
+        const crudo = m[2].trim().replace(/,\s*$/, '');
         if (!crudo) continue;
         let nivel = 0;
         let entregados = 1;
@@ -3844,6 +3859,16 @@ describe('Coherencia · una empresa no puede ver los datos de otra', () => {
     {
       marca: /FROM migrations/i,
       razon: 'El estado del esquema es del servidor, no de una empresa.',
+    },
+    {
+      marca: /FROM tenant_server_connections|FROM tenants\b/i,
+      razon:
+        'No son tablas del ERP: viven en la base MAESTRA de Fineract, que es otra base ' +
+        'y no conoce nuestras empresas. Es el registro donde el core anota qué inquilinos ' +
+        'existen y de qué servidor saca los datos de cada uno. Se lee —y, desde que la base ' +
+        'del inquilino la puede poner el cliente, se escribe— por `RegistroDelCoreService`, ' +
+        'que es el único sitio que sabe dónde está. El aislamiento entre empresas ahí lo da ' +
+        'el inquilino, no una columna.',
     },
     {
       marca: /FROM detalles_orden_compra WHERE ordencompraid = \$1/i,

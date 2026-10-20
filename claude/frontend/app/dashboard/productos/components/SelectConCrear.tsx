@@ -26,7 +26,7 @@ interface Props {
   /** name del select, para el onChange del formulario padre */
   name: string;
   onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-  /** Endpoint POST para crear (ej. `${api}/catalogo/marcas`) */
+  /** Endpoint POST para crear, relativo (ej. `/catalogo/marcas`). */
   endpointCrear: string;
   /** Token bearer */
   token: string;

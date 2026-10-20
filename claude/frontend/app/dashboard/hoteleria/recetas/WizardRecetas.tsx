@@ -45,8 +45,14 @@ export default function WizardRecetas({ api, h, onListo, onClose }: {
     setMsg('');
     let url = '';
     let body: any = {};
-    if (accion === 'crear-cuentas') url = `${api}/recetas/wizard/crear-cuentas`;
-    if (accion === 'crear-categoria') { url = `${api}/recetas/wizard/crear-categoria`; body = { nombre: 'Insumos Bar' }; }
+    /*
+     * El camino va RELATIVO: `peticion()` le pone delante la dirección de la
+     * API. Dejar aquí `${api}` producía una URL con la base dos veces —y la
+     * petición no salía—. Se escapó en la migración del 20-oct porque esta
+     * llamada arma la ruta en una variable en lugar de pasarla escrita.
+     */
+    if (accion === 'crear-cuentas') url = `/recetas/wizard/crear-cuentas`;
+    if (accion === 'crear-categoria') { url = `/recetas/wizard/crear-categoria`; body = { nombre: 'Insumos Bar' }; }
 
     if (url) {
       const r = await peticion(url, { method: 'POST', headers: h(), body: JSON.stringify(body) });
