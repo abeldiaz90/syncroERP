@@ -44,6 +44,30 @@ export default function AtributosPersonalizadosPage() {
   const [grupos, setGrupos] = useState<IGrupo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * Que no se pueda leer NO es que no haya nada
+   * --------------------------------------------------------------------------
+   * MEDIDO el 20-oct-2026: siete roles alcanzan esta pantalla —cobranza,
+   * contador, crédito, finanzas, gobierno, rrhh y tesorería— y el servidor les
+   * niega su ÚNICA lectura. Lo que veían era esto:
+   *
+   *     «No se pudieron cargar los grupos»              ← parece una avería
+   *     «Aún no hay plantillas. Crea la primera abajo»  ← afirma un vacío
+   *      [ campo de texto ] [ + ]                       ← e invita a crear
+   *
+   * Tres errores encadenados, y el del medio es el peor: la pantalla afirma
+   * que no hay plantillas cuando lo que pasó es que no pudo mirar. Las dos
+   * cosas se ven igual y no son la misma; una lleva a crear la primera, la
+   * otra a pedir un permiso.
+   *
+   * Y debajo, la invitación a crear algo que el servidor va a rechazar: un
+   * botón que lleva a un no.
+   *
+   * Un 403 se guarda aparte del resto de fallos, porque se cuenta distinto.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const [vedada, setVedada] = useState(false);
   const [grupoActivo, setGrupoActivo] = useState<string | null>(null);
 
   // formularios
@@ -56,9 +80,10 @@ export default function AtributosPersonalizadosPage() {
   const [guardando, setGuardando] = useState(false);
 
   const cargar = useCallback(async () => {
-    setCargando(true); setError("");
+    setCargando(true); setError(""); setVedada(false);
     try {
       const res = await peticion(`/catalogo/atributos-personalizados/grupos?incluirDefiniciones=1`, { headers: H() });
+      if (res.status === 403) { setVedada(true); setGrupos([]); return; }
       if (!res.ok) throw new Error("No se pudieron cargar los grupos");
       const data = await res.json();
       setGrupos(extraerLista(data));
@@ -137,14 +162,28 @@ export default function AtributosPersonalizadosPage() {
             dibujará el formulario automáticamente.
           </p>
         </div>
-        <button onClick={precargarEjemplos} disabled={guardando}
-          className="inline-flex items-center gap-2 border border-purple-300 text-purple-700 px-4 py-2 rounded-lg font-medium hover:bg-purple-50 disabled:opacity-50">
-          <Sparkles className="w-4 h-4" /> Precargar plantillas de ejemplo
-        </button>
+        {/* Quien no puede leerlas tampoco puede sembrarlas: el servidor lo
+            rechaza igual, y ofrecerlo es prometer lo que no se cumple. */}
+        {!vedada && (
+          <button onClick={precargarEjemplos} disabled={guardando}
+            className="inline-flex items-center gap-2 border border-purple-300 text-purple-700 px-4 py-2 rounded-lg font-medium hover:bg-purple-50 disabled:opacity-50">
+            <Sparkles className="w-4 h-4" /> Precargar plantillas de ejemplo
+          </button>
+        )}
       </div>
 
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 mb-4 text-sm">{error}</div>
+      )}
+
+      {vedada && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <strong className="block">Las plantillas de atributos no están en tu perfil</strong>
+          Esta pantalla no puede enseñarte lo que hay —ni decir si hay algo—, y tampoco
+          crear nada: el servidor rechaza las dos cosas. Las administra quien lleva el
+          catálogo de productos. Pídeselo a un administrador desde Administración →
+          Roles y permisos si tu trabajo las necesita.
+        </div>
       )}
 
       {cargando ? (
@@ -185,10 +224,22 @@ export default function AtributosPersonalizadosPage() {
                 </div>
               ))}
               {grupos.length === 0 && (
-                <p className="text-sm text-slate-400 py-4 text-center">Aún no hay plantillas.<br />Crea la primera abajo. 👇</p>
+                /*
+                 * «Aún no hay plantillas» es una afirmación, y sólo se puede
+                 * hacer cuando se pudo mirar. Con la lectura negada lo honesto
+                 * es decir que no se sabe.
+                 */
+                vedada ? (
+                  <p className="text-sm text-slate-400 py-4 text-center">
+                    No se puede saber qué plantillas hay<br />con este perfil.
+                  </p>
+                ) : (
+                  <p className="text-sm text-slate-400 py-4 text-center">Aún no hay plantillas.<br />Crea la primera abajo. 👇</p>
+                )
               )}
             </div>
-            <div className="flex gap-2">
+            {/* Ni el campo ni el botón: crear termina en el mismo no. */}
+            <div className={`flex gap-2 ${vedada ? 'hidden' : ''}`}>
               <input value={nuevoGrupo} onChange={(e) => setNuevoGrupo(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && crearGrupo()}
                 placeholder="Nueva plantilla… (ej. Ferretería)"
@@ -205,7 +256,9 @@ export default function AtributosPersonalizadosPage() {
             {!activo ? (
               <div className="text-center py-16 text-slate-400">
                 <ListPlus className="w-12 h-12 mx-auto mb-2 text-slate-200" />
-                Selecciona o crea una plantilla para definir sus campos
+                {vedada
+                  ? 'Los campos de una plantilla se definen desde el catálogo de productos.'
+                  : 'Selecciona o crea una plantilla para definir sus campos'}
               </div>
             ) : (
               <>
