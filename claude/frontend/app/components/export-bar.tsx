@@ -106,6 +106,20 @@ export function ExportBar({
     >
       <button
         onClick={exportarPDF}
+        /*
+         * La misma condición que Excel, que la tenía desde el principio.
+         *
+         * MEDIDO el 20-oct-2026 en «Corte de caja» como Tesorería: la pantalla
+         * explicaba bien que su perfil no incluye las ventas y que el corte no
+         * se puede calcular —y a la vez dejaba pulsar PDF, que imprimía un
+         * documento sin una sola fila—. Un informe vacío impreso es peor que
+         * ninguno: parece el corte del día y dice que no hubo movimiento.
+         *
+         * Es un componente compartido, así que esto vale para todos los
+         * informes que lo usan, no sólo para el que lo destapó.
+         */
+        disabled={exportando || !datos.length}
+        title={!datos.length ? 'No hay datos que imprimir' : undefined}
         style={{
           display: "flex",
           alignItems: "center",
@@ -117,7 +131,8 @@ export function ExportBar({
           fontSize: 12,
           fontWeight: 600,
           color: "#475569",
-          cursor: "pointer",
+          cursor: datos.length ? "pointer" : "not-allowed",
+          opacity: datos.length ? 1 : 0.5,
         }}
       >
         <Printer style={{ width: 13, height: 13 }} /> PDF

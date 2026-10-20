@@ -29,9 +29,34 @@ export default function StockInicialPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const idempotencyRef = useRef<string>("");
 
+  /*
+   * ──────────────────────────────────────────────────────────────────────────
+   * «Falta un almacén activo» no es lo mismo que «no puedo ver los almacenes»
+   * --------------------------------------------------------------------------
+   * MEDIDO el 20-oct-2026 entrando aquí como Comprador —y pasa igual con
+   * Empleado y Hotelería—: el servidor le niega `GET /catalogo/almacenes`, la
+   * lista llegaba vacía por la rama del `r.ok ? … : []`, y la pantalla
+   * concluía:
+   *
+   *     «Falta un almacén activo. Créalo antes de descargar o importar.»
+   *     [ Crear almacén ]
+   *
+   * Los almacenes existen. Lo que falta es el permiso de verlos. Y el enlace
+   * mandaba a `/dashboard/almacenes`, que ese perfil tampoco abre: un botón
+   * que lleva a un no, al final de un diagnóstico equivocado.
+   *
+   * Un vacío sólo se afirma cuando se pudo mirar. Por eso el 403 se guarda
+   * aparte y no se confunde con una lista de cero.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const [almacenesVedados, setAlmacenesVedados] = useState(false);
+
   useEffect(() => {
     peticion(`/catalogo/almacenes`, { headers: { Authorization: `Bearer ${token()}` } })
-      .then(async (r) => r.ok ? r.json() : [])
+      .then(async (r) => {
+        if (r.status === 403) { setAlmacenesVedados(true); return []; }
+        return r.ok ? r.json() : [];
+      })
       .then((lista) => setAlmacenes((Array.isArray(lista) ? lista : []).filter((a) => a.activo !== false)))
       .catch(() => setAlmacenes([]));
   }, [apiUrl]);
@@ -131,9 +156,10 @@ export default function StockInicialPage() {
         <div className="bg-white border rounded-2xl p-5">
           <p className="font-semibold mb-2">1 · Plantilla</p>
           <p className="text-sm text-slate-500 mb-3">La plantilla se genera con tus productos y precarga un almacén activo en cada fila.</p>
-          <p className={`mb-4 rounded-lg px-3 py-2 text-xs ${almacenes.length ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{almacenes.length ? `${plural(almacenes.length, 'almacén activo', 'almacenes activos')}: el stock quedará asociado al indicado en cada fila.` : "Falta un almacén activo. Créalo antes de descargar o importar."}</p>
+          <p className={`mb-4 rounded-lg px-3 py-2 text-xs ${almacenes.length ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{almacenes.length ? `${plural(almacenes.length, 'almacén activo', 'almacenes activos')}: el stock quedará asociado al indicado en cada fila.` : almacenesVedados ? "El catálogo de almacenes no está en tu perfil, así que esta pantalla no puede saber a cuál asociar el stock. La carga inicial la hace quien lleva el almacén." : "Falta un almacén activo. Créalo antes de descargar o importar."}</p>
           <button onClick={descargarPlantilla} disabled={ocupado || activo || almacenes.length === 0} className="inline-flex items-center gap-2 bg-slate-800 text-white px-4 py-2.5 rounded-lg disabled:opacity-50"><Download className="w-4 h-4"/> Descargar</button>
-          {almacenes.length === 0 && <Link href="/dashboard/almacenes" className="ml-3 text-sm font-bold text-indigo-700 underline">Crear almacén</Link>}
+          {/* A crear almacenes sólo se manda a quien puede entrar ahí. */}
+          {almacenes.length === 0 && !almacenesVedados && <Link href="/dashboard/almacenes" className="ml-3 text-sm font-bold text-indigo-700 underline">Crear almacén</Link>}
         </div>
         <div className="bg-white border rounded-2xl p-5">
           <p className="font-semibold mb-2">2 · Archivo completo</p>
