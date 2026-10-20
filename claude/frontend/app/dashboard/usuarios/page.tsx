@@ -1,6 +1,25 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+/*
+ * ──────────────────────────────────────────────────────────────────────────
+ * Tres botones que un perfil de sólo lectura no puede pulsar
+ * --------------------------------------------------------------------------
+ * MEDIDO el 20-oct-2026 entrando aquí como Gobierno de aprobaciones. Ese rol
+ * lee el padrón —`GET /usuarios`— para clavar aprobadores en la matriz, y no
+ * tiene ni POST ni PATCH ni DELETE: es un control, no un administrador, y eso
+ * está escrito a propósito en su plantilla.
+ *
+ * La pantalla le ofrecía «Nuevo Usuario», «Cambiar Rol» y «Suspender» en cada
+ * renglón. Los tres terminan en un 403.
+ *
+ * El guardián ya existía y se usa en otras pantallas del mismo catálogo
+ * —marcas, por ejemplo—; aquí no se había puesto. No es una pieza nueva: es
+ * la que estaba sin usar justo donde más se nota, porque esta pantalla la
+ * abren roles que sólo miran.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+import { PuedeCrear, PuedeEditar } from '@/app/components/ProtectedElement';
 import { peticion } from '@/lib/api';
 import Link from 'next/link';
 import {
@@ -280,12 +299,14 @@ export default function UsuariosPage() {
             />
           </div>
 
-          <button 
-            onClick={()=>{setForm({nombreCompleto:'',email:'',password:'',rol:'empleado',departamentoId:''});setModal('CREAR')}}
-            className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-600 transition-colors shadow-lg whitespace-nowrap"
-          >
-            <UserPlus className="w-5 h-5" /> Nuevo Usuario
-          </button>
+          <PuedeCrear ruta="/api/usuarios">
+            <button 
+              onClick={()=>{setForm({nombreCompleto:'',email:'',password:'',rol:'empleado',departamentoId:''});setModal('CREAR')}}
+              className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-600 transition-colors shadow-lg whitespace-nowrap"
+            >
+              <UserPlus className="w-5 h-5" /> Nuevo Usuario
+            </button>
+          </PuedeCrear>
         </div>
       </div>
 
@@ -382,6 +403,7 @@ export default function UsuariosPage() {
                     {/* ACCIONES */}
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
+                        <PuedeEditar ruta="/api/usuarios/:id">
                         <button
                           onClick={() => {setEditando(user);setForm((f)=>({...f,rol:user.rol,departamentoId:user.departamentoId ?? ''}));setModal('ROL')}}
                           disabled={procesandoId === user.id}
@@ -390,7 +412,9 @@ export default function UsuariosPage() {
                         >
                           {procesandoId === user.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Edit className="w-4 h-4" />}
                         </button>
-                        
+                        </PuedeEditar>
+
+                        <PuedeEditar ruta="/api/usuarios/:id/estado">
                         <button
                           onClick={() => handleToggleEstado(user)}
                           disabled={procesandoId === user.id}
@@ -409,6 +433,7 @@ export default function UsuariosPage() {
                             <UserCheck className="w-4 h-4" />
                           )}
                         </button>
+                        </PuedeEditar>
                       </div>
                     </td>
                   </tr>
