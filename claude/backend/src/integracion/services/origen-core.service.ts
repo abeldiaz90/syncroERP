@@ -11,6 +11,7 @@ import { DataSource, Repository } from 'typeorm';
 import { SecretosService } from '../../common/services/secretos.service';
 import { Empresa } from '../../iam/entities/empresa.entity';
 import { AuditoriaService } from '../../auditoria/services/auditoria.service';
+import { AccionAuditoria } from '../../auditoria/entities/registro-auditoria.entity';
 import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integracion-empresa.entity';
 import {
   EstadoOrigenCore,
@@ -215,7 +216,7 @@ export class OrigenCoreService {
     fila.registradoPor = solicitadoPor;
 
     await this.origenes.save(fila);
-    await this.anotar(empresaId, 'ORIGEN_CORE_CAPTURADO', solicitadoPor, {
+    await this.anotar(empresaId, 'CREAR', 'ORIGEN_CORE_CAPTURADO', solicitadoPor, {
       inquilino,
       servidor,
       baseDatos,
@@ -345,7 +346,7 @@ export class OrigenCoreService {
     fila.ultimoError = null;
     fila.registradoPor = solicitadoPor;
     await this.origenes.save(fila);
-    await this.anotar(empresaId, 'ORIGEN_CORE_REGISTRADO', solicitadoPor, {
+    await this.anotar(empresaId, 'ACCION', 'ORIGEN_CORE_REGISTRADO', solicitadoPor, {
       inquilino: fila.inquilino,
     });
 
@@ -425,7 +426,7 @@ export class OrigenCoreService {
       await this.configuraciones.save(config);
     }
 
-    await this.anotar(empresaId, 'ORIGEN_CORE_ACTIVADO', solicitadoPor, {
+    await this.anotar(empresaId, 'ACCION', 'ORIGEN_CORE_ACTIVADO', solicitadoPor, {
       inquilino: fila.inquilino,
     });
     return this.consultar(empresaId);
@@ -483,20 +484,34 @@ export class OrigenCoreService {
     return 'La base no contestó, y el motivo no es uno de los habituales. Está anotado en la bitácora del servidor.';
   }
 
+  /**
+   * Deja constancia, con el verbo que la bitácora entiende.
+   *
+   * `accion` es un conjunto cerrado de cinco verbos —CREAR, ACTUALIZAR,
+   * ELIMINAR, CANCELAR, ACCION— y no un hueco donde escribir el nombre del
+   * suceso. Lo que pasó va en `valorNuevo.evento`, que es donde se puede
+   * buscar sin romper el tipo ni la tabla.
+   *
+   * Y quién lo autorizó va en `usuarioEmail`, como en el resto del
+   * aprovisionamiento: no hay usuario del ERP detrás de estas rutas —entran
+   * con credencial de servicio— y una bitácora que sólo dice «la consola» no
+   * sirve para auditar a nadie.
+   */
   private async anotar(
     empresaId: string,
-    accion: string,
+    accion: AccionAuditoria,
+    evento: string,
     solicitadoPor: string,
     detalle: Record<string, unknown>,
   ) {
     try {
       await this.auditoria.registrar({
         empresaId,
-        entidad: 'integracion_origen_core',
-        registroId: empresaId,
+        usuarioEmail: solicitadoPor,
         accion,
-        usuarioId: null,
-        valorNuevo: { ...detalle, solicitadoPor },
+        entidad: 'OrigenCoreEmpresa',
+        registroId: empresaId,
+        valorNuevo: { evento, ...detalle, solicitadoPor },
       });
     } catch {
       /* Una bitácora que falla no debe tumbar un alta. */
