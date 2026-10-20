@@ -44,3 +44,7 @@ public/_uat-tokens.json
 # Puentes de UAT: sólo existen para conducir las pruebas desde el navegador
 # y contienen sesiones vivas. No viajan al repositorio.
 public/_uat-*.json
+# El mapa «qué lecturas pide cada pantalla», que se genera para medir permisos.
+# Vive en public/ sólo porque el navegador tiene que poder leerlo mientras se
+# mide; no es parte del producto y public/ sí viaja en una compilación.
+public/_cruce-*.json
