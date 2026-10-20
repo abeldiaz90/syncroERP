@@ -1,6 +1,7 @@
 // app/components/SelectConCrear.tsx
 "use client";
 import { useState } from 'react';
+import { peticion } from '@/lib/api';
 import { Plus, X, Loader2, Check } from 'lucide-react';
 
 interface Opcion { id: string; nombre: string; [k: string]: any; }
@@ -77,7 +78,7 @@ export default function SelectConCrear({
         if (val) payload[c.key] = val;
       });
 
-      const res = await fetch(endpointCrear, {
+      const res = await peticion(endpointCrear, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),

@@ -1,6 +1,7 @@
 // app/dashboard/hoteleria/recetas/page.tsx
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { peticion } from '@/lib/api';
 import {
   ChefHat, Plus, X, Loader2, CheckCircle2, Search, Trash2, Package, Calculator, FlaskConical,
 } from 'lucide-react';
@@ -27,7 +28,7 @@ export default function RecetasPage() {
 
   const cargar = useCallback(async () => {
     setCargando(true);
-    const r = await fetch(`${api}/recetas`, { headers: h() });
+    const r = await peticion(`/recetas`, { headers: h() });
     if (r.ok) setRecetas(await r.json());
     setCargando(false);
   }, [api]);
@@ -109,7 +110,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
   useEffect(() => {
     if (!productoIdInicial) return;
     (async () => {
-      const r = await fetch(`${api}/recetas/producto/${productoIdInicial}`, { headers: h() });
+      const r = await peticion(`/recetas/producto/${productoIdInicial}`, { headers: h() });
       if (r.ok) {
         const d = await r.json();
         if (d) {
@@ -128,7 +129,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
   useEffect(() => {
     if (!buscaProd.trim()) { setResultadosProd([]); return; }
     const t = setTimeout(async () => {
-      const r = await fetch(`${api}/catalogo/productos/buscar?q=${encodeURIComponent(buscaProd)}`, { headers: h() });
+      const r = await peticion(`/catalogo/productos/buscar?q=${encodeURIComponent(buscaProd)}`, { headers: h() });
       if (r.ok) { const d = await r.json(); setResultadosProd(Array.isArray(d) ? d : (d.data ?? [])); }
     }, 300);
     return () => clearTimeout(t);
@@ -138,7 +139,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
   useEffect(() => {
     if (!buscaIns.trim()) { setResultadosIns([]); return; }
     const t = setTimeout(async () => {
-      const r = await fetch(`${api}/catalogo/productos/buscar?q=${encodeURIComponent(buscaIns)}`, { headers: h() });
+      const r = await peticion(`/catalogo/productos/buscar?q=${encodeURIComponent(buscaIns)}`, { headers: h() });
       if (r.ok) { const d = await r.json(); setResultadosIns(Array.isArray(d) ? d : (d.data ?? [])); }
     }, 300);
     return () => clearTimeout(t);
@@ -160,7 +161,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
     if (!producto) { setErr('Selecciona el producto vendible'); return; }
     if (insumos.length === 0) { setErr('Agrega al menos un insumo'); return; }
     setGuardando(true);
-    const r = await fetch(`${api}/recetas/guardar`, {
+    const r = await peticion(`/recetas/guardar`, {
       method: 'POST', headers: h(),
       body: JSON.stringify({
         productoId: producto.id, productoNombre: producto.nombre, rendimiento,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { peticion } from '@/lib/api';
 import { confirmarElegante, solicitarTexto } from '@/components/ui/dialogos';
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
 import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
@@ -77,7 +78,7 @@ export default function ProveedoresPage() {
       const params = new URLSearchParams();
       if (busquedaDebounced) params.append('filtro', busquedaDebounced);
       params.append('activos', mostrarInactivos ? 'false' : 'true');
-      const res = await fetch(`${apiUrl}/proveedores?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/proveedores?${params}`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setProveedores(await res.json());
       else mostrarToast('Error al cargar la lista de proveedores', 'error');
     } catch { mostrarToast('Error de conexión con el servidor', 'error'); }
@@ -102,7 +103,7 @@ export default function ProveedoresPage() {
       if (comentario === null) return;
     }
     const token = localStorage.getItem('syncro_token');
-    const res = await fetch(`${apiUrl}/proveedores/${proveedor.id}/homologacion`, {
+    const res = await peticion(`/proveedores/${proveedor.id}/homologacion`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -124,9 +125,9 @@ export default function ProveedoresPage() {
     const token = localStorage.getItem('syncro_token');
     try {
       const [resPaises, resBancos, resFormas] = await Promise.all([
-        fetch(`${apiUrl}/catalogos/paises`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${apiUrl}/catalogos/bancos`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${apiUrl}/catalogos/formas-pago`, { headers: { Authorization: `Bearer ${token}` } }),
+        peticion(`/catalogos/paises`, { headers: { Authorization: `Bearer ${token}` } }),
+        peticion(`/catalogos/bancos`, { headers: { Authorization: `Bearer ${token}` } }),
+        peticion(`/catalogos/formas-pago`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       if (resPaises.ok) setPaises(await resPaises.json());
       if (resBancos.ok) setBancos(await resBancos.json());
@@ -140,7 +141,7 @@ export default function ProveedoresPage() {
   useEffect(() => {
     if (!formData.paisId) { setEstados([]); return; }
     const token = localStorage.getItem('syncro_token');
-    fetch(`${apiUrl}/catalogos/estados?paisId=${formData.paisId}`, { headers: { Authorization: `Bearer ${token}` } })
+    peticion(`/catalogos/estados?paisId=${formData.paisId}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : [])
       .then(setEstados)
       .catch(() => setEstados([]));
@@ -260,9 +261,9 @@ export default function ProveedoresPage() {
     setErrorGeneral(null);
     setGuardando(true);
     const token = localStorage.getItem('syncro_token');
-    const url = editandoId ? `${apiUrl}/proveedores/${editandoId}` : `${apiUrl}/proveedores`;
+    const url = editandoId ? `/proveedores/${editandoId}` : `/proveedores`;
     try {
-      const res = await fetch(url, {
+      const res = await peticion(url, {
         method: editandoId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ...formData, diasCredito: Number(formData.diasCredito), limiteCredito: Number(formData.limiteCredito), paisId: formData.paisId || null, estadoId: formData.estadoId || null, bancoId: formData.bancoId || null, formaPagoId: formData.formaPagoId || null }),
@@ -284,7 +285,7 @@ export default function ProveedoresPage() {
     if (!await confirmarElegante(`¿${activo ? 'Desactivar' : 'Activar'} este proveedor?`, { peligroso: activo })) return;
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/proveedores/${id}/estado`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/proveedores/${id}/estado`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) { fetchProveedores(); mostrarToast(`Proveedor ${activo ? 'desactivado' : 'activado'} correctamente.`, 'exito'); }
       else mostrarToast('Error al cambiar el estado del proveedor', 'error');
     } catch { mostrarToast('Error de conexión con el servidor', 'error'); }

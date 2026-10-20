@@ -1,6 +1,7 @@
 "use client";
 
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { peticion } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FOLIO, folioDe } from '@/lib/folios';
@@ -122,7 +123,7 @@ export default function CotizacionesPage() {
   const fetchRequisicionesCotizables = async () => {
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/compras/requisiciones`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/compras/requisiciones`, { headers: { Authorization: `Bearer ${token}` } });
       const cabecera = res.headers.get('X-Alcance');
       setAlcance(
         cabecera === 'todas' || cabecera === 'propias-y-firmadas'
@@ -164,7 +165,7 @@ export default function CotizacionesPage() {
   const fetchProveedores = async () => {
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/proveedores`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/proveedores`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) { setProveedores(await res.json()); }
       else {
         /* Sin proveedores no se puede cotizar, y el desplegable salía vacío. */
@@ -238,7 +239,7 @@ export default function CotizacionesPage() {
     setGuardando(true);
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/compras/cotizaciones`, {
+      const res = await peticion(`/compras/cotizaciones`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({

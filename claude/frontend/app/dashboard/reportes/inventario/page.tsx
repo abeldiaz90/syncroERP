@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { peticion } from '@/lib/api';
 import { plural } from '@/lib/format';
 import { Package, RefreshCw, Search, AlertTriangle } from 'lucide-react';
 import { ExportBar } from '../../../components/export-bar';
@@ -61,8 +62,8 @@ export default function ReporteInventarioPage() {
   const cargar = async () => {
     setCargando(true);
     const [rVal, rProd] = await Promise.all([
-      fetch(`${api}/catalogo/inventario/valorizado`, { headers: h() }),
-      fetch(`${api}/catalogo/productos?limite=500`, { headers: h() }),
+      peticion(`/catalogo/inventario/valorizado`, { headers: h() }),
+      peticion(`/catalogo/productos?limite=500`, { headers: h() }),
     ]);
 
     const valorizado = rVal.ok ? await rVal.json().catch(() => null) : null;

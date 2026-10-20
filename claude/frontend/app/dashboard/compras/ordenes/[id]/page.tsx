@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { peticion } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -31,7 +32,7 @@ export default function DetalleOCPage() {
   useEffect(() => {
     if (!id) return;
     const token = localStorage.getItem('syncro_token');
-    fetch(`${apiUrl}/compras/ordenes/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+    peticion(`/compras/ordenes/${id}`, { headers: { Authorization: `Bearer ${token}` } })
       /*
         «Documento no encontrado» es una conclusión sobre la orden: dice que no
         existe. Un 403 —quien mira no tiene compras— daba exactamente el mismo
@@ -59,14 +60,14 @@ export default function DetalleOCPage() {
     setProcesando(true);
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/compras/ordenes/${id}/estado`, {
+      const res = await peticion(`/compras/ordenes/${id}/estado`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ estado: nuevoEstado }),
       });
       if (res.ok) {
         mostrarToast('Orden actualizada exitosamente', 'exito');
-        const reloadRes = await fetch(`${apiUrl}/compras/ordenes/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+        const reloadRes = await peticion(`/compras/ordenes/${id}`, { headers: { Authorization: `Bearer ${token}` } });
         if (reloadRes.ok) setOC(await reloadRes.json());
       } else throw new Error();
     } catch { mostrarToast('Error al actualizar el estado', 'error'); }

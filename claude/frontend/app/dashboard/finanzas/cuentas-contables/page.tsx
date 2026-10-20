@@ -1,5 +1,6 @@
 "use client";
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { peticion } from '@/lib/api';
 import { plural } from '@/lib/format';
 import { useState, useEffect } from "react";
 import { confirmarElegante } from '@/components/ui/dialogos';
@@ -146,7 +147,7 @@ export default function CuentasContablesPage() {
     setCargando(true);
     /* Un catálogo vacío y un catálogo que no se pudo leer no son lo mismo. */
     try {
-      const r = await fetch(`${api}/finanzas/cuentas-contables`, {
+      const r = await peticion(`/finanzas/cuentas-contables`, {
         headers: { Authorization: `Bearer ${tok()}` },
       });
       if (r.ok) { setCuentas(await r.json()); setErrorCarga(''); }
@@ -190,9 +191,9 @@ export default function CuentasContablesPage() {
     e.preventDefault();
     setGuardando(true);
     const url = editando
-      ? `${api}/finanzas/cuentas-contables/${editando.id}`
-      : `${api}/finanzas/cuentas-contables`;
-    const r = await fetch(url, {
+      ? `/finanzas/cuentas-contables/${editando.id}`
+      : `/finanzas/cuentas-contables`;
+    const r = await peticion(url, {
       method: editando ? "PATCH" : "POST",
       headers: {
         "Content-Type": "application/json",
@@ -225,7 +226,7 @@ export default function CuentasContablesPage() {
       )
     )
       return;
-    const r = await fetch(`${api}/finanzas/cuentas-contables/${c.id}/estado`, {
+    const r = await peticion(`/finanzas/cuentas-contables/${c.id}/estado`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${tok()}` },
     });

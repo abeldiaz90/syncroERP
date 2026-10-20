@@ -1,6 +1,7 @@
 "use client";
 
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { peticion } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { Search, Plus, Edit2, Power, X, Globe, AlertCircle, CheckCircle2 } from 'lucide-react';
@@ -31,7 +32,7 @@ export default function PaisesPage() {
     setCargando(true);
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/catalogos/paises`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/catalogos/paises`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setPaises(await res.json());
       else mostrarToast('Error al cargar la lista de países', 'error');
     } catch { mostrarToast('Error de conexión con el servidor', 'error'); }
@@ -52,9 +53,9 @@ export default function PaisesPage() {
     if (!formData.nombre.trim() || !formData.codigo.trim()) { mostrarToast('Todos los campos son obligatorios.', 'info'); return; }
     setGuardando(true);
     const token = localStorage.getItem('syncro_token');
-    const url = editandoId ? `${apiUrl}/catalogos/paises/${editandoId}` : `${apiUrl}/catalogos/paises`;
+    const url = editandoId ? `/catalogos/paises/${editandoId}` : `/catalogos/paises`;
     try {
-      const res = await fetch(url, { method: editandoId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(formData) });
+      const res = await peticion(url, { method: editandoId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(formData) });
       if (res.ok) { setIsModalOpen(false); fetchPaises(); mostrarToast(editandoId ? 'País actualizado exitosamente.' : 'País creado exitosamente.', 'exito'); }
       else { const d = await res.json().catch(() => null); mostrarToast(`Error: ${Array.isArray(d?.message) ? d.message.join(', ') : d?.message || 'Error desconocido'}`, 'error'); }
     } catch { mostrarToast('Error de conexión al intentar guardar.', 'error'); }
@@ -65,7 +66,7 @@ export default function PaisesPage() {
     if (!await confirmarElegante(`¿Deseas ${activo ? 'desactivar' : 'activar'} este país?`, { peligroso: activo })) return;
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/catalogos/paises/${id}/estado`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/catalogos/paises/${id}/estado`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) { fetchPaises(); mostrarToast(`País ${activo ? 'desactivado' : 'activado'} correctamente.`, 'exito'); }
       else mostrarToast('Error al cambiar el estado del país', 'error');
     } catch { mostrarToast('Error de conexión con el servidor', 'error'); }

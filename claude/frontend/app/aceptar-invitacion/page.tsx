@@ -60,6 +60,15 @@ function AceptarContent() {
 
     void (async () => {
       try {
+        /*
+         * AQUÍ SÍ VA `fetch` A MANO, Y ES LO CORRECTO.
+         *
+         * Esta pantalla se abre ANTES de que exista una sesión: quien llega
+         * trae un enlace de invitación y todavía no es nadie. `peticion()`
+         * empieza por `asegurarSesion()`, que renovaría una sesión que no hay
+         * y acabaría mandando a la puerta de acceso a quien justamente viene a
+         * crear su contraseña. El trinquete tiene esta excepción declarada.
+         */
         const r = await fetch(`${api}/usuarios/invitacion`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

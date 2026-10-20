@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { peticion } from '@/lib/api';
 import { fechaCorta, diaISO } from '@/lib/fechas';
 import {
   Receipt, Calendar, RefreshCw, Printer, CheckCircle2,
@@ -71,7 +72,7 @@ export default function DeclaracionIVAPage() {
     const h = modoRango ? hasta : ultimoDia(anio, mes);
     const params = new URLSearchParams({ fechaDesde: d, fechaHasta: h });
     try {
-      const res = await fetch(`${api}/finanzas/polizas/iva?${params}`, {
+      const res = await peticion(`/finanzas/polizas/iva?${params}`, {
         headers: { Authorization: `Bearer ${tok()}` },
       });
       if (res.ok) {

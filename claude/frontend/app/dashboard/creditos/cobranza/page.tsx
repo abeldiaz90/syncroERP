@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { peticion } from '@/lib/api';
 import { fechaCorta, hoyISO } from '@/lib/fechas';
 import {
   DollarSign, Search, ChevronDown, CheckCircle2, AlertCircle,
@@ -77,8 +78,8 @@ export default function CobranzaPage() {
   const cargar = useCallback(async () => {
     setCargando(true);
     const [rC, rCB] = await Promise.all([
-      fetch(`${api}/credito/creditos${filtroEstado?`?estado=${filtroEstado}`:''}`, { headers:h() }),
-      fetch(`${api}/credito/cuentas-bancarias`, { headers:h() }),
+      peticion(`/credito/creditos${filtroEstado?`?estado=${filtroEstado}`:''}`, { headers:h() }),
+      peticion(`/credito/cuentas-bancarias`, { headers:h() }),
     ]);
     if (rC.ok) { setCreditos(await rC.json()); setErrorCarga(''); }
     else {
@@ -141,7 +142,7 @@ export default function CobranzaPage() {
      */
     let res: Response;
     try {
-      res = await fetch(`${api}/credito/cobranza/pago`, {
+      res = await peticion(`/credito/cobranza/pago`, {
       method: 'POST',
       headers: { 'Content-Type':'application/json', ...h() },
       body: JSON.stringify({

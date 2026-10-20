@@ -5,6 +5,25 @@ import { confirmarElegante } from '@/components/ui/dialogos';
 import { Search, Plus, Edit2, Power, X, Bookmark, AlertCircle, CheckCircle2, Loader2, Save } from "lucide-react";
 import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement";
 import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
+/*
+ * ──────────────────────────────────────────────────────────────────────────
+ * Por qué esta pantalla dejó de llamar a `fetch` a mano
+ * --------------------------------------------------------------------------
+ * Armaba sus peticiones por su cuenta: el token sacado de `localStorage` y la
+ * cabecera escrita a mano. Funciona, y se pierde tres cosas que `lib/api` hace
+ * en TODAS las llamadas:
+ *
+ *  · La cabecera de «ver el ERP como otra persona». Sin ella la suplantación
+ *    no llega al servidor y la pantalla se atiende con el alcance de quien
+ *    mira de verdad. Lo grave no es que no funcione: es que PARECE que sí,
+ *    porque la banda naranja sigue arriba diciendo a quién se está viendo.
+ *  · La renovación de la sesión antes de que el token caduque. Sin ella, a
+ *    los quince minutos la pantalla contesta «Error al cargar» y ahí se queda.
+ *  · El 401 y el tiempo límite: a dónde mandar a quien ya no tiene sesión, y
+ *    qué hacer con una petición que no vuelve nunca.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+import { api, ApiError } from '@/lib/api';
 
 export interface IMarca { id: string; nombre: string; activo: boolean; }
 
@@ -21,8 +40,6 @@ export default function MarcasPage() {
   const [nombreTocado, setNombreTocado] = useState(false);
   const errorNombre = !nombreMarca.trim() ? "El nombre de la marca es obligatorio" : nombreMarca.trim().length < 2 ? "Captura al menos 2 caracteres" : "";
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
-
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'info' } | null>(null);
   const mostrarToast = (mensaje: string, tipo: 'exito' | 'error' | 'info' = 'info') => {
     setToast({ mensaje, tipo });
@@ -31,13 +48,14 @@ export default function MarcasPage() {
 
   const fetchMarcas = async () => {
     setCargando(true);
-    const token = localStorage.getItem("syncro_token");
     try {
-      const res = await fetch(`${apiUrl}/catalogo/marcas`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setMarcas(await res.json());
-      else mostrarToast("Error al cargar las marcas", "error");
-    } catch { mostrarToast("Error de conexión", "error"); }
-    finally { setCargando(false); }
+      setMarcas(await api.get<IMarca[]>('/catalogo/marcas'));
+    } catch (e) {
+      /* El mensaje del servidor dice más que «Error al cargar las marcas». */
+      mostrarToast(e instanceof ApiError ? e.mensajeParaPantalla() : 'Error de conexión', 'error');
+    } finally {
+      setCargando(false);
+    }
   };
 
   useEffect(() => { fetchMarcas(); }, []);
@@ -47,35 +65,33 @@ export default function MarcasPage() {
     setNombreTocado(true);
     if (errorNombre) { mostrarToast(errorNombre, "error"); return; }
     setGuardando(true);
-    const token = localStorage.getItem("syncro_token");
-    const url = editandoId ? `${apiUrl}/catalogo/marcas/${editandoId}` : `${apiUrl}/catalogo/marcas`;
-    const metodo = editandoId ? "PATCH" : "POST";
+    const cuerpo = { nombre: nombreMarca.trim() };
 
     try {
-      const res = await fetch(url, {
-        method: metodo,
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ nombre: nombreMarca.trim() }),
-      });
-      if (res.ok) {
-        setIsModalOpen(false);
-        fetchMarcas();
-        mostrarToast(editandoId ? "Marca actualizada exitosamente" : "Marca creada exitosamente", "exito");
-      } else {
-        const data = await res.json().catch(() => ({}));
-        mostrarToast(data.message || "Error al guardar", "error");
-      }
+      if (editandoId) await api.patch(`/catalogo/marcas/${editandoId}`, cuerpo);
+      else await api.post('/catalogo/marcas', cuerpo);
+      setIsModalOpen(false);
+      fetchMarcas();
+      mostrarToast(editandoId ? "Marca actualizada exitosamente" : "Marca creada exitosamente", "exito");
+    } catch (e) {
+      mostrarToast(e instanceof ApiError ? e.mensajeParaPantalla() : 'Error al guardar', 'error');
     } finally { setGuardando(false); }
   };
 
   const handleCambiarEstado = async (id: string, activo: boolean) => {
     if (!await confirmarElegante(`¿Confirmas ${activo ? "desactivar" : "activar"} esta marca?`, { peligroso: activo })) return;
-    const token = localStorage.getItem("syncro_token");
-    const res = await fetch(`${apiUrl}/catalogo/marcas/${id}/estado`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) { fetchMarcas(); mostrarToast("Estado actualizado", "exito"); }
+    try {
+      await api.patch(`/catalogo/marcas/${id}/estado`);
+      fetchMarcas();
+      mostrarToast("Estado actualizado", "exito");
+    } catch (e) {
+      /*
+       * Antes un fallo aquí no decía nada: el `if (res.ok)` sin `else` dejaba
+       * la pantalla igual que si nada hubiera pasado, y quien pulsaba se
+       * quedaba creyendo que el estado cambió.
+       */
+      mostrarToast(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cambiar el estado', 'error');
+    }
   };
 
   const marcasFiltradas = marcas.filter(m => m.nombre.toLowerCase().includes(busqueda.toLowerCase()));

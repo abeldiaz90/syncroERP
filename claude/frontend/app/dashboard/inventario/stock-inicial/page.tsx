@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { peticion } from '@/lib/api';
 import Link from "next/link";
 import { ArrowLeft, Boxes, CheckCircle2, Download, Loader2, PlayCircle, UploadCloud, XCircle } from "lucide-react";
 import { plural } from '@/lib/format';
@@ -29,7 +30,7 @@ export default function StockInicialPage() {
   const idempotencyRef = useRef<string>("");
 
   useEffect(() => {
-    fetch(`${apiUrl}/catalogo/almacenes`, { headers: { Authorization: `Bearer ${token()}` } })
+    peticion(`/catalogo/almacenes`, { headers: { Authorization: `Bearer ${token()}` } })
       .then(async (r) => r.ok ? r.json() : [])
       .then((lista) => setAlmacenes((Array.isArray(lista) ? lista : []).filter((a) => a.activo !== false)))
       .catch(() => setAlmacenes([]));
@@ -39,7 +40,7 @@ export default function StockInicialPage() {
     if (!job || terminales.includes(job.estado)) return;
     const t = window.setInterval(async () => {
       try {
-        const res = await fetch(`${apiUrl}/catalogo/importacion/stock-inicial/${job.id}`, { headers: { Authorization: `Bearer ${token()}` } });
+        const res = await peticion(`/catalogo/importacion/stock-inicial/${job.id}`, { headers: { Authorization: `Bearer ${token()}` } });
         if (!res.ok) return;
         const actual = await res.json();
         setJob(actual);
@@ -50,14 +51,14 @@ export default function StockInicialPage() {
   }, [job?.id, job?.estado]);
 
   const cargarErrores = async (id: string) => {
-    const res = await fetch(`${apiUrl}/catalogo/importacion/stock-inicial/${id}/errores`, { headers: { Authorization: `Bearer ${token()}` } });
+    const res = await peticion(`/catalogo/importacion/stock-inicial/${id}/errores`, { headers: { Authorization: `Bearer ${token()}` } });
     if (res.ok) setErrores(await res.json());
   };
 
   const descargarPlantilla = async () => {
     setOcupado(true); setError("");
     try {
-      const res = await fetch(`${apiUrl}/catalogo/importacion/stock-inicial/plantilla`, { headers: { Authorization: `Bearer ${token()}` } });
+      const res = await peticion(`/catalogo/importacion/stock-inicial/plantilla`, { headers: { Authorization: `Bearer ${token()}` } });
       if (!res.ok) {
         const detalle = await res.json().catch(() => null);
         throw new Error(Array.isArray(detalle?.message) ? detalle.message.join(" · ") : detalle?.message || "No se pudo descargar la plantilla");
@@ -74,7 +75,7 @@ export default function StockInicialPage() {
       const fd = new FormData(); fd.append("archivo", archivo);
       if (!idempotencyRef.current) idempotencyRef.current = crypto.randomUUID();
       const key = idempotencyRef.current;
-      const res = await fetch(`${apiUrl}/catalogo/importacion/stock-inicial?modo=${modo}`, {
+      const res = await peticion(`/catalogo/importacion/stock-inicial?modo=${modo}`, {
         method: "POST", headers: { Authorization: `Bearer ${token()}`, "Idempotency-Key": key }, body: fd,
       });
       const data = await res.json(); if (!res.ok) throw new Error(data?.message || "No se pudo iniciar la importación");
@@ -96,7 +97,7 @@ export default function StockInicialPage() {
     if (!job) return;
     setError("");
     try {
-      const r = await fetch(`${apiUrl}/catalogo/importacion/stock-inicial/${job.id}/cancelar`, { method: "POST", headers: { Authorization: `Bearer ${token()}` } });
+      const r = await peticion(`/catalogo/importacion/stock-inicial/${job.id}/cancelar`, { method: "POST", headers: { Authorization: `Bearer ${token()}` } });
       if (!r.ok) {
         const d = await r.json().catch(() => null);
         setError((Array.isArray(d?.message) ? d.message.join(", ") : d?.message) || "No se pudo cancelar la importación: sigue en curso.");

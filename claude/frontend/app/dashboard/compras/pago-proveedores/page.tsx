@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { peticion } from '@/lib/api';
 import { plural } from '@/lib/format';
 import { FOLIO, folioDe } from '@/lib/folios';
 import { hoyISO } from '@/lib/fechas';
@@ -103,8 +104,8 @@ export default function PagoProveedoresPage() {
   const cargar = useCallback(async () => {
     setCargando(true);
     const [rO, rCB] = await Promise.all([
-      fetch(`${api}/compras/ordenes/por-pagar`, { headers: h() }),
-      fetch(`${api}/credito/cuentas-bancarias`, { headers: h() }),
+      peticion(`/compras/ordenes/por-pagar`, { headers: h() }),
+      peticion(`/credito/cuentas-bancarias`, { headers: h() }),
     ]);
     /*
       Las órdenes son de Compras y las cuentas bancarias de Tesorería: dos
@@ -152,7 +153,7 @@ export default function PagoProveedoresPage() {
       toast$('Selecciona la cuenta bancaria o caja de salida', false); return;
     }
     setGuardando(true);
-    const res = await fetch(`${api}/compras/ordenes/${ordenSeleccionada.id}/pagar`, {
+    const res = await peticion(`/compras/ordenes/${ordenSeleccionada.id}/pagar`, {
       method: 'PATCH',
       headers: { 'Content-Type':'application/json', ...h() },
       body: JSON.stringify({

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { peticion } from '@/lib/api';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import { ExportBar } from '../../../components/export-bar';
 
@@ -30,7 +31,7 @@ export default function TopProductosPage() {
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      const r = await fetch(`${api}/ventas/dashboard/top-productos?dias=30`, { headers: h() });
+      const r = await peticion(`/ventas/dashboard/top-productos?dias=30`, { headers: h() });
       if (r.ok) { setProductos(await r.json()); setError(''); }
       else {
         setProductos([]);

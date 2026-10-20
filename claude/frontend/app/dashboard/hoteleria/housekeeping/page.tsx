@@ -1,6 +1,7 @@
 // app/dashboard/hoteleria/housekeeping/page.tsx
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { peticion } from '@/lib/api';
 import { solicitarTexto } from "@/components/ui/dialogos";
 import {
   Sparkles,
@@ -62,7 +63,7 @@ export default function HousekeepingPage() {
   };
 
   const cargarHoteles = useCallback(async () => {
-    const r = await fetch(`${api}/hoteleria/config/hoteles`, { headers: h() });
+    const r = await peticion(`/hoteleria/config/hoteles`, { headers: h() });
     if (r.ok) {
       const d = await r.json();
       setHoteles(d);
@@ -72,13 +73,12 @@ export default function HousekeepingPage() {
   }, [api, hotelId]);
 
   const cargar = useCallback(async () => {
-    const rt = await fetch(`${api}/hoteleria/housekeeping/tareas`, {
+    const rt = await peticion(`/hoteleria/housekeeping/tareas`, {
       headers: h(),
     });
     if (rt.ok) setTareas(await rt.json());
     if (hotelId) {
-      const rh = await fetch(
-        `${api}/hoteleria/housekeeping/rack?hotelId=${hotelId}`,
+      const rh = await peticion(`/hoteleria/housekeeping/rack?hotelId=${hotelId}`,
         { headers: h() },
       );
       if (rh.ok) {
@@ -117,8 +117,7 @@ export default function HousekeepingPage() {
       return;
     }
     const accion = tarea.estado === "PENDIENTE" ? "iniciar" : "terminar";
-    const r = await fetch(
-      `${api}/hoteleria/housekeeping/tareas/${tarea.id}/${accion}`,
+    const r = await peticion(`/hoteleria/housekeeping/tareas/${tarea.id}/${accion}`,
       { method: "POST", headers: h() },
     );
     if (r.ok) {
@@ -165,8 +164,7 @@ export default function HousekeepingPage() {
       if (motivo === null) return;
       comentario = motivo;
     }
-    const r = await fetch(
-      `${api}/hoteleria/housekeeping/tareas/${tarea.id}/inspeccionar`,
+    const r = await peticion(`/hoteleria/housekeeping/tareas/${tarea.id}/inspeccionar`,
       {
         method: "POST",
         headers: h(),
@@ -187,8 +185,7 @@ export default function HousekeepingPage() {
   };
 
   const volverDisponible = async (hab: IHab) => {
-    const r = await fetch(
-      `${api}/hoteleria/housekeeping/habitaciones/${hab.id}/estado`,
+    const r = await peticion(`/hoteleria/housekeeping/habitaciones/${hab.id}/estado`,
       {
         method: "PATCH",
         headers: h(),

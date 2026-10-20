@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { peticion } from '@/lib/api';
 import Link from 'next/link';
 import {
   Users, Loader2, ShieldCheck, Mail, UserPlus,
@@ -67,7 +68,7 @@ export default function UsuariosPage() {
   const cargarDirectorio = async () => {
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/usuarios/directorio`, {
+      const res = await peticion(`/usuarios/directorio`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setDirectorio(await res.json());
@@ -79,7 +80,7 @@ export default function UsuariosPage() {
   const cargarDepartamentos = async () => {
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/departamentos`, {
+      const res = await peticion(`/departamentos`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setDepartamentos(await res.json());
@@ -91,7 +92,7 @@ export default function UsuariosPage() {
   const cargarRoles = async () => {
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/admin/permisos/resumen-roles`, {
+      const res = await peticion(`/admin/permisos/resumen-roles`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setCatalogoRoles(await res.json());
@@ -105,7 +106,7 @@ export default function UsuariosPage() {
     setCargando(true);
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/usuarios?activos=false`, {
+      const res = await peticion(`/usuarios?activos=false`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -145,7 +146,7 @@ export default function UsuariosPage() {
       setCargando(true);
       const token = localStorage.getItem('syncro_token');
       try {
-        const res = await fetch(`${apiUrl}/usuarios`, {
+        const res = await peticion(`/usuarios`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify(pideClave ? form : { ...form, password: undefined })
@@ -183,7 +184,7 @@ export default function UsuariosPage() {
       setProcesandoId(usuario.id);
       const token = localStorage.getItem('syncro_token');
       try {
-        const res = await fetch(`${apiUrl}/usuarios/${usuario.id}`, {
+        const res = await peticion(`/usuarios/${usuario.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
@@ -217,7 +218,7 @@ export default function UsuariosPage() {
       setProcesandoId(usuario.id);
       const token = localStorage.getItem('syncro_token');
       try {
-        const res = await fetch(`${apiUrl}/usuarios/${usuario.id}/estado`, {
+        const res = await peticion(`/usuarios/${usuario.id}/estado`, {
           method: 'PATCH',
           headers: { Authorization: `Bearer ${token}` }
         });

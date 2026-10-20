@@ -24,6 +24,7 @@
  * ============================================================================
  */
 import { useState, useEffect } from 'react';
+import { peticion } from '@/lib/api';
 import Link from 'next/link';
 import {
   Tags, Edit2, CheckCircle2, AlertCircle, X, Save, Info, Plus,
@@ -70,7 +71,7 @@ export default function CategoriasPage() {
 
   const cargar = async () => {
     setCargando(true);
-    const res = await fetch(`${api}/catalogo/categorias`, {
+    const res = await peticion(`/catalogo/categorias`, {
       headers: { Authorization: `Bearer ${tok()}` },
     });
     if (res.ok) setCategorias(await res.json());
@@ -103,8 +104,8 @@ export default function CategoriasPage() {
       descripcion: form.descripcion.trim() || null,
       categoriaPadreId: form.categoriaPadreId || null,
     };
-    const res = await fetch(
-      esNueva ? `${api}/catalogo/categorias` : `${api}/catalogo/categorias/${(modal as ICategoria).id}`,
+    const res = await peticion(
+      esNueva ? `/catalogo/categorias` : `/catalogo/categorias/${(modal as ICategoria).id}`,
       {
         method: esNueva ? 'POST' : 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
@@ -123,7 +124,7 @@ export default function CategoriasPage() {
   };
 
   const alternarEstado = async (cat: ICategoria) => {
-    const res = await fetch(`${api}/catalogo/categorias/${cat.id}/estado`, {
+    const res = await peticion(`/catalogo/categorias/${cat.id}/estado`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${tok()}` },
     });

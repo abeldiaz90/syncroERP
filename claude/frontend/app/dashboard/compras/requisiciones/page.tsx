@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { peticion } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import Link from 'next/link';
 import {
@@ -103,7 +104,7 @@ export default function RequisicionesPage() {
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      const res = await fetch(`${api}/compras/requisiciones`, { headers: h() });
+      const res = await peticion(`/compras/requisiciones`, { headers: h() });
       const cabecera = res.headers.get('X-Alcance');
       setAlcance(
         cabecera === 'todas' || cabecera === 'propias-y-firmadas'
@@ -141,7 +142,7 @@ export default function RequisicionesPage() {
   const [sinDepartamento, setSinDepartamento] = useState(false);
   useEffect(() => {
     (async () => {
-      const r = await fetch(`${api}/usuarios/me`, { headers: h() });
+      const r = await peticion(`/usuarios/me`, { headers: h() });
       if (!r.ok) return;
       const yo = await r.json().catch(() => null);
       setSinDepartamento(!!yo && !yo.departamentoId);
@@ -152,7 +153,7 @@ export default function RequisicionesPage() {
   useEffect(() => {
     if (busqueda.length < 2) { setSugerencias([]); return; }
     const t = setTimeout(async () => {
-      const r = await fetch(`${api}/catalogo/productos/buscar?q=${encodeURIComponent(busqueda)}`, { headers: h() });
+      const r = await peticion(`/catalogo/productos/buscar?q=${encodeURIComponent(busqueda)}`, { headers: h() });
       if (r.ok) setSugerencias(await r.json());
     }, 300);
     return () => clearTimeout(t);
@@ -208,7 +209,7 @@ export default function RequisicionesPage() {
     );
     if (editIdx !== null && editCant > 0) confirmarCantidad(editIdx, editCant);
     setGuardando(true);
-    const res = await fetch(`${api}/compras/requisiciones`, {
+    const res = await peticion(`/compras/requisiciones`, {
       method: 'POST', headers: { ...h(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
         notas, prioridad, fechaRequerida: fechaRequerida || null,
@@ -227,7 +228,7 @@ export default function RequisicionesPage() {
 
   const cancelarReq = async (id: string) => {
     if (!await confirmarElegante('¿Cancelar esta requisición?', { peligroso: true })) return;
-    const res = await fetch(`${api}/compras/requisiciones/${id}/cancelar`, { method: 'PATCH', headers: h() });
+    const res = await peticion(`/compras/requisiciones/${id}/cancelar`, { method: 'PATCH', headers: h() });
     if (res.ok) { cargar(); toast$('Requisición cancelada'); }
     else {
       // El backend explica por que no se puede (estado, rol, solicitante).

@@ -1,6 +1,7 @@
 "use client";
 
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { peticion } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { Search, Plus, Edit2, Power, X, CreditCard, AlertCircle, CheckCircle2 } from 'lucide-react';
@@ -31,7 +32,7 @@ export default function FormasPagoPage() {
     setCargando(true);
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/catalogos/formas-pago`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/catalogos/formas-pago`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setFormasPago(await res.json());
       else mostrarToast('Error al cargar la lista de formas de pago', 'error');
     } catch { mostrarToast('Error de conexión con el servidor', 'error'); }
@@ -49,9 +50,9 @@ export default function FormasPagoPage() {
     if (!formData.nombre.trim()) { mostrarToast('El nombre es obligatorio.', 'info'); return; }
     setGuardando(true);
     const token = localStorage.getItem('syncro_token');
-    const url = editandoId ? `${apiUrl}/catalogos/formas-pago/${editandoId}` : `${apiUrl}/catalogos/formas-pago`;
+    const url = editandoId ? `/catalogos/formas-pago/${editandoId}` : `/catalogos/formas-pago`;
     try {
-      const res = await fetch(url, { method: editandoId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(formData) });
+      const res = await peticion(url, { method: editandoId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(formData) });
       if (res.ok) { setIsModalOpen(false); fetchFormasPago(); mostrarToast(editandoId ? 'Forma de pago actualizada.' : 'Forma de pago creada.', 'exito'); }
       else { const d = await res.json().catch(() => null); mostrarToast(`Error: ${Array.isArray(d?.message) ? d.message.join(', ') : d?.message || 'Error desconocido'}`, 'error'); }
     } catch { mostrarToast('Error de conexión al intentar guardar.', 'error'); }
@@ -62,7 +63,7 @@ export default function FormasPagoPage() {
     if (!await confirmarElegante(`¿Deseas ${activo ? 'desactivar' : 'activar'} esta forma de pago?`, { peligroso: activo })) return;
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/catalogos/formas-pago/${id}/estado`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/catalogos/formas-pago/${id}/estado`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) { fetchFormasPago(); mostrarToast(`Forma de pago ${activo ? 'desactivada' : 'activada'}.`, 'exito'); }
       else mostrarToast('Error al cambiar el estado', 'error');
     } catch { mostrarToast('Error de conexión con el servidor', 'error'); }

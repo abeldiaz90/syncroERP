@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { peticion } from '@/lib/api';
 import {
   UploadCloud,
   Download,
@@ -61,7 +62,7 @@ export default function ImportarInventarioPage() {
   // ── Descargar plantilla ──
   const descargarPlantilla = async () => {
     try {
-      const res = await fetch(`${apiUrl}/catalogo/importacion/plantilla`, {
+      const res = await peticion(`/catalogo/importacion/plantilla`, {
         headers: { Authorization: `Bearer ${token()}` },
       });
       if (!res.ok) return mostrarToast("No se pudo descargar la plantilla", "error");
@@ -102,8 +103,7 @@ export default function ImportarInventarioPage() {
     try {
       const fd = new FormData();
       fd.append("archivo", archivo);
-      const res = await fetch(
-        `${apiUrl}/catalogo/importacion/productos?modo=${modo}`,
+      const res = await peticion(`/catalogo/importacion/productos?modo=${modo}`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token()}` }, // NO fijar Content-Type: el navegador pone el boundary

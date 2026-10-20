@@ -1,6 +1,7 @@
 "use client";
 
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { peticion } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { Building2, Plus, Edit2, Power, AlertCircle, CheckCircle2, ShieldCheck } from 'lucide-react';
@@ -39,7 +40,7 @@ export default function DepartamentosPage() {
     setCargando(true);
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/departamentos`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/departamentos`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setDepartamentos(await res.json());
       else mostrarToast('Error al cargar departamentos', 'error');
     } catch { mostrarToast('Error de conexión', 'error'); }
@@ -57,9 +58,9 @@ export default function DepartamentosPage() {
     if (!editandoId && formData.motivo.trim().length < 10) { mostrarToast('Explica por qué se necesita el área.', 'info'); return; }
     setGuardando(true);
     const token = localStorage.getItem('syncro_token');
-    const url = editandoId ? `${apiUrl}/departamentos/${editandoId}` : `${apiUrl}/rrhh/estructura/solicitudes`;
+    const url = editandoId ? `/departamentos/${editandoId}` : `/rrhh/estructura/solicitudes`;
     try {
-      const res = await fetch(url, {
+      const res = await peticion(url, {
         method: editandoId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(editandoId ? { nombre: formData.nombre } : { tipo: 'AREA', nombre: formData.nombre, motivo: formData.motivo }),
@@ -74,7 +75,7 @@ export default function DepartamentosPage() {
     if (!await confirmarElegante(`¿Seguro que deseas ${activo ? 'desactivar' : 'activar'} este departamento?`, { peligroso: activo })) return;
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/departamentos/${id}/estado`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/departamentos/${id}/estado`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) { fetchDepartamentos(); mostrarToast('Estado actualizado', 'exito'); }
     } catch { mostrarToast('Error al actualizar estado', 'error'); }
   };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { peticion } from '@/lib/api';
 import Link from 'next/link';
 import { FOLIO, folioDe } from '@/lib/folios';
 import { 
@@ -82,7 +83,7 @@ export default function ListaRecepcionesPage() {
       try {
         // En un futuro, puedes pedirle a tu backend un endpoint exclusivo como /inventario/recepciones
         // Por ahora, reutilizamos la lista de órdenes, pero ocultamos los precios en el frontend.
-        const res = await fetch(`${apiUrl}/compras/ordenes`, {
+        const res = await peticion(`/compras/ordenes`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { peticion } from '@/lib/api';
 import { plural } from '@/lib/format';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
@@ -78,16 +79,16 @@ export default function CuentasBancariasPage() {
     setCargando(true);
     const h = { Authorization: `Bearer ${tok()}` };
     const [rCB, rCC, rBancos, rAlm, rLP] = await Promise.all([
-      fetch(`${api}/credito/cuentas-bancarias`, { headers: h }),
-      fetch(`${api}/finanzas/cuentas-contables?soloAfectables=true`, { headers: h }),
-      fetch(`${api}/catalogos/bancos`, { headers: h }),
+      peticion(`/credito/cuentas-bancarias`, { headers: h }),
+      peticion(`/finanzas/cuentas-contables?soloAfectables=true`, { headers: h }),
+      peticion(`/catalogos/bancos`, { headers: h }),
       /*
         El contexto de venta de una caja. Se piden las vistas CORTAS —las
         mismas que usa el mostrador— porque aquí sólo hacen falta el nombre y
         el identificador, y son las que más roles pueden leer.
       */
-      fetch(`${api}/catalogo/almacenes/para-venta`, { headers: h }),
-      fetch(`${api}/catalogo/listas-precio`, { headers: h }),
+      peticion(`/catalogo/almacenes/para-venta`, { headers: h }),
+      peticion(`/catalogo/listas-precio`, { headers: h }),
     ]);
     /*
       Tres consultas de tres módulos. El catálogo de cuentas contables es de
@@ -153,9 +154,9 @@ export default function CuentasBancariasPage() {
     }
     setGuardando(true);
     const url = editando
-      ? `${api}/credito/cuentas-bancarias/${editando.id}`
-      : `${api}/credito/cuentas-bancarias`;
-    const res = await fetch(url, {
+      ? `/credito/cuentas-bancarias/${editando.id}`
+      : `/credito/cuentas-bancarias`;
+    const res = await peticion(url, {
       method: editando ? 'PATCH' : 'POST',
       headers: { 'Content-Type':'application/json', Authorization:`Bearer ${tok()}` },
       body: JSON.stringify({
@@ -182,7 +183,7 @@ export default function CuentasBancariasPage() {
 
   const toggleEstado = async (c: ICuentaBancaria) => {
     if (!await confirmarElegante(`¿${c.activo?'Desactivar':'Activar'} "${c.nombre}"?`, { peligroso: c.activo })) return;
-    const res = await fetch(`${api}/credito/cuentas-bancarias/${c.id}/estado`, {
+    const res = await peticion(`/credito/cuentas-bancarias/${c.id}/estado`, {
       method:'PATCH', headers:{ Authorization:`Bearer ${tok()}` },
     });
     if (res.ok) { cargar(); toast$(c.activo?'Desactivada':'Activada'); }

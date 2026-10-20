@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
+import { peticion } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { hoyISO } from '@/lib/fechas';
@@ -63,7 +64,7 @@ export default function KardexPage() {
       setCargando(true);
       const token = localStorage.getItem('syncro_token');
       try {
-        const res = await fetch(`${apiUrl}/catalogo/inventario/productos/${id}/movimientos`, {
+        const res = await peticion(`/catalogo/inventario/productos/${id}/movimientos`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!res.ok) {
@@ -470,17 +471,17 @@ function UbicacionesProducto({ productoId, apiUrl }: { productoId: string; apiUr
   const cargar = async () => {
     try {
       const [a,u] = await Promise.all([
-        fetch(`${apiUrl}/catalogo/wms/productos/${productoId}/ubicaciones`, { headers:{Authorization:`Bearer ${token}`} }).then(r=>r.json()),
-        fetch(`${apiUrl}/catalogo/wms/ubicaciones`, { headers:{Authorization:`Bearer ${token}`} }).then(r=>r.json()),
+        peticion(`/catalogo/wms/productos/${productoId}/ubicaciones`, { headers:{Authorization:`Bearer ${token}`} }).then(r=>r.json()),
+        peticion(`/catalogo/wms/ubicaciones`, { headers:{Authorization:`Bearer ${token}`} }).then(r=>r.json()),
       ]);
       setAsignaciones(Array.isArray(a)?a:Array.isArray(a?.data)?a.data:[]);
       setUbicaciones(Array.isArray(u)?u:Array.isArray(u?.data)?u.data:[]);
     } catch { setError('No fue posible cargar las ubicaciones físicas.'); }
   };
   useEffect(()=>{void cargar()},[productoId]);
-  const asignar=async()=>{if(!ubicacionId){setError('Selecciona una ubicación.');return;}setError('');const r=await fetch(`${apiUrl}/catalogo/wms/productos/${productoId}/ubicaciones`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ubicacionId,esPrincipal:principal})});if(!r.ok){const x=await r.json().catch(()=>({}));setError(x.message||'No se pudo asignar.');return;}setUbicacionId('');setPrincipal(false);await cargar();};
+  const asignar=async()=>{if(!ubicacionId){setError('Selecciona una ubicación.');return;}setError('');const r=await peticion(`/catalogo/wms/productos/${productoId}/ubicaciones`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ubicacionId,esPrincipal:principal})});if(!r.ok){const x=await r.json().catch(()=>({}));setError(x.message||'No se pudo asignar.');return;}setUbicacionId('');setPrincipal(false);await cargar();};
   /* «Hacer principal» escribe: si el servidor lo niega hay que decirlo, no recargar la misma lista y dejar que el usuario crea que cambió. */
-  const principalizar=async(id:string)=>{setError('');const r=await fetch(`${apiUrl}/catalogo/wms/productos/${productoId}/ubicaciones/${id}`,{method:'PATCH',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({esPrincipal:true})});if(!r.ok){const x=await r.json().catch(()=>({}));setError(x.message||'No se pudo marcar como ubicación principal.');return;}await cargar();};
+  const principalizar=async(id:string)=>{setError('');const r=await peticion(`/catalogo/wms/productos/${productoId}/ubicaciones/${id}`,{method:'PATCH',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({esPrincipal:true})});if(!r.ok){const x=await r.json().catch(()=>({}));setError(x.message||'No se pudo marcar como ubicación principal.');return;}await cargar();};
   return <section className="bg-white border border-slate-200 rounded-xl shadow-sm mb-6 overflow-hidden">
     <div className="px-5 py-4 border-b flex items-center justify-between"><div><h2 className="font-black flex items-center gap-2"><MapPin className="w-4 h-4 text-indigo-600"/>Ubicación física del producto</h2><p className="text-xs text-slate-500 mt-1">Define dónde se surte y almacena este artículo en cada almacén.</p></div></div>
     <div className="p-5 grid lg:grid-cols-[1fr_360px] gap-5"><div>{asignaciones.length===0?<div className="border border-dashed rounded-xl p-5 text-sm text-slate-500">Aún no tiene ubicaciones asignadas. El stock existe por almacén, pero el personal no sabe en qué pasillo, rack o posición encontrarlo.</div>:<div className="grid md:grid-cols-2 gap-3">{asignaciones.map(a=><div key={a.id} className="border rounded-xl p-4"><div className="flex justify-between gap-2"><div><p className="font-bold">{a.ubicacion?.codigo}</p><p className="text-xs text-slate-500">{a.almacen?.nombre}</p></div>{a.esPrincipal?<span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full h-fit">PRINCIPAL</span>:<button onClick={()=>principalizar(a.id)} className="text-xs text-indigo-600 font-bold">Hacer principal</button>}</div><p className="text-xs text-slate-500 mt-2">{[a.ubicacion?.zona,a.ubicacion?.pasillo,a.ubicacion?.rack,a.ubicacion?.nivel,a.ubicacion?.posicion].filter(Boolean).join(' / ')||'Ruta física sin detalle'}</p></div>)}</div>}</div>

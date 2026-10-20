@@ -1,6 +1,7 @@
 // app/dashboard/unidades-medida/page.tsx
 "use client";
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { peticion } from '@/lib/api';
 import { useState, useEffect } from "react";
 import { Ruler, Plus, Edit2, Power, X, AlertCircle, CheckCircle2, Sparkles } from "lucide-react";
 import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement";
@@ -38,7 +39,7 @@ export default function UnidadesMedidaPage() {
   const cargar = async () => {
     setCargando(true);
     try {
-      const res = await fetch(`${api}/catalogo/unidades-medida`, {
+      const res = await peticion(`/catalogo/unidades-medida`, {
         headers: { Authorization: `Bearer ${tok()}` },
       });
       if (res.ok) setUnidades(await res.json());
@@ -64,10 +65,10 @@ export default function UnidadesMedidaPage() {
     if (!form.nombre.trim()) { mostrarToast("El nombre es obligatorio", false); return; }
     setGuardando(true);
     const url = editandoId
-      ? `${api}/catalogo/unidades-medida/${editandoId}`
-      : `${api}/catalogo/unidades-medida`;
+      ? `/catalogo/unidades-medida/${editandoId}`
+      : `/catalogo/unidades-medida`;
     try {
-      const res = await fetch(url, {
+      const res = await peticion(url, {
         method: editandoId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok()}` },
         body: JSON.stringify(form),
@@ -88,7 +89,7 @@ export default function UnidadesMedidaPage() {
 
   const cambiarEstado = async (u: IUnidad) => {
     try {
-      const res = await fetch(`${api}/catalogo/unidades-medida/${u.id}/estado`, {
+      const res = await peticion(`/catalogo/unidades-medida/${u.id}/estado`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${tok()}` },
       });
@@ -100,7 +101,7 @@ export default function UnidadesMedidaPage() {
   const precargar = async () => {
     setPrecargando(true);
     try {
-      const res = await fetch(`${api}/catalogo/unidades-medida/precargar-estandar`, {
+      const res = await peticion(`/catalogo/unidades-medida/precargar-estandar`, {
         method: "POST",
         headers: { Authorization: `Bearer ${tok()}` },
       });

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { peticion } from '@/lib/api';
 import { Tags, Edit2, CheckCircle2, AlertCircle, X, Save, Info, Plus, Sparkles, Wand2 } from 'lucide-react';
 import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement";
 import ConfirmDialog from '@/app/components/ConfirmDialog';
@@ -81,8 +82,8 @@ export default function CategoriasContablesPage() {
     setCargando(true);
     const h = { Authorization: `Bearer ${tok()}` };
     const [rCat, rCue] = await Promise.all([
-      fetch(`${api}/catalogo/categorias`, { headers: h }),
-      fetch(`${api}/finanzas/cuentas-contables?soloAfectables=true`, { headers: h }),
+      peticion(`/catalogo/categorias`, { headers: h }),
+      peticion(`/finanzas/cuentas-contables?soloAfectables=true`, { headers: h }),
     ]);
     /*
       Sin catálogo de cuentas los desplegables salen vacíos y parece que la
@@ -128,7 +129,7 @@ export default function CategoriasContablesPage() {
     setGuardando(true);
     const payload: Record<string, string | null> = {};
     CAMPOS_CUENTAS.forEach(c => { payload[c.key] = form[c.key] || null; });
-    const res = await fetch(`${api}/catalogo/categorias/${modal.id}/cuentas`, {
+    const res = await peticion(`/catalogo/categorias/${modal.id}/cuentas`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
       body: JSON.stringify(payload),
@@ -151,7 +152,7 @@ export default function CategoriasContablesPage() {
   const configurarTodasAuto = async () => {
     setAutoTodas(true);
     try {
-      const res = await fetch(`${api}/catalogo/categorias/auto-configurar`, {
+      const res = await peticion(`/catalogo/categorias/auto-configurar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
         body: JSON.stringify({ soloVacias: true }),
@@ -178,7 +179,7 @@ export default function CategoriasContablesPage() {
   const crearCategoria = async () => {
     if (!formNueva.nombre.trim()) { mostrarToast('El nombre es obligatorio', false); return; }
     setGuardandoNueva(true);
-    const res = await fetch(`${api}/catalogo/categorias`, {
+    const res = await peticion(`/catalogo/categorias`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
       body: JSON.stringify({

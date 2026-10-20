@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { peticion } from '@/lib/api';
 import { fechaCorta, mesHastaHoy } from '@/lib/fechas';
 import { plural } from '@/lib/format';
 import {
@@ -71,7 +72,7 @@ export default function EstadoCuentaClientePage() {
   useEffect(() => {
     if (busqueda.length < 2) { setClientes([]); return; }
     const t = setTimeout(async () => {
-      const r = await fetch(`${api}/clientes?filtro=${encodeURIComponent(busqueda)}`, { headers: h() });
+      const r = await peticion(`/clientes?filtro=${encodeURIComponent(busqueda)}`, { headers: h() });
       if (r.ok) { const d = await r.json(); setClientes(Array.isArray(d) ? d : d.clientes ?? []); }
       else { setClientes([]); setError('No se pudo buscar clientes.'); }
     }, 300);
@@ -83,7 +84,7 @@ export default function EstadoCuentaClientePage() {
     setCargando(true);
     const params = new URLSearchParams({ fechaDesde: desde, fechaHasta: hasta });
     try {
-      const r = await fetch(`${api}/credito/estado-cuenta/${clienteId}?${params}`, { headers: h() });
+      const r = await peticion(`/credito/estado-cuenta/${clienteId}?${params}`, { headers: h() });
       if (r.ok) { setDatos(await r.json()); setError(''); }
       else {
         setDatos(null);

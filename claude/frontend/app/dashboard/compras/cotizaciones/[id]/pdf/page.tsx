@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { peticion } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Printer, FileText, ChevronLeft, Building2, Calendar, FileBox } from 'lucide-react';
@@ -53,7 +54,7 @@ export default function PdfCotizacionPage() {
     const fetchCotizacion = async () => {
       const token = localStorage.getItem('syncro_token');
       try {
-        const res = await fetch(`${apiUrl}/compras/cotizaciones/${cotizacionId}`, {
+        const res = await peticion(`/compras/cotizaciones/${cotizacionId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {

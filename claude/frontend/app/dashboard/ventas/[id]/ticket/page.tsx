@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { peticion } from '@/lib/api';
 import { fechaCorta } from '@/lib/fechas';
 import { useParams } from 'next/navigation';
 import {
@@ -107,14 +108,14 @@ export default function TicketVentaPage() {
       const h = { Authorization: `Bearer ${token}` };
       try {
         const [rV] = await Promise.all([
-          fetch(`${apiUrl}/ventas/${id}`, { headers: h }),
+          peticion(`/ventas/${id}`, { headers: h }),
         ]);
         if (!rV.ok) return;
         const v: IVenta = await rV.json();
         setVenta(v);
         // Si es venta a crédito, buscar el crédito vinculado
         if (CREDITOS.has(v.metodoPago)) {
-          const rC = await fetch(`${apiUrl}/credito/creditos?ventaId=${id}`, { headers: h });
+          const rC = await peticion(`/credito/creditos?ventaId=${id}`, { headers: h });
           if (rC.ok) {
             const lista = await rC.json();
             if (lista.length > 0) setCredito(lista[0]);

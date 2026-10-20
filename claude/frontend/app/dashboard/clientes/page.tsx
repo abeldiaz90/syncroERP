@@ -1,5 +1,6 @@
 "use client";
 import Link from 'next/link';
+import { peticion } from '@/lib/api';
 import { useState, useEffect, useCallback } from 'react';
 import { confirmarElegante, solicitarTexto } from '@/components/ui/dialogos';
 import { ExpedienteCliente } from '@/components/clientes/expediente-cliente';
@@ -279,7 +280,7 @@ export default function ClientesPage() {
         setCargando(true);
         const p = new URLSearchParams({ activos: soloActivos?'true':'false' });
         if (busqDebounced) p.set('filtro', busqDebounced);
-        const r = await fetch(`${api}/clientes?${p}`, { headers: heads() }).catch(()=>null);
+        const r = await peticion(`/clientes?${p}`, { headers: heads() }).catch(()=>null);
         if (r?.ok) setClientes(await r.json()); else showToast('Error al cargar clientes','err');
         setCargando(false);
     }, [busqDebounced, soloActivos]);
@@ -299,13 +300,13 @@ export default function ClientesPage() {
         setSeleccionado(prev => (prev && clientesVisibles.some(c=>c.id===prev)) ? prev : clientesVisibles[0].id);
     }, [clientesVisibles]);
     useEffect(() => {
-        fetch(`${api}/integracion/validacion/flujos/activo`, { headers: heads() })
+        peticion(`/integracion/validacion/flujos/activo`, { headers: heads() })
           .then(r => r.ok ? r.json() : null)
           .then((f:any) => setFlujoVerif(f && f.id ? { id:f.id, nombre:f.nombre } : null))
           .catch(()=>setFlujoVerif(null));
     }, []);
     useEffect(() => {
-        fetch(`${api}/catalogos/paises`, {headers:heads()})
+        peticion(`/catalogos/paises`, {headers:heads()})
           .then(r=>r.ok?r.json():[]).then((datos:any[]) => {
             setPaises(datos);
             const mx=datos.find(p=>p.codigoIso2==='MX'||p.codigo==='MX');
@@ -337,7 +338,7 @@ export default function ClientesPage() {
         const desde = new URLSearchParams(window.location.search).get('desdeProspecto');
         if (!desde) return;
         let vivo = true;
-        fetch(`${api}/crm/prospectos`, { headers: heads() })
+        peticion(`/crm/prospectos`, { headers: heads() })
           .then(r => r.ok ? r.json() : [])
           .then((lista: any[]) => {
             if (!vivo) return;
@@ -384,7 +385,7 @@ export default function ClientesPage() {
 
     useEffect(() => {
         if (!formData.paisId) { setEstados([]); return; }
-        fetch(`${api}/catalogos/estados?paisId=${formData.paisId}`, {headers:heads()})
+        peticion(`/catalogos/estados?paisId=${formData.paisId}`, {headers:heads()})
           .then(r=>r.ok?r.json():[]).then(setEstados);
     }, [formData.paisId]);
 
@@ -406,7 +407,7 @@ export default function ClientesPage() {
         if (!esMexico || !/^\d{5}$/.test(cp)) { setCpCatalogo(null); setCpBuscando(false); return; }
         let vigente = true;
         setCpBuscando(true);
-        fetch(`${api}/catalogos/codigos-postales/${cp}`, {headers:heads()})
+        peticion(`/catalogos/codigos-postales/${cp}`, {headers:heads()})
           .then(r => r.ok ? r.json() : null)
           .then((datos: CatalogoCp | null) => {
               if (!vigente) return;
@@ -477,7 +478,7 @@ export default function ClientesPage() {
         /* El expediente mas reciente que NO sea simulacion: es el unico que el
            candado de aprobacion mira. */
         setExpediente(undefined);
-        fetch(`${api}/integracion/validacion/expedientes?clienteId=${c.id}`, { headers: heads() })
+        peticion(`/integracion/validacion/expedientes?clienteId=${c.id}`, { headers: heads() })
           .then(r => r.ok ? r.json() : [])
           .then((h:any[]) => setExpediente((Array.isArray(h)?h:[]).find(e => !e.simulacion) ?? null))
           .catch(()=>setExpediente(null));
@@ -492,7 +493,7 @@ export default function ClientesPage() {
             return;
         }
         setGuardando(true);
-        const url    = editId ? `${api}/clientes/${editId}` : `${api}/clientes`;
+        const url    = editId ? `/clientes/${editId}` : `/clientes`;
         const method = editId ? 'PATCH' : 'POST';
         /*
          * ══════════════════════════════════════════════════════════════════
@@ -533,7 +534,7 @@ export default function ClientesPage() {
                     ? formData.clasificacionHotelera
                     : null,
         };
-        const r = await fetch(url, { method, headers: heads(true), body: JSON.stringify(payload) }).catch(()=>null);
+        const r = await peticion(url, { method, headers: heads(true), body: JSON.stringify(payload) }).catch(()=>null);
         if (r?.ok) {
             setModal(false); fetchClientes();
             showToast(editId ? 'Cliente actualizado correctamente' : 'Cliente registrado correctamente','ok');
@@ -546,7 +547,7 @@ export default function ClientesPage() {
 
     const toggleEstado = async (id:string, activo:boolean) => {
         if (!await confirmarElegante(`¿${activo?'Desactivar':'Activar'} este cliente?`, { peligroso: activo })) return;
-        const r = await fetch(`${api}/clientes/${id}/estado`,{method:'PATCH',headers:heads()}).catch(()=>null);
+        const r = await peticion(`/clientes/${id}/estado`,{method:'PATCH',headers:heads()}).catch(()=>null);
         if (r?.ok) { fetchClientes(); showToast(`Cliente ${activo?'desactivado':'activado'}`, 'ok'); }
         else showToast('Error al cambiar estado','err');
     };
@@ -570,7 +571,7 @@ export default function ClientesPage() {
             );
             if (comentario === null) return;
         }
-        const r = await fetch(`${api}/clientes/${cliente.id}/credito/accion`, {
+        const r = await peticion(`/clientes/${cliente.id}/credito/accion`, {
             method: 'PATCH',
             headers: heads(true),
             body: JSON.stringify({ decision, comentario }),

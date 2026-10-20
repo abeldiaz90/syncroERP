@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { peticion } from '@/lib/api';
 import { plural } from "@/lib/format";
 import {
   ShieldCheck, Search, X, ChevronLeft, ChevronRight,
@@ -69,7 +70,7 @@ export default function AuditoriaPage() {
   );
 
   useEffect(() => {
-    fetch(`${api}/auditoria/opciones`, { headers: H() })
+    peticion(`/auditoria/opciones`, { headers: H() })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setOpciones(d))
       .catch(() => undefined);
@@ -85,7 +86,7 @@ export default function AuditoriaPage() {
     if (hasta) qs.set("hasta", hasta);
     qs.set("pagina", String(pagina));
     qs.set("porPagina", "50");
-    const r = await fetch(`${api}/auditoria?${qs.toString()}`, { headers: H() });
+    const r = await peticion(`/auditoria?${qs.toString()}`, { headers: H() });
     if (r.ok) setResp(await r.json());
     setCargando(false);
   }, [api, entidad, accion, usuarioEmail, desde, hasta, pagina]);

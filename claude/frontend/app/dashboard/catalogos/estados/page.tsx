@@ -1,6 +1,7 @@
 "use client";
 
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { peticion } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { 
@@ -65,7 +66,7 @@ export default function EstadosPage() {
     setCargandoPaises(true);
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/catalogos/paises`, {
+      const res = await peticion(`/catalogos/paises`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -88,9 +89,9 @@ export default function EstadosPage() {
     const token = localStorage.getItem('syncro_token');
     try {
       const url = paisIdFiltrado
-        ? `${apiUrl}/catalogos/estados?paisId=${paisIdFiltrado}`
-        : `${apiUrl}/catalogos/estados`;
-      const res = await fetch(url, {
+        ? `/catalogos/estados?paisId=${paisIdFiltrado}`
+        : `/catalogos/estados`;
+      const res = await peticion(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -153,8 +154,8 @@ export default function EstadosPage() {
     setGuardando(true);
     const token = localStorage.getItem('syncro_token');
     const url = editandoId
-      ? `${apiUrl}/catalogos/estados/${editandoId}`
-      : `${apiUrl}/catalogos/estados`;
+      ? `/catalogos/estados/${editandoId}`
+      : `/catalogos/estados`;
     const metodo = editandoId ? 'PATCH' : 'POST';
 
     try {
@@ -163,7 +164,7 @@ export default function EstadosPage() {
         paisId: formData.paisId,
       };
 
-      const res = await fetch(url, {
+      const res = await peticion(url, {
         method: metodo,
         headers: {
           'Content-Type': 'application/json',
@@ -195,7 +196,7 @@ export default function EstadosPage() {
     if (!await confirmarElegante(`¿Estás seguro de que deseas ${activo ? 'desactivar' : 'activar'} este estado?`, { peligroso: activo })) return;
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/catalogos/estados/${id}/estado`, {
+      const res = await peticion(`/catalogos/estados/${id}/estado`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });

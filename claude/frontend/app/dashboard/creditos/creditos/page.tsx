@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { peticion } from '@/lib/api';
 import { plural } from '@/lib/format';
 import { fechaCorta } from '@/lib/fechas';
 import { CreditCard, Search, Filter, RefreshCw, DollarSign,
@@ -53,8 +54,8 @@ export default function CreditosPage() {
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      const url = `${api}/credito/creditos${filtroEstado ? `?estado=${filtroEstado}` : ''}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${tok()}` } });
+      const url = `/credito/creditos${filtroEstado ? `?estado=${filtroEstado}` : ''}`;
+      const res = await peticion(url, { headers: { Authorization: `Bearer ${tok()}` } });
       if (res.ok) { setCreditos(await res.json()); setErrorCarga(''); }
       else {
         /* «Sin créditos» es una afirmación sobre la cartera, no un hueco. */

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { peticion } from '@/lib/api';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -69,8 +70,8 @@ export default function RecepcionDetallePage() {
     if (!id) return;
     const token = localStorage.getItem('syncro_token');
     Promise.all([
-      fetch(`${apiUrl}/compras/ordenes/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${apiUrl}/catalogo/almacenes`, { headers: { Authorization: `Bearer ${token}` } }),
+      peticion(`/compras/ordenes/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
+      peticion(`/catalogo/almacenes`, { headers: { Authorization: `Bearer ${token}` } }),
     ]).then(async ([resOC, resAlm]) => {
       if (resOC.ok) {
         const dataOC = await resOC.json();
@@ -95,7 +96,7 @@ export default function RecepcionDetallePage() {
   useEffect(() => {
     if (!almacenSeleccionado) { setUbicaciones([]); return; }
     const token = localStorage.getItem('syncro_token');
-    fetch(`${apiUrl}/catalogo/wms/ubicaciones?almacenId=${almacenSeleccionado}`, { headers: { Authorization: `Bearer ${token}` } })
+    peticion(`/catalogo/wms/ubicaciones?almacenId=${almacenSeleccionado}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async r => r.ok ? setUbicaciones(await r.json()) : setUbicaciones([]))
       .catch(() => setUbicaciones([]));
     setCapturas(prev => Object.fromEntries(Object.entries(prev).map(([k,v]) => [k, { ...v, ubicacionId: '' }])));
@@ -112,7 +113,7 @@ export default function RecepcionDetallePage() {
     Promise.all(
       productos.map(async (productoId) => {
         try {
-          const r = await fetch(`${apiUrl}/catalogo/wms/productos/${productoId}/ubicaciones`, {
+          const r = await peticion(`/catalogo/wms/productos/${productoId}/ubicaciones`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (!r.ok) return [productoId, [] as string[]] as const;
@@ -139,7 +140,7 @@ export default function RecepcionDetallePage() {
     const token = localStorage.getItem('syncro_token');
     setAsignando(`${productoId}:${ubicacionId}`);
     try {
-      const r = await fetch(`${apiUrl}/catalogo/wms/productos/${productoId}/ubicaciones`, {
+      const r = await peticion(`/catalogo/wms/productos/${productoId}/ubicaciones`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ubicacionId }),
@@ -243,7 +244,7 @@ export default function RecepcionDetallePage() {
     setProcesando(true);
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/compras/ordenes/${id}/recibir`, {
+      const res = await peticion(`/compras/ordenes/${id}/recibir`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({

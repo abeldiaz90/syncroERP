@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
+import { peticion } from '@/lib/api';
 
 /** Las secciones del modal, para poder nombrarlas en los avisos. */
 type TabId = 'general' | 'precios' | 'logistica' | 'sectorial' | 'empaques' | 'multimedia';
@@ -284,7 +285,7 @@ export default function ModalFichaProducto({
     if (!nuevaUnidad.nombre.trim()) return;
     setGuardandoUnidad(true);
     try {
-      const res = await fetch(`${apiUrl}/catalogo/unidades-medida`, {
+      const res = await peticion(`/catalogo/unidades-medida`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(nuevaUnidad),
@@ -314,7 +315,7 @@ export default function ModalFichaProducto({
   useEffect(() => {
     if (!isOpen) return;
     const token = localStorage.getItem('syncro_token');
-    fetch(`${apiUrl}/catalogo/atributos-personalizados/grupos?incluirDefiniciones=1`, {
+    peticion(`/catalogo/atributos-personalizados/grupos?incluirDefiniciones=1`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : []))
@@ -643,7 +644,7 @@ export default function ModalFichaProducto({
                         opciones={categorias}
                         textoVacio="— Sin categoría —"
                         onChange={handleChange}
-                        endpointCrear={`${apiUrl}/catalogo/categorias`}
+                        endpointCrear={`/catalogo/categorias`}
                         token={token}
                         onCreado={(nueva) => setCategorias(prev => [...prev, nueva])}
                         className={claseCampo('categoriaId')}
@@ -660,7 +661,7 @@ export default function ModalFichaProducto({
                         opciones={marcas}
                         textoVacio="— Sin marca —"
                         onChange={handleChange}
-                        endpointCrear={`${apiUrl}/catalogo/marcas`}
+                        endpointCrear={`/catalogo/marcas`}
                         token={token}
                         onCreado={(nueva) => setMarcas(prev => [...prev, nueva])}
                         className={inp}

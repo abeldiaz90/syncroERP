@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { peticion } from '@/lib/api';
 import { plural } from '@/lib/format';
 import { diaDe, diaISO, fechaCorta, mesHastaHoy } from '@/lib/fechas';
 import { BarChart2, RefreshCw, TrendingUp, DollarSign, ShoppingBag, CreditCard } from 'lucide-react';
@@ -74,7 +75,7 @@ export default function ReporteVentasPage() {
     setCargando(true);
     const p = new URLSearchParams({ fechaDesde: desde, fechaHasta: hasta, limite: '500' });
     try {
-      const r = await fetch(`${api}/ventas?${p}`, { headers: h() });
+      const r = await peticion(`/ventas?${p}`, { headers: h() });
       if (r.ok) { const d = await r.json(); setVentas(d.ventas ?? d); setError(''); }
       else {
         setVentas([]);

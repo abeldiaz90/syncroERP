@@ -1,6 +1,7 @@
 // app/dashboard/hoteleria/auditoria/page.tsx
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { peticion } from '@/lib/api';
 import {
   Moon,
   Loader2,
@@ -72,7 +73,7 @@ export default function AuditoriaPage() {
   };
 
   const cargarHoteles = useCallback(async () => {
-    const r = await fetch(`${api}/hoteleria/config/hoteles`, { headers: h() });
+    const r = await peticion(`/hoteleria/config/hoteles`, { headers: h() });
     if (r.ok) {
       const d = await r.json();
       setHoteles(d);
@@ -83,8 +84,7 @@ export default function AuditoriaPage() {
 
   const cargarEstado = useCallback(async () => {
     if (!hotelId) return;
-    const r = await fetch(
-      `${api}/hoteleria/auditoria/estado?hotelId=${hotelId}`,
+    const r = await peticion(`/hoteleria/auditoria/estado?hotelId=${hotelId}`,
       { headers: h() },
     );
     if (r.ok) setEstado(await r.json());
@@ -108,7 +108,7 @@ export default function AuditoriaPage() {
 
   const correr = async () => {
     setCorriendo(true);
-    const r = await fetch(`${api}/hoteleria/auditoria/ejecutar`, {
+    const r = await peticion(`/hoteleria/auditoria/ejecutar`, {
       method: "POST",
       headers: h(),
       body: JSON.stringify({ hotelId }),

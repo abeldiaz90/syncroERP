@@ -1,6 +1,7 @@
 "use client";
 
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { peticion } from '@/lib/api';
 import { useState, useEffect } from "react";
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { Search, Plus, Edit2, Power, X, Percent, AlertCircle, CheckCircle2 } from "lucide-react";
@@ -39,7 +40,7 @@ export default function ImpuestosPage() {
     setCargando(true);
     const token = localStorage.getItem("syncro_token");
     try {
-      const res = await fetch(`${apiUrl}/catalogo/impuestos`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/catalogo/impuestos`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setImpuestos(await res.json());
       else mostrarToast("Error al cargar los impuestos", "error");
     } catch { mostrarToast("Error de conexión con el servidor", "error"); }
@@ -65,10 +66,10 @@ export default function ImpuestosPage() {
     }
     setGuardando(true);
     const token = localStorage.getItem("syncro_token");
-    const url = editandoId ? `${apiUrl}/catalogo/impuestos/${editandoId}` : `${apiUrl}/catalogo/impuestos`;
+    const url = editandoId ? `/catalogo/impuestos/${editandoId}` : `/catalogo/impuestos`;
     const payload = { nombre: formData.nombre.trim(), porcentaje: Number(formData.porcentaje) };
     try {
-      const res = await fetch(url, {
+      const res = await peticion(url, {
         method: editandoId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
@@ -83,7 +84,7 @@ export default function ImpuestosPage() {
     if (!await confirmarElegante(`¿Deseas ${activo ? "desactivar" : "activar"} este impuesto?`, { peligroso: activo })) return;
     const token = localStorage.getItem("syncro_token");
     try {
-      const res = await fetch(`${apiUrl}/catalogo/impuestos/${id}/estado`, { method: "PATCH", headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/catalogo/impuestos/${id}/estado`, { method: "PATCH", headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) { fetchImpuestos(); mostrarToast(`Impuesto ${activo ? "desactivado" : "activado"} correctamente`, "exito"); }
       else mostrarToast("Error al cambiar el estado del impuesto", "error");
     } catch { mostrarToast("Error de conexión con el servidor", "error"); }

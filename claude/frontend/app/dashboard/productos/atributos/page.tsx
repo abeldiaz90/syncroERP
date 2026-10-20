@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { peticion } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import Link from "next/link";
 import {
@@ -57,7 +58,7 @@ export default function AtributosPersonalizadosPage() {
   const cargar = useCallback(async () => {
     setCargando(true); setError("");
     try {
-      const res = await fetch(`${apiUrl}/catalogo/atributos-personalizados/grupos?incluirDefiniciones=1`, { headers: H() });
+      const res = await peticion(`/catalogo/atributos-personalizados/grupos?incluirDefiniciones=1`, { headers: H() });
       if (!res.ok) throw new Error("No se pudieron cargar los grupos");
       const data = await res.json();
       setGrupos(extraerLista(data));
@@ -71,7 +72,7 @@ export default function AtributosPersonalizadosPage() {
   const llamar = async (url: string, method: string, body?: any) => {
     setGuardando(true); setError("");
     try {
-      const res = await fetch(`${apiUrl}${url}`, {
+      const res = await peticion(`${url}`, {
         method, headers: H(), body: body ? JSON.stringify(body) : undefined,
       });
       const data = await res.json().catch(() => ({}));

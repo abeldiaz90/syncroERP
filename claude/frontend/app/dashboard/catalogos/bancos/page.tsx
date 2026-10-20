@@ -1,6 +1,7 @@
 "use client";
 
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { peticion } from '@/lib/api';
 import { useState, useEffect } from "react";
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
@@ -59,7 +60,7 @@ export default function BancosPage() {
     setCargando(true);
     const token = localStorage.getItem("syncro_token");
     try {
-      const res = await fetch(`${apiUrl}/catalogos/bancos`, {
+      const res = await peticion(`/catalogos/bancos`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setBancos(await res.json());
@@ -104,10 +105,10 @@ export default function BancosPage() {
     setGuardando(true);
     const token = localStorage.getItem("syncro_token");
     const url = editandoId
-      ? `${apiUrl}/catalogos/bancos/${editandoId}`
-      : `${apiUrl}/catalogos/bancos`;
+      ? `/catalogos/bancos/${editandoId}`
+      : `/catalogos/bancos`;
     try {
-      const res = await fetch(url, {
+      const res = await peticion(url, {
         method: editandoId ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
@@ -147,7 +148,7 @@ export default function BancosPage() {
       return;
     const token = localStorage.getItem("syncro_token");
     try {
-      const res = await fetch(`${apiUrl}/catalogos/bancos/${id}/estado`, {
+      const res = await peticion(`/catalogos/bancos/${id}/estado`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
+import { peticion } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import Link from 'next/link';
 import {
@@ -155,16 +156,16 @@ export default function ProductosPage() {
          */
         const vacio = Promise.resolve([] as never[]);
         const [cat, alm, mar, imp, listas, unids] = await Promise.all([
-          fetch(`${apiUrl}/catalogo/categorias`, { headers: h }).then(r => r.ok ? r.json() : []),
-          fetch(`${apiUrl}/catalogo/almacenes`, { headers: h }).then(r => r.ok ? r.json() : []),
-          fetch(`${apiUrl}/catalogo/marcas`, { headers: h }).then(r => r.ok ? r.json() : []),
+          peticion(`/catalogo/categorias`, { headers: h }).then(r => r.ok ? r.json() : []),
+          peticion(`/catalogo/almacenes`, { headers: h }).then(r => r.ok ? r.json() : []),
+          peticion(`/catalogo/marcas`, { headers: h }).then(r => r.ok ? r.json() : []),
           tienePermiso('GET', '/api/catalogo/impuestos')
-            ? fetch(`${apiUrl}/catalogo/impuestos`, { headers: h }).then(r => r.ok ? r.json() : [])
+            ? peticion(`/catalogo/impuestos`, { headers: h }).then(r => r.ok ? r.json() : [])
             : vacio,
           llevaPrecios
-            ? fetch(`${apiUrl}/catalogo/listas-precio`, { headers: h }).then(r => r.ok ? r.json() : [])
+            ? peticion(`/catalogo/listas-precio`, { headers: h }).then(r => r.ok ? r.json() : [])
             : vacio,
-          fetch(`${apiUrl}/catalogo/unidades-medida?soloActivas=true`, { headers: h }).then(r => r.ok ? r.json() : []),
+          peticion(`/catalogo/unidades-medida?soloActivas=true`, { headers: h }).then(r => r.ok ? r.json() : []),
         ]);
         setCategorias(cat); setAlmacenes(alm); setMarcas(mar);
         setImpuestos(imp); setListasPrecio(listas);
@@ -219,9 +220,9 @@ export default function ProductosPage() {
        * otra forma de respuesta.
        */
       if (cb.trim()) params.append('q', cb.trim());
-      const url = `${apiUrl}/catalogo/productos?${params}`;
+      const url = `/catalogo/productos?${params}`;
 
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(url, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
         const nuevos: IProducto[] = data.productos || data;
@@ -348,8 +349,8 @@ export default function ProductosPage() {
     setGuardando(true);
     const token = localStorage.getItem('syncro_token');
     const url = productoEditandoId
-      ? `${apiUrl}/catalogo/productos/${productoEditandoId}`
-      : `${apiUrl}/catalogo/productos`;
+      ? `/catalogo/productos/${productoEditandoId}`
+      : `/catalogo/productos`;
 
     const fd = formData;
 
@@ -483,7 +484,7 @@ export default function ProductosPage() {
     }
 
     try {
-      const res = await fetch(url, {
+      const res = await peticion(url, {
         method: productoEditandoId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
@@ -507,7 +508,7 @@ export default function ProductosPage() {
   const handleCambiarEstado = async (id: string) => {
     if (!await confirmarElegante('¿Deseas cambiar el estado de este producto?')) return;
     const token = localStorage.getItem('syncro_token');
-    const res = await fetch(`${apiUrl}/catalogo/productos/${id}/estado`, {
+    const res = await peticion(`/catalogo/productos/${id}/estado`, {
       method: 'PATCH', headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) fetchProductos(1, false, filtros, busquedaDebounced, mostrarCatalogoCompleto);
@@ -516,7 +517,7 @@ export default function ProductosPage() {
   const handleTransaccionInventario = async (data: any) => {
     if (!data.almacenId || data.cantidad <= 0) return mostrarToast('Verifica almacén y cantidad.', 'info');
     const token = localStorage.getItem('syncro_token');
-    const res = await fetch(`${apiUrl}/catalogo/inventario/productos/${data.id}/${modalInventario.tipo}`, {
+    const res = await peticion(`/catalogo/inventario/productos/${data.id}/${modalInventario.tipo}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({
@@ -541,7 +542,7 @@ export default function ProductosPage() {
     const urls: string[] = [];
     for (let i = 0; i < files.length; i++) {
       const form = new FormData(); form.append('imagen', files[i]);
-      const res = await fetch(`${apiUrl}/catalogo/productos/imagen`, {
+      const res = await peticion(`/catalogo/productos/imagen`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
       });
       if (res.ok) urls.push((await res.json()).url);

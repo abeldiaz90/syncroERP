@@ -416,6 +416,126 @@ async function request<T>(
   return cuerpo as T;
 }
 
+/**
+ * ============================================================================
+ * La misma puerta, devolviendo la respuesta en crudo
+ * ----------------------------------------------------------------------------
+ * MEDIDO el 20-oct-2026: treinta archivos de pantalla llamaban a la API con
+ * `fetch` a mano —el token sacado de `localStorage` y la cabecera escrita
+ * ahí mismo—. Entre ellos productos, usuarios, proveedores, almacenes,
+ * recepciones, stock inicial y todo compras.
+ *
+ * Funciona, y pierde las tres cosas que esta capa hace en TODAS las llamadas:
+ *
+ *  1. La cabecera de «ver el ERP como otra persona». Sin ella la suplantación
+ *     no llega al servidor y la pantalla se atiende con el alcance de quien
+ *     mira de verdad. Lo grave no es que no funcione: es que PARECE que sí,
+ *     porque la banda naranja sigue arriba diciendo a quién se está viendo.
+ *     Quien revisa permisos en esas pantallas saca una conclusión falsa.
+ *  2. `asegurarSesion()`, que renueva el token ANTES de que caduque. Sin ella,
+ *     a los quince minutos la pantalla contesta «Error al cargar» y ahí se
+ *     queda. Es el síntoma que estaba anotado como «la sesión se cae y no se
+ *     ha demostrado que sea defecto»: no se cae la sesión, se caen esas
+ *     pantallas.
+ *  3. El 401 con su segunda oportunidad, y el tiempo límite para una petición
+ *     que no vuelve nunca.
+ *
+ * ── POR QUÉ ESTA FUNCIÓN Y NO REESCRIBIR LAS TREINTA ────────────────────────
+ *
+ * Porque reescribir treinta pantallas a la vez, cada una con su manejo de
+ * `res.ok`, sus mensajes y sus ramas, es treinta oportunidades de cambiar algo
+ * más sin querer, y no hay forma de probarlas todas antes de producción.
+ *
+ * Esto devuelve la `Response` tal cual, así que `res.ok`, `res.json()` y cada
+ * rama existente siguen comportándose igual. La migración de cada pantalla es
+ * una línea, y lo que gana son exactamente las tres cosas de arriba. Pasar
+ * después a `api.get`/`api.post` —con sus mensajes normalizados— es una mejora
+ * aparte, que se hace pantalla por pantalla y se puede ver.
+ *
+ * NO lanza `ApiError` ni interpreta el cuerpo: eso es lo que la diferencia de
+ * `request`, y lo que permite que la pantalla que la usa no cambie.
+ * ============================================================================
+ */
+export async function peticion(
+  path: string,
+  init: RequestInit & { timeoutMs?: number } = {},
+  yaRenovado = false,
+): Promise<Response> {
+  const { timeoutMs = TIMEOUT_MS, headers, ...resto } = init;
+
+  await asegurarSesion();
+
+  const controlador = new AbortController();
+  const temporizador = setTimeout(() => controlador.abort(), timeoutMs);
+  const jwt = sesionToken.get();
+  const esFormData = typeof FormData !== 'undefined' && resto.body instanceof FormData;
+
+  /*
+   * El orden importa, y es al revés que en `request`.
+   *
+   * Las pantallas migradas traen todavía su `Authorization` escrita a mano,
+   * con el token que ellas mismas sacaron de `localStorage`. Si esas cabeceras
+   * se mezclaran al final, pisarían la de aquí y volveríamos al problema: la
+   * petición saldría con el token que la pantalla leyó, no con el que la
+   * sesión acaba de renovar.
+   *
+   * Así que lo suyo va en medio —su `Content-Type` manda, que es asunto de la
+   * llamada— y la identidad va DESPUÉS: quién eres y a quién pides ser
+   * atendido lo decide esta puerta, no quien la cruza.
+   */
+  const cabeceras: Record<string, string> = {
+    Accept: 'application/json',
+    ...(esFormData || resto.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    ...((headers ?? {}) as Record<string, string>),
+    ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+    ...(verComoActual() ? { [CABECERA_SUPLANTACION]: verComoActual()!.id } : {}),
+  };
+
+  let respuesta: Response;
+  try {
+    respuesta = await fetch(construirUrl(path), {
+      ...resto,
+      headers: cabeceras,
+      signal: controlador.signal,
+    });
+  } catch (e) {
+    clearTimeout(temporizador);
+    /*
+     * Se devuelve una respuesta de verdad y no se lanza: quien llama tiene
+     * escrito `if (res.ok)`, y una excepción aquí cambiaría su flujo, que es
+     * justo lo que esta función existe para no hacer.
+     */
+    const abortado = e instanceof DOMException && e.name === 'AbortError';
+    return new Response(
+      JSON.stringify({
+        message: abortado
+          ? 'La petición tardó demasiado. Revisa tu conexión.'
+          : 'No se pudo conectar con el servidor.',
+      }),
+      { status: abortado ? 408 : 503, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+  clearTimeout(temporizador);
+
+  /*
+   * El 401 con su segunda oportunidad, igual que en `request`: el reloj del
+   * equipo pudo ir adelantado, o el token se invalidó del lado de Keycloak.
+   */
+  if (respuesta.status === 401) {
+    /*
+     * UNA sola vez. Sin este candado, un servidor que siga contestando 401
+     * después de renovar deja a la pantalla dando vueltas contra la API en
+     * lugar de mandar a quien mira a la puerta de acceso.
+     */
+    if (!yaRenovado && (await renovarSesion())) {
+      return peticion(path, init, true);
+    }
+    sesionExpirada();
+  }
+
+  return respuesta;
+}
+
 /* ── API pública ─────────────────────────────────────────────────────────── */
 
 export const api = {

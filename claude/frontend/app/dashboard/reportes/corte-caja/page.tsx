@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { peticion } from '@/lib/api';
 import { hoyISO } from '@/lib/fechas';
 import { Receipt, RefreshCw, DollarSign } from 'lucide-react';
 import { ExportBar } from '../../../components/export-bar';
@@ -48,8 +49,8 @@ export default function CorteCajaPage() {
   const cargar = useCallback(async () => {
     setCargando(true);
     const [rv, rp] = await Promise.all([
-      fetch(`${api}/ventas?fechaDesde=${fecha}&fechaHasta=${fecha}&limite=500`, { headers: h() }),
-      fetch(`${api}/credito/cobranza/pagos-del-dia?fecha=${fecha}`, { headers: h() }).catch(() => ({ ok: false })),
+      peticion(`/ventas?fechaDesde=${fecha}&fechaHasta=${fecha}&limite=500`, { headers: h() }),
+      peticion(`/credito/cobranza/pagos-del-dia?fecha=${fecha}`, { headers: h() }).catch(() => ({ ok: false })),
     ]);
     if (rv.ok) {
       const d = await rv.json();

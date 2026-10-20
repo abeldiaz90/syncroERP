@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { peticion } from '@/lib/api';
 import { diaDe, fechaCorta, mesEnCurso } from '@/lib/fechas';
 import { plural } from '@/lib/format';
 import Link from 'next/link';
@@ -128,8 +129,7 @@ export default function LibroDiarioPage() {
         El filtro de abajo se queda —recorta por tipo y por texto mientras se
         teclea, sin volver a preguntar— pero ya no es él quien acota el volumen.
       */
-      const r = await fetch(
-        `${api}/finanzas/polizas?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`,
+      const r = await peticion(`/finanzas/polizas?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`,
         { headers: { Authorization: `Bearer ${tok()}` } },
       );
       if (r.ok) {
@@ -156,7 +156,7 @@ export default function LibroDiarioPage() {
     if (!detalle) return;
     setCancelando(true); setErrCancel(null); setOkCancel(null);
     try {
-      const r = await fetch(`${api}/finanzas/polizas/${detalle.id}/cancelar`, {
+      const r = await peticion(`/finanzas/polizas/${detalle.id}/cancelar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
         body: JSON.stringify({ motivo, regenerar }),

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { peticion } from '@/lib/api';
 import { fechaCorta } from '@/lib/fechas';
 import { AlertTriangle, TrendingDown, Clock, Users, DollarSign, RefreshCw, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
@@ -76,7 +77,7 @@ export default function CarteraVencidaPage() {
   const cargar = async () => {
     setCargando(true);
     try {
-      const res = await fetch(`${api}/credito/creditos/cartera-vencida`,{
+      const res = await peticion(`/credito/creditos/cartera-vencida`,{
         headers:{ Authorization:`Bearer ${tok()}` }
       });
       if (res.ok) { setCartera(await res.json()); return; }
@@ -103,7 +104,7 @@ export default function CarteraVencidaPage() {
     setRecalculando(true);
     setAviso(null);
     try {
-      const res = await fetch(`${api}/credito/cobranza/actualizar-vencidos`, {
+      const res = await peticion(`/credito/cobranza/actualizar-vencidos`, {
         method:'POST', headers:{ Authorization:`Bearer ${tok()}` }
       });
       if (!res.ok) {

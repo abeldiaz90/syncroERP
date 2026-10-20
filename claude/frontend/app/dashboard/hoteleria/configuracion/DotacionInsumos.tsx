@@ -1,6 +1,7 @@
 // app/dashboard/hoteleria/configuracion/DotacionInsumos.tsx
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { peticion } from '@/lib/api';
 import { plural } from '@/lib/format';
 import { Package, Plus, X, Loader2, CheckCircle2, Search, Trash2, Layers } from 'lucide-react';
 
@@ -29,7 +30,7 @@ export default function DotacionInsumos({ api, h, hotelId, tipos }: {
   const cargarDotacion = useCallback(async () => {
     if (!tipoId) return;
     setCargando(true);
-    const r = await fetch(`${api}/hoteleria/config/dotacion?tipoHabitacionId=${tipoId}`, { headers: h() });
+    const r = await peticion(`/hoteleria/config/dotacion?tipoHabitacionId=${tipoId}`, { headers: h() });
     if (r.ok) {
       const d = await r.json();
       setItems(d.map((x: any) => ({ id: x.id, productoId: x.productoId, productoNombre: x.productoNombre ?? 'Producto', cantidad: Number(x.cantidad), tipoArticulo: x.tipoArticulo ?? 'CONSUMIBLE' })));
@@ -44,7 +45,7 @@ export default function DotacionInsumos({ api, h, hotelId, tipos }: {
     if (!busca.trim()) { setResultados([]); return; }
     setBuscando(true);
     const t = setTimeout(async () => {
-      const r = await fetch(`${api}/catalogo/productos/buscar?q=${encodeURIComponent(busca)}`, { headers: h() });
+      const r = await peticion(`/catalogo/productos/buscar?q=${encodeURIComponent(busca)}`, { headers: h() });
       if (r.ok) {
         const d = await r.json();
         const arr = Array.isArray(d) ? d : (d.data ?? []);
@@ -72,7 +73,7 @@ export default function DotacionInsumos({ api, h, hotelId, tipos }: {
   const guardar = async () => {
     if (!tipoId) return;
     setGuardando(true);
-    const r = await fetch(`${api}/hoteleria/config/dotacion`, {
+    const r = await peticion(`/hoteleria/config/dotacion`, {
       method: 'POST', headers: h(),
       body: JSON.stringify({
         tipoHabitacionId: tipoId,

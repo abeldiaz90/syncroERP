@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { peticion } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -82,8 +83,8 @@ export default function CotizacionesRequisicionPage() {
       const token = localStorage.getItem('syncro_token');
       try {
         const [reqRes, cotRes] = await Promise.all([
-          fetch(`${apiUrl}/compras/requisiciones/${requisicionId}`, { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${apiUrl}/compras/cotizaciones/requisicion/${requisicionId}`, { headers: { Authorization: `Bearer ${token}` } }),
+          peticion(`/compras/requisiciones/${requisicionId}`, { headers: { Authorization: `Bearer ${token}` } }),
+          peticion(`/compras/cotizaciones/requisicion/${requisicionId}`, { headers: { Authorization: `Bearer ${token}` } }),
         ]);
         if (reqRes.ok) setRequisicion(await reqRes.json());
         if (cotRes.ok) { const payload = await cotRes.json(); setCotizaciones(Array.isArray(payload) ? payload : (payload?.data ?? [])); }
@@ -94,7 +95,7 @@ export default function CotizacionesRequisicionPage() {
   }, [requisicionId, apiUrl]);
 
   const recargarCotizaciones = async (token: string | null) => {
-    const updated = await fetch(`${apiUrl}/compras/cotizaciones/requisicion/${requisicionId}`, { headers: { Authorization: `Bearer ${token}` } });
+    const updated = await peticion(`/compras/cotizaciones/requisicion/${requisicionId}`, { headers: { Authorization: `Bearer ${token}` } });
     if (updated.ok) {
       const payload = await updated.json();
       setCotizaciones(Array.isArray(payload) ? payload : (payload?.data ?? []));
@@ -108,7 +109,7 @@ export default function CotizacionesRequisicionPage() {
     const token = localStorage.getItem('syncro_token');
     try {
       const body = accion === 'solicitar-aprobacion' ? { motivoSeleccion: comentario } : { comentario };
-      const res = await fetch(`${apiUrl}/compras/cotizaciones/${cot.id}/${accion}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+      const res = await peticion(`/compras/cotizaciones/${cot.id}/${accion}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(Array.isArray(data?.message) ? data.message.join(', ') : (data?.message || 'No fue posible completar la acción'));
       mostrarToast(accion === 'solicitar-aprobacion' ? 'Adjudicación enviada a aprobación' : accion === 'aprobar' ? 'Adjudicación aprobada' : 'Adjudicación rechazada', 'exito');
@@ -123,7 +124,7 @@ export default function CotizacionesRequisicionPage() {
     setProcesandoId(cot.id);
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/compras/ordenes`, {
+      const res = await peticion(`/compras/ordenes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ cotizacionId: cot.id }),

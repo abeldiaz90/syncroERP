@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { peticion } from '@/lib/api';
 import { fechaLarga, diaISO, mesEnCurso } from '@/lib/fechas';
 import { Calendar, X, Printer, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
@@ -59,7 +60,7 @@ export default function EstadoResultadosPage() {
     if (desde) params.set('fechaDesde', desde);
     if (hasta) params.set('fechaHasta', hasta);
     try {
-      const res = await fetch(`${api}/finanzas/polizas/balanza?${params}`, {
+      const res = await peticion(`/finanzas/polizas/balanza?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {

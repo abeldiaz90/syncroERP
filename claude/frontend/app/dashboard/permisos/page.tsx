@@ -32,6 +32,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { peticion } from '@/lib/api';
 import Link from 'next/link';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import {
@@ -204,7 +205,7 @@ export default function PermisosPage() {
   const h = () => ({ Authorization: `Bearer ${tok()}`, 'Content-Type': 'application/json' });
 
   const cargarResumen = useCallback(async (): Promise<IResumenRol[]> => {
-    const res = await fetch(`${api}/admin/permisos/resumen-roles`, { headers: h() });
+    const res = await peticion(`/admin/permisos/resumen-roles`, { headers: h() });
     if (!res.ok) return [];
     const data: IResumenRol[] = await res.json();
     setResumen(data);
@@ -213,7 +214,7 @@ export default function PermisosPage() {
 
   const cargarModulos = useCallback(async (r: string) => {
     setCargandoRol(true);
-    const res = await fetch(`${api}/admin/permisos/rol/${encodeURIComponent(r)}/modulos`, { headers: h() });
+    const res = await peticion(`/admin/permisos/rol/${encodeURIComponent(r)}/modulos`, { headers: h() });
     if (res.ok) {
       const data: IModulo[] = await res.json();
       setModulos(data);
@@ -253,7 +254,7 @@ export default function PermisosPage() {
     const aEnviar: Record<string, Acceso> = {};
     tocados.forEach(id => { aEnviar[id] = accesos[id] ?? 'ninguno'; });
     setGuardando(true);
-    const res = await fetch(`${api}/admin/permisos/rol/${encodeURIComponent(rol)}/modulos`, {
+    const res = await peticion(`/admin/permisos/rol/${encodeURIComponent(rol)}/modulos`, {
       method: 'PUT', headers: h(), body: JSON.stringify({ accesos: aEnviar, modo: 'reemplazar' }),
     });
     setGuardando(false);
@@ -280,7 +281,7 @@ export default function PermisosPage() {
     setConfirmPlantilla(false);
     setAplicando(true);
     try {
-      const res = await fetch(`${api}/admin/permisos/rol/${encodeURIComponent(rol)}/aplicar-plantilla`, {
+      const res = await peticion(`/admin/permisos/rol/${encodeURIComponent(rol)}/aplicar-plantilla`, {
         method: 'POST', headers: h(), body: JSON.stringify({ modo: 'reemplazar' }),
       });
       const d = await res.json().catch(() => null);
@@ -299,7 +300,7 @@ export default function PermisosPage() {
   const sincronizar = async () => {
     setSincronizando(true);
     try {
-      const res = await fetch(`${api}/admin/permisos/sincronizar`, { method: 'POST', headers: h() });
+      const res = await peticion(`/admin/permisos/sincronizar`, { method: 'POST', headers: h() });
       const d = await res.json().catch(() => null);
       if (!res.ok) throw new Error(d?.message || 'No fue posible sincronizar');
       await cargarModulos(rol);
@@ -315,8 +316,7 @@ export default function PermisosPage() {
     if (s.has(m.id)) { s.delete(m.id); setAbiertos(s); return; }
     s.add(m.id); setAbiertos(s);
     if (detalle[m.id]) return;
-    const res = await fetch(
-      `${api}/admin/permisos/rol/${encodeURIComponent(rol)}/modulo/${encodeURIComponent(m.id)}`,
+    const res = await peticion(`/admin/permisos/rol/${encodeURIComponent(rol)}/modulo/${encodeURIComponent(m.id)}`,
       { headers: h() },
     );
     if (!res.ok) return;
@@ -337,13 +337,12 @@ export default function PermisosPage() {
    */
   const alternarAccion = async (moduloId: string, accion: IAccion) => {
     const deseado = !accion.permitido;
-    const res = await fetch(`${api}/admin/permisos/rol/${encodeURIComponent(rol)}`, {
+    const res = await peticion(`/admin/permisos/rol/${encodeURIComponent(rol)}`, {
       method: 'PUT', headers: h(), body: JSON.stringify({ permisos: { [accion.id]: deseado } }),
     });
     if (!res.ok) { mostrarToast('No se pudo cambiar esa acción.', false); return; }
 
-    const releido = await fetch(
-      `${api}/admin/permisos/rol/${encodeURIComponent(rol)}/modulo/${encodeURIComponent(moduloId)}`,
+    const releido = await peticion(`/admin/permisos/rol/${encodeURIComponent(rol)}/modulo/${encodeURIComponent(moduloId)}`,
       { headers: h() },
     );
     if (releido.ok) {
@@ -362,7 +361,7 @@ export default function PermisosPage() {
       }
     }
 
-    const r = await fetch(`${api}/admin/permisos/rol/${encodeURIComponent(rol)}/modulos`, { headers: h() });
+    const r = await peticion(`/admin/permisos/rol/${encodeURIComponent(rol)}/modulos`, { headers: h() });
     if (r.ok) setModulos(await r.json());
   };
 

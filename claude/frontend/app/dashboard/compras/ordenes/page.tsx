@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { peticion } from '@/lib/api';
 import Link from 'next/link';
 import { FOLIO, folioDe } from '@/lib/folios';
 import { 
@@ -37,7 +38,7 @@ export default function OrdenesCompraPage() {
       setCargando(true);
       const token = localStorage.getItem('syncro_token');
       try {
-        const res = await fetch(`${apiUrl}/compras/ordenes`, {
+        const res = await peticion(`/compras/ordenes`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {

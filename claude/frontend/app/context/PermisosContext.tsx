@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { peticion } from '@/lib/api';
 import { esRolAdministrador } from '@/lib/roles';
 import { leerSesion } from '@/lib/session';
 import { CABECERA_SUPLANTACION, EVENTO_VER_COMO, verComoActual } from '@/lib/ver-como';
@@ -95,7 +96,7 @@ export function PermisosProvider({ children }: { children: ReactNode }) {
     setPermisos(adminPorSesion ? { '*': true } : {});
 
     try {
-      const r = await fetch(`${apiUrl}/auth/mis-permisos`, {
+      const r = await peticion(`/auth/mis-permisos`, {
         headers: {
           Authorization: `Bearer ${token}`,
           ...(suplantando ? { [CABECERA_SUPLANTACION]: suplantando.id } : {}),

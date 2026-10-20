@@ -1,6 +1,7 @@
 "use client";
 
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { peticion } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { Layers, Plus, Edit2, Trash2, CheckCircle2, AlertCircle, Loader2, DollarSign } from 'lucide-react';
@@ -48,7 +49,7 @@ export default function ListasPrecioPage() {
     setCargando(true);
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/catalogo/listas-precio`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/catalogo/listas-precio`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setListas(await res.json());
     } catch { mostrarToast('Error al cargar las listas', 'error'); }
     finally { setCargando(false); }
@@ -62,9 +63,9 @@ export default function ListasPrecioPage() {
     if (errorNombre) { mostrarToast(errorNombre, 'error'); return; }
     setGuardando(true);
     const token = localStorage.getItem('syncro_token');
-    const url = editandoId ? `${apiUrl}/catalogo/listas-precio/${editandoId}` : `${apiUrl}/catalogo/listas-precio`;
+    const url = editandoId ? `/catalogo/listas-precio/${editandoId}` : `/catalogo/listas-precio`;
     try {
-      const res = await fetch(url, {
+      const res = await peticion(url, {
         method: editandoId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -97,7 +98,7 @@ export default function ListasPrecioPage() {
     if (!await confirmarElegante('¿Seguro que deseas eliminar esta lista? Los productos perderán este precio.', { peligroso: true })) return;
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/catalogo/listas-precio/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const res = await peticion(`/catalogo/listas-precio/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) { mostrarToast('Lista eliminada', 'exito'); fetchListas(); }
     } catch { mostrarToast('Error al eliminar', 'error'); }
   };

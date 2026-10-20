@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { peticion } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Printer, ChevronLeft, Building2, ShoppingCart, Calendar, MapPin } from 'lucide-react';
@@ -51,7 +52,7 @@ export default function PdfOCPage() {
     const fetchOC = async () => {
       const token = localStorage.getItem('syncro_token');
       try {
-        const res = await fetch(`${apiUrl}/compras/ordenes/${id}`, {
+        const res = await peticion(`/compras/ordenes/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {

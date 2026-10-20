@@ -1,6 +1,7 @@
 // app/dashboard/hoteleria/rack/page.tsx
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { peticion } from '@/lib/api';
 import {
   Hotel,
   Sparkles,
@@ -118,7 +119,7 @@ export default function RackPage() {
   };
 
   const cargarHoteles = useCallback(async () => {
-    const r = await fetch(`${api}/hoteleria/config/hoteles`, { headers: h() });
+    const r = await peticion(`/hoteleria/config/hoteles`, { headers: h() });
     if (r.ok) {
       const d = await r.json();
       setHoteles(d);
@@ -129,8 +130,7 @@ export default function RackPage() {
 
   const cargarRack = useCallback(async () => {
     if (!hotelId) return;
-    const r = await fetch(
-      `${api}/hoteleria/housekeeping/rack?hotelId=${hotelId}`,
+    const r = await peticion(`/hoteleria/housekeeping/rack?hotelId=${hotelId}`,
       { headers: h() },
     );
     if (r.ok) {
@@ -149,7 +149,7 @@ export default function RackPage() {
 
   const precargarDemo = async () => {
     setPrecargando(true);
-    const r = await fetch(`${api}/hoteleria/config/precargar-demo`, {
+    const r = await peticion(`/hoteleria/config/precargar-demo`, {
       method: "POST",
       headers: h(),
     });
@@ -161,8 +161,7 @@ export default function RackPage() {
   };
 
   const cambiarEstado = async (habId: string, estado: string) => {
-    const r = await fetch(
-      `${api}/hoteleria/housekeeping/habitaciones/${habId}/estado`,
+    const r = await peticion(`/hoteleria/housekeeping/habitaciones/${habId}/estado`,
       {
         method: "PATCH",
         headers: h(),

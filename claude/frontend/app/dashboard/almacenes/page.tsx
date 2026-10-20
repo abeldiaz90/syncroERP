@@ -1,6 +1,7 @@
 "use client";
 
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { peticion } from '@/lib/api';
 import { useState, useEffect } from "react";
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { 
@@ -45,7 +46,7 @@ export default function AlmacenesPage() {
     setCargando(true);
     const token = localStorage.getItem("syncro_token");
     try {
-      const res = await fetch(`${apiUrl}/catalogo/almacenes?estado=TODOS`, {
+      const res = await peticion(`/catalogo/almacenes?estado=TODOS`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setAlmacenes(await res.json());
@@ -80,12 +81,12 @@ export default function AlmacenesPage() {
     setGuardando(true);
     const token = localStorage.getItem("syncro_token");
     const url = editandoId
-      ? `${apiUrl}/catalogo/almacenes/${editandoId}`
-      : `${apiUrl}/catalogo/almacenes`;
+      ? `/catalogo/almacenes/${editandoId}`
+      : `/catalogo/almacenes`;
     const metodo = editandoId ? "PATCH" : "POST";
 
     try {
-      const res = await fetch(url, {
+      const res = await peticion(url, {
         method: metodo,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(formData),
@@ -109,7 +110,7 @@ export default function AlmacenesPage() {
     if (!await confirmarElegante(`¿Estás seguro de que deseas ${activo ? "desactivar" : "activar"} este almacén?`, { peligroso: activo })) return;
     const token = localStorage.getItem("syncro_token");
     try {
-      const res = await fetch(`${apiUrl}/catalogo/almacenes/${id}/estado`, {
+      const res = await peticion(`/catalogo/almacenes/${id}/estado`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` },
       });

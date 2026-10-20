@@ -1,6 +1,7 @@
 "use client";
 
 import FormValidationGuard from "@/app/components/FormValidationGuard";
+import { peticion } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import {
   Scale, Package, Warehouse, Loader2, AlertTriangle,
@@ -35,8 +36,8 @@ export default function AjustesStockPage() {
   useEffect(() => {
     const token = localStorage.getItem('syncro_token');
     Promise.all([
-      fetch(`${apiUrl}/catalogo/productos?limite=2000`, { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${apiUrl}/catalogo/almacenes`, { headers: { Authorization: `Bearer ${token}` } }),
+      peticion(`/catalogo/productos?limite=2000`, { headers: { Authorization: `Bearer ${token}` } }),
+      peticion(`/catalogo/almacenes`, { headers: { Authorization: `Bearer ${token}` } }),
     ]).then(async ([resProd, resAlm]) => {
       /*
         Sin productos o sin almacenes no se puede capturar un ajuste, y los dos
@@ -60,7 +61,7 @@ export default function AjustesStockPage() {
     if (formData.productoId && formData.almacenId) {
       setBuscandoStock(true);
       const token = localStorage.getItem('syncro_token');
-      fetch(`${apiUrl}/catalogo/inventario/stock?productoId=${formData.productoId}&almacenId=${formData.almacenId}`, { headers: { Authorization: `Bearer ${token}` } })
+      peticion(`/catalogo/inventario/stock?productoId=${formData.productoId}&almacenId=${formData.almacenId}`, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json()).then(d => setStockActual(d.cantidad || 0))
         .catch(() => setStockActual(0)).finally(() => setBuscandoStock(false));
     } else { setStockActual(null); }
@@ -85,7 +86,7 @@ export default function AjustesStockPage() {
     setGuardando(true);
     const token = localStorage.getItem('syncro_token');
     try {
-      const res = await fetch(`${apiUrl}/catalogo/inventario/productos/ajuste`, {
+      const res = await peticion(`/catalogo/inventario/productos/ajuste`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({

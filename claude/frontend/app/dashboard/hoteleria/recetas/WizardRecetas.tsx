@@ -1,6 +1,7 @@
 // app/dashboard/hoteleria/recetas/WizardRecetas.tsx
 "use client";
 import { useState, useEffect } from 'react';
+import { peticion } from '@/lib/api';
 import { CheckCircle2, XCircle, Loader2, Sparkles, AlertTriangle, ArrowRight, X, Wallet, FolderTree, Package } from 'lucide-react';
 import { plural } from '@/lib/format';
 
@@ -32,7 +33,7 @@ export default function WizardRecetas({ api, h, onListo, onClose }: {
 
   const cargar = async () => {
     setCargando(true);
-    const r = await fetch(`${api}/recetas/wizard/diagnostico`, { headers: h() });
+    const r = await peticion(`/recetas/wizard/diagnostico`, { headers: h() });
     if (r.ok) setDiag(await r.json());
     setCargando(false);
   };
@@ -48,7 +49,7 @@ export default function WizardRecetas({ api, h, onListo, onClose }: {
     if (accion === 'crear-categoria') { url = `${api}/recetas/wizard/crear-categoria`; body = { nombre: 'Insumos Bar' }; }
 
     if (url) {
-      const r = await fetch(url, { method: 'POST', headers: h(), body: JSON.stringify(body) });
+      const r = await peticion(url, { method: 'POST', headers: h(), body: JSON.stringify(body) });
       const d = await r.json().catch(() => null);
       setMsg(d?.mensaje || (r.ok ? 'Listo' : 'Error'));
       await cargar(); // re-diagnosticar

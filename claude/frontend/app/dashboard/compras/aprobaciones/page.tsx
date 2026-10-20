@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { peticion } from '@/lib/api';
 import Link from 'next/link';
 import {
   CheckCircle2, XCircle, Eye, Clock, Package, User,
@@ -195,8 +196,8 @@ export default function AprobacionesPage() {
       requisiciones y no adjudicaciones, y al revés—, pero se anota.
     */
     const [r, ra] = await Promise.all([
-      fetch(`${api}/compras/requisiciones/aprobaciones/pendientes`, { headers: h() }),
-      fetch(`${api}/compras/cotizaciones/aprobaciones/pendientes`, { headers: h() }),
+      peticion(`/compras/requisiciones/aprobaciones/pendientes`, { headers: h() }),
+      peticion(`/compras/cotizaciones/aprobaciones/pendientes`, { headers: h() }),
     ]);
     if (r.ok) { setAprobaciones(await r.json()); }
     else { setAprobaciones([]); }
@@ -225,8 +226,8 @@ export default function AprobacionesPage() {
   const cargarHistorial = useCallback(async () => {
     setCargandoHist(true);
     const [r, ra] = await Promise.all([
-      fetch(`${api}/compras/requisiciones/aprobaciones/historial`, { headers: h() }),
-      fetch(`${api}/compras/cotizaciones/aprobaciones/historial`, { headers: h() }),
+      peticion(`/compras/requisiciones/aprobaciones/historial`, { headers: h() }),
+      peticion(`/compras/cotizaciones/aprobaciones/historial`, { headers: h() }),
     ]);
     setHistReq(r.ok ? await r.json() : []);
     setHistAdj(ra.ok ? await ra.json() : []);
@@ -258,7 +259,7 @@ export default function AprobacionesPage() {
       toast$('Escribe un motivo de rechazo', false); return;
     }
     setProcesando(id);
-    const r = await fetch(`${api}/compras/requisiciones/aprobaciones/${id}`, {
+    const r = await peticion(`/compras/requisiciones/aprobaciones/${id}`, {
       method: 'PATCH', headers: { ...h(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ estado, comentario: comentarios[id] ?? '' }),
     });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { peticion } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { Printer } from 'lucide-react';
 import { FOLIO, folioDe } from '@/lib/folios';
@@ -12,7 +13,7 @@ export default function PdfRequisicionPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('syncro_token');
-    fetch(`${apiUrl}/compras/requisiciones/${id}`, {
+    peticion(`/compras/requisiciones/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())

@@ -1,6 +1,7 @@
 // app/dashboard/hoteleria/configuracion/page.tsx
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { peticion } from '@/lib/api';
 import DotacionInsumos from "./DotacionInsumos";
 import {
   Hotel,
@@ -88,7 +89,7 @@ export default function ConfiguracionHotelPage() {
   };
 
   const cargarHoteles = useCallback(async () => {
-    const r = await fetch(`${api}/hoteleria/config/hoteles`, { headers: h() });
+    const r = await peticion(`/hoteleria/config/hoteles`, { headers: h() });
     if (r.ok) {
       const d = await r.json();
       setHoteles(d);
@@ -103,7 +104,7 @@ export default function ConfiguracionHotelPage() {
 
   const cargarTipos = useCallback(async () => {
     if (!hotelId) return;
-    const r = await fetch(`${api}/hoteleria/config/tipos?hotelId=${hotelId}`, {
+    const r = await peticion(`/hoteleria/config/tipos?hotelId=${hotelId}`, {
       headers: h(),
     });
     if (r.ok) setTipos(await r.json());
@@ -111,8 +112,7 @@ export default function ConfiguracionHotelPage() {
 
   const cargarHabs = useCallback(async () => {
     if (!hotelId) return;
-    const r = await fetch(
-      `${api}/hoteleria/config/habitaciones?hotelId=${hotelId}`,
+    const r = await peticion(`/hoteleria/config/habitaciones?hotelId=${hotelId}`,
       { headers: h() },
     );
     if (r.ok) setHabs(await r.json());
@@ -496,7 +496,7 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch(`${api}/catalogo/almacenes/para-venta`, {
+        const r = await peticion(`/catalogo/almacenes/para-venta`, {
           headers: h(),
         });
         if (r.ok) {
@@ -526,10 +526,10 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
     }
     setG(true);
     const url = esEdicion
-      ? `${api}/hoteleria/config/hoteles/${hotel.id}`
-      : `${api}/hoteleria/config/hoteles`;
+      ? `/hoteleria/config/hoteles/${hotel.id}`
+      : `/hoteleria/config/hoteles`;
     const method = esEdicion ? "PATCH" : "POST";
-    const r = await fetch(url, {
+    const r = await peticion(url, {
       method,
       headers: h(),
       body: JSON.stringify(f),
@@ -739,7 +739,7 @@ function ModalTipo({ api, h, hotelId, onClose, onOk }: any) {
       return;
     }
     setG(true);
-    const r = await fetch(`${api}/hoteleria/config/tipos`, {
+    const r = await peticion(`/hoteleria/config/tipos`, {
       method: "POST",
       headers: h(),
       body: JSON.stringify({ hotelId, ...f }),
@@ -817,7 +817,7 @@ function ModalHab({ api, h, hotelId, tipos, onClose, onOk }: any) {
           setG(false);
           return;
         }
-        const r = await fetch(`${api}/hoteleria/config/habitaciones`, {
+        const r = await peticion(`/hoteleria/config/habitaciones`, {
           method: "POST",
           headers: h(),
           body: JSON.stringify({
@@ -838,7 +838,7 @@ function ModalHab({ api, h, hotelId, tipos, onClose, onOk }: any) {
           setG(false);
           return;
         }
-        const r = await fetch(`${api}/hoteleria/config/habitaciones/lote`, {
+        const r = await peticion(`/hoteleria/config/habitaciones/lote`, {
           method: "POST",
           headers: h(),
           body: JSON.stringify({

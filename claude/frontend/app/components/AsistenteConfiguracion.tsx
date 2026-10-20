@@ -1,6 +1,7 @@
 // app/components/AsistenteConfiguracion.tsx
 "use client";
 import { useState, useEffect } from 'react';
+import { peticion } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { usePermiso } from '@/hooks/use-permisos';
 import {
@@ -154,7 +155,7 @@ export default function AsistenteConfiguracion({
         // Los pasos de puesta en marcha de la empresa son del administrador.
         if (paso.soloAdministracion && !puedeAdministrar) return null;
         try {
-          const r = await fetch(`${api}${paso.endpoint}`, { headers: h });
+          const r = await peticion(`${paso.endpoint}`, { headers: h });
           if (r.status === 401 || r.status === 403) return null;
           const d = r.ok ? await r.json().catch(() => null) : null;
           return { ...paso, completo: paso.completoSi(d) };

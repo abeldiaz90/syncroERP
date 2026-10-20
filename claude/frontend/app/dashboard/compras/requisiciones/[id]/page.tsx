@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { peticion } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -95,7 +96,7 @@ export default function DetalleRequisicionPage() {
      * primer `requisicion.id.substring(...)`: pantalla en blanco, sin decir
      * que lo que faltaba era un permiso. Ahora el motivo se muestra.
      */
-    fetch(`${apiUrl}/compras/requisiciones/${requisicionId}`, {
+    peticion(`/compras/requisiciones/${requisicionId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (r) => {
@@ -146,7 +147,7 @@ export default function DetalleRequisicionPage() {
        * firmado. En una cadena de autorizaciones eso no es un mensaje mal
        * puesto: es una firma que nadie dio y todos dan por dada.
        */
-      const r = await fetch(`${apiUrl}/compras/requisiciones/aprobaciones/${aprobacionPendiente.id}`, {
+      const r = await peticion(`/compras/requisiciones/aprobaciones/${aprobacionPendiente.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ estado, comentario }),
@@ -165,7 +166,7 @@ export default function DetalleRequisicionPage() {
 
       avisar(estado === 'APROBADO' ? 'Nivel de requisición aprobado.' : 'Requisición rechazada.', 'exito');
 
-      const nueva = await fetch(`${apiUrl}/compras/requisiciones/${requisicionId}`, {
+      const nueva = await peticion(`/compras/requisiciones/${requisicionId}`, {
         headers: { Authorization: `Bearer ${token}` },
       }).then(r => r.json());
       setRequisicion(nueva);

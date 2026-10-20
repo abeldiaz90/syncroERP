@@ -1,6 +1,7 @@
 // app/dashboard/hoteleria/reservaciones/page.tsx
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { peticion } from '@/lib/api';
 import { PuedeCrear } from "@/app/components/ProtectedElement";
 import {
   CalendarCheck,
@@ -104,7 +105,7 @@ export default function ReservacionesPage() {
   };
 
   const cargarHoteles = useCallback(async () => {
-    const r = await fetch(`${api}/hoteleria/config/hoteles`, { headers: h() });
+    const r = await peticion(`/hoteleria/config/hoteles`, { headers: h() });
     if (r.ok) {
       const d = await r.json();
       setHoteles(d);
@@ -115,7 +116,7 @@ export default function ReservacionesPage() {
 
   const cargarTipos = useCallback(async () => {
     if (!hotelId) return;
-    const r = await fetch(`${api}/hoteleria/config/tipos?hotelId=${hotelId}`, {
+    const r = await peticion(`/hoteleria/config/tipos?hotelId=${hotelId}`, {
       headers: h(),
     });
     if (r.ok) setTipos(await r.json());
@@ -123,8 +124,7 @@ export default function ReservacionesPage() {
 
   const cargarReservas = useCallback(async () => {
     if (!hotelId) return;
-    const r = await fetch(
-      `${api}/hoteleria/operacion/reservaciones?hotelId=${hotelId}`,
+    const r = await peticion(`/hoteleria/operacion/reservaciones?hotelId=${hotelId}`,
       { headers: h() },
     );
     if (r.ok) setReservas(await r.json());
@@ -433,8 +433,7 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
 
   useEffect(() => {
     void (async () => {
-      const respuesta = await fetch(
-        `${api}/hoteleria/config/habitaciones?hotelId=${reserva.hotelId}`,
+      const respuesta = await peticion(`/hoteleria/config/habitaciones?hotelId=${reserva.hotelId}`,
         { headers: h() },
       );
       if (respuesta.ok) {
@@ -465,8 +464,7 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
     }
     setGuardando(true);
     setError("");
-    const respuesta = await fetch(
-      `${api}/hoteleria/operacion/reservaciones/${reserva.id}/cambiar-habitacion`,
+    const respuesta = await peticion(`/hoteleria/operacion/reservaciones/${reserva.id}/cambiar-habitacion`,
       {
         method: "PATCH",
         headers: h(),
@@ -601,8 +599,7 @@ function ModalCambiarEstado({ api, h, datos, onClose, onOk }: any) {
     setGuardando(true);
     setError("");
     const accion = esCancelacion ? "cancelar" : "no-show";
-    const respuesta = await fetch(
-      `${api}/hoteleria/operacion/reservaciones/${datos.reserva.id}/${accion}`,
+    const respuesta = await peticion(`/hoteleria/operacion/reservaciones/${datos.reserva.id}/${accion}`,
       {
         method: "PATCH",
         headers: h(),
@@ -736,8 +733,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
       return;
     }
     const t = setTimeout(async () => {
-      const r = await fetch(
-        `${api}/hoteleria/disponibilidad?hotelId=${hotelId}&fechaEntrada=${form.fechaEntrada}&fechaSalida=${form.fechaSalida}`,
+      const r = await peticion(`/hoteleria/disponibilidad?hotelId=${hotelId}&fechaEntrada=${form.fechaEntrada}&fechaSalida=${form.fechaSalida}`,
         { headers: h() },
       );
       if (r.ok) {
@@ -761,8 +757,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
       return;
     }
     const t = setTimeout(async () => {
-      const r = await fetch(
-        `${api}/clientes?filtro=${encodeURIComponent(busca)}`,
+      const r = await peticion(`/clientes?filtro=${encodeURIComponent(busca)}`,
         { headers: h() },
       );
       if (r.ok) setClientes(await r.json());
@@ -778,7 +773,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
     }
     setGuardandoH(true);
     try {
-      const r = await fetch(`${api}/clientes`, {
+      const r = await peticion(`/clientes`, {
         method: "POST",
         headers: h(),
         body: JSON.stringify({
@@ -828,7 +823,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
       return;
     }
     setGuardando(true);
-    const r = await fetch(`${api}/hoteleria/operacion/reservaciones`, {
+    const r = await peticion(`/hoteleria/operacion/reservaciones`, {
       method: "POST",
       headers: h(),
       body: JSON.stringify({ hotelId, ...form }),
@@ -1183,8 +1178,7 @@ function ModalCheckIn({ api, h, reserva, onClose, onOk }: any) {
 
   useEffect(() => {
     (async () => {
-      const r = await fetch(
-        `${api}/hoteleria/config/habitaciones?hotelId=${reserva.hotelId || ""}`,
+      const r = await peticion(`/hoteleria/config/habitaciones?hotelId=${reserva.hotelId || ""}`,
         { headers: h() },
       );
       // El endpoint pide hotelId; si la reserva no lo trae, cargamos por rack alterno
@@ -1205,8 +1199,7 @@ function ModalCheckIn({ api, h, reserva, onClose, onOk }: any) {
       return;
     }
     setGuardando(true);
-    const r = await fetch(
-      `${api}/hoteleria/operacion/reservaciones/${reserva.id}/check-in`,
+    const r = await peticion(`/hoteleria/operacion/reservaciones/${reserva.id}/check-in`,
       {
         method: "POST",
         headers: h(),
@@ -1321,8 +1314,7 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
 
   const cargar = async () => {
     setCargando(true);
-    const r = await fetch(
-      `${api}/hoteleria/operacion/reservaciones/${reserva.id}/folio`,
+    const r = await peticion(`/hoteleria/operacion/reservaciones/${reserva.id}/folio`,
       { headers: h() },
     );
     if (r.ok) setFolio(await r.json());
@@ -1337,8 +1329,7 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
       return;
     }
     const t = setTimeout(async () => {
-      const r = await fetch(
-        `${api}/catalogo/productos/buscar?q=${encodeURIComponent(buscaProducto)}&limite=10`,
+      const r = await peticion(`/catalogo/productos/buscar?q=${encodeURIComponent(buscaProducto)}&limite=10`,
         { headers: h() },
       );
       if (r.ok) setProductos(await r.json());
@@ -1352,8 +1343,7 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
       return;
     }
     setError("");
-    const r = await fetch(
-      `${api}/hoteleria/operacion/reservaciones/${reserva.id}/consumo`,
+    const r = await peticion(`/hoteleria/operacion/reservaciones/${reserva.id}/consumo`,
       {
         method: "POST",
         headers: h(),

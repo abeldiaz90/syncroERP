@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { peticion } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { hoyISO } from '@/lib/fechas';
 import {
@@ -71,7 +72,7 @@ export default function PolizaManualPage() {
          * además filtra las inactivas— y tres pantallas ya se lo piden. Ésta no.
          * ──────────────────────────────────────────────────────────────────
          */
-        const r = await fetch(`${api}/finanzas/cuentas-contables?soloAfectables=true`, { headers: h() });
+        const r = await peticion(`/finanzas/cuentas-contables?soloAfectables=true`, { headers: h() });
         if (r.ok) { setCuentas(await r.json()); }
         else {
           setCuentas([]);
@@ -124,7 +125,7 @@ export default function PolizaManualPage() {
     if (lineasValidas.length < 2) { toast$('Necesitas al menos 2 partidas válidas', false); return; }
 
     setGuardando(true);
-    const r = await fetch(`${api}/finanzas/polizas/manual`, {
+    const r = await peticion(`/finanzas/polizas/manual`, {
       method: 'POST', headers: h(),
       body: JSON.stringify({
         tipo, fecha, concepto,

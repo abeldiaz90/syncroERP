@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { peticion } from '@/lib/api';
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -114,8 +115,8 @@ export default function ConfiguracionInicialPage() {
       try {
         const headers = { Authorization: `Bearer ${token()}` };
         const [respuesta, respuestaDiagnostico] = await Promise.all([
-          fetch(`${api}/cfdi/configuracion-mexico/catalogos`, { headers }),
-          fetch(`${api}/cfdi/configuracion-mexico/diagnostico`, { headers }),
+          peticion(`/cfdi/configuracion-mexico/catalogos`, { headers }),
+          peticion(`/cfdi/configuracion-mexico/diagnostico`, { headers }),
         ]);
         if (respuesta.status === 403 || respuesta.status === 401) {
           setSinPermiso(true);
@@ -208,8 +209,7 @@ export default function ConfiguracionInicialPage() {
     setGuardando(true);
     setError("");
     try {
-      const respuesta = await fetch(
-        `${api}/cfdi/configuracion-mexico/aplicar`,
+      const respuesta = await peticion(`/cfdi/configuracion-mexico/aplicar`,
         {
           method: "POST",
           headers: {
