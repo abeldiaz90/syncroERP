@@ -435,6 +435,82 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
     return this.pantallasSinPermiso.size;
   }
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * CUÁNTAS RUTAS SIRVE EL SERVIDOR QUE EL SISTEMA DE PERMISOS NO CONOCE
+   * --------------------------------------------------------------------------
+   * `verificarPermiso` niega una ruta que no esté en la tabla de endpoints, y
+   * eso está bien: el valor seguro de una puerta desconocida es cerrada. Pero
+   * significa que una ruta NUEVA está vedada a los trece roles hasta que la
+   * reconciliación la registre — y el administrador no lo nota, porque él entra
+   * a todo sin preguntar.
+   *
+   * MEDIDO el 21-oct-2026 en esta instalación, que lleva
+   * `IAM_SYNC_AL_ARRANCAR=false`: el servidor sirve 604 rutas y la tabla
+   * conocía 514. Las noventa que faltaban no eran un cabo suelto; eran módulos
+   * enteros construidos en octubre —centros de costo, presupuestos, pedidos de
+   * venta, cierre anual, impresoras del mostrador— invisibles para todo rol
+   * que no fuera administrador.
+   *
+   * El propio código ya lo advertía por escrito, unas líneas más arriba:
+   * «apagarla y no correrla deja el menú como estaba… es un atajo para
+   * desarrollar, no una configuración para producción». Lo decía en una línea
+   * de log del arranque, que es donde nadie mira. Esto existe para que lo diga
+   * el tablero de pendientes, que es donde sí.
+   *
+   * Es de SÓLO LECTURA y en memoria: recorre lo que Nest ya tiene montado y lo
+   * compara con la tabla. No escribe nada; reconciliar sigue siendo una
+   * decisión que alguien toma.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  async contarRutasSinRegistrar(): Promise<number> {
+    const servidas = new Set<string>();
+    for (const [, modulo] of this.modulesContainer.entries()) {
+      for (const [, wrapper] of (modulo as any).controllers) {
+        const instance = wrapper.instance;
+        if (!instance) continue;
+        const metatype = wrapper.metatype;
+        const controladorPath: string =
+          Reflect.getMetadata(PATH_METADATA, metatype) || '';
+        const rutaBase =
+          ('/' + controladorPath).replace(/\/+/g, '/').replace(/\/$/, '') || '/';
+        const prototype = Object.getPrototypeOf(instance);
+        for (const key of Object.getOwnPropertyNames(prototype)) {
+          if (key === 'constructor') continue;
+          const handler = prototype[key];
+          if (typeof handler !== 'function') continue;
+          const metodoNum: number = Reflect.getMetadata(METHOD_METADATA, handler);
+          const rutaHandler: string = Reflect.getMetadata(PATH_METADATA, handler) ?? '';
+          if (metodoNum === undefined || metodoNum === null) continue;
+          const metodoStr = METHOD_MAP[metodoNum];
+          if (!metodoStr || metodoStr === 'ALL') continue;
+          /* Las que no piden permiso no necesitan renglón: nadie las niega. */
+          if (Reflect.getMetadata(SKIP_PERMISOS_KEY, handler)) continue;
+          if (Reflect.getMetadata(SKIP_PERMISOS_KEY, metatype)) continue;
+          const rutaCompleta = (rutaBase + '/' + rutaHandler)
+            .replace(/\/+/g, '/')
+            .replace(/\/$/, '');
+          servidas.add(`${metodoStr} ${normalizarParametrosDeRuta(rutaCompleta)}`);
+        }
+      }
+    }
+    if (!servidas.size) return 0;
+
+    const filas: Array<{ metodo: string; ruta: string }> = await this.endpointRepo
+      .createQueryBuilder('e')
+      .select('e.metodo', 'metodo')
+      .addSelect('e.ruta', 'ruta')
+      .where('e.activo = :activo', { activo: true })
+      .getRawMany();
+    const registradas = new Set(
+      filas.map((f) => `${String(f.metodo).toUpperCase()} ${f.ruta}`),
+    );
+
+    let faltan = 0;
+    for (const r of servidas) if (!registradas.has(r)) faltan++;
+    return faltan;
+  }
+
   async sincronizarControladoresYEndpoints() {
     /*
      * El tiempo se mide y se informa. Antes esto era una línea al empezar y

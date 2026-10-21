@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { ESTADOS_REQUISICION } from '../../compras/entities/requisicion.entity';
 import { ESTADOS_OC } from '../../compras/entities/orden-compra.entity';
@@ -9,10 +9,18 @@ import { EstadoCredito } from '../../credito/entities/credito-cliente.entity';
 import { EstadoConvenioHotel } from '../../hoteleria/entities/city-ledger.entity';
 import { EstadoAviso } from '../../integracion/entities/aviso-integracion.entity';
 import { EstadoEventoIntegracion } from '../../integracion/integracion.constants';
+import { PermisosDinamicosService } from '../../iam/services/permisos-dinamicos.service';
 
 export interface PendienteOperacion {
   codigo: string;
-  modulo: 'COMPRAS' | 'INVENTARIO' | 'CREDITO' | 'CONTABILIDAD' | 'VENTAS' | 'HOTELERIA';
+  modulo:
+    | 'COMPRAS'
+    | 'INVENTARIO'
+    | 'CREDITO'
+    | 'CONTABILIDAD'
+    | 'VENTAS'
+    | 'HOTELERIA'
+    | 'CONFIGURACION';
   titulo: string;
   cantidad: number;
   prioridad: 'ALTA' | 'MEDIA' | 'BAJA';
@@ -151,7 +159,18 @@ export class OperacionesPendientesService {
     Number(process.env.SCHEMA_CACHE_TTL_MS ?? 10 * 60_000),
   );
 
-  constructor(private readonly ds: DataSource) {}
+  /*
+   * `PermisosDinamicosService` llega OPCIONAL a propósito. Este servicio se
+   * construye en pruebas con sólo el `DataSource`, y atarlo duro obligaría a
+   * montar medio IAM para contar requisiciones. Si no está, el renglón de la
+   * reconciliación simplemente no se publica, que es lo que ya pasaba.
+   */
+  constructor(
+    private readonly ds: DataSource,
+    @Optional()
+    @Inject(PermisosDinamicosService)
+    private readonly permisos?: PermisosDinamicosService,
+  ) {}
 
   /**
    * El esquema no cambia en cada visita al dashboard. Antes se ejecutaban más
@@ -284,6 +303,46 @@ export class OperacionesPendientesService {
         });
       }
     }
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * LA RECONCILIACIÓN DE PERMISOS QUE NADIE CORRIÓ
+     * ------------------------------------------------------------------------
+     * No se cuenta de una tabla: se compara lo que el servidor SIRVE contra lo
+     * que la tabla de endpoints conoce. Una ruta que no está ahí la niega el
+     * guard a los trece roles —el valor seguro de una puerta desconocida es
+     * cerrada— y el administrador no lo nota, porque él entra a todo.
+     *
+     * MEDIDO el 21-oct-2026 en esta instalación: 604 rutas servidas, 514
+     * conocidas. Las noventa que faltaban eran módulos enteros de octubre
+     * —centros de costo, presupuestos, pedidos de venta, cierre anual,
+     * impresoras del mostrador— que sólo abría el administrador.
+     *
+     * El código ya lo advertía, en una línea de log del arranque: «es un atajo
+     * para desarrollar, no una configuración para producción». Aquí lo dice
+     * donde alguien mira, y se apaga solo en cuanto se reconcilia.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    if (this.permisos) {
+      try {
+        const sinRegistrar = await this.permisos.contarRutasSinRegistrar();
+        if (sinRegistrar > 0) {
+          pendientes.push({
+            codigo: 'PERMISOS_SIN_RECONCILIAR',
+            modulo: 'CONFIGURACION',
+            titulo: 'Rutas del servidor fuera del sistema de permisos',
+            prioridad: 'ALTA',
+            responsable: 'Administrador del sistema',
+            accion:
+              'Reconciliar permisos: hasta entonces sólo el administrador puede usarlas',
+            ruta: '/dashboard/permisos',
+            cantidad: sinRegistrar,
+          });
+        }
+      } catch {
+        noVerificados.push('PERMISOS_SIN_RECONCILIAR');
+      }
+    }
+
     const orden = { ALTA: 0, MEDIA: 1, BAJA: 2 } as const;
     pendientes.sort(
       (a, b) =>
