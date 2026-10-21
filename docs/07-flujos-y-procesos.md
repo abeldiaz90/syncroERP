@@ -1181,3 +1181,91 @@ documento lo corrige también en la pantalla**, sin volver a desplegar nada. Los
 cuatro documentos técnicos —instalación, arquitectura, aprovisionamiento y
 límites— los ve sólo el administrador, y por eso ni siquiera aparecen en el
 índice de quien no puede abrirlos: nadie choca contra una puerta cerrada.
+
+---
+
+## Los tres modos de contratación, probados contra la instalación
+
+*Medido el 21 de octubre de 2026 sobre la instalación local.*
+
+Hay tres formas de contratar, y cada una es una promesa distinta.
+
+### Sólo el ERP: el core no existe
+
+Una empresa con los dos ejes en APAGADO no debe tocar el core por ningún
+camino. El acceso no está esparcido: pasa por cinco puertos inyectados por
+símbolo, así que se puede comprobar entero. Cinco métodos públicos llegaban al
+core sin preguntar por el modo —la verificación del espejo contable, la
+conciliación de cartera disparada a mano, el catálogo de cuentas externas, la
+evaluación de crédito y los dos endpoints de conciliación contable— y hoy
+todos preguntan primero.
+
+La regla, que vigila `ningun-camino-llega-al-core-sin-contratarlo.spec.ts`:
+**todo método público de una clase que inyecte un puerto y lo llame por red
+pregunta antes por el modo de esa empresa.** Se mide en el método y no en la
+ruta, porque una regla que protege un sistema de registro no puede depender de
+por dónde entró la petición.
+
+### Sólo el core: el ERP no hace falta
+
+Una institución que sólo quiere el core **no se da de alta como empresa del
+ERP**: se le prepara un inquilino y opera con el portal. El portal no depende
+del ERP —lo nombra únicamente en comentarios, y su entorno declara sólo
+Fineract y Keycloak—, y eso lo vigila `el-portal-no-depende-del-erp.test.ts` en
+el repositorio del portal.
+
+### ERP + core: lo que no corresponde se dice en el tablero
+
+![Operaciones pendientes contando el core](img/tablero-pendientes-con-el-core.jpg)
+
+El tablero de operaciones pendientes cuenta ahora las **diferencias con el core
+sin resolver** y los **avisos del core sin resolver**, al lado de las
+requisiciones y los conteos. Antes no los contaba: había una diferencia de
+−$6,150.00 abierta desde hacía dieciocho días y el tablero decía «4 pendientes».
+
+Los dos renglones no llevan compuerta de contratación y no la necesitan: una
+empresa que sólo usa el ERP no tiene filas en esas tablas, la cuenta sale cero
+y el renglón ni se publica.
+
+> **Lo que el tablero todavía no cuenta:** los avisos HUÉRFANOS —hechos nacidos
+> en el core que no corresponden a ninguna empresa— no tienen `empresaid`, y el
+> contador lo exige con razón, porque una tabla sin columna de empresa contaría
+> las filas de todas. Siguen visibles sólo en su propia pantalla.
+
+### La conciliación de cartera, cuando no cuadra
+
+![Conciliación de cartera con dos diferencias abiertas](img/conciliacion-cartera-diferencias.jpg)
+
+La pantalla distingue dos cosas que se confunden con facilidad: **no se pudo
+preguntar** («Se agotó el tiempo para consultar la cartera del cliente. No es
+un descuadre: es que la conciliación no pudo preguntar») y **no coincide** («ERP
+$0.00 · core $6,150.00»). La primera se vuelve a intentar; la segunda es
+dinero.
+
+---
+
+## El alta con la base del cliente (on-premise)
+
+![Alta con la base puesta por el cliente](img/alta-onpremise-base-del-cliente.jpg)
+
+Cuando la reserva de inquilinos está vacía, la consola **apaga** «La aprovisiona
+SUMA» y elige sola «La pone el cliente»: una institución que no puede esperar a
+la próxima ventana de mantenimiento se da de alta igual, poniendo su propia
+base.
+
+El orden del flujo, y por qué es ése:
+
+1. **Alta** con origen `CLIENTE`. No consume inquilino de la reserva y la
+   integración **nace apagada**, que es lo honesto: ese inquilino todavía no
+   existe.
+2. **Capturar** la conexión en la ficha de la empresa.
+3. **Verificar** que responde.
+4. **Registrar** el inquilino en el core, copiando una fila de conexión que ya
+   funciona.
+5. **Esperar el reinicio.** Fineract construye el esquema de un inquilino nuevo
+   **sólo al arrancar**, así que la empresa empieza a atender en el siguiente
+   reinicio programado del core y no antes.
+
+Requiere la migración `integracion_origen_core`. Sin ella el alta se niega
+—«La tabla integracion_origen_core no existe en la base de datos»— y no deja
+nada a medias: ni empresa creada ni realm colgando.
