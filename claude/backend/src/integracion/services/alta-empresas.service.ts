@@ -82,6 +82,14 @@ export class AltaEmpresasService {
      * clases sería tener dos verdades sobre la misma base.
      */
     private readonly registro: RegistroDelCoreService,
+    /*
+     * De dónde sale la base del core de cada empresa. Se lee en `estado()` y en
+     * `listar()` porque una empresa que trae su propia base CONTRATÓ el core y
+     * sus dos modos están APAGADOS a propósito hasta que su esquema contesta:
+     * sin este renglón, las dos pantallas la daban por «solo ERP».
+     */
+    @InjectRepository(OrigenCoreEmpresa)
+    private readonly origenes: Repository<OrigenCoreEmpresa>,
   ) {}
 
   /**
@@ -109,6 +117,34 @@ export class AltaEmpresasService {
     return (
       (cfg?.modo ?? ModoCartera.APAGADO) !== ModoCartera.APAGADO ||
       (cfg?.modoContabilidad ?? ModoContabilidad.APAGADO) !== ModoContabilidad.APAGADO
+    );
+  }
+
+  /**
+   * ¿Esta empresa CONTRATÓ el registro externo?
+   *
+   * EL TERCER EJE. `usaRegistroExterno` pregunta por los dos modos, o sea por
+   * lo que ESTÁ FLUYENDO. Es la pregunta correcta para decidir si se publica un
+   * hecho, y la equivocada para decir qué contrató el cliente: una empresa que
+   * trae su propia base nace con los dos modos APAGADOS a propósito —su
+   * inquilino todavía no existe para el core, se construye en el próximo
+   * arranque— y se encienden al ACTIVAR su origen.
+   *
+   * MEDIDO el 21-oct-2026 en vivo sobre «Financiera Onpremise Prueba», dada
+   * de alta con su base propia: la lista la enseñaba como «sólo ERP» y su
+   * ficha decía «No aplica: esta empresa opera sólo con el ERP» mientras el
+   * panel de abajo, en la misma pantalla, le pedía capturar la conexión a su
+   * servidor del core. Dos afirmaciones contrarias en la misma ficha, que es
+   * justo el defecto que esta familia ya se quitó una vez por mirar un eje de
+   * dos; ahora eran dos de tres.
+   */
+  private static contratoElRegistroExterno(
+    cfg?: { modo?: ModoCartera | null; modoContabilidad?: ModoContabilidad | null } | null,
+    origen?: { origen?: OrigenCore | null } | null,
+  ): boolean {
+    return (
+      AltaEmpresasService.usaRegistroExterno(cfg) ||
+      origen?.origen === OrigenCore.CLIENTE
     );
   }
 
@@ -141,10 +177,32 @@ export class AltaEmpresasService {
      * por inquilino.
      * ──────────────────────────────────────────────────────────────────────
      */
+    /*
+     * ── Y LOS QUE NO SON NUESTROS ─────────────────────────────────────
+     * El registro del core lleva TODOS los inquilinos de la instalación, y
+     * desde que una empresa puede traer su propia base, algunos de ellos viven
+     * en el servidor del cliente. Para esta pantalla eran «SIN_REGISTRAR».
+     *
+     * MEDIDO el 21-oct-2026 en vivo: recién anotado `onpremise-prueba` —que
+     * vive en la base de «Financiera Onpremise Prueba»— el inventario lo
+     * ofrecía en `sinRegistrar`, o sea en el botón que «registra los que
+     * faltan de un golpe». Un clic y la reserva de SUMA lo habría dado por
+     * DISPONIBLE para entregarlo a la SIGUIENTE empresa que se dé de alta: esa
+     * empresa habría acabado leyendo y escribiendo en la base de un cliente
+     * ajeno, y nadie se habría enterado hasta que alguien viera cartera que no
+     * es suya.
+     *
+     * Son del cliente, se dicen de quién son, y no se ofrecen.
+     */
+    const deClientes = new Map<string, string>();
+    for (const fila of await this.origenes.find({ where: { origen: OrigenCore.CLIENTE } })) {
+      if (fila.inquilino) deClientes.set(fila.inquilino.trim().toLowerCase(), fila.empresaId);
+    }
+
     let inventarioDelCore:
       | Array<{
           identificador: string;
-          estado: EstadoTenantReserva | 'SIN_REGISTRAR';
+          estado: EstadoTenantReserva | 'SIN_REGISTRAR' | 'BASE_DEL_CLIENTE';
           empresaId: string | null;
         }>
       | null = null;
@@ -155,6 +213,14 @@ export class AltaEmpresasService {
       const anotados = await this.reserva.find({ where: { proveedor: 'fineract' } });
       inventarioDelCore = conocidos.map((identificador) => {
         const fila = anotados.find((a) => a.identificador === identificador);
+        const deUnCliente = deClientes.get(identificador);
+        if (deUnCliente) {
+          return {
+            identificador,
+            estado: 'BASE_DEL_CLIENTE' as const,
+            empresaId: deUnCliente,
+          };
+        }
         return {
           identificador,
           estado: fila?.estado ?? ('SIN_REGISTRAR' as const),
@@ -234,6 +300,12 @@ export class AltaEmpresasService {
    *    la práctica un inquilino usado no se puede vaciar por la API, así que
    *    reciclarlo significa entregarle a la empresa nueva la cartera de la
    *    anterior. La reserva entrega inquilinos nuevos o no entrega nada.
+   *
+   * 3. Un inquilino que vive en la base de un CLIENTE no entra a la reserva de
+   *    SUMA. La reserva existe para repartir inquilinos de la nube de SUMA
+   *    entre empresas nuevas; meter ahí el de un cliente es prometer su base a
+   *    otra empresa. No basta con no ofrecerlo en la pantalla —esta ruta se
+   *    puede llamar sola—, así que se niega aquí, que es donde se escribe.
    */
   async registrarEnReserva(identificadores: string[], proveedor = 'fineract') {
     const limpios = [...new Set(
@@ -250,6 +322,26 @@ export class AltaEmpresasService {
         `No se pudo leer el registro de inquilinos del core: ${
           error instanceof Error ? error.message : String(error)
         }. Sin poder comprobarlo no se registra nada.`,
+      );
+    }
+
+    /*
+     * Antes que nada, de quién es. Va ANTES de la comprobación de existencia
+     * a propósito: un inquilino de un cliente SÍ existe en el core, así que la
+     * otra regla lo dejaría pasar entero.
+     */
+    const ajenos: string[] = [];
+    for (const fila of await this.origenes.find({ where: { origen: OrigenCore.CLIENTE } })) {
+      const suyo = (fila.inquilino ?? '').trim().toLowerCase();
+      if (suyo && limpios.includes(suyo)) ajenos.push(suyo);
+    }
+    if (ajenos.length) {
+      throw new ConflictException(
+        `${ajenos.join(', ')} ${
+          ajenos.length === 1 ? 'vive' : 'viven'
+        } en la base de un cliente, no en la nube de SUMA. La reserva reparte inquilinos ` +
+          'entre empresas nuevas: anotar ahí el de un cliente sería prometerle su base a otra ' +
+          'empresa, que acabaría leyendo cartera que no es suya.',
       );
     }
 
@@ -692,6 +784,7 @@ export class AltaEmpresasService {
     if (!empresa) throw new NotFoundException('La empresa no existe.');
 
     const cfg = await this.configs.findOne({ where: { empresaId } });
+    const origen = await this.origenes.findOne({ where: { empresaId } });
     const tenant = await this.reserva.findOne({
       where: { empresaId, estado: EstadoTenantReserva.ASIGNADO },
     });
@@ -751,7 +844,8 @@ export class AltaEmpresasService {
      * espejo contable seguía publicando.
      * ──────────────────────────────────────────────────────────────────────
      */
-    const usaFineract = AltaEmpresasService.usaRegistroExterno(cfg);
+    const laBaseLaPoneElCliente = origen?.origen === OrigenCore.CLIENTE;
+    const usaFineract = AltaEmpresasService.contratoElRegistroExterno(cfg, origen);
     const espejaContabilidad =
       (cfg?.modoContabilidad ?? ModoContabilidad.APAGADO) !== ModoContabilidad.APAGADO;
     /* Si hay algo que entregar, el consejo cambia; ver el punto del inquilino. */
@@ -850,12 +944,25 @@ export class AltaEmpresasService {
           clave: 'tenant',
           titulo: 'Inquilino en el registro externo',
           aplica: usaFineract,
-          listo: !usaFineract || Boolean(tenant),
-          detalle: !usaFineract
-            ? 'No aplica: esta empresa opera sólo con el ERP.'
-            : tenant
-              ? `Asignado: ${tenant.identificador}.`
-              : 'Contrató el registro externo y no tiene inquilino.',
+          /*
+           * Una empresa que trae su base NO toma inquilino de la reserva: su
+           * esquema vive en su servidor. El punto se da por resuelto cuando su
+           * origen está ACTIVO, y nunca ofrece entregarle uno de los nuestros
+           * —hacerlo le daría un inquilino de la nube de SUMA que no compró, y
+           * ésa es precisamente la clase de botón que no puede estar aquí--.
+           */
+          listo: laBaseLaPoneElCliente
+            ? origen?.estado === EstadoOrigenCore.ACTIVO
+            : !usaFineract || Boolean(tenant),
+          detalle: laBaseLaPoneElCliente
+            ? origen?.estado === EstadoOrigenCore.ACTIVO
+              ? 'No toma inquilino de la reserva: su base la pone el cliente y su origen ya está activo.'
+              : 'Su base la pone el cliente: el inquilino vive en el servidor de la institución, no en la reserva de SUMA. Falta terminar el alta de su origen, en el panel de abajo.'
+            : !usaFineract
+              ? 'No aplica: esta empresa opera sólo con el ERP.'
+              : tenant
+                ? `Asignado: ${tenant.identificador}.`
+                : 'Contrató el registro externo y no tiene inquilino.',
           /*
            * El consejo depende de si HAY inquilinos, y antes no: decía siempre
            * «reponer la reserva y asignar uno» aunque hubiera cinco libres, y
@@ -864,14 +971,19 @@ export class AltaEmpresasService {
            * el core tiene que construirlos al arrancar, que es la verdad y no
            * tiene botón.
            */
-          accion:
-            usaFineract && !tenant
+          accion: laBaseLaPoneElCliente
+            ? origen?.estado === EstadoOrigenCore.ACTIVO
+              ? null
+              : 'Capturar y verificar la conexión a su servidor, en el panel de abajo. No se le entrega un inquilino de la reserva.'
+            : usaFineract && !tenant
               ? librePorEntregar
                 ? 'Entregarle uno de los que están libres en la reserva.'
                 : 'La reserva está vacía: hay que preparar inquilinos nuevos en la próxima ventana de mantenimiento del core, que sólo construye el esquema al arrancar.'
               : null,
           accionAutomatica:
-            usaFineract && !tenant && librePorEntregar ? 'ASIGNAR_INQUILINO' : null,
+            !laBaseLaPoneElCliente && usaFineract && !tenant && librePorEntregar
+              ? 'ASIGNAR_INQUILINO'
+              : null,
         },
         /*
          * Este punto exigía AUTORIDAD para darse por hecho, y AUTORIDAD ya no
@@ -903,6 +1015,13 @@ export class AltaEmpresasService {
             espejaContabilidad,
           detalle: !usaFineract
             ? 'No aplica: esta empresa opera sólo con el ERP.'
+            : laBaseLaPoneElCliente &&
+                (cfg?.modo ?? ModoCartera.APAGADO) === ModoCartera.APAGADO &&
+                !espejaContabilidad
+              ? 'Apagada a propósito: su inquilino todavía no existe para el core ' +
+                '—se construye en el próximo arranque—, así que publicar ahora sería ' +
+                'mandarle hechos a una base que no está. Los dos modos se encienden ' +
+                'al ACTIVAR su origen, no a mano.'
             : (cfg?.modo ?? ModoCartera.APAGADO) !== ModoCartera.APAGADO
               ? 'En SOMBRA: se publica, se refleja y se concilia, el registro ' +
                 'externo es la fuente de verdad del registro y la decisión de ' +
@@ -915,10 +1034,13 @@ export class AltaEmpresasService {
                 : 'La cartera no se publica ni se concilia. Súbela a SOMBRA.',
           accion:
             usaFineract &&
+            !laBaseLaPoneElCliente &&
             !espejaContabilidad &&
             (cfg?.modo ?? ModoCartera.APAGADO) === ModoCartera.APAGADO
               ? 'Subir el modo de cartera a SOMBRA.'
-              : null,
+              : laBaseLaPoneElCliente && origen?.estado !== EstadoOrigenCore.ACTIVO
+                ? 'Activar su origen cuando su base tenga el esquema del core: al activarlo los dos modos suben solos.'
+                : null,
           accionAutomatica: null,
         },
       ],
@@ -959,6 +1081,7 @@ export class AltaEmpresasService {
     const empresas = await this.empresas.find({ order: { nombreComercial: 'ASC' } });
     const configs = await this.configs.find();
     const tenants = await this.reserva.find({ where: { estado: EstadoTenantReserva.ASIGNADO } });
+    const origenes = await this.origenes.find();
     /*
      * Cuántas personas pueden entrar a cada empresa. Se informa aquí porque una
      * empresa con cero es una empresa que se ve dada de alta y no lo está: la
@@ -977,6 +1100,7 @@ export class AltaEmpresasService {
 
     return empresas.map((e) => {
       const cfg = configs.find((c) => c.empresaId === e.id);
+      const origen = origenes.find((o) => o.empresaId === e.id) ?? null;
       return {
         id: e.id,
         nombreComercial: e.nombreComercial,
@@ -989,8 +1113,15 @@ export class AltaEmpresasService {
          * como una avería y es su contratación.
          */
         modoContabilidad: cfg?.modoContabilidad ?? ModoContabilidad.APAGADO,
-        // Los dos ejes; ver `usaRegistroExterno` y por qué mirar uno engañaba.
-        usaFineract: AltaEmpresasService.usaRegistroExterno(cfg),
+        // Los tres ejes; ver `contratoElRegistroExterno` y por qué mirar dos engañaba.
+        usaFineract: AltaEmpresasService.contratoElRegistroExterno(cfg, origen),
+        /*
+         * De dónde sale su base del core, para que la fila no se lea «cartera
+         * APAGADO · sin inquilino» —que parece una avería— cuando lo que
+         * pasa es que su base la pone el cliente y todavía no contestó.
+         */
+        origenCore: origen?.origen ?? null,
+        estadoOrigenCore: origen?.estado ?? null,
         tenant: tenants.find((t) => t.empresaId === e.id)?.identificador ?? null,
         usuarios: porEmpresa.get(e.id) ?? 0,
       };

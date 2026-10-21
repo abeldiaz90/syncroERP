@@ -1269,3 +1269,46 @@ El orden del flujo, y por qué es ése:
 Requiere la migración `integracion_origen_core`. Sin ella el alta se niega
 —«La tabla integracion_origen_core no existe en la base de datos»— y no deja
 nada a medias: ni empresa creada ni realm colgando.
+
+### Probado de punta a punta el 21-oct-2026
+
+Corrido contra la instalación, con la empresa «Financiera Onpremise Prueba» y
+una base del cliente de verdad en `cliente_onpremise_prueba`:
+
+| Paso | Qué contestó |
+|---|---|
+| Alta con origen `CLIENTE` | Empresa creada, realm propio `financiera-onpremise-prueba`, **sin consumir inquilino** de la reserva |
+| Capturar | `CAPTURADO`. La clave no vuelve en ninguna respuesta: lo único que se sabe después es que hay una guardada |
+| Verificar | `VERIFICADO`, `esquemaConstruido: false` — la base contestó y todavía no tiene el esquema del core, que es lo normal antes del primer arranque |
+| Registrar | `ESPERANDO_REINICIO`, y el inquilino aparece **de verdad** en el registro del core |
+| Activar, antes de tiempo | **409**: «La base del cliente todavía no tiene el esquema del core. Falta el reinicio programado de Fineract» |
+
+El último renglón es el que importa: se intentó activar **dos veces**, antes y
+después de registrar, y las dos se negó. El paso que falta no tiene botón
+porque no depende de nadie que esté aquí.
+
+![La ficha de una empresa que trae su propia base](img/onpremise-la-base-la-pone-el-cliente.jpg)
+
+### Dos cosas que la prueba encontró rotas, y cómo quedaron
+
+**Una empresa que trae su base no es «sólo ERP».** La pregunta «¿usa el
+registro externo?» miraba los dos modos —cartera y contabilidad—, o sea lo que
+está *fluyendo*. Y una empresa on-premise nace con los dos apagados a
+propósito. Resultado: la lista la enseñaba como «sólo ERP» y su ficha decía «No
+aplica: esta empresa opera sólo con el ERP» mientras el panel de abajo, en la
+misma pantalla, le pedía capturar la conexión a su servidor del core. Ahora la
+pregunta tiene tres ejes y la fila dice `ERP + core · esperando su base`.
+
+**El inquilino de un cliente no entra a la reserva de SUMA.** Recién anotado
+`onpremise-prueba` en el registro del core, la pantalla de la reserva lo leyó
+como «sin anotar» y ofreció el botón que anota de un golpe los que faltan. Ese
+clic lo habría dado por `DISPONIBLE`, y la **siguiente** empresa que se diera de
+alta con el core habría tomado ese inquilino y habría empezado a leer y escribir
+en la base de Financiera Onpremise Prueba. Dos clientes, una base, y las dos
+pantallas en verde.
+
+Ahora el inventario lo marca como **base del cliente**, con el nombre de la
+empresa de quien es, y no lo ofrece; y la ruta que escribe lo niega —porque se
+puede llamar sola— con el daño dicho con todas sus letras.
+
+![El inquilino del cliente no se ofrece a la reserva](img/onpremise-el-inquilino-del-cliente-no-es-de-la-reserva.jpg)
