@@ -164,6 +164,39 @@ export default function ControlCostosRecetasPage() {
         </div>
       </Panel>
 
+      {/*
+        Los dos catálogos PRESTADOS, cuando no se pueden leer.
+        ------------------------------------------------------------------
+        El reporte es de quien controla costos, pero los almacenes son del
+        módulo de almacenes y el catálogo de productos es de Inventario.
+        Finanzas, Contabilidad y Tesorería ven esta pantalla —pueden leer
+        `teorico-vs-real`— y no pueden leer esos dos. `useDatos` guardaba el
+        error y nadie lo pintaba: el filtro de almacén se quedaba con una sola
+        opción —«Todas»— como si la empresa tuviera un almacén, y los nombres
+        de producto salían como un trozo de identificador, que no se puede ni
+        leer en voz alta.
+
+        El reporte sigue sirviendo sin ellos, así que no se bloquea nada: se
+        dice qué falta y qué consecuencia tiene. Medido el 21-oct-2026
+        cruzando plantillas contra las llamadas de cada pantalla.
+      */}
+      {(almacenes.error || productos.error) && (
+        <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {almacenes.error && (
+            <p>
+              No se pudo consultar la lista de almacenes: el filtro de almacén
+              queda en «Todas» y el reporte sale sin separar por bodega.
+            </p>
+          )}
+          {productos.error && (
+            <p>
+              No se pudo consultar el catálogo de productos: los renglones se
+              identifican por clave y no por nombre.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Indicadores */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador

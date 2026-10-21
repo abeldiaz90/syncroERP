@@ -79,7 +79,18 @@ export default function CobranzaPage() {
     setCargando(true);
     const [rC, rCB] = await Promise.all([
       peticion(`/credito/creditos${filtroEstado?`?estado=${filtroEstado}`:''}`, { headers:h() }),
-      peticion(`/credito/cuentas-bancarias`, { headers:h() }),
+      /*
+        La vista CORTA de cajas y cuentas, no el catálogo completo.
+        -----------------------------------------------------------------
+        Esta pantalla sólo usa `id`, `nombre`, `tipo` y `esPorDefecto` para
+        decir dónde cayó el pago, y `para-cobro` trae exactamente eso. El
+        catálogo completo lleva CLABE y número de cuenta, y por eso no es del
+        mostrador: `empleado` ve esta pantalla —cobra una cuota en caja— y no
+        podía leerlo, así que el desplegable de la ventana de pago salía vacío,
+        en silencio, y no se podía registrar el cobro. Medido el 21-oct-2026
+        cruzando plantillas contra las llamadas de cada pantalla.
+      */
+      peticion(`/credito/cuentas-bancarias/para-cobro`, { headers:h() }),
     ]);
     if (rC.ok) { setCreditos(await rC.json()); setErrorCarga(''); }
     else {
@@ -93,6 +104,16 @@ export default function CobranzaPage() {
       setCuentasBancarias(cb);
       const def = cb.find((c:ICuentaBancaria)=>c.esPorDefecto&&c.tipo==='CAJA');
       if (def) setCuentaBancariaId(def.id);
+    } else {
+      /*
+        Sin cajas no se puede registrar un pago, y un desplegable vacío no
+        explica por qué. Antes esto no se decía: se asumía que la empresa no
+        tiene cajas dadas de alta.
+      */
+      setCuentasBancarias([]);
+      setErrorCarga(rCB.status === 403
+        ? 'Tu perfil no incluye las cajas para registrar el cobro.'
+        : 'No se pudieron consultar las cajas para registrar el cobro.');
     }
     setCargando(false);
   }, [filtroEstado]);
