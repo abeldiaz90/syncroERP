@@ -43,3 +43,6 @@ MENSAJE-COMMIT-PENDIENTE.txt
 claude/MENSAJE-COMMIT-PENDIENTE.txt
 
 claude/_mensaje-commit*.txt
+
+# Credenciales de la prueba del origen on-premise. Nunca al repositorio.
+.env.onpremise-prueba
