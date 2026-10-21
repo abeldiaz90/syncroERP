@@ -90,7 +90,7 @@ describe('el panel de pendientes sólo cuenta estados que existen', () => {
    * para quien empieza el día ahí.
    * ════════════════════════════════════════════════════════════════════════
    */
-  describe('los dos contadores del core', () => {
+  describe('los tres contadores del core', () => {
     const porCodigo = (codigo: string) =>
       DEFINICIONES_PENDIENTES.find((d) => d.codigo === codigo);
 
@@ -114,8 +114,27 @@ describe('el panel de pendientes sólo cuenta estados que existen', () => {
       expect(def!.estados).toEqual(['false']);
     });
 
-    it('los dos son de ALTA, porque son dinero que no cuadra', () => {
-      for (const codigo of ['CORE_AVISO', 'CORE_DISCREPANCIA']) {
+    it('los asientos detenidos se cuentan, que no se recogen solos', () => {
+      /*
+       * FALLIDO es a propósito un estado del que no se sale solo. Lo que
+       * faltaba es que alguien supiera que están ahí: el 21-oct-2026 había
+       * tres pólizas detenidas desde el 9, por un `ECONNREFUSED` de cuando el
+       * core estaba caído, y lo único que las nombraba era un 409 al intentar
+       * apagar el espejo contable.
+       */
+      const def = porCodigo('CORE_ASIENTO_DETENIDO');
+      expect(def).toBeDefined();
+      expect(def!.tabla).toBe('integracion_eventos');
+      expect(def!.estados).toEqual(['FALLIDO']);
+      expect(def!.modulo).toBe('CONTABILIDAD');
+    });
+
+    it('los tres son de ALTA, porque son dinero que no cuadra', () => {
+      for (const codigo of [
+        'CORE_AVISO',
+        'CORE_DISCREPANCIA',
+        'CORE_ASIENTO_DETENIDO',
+      ]) {
         expect([codigo, porCodigo(codigo)!.prioridad]).toEqual([codigo, 'ALTA']);
       }
     });
@@ -133,7 +152,11 @@ describe('el panel de pendientes sólo cuenta estados que existen', () => {
         .find((r) => existsSync(join(r, 'app/dashboard/module-config.ts')));
       if (!FRONTEND) return;
 
-      for (const codigo of ['CORE_AVISO', 'CORE_DISCREPANCIA']) {
+      for (const codigo of [
+        'CORE_AVISO',
+        'CORE_DISCREPANCIA',
+        'CORE_ASIENTO_DETENIDO',
+      ]) {
         const ruta = porCodigo(codigo)!.ruta.replace(/^\/dashboard\//, '');
         const archivo = join(FRONTEND, 'app/dashboard', ruta, 'page.tsx');
         expect([codigo, existsSync(archivo)]).toEqual([codigo, true]);

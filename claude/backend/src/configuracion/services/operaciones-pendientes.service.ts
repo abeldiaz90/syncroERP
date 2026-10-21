@@ -8,6 +8,7 @@ import { EstadoConteoInventario } from '../../catalogo/entities/conteo-inventari
 import { EstadoCredito } from '../../credito/entities/credito-cliente.entity';
 import { EstadoConvenioHotel } from '../../hoteleria/entities/city-ledger.entity';
 import { EstadoAviso } from '../../integracion/entities/aviso-integracion.entity';
+import { EstadoEventoIntegracion } from '../../integracion/integracion.constants';
 
 export interface PendienteOperacion {
   codigo: string;
@@ -115,6 +116,31 @@ export const DEFINICIONES_PENDIENTES: DefinicionPendiente[] = [
    * excepción.
    */
   { codigo:'CORE_DISCREPANCIA', modulo:'CREDITO', titulo:'Diferencias con el core sin resolver', tabla:'integracion_discrepancias', columnaEstado:'resuelta', estados:['false'], prioridad:'ALTA', responsable:'Quien concilia con el core', accion:'Revisar la diferencia y cerrarla con una nota', ruta:'/dashboard/integracion/conciliacion-cartera', vocabulario: ['true','false'] as readonly string[] },
+
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * LOS ASIENTOS DETENIDOS, QUE NADIE VA A RECOGER SOLO
+   * --------------------------------------------------------------------------
+   * FALLIDO es, a propósito, un estado del que no se sale solo: lo dice el
+   * propio `contarDetenidos`, que existe «para poder decir la verdad cuando un
+   * despacho forzado no mueve nada: *no había nada pendiente* y *hay dos
+   * detenidos que nadie va a recoger* son cosas distintas, y de la segunda
+   * depende que alguien pulse Reintentar o se vaya a casa creyendo que la
+   * póliza ya está afuera».
+   *
+   * Estaba escrita esa frase y no la leía nadie. MEDIDO el 21-oct-2026: tres
+   * pólizas del 7 de octubre fallaron ocho veces con `ECONNREFUSED` —el core
+   * estaba caído—, agotaron la escalera, y llevan en FALLIDO desde el 9. El
+   * core lleva días arriba y el circuito cerrado: esas tres saldrían al primer
+   * reintento. Lo único que las nombraba era un 409 al intentar apagar el
+   * espejo contable, que es un sitio al que nadie va a mirar.
+   *
+   * No se reanudan solas, y está bien que no: reintentar en masa contra un core
+   * que acaba de volver es cómo se tira otra vez. Lo que faltaba es que alguien
+   * supiera que están ahí.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  { codigo:'CORE_ASIENTO_DETENIDO', modulo:'CONTABILIDAD', titulo:'Asientos detenidos sin llegar al mayor externo', tabla:'integracion_eventos', estados:['FALLIDO'], prioridad:'ALTA', responsable:'Quien lleva el espejo contable', accion:'Reintentar o descartar cada uno, y revisar por qué se detuvo', ruta:'/dashboard/finanzas/espejo-contable', vocabulario: Object.values(EstadoEventoIntegracion) as readonly string[] },
 ];
 
 @Injectable()
