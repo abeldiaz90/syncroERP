@@ -98,15 +98,30 @@ describe('una puerta que nadie registró se la niega a todos', () => {
     }
   });
 
-  it('no cuenta las rutas que no piden permiso', () => {
+  it('salta exactamente lo mismo que salta la reconciliación', () => {
     /*
-     * Una ruta con `@SkipPermisos()` no necesita renglón en la tabla: nadie la
-     * niega. Contarlas inflaría la cifra con veinticinco falsos y el renglón
-     * del tablero no bajaría nunca a cero, que es como un aviso deja de
-     * leerse.
+     * Lo público y lo que omite permisos no necesita renglón: a ninguna de las
+     * dos la niega el guard. Y tiene que ser EXACTAMENTE el mismo criterio que
+     * usa la reconciliación, o el conteo nunca llega a cero.
+     *
+     * MEDIDO el 21-oct-2026, las dos veces: la primera versión sólo miraba
+     * `@SkipPermisos()` y contaba 66 donde la reconciliación iba a registrar
+     * 40; después de reconciliar se quedó clavada en 24 —aprovisionamiento,
+     * que entra con su propio token; salud; auth; los manuales—. Un aviso que
+     * no se puede satisfacer deja de leerse, y arrastra consigo a los que sí
+     * importan. Con las dos condiciones puestas, bajó a cero y el renglón
+     * desapareció del tablero.
      */
-    expect(cuerpoDelConteo).toMatch(/SKIP_PERMISOS_KEY, handler/);
-    expect(cuerpoDelConteo).toMatch(/SKIP_PERMISOS_KEY, metatype/);
+    expect(cuerpoDelConteo).toMatch(/IS_PUBLIC_KEY/);
+    expect(cuerpoDelConteo).toMatch(/SKIP_PERMISOS_KEY/);
+    expect(cuerpoDelConteo).toMatch(/if \(esPublico \|\| omitePermisos\) continue;/);
+
+    /*
+     * Y se leen del MÉTODO y de la CLASE, como hace la reconciliación: un
+     * `Reflect.getMetadata` sobre el handler no ve el decorador puesto en el
+     * controlador, y los que lo declaran arriba se contarían de más.
+     */
+    expect(cuerpoDelConteo).toMatch(/getAllAndOverride[\s\S]{0,120}\[handler, metatype\]/);
   });
 
   it('compara contra los endpoints ACTIVOS, no contra todos', () => {

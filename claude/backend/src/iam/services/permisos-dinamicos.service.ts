@@ -484,9 +484,33 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
           if (metodoNum === undefined || metodoNum === null) continue;
           const metodoStr = METHOD_MAP[metodoNum];
           if (!metodoStr || metodoStr === 'ALL') continue;
-          /* Las que no piden permiso no necesitan renglón: nadie las niega. */
-          if (Reflect.getMetadata(SKIP_PERMISOS_KEY, handler)) continue;
-          if (Reflect.getMetadata(SKIP_PERMISOS_KEY, metatype)) continue;
+          /*
+           * Se salta EXACTAMENTE lo mismo que salta la reconciliación: las
+           * públicas y las que omiten permisos. Ninguna necesita renglón,
+           * porque a ninguna la niega el guard.
+           *
+           * La primera versión sólo miraba `@SkipPermisos()` y contaba 66
+           * donde había 40. Después de reconciliar se quedaba clavado en 24
+           * —aprovisionamiento, que entra con su propio token; salud; auth;
+           * los manuales— y entonces el renglón del tablero no bajaba nunca a
+           * cero. Un aviso que no se puede satisfacer deja de leerse, y
+           * arrastra consigo a los que sí importan.
+           *
+           * Se usa el mismo `reflector.getAllAndOverride` que la
+           * reconciliación —y no `Reflect.getMetadata` a secas— porque el
+           * decorador puede estar en el MÉTODO o en la CLASE, y leer sólo uno
+           * de los dos es cómo se cuentan de más los controladores que lo
+           * declaran arriba.
+           */
+          const esPublico = this.reflector.getAllAndOverride<boolean>(
+            IS_PUBLIC_KEY,
+            [handler, metatype],
+          );
+          const omitePermisos = this.reflector.getAllAndOverride<boolean>(
+            SKIP_PERMISOS_KEY,
+            [handler, metatype],
+          );
+          if (esPublico || omitePermisos) continue;
           const rutaCompleta = (rutaBase + '/' + rutaHandler)
             .replace(/\/+/g, '/')
             .replace(/\/$/, '');
