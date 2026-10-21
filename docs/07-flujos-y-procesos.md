@@ -1312,3 +1312,12 @@ empresa de quien es, y no lo ofrece; y la ruta que escribe lo niega —porque se
 puede llamar sola— con el daño dicho con todas sus letras.
 
 ![El inquilino del cliente no se ofrece a la reserva](img/onpremise-el-inquilino-del-cliente-no-es-de-la-reserva.jpg)
+
+Las dos reglas quedaron fijadas con pruebas, corridas contra la instalación:
+`una-empresa-que-trae-su-base-no-es-solo-erp.spec.ts` (11) y
+`el-inquilino-de-un-cliente-no-entra-a-la-reserva.spec.ts` (7), las dos con su
+prueba de la prueba: la primera reproduce la pregunta antigua —los dos modos y
+nada más— y comprueba que daba la respuesta equivocada; la segunda le da el
+mismo identificador **sin** el renglón de origen y comprueba que entonces sí se
+anota. Es la diferencia que las sostiene, y es lo que hay que romper para que se
+pongan rojas.
