@@ -10,6 +10,26 @@ import { join } from 'path';
  * en un solo sitio la URL base, el `Authorization`, el 401 → renovar → repetir
  * una vez, el tiempo de espera, y la normalización de los errores de NestJS.
  *
+ * ── AL DÍA, 20-OCT-2026 ───────────────────────────────────────────────────
+ * Las tres consecuencias de abajo YA NO SE PRODUCEN. El 20-oct se hizo la
+ * barrida que esta prueba dejaba pendiente: las sesenta y seis pasan ahora por
+ * `peticion()`, la misma puerta de `lib/api` devolviendo la `Response` en
+ * crudo, así que renuevan la sesión, reintentan el 401 y llevan
+ * `X-Suplantar-Usuario`. Comprobado en vivo: suplantando a Gobierno,
+ * `GET /usuarios/directorio` contesta 403 y sin suplantar contesta 200.
+ *
+ * Lo que queda —y por eso la lista sigue viva— es la fontanería muerta: el
+ * `localStorage.getItem('syncro_token')` y la cabecera `Authorization` que
+ * cada una se sigue armando, y que `peticion()` ya pisa. No hace daño y sí
+ * invita a copiarla, que es como se escribió la pantalla sesenta y siete.
+ * Limpiarla es un cambio aparte, archivo por archivo, y cada una que se limpie
+ * se borra de aquí.
+ *
+ * La regla de «ninguna pantalla se salta la puerta» la vigila desde hoy
+ * `iam/una-pantalla-que-llama-por-su-cuenta.spec.ts`, que mide la señal
+ * directa —llamar a `fetch` contra la API— en vez de este rastro indirecto.
+ * ──────────────────────────────────────────────────────────────────────────
+ *
  * Quedaron 66 pantallas que no pasan por ahí. Arman su propio
  * `fetch()` con `localStorage.getItem('syncro_token')`, y eso significa tres
  * cosas concretas:
@@ -104,7 +124,7 @@ const CON_SU_PROPIO_FETCH = [
   'app/dashboard/inventario/recepciones/page.tsx',
   'app/dashboard/inventario/stock-inicial/page.tsx',
   'app/dashboard/listas-precio/page.tsx',
-  'app/dashboard/marcas/page.tsx',
+  /* marcas: limpiada entera el 20-oct-2026, pasa por `api.get`/`api.post`. */
   'app/dashboard/permisos/page.tsx',
   'app/dashboard/productos/[id]/page.tsx',
   'app/dashboard/productos/atributos/page.tsx',
