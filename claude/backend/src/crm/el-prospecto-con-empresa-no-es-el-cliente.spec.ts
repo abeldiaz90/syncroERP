@@ -41,10 +41,23 @@ const PANTALLA = FRONTEND
   ? readFileSync(join(FRONTEND, 'app/dashboard/clientes/page.tsx'), 'utf8')
   : '';
 
+/**
+ * Sin comentarios antes de cortar.
+ *
+ * Estas dos pruebas recortan una VENTANA DE CARACTERES desde un ancla, y un
+ * comentario dentro de la ventana empuja fuera el código que se quiere mirar:
+ * la prueba falla sin que nada se haya roto, o —peor— deja de ver lo que
+ * vigilaba. Pasó el 21-oct-2026 al documentar el 403 del prospecto. Se quitan
+ * los comentarios primero, así que la ventana sólo cuenta código.
+ */
+const sinComentarios = (texto: string) =>
+  texto.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
 /** El bloque que rellena el alta desde un prospecto, y sólo ése. */
 const BLOQUE = (() => {
-  const i = PANTALLA.indexOf("get('desdeProspecto')");
-  return i < 0 ? '' : PANTALLA.slice(i, i + 2600);
+  const codigo = sinComentarios(PANTALLA);
+  const i = codigo.indexOf("get('desdeProspecto')");
+  return i < 0 ? '' : codigo.slice(i, i + 2600);
 })();
 
 describe('el alta desde un prospecto reparte bien lo que sabe', () => {

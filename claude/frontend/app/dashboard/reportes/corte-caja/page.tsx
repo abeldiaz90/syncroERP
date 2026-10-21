@@ -41,6 +41,11 @@ export default function CorteCajaPage() {
    * falta dinero.
    */
   const [problema, setProblema] = useState<string | null>(null);
+  /*
+    Si la cobranza del día no se pudo leer, el gran total está corto y hay que
+    decirlo donde se lee el total, no en una esquina.
+  */
+  const [cobranzaVedada, setCobranzaVedada] = useState(false);
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const tok = () => localStorage.getItem('syncro_token') ?? '';
@@ -52,6 +57,18 @@ export default function CorteCajaPage() {
       peticion(`/ventas?fechaDesde=${fecha}&fechaHasta=${fecha}&limite=500`, { headers: h() }),
       peticion(`/credito/cobranza/pagos-del-dia?fecha=${fecha}`, { headers: h() }).catch(() => ({ ok: false })),
     ]);
+    /*
+      Un corte al que le falta una mitad tiene que decirlo.
+      ---------------------------------------------------------------------
+      La cobranza del día entra en el GRAN TOTAL. Si no se puede leer,
+      `totalCobranza` vale cero y el gran total sale corto —no equivocado por
+      un peso: corto por todo lo que se cobró de cartera ese día— y la pantalla
+      lo presentaba como el corte del día, firmado y exportable a PDF.
+
+      Contabilidad ve este reporte y no puede leer los pagos de cobranza.
+      Medido el 21-oct-2026. Un cero que no se pudo preguntar no es un cero: es
+      un dato que falta, y en un corte de caja la diferencia es el faltante.
+    */
     if (rv.ok) {
       const d = await rv.json();
       setVentas(d.ventas ?? d);
@@ -66,8 +83,8 @@ export default function CorteCajaPage() {
             : 'No se pudieron leer las ventas del día. El corte no está completo; vuelve a intentarlo.',
       );
     }
-    if ((rp as any).ok) setPagos(await (rp as Response).json());
-    else setPagos([]);
+    if ((rp as any).ok) { setPagos(await (rp as Response).json()); setCobranzaVedada(false); }
+    else { setPagos([]); setCobranzaVedada(true); }
     setCargando(false);
   }, [fecha]);
 
@@ -140,6 +157,13 @@ export default function CorteCajaPage() {
               {new Date(fecha + 'T00:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
             </p>
             <p className="text-sm text-slate-400 mt-1">Generado: {new Date().toLocaleTimeString('es-MX')}</p>
+            {cobranzaVedada && (
+              <p className="mt-3 rounded-lg bg-amber-400/20 px-3 py-2 text-xs font-bold text-amber-200">
+                CORTE INCOMPLETO: no se pudieron leer los abonos de cobranza del
+                día, así que el gran total no los incluye. No lo firmes como
+                corte cerrado.
+              </p>
+            )}
           </div>
 
           {/* Ingresos por método */}
@@ -153,12 +177,21 @@ export default function CorteCajaPage() {
                   { label: '💵 Efectivo', val: totalEfectivo, count: ventasContado.filter(v=>v.metodoPago==='EFECTIVO').length },
                   { label: '💳 Tarjeta / MSI', val: totalTarjeta, count: ventasContado.filter(v=>['TARJETA','MSI_BANCO'].includes(v.metodoPago)).length },
                   { label: '🏦 Transferencia SPEI', val: totalTransferencia, count: ventasContado.filter(v=>v.metodoPago==='TRANSFERENCIA').length },
-                  { label: '🏦 Cobranza (abonos)', val: totalCobranza, count: pagos.length },
+                  { label: '🏦 Cobranza (abonos)', val: totalCobranza, count: pagos.length, vedado: cobranzaVedada },
                 ].map(r => (
                   <tr key={r.label} className="hover:bg-slate-50">
                     <td className="px-5 py-3.5 font-medium text-slate-800">{r.label}</td>
-                    <td className="px-5 py-3.5 text-center text-slate-400 text-xs">{r.count} movimientos</td>
-                    <td className="px-5 py-3.5 text-right font-mono font-bold text-emerald-700">{fmt$(r.val)}</td>
+                    <td className="px-5 py-3.5 text-center text-slate-400 text-xs">
+                      {r.vedado ? 'sin dato' : `${r.count} movimientos`}
+                    </td>
+                    {/*
+                      Un «$0.00» se lee como «no hubo cobranza hoy». Si no se
+                      pudo preguntar, va una raya: el ojo no confunde una raya
+                      con un cero contado.
+                    */}
+                    <td className={`px-5 py-3.5 text-right font-mono font-bold ${r.vedado ? 'text-amber-600' : 'text-emerald-700'}`}>
+                      {r.vedado ? '—' : fmt$(r.val)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

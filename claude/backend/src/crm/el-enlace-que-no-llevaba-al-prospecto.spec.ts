@@ -39,6 +39,18 @@ const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
   .map((nombre) => join(RAIZ, nombre))
   .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
 
+/**
+ * Sin comentarios antes de cortar.
+ *
+ * Estas dos pruebas recortan una VENTANA DE CARACTERES desde un ancla, y un
+ * comentario dentro de la ventana empuja fuera el código que se quiere mirar:
+ * la prueba falla sin que nada se haya roto, o —peor— deja de ver lo que
+ * vigilaba. Pasó el 21-oct-2026 al documentar el 403 del prospecto. Se quitan
+ * los comentarios primero, así que la ventana sólo cuenta código.
+ */
+const sinComentarios = (texto: string) =>
+  texto.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
 const describeSiHayFrontend = FRONTEND ? describe : describe.skip;
 
 describeSiHayFrontend('CRM · del embudo al alta de cliente', () => {
@@ -78,7 +90,7 @@ describeSiHayFrontend('CRM · del embudo al alta de cliente', () => {
      * domicilio NO se inventan: son justo lo que el aviso del CRM dice que
      * hace falta para poder facturar.
      */
-    const texto = clientes();
+    const texto = sinComentarios(clientes());
     const inicio = texto.indexOf('desdeProspecto');
     const bloque = texto.slice(inicio, inicio + 2000);
 

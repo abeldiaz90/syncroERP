@@ -92,8 +92,48 @@ const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
  *     renglón es la plantilla `/integracion/avisos${q}`, la misma ruta.
  *   · PRODUCTOS — la barra de filtros dice cuál catálogo no se pudo consultar.
  *   · USUARIOS — las secciones que `gobierno` no abre van tras su guarda.
+ *
+ * Y los trece que se triaron el 21-oct-2026, que estaban en la deuda y no
+ * debían estar: la pantalla los atendía DESPUÉS de la llamada, y este cruce
+ * sólo sabe ver guardas ANTES. Once ya estaban resueltos; dos no.
+ *
+ *   · STOCK INICIAL — guarda el 403 aparte en `almacenesVedados` y dice «El
+ *     catálogo de almacenes no está en tu perfil, así que esta pantalla no
+ *     puede saber a cuál asociar el stock», en vez de afirmar que falta un
+ *     almacén. Y esconde el enlace «Crear almacén», que llevaba a un no.
+ *   · VERIFICACIÓN DE CRÉDITO — `soloTablero` esconde la mitad que no es de
+ *     `credito` y lo dice con esas palabras; las capacidades van con
+ *     `intentar(…)` y respaldo `null`; la plantilla sólo se pide desde el panel
+ *     escondido.
+ *   · IMPRESORAS — `cuentasLegibles` en falso pinta el aviso.
+ *   · CORTE DE CAJA, las ventas — nombra el 403: «Tu perfil no incluye las
+ *     ventas, así que este corte no se puede calcular».
+ *   · CORTE DE CAJA, la cobranza — ARREGLADO HOY. Era el peligroso: la
+ *     cobranza del día entra en el GRAN TOTAL, y sin poder leerla el total
+ *     salía corto por todo lo cobrado de cartera ese día, presentado como el
+ *     corte del día y exportable a PDF. Ahora el renglón pone una raya en vez
+ *     de «$0.00» —el ojo no confunde una raya con un cero contado— y el
+ *     encabezado dice «CORTE INCOMPLETO… no lo firmes como corte cerrado».
+ *   · CLIENTES, los prospectos — ARREGLADO HOY. Venir del CRM con
+ *     `?desdeProspecto` y recibir un 403 dejaba el alta en blanco, como si se
+ *     hubiera entrado a mano, y los datos que el CRM ya tenía se volvían a
+ *     teclear. Ahora se distinguen las tres cosas —no poderlo leer, no
+ *     encontrarlo, y la consulta caída— y las tres se dicen.
  */
 const CON_MOTIVO: string[] = [
+  'clientes · cobranza · GET /crm/prospectos',
+  'clientes · credito · GET /crm/prospectos',
+  'clientes · finanzas · GET /crm/prospectos',
+  'clientes · hoteleria · GET /crm/prospectos',
+  'creditos/verificacion · cobranza · GET /integracion/validacion/capacidades',
+  'creditos/verificacion · cobranza · GET /integracion/validacion/flujos',
+  'creditos/verificacion · cobranza · GET /integracion/validacion/flujos/plantilla',
+  'inventario/stock-inicial · comprador · GET /catalogo/almacenes',
+  'inventario/stock-inicial · empleado · GET /catalogo/almacenes',
+  'inventario/stock-inicial · hoteleria · GET /catalogo/almacenes',
+  'reportes/corte-caja · contador · GET /credito/cobranza/pagos-del-dia',
+  'reportes/corte-caja · tesoreria · GET /ventas',
+  'tesoreria/impresoras · contador · GET /credito/cuentas-bancarias/para-cobro',
   'compras/cotizaciones · contador · GET /proveedores',
   'creditos/avisos · contador · GET /integracion/avisos/huerfanos',
   'creditos/avisos · contador · GET /integracion/avisos:id',
@@ -121,19 +161,20 @@ const CON_MOTIVO: string[] = [
  * LA DEUDA. Negado Y callado: la pantalla se abre, la lectura se niega, y nada
  * lo dice. Cada renglón es `pantalla · rol · METODO /ruta`.
  *
- * Son 26, medidos el 21-oct-2026, y no se arreglan en una noche porque cada uno
- * es una decisión de alcance —¿se concede la lectura con una vista corta, o la
- * pantalla deja de ofrecerse a ese rol?— y varias se las debe contestar el
- * cliente. La más grande, con trece renglones, es FLUJOS DE APROBACIÓN: nueve
- * de los roles a los que el menú se la ofrece no pueden listar usuarios ni
- * departamentos, que es con lo que se arma una regla de aprobación. Esa
- * pantalla, para esos roles, abre vacía.
+ * Quedan TRECE, y los trece son la MISMA pantalla: FLUJOS DE APROBACIÓN.
+ *
+ * Nueve de los roles a los que el menú se la ofrece no pueden listar usuarios
+ * ni departamentos, que es con lo que se arma una regla de aprobación: a quién
+ * le toca firmar, de qué departamento, en qué orden. Para esos nueve la
+ * pantalla abre vacía, y no es un defecto de la pantalla: es que su alcance
+ * nunca se decidió. Las dos salidas son conceder las lecturas con vistas
+ * cortas —al estilo de `para-seleccion`— o dejar de ofrecérsela a esos nueve,
+ * y eso lo decide el dueño del producto, no una prueba.
+ *
+ * Mientras no se decida, aquí queda escrito y medido, y la prueba no deja que
+ * crezca.
  */
 const DEUDA: string[] = [
-  'clientes · cobranza · GET /crm/prospectos',
-  'clientes · credito · GET /crm/prospectos',
-  'clientes · finanzas · GET /crm/prospectos',
-  'clientes · hoteleria · GET /crm/prospectos',
   'configuraciones-aprobacion · contador · GET /departamentos',
   'configuraciones-aprobacion · contador · GET /usuarios',
   'configuraciones-aprobacion · credito · GET /departamentos',
@@ -147,15 +188,6 @@ const DEUDA: string[] = [
   'configuraciones-aprobacion · rrhh · GET /usuarios',
   'configuraciones-aprobacion · tesoreria · GET /departamentos',
   'configuraciones-aprobacion · tesoreria · GET /usuarios',
-  'creditos/verificacion · cobranza · GET /integracion/validacion/capacidades',
-  'creditos/verificacion · cobranza · GET /integracion/validacion/flujos',
-  'creditos/verificacion · cobranza · GET /integracion/validacion/flujos/plantilla',
-  'inventario/stock-inicial · comprador · GET /catalogo/almacenes',
-  'inventario/stock-inicial · empleado · GET /catalogo/almacenes',
-  'inventario/stock-inicial · hoteleria · GET /catalogo/almacenes',
-  'reportes/corte-caja · contador · GET /credito/cobranza/pagos-del-dia',
-  'reportes/corte-caja · tesoreria · GET /ventas',
-  'tesoreria/impresoras · contador · GET /credito/cuentas-bancarias/para-cobro',
 ];
 
 const DEUDA_MAXIMA = DEUDA.length;

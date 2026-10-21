@@ -364,12 +364,38 @@ export default function ClientesPage() {
         const desde = new URLSearchParams(window.location.search).get('desdeProspecto');
         if (!desde) return;
         let vivo = true;
+        /*
+         * Venir del CRM y que el formulario abra en blanco, sin una palabra.
+         * ------------------------------------------------------------------
+         * `r.ok ? r.json() : []` convertía el 403 en una lista vacía, el
+         * prospecto no se encontraba, y el `return` dejaba el alta como si se
+         * hubiera entrado a mano: los datos que el CRM ya tenía se volvían a
+         * teclear. Cuatro roles ven esta pantalla y no pueden leer prospectos
+         * —cobranza, crédito, finanzas, hotelería—, medido el 21-oct-2026.
+         *
+         * Ahora se distingue: no poderlo leer, no encontrarlo, y la consulta
+         * caída son tres cosas distintas y las tres se dicen. El alta sigue
+         * abriendo —se puede capturar a mano— pero ya no finge que nadie la
+         * mandó desde ningún lado.
+         */
         peticion(`/crm/prospectos`, { headers: heads() })
-          .then(r => r.ok ? r.json() : [])
-          .then((lista: any[]) => {
-            if (!vivo) return;
+          .then(async r => {
+            if (r.ok) return r.json();
+            showToast(
+              r.status === 403
+                ? 'Tu perfil no incluye los prospectos: captura el alta a mano.'
+                : 'No se pudo traer el prospecto. Captura el alta a mano.',
+              'err',
+            );
+            return null;
+          })
+          .then((lista: any[] | null) => {
+            if (!vivo || lista === null) return;
             const p = Array.isArray(lista) ? lista.find((x) => x?.id === desde) : null;
-            if (!p) return;
+            if (!p) {
+              showToast('Ese prospecto ya no está en la lista.', 'info');
+              return;
+            }
             const mx = paises.find(x => x.codigoIso2==='MX' || x.codigo==='MX');
             setEditId(null);
             setExpediente(null);
