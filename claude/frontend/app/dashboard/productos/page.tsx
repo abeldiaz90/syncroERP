@@ -129,6 +129,12 @@ export default function ProductosPage() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const BASE_URL = apiUrl.replace('/api', '');
 
+  /*
+     Qué catálogo no se pudo consultar. Un desplegable corto es indistinguible
+     de un desplegable negado si la pantalla no lo dice.
+  */
+  const [catalogosCaidos, setCatalogosCaidos] = useState<string[]>([]);
+
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'info' } | null>(null);
   const mostrarToast = (mensaje: string, tipo: 'exito' | 'error' | 'info' = 'info') => {
     setToast({ mensaje, tipo });
@@ -154,23 +160,55 @@ export default function ProductosPage() {
          * negativas normales, el permiso mal puesto no se ve. Es el mismo
          * defecto que se corrigió en el panel y en el centro de almacenes.
          */
-        const vacio = Promise.resolve([] as never[]);
-        const [cat, alm, mar, imp, listas, unids] = await Promise.all([
-          peticion(`/catalogo/categorias`, { headers: h }).then(r => r.ok ? r.json() : []),
-          peticion(`/catalogo/almacenes`, { headers: h }).then(r => r.ok ? r.json() : []),
-          peticion(`/catalogo/marcas`, { headers: h }).then(r => r.ok ? r.json() : []),
+        /*
+         * Y las que sí se piden se miran UNA POR UNA.
+         *
+         * `.then(r => r.ok ? r.json() : [])` no dejaba caer la pantalla, pero
+         * hacía algo peor: convertía «no pude leerlo» en «no hay», y los
+         * filtros de la izquierda salían con una sola opción —«Todas»— como si
+         * la empresa no tuviera categorías. Nadie pregunta por un desplegable
+         * vacío: se asume y se cierra la pantalla.
+         *
+         * `peticion` a secas devuelve la `Response`, así que ningún 403
+         * rechaza el grupo y aquí abajo se puede decir cuál faltó.
+         */
+        const sinPedir = Promise.resolve(null);
+        const [rCat, rAlm, rMar, rImp, rListas, rUnids] = await Promise.all([
+          peticion(`/catalogo/categorias`, { headers: h }),
+          peticion(`/catalogo/almacenes`, { headers: h }),
+          peticion(`/catalogo/marcas`, { headers: h }),
           tienePermiso('GET', '/api/catalogo/impuestos')
-            ? peticion(`/catalogo/impuestos`, { headers: h }).then(r => r.ok ? r.json() : [])
-            : vacio,
-          llevaPrecios
-            ? peticion(`/catalogo/listas-precio`, { headers: h }).then(r => r.ok ? r.json() : [])
-            : vacio,
-          peticion(`/catalogo/unidades-medida?soloActivas=true`, { headers: h }).then(r => r.ok ? r.json() : []),
+            ? peticion(`/catalogo/impuestos`, { headers: h })
+            : sinPedir,
+          llevaPrecios ? peticion(`/catalogo/listas-precio`, { headers: h }) : sinPedir,
+          peticion(`/catalogo/unidades-medida?soloActivas=true`, { headers: h }),
         ]);
-        setCategorias(cat); setAlmacenes(alm); setMarcas(mar);
-        setImpuestos(imp); setListasPrecio(listas);
-        setUnidades(unids);
-      } catch (e) { console.error('Error cargando catálogos:', e); }
+
+        const caidos: string[] = [];
+        const leer = async (
+          r: Response | null,
+          nombre: string,
+          poner: (filas: any[]) => void,
+        ) => {
+          /* No pedida a propósito no es caída: se queda vacía y en silencio. */
+          if (r === null) { poner([]); return; }
+          if (r.ok) { poner(await r.json()); return; }
+          poner([]);
+          caidos.push(nombre);
+        };
+
+        await leer(rCat, 'las categorías', setCategorias);
+        await leer(rAlm, 'los almacenes', setAlmacenes);
+        await leer(rMar, 'las marcas', setMarcas);
+        await leer(rImp, 'los impuestos', setImpuestos);
+        await leer(rListas, 'las listas de precio', setListasPrecio);
+        await leer(rUnids, 'las unidades de medida', setUnidades);
+
+        setCatalogosCaidos(caidos);
+      } catch (e) {
+        console.error('Error cargando catálogos:', e);
+        setCatalogosCaidos(['los catálogos']);
+      }
     };
     fetchCatalogos();
   }, [apiUrl, llevaPrecios, tienePermiso]);
@@ -577,6 +615,12 @@ export default function ProductosPage() {
             <h2 className="font-black text-slate-800">Filtros</h2>
           </div>
           <div className="flex-1 overflow-y-auto p-5 space-y-6">
+            {catalogosCaidos.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
+                No se pudo consultar {catalogosCaidos.join(', ')}. Los filtros de
+                arriba pueden estar incompletos.
+              </div>
+            )}
             <div>
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Categorías</h3>
               <div className="space-y-2">

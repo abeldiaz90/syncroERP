@@ -152,13 +152,42 @@ describe('Pantallas · una consulta que se cae no tumba la pantalla entera', () 
          * sí significa que la pantalla no puede trabajar. Dos módulos sin red
          * es el defecto: el 403 de uno se lleva por delante lo del otro.
          */
-        const desprotegidas = conRuta.filter(
-          (x) =>
-            /* `intentar<T>(…)` y `conPermiso<T>(…)` también cuentan. */
-            !/(?:intentar|conPermiso)\s*(?:<[^>]*>)?\s*\(|\.catch\s*\(/.test(
-              x.parte,
-            ),
+        /*
+         * La cuarta forma de defenderse, y la mejor de las cuatro.
+         * ---------------------------------------------------------------
+         * `peticion(...)` a secas —sin `.then`, sin `.json()`— se resuelve
+         * con la `Response`, y una `Response` con 403 NO rechaza la promesa:
+         * el grupo entero llega completo y la pantalla mira `r.ok` de cada
+         * una después, por separado. Eso es exactamente lo que piden las dos
+         * reglas de este archivo: la consulta negada no se lleva a las demás
+         * Y la pantalla puede decir CUÁL se cayó, porque tiene el `status`
+         * delante.
+         *
+         * Antes esta forma no se veía: estas pantallas escribían
+         * `fetch(\`${apiUrl}/...\`)` y la ruta no quedaba entre comillas al
+         * principio, así que el detector pasaba de largo. Al migrarlas a
+         * `peticion('/...')` aparecieron las seis de golpe —ninguna era nueva,
+         * ninguna estaba mal— y lo que faltaba era que la prueba supiera leer.
+         *
+         * Se exige lo que hace falta para que la forma sea de verdad una
+         * defensa: que el archivo compruebe `.ok` al menos tantas veces como
+         * peticiones crudas haya en el grupo. Una `Response` que nadie mira es
+         * el silencio de siempre con otra cara.
+         */
+        const crudas = conRuta.filter((x) =>
+          /peticion\s*\(/.test(x.parte) && !/\.then\s*\(|\.json\s*\(/.test(x.parte),
         );
+        const compruebaCadaUna =
+          crudas.length > 0 &&
+          (texto.match(/\.ok\b/g) ?? []).length >= crudas.length;
+
+        const desprotegidas = conRuta.filter((x) => {
+          /* `intentar<T>(…)` y `conPermiso<T>(…)` también cuentan. */
+          if (/(?:intentar|conPermiso)\s*(?:<[^>]*>)?\s*\(|\.catch\s*\(/.test(x.parte))
+            return false;
+          if (compruebaCadaUna && crudas.includes(x)) return false;
+          return true;
+        });
         const sinRed = propios(desprotegidas);
         if (sinRed.size > 1) {
           culpables.push(
@@ -228,7 +257,18 @@ describe('Pantallas · una consulta que se cae no tumba la pantalla entera', () 
          */
         const mudas = conRuta.filter((x) => {
           if (/(?:intentar|conPermiso)\s*(?:<[^>]*>)?\s*\(/.test(x.parte)) return false;
-          return /\.catch\s*\(\s*\(\s*\)\s*=>\s*(\[\s*\]|null|undefined|\{\s*\})\s*\)/.test(
+          if (
+            /\.catch\s*\(\s*\(\s*\)\s*=>\s*(\[\s*\]|null|undefined|\{\s*\})\s*\)/.test(
+              x.parte,
+            )
+          )
+            return true;
+          /*
+           * El mismo silencio sin `.catch`: `.then(r => r.ok ? r.json() : [])`
+           * no se cae, no avisa, y deja el desplegable vacío. Da igual que la
+           * mordaza esté en el `catch` o en el ternario del `then`.
+           */
+          return /\.then\s*\(\s*\(?\s*\w+\s*\)?\s*=>\s*\w+\.ok\s*\?[^\]]*:\s*(\[\s*\]|null|undefined|\{\s*\})\s*\)/.test(
             x.parte,
           );
         });
@@ -240,5 +280,62 @@ describe('Pantallas · una consulta que se cae no tumba la pantalla entera', () 
     }
 
     expect(culpables.sort()).toEqual([]);
+  });
+
+  /*
+   * ════════════════════════════════════════════════════════════════════════
+   * La prueba de la prueba
+   * ------------------------------------------------------------------------
+   * Las dos reglas de arriba están escritas con expresiones regulares sobre
+   * el texto de las pantallas, y una expresión regular se rompe en silencio:
+   * sigue corriendo, sigue pasando, y ya no mira nada. Pasó aquí mismo —
+   * `[^]]` no es «cualquiera menos corchete» en JavaScript, es «cualquiera»
+   * seguido de corchetes literales— y la regla quedó un rato sin poder fallar.
+   *
+   * Así que las muestras van escritas: una mordaza de cada forma conocida,
+   * que la regla TIENE que señalar, y dos defensas de verdad, que no debe
+   * tocar. Si alguien vuelve a tocar la expresión, esto se cae primero.
+   * ════════════════════════════════════════════════════════════════════════
+   */
+  describe('los detectores distinguen una mordaza de una defensa', () => {
+    const MUDA =
+      /\.then\s*\(\s*\(?\s*\w+\s*\)?\s*=>\s*\w+\.ok\s*\?[^\]]*:\s*(\[\s*\]|null|undefined|\{\s*\})\s*\)/;
+    const esCruda = (parte: string) =>
+      /peticion\s*\(/.test(parte) && !/\.then\s*\(|\.json\s*\(/.test(parte);
+
+    const MORDAZAS = [
+      ['la que tenía productos', 'peticion(`/catalogo/categorias`, { headers: h }).then(r => r.ok ? r.json() : [])'],
+      ['a null en vez de vacío', 'peticion(`/x/y`).then(res => res.ok ? res.json() : null)'],
+      ['con paréntesis', 'peticion(`/x/y`).then((r) => r.ok ? r.json() : {})'],
+    ];
+    const DEFENSAS = [
+      ['un then que sí avisa', 'peticion(`/x/y`).then(r => { if (!r.ok) setErrorCarga(1); return r.json(); })'],
+      ['una petición cruda', 'peticion(`/credito/cuentas-bancarias`, { headers: h() })'],
+    ];
+
+    it.each(MORDAZAS)('señala la mordaza: %s', (_nombre, muestra) => {
+      expect(MUDA.test(muestra)).toBe(true);
+    });
+
+    it.each(DEFENSAS)('no señala la defensa: %s', (_nombre, muestra) => {
+      expect(MUDA.test(muestra)).toBe(false);
+    });
+
+    it('sólo cuenta como cruda la petición que devuelve la Response', () => {
+      expect(esCruda('peticion(`/credito/cuentas-bancarias`, { headers: h() })')).toBe(true);
+      expect(esCruda('peticion(`/x/y`).then(r => r.ok ? r.json() : [])')).toBe(false);
+      expect(esCruda('peticion(`/x/y`).then(r => r.json())')).toBe(false);
+    });
+
+    it('la regla real usa estas mismas expresiones', () => {
+      /*
+       * Copiar la expresión a la muestra es el error clásico: las dos quedan
+       * iguales y las dos quedan mal. Así que se lee el archivo y se exige que
+       * el texto de la regla sea el mismo que el de la muestra.
+       */
+      const propio = readFileSync(__filename, 'utf8');
+      const veces = propio.split(MUDA.source).length - 1;
+      expect(veces).toBeGreaterThanOrEqual(2);
+    });
   });
 });
