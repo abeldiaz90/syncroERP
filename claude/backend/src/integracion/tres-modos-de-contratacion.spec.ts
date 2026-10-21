@@ -107,6 +107,13 @@ describe('los tres modos de contratación', () => {
           ),
         find: () => Promise.resolve(anotados),
       };
+      /*
+       * Ninguna de estas empresas trae su propia base: son las de la nube de
+       * SUMA, que es lo que estas pruebas miden. El renglón de origen existe
+       * desde que una empresa puede traerla, y aquí se dice que no hay
+       * ninguno en vez de dejarlo sin contestar.
+       */
+      s.origenes = { find: () => Promise.resolve([]), findOne: () => Promise.resolve(null) };
       s.tenantsDelCore = () =>
         conocidos instanceof Error
           ? Promise.reject(conocidos)
@@ -265,6 +272,13 @@ describe('los tres modos de contratación', () => {
         findOne: () => Promise.resolve(tenant),
         count: () => Promise.resolve(0),
       };
+      /*
+       * Ninguna de estas empresas trae su propia base: son las de la nube de
+       * SUMA, que es lo que estas pruebas miden. El renglón de origen existe
+       * desde que una empresa puede traerla, y aquí se dice que no hay
+       * ninguno en vez de dejarlo sin contestar.
+       */
+      s.origenes = { find: () => Promise.resolve([]), findOne: () => Promise.resolve(null) };
       s.productos = { find: () => Promise.resolve([{ id: 'p1' }]) };
       s.usuarios = { find: () => Promise.resolve([]) };
       return s as unknown as AltaEmpresasService;
@@ -430,6 +444,13 @@ describe('los tres modos de contratación', () => {
       };
       s.configs = { findOne: () => Promise.resolve({ modo: ModoCartera.SOMBRA }) };
       s.reserva = { findOne: () => Promise.resolve(null), count: () => Promise.resolve(0) };
+      /*
+       * Ninguna de estas empresas trae su propia base: son las de la nube de
+       * SUMA, que es lo que estas pruebas miden. El renglón de origen existe
+       * desde que una empresa puede traerla, y aquí se dice que no hay
+       * ninguno en vez de dejarlo sin contestar.
+       */
+      s.origenes = { find: () => Promise.resolve([]), findOne: () => Promise.resolve(null) };
       s.productos = { find: () => Promise.resolve([]) };
       s.usuarios = { find: () => Promise.resolve([]) };
       const r = (await (s as unknown as AltaEmpresasService).estado('e1')) as unknown as {

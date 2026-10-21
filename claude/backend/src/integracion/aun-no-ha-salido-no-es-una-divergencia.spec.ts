@@ -30,7 +30,11 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { ContabilidadConciliacionService } from './services/contabilidad-conciliacion.service';
 import { EstadoAviso } from './entities/aviso-integracion.entity';
-import { EstadoEventoIntegracion, TipoEventoIntegracion } from './integracion.constants';
+import {
+  EstadoEventoIntegracion,
+  ModoContabilidad,
+  TipoEventoIntegracion,
+} from './integracion.constants';
 
 /**
  * Un escenario con UNA póliza vinculada y sin identificador externo: el caso
@@ -62,8 +66,15 @@ function escenario(evento: Record<string, unknown> | null) {
     update: jest.fn().mockResolvedValue({ affected: 1 }),
   };
   const eventos = { findOne: jest.fn().mockResolvedValue(evento) };
+  /*
+   * Esta empresa SÍ tiene contratado el espejo contable: es lo que da sentido
+   * a conciliar. `conciliarEmpresa` lo pregunta antes de mirar nada —una
+   * empresa que no lo contrató no tiene con qué comparar— y el doble de antes
+   * era un `{}`, que contestaba con un error de tipo en vez de con un modo.
+   */
+  const modos = { modoContabilidadDe: jest.fn().mockResolvedValue(ModoContabilidad.ESPEJO) };
   const service = new ContabilidadConciliacionService(
-    externa as any, {} as any, links as any, polizas as any,
+    externa as any, modos as any, links as any, polizas as any,
     mappings as any, cfg as any, avisos as any, eventos as any,
   );
   return { service, avisos, builder, eventos, externa };
