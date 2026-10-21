@@ -145,10 +145,18 @@ describe('una empresa que trae su base no es «sólo ERP»', () => {
       /*
        * La trampa del arreglo. Hay tres libres en la reserva y el botón las
        * entregaría de un clic a quien contrató no tenerlas.
+       *
+       * LA PRIMERA VERSIÓN DE ESTA ASERCIÓN BUSCABA «reserva.» Y SEÑALÓ LA
+       * FRASE CORRECTA: «No se le entrega un inquilino de la reserva» también
+       * termina en esa palabra. Una regla que no distingue la negativa del
+       * ofrecimiento manda a «arreglar» justo lo que vino a proteger, y la
+       * forma de que eso no vuelva a pasar es nombrar el ofrecimiento, no la
+       * palabra que los dos comparten.
        */
       const p = punto(await armar(APAGADA, traeSuBase(EstadoOrigenCore.DECLARADO)).estado('e1'), 'tenant');
       expect(p.accionAutomatica).toBeNull();
-      expect(p.accion ?? '').not.toMatch(/reserva\./i);
+      expect(p.accion ?? '').not.toMatch(/Entregarle|libres en la reserva/i);
+      expect(p.accion ?? '').toMatch(/No se le entrega un inquilino de la reserva/i);
     });
 
     it('ni le ordena subir la cartera a SOMBRA', async () => {
