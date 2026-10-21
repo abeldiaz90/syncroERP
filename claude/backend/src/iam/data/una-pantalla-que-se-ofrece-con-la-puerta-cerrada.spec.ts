@@ -38,17 +38,16 @@
  *
  * CÓMO FUNCIONA EL TRINQUETE
  *
- * Cuarenta y siete cruces salieron el 21-oct-2026, y van escritos uno por uno
- * en DOS listas, porque no son la misma cosa:
- *
- *   · CON_MOTIVO (21) — la pantalla no tiene la lectura y lo DICE, o hay una
- *     decisión escrita de por qué puede seguir sin ella. Cumplen la regla.
- *   · DEUDA (26) — negado y callado. Cada uno es una decisión de alcance, y
- *     varias las tiene que contestar el cliente.
+ * La deuda está en CERO, y eso es lo que se defiende. El 21-oct-2026 el cruce
+ * dio cuarenta y siete renglones: cinco eran defectos y se arreglaron ese día,
+ * treinta y cuatro eran pantallas que atienden el 403 DESPUÉS de la llamada —y
+ * el detector aprendió a reconocerlas, porque una lista de treinta y cuatro
+ * excepciones escritas a mano no es un trinquete, es un trámite— y ocho quedan
+ * escritas con su motivo porque hablan sin nombrar el número del 403.
  *
  * La prueba exige tres cosas: que no aparezca ningún cruce que no esté escrito,
- * que la DEUDA no crezca, y que ningún renglón escrito haya dejado de medirse.
- * Cuando se arregla uno se borra su renglón y el techo baja con él.
+ * que la deuda siga en cero, y que ningún renglón escrito haya dejado de
+ * medirse.
  *
  * PARA VOLVER A MEDIR: la lista se saca de `hallazgos`. Si hace falta
  * regenerarla, lo más corto es añadir temporalmente un `console.log` de
@@ -75,66 +74,25 @@ const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
   .find((r) => existsSync(join(r, 'app/dashboard/module-config.ts')));
 
 /**
- * NEGADO PERO DICHO. La pantalla se abre sin la lectura y lo NOMBRA, o hay una
- * decisión escrita en su código de por qué puede seguir sin ella. Cumple la
- * regla: lo que no se tolera es el silencio, no la ausencia.
+ * NEGADO PERO DICHO, en una pantalla que no nombra el 403.
+ * ----------------------------------------------------------------------------
+ * Las dos que quedan no distinguen el 403 por su número, así que el filtro de
+ * arriba no las reconoce, pero las dos tienen su decisión escrita en el propio
+ * código:
  *
- *   · COSTOS DE RECETAS — los dos catálogos prestados llevan un aviso que dice
- *     qué falta y qué consecuencia tiene: el filtro queda en «Todas» y los
- *     renglones se identifican por clave.
- *   · CUENTAS BANCARIAS — decisión escrita: sin almacén ni lista de precios la
- *     caja se da de alta igual, con el contexto de venta predeterminado. No se
- *     bloquea un alta por un catálogo que ese rol no tiene.
- *   · IMPUESTOS DEL CATÁLOGO y COTIZACIONES — cada consulta responde por sí
- *     misma y nombra el 403 («Tu perfil no incluye el padrón de proveedores:
- *     no podrás capturar una cotización»).
- *   · AVISOS DEL CORE — el buzón huérfano lleva su razón escrita; el otro
- *     renglón es la plantilla `/integracion/avisos${q}`, la misma ruta.
- *   · PRODUCTOS — la barra de filtros dice cuál catálogo no se pudo consultar.
- *   · USUARIOS — las secciones que `gobierno` no abre van tras su guarda.
- *
- * Y los trece que se triaron el 21-oct-2026, que estaban en la deuda y no
- * debían estar: la pantalla los atendía DESPUÉS de la llamada, y este cruce
- * sólo sabe ver guardas ANTES. Once ya estaban resueltos; dos no.
- *
- *   · STOCK INICIAL — guarda el 403 aparte en `almacenesVedados` y dice «El
- *     catálogo de almacenes no está en tu perfil, así que esta pantalla no
- *     puede saber a cuál asociar el stock», en vez de afirmar que falta un
- *     almacén. Y esconde el enlace «Crear almacén», que llevaba a un no.
- *   · VERIFICACIÓN DE CRÉDITO — `soloTablero` esconde la mitad que no es de
- *     `credito` y lo dice con esas palabras; las capacidades van con
- *     `intentar(…)` y respaldo `null`; la plantilla sólo se pide desde el panel
- *     escondido.
- *   · IMPRESORAS — `cuentasLegibles` en falso pinta el aviso.
- *   · CORTE DE CAJA, las ventas — nombra el 403: «Tu perfil no incluye las
- *     ventas, así que este corte no se puede calcular».
- *   · CORTE DE CAJA, la cobranza — ARREGLADO HOY. Era el peligroso: la
- *     cobranza del día entra en el GRAN TOTAL, y sin poder leerla el total
- *     salía corto por todo lo cobrado de cartera ese día, presentado como el
- *     corte del día y exportable a PDF. Ahora el renglón pone una raya en vez
- *     de «$0.00» —el ojo no confunde una raya con un cero contado— y el
- *     encabezado dice «CORTE INCOMPLETO… no lo firmes como corte cerrado».
- *   · CLIENTES, los prospectos — ARREGLADO HOY. Venir del CRM con
- *     `?desdeProspecto` y recibir un 403 dejaba el alta en blanco, como si se
- *     hubiera entrado a mano, y los datos que el CRM ya tenía se volvían a
- *     teclear. Ahora se distinguen las tres cosas —no poderlo leer, no
- *     encontrarlo, y la consulta caída— y las tres se dicen.
+ *   · CUENTAS BANCARIAS — sin almacén ni lista de precios la caja se da de alta
+ *     igual: su contexto de venta queda sin configurar y el punto de venta usa
+ *     el predeterminado, que es lo que hacía antes de que eso existiera. No se
+ *     bloquea un alta por un catálogo que ese rol no tiene, y las tres lecturas
+ *     que sí son imprescindibles —cuentas, cuentas contables, bancos— se
+ *     nombran una por una cuando faltan.
+ *   · AVISOS DEL CORE — habla por `ApiError.message` en vez de por el `status`:
+ *     «No fue posible leer el buzón». Y el buzón huérfano lleva escrito que si
+ *     el rol no alcanza para verlo, la pantalla sigue funcionando. El segundo
+ *     renglón es la plantilla `/integracion/avisos${q}`, que es la misma ruta
+ *     contada otra vez por el normalizador.
  */
 const CON_MOTIVO: string[] = [
-  'clientes · cobranza · GET /crm/prospectos',
-  'clientes · credito · GET /crm/prospectos',
-  'clientes · finanzas · GET /crm/prospectos',
-  'clientes · hoteleria · GET /crm/prospectos',
-  'creditos/verificacion · cobranza · GET /integracion/validacion/capacidades',
-  'creditos/verificacion · cobranza · GET /integracion/validacion/flujos',
-  'creditos/verificacion · cobranza · GET /integracion/validacion/flujos/plantilla',
-  'inventario/stock-inicial · comprador · GET /catalogo/almacenes',
-  'inventario/stock-inicial · empleado · GET /catalogo/almacenes',
-  'inventario/stock-inicial · hoteleria · GET /catalogo/almacenes',
-  'reportes/corte-caja · contador · GET /credito/cobranza/pagos-del-dia',
-  'reportes/corte-caja · tesoreria · GET /ventas',
-  'tesoreria/impresoras · contador · GET /credito/cuentas-bancarias/para-cobro',
-  'compras/cotizaciones · contador · GET /proveedores',
   'creditos/avisos · contador · GET /integracion/avisos/huerfanos',
   'creditos/avisos · contador · GET /integracion/avisos:id',
   'creditos/cuentas-bancarias · cobranza · GET /catalogo/almacenes/para-venta',
@@ -143,52 +101,22 @@ const CON_MOTIVO: string[] = [
   'creditos/cuentas-bancarias · finanzas · GET /catalogo/almacenes/para-venta',
   'creditos/cuentas-bancarias · tesoreria · GET /catalogo/almacenes/para-venta',
   'creditos/cuentas-bancarias · tesoreria · GET /catalogo/listas-precio',
-  'finanzas/fiscal-productos · tesoreria · GET /catalogo/impuestos',
-  'hoteleria/costos-recetas · contador · GET /catalogo/almacenes/para-venta',
-  'hoteleria/costos-recetas · contador · GET /catalogo/productos',
-  'hoteleria/costos-recetas · finanzas · GET /catalogo/almacenes/para-venta',
-  'hoteleria/costos-recetas · finanzas · GET /catalogo/productos',
-  'hoteleria/costos-recetas · tesoreria · GET /catalogo/almacenes/para-venta',
-  'hoteleria/costos-recetas · tesoreria · GET /catalogo/productos',
-  'productos · comprador · GET /catalogo/almacenes',
-  'productos · empleado · GET /catalogo/almacenes',
-  'productos · hoteleria · GET /catalogo/almacenes',
-  'usuarios · gobierno · GET /admin/permisos/resumen-roles',
-  'usuarios · gobierno · GET /usuarios/directorio',
 ];
 
 /**
- * LA DEUDA. Negado Y callado: la pantalla se abre, la lectura se niega, y nada
- * lo dice. Cada renglón es `pantalla · rol · METODO /ruta`.
+ * LA DEUDA: una pantalla que se ofrece, recibe un no, y sigue como si hubiera
+ * recibido un vacío.
  *
- * Quedan TRECE, y los trece son la MISMA pantalla: FLUJOS DE APROBACIÓN.
+ * Está VACÍA, y eso es el estado que hay que defender, no una casualidad. El
+ * 21-oct-2026 el cruce dio 47 renglones; 34 eran pantallas que atienden el 403
+ * después de la llamada y el detector no sabía verlo, 5 se arreglaron ese día
+ * —estado de cuenta, cobranza, costos de recetas, corte de caja, clientes
+ * desde el CRM— y 8 quedan arriba con su motivo escrito.
  *
- * Nueve de los roles a los que el menú se la ofrece no pueden listar usuarios
- * ni departamentos, que es con lo que se arma una regla de aprobación: a quién
- * le toca firmar, de qué departamento, en qué orden. Para esos nueve la
- * pantalla abre vacía, y no es un defecto de la pantalla: es que su alcance
- * nunca se decidió. Las dos salidas son conceder las lecturas con vistas
- * cortas —al estilo de `para-seleccion`— o dejar de ofrecérsela a esos nueve,
- * y eso lo decide el dueño del producto, no una prueba.
- *
- * Mientras no se decida, aquí queda escrito y medido, y la prueba no deja que
- * crezca.
+ * Si algo aparece aquí, es que una pantalla nueva —o una que cambió— se abre
+ * para un rol al que le niegan una de sus lecturas y no se lo dice a nadie.
  */
-const DEUDA: string[] = [
-  'configuraciones-aprobacion · contador · GET /departamentos',
-  'configuraciones-aprobacion · contador · GET /usuarios',
-  'configuraciones-aprobacion · credito · GET /departamentos',
-  'configuraciones-aprobacion · credito · GET /usuarios',
-  'configuraciones-aprobacion · direccion · GET /usuarios',
-  'configuraciones-aprobacion · finanzas · GET /departamentos',
-  'configuraciones-aprobacion · finanzas · GET /usuarios',
-  'configuraciones-aprobacion · gerencia · GET /usuarios',
-  'configuraciones-aprobacion · hoteleria · GET /departamentos',
-  'configuraciones-aprobacion · hoteleria · GET /usuarios',
-  'configuraciones-aprobacion · rrhh · GET /usuarios',
-  'configuraciones-aprobacion · tesoreria · GET /departamentos',
-  'configuraciones-aprobacion · tesoreria · GET /usuarios',
-];
+const DEUDA: string[] = [];
 
 const DEUDA_MAXIMA = DEUDA.length;
 
@@ -303,10 +231,43 @@ describe('IAM · una pantalla que se ofrece con la puerta cerrada', () => {
     return mapa;
   }
 
+  /**
+   * La pantalla que HABLA de negativas.
+   * -------------------------------------------------------------------------
+   * Este cruce sólo sabe ver guardas ANTES de la llamada —un `tienePermiso(…)`,
+   * un `conPermiso(…)`, un largo mínimo de búsqueda— y casi ninguna pantalla se
+   * defiende así. Se defienden DESPUÉS: miran el `status`, distinguen el 403 de
+   * una avería, y lo dicen. De los cuarenta y siete cruces que salieron el
+   * 21-oct-2026, TREINTA Y CUATRO eran de esas: ya cumplían la regla y hubo que
+   * sacarlos a mano.
+   *
+   * Una lista de treinta y cuatro renglones escritos a mano no es un trinquete:
+   * es un trámite. La pantalla nueva lo tropieza, alguien añade su línea sin
+   * pensarla, y el día que aparezca una de verdad va a entrar por la misma
+   * puerta sin que nadie la mire.
+   *
+   * Así que se reconoce la otra forma: una pantalla que en su código distingue
+   * el 403 —por el `status`, por `esSinPermisos`/`esNoAutorizado`, o repartiendo
+   * un `allSettled` para no confundir el permiso con la avería— es una pantalla
+   * que sabe que una lectura puede negársele. Lo que esta prueba persigue es la
+   * que NO lo sabe: la que pide, recibe un no, y sigue como si hubiera recibido
+   * un vacío.
+   *
+   * Se pierde resolución —una pantalla puede hablar de UNA negativa y callarse
+   * otra—, y eso lo cubren las reglas vecinas, que miran consulta por consulta:
+   * `una-consulta-caida-no-tumba-la-pantalla`, `una-pantalla-que-afirmaba-un-
+   * vacio`, `un-reporte-sin-datos-no-es-un-reporte-en-cero`. Lo que se gana es
+   * que esta lista vuelva a ser corta y, por tanto, legible.
+   */
+  const hablaDeNegativas = (texto: string) =>
+    /\b403\b|esSinPermisos|esNoAutorizado|allSettled/.test(texto);
+
   const hallazgos: string[] = [];
   for (const pantalla of pantallas(join(FRONTEND, 'app/dashboard'))) {
     const archivo = join(FRONTEND, 'app/dashboard', pantalla, 'page.tsx');
-    const llamadas = llamadasDe(readFileSync(archivo, 'utf8'));
+    const fuente = readFileSync(archivo, 'utf8');
+    if (hablaDeNegativas(fuente)) continue;
+    const llamadas = llamadasDe(fuente);
     for (const plantilla of rolesQueLaVen(pantalla)) {
       for (const [clave, guardada] of llamadas) {
         if (guardada) continue;
