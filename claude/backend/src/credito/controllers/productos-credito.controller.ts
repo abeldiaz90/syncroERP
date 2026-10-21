@@ -97,6 +97,39 @@ export class ProductosCreditoController {
     return this.sync.sincronizar(empresaId, { simular: simular === '1' });
   }
 
+  /*
+   * ════════════════════════════════════════════════════════════════════════
+   * Dos piezas que existían y nadie podía llamar
+   * --------------------------------------------------------------------------
+   * `recodificarImportados` y `suspenderImportados` estaban escritas, con su
+   * razón escrita, y sin una sola ruta ni llamada en todo el repositorio.
+   *
+   * La primera repara los códigos de los productos que entraron con el nombre
+   * corto del proveedor —«E826», «MTR1»—, que no le dice nada a nadie; la
+   * segunda regresa a borrador los importados que estén activos, porque el
+   * catálogo de un core que lleva tiempo en uso trae pruebas de integración y
+   * ensayos de alguien, y que existan allá no es razón para venderlos aquí.
+   * Las dos arreglan datos que hoy están en las instalaciones, y la única
+   * forma de usarlas era escribir un script contra la base.
+   *
+   * VAN DECLARADAS ANTES de las rutas con parámetro: `importados/suspender`
+   * encaja en `:id/suspender` con `:id` = «importados», y Nest resuelve por
+   * orden de declaración. Declaradas después, suspender los importados habría
+   * intentado suspender un producto llamado «importados».
+   * ════════════════════════════════════════════════════════════════════════
+   */
+  @Post('importados/recodificar')
+  @Roles('administrador', 'direccion')
+  recodificarImportados(@ActiveUser('empresaId') empresaId: string) {
+    return this.sync.recodificarImportados(empresaId);
+  }
+
+  @Post('importados/suspender')
+  @Roles('administrador', 'direccion')
+  suspenderImportados(@ActiveUser('empresaId') empresaId: string) {
+    return this.sync.suspenderImportados(empresaId);
+  }
+
   /** Compara la tabla de amortización de los dos sistemas, cuota por cuota. */
   @Post(':id/verificar')
   @Roles('administrador', 'direccion', 'contador')

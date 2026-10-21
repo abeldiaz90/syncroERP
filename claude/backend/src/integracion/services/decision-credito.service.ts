@@ -1,4 +1,9 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+
+import { ConfiguracionIntegracionEmpresa } from '../entities/configuracion-integracion-empresa.entity';
+import { hayValidacionContratada } from '../validacion/validacion.constants';
 import {
   PUERTO_BURO_CREDITO,
   PUERTO_CARTERA_EXTERNA,
@@ -200,7 +205,48 @@ export class DecisionCreditoService {
     private readonly buro: PuertoBuroCredito,
     @Inject(PUERTO_CARTERA_EXTERNA)
     private readonly externa: PuertoCarteraExterna,
+    @InjectRepository(ConfiguracionIntegracionEmpresa)
+    private readonly configEmpresa: Repository<ConfiguracionIntegracionEmpresa>,
   ) {}
+
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * El tercer eje se comprueba AQUÍ, no en la ruta
+   * --------------------------------------------------------------------------
+   * `evaluar` llama al puerto de identidad y al de buró, y los dos se pagan por
+   * consulta. Hoy son `ValidacionIdentidadNoConfigurada` y `BuroNoConfigurado`,
+   * así que no sale ni un paquete y esto llevaba tiempo sin notarse; el día que
+   * se conecte un proveedor de verdad, una empresa que no contrató validación
+   * estaría gastando consultas porque alguien llamó a la ruta.
+   *
+   * La pantalla ya lo esconde con el `validacion` de `/contratacion`. Eso no
+   * basta, y la razón está escrita en `establecerModoCartera`: una regla que
+   * protege un sistema de registro —o un contador de consumo— no puede depender
+   * de por dónde entró la petición. Por eso vive en el servicio y no en el
+   * controlador, donde la puse primero.
+   *
+   * `hayValidacionContratada` entiende la AUSENCIA del campo como «nadie ha
+   * declarado nada, no restrinjo», que es lo mismo que entiende la pantalla:
+   * un campo, un significado.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  private async exigirValidacionContratada(empresaId: string): Promise<void> {
+    const configuracion = await this.configEmpresa.findOne({
+      where: { empresaId },
+    });
+    const capacidades = (
+      configuracion?.parametrosProveedor as
+        | { capacidadesValidacion?: unknown }
+        | null
+        | undefined
+    )?.capacidadesValidacion;
+    if (!hayValidacionContratada(capacidades)) {
+      throw new ForbiddenException(
+        'Esta empresa no tiene contratada la validación de identidad ni la ' +
+          'consulta de buró: el crédito se autoriza con las reglas del ERP.',
+      );
+    }
+  }
 
   async evaluar(entrada: {
     empresaId: string;
@@ -214,6 +260,8 @@ export class DecisionCreditoService {
     /** Id del cliente en el registro externo, si ya está replicado. */
     clienteIdExterno?: string | null;
   }): Promise<ResultadoDecision> {
+    await this.exigirValidacionContratada(entrada.empresaId);
+
     const historial = await this.historial(entrada.clienteIdExterno);
 
     const identidad =

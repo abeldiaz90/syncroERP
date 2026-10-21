@@ -299,7 +299,31 @@ export class IntegracionController {
    */
   @Get('verificacion')
   @Roles(...ROLES_ESPEJO_CONTABLE)
-  verificar(@ActiveUser('empresaId') empresaId: string) {
+  async verificar(@ActiveUser('empresaId') empresaId: string) {
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * Sin espejo contratado no hay nada que verificar, y preguntarlo SALE
+     * ------------------------------------------------------------------------
+     * `verificarConfiguracion` no se queda en la base: pide
+     * `/v1/loanproducts/:id` por cada producto vinculado Y, al final,
+     * `/v1/workingdays`, que no depende de que haya productos. Una empresa con
+     * el eje contable en APAGADO no tiene productos vinculados —el bucle sale
+     * vacío— pero la lectura de días hábiles se hacía igual: una llamada de red
+     * al core, por cada visita, de una empresa que no lo contrató.
+     *
+     * Medido el 21-oct-2026 leyendo el código. Es el único endpoint de este
+     * controlador que llegaba al puerto sin preguntar primero por el modo.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    if (
+      (await this.modos.modoContabilidadDe(empresaId)) ===
+      ModoContabilidad.APAGADO
+    ) {
+      throw new ForbiddenException(
+        'Esta empresa no tiene contratado el espejo contable: no hay un mayor ' +
+          'externo cuya configuración verificar.',
+      );
+    }
     return this.contabilidad.verificarConfiguracion(empresaId);
   }
 
@@ -466,8 +490,8 @@ export class IntegracionController {
    */
   @Get('cuentas/externas')
   @Roles(...ROLES_ESPEJO_CONTABLE)
-  cuentasExternas() {
-    return this.mapeo.disponiblesEnElMayorExterno();
+  cuentasExternas(@ActiveUser('empresaId') empresaId: string) {
+    return this.mapeo.disponiblesEnElMayorExterno(empresaId);
   }
 
   @Post('cuentas/mapeo')
@@ -514,6 +538,12 @@ export class IntegracionController {
     });
     if (!cliente) throw new NotFoundException('Cliente no encontrado.');
 
+    /*
+     * El tercer eje —validación de identidad y buró— lo exige el propio
+     * `DecisionCreditoService` al entrar. Estuvo aquí un rato y se mudó: una
+     * regla que protege un contador de consumo no puede depender de por dónde
+     * entró la petición, y aquí sólo valdría para esta ruta.
+     */
     const idExterno = await this.vinculos.idExterno(
       empresaId,
       TipoVinculo.CLIENTE,

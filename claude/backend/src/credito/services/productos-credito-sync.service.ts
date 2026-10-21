@@ -305,6 +305,14 @@ export class ProductosCreditoSyncService {
    * ya se activó tiene ese código impreso en los dos catálogos.
    */
   async recodificarImportados(empresaId: string) {
+    /*
+     * Sin cartera externa no hay productos importados que recodificar, y
+     * `listarProductosCredito` es una lectura de red: para una empresa con el
+     * eje en APAGADO sería una llamada al core que nadie contrató, para
+     * terminar recorriendo una lista vacía.
+     */
+    if (!(await this.exigeCorrespondencia(empresaId))) return [];
+
     const remotos = await this.externo.listarProductosCredito(empresaId);
     const porId = new Map(remotos.map((r) => [r.idExterno, r]));
     const cambios: Record<string, string>[] = [];

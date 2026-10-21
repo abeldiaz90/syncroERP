@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -66,6 +66,32 @@ export class CarteraConciliacionService {
   async conciliarEmpresa(
     empresaId: string,
   ): Promise<{ revisados: number; discrepancias: number }> {
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * Una empresa que sólo contrató el ERP no concilia contra nada
+     * ------------------------------------------------------------------------
+     * La tarea de las 5:30 recorre `empresasActivas()` y por eso nunca tocaba
+     * a las demás. Pero este método es público y `POST
+     * /integracion/conciliacion/ejecutar` lo llama DIRECTO con el `empresaId`
+     * de la sesión: administración, dirección y contabilidad de una empresa
+     * con los dos ejes en APAGADO disparaban una conciliación de cartera
+     * contra el core —una lectura por cliente— de un registro que esa empresa
+     * no contrató.
+     *
+     * Medido el 21-oct-2026 leyendo el código: la compuerta estaba en la tarea
+     * programada y no en el servicio, así que valía por el camino de las 5:30
+     * y no por el botón. Es exactamente lo que dice el comentario de
+     * `establecerModoCartera` unas carpetas más allá: una regla que protege un
+     * sistema de registro no puede depender de por dónde entró la petición.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    if (!(await this.modos.usaRegistroExterno(empresaId))) {
+      throw new ForbiddenException(
+        'Esta empresa no tiene contratado el registro financiero externo: ' +
+          'no hay una segunda cartera contra la que conciliar.',
+      );
+    }
+
     if (!this.externa.disponible()) {
       throw new Error('El registro externo de cartera no está disponible.');
     }

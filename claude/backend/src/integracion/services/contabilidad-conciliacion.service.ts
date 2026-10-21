@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -140,6 +140,31 @@ export class ContabilidadConciliacionService {
   }
 
   async conciliarEmpresa(empresaId: string, guardarAvisos = false) {
+    /*
+     * ════════════════════════════════════════════════════════════════════════
+     * Primero si lo contrató, y sólo después si le falta un dato
+     * ------------------------------------------------------------------------
+     * La tarea de fondo filtra por `modoContabilidadDe(...) !== ESPEJO`, pero
+     * este método es público y los dos endpoints de
+     * `/integracion/contabilidad/conciliacion` lo llaman directo con el
+     * `empresaId` de la sesión. No había fuga de red —una empresa sin espejo no
+     * tiene `oficinaContableExterna` y la línea de abajo cortaba— pero cortaba
+     * CULPANDO AL DATO EQUIVOCADO: «Falta la oficina contable externa» le dice
+     * a quien no contrató el espejo que le falta una configuración, y manda a
+     * buscar un campo que no tiene por qué llenar nunca.
+     *
+     * Primero se pregunta por lo contratado, que es la respuesta verdadera, y
+     * sólo para quien SÍ lo contrató tiene sentido avisar de un campo a medias.
+     * ════════════════════════════════════════════════════════════════════════
+     */
+    if (
+      (await this.modos.modoContabilidadDe(empresaId)) === ModoContabilidad.APAGADO
+    ) {
+      throw new ForbiddenException(
+        'Esta empresa no tiene contratado el espejo contable: no hay un ' +
+          'segundo mayor contra el que conciliar.',
+      );
+    }
     if (!this.externa.configurado()) throw new Error('Mayor externo no configurado');
     const cfg = await this.configuraciones.findOne({ where: { empresaId } });
     if (!cfg?.oficinaContableExterna) throw new Error('Falta la oficina contable externa');

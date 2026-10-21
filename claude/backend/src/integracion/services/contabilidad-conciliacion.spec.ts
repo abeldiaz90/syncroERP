@@ -1,5 +1,5 @@
 import { ContabilidadConciliacionService } from './contabilidad-conciliacion.service';
-import { TipoVinculo } from '../integracion.constants';
+import { ModoContabilidad, TipoVinculo } from '../integracion.constants';
 import { EstadoAviso } from '../entities/aviso-integracion.entity';
 
 describe('Conciliación de pólizas vinculadas', () => {
@@ -27,8 +27,21 @@ describe('Conciliación de pólizas vinculadas', () => {
      * precisamente lo que las pruebas de abajo quieren poder distinguir.
      */
     const eventos = { findOne: jest.fn().mockResolvedValue(null) };
-    const service = new ContabilidadConciliacionService(externa as any, {} as any, links as any, polizas as any, mappings as any, cfg as any, avisos as any, eventos as any);
-    return { service, externa, links, polizas, mappings, avisos, builder, eventos };
+    /*
+     * El modo, que antes era `{}`.
+     *
+     * `conciliarEmpresa` pregunta ahora si la empresa contrató el espejo antes
+     * de leer nada: es público y los dos endpoints de
+     * `/integracion/contabilidad/conciliacion` lo llamaban directo, así que una
+     * empresa sin espejo se estrellaba contra «Falta la oficina contable
+     * externa» —el dato equivocado— en vez de oír que no lo contrató.
+     *
+     * El doble dice ESPEJO porque es la precondición de TODO lo que este
+     * archivo comprueba: conciliar dos mayores exige que haya dos.
+     */
+    const modos = { modoContabilidadDe: jest.fn().mockResolvedValue(ModoContabilidad.ESPEJO) };
+    const service = new ContabilidadConciliacionService(externa as any, modos as any, links as any, polizas as any, mappings as any, cfg as any, avisos as any, eventos as any);
+    return { service, externa, modos, links, polizas, mappings, avisos, builder, eventos };
   }
   it('acota por empresa/proveedor y no escribe en una consulta', async () => {
     const s = escenario(); expect((await s.service.conciliarEmpresa('empresa')).discrepancias).toBe(0);
@@ -81,5 +94,27 @@ describe('Conciliación de pólizas vinculadas', () => {
   it('detecta cambios de cuenta aunque ambos asientos estén balanceados', async () => {
     const s = escenario(); s.externa.consultarAsiento.mockResolvedValue({ referencia: 'SYNCRO-IN-1', moneda: 'MXN', reversado: false, movimientos: [{ cuentaIdExterna: 'otra', cargo: 600, abono: 0 }, { cuentaIdExterna: '4', cargo: 0, abono: 600 }] });
     expect((await s.service.conciliarEmpresa('empresa')).hallazgos.map(x => x.codigo)).toEqual(['PARTIDAS_DIFERENTES']);
+  });
+
+  /*
+   * ════════════════════════════════════════════════════════════════════════
+   * Primero si lo contrató, y sólo después si le falta un dato
+   * ------------------------------------------------------------------------
+   * Sin esto, una empresa que sólo usa el ERP pulsaba «conciliar» y recibía
+   * «Falta la oficina contable externa»: un mensaje que la manda a llenar un
+   * campo que no tiene por qué llenar nunca, y que esconde la respuesta de
+   * verdad, que es que no contrató el espejo.
+   * ════════════════════════════════════════════════════════════════════════
+   */
+  it('sin espejo contratado no lee nada, y lo dice por su nombre', async () => {
+    const s = escenario();
+    s.modos.modoContabilidadDe.mockResolvedValue(ModoContabilidad.APAGADO);
+
+    await expect(s.service.conciliarEmpresa('empresa')).rejects.toThrow(
+      /no tiene contratado el espejo contable/i,
+    );
+    /* Y no se asomó al otro mayor ni a la base. */
+    expect(s.externa.consultarAsiento).not.toHaveBeenCalled();
+    expect(s.links.find).not.toHaveBeenCalled();
   });
 });

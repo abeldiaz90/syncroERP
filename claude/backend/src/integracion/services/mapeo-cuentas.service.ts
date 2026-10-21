@@ -83,8 +83,25 @@ export class MapeoCuentasService {
    * Lo dispara una persona. Crear cuentas en un mayor contable no es algo que
    * deba pasar solo.
    */
-  /** El catálogo de cuentas del mayor externo, tal como está hoy. */
-  async disponiblesEnElMayorExterno() {
+  /**
+   * El catálogo de cuentas del mayor externo, tal como está hoy.
+   *
+   * Pide la empresa aunque la lectura sea global, y es a propósito: sin ella no
+   * había dónde poner la compuerta, y una empresa con el eje contable en
+   * APAGADO leía el catálogo de un mayor que no contrató cada vez que alguien
+   * abría la pantalla de correspondencia. La compuerta tiene que vivir aquí y
+   * no en la ruta: por el mismo motivo por el que `aprovisionar` la tiene
+   * quince líneas más abajo.
+   */
+  async disponiblesEnElMayorExterno(empresaId: string) {
+    if (
+      (await this.modos.modoContabilidadDe(empresaId)) === ModoContabilidad.APAGADO
+    ) {
+      throw new ForbiddenException(
+        'Esta empresa no tiene contratado el espejo contable: no hay un mayor ' +
+          'externo cuyas cuentas listar.',
+      );
+    }
     if (!this.externa.configurado() || !this.externa.disponible()) {
       throw new NotFoundException('El mayor contable externo no está disponible.');
     }
