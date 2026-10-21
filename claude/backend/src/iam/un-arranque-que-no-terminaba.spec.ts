@@ -122,7 +122,19 @@ describe('IAM_SYNC_AL_ARRANCAR', () => {
      */
     expect(avisos).toHaveLength(1);
     expect(avisos[0]).toContain('IAM_SYNC_AL_ARRANCAR=false');
-    expect(avisos[0]).toContain('/api/admin-permisos/sincronizar');
+    /*
+     * La ruta, tal cual la sirve el controlador.
+     *
+     * Decía `/api/admin-permisos/sincronizar` —con guion— en los tres sitios
+     * donde el servicio explica cómo reconciliar a mano, y el controlador
+     * está en `@Controller('admin/permisos')`. Quien siguiera la instrucción
+     * del aviso recibía un 404, justo en el momento en que el sistema le
+     * acaba de decir que los permisos se quedaron como estaban.
+     *
+     * Medido el 21-oct-2026. Una instrucción equivocada en un aviso es peor
+     * que no dar instrucción: manda a probar y a dudar de uno mismo.
+     */
+    expect(avisos[0]).toContain('/api/admin/permisos/sincronizar');
   });
 
   it('con `true` reconcilia', async () => {

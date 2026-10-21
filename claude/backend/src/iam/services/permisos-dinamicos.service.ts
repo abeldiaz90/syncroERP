@@ -331,7 +331,7 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
    * comporta igual que siempre. Apagada, el arranque no reconcilia nada y lo
    * dice; la reconciliación se pide a mano cuando convenga:
    *
-   *     POST /api/admin-permisos/sincronizar
+   *     POST /api/admin/permisos/sincronizar
    *
    * OJO: en una base nueva, o después de agregar pantallas, los permisos y el
    * menú salen de esta reconciliación. Apagarla y no correrla deja el menú
@@ -371,7 +371,7 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
       this.logger.warn(
         'Reconciliación de permisos omitida en el arranque ' +
           '(IAM_SYNC_AL_ARRANCAR=false). El menú y los permisos quedan como ' +
-          'estaban en la base. Para reconciliar: POST /api/admin-permisos/sincronizar',
+          'estaban en la base. Para reconciliar: POST /api/admin/permisos/sincronizar',
       );
       return;
     }
@@ -828,7 +828,7 @@ export class PermisosDinamicosService implements OnApplicationBootstrap {
         `La reconciliación de permisos tardó ${segundos}s. Hace una consulta por ` +
           `endpoint y recorre cada empresa y rol, así que crece con la base. ` +
           `Para arrancar sin pagarlo: IAM_SYNC_AL_ARRANCAR=false, y reconciliar ` +
-          `a mano con POST /api/admin-permisos/sincronizar`,
+          `a mano con POST /api/admin/permisos/sincronizar`,
       );
     }
   }
