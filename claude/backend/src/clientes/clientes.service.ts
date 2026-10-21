@@ -137,6 +137,39 @@ export class ClientesService {
     return query.orderBy('c.nombre', 'ASC').getMany();
   }
 
+  /**
+   * La lista CORTA para elegir un cliente: identificador, nombre y RFC.
+   *
+   * `obtenerTodos` devuelve la entidad completa —límite de crédito, saldo,
+   * correo, teléfono, domicilio, estado de la solicitud de crédito,
+   * clasificación hotelera— y por eso sólo la pueden leer los roles que
+   * administran clientes. Pero tres pantallas no administran nada: sólo
+   * necesitan BUSCAR a uno para seguir trabajando, y una de ellas —el estado
+   * de cuenta— se le ofrece a Tesorería, que puede leer el reporte y no la
+   * lista. Resultado: un buscador que nunca encontraba a nadie, en la única
+   * puerta de entrada de la pantalla.
+   *
+   * Es el mismo remedio que ya tienen los almacenes (`para-venta`) y las
+   * cuentas bancarias (`para-cobro`): una vista corta que más roles pueden
+   * leer porque no lleva nada que haya que proteger.
+   *
+   * Exige filtro de dos caracteres. Sin eso sería `obtenerTodos` con otro
+   * nombre: quien no puede leer el padrón tampoco puede descargarlo de aquí.
+   */
+  async paraSeleccion(empresaId: string, filtro?: string) {
+    if (!filtro || filtro.trim().length < 2) return [];
+    return this.clienteRepo
+      .createQueryBuilder('c')
+      .select(['c.id', 'c.nombre', 'c.rfc'])
+      .where({ empresaId, activo: true })
+      .andWhere('(c.nombre ILIKE :f OR c.rfc ILIKE :f)', {
+        f: `%${filtro.trim()}%`,
+      })
+      .orderBy('c.nombre', 'ASC')
+      .limit(25)
+      .getMany();
+  }
+
   async obtenerPorId(id: string, empresaId: string) {
     const cliente = await this.clienteRepo.findOne({
       where: { id, empresaId },

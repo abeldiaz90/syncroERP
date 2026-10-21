@@ -36,6 +36,18 @@ export class ClientesController {
     return this.clientesService.obtenerTodos(empresaId, filtro, soloActivos);
   }
 
+  /*
+   * Va declarado ANTES de las rutas con parámetro: si fuera después, Nest
+   * tomaría «para-seleccion» como un identificador y nunca se alcanzaría.
+   */
+  @Get('para-seleccion')
+  paraSeleccion(
+    @ActiveUser('empresaId') empresaId: string,
+    @Query('filtro') filtro?: string,
+  ) {
+    return this.clientesService.paraSeleccion(empresaId, filtro);
+  }
+
   @Get(':id')
   obtenerPorId(
     @Param('id') id: string,

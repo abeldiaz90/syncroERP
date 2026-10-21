@@ -72,9 +72,26 @@ export default function EstadoCuentaClientePage() {
   useEffect(() => {
     if (busqueda.length < 2) { setClientes([]); return; }
     const t = setTimeout(async () => {
-      const r = await peticion(`/clientes?filtro=${encodeURIComponent(busqueda)}`, { headers: h() });
+      /*
+        La vista CORTA, no el padrón.
+        ---------------------------------------------------------------
+        Esta pantalla sólo necesita elegir a un cliente: nombre y RFC. Pedía
+        `GET /clientes`, que trae límites de crédito, saldos y domicilios, y
+        por eso sólo lo pueden leer los roles que administran clientes.
+        Tesorería puede leer este reporte y no esa lista: abría la pantalla,
+        escribía un nombre y el buscador no encontraba a nadie, nunca.
+      */
+      const r = await peticion(
+        `/clientes/para-seleccion?filtro=${encodeURIComponent(busqueda)}`,
+        { headers: h() },
+      );
       if (r.ok) { const d = await r.json(); setClientes(Array.isArray(d) ? d : d.clientes ?? []); }
-      else { setClientes([]); setError('No se pudo buscar clientes.'); }
+      else {
+        setClientes([]);
+        setError(r.status === 403
+          ? 'Tu perfil no incluye la búsqueda de clientes.'
+          : 'No se pudo buscar clientes.');
+      }
     }, 300);
     return () => clearTimeout(t);
   }, [busqueda]);

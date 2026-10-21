@@ -978,6 +978,22 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       ...ACCIONES_NOMINA_TESORERIA,
       // El tercer nivel de la cadena de firmas es suyo.
       ...ACCIONES_FIRMAR_NOMINA,
+      /*
+       * Y la lista corta de clientes para poder ELEGIR uno.
+       *
+       * El menú le ofrece «Estado de cuenta» porque puede leer el reporte
+       * —`GET /credito/estado-cuenta/:clienteId`—, pero la única puerta de
+       * entrada de esa pantalla es un buscador de clientes, y el padrón no es
+       * suyo: lleva límites de crédito, saldos y domicilios. Así que abría la
+       * pantalla, escribía un nombre y no encontraba a nadie. Nunca. Medido
+       * el 21-oct-2026 cruzando plantillas contra las llamadas de cada
+       * pantalla: era el único rol al que le pasaba.
+       *
+       * La vista corta trae identificador, nombre y RFC, exige dos
+       * caracteres de filtro y devuelve 25 como máximo: sirve para elegir y
+       * no sirve para llevarse el padrón.
+       */
+      'GET /clientes/para-seleccion',
     ],
   },
   {
