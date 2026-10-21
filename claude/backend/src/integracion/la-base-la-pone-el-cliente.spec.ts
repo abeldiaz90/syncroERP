@@ -207,6 +207,80 @@ describe('lo que queda escrito en la fuente', () => {
     expect(existsSync(join(RAIZ, 'src/integracion/services/origen-core.service.ts'))).toBe(true);
   });
 
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * La migración y la entidad dicen lo mismo
+   * --------------------------------------------------------------------------
+   * MEDIDO el 21-oct-2026 corriendo el alta de verdad contra la consola: la
+   * empresa no se creó y la pantalla dijo «La tabla integracion_origen_core no
+   * existe en la base de datos. Falta correr las migraciones pendientes». La
+   * negativa fue limpia —ni empresa a medias ni realm huérfano— y el mensaje
+   * fue exacto. Falta correr la migración, nada más.
+   *
+   * Lo que NO estaba comprobado es lo que se descubre después de correrla: que
+   * la tabla que crea tenga las columnas que la entidad espera. Un desajuste
+   * ahí no se ve al migrar —la migración pasa— sino en la primera escritura, y
+   * para entonces ya hay alguien esperando a que el alta funcione.
+   *
+   * La estrategia de nombres del proyecto es `LowercaseNamingStrategy`, así que
+   * `baseDatos` es `basedatos` y `secretoCifrado` es `secretocifrado`. Se
+   * compara exactamente eso.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  it('la migración crea las columnas que la entidad espera', () => {
+    const entidad = leer('src/integracion/entities/origen-core.entity.ts');
+    const migracion = leer(
+      'src/database/migrations/postgres/1790930000000-LaBaseLaPuedePonerElCliente.ts',
+    );
+
+    /* Las propiedades que llevan @Column, en minúsculas, como las escribe TypeORM. */
+    const propiedades = [
+      ...entidad.matchAll(/@Column\([^)]*\)\s*\n?\s*(\w+)!?:/g),
+    ].map((m) => m[1].toLowerCase());
+
+    expect(propiedades.length).toBeGreaterThanOrEqual(12);
+
+    const cuerpo = /CREATE TABLE IF NOT EXISTS integracion_origen_core \(([\s\S]*?)\n      \)/.exec(
+      migracion,
+    )?.[1];
+    expect(cuerpo).toBeDefined();
+
+    const columnas = new Set(
+      (cuerpo ?? '')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith('CONSTRAINT'))
+        .map((l) => l.split(/\s+/)[0].toLowerCase()),
+    );
+
+    const faltantes = propiedades.filter((c) => !columnas.has(c));
+    expect(faltantes).toEqual([]);
+
+    /* Y las de TypeORM que no llevan @Column pero sí columna. */
+    for (const auto of ['id', 'fechacreacion', 'fechaactualizacion']) {
+      expect([auto, columnas.has(auto)]).toEqual([auto, true]);
+    }
+  });
+
+  it('y la migración está registrada donde el ERP las busca', () => {
+    /*
+     * Vive en `migrations/postgres/`, no en `migrations/`: las de la carpeta de
+     * arriba no las carga nadie. `data-source.ts` apunta sólo a la de postgres,
+     * y una migración en el sitio equivocado no falla — simplemente no corre, y
+     * eso se descubre cuando la tabla no existe.
+     */
+    const ds = leer('src/database/data-source.ts');
+    expect(ds).toMatch(/migrations\/postgres\/\*\{\.ts,\.js\}/);
+    expect(
+      existsSync(
+        join(
+          RAIZ,
+          'src/database/migrations/postgres/1790930000000-LaBaseLaPuedePonerElCliente.ts',
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it('activar comprueba que el esquema esté construido y se niega si no', () => {
     const fuente = leer('src/integracion/services/origen-core.service.ts');
     expect(fuente).toMatch(/to_regclass\('public\.m_office'\)/);
