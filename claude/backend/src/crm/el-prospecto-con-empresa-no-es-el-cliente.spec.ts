@@ -88,7 +88,16 @@ describe('el alta desde un prospecto reparte bien lo que sabe', () => {
      * historial del navegador y en los registros del servidor. Esto ya estaba
      * y se vigila para que el arreglo de arriba no lo deshaga por comodidad.
      */
-    expect(BLOQUE).toMatch(/fetch\(`\$\{api\}\/crm\/prospectos`/);
+    /*
+     * La regla es que el prospecto se PIDE por su id, no que se pida con una
+     * función en concreto. El 20-oct-2026 esta llamada pasó de `fetch` a
+     * `peticion()` —la misma puerta de `lib/api`, que añade la sesión y la
+     * suplantación— y la aserción, que pinchaba el nombre de la función y la
+     * base de la URL, se puso roja sin que nada hubiera cambiado aquí.
+     *
+     * Se exige lo que importa: que los datos se traigan del servidor.
+     */
+    expect(BLOQUE).toMatch(/(?:fetch|peticion)\(`(?:\$\{api\})?\/crm\/prospectos`/);
     const pipeline = readFileSync(
       join(FRONTEND!, 'app/dashboard/crm/pipeline/page.tsx'),
       'utf8',

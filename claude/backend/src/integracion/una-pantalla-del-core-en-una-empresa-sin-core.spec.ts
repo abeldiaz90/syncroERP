@@ -55,6 +55,30 @@ const PREFIJO_CORE = /['`]\/integracion\//;
  * comprueba abajo, y una justificación que deje de ser cierta pone la prueba
  * en rojo igual que una pantalla sin marcar.
  */
+/**
+ * Pantallas DEL ERP que enriquecen con datos del core cuando lo hay, y que
+ * preguntan sólo si la empresa lo contrató.
+ *
+ * Es una tercera categoría y nació el 21-oct-2026. Hasta entonces había dos:
+ * marcada con `requiereCore` —y entonces no se le ofrece a quien no lo tiene—
+ * o justificada por estar fuera del menú. «Cartera de clientes» no es ninguna
+ * de las dos: la abre toda empresa, use o no el registro externo, y además
+ * pinta el control de verificaciones cuando existe.
+ *
+ * Marcarla con `requiereCore` escondería el padrón de clientes a una empresa
+ * que sólo usa el ERP, que es peor que el problema. Y dejarla sin marcar era
+ * lo que esta prueba denunciaba, con razón: estaba llamando al core en cada
+ * apertura aunque no hubiera core.
+ *
+ * Así que se exige lo que de verdad resuelve el caso: que CADA llamada al
+ * core de esa pantalla vaya detrás de la guarda del plan. Se cuenta, no se
+ * confía: tantas guardas como llamadas. Si alguien añade una tercera llamada
+ * sin guardarla, esto se pone rojo.
+ */
+const GUARDADAS_POR_PLAN: Record<string, RegExp> = {
+  '/dashboard/clientes': /plan\?\.validacion/,
+};
+
 const JUSTIFICADAS: Record<string, string> = {
   '/dashboard/creditos/verificacion/ejecutar':
     'Es el paso de ejecución del flujo de verificación: no está en el menú y ' +
@@ -110,6 +134,7 @@ describe('una pantalla del core en una empresa sin core', () => {
   it('toda pantalla que habla con el core está marcada o justificada', () => {
     const sinMarcar = delCore.filter((href) => {
       if (JUSTIFICADAS[href]) return false;
+      if (GUARDADAS_POR_PLAN[href]) return false;
       /*
        * Su entrada en el mapa: desde su `href` hasta el cierre del objeto.
        * Se mira sólo ese tramo para que la marca de la pantalla de al lado no
@@ -122,6 +147,30 @@ describe('una pantalla del core en una empresa sin core', () => {
       return !/requiereCore:/.test(fin > 0 ? tramo.slice(0, fin) : tramo);
     });
     expect(sinMarcar.sort()).toEqual([]);
+  });
+
+  it('cada pantalla guardada por el plan guarda TODAS sus llamadas', () => {
+    /*
+     * Lo que la hace aceptable es la guarda, así que la guarda se cuenta.
+     * Una pantalla con dos llamadas al core y una sola guarda es exactamente
+     * el caso que esta prueba existe para no dejar pasar.
+     */
+    const flojas: string[] = [];
+    for (const [href, guarda] of Object.entries(GUARDADAS_POR_PLAN)) {
+      const ruta = join(FRONTEND, 'app', `${href}/page.tsx`);
+      if (!existsSync(ruta)) {
+        flojas.push(`${href}: la pantalla ya no existe`);
+        continue;
+      }
+      const codigo = sinComentarios(readFileSync(ruta, 'utf8'));
+      const llamadas = (codigo.match(/['`]\/integracion\//g) ?? []).length;
+      const guardas = (codigo.match(new RegExp(guarda.source, 'g')) ?? []).length;
+      if (llamadas === 0) flojas.push(`${href}: ya no llama al core; sobra de esta lista`);
+      else if (guardas < llamadas) {
+        flojas.push(`${href}: ${llamadas} llamadas al core y sólo ${guardas} guardas`);
+      }
+    }
+    expect(flojas.sort()).toEqual([]);
   });
 
   it('cada justificación sigue siendo cierta', () => {

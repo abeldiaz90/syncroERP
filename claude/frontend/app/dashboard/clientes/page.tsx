@@ -1,5 +1,28 @@
 "use client";
 import Link from 'next/link';
+/*
+ * ──────────────────────────────────────────────────────────────────────────
+ * Esta pantalla NO es del core, pero le preguntaba igual
+ * --------------------------------------------------------------------------
+ * «Cartera de clientes» es una pantalla del ERP: la abre toda empresa, use o
+ * no el registro externo. Y aun así disparaba dos llamadas a
+ * `/integracion/validacion/…` en cuanto se abría —el flujo activo y el
+ * expediente del cliente seleccionado—. En una empresa sin core las dos
+ * contestan que no, la pantalla lo encaja bien y nadie se entera… salvo por
+ * dos negativas en el registro del servidor por cada vez que alguien entra.
+ *
+ * Se vio el 21-oct-2026 porque una prueba que ya existía —«una pantalla del
+ * core en una empresa sin core»— empezó a señalarla. No era un defecto nuevo:
+ * su detector busca rutas escritas como `/integracion/…`, y hasta ayer esta
+ * pantalla las escribía con la dirección del servidor delante, así que pasaba
+ * invisible. Al migrarla, la prueba por fin pudo verla.
+ *
+ * Ahora se pregunta sólo si la empresa contrató la validación. Lo que no
+ * cambia es cómo se comporta cuando no la tiene: igual que antes, sin flujo y
+ * sin expediente.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+import { useContratacion } from '@/lib/contratacion';
 import { peticion } from '@/lib/api';
 import { useState, useEffect, useCallback } from 'react';
 import { confirmarElegante, solicitarTexto } from '@/components/ui/dialogos';
@@ -299,12 +322,15 @@ export default function ClientesPage() {
         if (!clientesVisibles.length) { setSeleccionado(null); return; }
         setSeleccionado(prev => (prev && clientesVisibles.some(c=>c.id===prev)) ? prev : clientesVisibles[0].id);
     }, [clientesVisibles]);
+    const plan = useContratacion();
     useEffect(() => {
+        /* Sin validación contratada no hay flujo que buscar. */
+        if (!plan?.validacion) { setFlujoVerif(null); return; }
         peticion(`/integracion/validacion/flujos/activo`, { headers: heads() })
           .then(r => r.ok ? r.json() : null)
           .then((f:any) => setFlujoVerif(f && f.id ? { id:f.id, nombre:f.nombre } : null))
           .catch(()=>setFlujoVerif(null));
-    }, []);
+    }, [plan?.validacion]);
     useEffect(() => {
         peticion(`/catalogos/paises`, {headers:heads()})
           .then(r=>r.ok?r.json():[]).then((datos:any[]) => {
@@ -478,6 +504,7 @@ export default function ClientesPage() {
         /* El expediente mas reciente que NO sea simulacion: es el unico que el
            candado de aprobacion mira. */
         setExpediente(undefined);
+        if (!plan?.validacion) { setExpediente(null); return; }
         peticion(`/integracion/validacion/expedientes?clienteId=${c.id}`, { headers: heads() })
           .then(r => r.ok ? r.json() : [])
           .then((h:any[]) => setExpediente((Array.isArray(h)?h:[]).find(e => !e.simulacion) ?? null))

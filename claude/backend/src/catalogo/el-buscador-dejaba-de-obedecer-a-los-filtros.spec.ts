@@ -127,7 +127,22 @@ describe('La pantalla ya no cambia de puerta al escribir', () => {
 
   it('y la URL es una sola, constante', () => {
     if (!hay) return;
-    expect(codigo).toMatch(/const url = `\$\{apiUrl\}\/catalogo\/productos\?\$\{params\}`/);
+    /*
+     * Se fija la REGLA, no la ortografía.
+     *
+     * Esta aserción pinchaba el texto literal `${apiUrl}/catalogo/productos`.
+     * El 20-oct-2026 la pantalla pasó a `peticion()`, que pone la dirección
+     * de la API por su cuenta, así que el camino quedó relativo y esto se
+     * puso rojo sin que nada del buscador hubiera cambiado.
+     *
+     * Lo que importa es lo que el defecto original rompía: que haya UNA sola
+     * URL, armada con los parámetros, y no dos puertas distintas según si hay
+     * texto escrito o no. Eso es lo que se exige ahora, y la prueba de que no
+     * se aflojó está en el `it` de arriba: `/buscar` sigue prohibida.
+     */
+    expect(codigo).toMatch(/const url = `\/catalogo\/productos\?\$\{params\}`/);
+    /* Y una sola: si apareciera una segunda forma de armarla, se vería aquí. */
+    expect(codigo.match(/`[^`]*\/catalogo\/productos\?/g) ?? []).toHaveLength(1);
   });
 });
 
