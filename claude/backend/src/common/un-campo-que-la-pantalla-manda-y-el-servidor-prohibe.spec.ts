@@ -488,6 +488,7 @@ function literalesDe(texto: string, expresion: string, patron: RegExp): string[]
 const rutasDeUrl = (texto: string, expresion: string) =>
   literalesDe(texto, expresion, /`[^`]*`/g)
     // `${api}/clientes/${id}` → la base se quita; lo interpolado es `:id`.
+    // `${api}/clientes/${id}` → la base se quita. `peticion` ya viene sin base.
     .map((plantilla) => plantilla.replace(/^\$\{[^}]*\}/, ''))
     .filter((ruta) => ruta.startsWith('/'))
     .map((ruta) => normalizar(ruta.replace(/\$\{[^}]*\}/g, ':id')));
@@ -592,7 +593,14 @@ function llamadas(): Llamada[] {
     }
 
     /* b) El `fetch` a pelo, con el cuerpo serializado. */
-    const conFetch = /fetch\s*\(\s*([^,()]+?)\s*,\s*\{/g;
+    /*
+     * `peticion` es la misma llamada con otro nombre: devuelve la `Response`,
+     * manda el mismo cuerpo, y al migrar las 65 pantallas se llevó consigo
+     * toda esta familia. Mientras aquí decía sólo `fetch`, la tercera
+     * comprobación medía un árbol casi vacío —el mismo accidente que ya había
+     * tenido cuando sólo miraba `api.post`.
+     */
+    const conFetch = /(?:fetch|peticion)\s*\(\s*([^,()]+?)\s*,\s*\{/g;
     while ((m = conFetch.exec(texto))) {
       const opciones = bloque(texto, m.index + m[0].length - 1, '{', '}');
       const serializa = /body\s*:\s*JSON\.stringify\s*\(\s*([a-zA-Z_]\w*)\s*\)/.exec(opciones);
@@ -654,6 +662,29 @@ describe('Formularios · un campo que la pantalla manda y el servidor prohíbe',
   it('hay llamadas de escritura que medir', () => {
     // Si el extractor deja de encontrar nada, la prueba pasaría en falso.
     expect(todas.length).toBeGreaterThan(20);
+  });
+
+  it('y las dos familias se miden, no sólo una', () => {
+    /*
+     * Este suelo de «más de 20» no sirvió: cuando la migración cambió todos los
+     * `fetch` a pelo por `peticion`, el extractor dejó de ver esa familia
+     * entera y la cuenta siguió por encima de 20 gracias a los `api.post`. La
+     * prueba pasaba midiendo la mitad.
+     *
+     * Un total no detecta que se perdió una familia. Hay que contarlas por
+     * separado: las que escriben con el ayudante `api.post` y las que mandan el
+     * cuerpo a mano por la puerta cruda.
+     */
+    const archivos = new Set(todas.map((l) => l.archivo));
+    let conAyudante = 0;
+    let conPuertaCruda = 0;
+    for (const archivo of archivos) {
+      const texto = readFileSync(join(FRONTEND!, archivo), 'utf8');
+      if (/api\.(?:post|patch|put)\s*(?:<[^>()]*>)?\s*\(/.test(texto)) conAyudante++;
+      if (/body\s*:\s*JSON\.stringify/.test(texto)) conPuertaCruda++;
+    }
+    expect(conAyudante).toBeGreaterThan(3);
+    expect(conPuertaCruda).toBeGreaterThan(3);
   });
 
   it('los DTO del backend se leyeron', () => {

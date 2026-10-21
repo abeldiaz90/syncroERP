@@ -24,14 +24,27 @@ import { join, relative, sep } from 'path';
  *
  * LA REGLA
  *
- * Todo `fetch` con método de escritura mira su respuesta: `r.ok`, el `status`,
- * o al menos un `catch` que avise. Una escritura que se manda y no se
- * comprueba no es una escritura: es una esperanza.
+ * Toda escritura mira su respuesta: `r.ok`, el `status`, o al menos un `catch`
+ * que avise. Una escritura que se manda y no se comprueba no es una escritura:
+ * es una esperanza.
+ *
+ * AL DÍA, 21-OCT-2026
+ *
+ * Esta prueba nació mirando `await fetch(`, que era como escribían las
+ * pantallas. Al migrarlas a `peticion('/...')` —la puerta única, la que renueva
+ * la sesión y lleva la suplantación— la regla se quedó mirando un árbol casi
+ * vacío: de más de veinte archivos con escritura pasó a UNO. No se rompió, que
+ * es lo peor que puede pasarle a una prueba: siguió pasando sin medir nada, y
+ * fue su propia prueba de la prueba la que lo dijo.
+ *
+ * `peticion` tiene exactamente el mismo filo que `fetch`: devuelve la
+ * `Response`, un 403 no lanza, y una escritura sin comprobar sigue siendo una
+ * esperanza. Así que la regla mira las dos.
  *
  * QUÉ CUIDA ESTA PRUEBA
  *
- * Que ningún `fetch` de escritura vuelva a quedarse sin comprobar en el
- * frontend.
+ * Que ninguna escritura del frontend —con `fetch` o con `peticion`— vuelva a
+ * quedarse sin comprobar.
  * ============================================================================
  */
 
@@ -53,6 +66,8 @@ function fuentes(dir: string, acumulado: string[] = []): string[] {
 }
 
 const ESCRITURA = /method:\s*["'](?:POST|PATCH|PUT|DELETE)/i;
+/** Las dos puertas que devuelven la `Response` sin lanzar. */
+const LLAMADA = /await\s+(?:fetch|peticion)\s*\(/g;
 /** `r.ok`, `res.status`, `.catch(`, o un `try` alrededor que avise. */
 const COMPROBADA = /\.ok\b|\bstatus\s*[=!<>]|\.catch\s*\(/;
 
@@ -73,11 +88,11 @@ describe('Pantallas · una escritura que nadie comprueba', () => {
     const culpables: string[] = [];
 
     for (const { ruta, texto } of archivos) {
-      let desde = 0;
+      LLAMADA.lastIndex = 0;
       for (;;) {
-        const i = texto.indexOf('await fetch(', desde);
-        if (i < 0) break;
-        desde = i + 12;
+        const m = LLAMADA.exec(texto);
+        if (!m) break;
+        const i = m.index;
 
         /* La llamada: hasta 700 caracteres, que cubren cabeceras y cuerpo. */
         if (!ESCRITURA.test(texto.slice(i, i + 700))) continue;
@@ -91,12 +106,40 @@ describe('Pantallas · una escritura que nadie comprueba', () => {
     expect(culpables.sort()).toEqual([]);
   });
 
-  it('hay escrituras con fetch en el árbol (si no, esto no mide nada)', () => {
+  it('hay escrituras en el árbol (si no, esto no mide nada)', () => {
     const conEscritura = archivos.filter((a) =>
-      /await fetch\([\s\S]{0,700}?method:\s*["'](?:POST|PATCH|PUT|DELETE)/i.test(
+      /await\s+(?:fetch|peticion)\s*\([\s\S]{0,700}?method:\s*["'](?:POST|PATCH|PUT|DELETE)/i.test(
         a.texto,
       ),
     );
     expect(conEscritura.length).toBeGreaterThan(5);
+  });
+
+  it('y la regla mira las dos puertas, no sólo una', () => {
+    /*
+     * El 21 de octubre esto valía 1 porque la regla seguía buscando `fetch`
+     * después de la migración. Que haya pantallas que escriben con cada una de
+     * las dos puertas es lo que hace que la regla de arriba signifique algo.
+     */
+    const conFetch = archivos.filter((a) =>
+      /await\s+fetch\s*\([\s\S]{0,700}?method:\s*["'](?:POST|PATCH|PUT|DELETE)/i.test(
+        a.texto,
+      ),
+    ).length;
+    const conPeticion = archivos.filter((a) =>
+      /await\s+peticion\s*\([\s\S]{0,700}?method:\s*["'](?:POST|PATCH|PUT|DELETE)/i.test(
+        a.texto,
+      ),
+    ).length;
+    /*
+     * 21-oct-2026: 45 archivos escriben con `peticion` y 1 queda con `fetch`
+     * —el de aceptar la invitación, que corre ANTES de que exista una sesión y
+     * por eso no puede usar la puerta. El suelo se pone por debajo de lo medido
+     * para que la cifra pueda bajar un poco sin falsas alarmas, pero no al
+     * punto de que la regla se quede mirando nada: 1 archivo, que es donde
+     * estaba cuando la prueba dejó de medir, no pasa de aquí.
+     */
+    expect(conPeticion).toBeGreaterThanOrEqual(30);
+    expect(conFetch).toBeLessThanOrEqual(3);
   });
 });

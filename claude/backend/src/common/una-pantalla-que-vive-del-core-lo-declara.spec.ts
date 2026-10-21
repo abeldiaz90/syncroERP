@@ -43,9 +43,15 @@ const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
   .map((nombre) => join(RAIZ, nombre))
   .find((ruta) => existsSync(join(ruta, 'app/dashboard/module-config.ts')));
 
-/** `api.get('/x')`, `api.post<T>('/x')`, y el `fetch(`${api}/x`)` a pelo. */
+/**
+ * `api.get('/x')`, `api.post<T>('/x')`, el `fetch(`${api}/x`)` a pelo, y
+ * `peticion('/x')`, que es en lo que se convirtió el `fetch` a pelo cuando se
+ * migraron las 65 pantallas a la puerta única. Mientras esta expresión no
+ * conocía `peticion`, una pantalla podía empezar a vivir del core sin
+ * declararlo y esta prueba seguía pasando.
+ */
 const LLAMADA =
-  /api\.(?:get|post|patch|put|delete)\s*(?:<[^>()]*>)?\s*\(\s*[`'"]([^`'"]+)|fetch\(\s*`\$\{[^}]+\}([^`'"]+)/g;
+  /api\.(?:get|post|patch|put|delete)\s*(?:<[^>()]*>)?\s*\(\s*[`'"]([^`'"]+)|fetch\(\s*`\$\{[^}]+\}([^`'"]+)|peticion\s*\(\s*[`'"](\/[^`'"]+)/g;
 
 function paginas(dir: string, acumulado: string[] = []): string[] {
   if (!existsSync(dir)) return acumulado;
@@ -122,13 +128,43 @@ describe('una pantalla que vive del core lo declara', () => {
 
   const delCore = paginas(join(FRONTEND, 'app/dashboard')).filter((archivo) => {
     const texto = readFileSync(archivo, 'utf8');
-    const rutas = [...texto.matchAll(LLAMADA)].map((m) => m[1] ?? m[2]);
+    const rutas = [...texto.matchAll(LLAMADA)].map((m) => m[1] ?? m[2] ?? m[3]);
     if (!rutas.length) return false;
     return rutas.every((r) => r.startsWith('/integracion'));
   });
 
   it('hay pantallas que viven del core (si no, la prueba no prueba nada)', () => {
     expect(delCore.length).toBeGreaterThan(0);
+  });
+
+  it('y la expresión ve las tres formas de llamar que hay en el árbol', () => {
+    /*
+     * «Más de cero» no habría avisado: la expresión conocía `api.get` y el
+     * `fetch(`${api}/x`)` a pelo, y cuando la migración cambió el segundo por
+     * `peticion('/x')` se quedó mirando sólo el primero. Una pantalla podía
+     * empezar a vivir del core sin declararlo.
+     *
+     * Así que se cuenta por forma: mientras existan pantallas que llamen con
+     * cada una, la expresión tiene que encontrarlas.
+     */
+    const textos = paginas(join(FRONTEND!, 'app/dashboard')).map((a) =>
+      readFileSync(a, 'utf8'),
+    );
+    const cuantas = (patron: RegExp) => textos.filter((t) => patron.test(t)).length;
+    const enElArbol = {
+      ayudante: cuantas(/api\.(?:get|post|patch|put|delete)\s*(?:<[^>()]*>)?\s*\(\s*[`'"]\//),
+      puerta: cuantas(/peticion\s*\(\s*[`'"]\//),
+    };
+    /* Lo que hay en el árbol es lo que la expresión tiene que saber leer. */
+    for (const [forma, cuenta] of Object.entries(enElArbol)) {
+      if (cuenta === 0) continue;
+      const vistas = textos.filter((t) => {
+        LLAMADA.lastIndex = 0;
+        return LLAMADA.test(t);
+      }).length;
+      expect([forma, vistas >= cuenta]).toEqual([forma, true]);
+    }
+    expect(enElArbol.puerta).toBeGreaterThan(20);
   });
 
   it.each(delCore.map((a) => [rutaDe(a), a]))(

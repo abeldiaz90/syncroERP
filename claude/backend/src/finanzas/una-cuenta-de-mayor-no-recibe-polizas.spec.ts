@@ -99,7 +99,7 @@ describe('Quien elige una cuenta para asentar algo sólo ve cuentas de detalle',
       const lineas = texto
         .split('\n')
         .filter((l) => /\/finanzas\/cuentas-contables/.test(l))
-        .filter((l) => /api\.get|fetch\(/.test(l));
+        .filter((l) => /api\.get|fetch\(|peticion\(/.test(l));
       if (!lineas.length) continue;
       if (!/soloAfectables/.test(texto)) sinFiltro.push(nombre);
     }
