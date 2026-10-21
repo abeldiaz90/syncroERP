@@ -7,6 +7,7 @@ import { EstadoTransferenciaInventario } from '../../catalogo/entities/transfere
 import { EstadoConteoInventario } from '../../catalogo/entities/conteo-inventario.entity';
 import { EstadoCredito } from '../../credito/entities/credito-cliente.entity';
 import { EstadoConvenioHotel } from '../../hoteleria/entities/city-ledger.entity';
+import { EstadoAviso } from '../../integracion/entities/aviso-integracion.entity';
 
 export interface PendienteOperacion {
   codigo: string;
@@ -73,6 +74,47 @@ export const DEFINICIONES_PENDIENTES: DefinicionPendiente[] = [
   { codigo:'CRED_APROBAR', modulo:'CREDITO', titulo:'Propuestas de crédito pendientes de aprobación', tabla:'clientes', columnaEstado:'estadoSolicitudCredito', estados:['PENDIENTE'], prioridad:'ALTA', responsable:'Aprobadores de crédito', accion:'Revisar condiciones propuestas sin sustituir la línea vigente', ruta:'/dashboard/aprobaciones', vocabulario: ESTADOS_SOLICITUD_CREDITO as readonly string[] },
   { codigo:'HOTEL_CONVENIO_APROBAR', modulo:'HOTELERIA', titulo:'Convenios hoteleros pendientes de aprobación', tabla:'hoteleria_convenios_credito', estados:['PENDIENTE'], prioridad:'ALTA', responsable:'Aprobadores de convenios', accion:'Revisar convenio y segregación de funciones', ruta:'/dashboard/aprobaciones', vocabulario: Object.values(EstadoConvenioHotel) as readonly string[] },
   { codigo:'CRED_VENCIDO', modulo:'CREDITO', titulo:'Créditos vencidos por gestionar', tabla:'creditos_clientes', estados:['VENCIDO'], prioridad:'ALTA', responsable:'Cobranza', accion:'Gestionar cartera vencida', ruta:'/dashboard/creditos/cartera-vencida', vocabulario: Object.values(EstadoCredito) as readonly string[] },
+
+  /*
+   * ══════════════════════════════════════════════════════════════════════════
+   * LO QUE EL CORE Y EL ERP NO SE ESTÁN DICIENDO
+   * --------------------------------------------------------------------------
+   * MEDIDO el 21-oct-2026 en la instalación local, con ERP + core contratados:
+   * el tablero decía «4 pendientes, 3 de alta prioridad» y no contaba nada del
+   * core. Debajo había, sin que ninguna pantalla llamara a nadie:
+   *
+   *   · una diferencia de saldo de −$6,150.00 en un cliente, abierta desde el
+   *     3 de octubre y sin refrescar desde el 14, porque desde entonces la
+   *     consulta al core de ESE cliente se agota;
+   *   · 32 avisos huérfanos PENDIENTES —préstamos aprobados, desembolsados y
+   *     pagados en el core que el ERP no sabe que existen—;
+   *   · una póliza cuyo asiento no llegó a salir al mayor externo.
+   *
+   * Cada una de las tres tiene su pantalla, su detección y su bandeja. Lo que
+   * no tenían es quien las nombrara en el único sitio donde alguien mira al
+   * empezar el día. Es la misma frase que ya está escrita en el controlador de
+   * la conciliación contable —«la tarea de fondo lo comprobaba cada diez
+   * minutos y dejaba avisos que nadie miraba»— un piso más arriba: se construyó
+   * la pantalla y no se llamó a nadie a ella.
+   *
+   * NO LLEVAN COMPUERTA DE CONTRATACIÓN, Y NO LA NECESITAN. Una empresa que
+   * sólo contrató el ERP no tiene filas en estas dos tablas —nadie le genera
+   * avisos ni concilia su cartera contra nada—, así que la cuenta sale cero y
+   * el renglón ni se publica: el bucle de abajo sólo publica lo que es mayor
+   * que cero. La única forma de que le aparezcan es que un día tuviera core,
+   * y entonces verlos es exactamente lo correcto.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  { codigo:'CORE_AVISO', modulo:'CREDITO', titulo:'Avisos del core sin resolver', tabla:'integracion_avisos', estados:['PENDIENTE','FALLIDO'], prioridad:'ALTA', responsable:'Quien concilia con el core', accion:'Decidir si el hecho del core se refleja en el ERP o se descarta', ruta:'/dashboard/creditos/avisos', vocabulario: Object.values(EstadoAviso) as readonly string[] },
+
+  /*
+   * La columna de estado aquí es un booleano, `resuelta`, y no un vocabulario
+   * de palabras como las demás. Se declara su vocabulario real —los dos
+   * valores que puede tomar— para que la prueba que compara estados contra
+   * vocabulario siga teniendo algo contra qué comparar en vez de una
+   * excepción.
+   */
+  { codigo:'CORE_DISCREPANCIA', modulo:'CREDITO', titulo:'Diferencias con el core sin resolver', tabla:'integracion_discrepancias', columnaEstado:'resuelta', estados:['false'], prioridad:'ALTA', responsable:'Quien concilia con el core', accion:'Revisar la diferencia y cerrarla con una nota', ruta:'/dashboard/integracion/conciliacion-cartera', vocabulario: ['true','false'] as readonly string[] },
 ];
 
 @Injectable()

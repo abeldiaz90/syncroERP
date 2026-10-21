@@ -30,6 +30,9 @@
  * cuál es el suyo. Esta prueba los confronta.
  * ============================================================================
  */
+import { existsSync } from 'fs';
+import { join } from 'path';
+
 import { DEFINICIONES_PENDIENTES } from './operaciones-pendientes.service';
 
 describe('el panel de pendientes sólo cuenta estados que existen', () => {
@@ -71,5 +74,70 @@ describe('el panel de pendientes sólo cuenta estados que existen', () => {
       (d) => !d.ruta?.startsWith('/dashboard/'),
     ).map((d) => `${d.codigo} → ${d.ruta}`);
     expect(sinRuta).toEqual([]);
+  });
+
+  /*
+   * ════════════════════════════════════════════════════════════════════════
+   * El tablero cuenta también lo que el core y el ERP no se están diciendo
+   * ------------------------------------------------------------------------
+   * MEDIDO el 21-oct-2026 en la instalación local, con los dos contratados: el
+   * tablero decía «4 pendientes» y debajo había una diferencia de saldo de
+   * −$6,150 abierta desde el 3 de octubre, 32 avisos huérfanos del core sin
+   * resolver, y una póliza cuyo asiento nunca salió. Cada una con su pantalla
+   * y su bandeja; ninguna con quien llamara a nadie a mirarla.
+   *
+   * Un pendiente que no se cuenta en el tablero es un pendiente que no existe
+   * para quien empieza el día ahí.
+   * ════════════════════════════════════════════════════════════════════════
+   */
+  describe('los dos contadores del core', () => {
+    const porCodigo = (codigo: string) =>
+      DEFINICIONES_PENDIENTES.find((d) => d.codigo === codigo);
+
+    it('los avisos del core se cuentan, y los fallidos también', () => {
+      const def = porCodigo('CORE_AVISO');
+      expect(def).toBeDefined();
+      expect(def!.tabla).toBe('integracion_avisos');
+      /*
+       * FALLIDO va con PENDIENTE a propósito: «se intentó reflejar y falló» es
+       * tan pendiente como «nadie lo ha mirado», y es el que más fácil se
+       * queda enterrado porque ya pasó por una bandeja una vez.
+       */
+      expect([...def!.estados].sort()).toEqual(['FALLIDO', 'PENDIENTE']);
+    });
+
+    it('las diferencias con el core se cuentan por las NO resueltas', () => {
+      const def = porCodigo('CORE_DISCREPANCIA');
+      expect(def).toBeDefined();
+      expect(def!.tabla).toBe('integracion_discrepancias');
+      expect(def!.columnaEstado).toBe('resuelta');
+      expect(def!.estados).toEqual(['false']);
+    });
+
+    it('los dos son de ALTA, porque son dinero que no cuadra', () => {
+      for (const codigo of ['CORE_AVISO', 'CORE_DISCREPANCIA']) {
+        expect([codigo, porCodigo(codigo)!.prioridad]).toEqual([codigo, 'ALTA']);
+      }
+    });
+
+    it('y mandan a una pantalla que existe', () => {
+      /*
+       * La primera versión mandaba a `/dashboard/integracion/conciliacion`,
+       * que no existe: la pantalla se llama `conciliacion-cartera`. Un
+       * pendiente que se cuenta bien y lleva a un 404 es un botón que lleva a
+       * un no, al final de un aviso correcto.
+       */
+      const RAIZ = join(__dirname, '..', '..', '..');
+      const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
+        .map((n) => join(RAIZ, n))
+        .find((r) => existsSync(join(r, 'app/dashboard/module-config.ts')));
+      if (!FRONTEND) return;
+
+      for (const codigo of ['CORE_AVISO', 'CORE_DISCREPANCIA']) {
+        const ruta = porCodigo(codigo)!.ruta.replace(/^\/dashboard\//, '');
+        const archivo = join(FRONTEND, 'app/dashboard', ruta, 'page.tsx');
+        expect([codigo, existsSync(archivo)]).toEqual([codigo, true]);
+      }
+    });
   });
 });
