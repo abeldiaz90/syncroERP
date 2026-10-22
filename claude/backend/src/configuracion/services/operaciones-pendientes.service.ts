@@ -397,7 +397,16 @@ export class OperacionesPendientesService {
          * entero por un contador.
          */
         const huerfanos = await this.contarHuerfanos(esquema);
-        if (huerfanos !== null && huerfanos > 0) {
+        /*
+         * `null` es «no se pudo medir», y hay que DECIRLO. Esto compruébalo
+         * la prueba y el código no lo hacía: se trataba igual que un cero, así
+         * que una tabla ausente —una instalación sin migrar, un rename— se
+         * habría leído como «no hay huérfanos». Es el mismo defecto que este
+         * archivo lleva en su cabecera: afirmar un vacío que no se comprobó.
+         */
+        if (huerfanos === null) {
+          noVerificados.push('AVISOS_HUERFANOS');
+        } else if (huerfanos > 0) {
           pendientes.push({
             codigo: 'AVISOS_HUERFANOS',
             modulo: 'CREDITO',
