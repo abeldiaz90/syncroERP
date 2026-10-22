@@ -66,10 +66,23 @@ export class CotizacionesController {
     return this.service.rechazar(id, empresaId, usuarioId, rol, dto.comentario);
   }
 
-  @Patch(':id/seleccionar')
-  seleccionar(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {
-    return this.service.seleccionar(id, empresaId);
-  }
+  /*
+   * ═════════════════════════════════════════════════════════════════════════
+   * AQUÍ HABÍA UN `PATCH :id/seleccionar`, Y NO SELECCIONABA NADA
+   * --------------------------------------------------------------------------
+   * Su propio servicio lo decía: «No se persiste el cambio de estado: generar
+   * la orden de compra es lo que adjudica. Marcarlo aquí sólo bloqueaba ese
+   * paso». O sea que validaba y devolvía la cotización igual que estaba.
+   *
+   * Un PATCH que por diseño no cambia nada miente sobre su verbo: quien lo lee
+   * en la lista de rutas cuenta con que marca algo, y lo que marca de verdad
+   * es `POST :id/generar-orden`.
+   *
+   * MEDIDO el 22-oct-2026: no la llamaba nadie. La pantalla de cotizaciones de
+   * una requisición usa `solicitar-aprobacion`, `aprobar`, `rechazar` y
+   * `generar-orden`, que son los cuatro pasos reales.
+   * ═════════════════════════════════════════════════════════════════════════
+   */
 
   @Get(':id')
   obtenerPorId(@Param('id') id: string, @ActiveUser('empresaId') empresaId: string) {

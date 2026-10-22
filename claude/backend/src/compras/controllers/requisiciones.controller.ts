@@ -17,7 +17,6 @@ import {
 import { CrearRequisicionDto } from '../dto/crear-requisicion.dto';
 import { ActiveUser } from '../../iam/decorators/active-user.decorator';
 import { Navegable } from '../../iam/decorators/navegable.decorator';
-import { CambiarEstadoRequisicionDto } from '../dto/cambiar-estado-requisicion.dto';
 import { ResolverAprobacionRequisicionDto } from '../dto/resolver-aprobacion.dto';
 
 @Controller('compras/requisiciones')
@@ -112,22 +111,31 @@ export class RequisicionesController {
     );
   }
 
-  @Patch(':id/estado')
-  async cambiarEstado(
-    @Param('id') id: string,
-    @Body() dto: CambiarEstadoRequisicionDto,
-    @ActiveUser('empresaId') empresaId: string,
-    @ActiveUser('id') usuarioId: string,
-    @ActiveUser('rol') rol: string,
-  ) {
-    return this.requisicionesService.cambiarEstado(
-      id,
-      empresaId,
-      dto.estado,
-      usuarioId,
-      rol,
-    );
-  }
+  /*
+   * ═════════════════════════════════════════════════════════════════════════
+   * AQUÍ HABÍA UN `PATCH :id/estado`, Y SOBRABA
+   * --------------------------------------------------------------------------
+   * Aceptaba nueve estados en su DTO —PENDIENTE, COTIZANDO, APROBADA,
+   * RECHAZADA, CONVERTIDA, ORDEN_GENERADA, RECIBIDA, CON_INCIDENCIAS,
+   * CANCELADA— y la tabla de transiciones del servicio concede UNO:
+   *
+   *     PENDIENTE  → CANCELADA
+   *     COTIZANDO  → CANCELADA
+   *
+   * Los otros ocho contestaban 400 siempre. Era una puerta que promete nueve
+   * cosas y hace una, y esa una ya la hace `PATCH :id/cancelar` —que llama al
+   * mismo método con 'CANCELADA' escrito—.
+   *
+   * MEDIDO el 22-oct-2026: no la llamaba ninguna pantalla. La de requisiciones
+   * usa `/cancelar`. Se quita en vez de estrecharle el DTO porque estrecharlo
+   * la dejaría siendo `/cancelar` con otro nombre, y dos puertas a la misma
+   * acción son dos sitios donde arreglar el próximo cambio de reglas.
+   *
+   * Los estados que la tabla NO permite no se mueven por API a propósito: los
+   * mueve el flujo —cotizar, aprobar, generar la orden, recibir— cada uno por
+   * su puerta y con sus validaciones.
+   * ═════════════════════════════════════════════════════════════════════════
+   */
 
   // ── NUEVO: cancelar requisición ──────────────────────────────────────────
   @Patch(':id/cancelar')

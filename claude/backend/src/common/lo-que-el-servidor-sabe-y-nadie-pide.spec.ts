@@ -17,8 +17,10 @@ import { join } from 'path';
  * contra todo lo que piden el ERP y la consola de SUMA. Dieron noventa y
  * nueve; doce eran un fallo del cruce —la consola arma sus rutas en dos
  * trozos, ver `prefijosDe`— y otras nueve también: son rutas hermanas que la
- * pantalla elige con un ternario. Quedan SETENTA Y SEIS que no pide nadie, y
- * las dudosas se comprobaron a mano el 22-oct-2026. Entre ellas, cosas que no son cabos sueltos sino módulos enteros
+ * pantalla elige con un ternario. Quedaron setenta y seis, triadas a mano el
+ * 22-oct-2026, y la lista baja según se conectan o se quitan: `estado` de
+ * requisiciones se borró —prometía nueve estados y concedía el mismo que
+ * `/cancelar`— y producir, explotar y los traspasos ya tienen pantalla. Entre ellas, cosas que no son cabos sueltos sino módulos enteros
  * sin puerta:
  *
  *   · Las RESERVAS del WMS —crear, liberar, consumir— y la disponibilidad por
@@ -105,20 +107,15 @@ const SIN_PANTALLA: string[] = [
   'GET /integracion/disponibilidad/:clienteId',
   'GET /integracion/verificacion',
   'GET /recetas/costos/:recetaId/actual',
-  'GET /recetas/explotar',
   'GET /rrhh/nomina/parametros',
   'GET /salud',
   'GET /salud/listo',
   'PATCH /catalogo/wms/reservas/:id/consumir',
   'PATCH /catalogo/wms/reservas/:id/liberar',
   'PATCH /catalogo/wms/ubicaciones/:id',
-  'PATCH /compras/cotizaciones/:id/seleccionar',
-  'PATCH /compras/requisiciones/:id/estado',
   'PATCH /hoteleria/config/tipos/:id',
   'PATCH /hoteleria/housekeeping/tareas/:id/asignar',
   'PATCH /integracion/configuracion',
-  'PATCH /rrhh/incidencias/:id/rechazar',
-  'PATCH /rrhh/incidencias/:id/revertir',
   'PATCH /rrhh/nomina-avanzada/cfdi/:id/resultado-pac',
   'PATCH /rrhh/nomina/periodos/:id/cerrar',
   'POST /aprovisionamiento/empresas/:empresaId/identidad/suspender',
@@ -143,9 +140,7 @@ const SIN_PANTALLA: string[] = [
   'POST /integracion/roles/cuenta-servicio',
   'POST /integracion/roles/espejo',
   'POST /integracion/sincronizacion-inicial',
-  'POST /recetas/producir',
   'POST /rrhh/nomina/parametros',
-  'POST /tesoreria/traspasos',
   'POST /usuarios/:id/reenviar-invitacion',
 ];
 

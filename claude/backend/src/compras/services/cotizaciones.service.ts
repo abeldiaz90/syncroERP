@@ -968,22 +968,6 @@ export class CotizacionesService implements OnApplicationBootstrap {
    * puede dejar el documento en un estado del que no se pueda salir: la
    * adjudicación real ocurre al generar la orden.
    */
-  async seleccionar(id: string, empresaId: string) {
-    const cot = await this.obtenerPorId(id, empresaId);
-    this.validarProveedorOperable(cot.proveedor);
-    if (cot.estado === 'SELECCIONADA') return cot;
-    if (cot.estado !== 'APROBADA') {
-      throw new BadRequestException(
-        'Primero debe aprobarse la adjudicación de la cotización.',
-      );
-    }
-    /*
-     * No se persiste el cambio de estado: generar la orden de compra es lo
-     * que adjudica. Marcarlo aquí sólo bloqueaba ese paso.
-     */
-    return cot;
-  }
-
   async obtenerPorId(id: string, empresaId: string) {
     const cot = await this.cotizacionRepo.findOne({
       where: { id, empresaId },
