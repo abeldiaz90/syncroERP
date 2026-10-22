@@ -14,8 +14,11 @@ import { join } from 'path';
  * migra, y no sirve a nadie.
  *
  * MEDIDO el 21-oct-2026 cruzando las 604 rutas que sirven los controladores
- * contra todo lo que piden el ERP y la consola de SUMA: NOVENTA Y NUEVE no las
- * pide nadie. Entre ellas, cosas que no son cabos sueltos sino módulos enteros
+ * contra todo lo que piden el ERP y la consola de SUMA. Dieron noventa y
+ * nueve; doce eran un fallo del cruce —la consola arma sus rutas en dos
+ * trozos, ver `prefijosDe`— y otras nueve también: son rutas hermanas que la
+ * pantalla elige con un ternario. Quedan SETENTA Y OCHO que no pide nadie, y
+ * las diecinueve dudosas se comprobaron a mano el 22-oct-2026. Entre ellas, cosas que no son cabos sueltos sino módulos enteros
  * sin puerta:
  *
  *   · Las RESERVAS del WMS —crear, liberar, consumir— y la disponibilidad por
@@ -73,9 +76,6 @@ const SIN_PANTALLA: string[] = [
   'GET /admin/permisos/modulos',
   'GET /admin/permisos/plantillas',
   'GET /admin/permisos/roles',
-  'GET /aprovisionamiento/empresas/:empresaId/identidad',
-  'GET /aprovisionamiento/empresas/:empresaId/origen-core',
-  'GET /aprovisionamiento/empresas/:id/estado',
   'GET /auditoria/:entidad/:id',
   'GET /auditoria/integridad',
   'GET /auth/menu',
@@ -111,34 +111,18 @@ const SIN_PANTALLA: string[] = [
   'GET /salud/listo',
   'PATCH /catalogo/wms/reservas/:id/consumir',
   'PATCH /catalogo/wms/reservas/:id/liberar',
-  'PATCH /catalogo/wms/transferencias/:id/cancelar',
   'PATCH /catalogo/wms/ubicaciones/:id',
   'PATCH /compras/cotizaciones/:id/seleccionar',
   'PATCH /compras/requisiciones/:id/estado',
   'PATCH /hoteleria/config/tipos/:id',
   'PATCH /hoteleria/housekeeping/tareas/:id/asignar',
-  'PATCH /hoteleria/operacion/reservaciones/:id/cancelar',
-  'PATCH /hoteleria/operacion/reservaciones/:id/no-show',
   'PATCH /integracion/configuracion',
-  'PATCH /integracion/validacion/flujos/:id/activar',
-  'PATCH /integracion/validacion/flujos/:id/desactivar',
   'PATCH /rrhh/incidencias/:id/rechazar',
   'PATCH /rrhh/incidencias/:id/revertir',
   'PATCH /rrhh/nomina-avanzada/cfdi/:id/resultado-pac',
   'PATCH /rrhh/nomina/periodos/:id/cerrar',
-  'POST /aprovisionamiento/empresas/:empresaId/administrador',
-  'POST /aprovisionamiento/empresas/:empresaId/identidad',
-  'POST /aprovisionamiento/empresas/:empresaId/identidad/activar',
   'POST /aprovisionamiento/empresas/:empresaId/identidad/suspender',
-  'POST /aprovisionamiento/empresas/:empresaId/origen-core',
-  'POST /aprovisionamiento/empresas/:empresaId/origen-core/activar',
-  'POST /aprovisionamiento/empresas/:empresaId/origen-core/registrar',
-  'POST /aprovisionamiento/empresas/:empresaId/origen-core/verificar',
-  'POST /aprovisionamiento/empresas/:id/catalogo',
-  'POST /aprovisionamiento/empresas/:id/inquilino',
   'POST /auth/onboarding/paso/:numero',
-  'POST /caja/movimientos/entrada',
-  'POST /caja/movimientos/retiro',
   'POST /catalogo/importacion/stock-inicial/:id/reintentar',
   'POST /catalogo/impuestos/precargar-estandar',
   'POST /catalogo/wms/reservas',
@@ -155,8 +139,6 @@ const SIN_PANTALLA: string[] = [
   'POST /credito/productos/importados/suspender',
   'POST /finanzas/cuentas-contables/precargar-estandar',
   'POST /finanzas/presupuestos/:id/lineas',
-  'POST /hoteleria/housekeeping/tareas/:id/iniciar',
-  'POST /hoteleria/housekeeping/tareas/:id/terminar',
   'POST /integracion/evaluar-credito',
   'POST /integracion/roles/cuenta-servicio',
   'POST /integracion/roles/espejo',
@@ -183,6 +165,24 @@ function archivos(dir: string, re: RegExp, acumulado: string[] = []): string[] {
 const sinComentarios = (t: string) =>
   t.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
 
+/**
+ * El trozo de ruta que queda justo antes de una interpolación.
+ *
+ * `` `${base()}/api/aprovisionamiento/empresas${ruta}` `` da
+ * `/aprovisionamiento/empresas`. Se le quita el `/api` porque los
+ * controladores no lo llevan: lo pone el prefijo global del servidor.
+ *
+ * Se mide del código, no se declara: una lista de prefijos escrita a mano
+ * envejece igual que la de rutas, y con menos quien la mire.
+ */
+const prefijosDe = (texto: string): string[] => [
+  ...new Set(
+    [...texto.matchAll(/((?:\/[A-Za-z0-9_-]+)+)\$\{/g)]
+      .map((m) => m[1].replace(/^\/api(?=\/)/, ''))
+      .filter((p) => p.length >= 4),
+  ),
+];
+
 describe('lo que el servidor sabe hacer y ninguna pantalla pide', () => {
   const rutas: string[] = [];
   for (const f of archivos(SRC, /\.controller\.ts$/)) {
@@ -201,19 +201,27 @@ describe('lo que el servidor sabe hacer y ninguna pantalla pide', () => {
   }
 
   let pedido = '';
+  /*
+   * Y también por archivo, que hace falta para la composición de abajo: un
+   * prefijo sólo vale dentro del archivo donde se escribe. Juntarlo todo en un
+   * texto dejaría que un prefijo de la consola «alcanzara» una ruta que pide
+   * el ERP, o al revés, y eso no es alcanzar: es coincidir.
+   */
+  const porArchivo: { texto: string; prefijos: string[] }[] = [];
   for (const raiz of CLIENTES) {
     if (!raiz) continue;
     for (const d of ['app', 'lib', 'components', 'hooks']) {
       for (const f of archivos(join(raiz, d), /\.tsx?$/)) {
-        pedido += sinComentarios(readFileSync(f, 'utf8')) + '\n';
+        const texto = sinComentarios(readFileSync(f, 'utf8'));
+        pedido += texto + '\n';
+        porArchivo.push({ texto, prefijos: prefijosDe(texto) });
       }
     }
   }
 
   const escapa = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const alcanzada = (clave: string) => {
-    const ruta = clave.split(' ')[1];
-    const patron = new RegExp(
+  const patron = (ruta: string) =>
+    new RegExp(
       ruta
         .split('/')
         .filter(Boolean)
@@ -221,7 +229,65 @@ describe('lo que el servidor sabe hacer y ninguna pantalla pide', () => {
         .map((x) => '/' + x)
         .join(''),
     );
-    return patron.test(pedido);
+
+  const alcanzada = (clave: string) => {
+    const ruta = clave.split(' ')[1];
+    if (patron(ruta).test(pedido)) return true;
+    /*
+     * ── Y LA QUE SE ARMA EN DOS TROZOS ───────────────────────────────
+     * La consola no escribe sus rutas enteras: tiene un ayudante que pega
+     * `/api/aprovisionamiento/empresas` delante de lo que le pasen
+     * —`lib/erp.ts`— así que la ruta completa no aparece en ninguna línea y
+     * el cruce la daba por no pedida.
+     *
+     * Eran DOCE, y no son cabos sueltos: son las que dan de alta una empresa,
+     * le registran su realm y le capturan, verifican, registran y activan el
+     * origen del core. Las ejercité una por una contra la instalación el
+     * 21-oct-2026 dando de alta «Financiera Onpremise Prueba». Doce de las
+     * noventa y nueve eran mentira mía, no hueco del producto.
+     *
+     * El prefijo sólo vale DENTRO de su archivo, y el resto de la ruta tiene
+     * que aparecer ahí mismo: si valiera en todo el texto, cualquier prefijo
+     * corto alcanzaría media aplicación.
+     */
+    if (
+      porArchivo.some((a) =>
+        a.prefijos.some((p) => {
+          if (!ruta.startsWith(p)) return false;
+          const resto = ruta.slice(p.length);
+          return !resto || patron(resto).test(a.texto);
+        }),
+      )
+    ) {
+      return true;
+    }
+
+    /*
+     * ── Y LA QUE SE ELIGE CON UN TERNARIO ──────────────────────────────
+     * El tercer modo de escribir una ruta, y el que más engañaba. El servidor
+     * declara dos rutas hermanas y la pantalla escribe UNA sola línea que
+     * elige entre las dos:
+     *
+     *     api.patch(`/integracion/validacion/flujos/${f.id}/${activar ? 'activar' : 'desactivar'}`)
+     *     async function registrarManual(tipo: 'entrada' | 'retiro')
+     *
+     * `/caja/movimientos/entrada` no aparece escrito en ninguna parte y se
+     * pulsa todos los días desde la caja. Eran NUEVE así.
+     *
+     * Se reconoce pidiendo las dos cosas a la vez, y en el MISMO archivo: que
+     * escriba la forma del padre —`/caja/movimientos/…`— y que el segmento
+     * final aparezca entrecomillado. Por separado, cualquiera de las dos
+     * alcanzaría media aplicación; juntas, describen exactamente este patrón.
+     *
+     * No es certeza, es la mejor evidencia que da el texto. Las diecinueve que
+     * NO la pasan se comprobaron a mano, una por una, el 22-oct-2026.
+     */
+    const segs = ruta.split('/').filter(Boolean);
+    const iUltimo = segs.map((x) => !x.startsWith(':')).lastIndexOf(true);
+    if (iUltimo < 1) return false;
+    const padre = patron('/' + segs.slice(0, iUltimo).join('/'));
+    const entrecomillado = new RegExp(`['"\`]${escapa(segs[iUltimo])}['"\`]`);
+    return porArchivo.some((a) => padre.test(a.texto) && entrecomillado.test(a.texto));
   };
 
   const huerfanas = rutas.filter((r) => !alcanzada(r));
