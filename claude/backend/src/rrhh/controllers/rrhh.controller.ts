@@ -455,10 +455,29 @@ export class RrhhController {
     return this.svc.calcularNomina(id, empresaId, usuarioId);
   }
 
-  @Patch('nomina/periodos/:id/cerrar')
-  cerrar(@Param('id', ParseSqlServerGuidPipe) id: string, @ActiveUser('empresaId') empresaId: string) {
-    return this.svc.cerrarPeriodo(id, empresaId);
-  }
+  /*
+   * ═════════════════════════════════════════════════════════════════════════
+   * AQUÍ HABÍA UN `PATCH nomina/periodos/:id/cerrar`, Y SÓLO SABÍA DECIR QUE NO
+   * --------------------------------------------------------------------------
+   * El cierre directo se retiró por seguridad hace tiempo, y el método que
+   * quedaba existía nada más que para contarlo: salvo que el periodo ya
+   * estuviera CERRADO, lanzaba siempre
+   *
+   *     «El cierre directo fue retirado por seguridad. Usa el cierre
+   *      financiero de nómina, que valida aprobaciones, CFDI, pago,
+   *      conciliación y pólizas antes de cerrar.»
+   *
+   * La negativa es correcta y el motivo también. Lo que sobra es la PUERTA:
+   * una ruta que sólo contesta que no sigue apareciendo en la lista de
+   * permisos —hay roles a los que se les concede— y en cualquier inventario de
+   * lo que el servidor sabe hacer, como si cerrar un periodo por aquí fuera
+   * una posibilidad.
+   *
+   * El cierre de verdad es `POST /rrhh/nomina-avanzada/periodos/:id/cierre-financiero`.
+   *
+   * MEDIDO el 22-oct-2026: no la llamaba ninguna pantalla.
+   * ═════════════════════════════════════════════════════════════════════════
+   */
 
   @Get('nomina/recibos')
   listarRecibos(

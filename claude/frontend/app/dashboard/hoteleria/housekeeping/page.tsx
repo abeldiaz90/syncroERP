@@ -53,6 +53,10 @@ export default function HousekeepingPage() {
   const [hoteles, setHoteles] = useState<IHotel[]>([]);
   const [hotelId, setHotelId] = useState("");
   const [tareas, setTareas] = useState<ITarea[]>([]);
+  /* Quien puede limpiar: usuarios activos de la empresa, que es lo que el
+   * servidor acepta. Si no se pueden leer, el desplegable queda vacío y la
+   * pantalla sigue funcionando: asignar es una ayuda, no un requisito. */
+  const [personas, setPersonas] = useState<Array<{ id: string; nombreCompleto: string }>>([]);
   const [habs, setHabs] = useState<IHab[]>([]);
   const [cargando, setCargando] = useState(true);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -71,6 +75,20 @@ export default function HousekeepingPage() {
     }
     setCargando(false);
   }, [api, hotelId]);
+
+  useEffect(() => {
+    (async () => {
+      const r = await peticion(`/usuarios`, { headers: h() });
+      if (!r.ok) return;
+      const d = await r.json().catch(() => null);
+      const lista = Array.isArray(d) ? d : (d?.datos ?? d?.items ?? []);
+      setPersonas(
+        lista
+          .filter((u: any) => u.activo !== false)
+          .map((u: any) => ({ id: u.id, nombreCompleto: u.nombreCompleto ?? u.email })),
+      );
+    })();
+  }, []);
 
   const cargar = useCallback(async () => {
     const rt = await peticion(`/hoteleria/housekeeping/tareas`, {
@@ -105,6 +123,44 @@ export default function HousekeepingPage() {
   const enLimpieza = habs.filter((hb) => hb.estado === "LIMPIEZA");
   const enInspeccion = habs.filter((hb) => hb.estado === "INSPECCION");
   const enMantenimiento = habs.filter((hb) => hb.estado === "MANTENIMIENTO");
+
+  /*
+   * ═════════════════════════════════════════════════════════════════════════
+   * QUIÉN LIMPIA CADA CUARTO
+   * --------------------------------------------------------------------------
+   * `ITarea` declara `asignadoANombre` desde el principio y esta pantalla no
+   * lo pintaba en ninguna parte ni tenía cómo ponerlo: el campo estaba
+   * escrito, tipado, y muerto. `PATCH tareas/:id/asignar` era una de las
+   * setenta y seis rutas que no pedía ninguna pantalla, medidas el
+   * 22-oct-2026.
+   *
+   * Quién puede ser camarista lo decide el SERVIDOR —cualquier usuario activo
+   * de la empresa; lo valida `asignarCamarista`— así que la lista sale de ahí
+   * y no de una lista de roles inventada aquí. Si mañana se estrecha, se
+   * estrecha en un sitio.
+   *
+   * Se manda también el nombre porque la tarea lo guarda: así el listado dice
+   * quién limpia sin tener que cruzar con usuarios en cada carga.
+   * ═════════════════════════════════════════════════════════════════════════
+   */
+  const asignar = async (tareaId: string, usuarioId: string, nombre: string) => {
+    const r = await peticion(`/hoteleria/housekeeping/tareas/${tareaId}/asignar`, {
+      method: "PATCH",
+      headers: h(),
+      body: JSON.stringify(
+        usuarioId
+          ? { asignadoAId: usuarioId, asignadoANombre: nombre }
+          : /* Sin nadie: se libera, que es un estado legítimo. */ {},
+      ),
+    });
+    if (r.ok) {
+      mostrar(usuarioId ? `Asignada a ${nombre}` : "Tarea liberada");
+      await cargar();
+      return;
+    }
+    const d = await r.json().catch(() => null);
+    mostrar(d?.message || "No se pudo asignar la tarea.", false);
+  };
 
   const ejecutarTarea = async (hab: IHab) => {
     const tarea = tareas.find(
@@ -301,6 +357,75 @@ export default function HousekeepingPage() {
                         Limpieza
                       </span>
                     </div>
+                    {(() => {
+                      const t = tareas.find(
+                        (x) =>
+                          x.habitacionId === hab.id &&
+                          ["PENDIENTE", "EN_PROCESO"].includes(x.estado),
+                      );
+                      /*
+                       * ═══════════════════════════════════════════════════════
+                       * UNA HABITACIÓN PARA LIMPIAR QUE NO TIENE TAREA
+                       * ----------------------------------------------------
+                       * Las tarjetas salen del estado de la HABITACIÓN y los
+                       * botones actúan sobre una TAREA, que es otra cosa. Las
+                       * tareas las crea la operación del hotel —el check-out—
+                       * y no hay ninguna ruta para crear una a mano, así que
+                       * una habitación puesta en limpieza desde esta misma
+                       * pantalla se queda sin tarea.
+                       *
+                       * MEDIDO el 22-oct-2026 en la instalación: la 101
+                       * aparecía «pendiente de limpieza», no había ninguna
+                       * tarea, y el botón «Iniciar limpieza» sólo podía
+                       * contestar «No existe una tarea activa para esta
+                       * habitación».
+                       *
+                       * Se dice lo que pasa y se ofrece lo ÚNICO que de verdad
+                       * se puede hacer con ella desde aquí: darla por limpia.
+                       * ═══════════════════════════════════════════════════════
+                       */
+                      if (!t) {
+                        return (
+                          <>
+                            <p className="text-[12px] text-slate-500 mb-3 leading-relaxed">
+                              Esta habitación no tiene tarea de limpieza. Las crea el
+                              check-out; la pusieron en limpieza a mano.
+                            </p>
+                            <button
+                              onClick={() => volverDisponible(hab)}
+                              className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50"
+                            >
+                              <Check className="w-4 h-4" /> Darla por limpia
+                            </button>
+                          </>
+                        );
+                      }
+                      return (
+                        <div className="mb-3">
+                          <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                            Camarista
+                          </label>
+                          <select
+                            value={personas.find((p) => p.nombreCompleto === t.asignadoANombre)?.id ?? ""}
+                            onChange={(e) => {
+                              const p = personas.find((x) => x.id === e.target.value);
+                              void asignar(t.id, p?.id ?? "", p?.nombreCompleto ?? "");
+                            }}
+                            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm bg-white"
+                          >
+                            <option value="">Sin asignar</option>
+                            {personas.map((p) => (
+                              <option key={p.id} value={p.id}>{p.nombreCompleto}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })()}
+                    {tareas.some(
+                      (x) =>
+                        x.habitacionId === hab.id &&
+                        ["PENDIENTE", "EN_PROCESO"].includes(x.estado),
+                    ) && (
                     <button
                       onClick={() => ejecutarTarea(hab)}
                       className="w-full flex items-center justify-center gap-2 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800"
@@ -319,6 +444,7 @@ export default function HousekeepingPage() {
                         </>
                       )}
                     </button>
+                    )}
                   </div>
                 ))}
               </div>

@@ -1409,18 +1409,6 @@ export class RrhhService {
     return r;
   }
 
-  async cerrarPeriodo(periodoId: string, empresaId: string) {
-    const periodo = await this.periodos.findOne({
-      where: { id: periodoId, empresaId },
-    });
-    if (!periodo) throw new NotFoundException('El periodo no existe.');
-    if (periodo.estado === EstadoPeriodo.CERRADO) return periodo;
-    throw new ConflictException(
-      'El cierre directo fue retirado por seguridad. Usa el cierre financiero de nómina, ' +
-        'que valida aprobaciones, CFDI, pago, conciliación y pólizas antes de cerrar.',
-    );
-  }
-
   /* ══ RESUMEN ═════════════════════════════════════════════════════════════ */
 
   /*
