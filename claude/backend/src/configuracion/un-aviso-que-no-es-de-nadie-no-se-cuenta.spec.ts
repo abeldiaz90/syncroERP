@@ -99,11 +99,27 @@ describe('un aviso que no es de nadie no lo contaba nadie', () => {
     },
   );
 
-  it('y el rol llega como lo escriba el token, con mayúsculas o espacios', async () => {
-    const { servicio } = armar(32);
+  it.each(['administrador', 'admin', '  Administrador ', 'SUPER_ADMIN', 'administrator'])(
+    'reconoce al administrador escrito %p, como lo hace el guardia',
+    async (rol) => {
+      /*
+       * MEDIDO EN VIVO el 22-oct-2026, y es lo que hizo falta arreglar: el
+       * token de esta instalación dice `admin`. La primera versión comparó
+       * `rol === 'administrador'` a mano y el renglón no salió en el tablero
+       * de quien SÍ puede abrir la pantalla —un pendiente escrito y apagado,
+       * que es como si no estuviera—.
+       *
+       * `roles.util.ts` lleva en su cabecera la lista de las tres veces
+       * anteriores que alguien comparó el rol a mano. Ésta fue la cuarta, y
+       * esta prueba es para que no haya quinta: se pregunta con
+       * `esRolAdministrador`, que es lo que pregunta el guardia, y aquí se
+       * fijan las escrituras que el sistema reconoce.
+       */
+      const { servicio } = armar(32);
 
-    expect(buscar(await servicio.obtener('suma', '  Administrador '))).toBeDefined();
-  });
+      expect(buscar(await servicio.obtener('suma', rol))).toBeDefined();
+    },
+  );
 
   it('con cero huérfanos no se publica: un pendiente en cero es ruido', async () => {
     const { servicio } = armar(0);

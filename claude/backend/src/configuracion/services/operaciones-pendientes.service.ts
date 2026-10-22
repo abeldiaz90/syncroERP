@@ -9,6 +9,7 @@ import { EstadoCredito } from '../../credito/entities/credito-cliente.entity';
 import { EstadoConvenioHotel } from '../../hoteleria/entities/city-ledger.entity';
 import { EstadoAviso } from '../../integracion/entities/aviso-integracion.entity';
 import { EstadoEventoIntegracion } from '../../integracion/integracion.constants';
+import { esRolAdministrador } from '../../iam/utils/roles.util';
 import { PermisosDinamicosService } from '../../iam/services/permisos-dinamicos.service';
 
 export interface PendienteOperacion {
@@ -375,7 +376,15 @@ export class OperacionesPendientesService {
      * hace semanas; lo que faltaba era que alguien supiera que hay que ir.
      *
      * SE PUBLICA A QUIEN PUEDE ABRIR LA PANTALLA, y a nadie más. La ruta que
-     * los lista es `@Roles('administrador')`, así que este renglón también:
+     * los lista es `@Roles('administrador')`, así que este renglón también, y
+     * se pregunta CON `esRolAdministrador`, que es lo que pregunta el guardia.
+     *
+     * La primera versión comparó `rol === 'administrador'` a mano. MEDIDO en
+     * vivo el 22-oct-2026: el token de esta instalación dice `admin`, el
+     * sistema reconoce seis escrituras de administrador, y el renglón no
+     * salió en el tablero de quien SÍ puede abrir la pantalla. `roles.util.ts`
+     * lleva en su cabecera la lista de las tres veces anteriores que alguien
+     * hizo esta misma comparación a mano; ésta fue la cuarta.
      * un pendiente cuyo enlace le va a contestar que no al que lo lee es otra
      * forma de «un botón que lleva a un no», y además un huérfano puede
      * describir a un cliente, un crédito o un pago de otro inquilino.
@@ -388,7 +397,7 @@ export class OperacionesPendientesService {
      * tenerlo: nadie lo echa de menos.
      * ═════════════════════════════════════════════════════════════════════════
      */
-    if ((rol ?? '').trim().toLowerCase() === 'administrador') {
+    if (esRolAdministrador(rol)) {
       try {
         /*
          * Con `this.ds` y el mismo caché de esquema que `contar`, no con el
