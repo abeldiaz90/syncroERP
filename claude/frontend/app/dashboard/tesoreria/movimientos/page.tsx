@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Ban, Plus, Search, Wallet } from 'lucide-react';
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Ban, Plus, Search, Wallet } from 'lucide-react';
 
 import { api } from '@/lib/api';
 import { dinero, fecha, isoCorto } from '@/lib/format';
@@ -53,6 +53,7 @@ export default function MovimientosTesoreriaPage() {
   const [hasta, setHasta] = useState(hoy);
   const [busqueda, setBusqueda] = useState('');
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [traspasoAbierto, setTraspasoAbierto] = useState(false);
   const [aCancelar, setACancelar] = useState<Movimiento | null>(null);
   const [motivo, setMotivo] = useState('');
 
@@ -73,6 +74,35 @@ export default function MovimientosTesoreriaPage() {
     return m;
   });
 
+  /*
+   * ═════════════════════════════════════════════════════════════════════════
+   * EL TRASPASO QUE ESTA PANTALLA SABÍA LEER Y NO SABÍA HACER
+   * --------------------------------------------------------------------------
+   * `ETIQUETA_TIPO`, aquí arriba, lleva desde el principio «Traspaso recibido»
+   * y «Traspaso enviado»: la pantalla sabe pintarlos. Lo que no había era cómo
+   * crear uno, así que mover dinero entre dos cuentas propias se hacía con dos
+   * movimientos sueltos capturados a mano.
+   *
+   * Y eso no es lo mismo. `POST /tesoreria/traspasos` escribe los dos
+   * movimientos en UNA transacción, bloqueando las dos cuentas en orden
+   * estable para que dos traspasos cruzados no se interbloqueen, y los deja
+   * emparejados. Ese vínculo es lo que cuida
+   * `medio-traspaso-cancelado.spec.ts`: cancelar una mitad sin la otra deja
+   * dinero inventado en los libros.
+   *
+   * MEDIDO el 22-oct-2026 cruzando las 604 rutas del servidor contra lo que
+   * piden las pantallas: era una de las setenta y seis que nadie llamaba, y de
+   * las pocas que mueven dinero.
+   * ═════════════════════════════════════════════════════════════════════════
+   */
+  const traspasar = useAccion(async (datos: Record<string, unknown>) => {
+    await api.post('/tesoreria/traspasos', datos);
+    avisar('Traspaso registrado: salida y entrada quedaron emparejadas.', 'exito');
+    setTraspasoAbierto(false);
+    void movimientos.recargar();
+    void cuentas.recargar();
+  });
+
   const cancelar = useAccion(async (id: string, razon: string) => {
     await api.patch(`/tesoreria/movimientos/${id}/cancelar`, { motivo: razon });
     avisar('Movimiento cancelado con contrapartida.', 'exito');
@@ -90,14 +120,29 @@ export default function MovimientosTesoreriaPage() {
         titulo="Movimientos bancarios"
         descripcion="Entradas y salidas de efectivo por cuenta"
         acciones={
-          <Boton
-            variante="primario"
-            icono={<Plus className="w-3.5 h-3.5" />}
-            onClick={() => setModalAbierto(true)}
-            disabled={(cuentas.datos?.length ?? 0) === 0}
-          >
-            Registrar movimiento
-          </Boton>
+          <>
+            {/*
+              * Se apaga con MENOS DE DOS cuentas, no con ninguna: un traspaso
+              * necesita dos lados. Con una sola, el botón sólo podía llevar a
+              * «la cuenta de origen y la de destino deben ser distintas».
+              */}
+            <Boton
+              variante="neutro"
+              icono={<ArrowLeftRight className="w-3.5 h-3.5" />}
+              onClick={() => setTraspasoAbierto(true)}
+              disabled={(cuentas.datos?.length ?? 0) < 2}
+            >
+              Traspasar entre cuentas
+            </Boton>
+            <Boton
+              variante="primario"
+              icono={<Plus className="w-3.5 h-3.5" />}
+              onClick={() => setModalAbierto(true)}
+              disabled={(cuentas.datos?.length ?? 0) === 0}
+            >
+              Registrar movimiento
+            </Boton>
+          </>
         }
       />
 
@@ -266,6 +311,14 @@ export default function MovimientosTesoreriaPage() {
           </div>
         )}
       </Panel>
+
+      <ModalTraspaso
+        abierto={traspasoAbierto}
+        cuentas={cuentas.datos ?? []}
+        guardando={traspasar.ejecutando}
+        onCerrar={() => setTraspasoAbierto(false)}
+        onGuardar={(d) => void traspasar.ejecutar(d)}
+      />
 
       <ModalNuevoMovimiento
         abierto={modalAbierto}
@@ -511,6 +564,166 @@ function ModalNuevoMovimiento({
           <div className="col-span-2 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
             Este egreso deja la cuenta en {dinero(cuenta!.saldo - importe)}. Puedes continuar,
             pero revisa que sea correcto.
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * ============================================================================
+ * Traspasar entre cuentas propias
+ * ----------------------------------------------------------------------------
+ * Sin contrapartida contable, a diferencia de un movimiento suelto: el dinero
+ * no sale de la empresa, cambia de cuenta. Las dos partidas las arma el
+ * servidor y se emparejan entre sí.
+ *
+ * LO QUE SE DICE ANTES DE PULSAR. El servidor comprueba que las cuentas sean
+ * distintas, que estén activas y que haya saldo; las tres respuestas son
+ * negativas correctas y ninguna debería llegar a darse desde aquí. Una
+ * pantalla que deja pulsar para que el servidor diga que no es un botón que
+ * lleva a un no, que es lo que este proyecto lleva meses quitando.
+ * ============================================================================
+ */
+function ModalTraspaso({
+  abierto, cuentas, guardando, onCerrar, onGuardar,
+}: {
+  abierto: boolean;
+  cuentas: Cuenta[];
+  guardando: boolean;
+  onCerrar: () => void;
+  onGuardar: (datos: Record<string, unknown>) => void;
+}) {
+  const [form, setForm] = useState({
+    origenId: '', destinoId: '', importe: '', fecha: isoCorto(), concepto: '',
+  });
+  const [errores, setErrores] = useState<Record<string, string>>({});
+
+  /* Al abrirlo otra vez no se arrastra lo de la vez anterior. */
+  useEffect(() => {
+    if (abierto) {
+      setForm({ origenId: '', destinoId: '', importe: '', fecha: isoCorto(), concepto: '' });
+      setErrores({});
+    }
+  }, [abierto]);
+
+  const cambiar = (c: string, v: string) => {
+    setForm((f) => ({ ...f, [c]: v }));
+    setErrores((e) => ({ ...e, [c]: '' }));
+  };
+
+  const origen = cuentas.find((c) => c.id === form.origenId);
+  const destino = cuentas.find((c) => c.id === form.destinoId);
+  const importe = parseFloat(form.importe || '0');
+  const sinSaldo = !!origen && importe > 0 && importe > Number(origen.saldo);
+
+  const enviar = () => {
+    const e: Record<string, string> = {};
+    if (!form.origenId) e.origenId = 'Elige de qué cuenta sale.';
+    if (!form.destinoId) e.destinoId = 'Elige a qué cuenta entra.';
+    if (form.origenId && form.origenId === form.destinoId) {
+      e.destinoId = 'Tiene que ser una cuenta distinta de la de origen.';
+    }
+    if (!importe || importe <= 0) e.importe = 'El importe debe ser mayor que cero.';
+    /*
+     * El saldo se comprueba aquí y también en el servidor, que es quien manda:
+     * entre que esta pantalla leyó los saldos y alguien pulsa, otro pudo haber
+     * sacado dinero de esa cuenta. Aquí se evita el viaje; allá se evita el
+     * descubierto.
+     */
+    if (sinSaldo) e.importe = `La cuenta de origen tiene ${dinero(origen!.saldo)}.`;
+    if (form.concepto.trim().length < 3) e.concepto = 'Describe el traspaso.';
+
+    setErrores(e);
+    if (Object.keys(e).length) return;
+
+    onGuardar({ ...form, concepto: form.concepto.trim(), importe });
+  };
+
+  return (
+    <Modal
+      abierto={abierto}
+      onCerrar={onCerrar}
+      titulo="Traspasar entre cuentas"
+      descripcion="El dinero no sale de la empresa: cambia de cuenta. Se registran las dos partidas, emparejadas."
+      ancho={560}
+      pie={
+        <>
+          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
+          <Boton variante="primario" onClick={enviar} cargando={guardando}>Traspasar</Boton>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-3.5">
+        <Campo
+          etiqueta="Sale de" requerido error={errores.origenId}
+          ayuda={origen ? `Saldo actual: ${dinero(origen.saldo)}` : undefined}
+        >
+          <Seleccion
+            value={form.origenId}
+            onChange={(e) => cambiar('origenId', e.target.value)}
+            error={!!errores.origenId}
+          >
+            <option value="">Elige una…</option>
+            {cuentas.map((c) => (
+              <option key={c.id} value={c.id}>{c.nombre} · {dinero(c.saldo)}</option>
+            ))}
+          </Seleccion>
+        </Campo>
+
+        <Campo
+          etiqueta="Entra en" requerido error={errores.destinoId}
+          ayuda={destino ? `Saldo actual: ${dinero(destino.saldo)}` : undefined}
+        >
+          {/*
+            * La cuenta de origen NO se ofrece como destino. El servidor lo
+            * rechaza —y hace bien—, pero ofrecerla sería enseñar una opción
+            * cuyo único final es una negativa.
+            */}
+          <Seleccion
+            value={form.destinoId}
+            onChange={(e) => cambiar('destinoId', e.target.value)}
+            error={!!errores.destinoId}
+          >
+            <option value="">Elige una…</option>
+            {cuentas
+              .filter((c) => c.id !== form.origenId)
+              .map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre} · {dinero(c.saldo)}</option>
+              ))}
+          </Seleccion>
+        </Campo>
+
+        <Campo etiqueta="Importe" requerido error={errores.importe}>
+          <Entrada
+            type="number" step="0.01" min="0"
+            value={form.importe}
+            onChange={(e) => cambiar('importe', e.target.value)}
+            error={!!errores.importe}
+            placeholder="0.00"
+          />
+        </Campo>
+
+        <Campo etiqueta="Fecha" requerido>
+          <Entrada type="date" value={form.fecha} onChange={(e) => cambiar('fecha', e.target.value)} />
+        </Campo>
+
+        <div className="col-span-2">
+          <Campo etiqueta="Concepto" requerido error={errores.concepto}>
+            <Entrada
+              value={form.concepto}
+              onChange={(e) => cambiar('concepto', e.target.value)}
+              error={!!errores.concepto}
+              placeholder="Fondeo de la caja chica"
+            />
+          </Campo>
+        </div>
+
+        {origen && destino && importe > 0 && !sinSaldo && (
+          <div className="col-span-2 text-[12px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 leading-relaxed">
+            {origen.nombre} quedará en <strong>{dinero(Number(origen.saldo) - importe)}</strong> y{' '}
+            {destino.nombre} en <strong>{dinero(Number(destino.saldo) + importe)}</strong>.
           </div>
         )}
       </div>

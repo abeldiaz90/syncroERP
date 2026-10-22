@@ -713,6 +713,54 @@ export class TesoreriaService {
         bloqueadas.push(cuenta);
       }
 
+      /*
+       * ═══════════════════════════════════════════════════════════════════════
+       * LA CONTABILIDAD SE PREGUNTA ANTES DE MOVER EL DINERO
+       * ------------------------------------------------------------------------
+       * MEDIDO el 22-oct-2026, en el primer traspaso que se hizo desde la
+       * pantalla recién puesta: las dos partidas se escribieron, los saldos
+       * cambiaron, la pantalla dijo «Traspaso registrado» —y el asiento se
+       * quedó PENDIENTE con este motivo del motor contable:
+       *
+       *     «Traspaso TM-00000017: origen y destino comparten la misma cuenta
+       *      contable; el asiento no reflejaría movimiento alguno.»
+       *
+       * El motor tiene razón: un cargo y un abono a la misma cuenta no dice
+       * nada. Lo que estaba mal era el ORDEN. El asiento se encola, así que la
+       * negativa llega después y en otro sitio: el dinero ya se movió y los
+       * libros no. Eso es peor que no dejar traspasar, y es justo lo que este
+       * proyecto decidió en `una-salida-sin-asiento-no-es-un-exito.spec.ts`.
+       *
+       * Así que se pregunta aquí, con las dos cuentas ya bloqueadas y antes de
+       * escribir nada, lo mismo que el motor va a preguntar luego. Si no se
+       * puede contabilizar, no se traspasa, y se dice por qué con las palabras
+       * que sirven para arreglarlo.
+       * ═══════════════════════════════════════════════════════════════════════
+       */
+      const [bancariaOrigen, bancariaDestino] =
+        bloqueadas[0].id === dto.origenId
+          ? [bloqueadas[0], bloqueadas[1]]
+          : [bloqueadas[1], bloqueadas[0]];
+      const sinContable = [bancariaOrigen, bancariaDestino].filter(
+        (c) => !c.cuentaContableId,
+      );
+      if (sinContable.length) {
+        throw new ConflictException(
+          `${sinContable.map((c) => c.nombre).join(' y ')} no ${
+            sinContable.length === 1 ? 'tiene' : 'tienen'
+          } cuenta contable asignada, así que el traspaso no se podría ` +
+            'contabilizar. Asígnala en el catálogo de cuentas de tesorería y vuelve a intentarlo.',
+        );
+      }
+      if (bancariaOrigen.cuentaContableId === bancariaDestino.cuentaContableId) {
+        throw new ConflictException(
+          `${bancariaOrigen.nombre} y ${bancariaDestino.nombre} comparten la misma cuenta ` +
+            'contable, así que el asiento del traspaso no reflejaría movimiento alguno: ' +
+            'el dinero cambiaría de cuenta bancaria y los libros se quedarían igual. ' +
+            'Dales cuentas contables distintas antes de traspasar entre ellas.',
+        );
+      }
+
       const repo = manager.getRepository(MovimientoTesoreria);
       const ultimo = await repo.findOne({
         where: {
