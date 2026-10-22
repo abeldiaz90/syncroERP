@@ -17,8 +17,8 @@ import { join } from 'path';
  * contra todo lo que piden el ERP y la consola de SUMA. Dieron noventa y
  * nueve; doce eran un fallo del cruce —la consola arma sus rutas en dos
  * trozos, ver `prefijosDe`— y otras nueve también: son rutas hermanas que la
- * pantalla elige con un ternario. Quedan SETENTA Y OCHO que no pide nadie, y
- * las diecinueve dudosas se comprobaron a mano el 22-oct-2026. Entre ellas, cosas que no son cabos sueltos sino módulos enteros
+ * pantalla elige con un ternario. Quedan SETENTA Y SEIS que no pide nadie, y
+ * las dudosas se comprobaron a mano el 22-oct-2026. Entre ellas, cosas que no son cabos sueltos sino módulos enteros
  * sin puerta:
  *
  *   · Las RESERVAS del WMS —crear, liberar, consumir— y la disponibilidad por
@@ -143,8 +143,6 @@ const SIN_PANTALLA: string[] = [
   'POST /integracion/roles/cuenta-servicio',
   'POST /integracion/roles/espejo',
   'POST /integracion/sincronizacion-inicial',
-  'POST /integracion/validacion/ejecutar',
-  'POST /integracion/validacion/simular',
   'POST /recetas/producir',
   'POST /rrhh/nomina/parametros',
   'POST /tesoreria/traspasos',
@@ -274,20 +272,31 @@ describe('lo que el servidor sabe hacer y ninguna pantalla pide', () => {
      * `/caja/movimientos/entrada` no aparece escrito en ninguna parte y se
      * pulsa todos los días desde la caja. Eran NUEVE así.
      *
-     * Se reconoce pidiendo las dos cosas a la vez, y en el MISMO archivo: que
-     * escriba la forma del padre —`/caja/movimientos/…`— y que el segmento
-     * final aparezca entrecomillado. Por separado, cualquiera de las dos
-     * alcanzaría media aplicación; juntas, describen exactamente este patrón.
+     * Se reconoce pidiendo TRES cosas a la vez, y en el MISMO archivo:
      *
-     * No es certeza, es la mejor evidencia que da el texto. Las diecinueve que
-     * NO la pasan se comprobaron a mano, una por una, el 22-oct-2026.
+     *   · que el padre tenga al menos dos segmentos —`/integracion` a secas
+     *     alcanzaría media aplicación—;
+     *   · que ese padre aparezca escrito y SEGUIDO DE UNA INTERPOLACIÓN, o
+     *     sea que ahí de verdad se arma una ruta: `/caja/movimientos/${`;
+     *   · y que el segmento final aparezca entrecomillado en ese archivo.
+     *
+     * Las dos primeras hacen el trabajo. Sin la segunda —primera versión—
+     * bastaba con que el archivo nombrara `/hoteleria/config` en cualquier
+     * línea y tuviera la palabra `'tipos'` suelta, y así se «alcanzaron»
+     * cuatro rutas que nadie llama. Lo cazó la prueba de la prueba de abajo,
+     * que es exactamente para lo que está.
+     *
+     * No es certeza, es la mejor evidencia que da el texto. Las que NO la
+     * pasan se comprobaron a mano, una por una, el 22-oct-2026.
      */
     const segs = ruta.split('/').filter(Boolean);
     const iUltimo = segs.map((x) => !x.startsWith(':')).lastIndexOf(true);
-    if (iUltimo < 1) return false;
-    const padre = patron('/' + segs.slice(0, iUltimo).join('/'));
+    if (iUltimo < 2) return false;
+    const padreArma = new RegExp(
+      patron('/' + segs.slice(0, iUltimo).join('/')).source + '/\\$\\{',
+    );
     const entrecomillado = new RegExp(`['"\`]${escapa(segs[iUltimo])}['"\`]`);
-    return porArchivo.some((a) => padre.test(a.texto) && entrecomillado.test(a.texto));
+    return porArchivo.some((a) => padreArma.test(a.texto) && entrecomillado.test(a.texto));
   };
 
   const huerfanas = rutas.filter((r) => !alcanzada(r));
