@@ -11,7 +11,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { CalendarX2, Check, Plus } from 'lucide-react';
+import { CalendarX2, Check, Plus, Undo2, X } from 'lucide-react';
 
 import { api } from '@/lib/api';
 import { fecha, isoCorto, plural} from '@/lib/format';
@@ -136,6 +136,37 @@ export default function IncidenciasPage() {
   const aprobar = useAccion(async (id: string) => {
     await api.patch(`/rrhh/incidencias/${id}/aprobar`);
     avisar('Incidencia aprobada.', 'exito');
+    void incidencias.recargar();
+  });
+
+  /*
+   * ═════════════════════════════════════════════════════════════════════════
+   * UNA BANDEJA DONDE SÓLO SE PUEDE DECIR QUE SÍ
+   * --------------------------------------------------------------------------
+   * El servidor sabe hacer tres cosas con una incidencia —aprobarla,
+   * RECHAZARLA y REVERTIR una ya aprobada— y esta pantalla sólo llamaba a la
+   * primera. Las otras dos eran de las setenta y seis rutas que no pedía
+   * ninguna pantalla, medidas el 22-oct-2026.
+   *
+   * No es un botón de menos: una bandeja de aprobación cuyo único botón dice
+   * «Aprobar» empuja a aprobar. Lo que no se puede negar en la pantalla se
+   * acaba negando por teléfono, y entonces la incidencia se queda PENDIENTE
+   * para siempre: ni aprobada ni rechazada, contando en el resumen de lo que
+   * falta por revisar.
+   *
+   * Las dos exigen motivo, y el servidor también lo exige —retirar lo que
+   * alguien aprobó no puede ser anónimo—. El botón se apaga sin él en vez de
+   * dejar pulsar para que conteste que no.
+   * ═════════════════════════════════════════════════════════════════════════
+   */
+  const [aResolver, setAResolver] = useState<{ incidencia: Incidencia; accion: 'rechazar' | 'revertir' } | null>(null);
+  const [motivo, setMotivo] = useState('');
+
+  const resolver = useAccion(async (id: string, accion: 'rechazar' | 'revertir', razon: string) => {
+    await api.patch(`/rrhh/incidencias/${id}/${accion}`, { motivo: razon });
+    avisar(accion === 'rechazar' ? 'Incidencia rechazada.' : 'Aprobación retirada.', 'exito');
+    setAResolver(null);
+    setMotivo('');
     void incidencias.recargar();
   });
 
@@ -270,17 +301,40 @@ export default function IncidenciasPage() {
                     </td>
                     <td className="text-right">
                       {estaPendiente(i) ? (
-                        <button
-                          onClick={() => void aprobar.ejecutar(i.id)}
-                          disabled={aprobar.ejecutando}
-                          className="btn btn-fantasma btn-sm"
-                        >
-                          <Check className="w-3.5 h-3.5" /> Aprobar
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => void aprobar.ejecutar(i.id)}
+                            disabled={aprobar.ejecutando}
+                            className="btn btn-fantasma btn-sm"
+                          >
+                            <Check className="w-3.5 h-3.5" /> Aprobar
+                          </button>
+                          <button
+                            onClick={() => { setAResolver({ incidencia: i, accion: 'rechazar' }); setMotivo(''); }}
+                            className="btn btn-fantasma btn-sm text-rose-600"
+                          >
+                            <X className="w-3.5 h-3.5" /> Rechazar
+                          </button>
+                        </div>
                       ) : (
-                        <Distintivo tono={ETIQUETA_ESTADO[i.estadoAprobacion ?? (i.aprobada ? 'APROBADA' : 'PENDIENTE')]?.tono ?? 'neutro'}>
-                          {ETIQUETA_ESTADO[i.estadoAprobacion ?? (i.aprobada ? 'APROBADA' : 'PENDIENTE')]?.texto ?? i.estadoAprobacion}
-                        </Distintivo>
+                        <div className="flex items-center justify-end gap-2">
+                          <Distintivo tono={ETIQUETA_ESTADO[i.estadoAprobacion ?? (i.aprobada ? 'APROBADA' : 'PENDIENTE')]?.tono ?? 'neutro'}>
+                            {ETIQUETA_ESTADO[i.estadoAprobacion ?? (i.aprobada ? 'APROBADA' : 'PENDIENTE')]?.texto ?? i.estadoAprobacion}
+                          </Distintivo>
+                          {/*
+                            * Retirar sólo se ofrece sobre lo APROBADO: una
+                            * rechazada no tiene aprobación que retirar, y el
+                            * servidor lo negaría.
+                            */}
+                          {(i.estadoAprobacion === 'APROBADA' || (!i.estadoAprobacion && i.aprobada)) && (
+                            <button
+                              onClick={() => { setAResolver({ incidencia: i, accion: 'revertir' }); setMotivo(''); }}
+                              className="btn btn-fantasma btn-sm"
+                            >
+                              <Undo2 className="w-3.5 h-3.5" /> Retirar
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -290,6 +344,46 @@ export default function IncidenciasPage() {
           </div>
         )}
       </Panel>
+
+      <Modal
+        abierto={!!aResolver}
+        onCerrar={() => { setAResolver(null); setMotivo(''); }}
+        titulo={aResolver?.accion === 'revertir' ? 'Retirar la aprobación' : 'Rechazar la incidencia'}
+        descripcion={
+          aResolver
+            ? `${nombrePorId.get(aResolver.incidencia.empleadoId) ?? 'Empleado'} · ${fecha(aResolver.incidencia.fechaInicio)}`
+            : undefined
+        }
+        ancho={440}
+        pie={
+          <>
+            <Boton variante="neutro" onClick={() => { setAResolver(null); setMotivo(''); }}>
+              Volver
+            </Boton>
+            <Boton
+              variante={aResolver?.accion === 'revertir' ? 'primario' : 'peligro'}
+              disabled={!motivo.trim()}
+              cargando={resolver.ejecutando}
+              onClick={() => void resolver.ejecutar(aResolver!.incidencia.id, aResolver!.accion, motivo)}
+            >
+              {aResolver?.accion === 'revertir' ? 'Retirar aprobación' : 'Rechazar'}
+            </Boton>
+          </>
+        }
+      >
+        <p className="text-[13px] text-slate-600 mb-3.5 leading-relaxed">
+          {aResolver?.accion === 'revertir'
+            ? 'La incidencia vuelve a quedar sin aprobar y deja de contar donde ya contaba. Queda escrito quién la retiró y por qué.'
+            : 'La incidencia queda rechazada y no vuelve a la lista de pendientes. Queda escrito quién la rechazó y por qué.'}
+        </p>
+        <Campo etiqueta="Motivo" requerido>
+          <Entrada
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            placeholder={aResolver?.accion === 'revertir' ? 'Se aprobó por error' : 'No corresponde a este periodo'}
+          />
+        </Campo>
+      </Modal>
 
       <ModalNuevaIncidencia
         abierto={modalAbierto}

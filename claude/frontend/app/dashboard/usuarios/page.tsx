@@ -465,11 +465,25 @@ export default function UsuariosPage() {
             </span>
           )}
           {directorio.correoSaliente === false && (
+            <>
+            {/*
+              * DÓNDE se reenvía, no sólo que se puede. El texto decía «se puede
+              * reenviarle la invitación» y esta pantalla no tiene ese botón ni
+              * debe tenerlo: con el acceso por directorio, la invitación la
+              * manda Keycloak y se reenvía desde la consola de SUMA. El ERP
+              * tiene su propia ruta de reenvío —`/usuarios/:id/reenviar-invitacion`—
+              * pero es la del acceso local, que aquí está cerrado: pulsarla sólo
+              * sabría contestar «este usuario ya activó su cuenta».
+              *
+              * Una frase que promete una acción sin decir dónde está manda a
+              * buscarla donde no está, que cuesta más que no prometerla.
+              */}
             <span className="block mt-1 font-medium text-amber-800">
               Este directorio no tiene servidor de correo, así que el enlace no va a salir y
-              esta persona no podrá entrar. Se puede crear igual y reenviarle la invitación
-              cuando el correo funcione.
+              esta persona no podrá entrar. Se puede crear igual: la invitación se reenvía
+              desde la consola de SUMA, en la ficha de esta empresa, cuando el correo funcione.
             </span>
+            </>
           )}
           {directorio.correoSaliente === true && directorio.remitente && (
             <span className="block mt-1">El enlace saldrá desde {directorio.remitente}.</span>
