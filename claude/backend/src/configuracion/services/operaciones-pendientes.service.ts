@@ -258,6 +258,24 @@ export class OperacionesPendientesService {
     return Number(filas?.[0]?.total ?? 0);
   }
 
+  /**
+   * Avisos del core sin empresa a la que atribuirlos.
+   *
+   * Devuelve `null` —«no se pudo medir»— con el mismo criterio que `contar`:
+   * si la tabla o la columna no están, no se inventa un cero.
+   */
+  private async contarHuerfanos(esquema: EsquemaCache): Promise<number | null> {
+    const tabla = 'integracion_avisos';
+    if (!esquema.tablas.has(tabla)) return null;
+    const columnas = esquema.columnas.get(tabla) ?? new Set<string>();
+    if (!columnas.has('empresaid') || !columnas.has('estado')) return null;
+    const filas = await this.ds.query(
+      `SELECT COUNT(1) total FROM "${tabla}" WHERE empresaid IS NULL AND estado IN ($1,$2)`,
+      ['PENDIENTE', 'FALLIDO'],
+    );
+    return Number(filas?.[0]?.total ?? 0);
+  }
+
   async obtener(empresaId: string) {
     const definiciones = DEFINICIONES_PENDIENTES;
 
@@ -340,6 +358,63 @@ export class OperacionesPendientesService {
         }
       } catch {
         noVerificados.push('PERMISOS_SIN_RECONCILIAR');
+      }
+    }
+
+    /*
+     * ═════════════════════════════════════════════════════════════════════════
+     * LOS AVISOS QUE NO SON DE NADIE
+     * ------------------------------------------------------------------------
+     * Un aviso huérfano es uno que el ERP no pudo atribuir a ninguna empresa:
+     * significa que existe en el core un recurso que el ERP nunca creó, o que
+     * su identificador apunta a dos inquilinos a la vez.
+     *
+     * Y por eso mismo no cabe en `contar`, que filtra por `empresaid` —y hace
+     * bien: un pendiente es de alguien—. MEDIDO el 21-oct-2026: había 32 y no
+     * aparecían en ningún contador. La pantalla que sí los lista existe desde
+     * hace semanas; lo que faltaba era que alguien supiera que hay que ir.
+     *
+     * Se publica SÓLO en el tablero de la empresa operadora. No es pudor: un
+     * huérfano es un pendiente de SUMA —quien opera la integración y puede
+     * mirar entre inquilinos— y enseñárselo al administrador de un cliente
+     * sería contarle que en el core hay movimiento que no es suyo.
+     *
+     * Si `EMPRESA_OPERADORA_ID` no está declarada, no se publica a nadie: es
+     * la misma puerta cerrada que ya protege el alta de empresas.
+     * ═════════════════════════════════════════════════════════════════════════
+     */
+    const operadora = (process.env.EMPRESA_OPERADORA_ID ?? '').trim();
+    if (operadora && operadora === empresaId) {
+      try {
+        /*
+         * Con `this.ds` y el mismo caché de esquema que `contar`, no con el
+         * servicio de avisos: importar el módulo de integración aquí cerraría
+         * un ciclo con el de configuración, y sería meter un acoplamiento
+         * entero por un contador.
+         */
+        const huerfanos = await this.contarHuerfanos(esquema);
+        if (huerfanos !== null && huerfanos > 0) {
+          pendientes.push({
+            codigo: 'AVISOS_HUERFANOS',
+            modulo: 'CREDITO',
+            titulo: 'Avisos del core que no son de ninguna empresa',
+            prioridad: 'ALTA',
+            responsable: 'Operación de SUMA',
+            accion:
+              'Existe en el core algo que el ERP no creó, o su identificador apunta a dos ' +
+              'inquilinos. Hay que mirarlos uno a uno.',
+            /*
+             * A la pantalla que YA los enseña, no a una propia. El buzón de
+             * avisos los pide aparte y los suma en su titular desde hace
+             * semanas; inventarle aquí una ruta `/huerfanos` que no existe
+             * sería mandar a quien lee el tablero a un 404.
+             */
+            ruta: '/dashboard/creditos/avisos',
+            cantidad: huerfanos,
+          });
+        }
+      } catch {
+        noVerificados.push('AVISOS_HUERFANOS');
       }
     }
 
