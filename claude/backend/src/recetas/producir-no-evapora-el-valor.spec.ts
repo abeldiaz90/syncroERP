@@ -54,7 +54,23 @@ function armar(tipo: TipoProducto | null, opciones: { activa?: boolean } = {}) {
   const manager: any = {
     findOne: async () => (tipo ? { id: 'prod-kit', nombre: 'Salsa de la casa', tipo } : null),
   };
-  const dataSource: any = { transaction: (fn: any) => fn(manager) };
+  const dataSource: any = {
+    transaction: (fn: any) => fn(manager),
+    /*
+     * El catálogo, para la comprobación que `producir` hace ANTES de tocar
+     * nada: que el producto terminado y cada insumo sigan existiendo. Aquí
+     * existen todos —es la precondición de estas pruebas, que miden a dónde va
+     * el VALOR— y el caso contrario lo cubre
+     * `una-receta-rota-dice-que-insumo-le-falta.spec.ts`.
+     */
+    getRepository: () => ({
+      find: async ({ where }: any) => {
+        const op = where?.id ?? {};
+        const ids: string[] = op.value ?? op._value ?? [];
+        return ids.map((id) => ({ id }));
+      },
+    }),
+  };
   const servicio = new RecetasService(recetaRepo, inventario, dataSource, asientos);
   return { servicio, inventario, asientos };
 }
