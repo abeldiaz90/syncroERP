@@ -1378,3 +1378,25 @@ origen se activó: la empresa pasó a `cartera SOMBRA · base del cliente · act
 y sus cuatro puntos quedaron en LISTO.
 
 ![Operando contra su propia base](img/onpremise-operando-contra-su-propia-base.jpg)
+
+## Los avisos del core que no son de ninguna empresa
+
+Un aviso queda **huérfano** cuando el ERP no lo pudo atribuir a ninguna
+empresa: existe en el core un recurso que el ERP nunca creó, o su identificador
+apunta a dos inquilinos a la vez. Por definición no tiene empresa.
+
+Y el tablero de pendientes cuenta por empresa, con razón: un pendiente es de
+alguien. De modo que lo que define a un huérfano era exactamente lo que lo
+hacía invisible. **MEDIDO el 21-oct-2026: había 32 y no aparecían en ningún
+contador.** La pantalla que sí los lista existe desde hace semanas; lo que
+faltaba era que alguien supiera que hay que ir.
+
+Ahora el tablero los publica —y sólo a quien puede abrir la pantalla que los
+enseña, que es `@Roles('administrador')`: un pendiente cuyo enlace le contesta
+que no al que lo lee no es un pendiente, es una pared—.
+
+![El tablero con los avisos huérfanos](img/tablero-avisos-huerfanos.jpg)
+
+El enlace lleva al buzón de avisos del core, que los pide aparte y los suma en
+su titular. Resolverlos es mirarlos uno a uno: decidir si el hecho del core se
+refleja en el ERP o se descarta.

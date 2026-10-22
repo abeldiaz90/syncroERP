@@ -3861,7 +3861,14 @@ describe('Coherencia · una empresa no puede ver los datos de otra', () => {
       razon: 'El estado del esquema es del servidor, no de una empresa.',
     },
     {
-      marca: /FROM tenant_server_connections|FROM tenants\b/i,
+      /*
+       * `UPDATE` además de `FROM`: desde el 22-oct-2026 también se reescribe la
+       * clave de un inquilino cuando quedó ilegible para el core —ver
+       * `reescribirClaveDelInquilino`—. Es la misma tabla y la misma razón;
+       * dejarla fuera obligaba a elegir entre un renglón de deuda falso o
+       * aflojar la regla entera.
+       */
+      marca: /(?:FROM|UPDATE)\s+tenant_server_connections|FROM tenants\b/i,
       razon:
         'No son tablas del ERP: viven en la base MAESTRA de Fineract, que es otra base ' +
         'y no conoce nuestras empresas. Es el registro donde el core anota qué inquilinos ' +

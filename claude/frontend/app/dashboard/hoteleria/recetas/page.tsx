@@ -331,7 +331,14 @@ function ModalProducir({ api, h, receta, onClose, onOk, onError }: any) {
 
   useEffect(() => {
     (async () => {
-      const r = await peticion(`/catalogo/almacenes`, { headers: h() });
+      /*
+       * La lista CORTA —nombre e identificador— y no `/catalogo/almacenes`,
+       * que trae dirección, responsable y configuración de cada bodega y que
+       * el rol de hotelería no puede abrir. Con la ancha, el desplegable se
+       * quedaba vacío tragando un 403 y «Producir» no se podía usar: la misma
+       * avería que ya se quitó en la caja del mostrador.
+       */
+      const r = await peticion(`/catalogo/almacenes/para-venta`, { headers: h() });
       if (!r.ok) return;
       const d = await r.json();
       const lista = Array.isArray(d) ? d : (d.datos ?? d.items ?? []);
@@ -395,12 +402,20 @@ function ModalProducir({ api, h, receta, onClose, onOk, onError }: any) {
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+      {/*
+        * `max-h` y scroll: con pocas líneas de insumos cabe, pero una receta
+        * de quince deja los botones fuera de la ventana y no hay forma de
+        * pulsar «Producir» ni «Cancelar». Es lo que vigila
+        * `un-modal-que-no-cabe-no-tiene-boton.spec.ts`, y lo cazó aquí.
+        */}
+      <div className="bg-white rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-1">
           <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
             <Factory className="w-5 h-5 text-slate-700" /> Producir {receta.productoNombre}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+          {/* Con `title`: un botón que sólo lleva un icono tiene que decir qué hace. */}
+          <button onClick={onClose} title="Cerrar" aria-label="Cerrar"
+            className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
         </div>
         <p className="text-sm text-slate-500 mb-5">
           Los insumos salen del almacén al costo real de sus lotes y lo producido entra en ese mismo almacén.

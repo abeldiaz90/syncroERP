@@ -155,6 +155,34 @@ export class UsuariosController {
     return this.usuariosService.obtenerTodos(empresaId, filtro, soloActivos);
   }
 
+  /**
+   * ============================================================================
+   * La lista corta de personas, para un desplegable
+   * ----------------------------------------------------------------------------
+   * Nombre e identificador, nada más. `GET /usuarios` trae el correo, el rol,
+   * el departamento y el estado de cada cuenta, y hay pantallas que sólo
+   * necesitan saber a quién asignarle algo —la de housekeeping, para decir qué
+   * camarista limpia cada cuarto—.
+   *
+   * Es el mismo patrón que `GET /catalogo/almacenes/para-venta`, y por la misma
+   * razón: darle la lista ancha a un rol de operación para llenar un
+   * desplegable es abrir una puerta que nadie pidió, y no dársela deja el
+   * desplegable vacío tragando un 403.
+   *
+   * VA ANTES DE `:id`. Nest resuelve por orden de declaración y `:id` acepta
+   * cualquier cosa: declarada después, «para-asignar» entraría como si fuera
+   * un identificador.
+   * ============================================================================
+   */
+  @Get('para-asignar')
+  async paraAsignar(@ActiveUser('empresaId') empresaId: string) {
+    const usuarios = await this.usuariosService.obtenerTodos(empresaId, undefined, true);
+    return usuarios.map((u: { id: string; nombreCompleto: string }) => ({
+      id: u.id,
+      nombreCompleto: u.nombreCompleto,
+    }));
+  }
+
   @Get(':id')
   obtenerPorId(
     @Param('id') id: string,

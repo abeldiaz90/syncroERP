@@ -1180,6 +1180,18 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
        * desplegable necesita.
        */
       'GET /credito/cuentas-bancarias/para-cobro',
+      /*
+       * Y la lista corta de personas. Housekeeping dice qué camarista limpia
+       * cada cuarto, y ese desplegable se llenaba con `GET /usuarios`, que
+       * trae el correo, el rol y el departamento de cada cuenta y que
+       * hotelería no tiene. El 403 se volvía lista vacía: la pantalla ofrecía
+       * asignar y no había a quién.
+       *
+       * Es la tercera vez que aparece la misma forma en este mismo rol —los
+       * almacenes, las cajas y ahora las personas— y se resuelve igual: una
+       * lista corta que sólo sirve para elegir.
+       */
+      'GET /usuarios/para-asignar',
     ],
     accionesVedadas: [
       'GET /credito/cuentas-bancarias',
@@ -1299,6 +1311,14 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * para los tres roles que la usan.
      */
     accionesIrrenunciables: [
+      /*
+       * La lista corta de personas, para el desplegable de camarista en
+       * housekeeping. Este rol llega a esa pantalla —la abre por módulo— y
+       * no tiene `GET /usuarios`, que trae el correo, el rol y el
+       * departamento de cada cuenta. Sin esto el desplegable se queda vacío
+       * tragando un 403 y la pantalla ofrece asignar sin tener a quién.
+       */
+      'GET /usuarios/para-asignar',
       /*
        * La puerta al registro financiero externo.
        *
@@ -1470,6 +1490,14 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * la nomina—.
      */
     accionesIrrenunciables: [
+      /*
+       * La lista corta de personas, para el desplegable de camarista en
+       * housekeeping. Este rol llega a esa pantalla —la abre por módulo— y
+       * no tiene `GET /usuarios`, que trae el correo, el rol y el
+       * departamento de cada cuenta. Sin esto el desplegable se queda vacío
+       * tragando un 403 y la pantalla ofrece asignar sin tener a quién.
+       */
+      'GET /usuarios/para-asignar',
       /*
        * Anular una venta. `ROLES_AUTORIZADORES_ANULACION` designa a GERENCIA y
        * DIRECCION —y el umbral es cero a propósito: anular elimina la venta

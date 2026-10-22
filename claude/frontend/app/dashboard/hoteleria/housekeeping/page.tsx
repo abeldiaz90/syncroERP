@@ -78,7 +78,13 @@ export default function HousekeepingPage() {
 
   useEffect(() => {
     (async () => {
-      const r = await peticion(`/usuarios`, { headers: h() });
+      /*
+       * La lista CORTA —nombre e identificador— y no `/usuarios`, que trae el
+       * correo, el rol y el departamento de cada cuenta y que el rol de
+       * hotelería no puede abrir. Con la ancha, el desplegable se quedaba
+       * vacío tragando un 403: la pantalla ofrecía asignar y no había a quién.
+       */
+      const r = await peticion(`/usuarios/para-asignar`, { headers: h() });
       if (!r.ok) return;
       const d = await r.json().catch(() => null);
       const lista = Array.isArray(d) ? d : (d?.datos ?? d?.items ?? []);
