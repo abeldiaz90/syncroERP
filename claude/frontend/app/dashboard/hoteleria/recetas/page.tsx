@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { peticion } from '@/lib/api';
 import {
-  ChefHat, Plus, X, Loader2, CheckCircle2, Search, Trash2, Package, Calculator, FlaskConical,
+  ChefHat, Plus, X, Loader2, CheckCircle2, Search, Trash2, Package, Calculator, FlaskConical, Factory,
 } from 'lucide-react';
 import WizardRecetas from './WizardRecetas';
 import { plural } from '@/lib/format';
@@ -22,6 +22,7 @@ export default function RecetasPage() {
   const [editor, setEditor] = useState(false);
   const [wizard, setWizard] = useState(false);
   const [editProductoId, setEditProductoId] = useState<string | null>(null);
+  const [aProducir, setAProducir] = useState<IReceta | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   const mostrar = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500); };
@@ -69,16 +70,36 @@ export default function RecetasPage() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {recetas.map(r => (
-            <button key={r.id} onClick={() => { setEditProductoId(r.productoId); setEditor(true); }}
-              className="bg-white border border-slate-200 rounded-2xl p-5 text-left hover:shadow-sm transition-shadow">
-              <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center mb-3">
-                <ChefHat className="w-5 h-5 text-white" />
-              </div>
-              <h3 className="font-semibold text-slate-900">{r.productoNombre}</h3>
-              <div className="flex items-center gap-1.5 mt-2 text-sm text-slate-500">
-                <Calculator className="w-3.5 h-3.5" /> Costo: <span className="font-semibold text-slate-700 tabular-nums">{fmt$(r.costoTeorico)}</span>
-              </div>
-            </button>
+            <div key={r.id}
+              className="bg-white border border-slate-200 rounded-2xl p-5 hover:shadow-sm transition-shadow">
+              <button onClick={() => { setEditProductoId(r.productoId); setEditor(true); }} className="text-left w-full">
+                <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center mb-3">
+                  <ChefHat className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="font-semibold text-slate-900">{r.productoNombre}</h3>
+                <div className="flex items-center gap-1.5 mt-2 text-sm text-slate-500">
+                  <Calculator className="w-3.5 h-3.5" /> Costo: <span className="font-semibold text-slate-700 tabular-nums">{fmt$(r.costoTeorico)}</span>
+                </div>
+              </button>
+              {/*
+                * ═══════════════════════════════════════════════════════
+                * PRODUCIR, QUE ERA LO ÚNICO QUE ESTA PANTALLA NO PODÍA HACER
+                * ------------------------------------------------------------
+                * Esta pantalla define recetas, las guarda y enseña su costo.
+                * `POST /recetas/producir` —descontar los insumos y dar de alta
+                * lo producido— no lo llamaba nadie: era una de las setenta y
+                * seis rutas sin pantalla, medidas el 22-oct-2026.
+                *
+                * Y es de las que mueven valor: saca insumos al costo real de
+                * sus lotes y mete el producto terminado, o lo manda al mayor
+                * como consumo si no se almacena.
+                * ═══════════════════════════════════════════════════════
+                */}
+              <button onClick={() => setAProducir(r)}
+                className="mt-4 w-full flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                <Factory className="w-4 h-4" /> Producir
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -86,6 +107,11 @@ export default function RecetasPage() {
       {wizard && <WizardRecetas api={api} h={h}
         onClose={() => setWizard(false)}
         onListo={() => { setWizard(false); setEditProductoId(null); setEditor(true); }} />}
+
+      {aProducir && <ModalProducir api={api} h={h} receta={aProducir}
+        onClose={() => setAProducir(null)}
+        onOk={(texto: string) => { setAProducir(null); cargar(); mostrar(texto); }}
+        onError={(texto: string) => mostrar(texto, false)} />}
 
       {editor && <EditorReceta api={api} h={h} onClose={() => { setEditor(false); setEditProductoId(null); }}
         productoIdInicial={editProductoId}
@@ -264,6 +290,185 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-200 rounded-lg">Cancelar</button>
           <button onClick={guardar} disabled={guardando} className="px-5 py-2 text-sm bg-slate-900 text-white font-medium rounded-lg hover:bg-slate-800 flex items-center gap-2 disabled:opacity-60">
             {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Guardar receta
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════ PRODUCIR ═══════════════
+/**
+ * ============================================================================
+ * Producir una receta
+ * ----------------------------------------------------------------------------
+ * QUÉ SE DICE ANTES DE PULSAR
+ *
+ * Producir saca insumos del almacén al costo real de sus lotes y da de alta lo
+ * producido. No es una consulta: mueve valor. Así que antes de pulsar se
+ * enseña, con la cantidad ya aplicada, **qué va a salir del almacén** —cada
+ * insumo con su merma incluida—.
+ *
+ * Eso lo contesta `GET /recetas/explotar`, que era otra de las rutas que no
+ * pedía ninguna pantalla. La pieza estaba escrita y nadie la usaba, que es
+ * justamente lo que hacía falta aquí: la lista de lo que se va a descontar sin
+ * descontar nada todavía.
+ *
+ * El almacén se elige y no se adivina: los insumos salen de uno concreto y lo
+ * producido entra en ese mismo. Elegirlo por omisión sería decidir por quien
+ * opera en qué bodega trabaja.
+ * ============================================================================
+ */
+function ModalProducir({ api, h, receta, onClose, onOk, onError }: any) {
+  const [cantidad, setCantidad] = useState('1');
+  const [almacenId, setAlmacenId] = useState('');
+  const [almacenes, setAlmacenes] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [motivo, setMotivo] = useState('');
+  const [explosion, setExplosion] = useState<any[] | null>(null);
+  const [cargandoExplosion, setCargandoExplosion] = useState(false);
+  const [produciendo, setProduciendo] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      const r = await peticion(`/catalogo/almacenes`, { headers: h() });
+      if (!r.ok) return;
+      const d = await r.json();
+      const lista = Array.isArray(d) ? d : (d.datos ?? d.items ?? []);
+      setAlmacenes(lista.map((a: any) => ({ id: a.id, nombre: a.nombre })));
+    })();
+  }, []);
+
+  /*
+   * La explosión se vuelve a pedir cuando cambia la cantidad: enseñar la de
+   * una unidad mientras el campo dice diez sería peor que no enseñar nada.
+   */
+  useEffect(() => {
+    const n = parseFloat(cantidad);
+    if (!n || n <= 0) { setExplosion(null); return; }
+    let vivo = true;
+    setCargandoExplosion(true);
+    const t = setTimeout(async () => {
+      const r = await peticion(
+        `/recetas/explotar?productoId=${encodeURIComponent(receta.productoId)}&cantidad=${n}`,
+        { headers: h() },
+      );
+      if (!vivo) return;
+      setExplosion(r.ok ? await r.json() : null);
+      setCargandoExplosion(false);
+    }, 350);
+    return () => { vivo = false; clearTimeout(t); setCargandoExplosion(false); };
+  }, [cantidad, receta.productoId]);
+
+  const producir = async () => {
+    const n = parseFloat(cantidad);
+    if (!n || n <= 0) { setErr('La cantidad debe ser mayor que cero.'); return; }
+    if (!almacenId) { setErr('Elige de qué almacén salen los insumos.'); return; }
+    setErr('');
+    setProduciendo(true);
+    const r = await peticion(`/recetas/producir`, {
+      method: 'POST',
+      headers: h(),
+      body: JSON.stringify({
+        productoId: receta.productoId,
+        cantidad: n,
+        almacenId,
+        motivo: motivo.trim() || undefined,
+      }),
+    });
+    setProduciendo(false);
+    if (!r.ok) {
+      /*
+       * El mensaje del servidor se propaga tal cual: ahí está lo que hay que
+       * leer —que falta existencia de un insumo, que la receta está retirada—
+       * y un genérico lo escondería.
+       */
+      const d = await r.json().catch(() => null);
+      onError(d?.message ?? 'No se pudo producir.');
+      return;
+    }
+    const d = await r.json().catch(() => null);
+    onOk(
+      `Producción registrada: ${plural(d?.insumosDescontados?.length ?? 0, 'insumo descontado', 'insumos descontados')}.`,
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-1">
+          <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <Factory className="w-5 h-5 text-slate-700" /> Producir {receta.productoNombre}
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+        </div>
+        <p className="text-sm text-slate-500 mb-5">
+          Los insumos salen del almacén al costo real de sus lotes y lo producido entra en ese mismo almacén.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="text-xs font-medium text-slate-600">Cantidad a producir</span>
+            <input type="number" min="0.01" step="0.01" value={cantidad}
+              onChange={(e) => { setCantidad(e.target.value); setErr(''); }}
+              className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-slate-600">Almacén</span>
+            <select value={almacenId} onChange={(e) => { setAlmacenId(e.target.value); setErr(''); }}
+              className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+              <option value="">Elige uno…</option>
+              {almacenes.map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+            </select>
+          </label>
+          <label className="block col-span-2">
+            <span className="text-xs font-medium text-slate-600">Motivo <span className="text-slate-400">(opcional)</span></span>
+            <input value={motivo} onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Producción del turno de la mañana"
+              className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+          </label>
+        </div>
+
+        <div className="mt-5">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+            Lo que va a salir del almacén
+          </p>
+          {cargandoExplosion ? (
+            <div className="flex items-center gap-2 text-sm text-slate-400 py-3">
+              <Loader2 className="w-4 h-4 animate-spin" /> Calculando…
+            </div>
+          ) : !explosion?.length ? (
+            <p className="text-sm text-slate-400 py-3">
+              Escribe una cantidad para ver qué insumos se descuentan.
+            </p>
+          ) : (
+            <ul className="border border-slate-200 rounded-xl divide-y divide-slate-100">
+              {explosion.map((i: any) => (
+                <li key={i.insumoId} className="flex items-center justify-between px-3.5 py-2 text-sm">
+                  <span className="text-slate-700">{i.insumoNombre}</span>
+                  <span className="tabular-nums font-medium text-slate-900">
+                    {Math.round(Number(i.cantidadTotal) * 10000) / 10000} {i.unidad}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!!explosion?.length && (
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              La merma de cada insumo ya está incluida.
+            </p>
+          )}
+        </div>
+
+        {err && <p className="text-sm text-rose-600 mt-3">{err}</p>}
+
+        <div className="flex justify-end gap-2 mt-6">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+            Cancelar
+          </button>
+          <button onClick={producir} disabled={produciendo}
+            className="px-4 py-2 rounded-xl text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 flex items-center gap-2">
+            {produciendo && <Loader2 className="w-4 h-4 animate-spin" />} Producir
           </button>
         </div>
       </div>

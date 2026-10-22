@@ -226,6 +226,51 @@ export class RecetasService {
     if (!receta.insumos?.length)
       throw new BadRequestException('La receta no tiene insumos');
 
+    /*
+     * ═════════════════════════════════════════════════════════════════════════
+     * QUÉ INSUMO FALTA, NO «PRODUCTO NO ENCONTRADO»
+     * --------------------------------------------------------------------------
+     * MEDIDO el 22-oct-2026, al estrenar la pantalla de producir contra la
+     * instalación. La única receta que hay apunta a un insumo —«Leche entera
+     * 1 L»— que ya no existe como producto, y producir contestaba:
+     *
+     *     404 «Producto no encontrado»
+     *
+     * Esa frase sale de `InventarioService`, que no sabe de recetas: para él
+     * sólo había un id que no está. Y en esta operación hay tres candidatos
+     * —el producto terminado, cada insumo y el almacén—, así que quien lo lee
+     * no tiene por dónde empezar. Es el mismo defecto que este proyecto ya
+     * quitó en otras pantallas: una negativa que no señala a ninguna parte.
+     *
+     * Se comprueba AQUÍ, que es donde se sabe de recetas, y antes de tocar el
+     * inventario: una receta rota no debe descontar la mitad de sus insumos y
+     * caerse en el siguiente.
+     * ═════════════════════════════════════════════════════════════════════════
+     */
+    const idsImplicados = [
+      dto.productoId,
+      ...receta.insumos.map((i) => i.insumoId),
+    ];
+    const existentes = await this.dataSource.getRepository(Producto).find({
+      where: { id: In(idsImplicados), empresaId },
+      select: ['id'],
+    });
+    const vivos = new Set(existentes.map((x) => x.id));
+    const faltantes = receta.insumos
+      .filter((i) => !vivos.has(i.insumoId))
+      .map((i) => i.insumoNombre || i.insumoId);
+    if (faltantes.length) {
+      throw new NotFoundException(
+        `La receta usa ${faltantes.length === 1 ? 'un insumo que ya no existe' : 'insumos que ya no existen'} en el catálogo: ` +
+          `${faltantes.join(', ')}. Edita la receta y quítalo, o vuelve a dar de alta ese producto, antes de producir.`,
+      );
+    }
+    if (!vivos.has(dto.productoId)) {
+      throw new NotFoundException(
+        `El producto que esta receta produce ya no existe en el catálogo (${receta.productoNombre ?? dto.productoId}).`,
+      );
+    }
+
     const rendimiento = Number(receta.rendimiento) || 1;
     const factor = dto.cantidad / rendimiento;
 
