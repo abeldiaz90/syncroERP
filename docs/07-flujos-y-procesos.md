@@ -1321,3 +1321,60 @@ nada más— y comprueba que daba la respuesta equivocada; la segunda le da el
 mismo identificador **sin** el renglón de origen y comprueba que entonces sí se
 anota. Es la diferencia que las sostiene, y es lo que hay que romper para que se
 pongan rojas.
+
+### El paso que faltaba, y el defecto que escondía
+
+El 21-oct-2026 por la noche se reinició el core para cerrar el flujo. **No
+arrancó.**
+
+```
+Upgrade for tenant onpremise-prueba has started
+Unable to decrypt data. Please check if the master password…
+Illegal base64 character 2d
+→ RuntimeException: Tenant upgrades had exceptions
+→ Error starting Tomcat context · BUILD FAILED
+```
+
+`tenant_server_connections.schema_password` no es la clave: es la clave
+**cifrada**, que el core descifra al arrancar con su contraseña maestra. El ERP
+la escribía en claro.
+
+Y no se cayó ese inquilino: **se cayó el core entero**.
+`TenantDatabaseUpgradeService` recorre todos los inquilinos al arrancar y si uno
+falla lanza, así que el contexto de Spring no se construye y **ninguna**
+institución de la instalación puede operar. Un alta on-premise mal escrita deja
+sin core a todos los clientes en el siguiente reinicio programado, que es de
+madrugada y sin nadie mirando. Entre el alta y el reinicio no hay ningún aviso:
+todo se ve bien.
+
+Lo que cambió:
+
+- El ERP cifra como el core espera —PBKDF2-HmacSHA1 de 65 536 vueltas, llave de
+  256 bits, AES/CBC/PKCS5Padding, y el sobre en base64 es `iv(16) ‖ sal(16) ‖
+  cifrado`— en `la-clave-del-core.ts`.
+- **Se comprueba lo escrito abriéndolo**, dentro de la misma transacción. Una
+  contraseña maestra equivocada produce un sobre perfectamente válido que el
+  core no puede abrir; sin esa vuelta eso se descubre en el siguiente arranque,
+  con el core caído.
+- `FINERACT_TENANTS_MASTER_PASSWORD` **no tiene valor por omisión.** El core sí
+  lo tiene; copiarlo aquí haría que una instalación con la suya cambiada
+  escribiera renglones ilegibles en silencio. Sin esa variable no se anota nada
+  y se dice por qué.
+- Volver a pulsar «registrar» **repara** en vez de dar una negativa: pregunta al
+  core si ya conoce el inquilino y, si apunta al mismo servidor, puerto y base,
+  le reescribe la clave. Mudarlo de sitio sigue siendo una migración, no un
+  arreglo de pantalla.
+
+Con eso, el reinicio:
+
+```
+16:57:57  Upgrade for tenant onpremise-prueba has started
+16:59:14  Upgrade for tenant onpremise-prueba has finished
+17:00:33  Tomcat started on port 8443 (https)
+```
+
+Liquibase construyó el esquema del core **dentro de la base del cliente**, y el
+origen se activó: la empresa pasó a `cartera SOMBRA · base del cliente · activo`
+y sus cuatro puntos quedaron en LISTO.
+
+![Operando contra su propia base](img/onpremise-operando-contra-su-propia-base.jpg)

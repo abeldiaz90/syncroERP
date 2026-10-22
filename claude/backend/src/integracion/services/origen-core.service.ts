@@ -331,6 +331,54 @@ export class OrigenCoreService {
 
     const empresa = await this.empresas.findOne({ where: { id: empresaId } });
 
+    /*
+     * ── VOLVER A REGISTRAR ES REPARAR, NO DUPLICAR ───────────────────────
+     * Si ya está anotado —ESPERANDO_REINICIO— el core rechaza un segundo
+     * inquilino con el mismo nombre, y hace bien. Pero entonces este botón no
+     * tenía nada que hacer salvo dar una negativa, y hay un caso real en que
+     * sí hay algo que hacer: el renglón escrito antes de que el ERP cifrara
+     * la clave, que el core no puede abrir y que le impide ARRANCAR a toda la
+     * instalación. Pasó el 21-oct-2026.
+     *
+     * Así que se le reescribe la clave, cifrada y comprobada, sin tocar a
+     * dónde apunta.
+     *
+     * Se decide preguntando AL CORE, no mirando nuestro propio estado: una
+     * verificación posterior devuelve la fila a VERIFICADO y el inquilino
+     * sigue anotado allá. Lo que manda es lo que el core tiene.
+     */
+    const yaAnotado = (await this.registro.tenants()).includes(
+      fila.inquilino!.trim().toLowerCase(),
+    );
+    if (yaAnotado) {
+      await this.registro.reescribirClaveDelInquilino({
+        identificador: fila.inquilino!,
+        servidor: fila.servidor!,
+        puerto: fila.puerto!,
+        baseDatos: fila.baseDatos!,
+        usuario: fila.usuario!,
+        clave,
+      });
+      /*
+       * Y vuelve a ESPERANDO_REINICIO, que es donde de verdad está: el
+       * inquilino está anotado y lo único que falta es que el core arranque.
+       * Dejarlo en VERIFICADO diría que falta registrarlo, y ya lo está.
+       */
+      fila.estado = EstadoOrigenCore.ESPERANDO_REINICIO;
+      fila.ultimoError = null;
+      fila.registradoPor = solicitadoPor;
+      await this.origenes.save(fila);
+      await this.anotar(empresaId, 'ACCION', 'ORIGEN_CORE_CLAVE_REESCRITA', solicitadoPor, {
+        inquilino: fila.inquilino,
+      });
+      return {
+        ...(await this.consultar(empresaId)),
+        aviso:
+          'El inquilino ya estaba anotado: se le reescribió la clave cifrada, como el core la ' +
+          'sabe leer, y se comprobó abriéndola. Empieza a atender en el siguiente reinicio.',
+      };
+    }
+
     await this.registro.registrarInquilino({
       identificador: fila.inquilino!,
       nombre: empresa?.nombreComercial ?? fila.inquilino!,
@@ -518,3 +566,4 @@ export class OrigenCoreService {
     }
   }
 }
+
