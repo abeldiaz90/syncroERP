@@ -23,8 +23,16 @@ export class ConfiguracionController {
   }
 
   @Get('pendientes')
-  obtenerPendientes(@ActiveUser('empresaId') empresaId: string) {
-    return this.pendientes.obtener(empresaId);
+  obtenerPendientes(
+    @ActiveUser('empresaId') empresaId: string,
+    /*
+     * El rol viaja porque hay un pendiente que sólo puede leer quien puede
+     * abrir su pantalla: los avisos del core sin empresa. Ver
+     * `OperacionesPendientesService.obtener`.
+     */
+    @ActiveUser('rol') rol: string,
+  ) {
+    return this.pendientes.obtener(empresaId, rol);
   }
 
   @Get('empresa')

@@ -17,16 +17,21 @@ import { OperacionesPendientesService } from './services/operaciones-pendientes.
  * semanas y los suma en su titular; lo que faltaba era que alguien supiera que
  * hay que ir.
  *
- * DE QUIÉN ES ESTE PENDIENTE
+ * A QUIÉN SE LE PUBLICA
  *
- * De SUMA, no de un cliente. Es quien opera la integración y quien puede mirar
- * entre inquilinos. Enseñárselo al administrador de una empresa sería contarle
- * que en el core hay movimiento que no es suyo —el mismo cuidado que ya hace
- * que la ruta de huérfanos devuelva la ficha y no el cuerpo del aviso—.
+ * A quien puede abrir la pantalla, y a nadie más. La ruta que los lista es
+ * `@Roles('administrador')`, así que este renglón también: un pendiente cuyo
+ * enlace le va a contestar que no al que lo lee es otra forma de «un botón que
+ * lleva a un no». Y un huérfano puede describir a un cliente, un crédito o un
+ * pago de otro inquilino —el mismo cuidado que ya hace que esa ruta devuelva
+ * la ficha y no el cuerpo del aviso—.
  *
- * Por eso se publica sólo en el tablero de `EMPRESA_OPERADORA_ID`, y si esa
- * variable no está declarada no se publica a nadie: la misma puerta cerrada
- * que protege el alta de empresas.
+ * LA PRIMERA VERSIÓN LO GATEABA CON `EMPRESA_OPERADORA_ID`, y se cambió al
+ * comprobarlo: esa variable no está definida en ninguna instalación. Sólo la
+ * nombra un comentario viejo de `alta-empresas.service.ts`, de cuando el alta
+ * se cerraba así; hoy se cierra con una clave de servicio. El contador habría
+ * quedado escrito y apagado para siempre, que es peor que no tenerlo: nadie
+ * echa de menos lo que nunca vio.
  * ============================================================================
  */
 
@@ -62,17 +67,10 @@ const buscar = (r: { pendientes: Array<{ codigo: string }> }) =>
   r.pendientes.find((p) => p.codigo === 'AVISOS_HUERFANOS');
 
 describe('un aviso que no es de nadie no lo contaba nadie', () => {
-  const guardado = process.env.EMPRESA_OPERADORA_ID;
-  afterEach(() => {
-    if (guardado === undefined) delete process.env.EMPRESA_OPERADORA_ID;
-    else process.env.EMPRESA_OPERADORA_ID = guardado;
-  });
-
-  it('el tablero de la operadora los cuenta, y manda a la pantalla que los enseña', async () => {
-    process.env.EMPRESA_OPERADORA_ID = 'suma';
+  it('el administrador los cuenta, y va a la pantalla que los enseña', async () => {
     const { servicio } = armar(32);
 
-    const p = buscar(await servicio.obtener('suma'));
+    const p = buscar(await servicio.obtener('suma', 'administrador'));
 
     expect(p).toMatchObject({
       codigo: 'AVISOS_HUERFANOS',
@@ -87,37 +85,36 @@ describe('un aviso que no es de nadie no lo contaba nadie', () => {
     });
   });
 
-  it('y NO aparece en el tablero de un cliente', async () => {
-    /*
-     * La mitad que más importa. Un huérfano puede describir a un cliente, un
-     * crédito o un pago de OTRO inquilino; decirle a una empresa «tienes 32
-     * pendientes» sobre eso es contarle de movimiento ajeno.
-     */
-    process.env.EMPRESA_OPERADORA_ID = 'suma';
+  it.each(['credito', 'cobranza', 'direccion', '', undefined])(
+    'y NO se le publica a %p, que no puede abrir esa pantalla',
+    async (rol) => {
+      /*
+       * La mitad que más importa. `direccion` entra en la lista a propósito:
+       * es un rol alto y la ruta de huérfanos no se lo concede. El criterio no
+       * es la jerarquía, es quién puede abrir el enlace.
+       */
+      const { servicio } = armar(32);
+
+      expect(buscar(await servicio.obtener('suma', rol))).toBeUndefined();
+    },
+  );
+
+  it('y el rol llega como lo escriba el token, con mayúsculas o espacios', async () => {
     const { servicio } = armar(32);
 
-    expect(buscar(await servicio.obtener('una-empresa-cliente'))).toBeUndefined();
-  });
-
-  it('sin EMPRESA_OPERADORA_ID declarada, no se publica a nadie', async () => {
-    delete process.env.EMPRESA_OPERADORA_ID;
-    const { servicio } = armar(32);
-
-    expect(buscar(await servicio.obtener('suma'))).toBeUndefined();
+    expect(buscar(await servicio.obtener('suma', '  Administrador '))).toBeDefined();
   });
 
   it('con cero huérfanos no se publica: un pendiente en cero es ruido', async () => {
-    process.env.EMPRESA_OPERADORA_ID = 'suma';
     const { servicio } = armar(0);
 
-    expect(buscar(await servicio.obtener('suma'))).toBeUndefined();
+    expect(buscar(await servicio.obtener('suma', 'administrador'))).toBeUndefined();
   });
 
   it('se cuenta lo que pide algo: PENDIENTE y FALLIDO', async () => {
-    process.env.EMPRESA_OPERADORA_ID = 'suma';
     const { servicio, consultas } = armar(1);
 
-    await servicio.obtener('suma');
+    await servicio.obtener('suma', 'administrador');
 
     const consulta = consultas.find((c) => /empresaid IS NULL/i.test(c));
     expect(consulta).toBeDefined();
@@ -125,10 +122,9 @@ describe('un aviso que no es de nadie no lo contaba nadie', () => {
   });
 
   it('si la tabla no está, se dice que no se pudo medir y no se inventa un cero', async () => {
-    process.env.EMPRESA_OPERADORA_ID = 'suma';
     const { servicio } = armar(32, { tabla: false });
 
-    const r = await servicio.obtener('suma');
+    const r = await servicio.obtener('suma', 'administrador');
     expect(buscar(r)).toBeUndefined();
     expect(r.noVerificados).toContain('AVISOS_HUERFANOS');
   });
@@ -145,10 +141,9 @@ describe('un aviso que no es de nadie no lo contaba nadie', () => {
      * —CORE_AVISO— así que se cuenta dos veces, y cada una tiene que preguntar
      * por lo suyo: una por `empresaId=$1`, la otra por `empresaid IS NULL`.
      */
-    process.env.EMPRESA_OPERADORA_ID = 'suma';
     const { servicio, consultas } = armar(32);
 
-    await servicio.obtener('suma');
+    await servicio.obtener('suma', 'administrador');
 
     const sobreAvisos = consultas.filter((c) => /integracion_avisos/i.test(c));
     const porEmpresa = sobreAvisos.filter((c) => /empresaId=\$1/i.test(c));

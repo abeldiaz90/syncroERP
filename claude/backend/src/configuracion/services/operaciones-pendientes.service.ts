@@ -276,7 +276,7 @@ export class OperacionesPendientesService {
     return Number(filas?.[0]?.total ?? 0);
   }
 
-  async obtener(empresaId: string) {
+  async obtener(empresaId: string, rol?: string) {
     const definiciones = DEFINICIONES_PENDIENTES;
 
     const esquema = await this.cargarEsquema();
@@ -374,17 +374,21 @@ export class OperacionesPendientesService {
      * aparecían en ningún contador. La pantalla que sí los lista existe desde
      * hace semanas; lo que faltaba era que alguien supiera que hay que ir.
      *
-     * Se publica SÓLO en el tablero de la empresa operadora. No es pudor: un
-     * huérfano es un pendiente de SUMA —quien opera la integración y puede
-     * mirar entre inquilinos— y enseñárselo al administrador de un cliente
-     * sería contarle que en el core hay movimiento que no es suyo.
+     * SE PUBLICA A QUIEN PUEDE ABRIR LA PANTALLA, y a nadie más. La ruta que
+     * los lista es `@Roles('administrador')`, así que este renglón también:
+     * un pendiente cuyo enlace le va a contestar que no al que lo lee es otra
+     * forma de «un botón que lleva a un no», y además un huérfano puede
+     * describir a un cliente, un crédito o un pago de otro inquilino.
      *
-     * Si `EMPRESA_OPERADORA_ID` no está declarada, no se publica a nadie: es
-     * la misma puerta cerrada que ya protege el alta de empresas.
+     * La primera versión lo gateaba con `EMPRESA_OPERADORA_ID`. Se cambió al
+     * comprobarlo: esa variable NO está definida en ninguna instalación
+     * —sólo la nombra un comentario viejo, de cuando el alta de empresas se
+     * cerraba así; hoy se cierra con una clave de servicio— y el contador
+     * habría quedado escrito y apagado para siempre, que es peor que no
+     * tenerlo: nadie lo echa de menos.
      * ═════════════════════════════════════════════════════════════════════════
      */
-    const operadora = (process.env.EMPRESA_OPERADORA_ID ?? '').trim();
-    if (operadora && operadora === empresaId) {
+    if ((rol ?? '').trim().toLowerCase() === 'administrador') {
       try {
         /*
          * Con `this.ds` y el mismo caché de esquema que `contar`, no con el

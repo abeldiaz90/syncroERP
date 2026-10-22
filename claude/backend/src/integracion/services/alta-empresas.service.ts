@@ -50,10 +50,20 @@ import { plural } from '../../common/plural';
  * QUIÉN PUEDE USAR ESTO. Dar de alta empresas es una función de la operadora
  * —SUMA—, no de cada cliente. Un administrador es administrador DE SU EMPRESA;
  * sin esta restricción, el administrador de cualquier cliente podría crear
- * empresas y enumerar las de todos los demás. Se exige que la sesión pertenezca
- * a la empresa operadora, declarada en `EMPRESA_OPERADORA_ID`, y si esa
- * variable no está definida la puerta queda cerrada para todos: es preferible
- * que la función no exista a que la tenga cualquiera.
+ * empresas y enumerar las de todos los demás.
+ *
+ * La puerta es una CLAVE DE SERVICIO en la cabecera —`APROVISIONAMIENTO_TOKEN`,
+ * ver `AltaEmpresasController`— y no una sesión de persona: no se hereda de un
+ * token robado, no aparece en un navegador y no depende de qué roles se haya
+ * otorgado alguien. Sin esa clave configurada, estas rutas contestan 404 como
+ * si no existieran, que es preferible a que la función la tenga cualquiera.
+ *
+ * Hasta el 22-oct-2026 este párrafo decía que la puerta era
+ * `EMPRESA_OPERADORA_ID`. Era de la versión anterior y llevaba tiempo sin ser
+ * verdad: esa variable no se lee en ninguna parte del código. Un comentario
+ * que describe un control que ya no existe es la misma avería que un control
+ * que se cree puesto, sólo que en prosa —y se encontró justamente por fiarse
+ * de él para gatear otra cosa—.
  * ============================================================================
  */
 @Injectable()
