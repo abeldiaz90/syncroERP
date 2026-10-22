@@ -61,6 +61,11 @@ export default function FacturarVentaPage() {
   const [timbrando, setTimbrando] = useState(false);
   const [error, setError] = useState('');
   const [factura, setFactura] = useState<Factura | null>(null);
+  const [cancelando, setCancelando] = useState(false);
+  const [motivoCancelacion, setMotivoCancelacion] = useState('02');
+  const [uuidSustitucion, setUuidSustitucion] = useState('');
+  const [enviandoCancelacion, setEnviandoCancelacion] = useState(false);
+  const [errorCancelacion, setErrorCancelacion] = useState('');
 
   useEffect(() => {
     let activo = true;
@@ -155,6 +160,44 @@ export default function FacturarVentaPage() {
     );
   }
 
+  /*
+   * Los cuatro motivos del SAT, con el texto que usa la autoridad. No se
+   * acortan: quien cancela tiene que poder reconocer el que le dijeron.
+   */
+  const MOTIVOS_SAT: Array<{ clave: string; texto: string }> = [
+    { clave: '01', texto: '01 · Comprobante emitido con errores con relación' },
+    { clave: '02', texto: '02 · Comprobante emitido con errores sin relación' },
+    { clave: '03', texto: '03 · No se llevó a cabo la operación' },
+    { clave: '04', texto: '04 · Operación nominativa relacionada en la factura global' },
+  ];
+
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const faltaSustituto = motivoCancelacion === '01' && !UUID.test(uuidSustitucion.trim());
+
+  const cancelarCfdi = async () => {
+    setErrorCancelacion('');
+    setEnviandoCancelacion(true);
+    try {
+      const actualizada = await api.delete<Factura>(`/cfdi/${factura!.id}/cancelar`, {
+        body: {
+          motivo: motivoCancelacion,
+          ...(motivoCancelacion === '01' ? { uuidSustitucion: uuidSustitucion.trim() } : {}),
+        },
+      });
+      setFactura(actualizada ?? { ...factura!, estado: 'CANCELADA' });
+      setCancelando(false);
+    } catch (e: unknown) {
+      /*
+       * El mensaje del servidor se propaga tal cual: ahí está lo que hay que
+       * leer —que el PAC rechazó, que falta el UUID, que ya estaba cancelada—
+       * y un genérico lo escondería.
+       */
+      setErrorCancelacion(e instanceof Error ? e.message : 'No se pudo cancelar el CFDI.');
+    } finally {
+      setEnviandoCancelacion(false);
+    }
+  };
+
   if (factura) {
     return (
       <div className="max-w-2xl mx-auto p-4 md:p-8">
@@ -193,6 +236,98 @@ export default function FacturarVentaPage() {
               <ReceiptText className="w-4 h-4" /> Descargar XML
             </button>
           </div>
+          {/*
+            * ═════════════════════════════════════════════════════════════════
+            * CANCELAR EL CFDI, QUE NO SE PODÍA DESDE NINGUNA PANTALLA
+            * ------------------------------------------------------------------
+            * Se podía timbrar y descargar el PDF y el XML, y no cancelar.
+            * `DELETE /cfdi/:id/cancelar` era una de las rutas sin pantalla,
+            * medidas el 22-oct-2026 —y de las que no son una comodidad: una
+            * factura mal emitida HAY que cancelarla, con su motivo del SAT, y
+            * sin botón el único camino era la base de datos o el portal del
+            * PAC, que deja al ERP diciendo que el CFDI sigue vigente.
+            *
+            * Los cuatro motivos son los del SAT y el 01 exige el UUID que
+            * sustituye al comprobante: lo exige el servidor y se exige aquí,
+            * para no mandar a pulsar hacia un 400.
+            * ═════════════════════════════════════════════════════════════════
+            */}
+          {factura.estado !== 'CANCELADA' && (
+            <button
+              onClick={() => setCancelando(true)}
+              className="mt-5 block w-full text-sm font-semibold text-rose-600 hover:text-rose-700"
+            >
+              Cancelar este CFDI
+            </button>
+          )}
+          {factura.estado === 'CANCELADA' && (
+            <p className="mt-5 text-sm font-semibold text-slate-500">
+              Este CFDI está cancelado.
+            </p>
+          )}
+
+          {cancelando && (
+            <div className="mt-6 text-left border border-rose-200 bg-rose-50/50 rounded-2xl p-5">
+              <h2 className="font-bold text-slate-900">Cancelar el CFDI</h2>
+              <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                Se cancela ante el SAT a través del PAC. Queda registrado el motivo y el
+                acuse; el CFDI no desaparece, pasa a cancelado.
+              </p>
+
+              <label className="block mt-4">
+                <span className="text-xs font-semibold text-slate-600">Motivo del SAT</span>
+                <select
+                  value={motivoCancelacion}
+                  onChange={(e) => { setMotivoCancelacion(e.target.value); setErrorCancelacion(''); }}
+                  className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"
+                >
+                  {MOTIVOS_SAT.map((m) => (
+                    <option key={m.clave} value={m.clave}>{m.texto}</option>
+                  ))}
+                </select>
+              </label>
+
+              {motivoCancelacion === '01' && (
+                <label className="block mt-3">
+                  <span className="text-xs font-semibold text-slate-600">
+                    UUID del comprobante que lo sustituye
+                  </span>
+                  <input
+                    value={uuidSustitucion}
+                    onChange={(e) => { setUuidSustitucion(e.target.value); setErrorCancelacion(''); }}
+                    placeholder="00000000-0000-0000-0000-000000000000"
+                    className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono"
+                  />
+                  <span className="block text-[11px] text-slate-500 mt-1">
+                    El motivo 01 exige decir qué CFDI sustituye a éste. Tiene que estar
+                    timbrado ya.
+                  </span>
+                </label>
+              )}
+
+              {errorCancelacion && (
+                <p className="text-sm text-rose-700 mt-3">{errorCancelacion}</p>
+              )}
+
+              <div className="flex gap-2 mt-5">
+                <button
+                  onClick={() => { setCancelando(false); setErrorCancelacion(''); }}
+                  disabled={enviandoCancelacion}
+                  className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold"
+                >
+                  Volver
+                </button>
+                <button
+                  onClick={() => void cancelarCfdi()}
+                  disabled={enviandoCancelacion || faltaSustituto}
+                  className="flex-1 rounded-xl bg-rose-600 text-white px-4 py-2.5 text-sm font-bold disabled:opacity-50"
+                >
+                  {enviandoCancelacion ? 'Cancelando…' : 'Cancelar el CFDI'}
+                </button>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={() => router.push('/dashboard/ventas/historial')}
             className="mt-6 text-sm font-semibold text-indigo-600"

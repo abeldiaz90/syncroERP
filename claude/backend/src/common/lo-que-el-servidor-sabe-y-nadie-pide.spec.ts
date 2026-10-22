@@ -73,7 +73,6 @@ const CLIENTES = [
 
 /** Rutas que no las pide ninguna pantalla. Medidas, sin triar. */
 const SIN_PANTALLA: string[] = [
-  'DELETE /cfdi/:id/cancelar',
   'GET /admin/permisos/arbol',
   'GET /admin/permisos/modulos',
   'GET /admin/permisos/plantillas',
