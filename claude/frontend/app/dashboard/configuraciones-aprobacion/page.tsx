@@ -109,7 +109,14 @@ export default function ConfiguracionAprobacionesPage() {
    * para todos; el servidor contestaba 403 al pulsar.
    */
   const { tienePermiso } = usePermiso();
-  const puedeGobernar = tienePermiso("POST", "/configuraciones-aprobacion");
+  /*
+   * Y a esos dos públicos les faltaba una condición: para EDITAR hace falta
+   * además el padrón —a quién asignar cada nivel—. Si no se alcanza, la
+   * pantalla sigue sirviendo para lo que sí puede: leer la matriz.
+   */
+  const [padronVedado, setPadronVedado] = useState(false);
+  const puedeGobernar =
+    tienePermiso("POST", "/configuraciones-aprobacion") && !padronVedado;
 
   const { avisar } = useAvisos();
   const [cargando, setCargando] = useState(true);
@@ -136,7 +143,20 @@ export default function ConfiguracionAprobacionesPage() {
           api.get<Proceso[]>("/configuraciones-aprobacion/catalogo/procesos"),
           api.get<RolAsignable[]>("/configuraciones-aprobacion/catalogo/roles"),
           api.get<Departamento[]>("/departamentos"),
-          api.get<Usuario[]>("/usuarios"),
+          /*
+           * LA LISTA CORTA, no el padrón.
+           *
+           * Pedía `GET /usuarios` —correo, departamento y estado de cada
+           * cuenta—, que es del administrador. MEDIDO el 22-oct-2026
+           * suplantando los trece roles: contestaba 403 a `direccion`,
+           * `contador` y `credito`, y esta pantalla, que sí es suya, se
+           * declaraba sin acceso. El rol que gobierna la empresa no podía
+           * decir quién autoriza en ella.
+           *
+           * Aquí sólo hace falta a quién asignar un nivel: nombre, id y rol.
+           * Eso es `para-asignar`, que existe justo para esto.
+           */
+          api.get<Usuario[]>("/usuarios/para-asignar"),
           api.get<ConfigGuardada[]>(
             "/configuraciones-aprobacion/matriz/todos",
           ),
@@ -147,12 +167,28 @@ export default function ConfiguracionAprobacionesPage() {
         resultado.reason instanceof ApiError &&
         (resultado.reason.esNoAutorizado || resultado.reason.esSinPermisos);
 
-      if (negado(departamentosRes) || negado(usuariosRes)) {
+      /*
+       * SIN ACCESO ES NO PODER LEER LA MATRIZ, no no poder editarla.
+       *
+       * Aquí se declaraba sin acceso en cuanto el padrón de áreas o de usuarios
+       * contestaba 403, y eso tapaba el modo de SÓLO LECTURA que esta misma
+       * pantalla ya tiene escrito para los roles que aprueban: la matriz había
+       * cargado con un 200 y no se pintaba.
+       *
+       * MEDIDO el 22-oct-2026 suplantando los trece roles: `direccion`,
+       * `contador`, `credito`, `finanzas` y `gerencia` leen la matriz y ninguno
+       * tiene el POST —nadie salvo el administrador lo tiene—, así que los cinco
+       * caían aquí y veían «tu perfil no administra los flujos de aprobación»
+       * en vez de la matriz que sí podían consultar. Al rol que gobierna la
+       * empresa se le negaba ver quién autoriza en ella.
+       */
+      if (negado(matrizRes)) {
         setSinAcceso(true);
         return;
       }
+      setPadronVedado(negado(departamentosRes) || negado(usuariosRes));
 
-      const fallo = [procesosRes, departamentosRes, usuariosRes, matrizRes].find(
+      const fallo = [procesosRes, matrizRes].find(
         (resultado) => resultado.status === "rejected",
       );
       if (fallo && fallo.status === "rejected") {
@@ -371,12 +407,11 @@ export default function ConfiguracionAprobacionesPage() {
         <Panel>
           <div className="py-10 text-center">
             <p className="text-base font-semibold text-slate-700">
-              Tu perfil no administra los flujos de aprobación
+              Tu perfil no alcanza la matriz de aprobaciones
             </p>
             <p className="mt-2 text-sm text-slate-500">
-              Para editar esta matriz se necesita acceso al padrón de áreas y
-              de usuarios. Pide a un administrador que te lo otorgue, o revisa
-              tus pendientes en la bandeja de aprobaciones.
+              Ni para leerla. Pide a un administrador que te la otorgue, o
+              revisa tus pendientes en la bandeja de aprobaciones.
             </p>
             <Link
               href="/dashboard/aprobaciones"
@@ -417,6 +452,13 @@ export default function ConfiguracionAprobacionesPage() {
             pero la matriz la gobierna el rol «Gobierno de aprobaciones», que no
             firma ninguno de los documentos que enruta. Quien aprueba no escribe
             la regla que lo obliga a aprobar.
+            {padronVedado && (
+              <>
+                {" "}
+                Tu perfil tampoco alcanza el padrón de áreas o de personas, que
+                es a quien se asignaría cada nivel.
+              </>
+            )}
           </p>
         </div>
       )}

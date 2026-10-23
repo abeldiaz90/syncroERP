@@ -1400,3 +1400,121 @@ que no al que lo lee no es un pendiente, es una pared—.
 El enlace lleva al buzón de avisos del core, que los pide aparte y los suma en
 su titular. Resolverlos es mirarlos uno a uno: decidir si el hecho del core se
 refleja en el ERP o se descarta.
+
+## El barrido de los trece roles contra el front (22-oct-2026)
+
+Hasta hoy el front se probaba con el administrador, que entra a todo, y las
+pruebas automáticas cruzaban plantillas de permisos contra menús. Ninguna de
+las dos cosas ve lo que se midió aquí: **qué contesta de verdad cada consulta
+de cada pantalla cuando la abre cada rol**.
+
+El método, por si hay que repetirlo. Con «Ver el ERP como otra persona» puesto
+en un rol, se piden sus pantallas a `GET /admin/permisos/mis-rutas`, se abre
+cada una y se leen los códigos de respuesta reales de esa carga
+(`performance.getEntriesByType('resource')` expone `responseStatus`). **596
+pantallas** —la suma de las de los once roles operativos más dirección y
+gerencia— y **60 cargas con al menos una respuesta de 4xx**.
+
+De esas 60, la mayoría estaban bien: un 403 en una mitad de la pantalla es
+normal —hay perfiles que firman requisiciones y no adjudicaciones, y al
+revés— y esas pantallas ya lo decían con palabras. Lo que el barrido encontró
+fueron **once defectos reales**, y todos son la misma familia en dos formas.
+
+### Forma 1 · una puerta que no es suya
+
+Una pantalla aparece en el menú de alguien porque tiene UNA ruta que no es la
+que la pantalla necesita. Entra, y lo que la llena contesta 403.
+
+| Pantalla | Colgaba de | Debe colgar de |
+|---|---|---|
+| Stock inicial | bajar la plantilla de Excel, y el listado de cargas | el `POST` que carga el archivo |
+| Atributos y variantes | una ruta abierta a los trece roles (plantillas por sector) | la consulta de grupos, que pide permiso |
+| Usuarios | `GET /usuarios`, la lista llana | `GET /usuarios/directorio`, que es lo que lee |
+
+Y dos más de la misma forma sin cambiar la llave:
+
+- **Aprobaciones de compra** tiene dos mitades —requisiciones y adjudicación de
+  cotizaciones— y TRES puertas. Al almacenista se le habían vedado las dos
+  acciones de requisición —«quien pide no se autoriza»— y seguía viendo el
+  renglón: lo sostenía la tercera, `…/aprobaciones/historial`, que lleva su
+  propio `@Navegable` con la misma pantalla porque es la otra pestaña. Vedada
+  también ésa, el renglón desaparece —comprobado después de sincronizar: el
+  almacenista ya no la ve y el comprador, que sí adjudica, la conserva—. Las
+  cuatro acciones de cotizaciones se vedaron aparte, por separación de
+  funciones: en el almacén se solicita y en compras se adjudica.
+
+  La prueba ya no confía en una lista escrita: recorre el diccionario de
+  pantallas y los decoradores de los dos controladores, y exige que TODA acción
+  que conceda esa pantalla esté vedada para ese rol. La próxima pestaña entra a
+  la cuenta sola.
+- **El cajón «Almacenes»** le salía a cobranza, que tiene veinticinco pantallas
+  y ninguna de almacén. El módulo se veía porque tenía un renglón «accesible»
+  —su propia portada, que se abre sin permiso— y la portada se abría porque el
+  módulo se veía. Ahora la cuenta mira pantallas reales y deja fuera los
+  contenedores. El centro de almacenes, además, listaba nueve enlaces escritos
+  a mano sin filtro de ninguna clase.
+
+### Forma 2 · un cero que no se preguntó
+
+Un 403 correcto convertido en una afirmación sobre el mundo. Es el defecto que
+el corte de caja aprendió el 21 de octubre, y aparecieron cuatro más:
+
+- **Control de verificaciones**, que va también dentro de la cartera de
+  clientes, se pintaba entero en ceros: «Clientes verificados 0 · 0% de la
+  cartera activa», «Sin verificar 0 · nunca pasaron por el flujo».
+- **Asignaciones de nómina**: «No hay asignaciones» sobre una lista que no se
+  leyó, con el panel de alta pintado y su buscador de empleados vacío.
+- **Avisos del core**: «Nada pendiente · todo lo recibido fue el eco de
+  operaciones que el ERP mismo originó», con la mitad de los huérfanos sin
+  consultar.
+- **Facturas de proveedor**: la negativa del padrón se guardaba en el estado y
+  no se pintaba en ninguna parte; para una factura sin orden —luz, honorarios,
+  renta, justo las del contador— el desplegable no tenía a nadie.
+- **Catálogo de productos**: pedía los almacenes siempre y, al negarse,
+  avisaba en ámbar «no se pudo consultar los almacenes, los filtros pueden
+  estar incompletos». Dos cosas falsas en una frase: una negativa no es una
+  caída, y ninguno de esos filtros usa almacenes.
+- **La cartera del cliente en su expediente**: «No se pudo consultar su
+  política de crédito AHORA MISMO», que promete que mañana sí a quien nunca va
+  a poder. Hotelería atiende al huésped y no lleva su cartera.
+
+### Tres huecos funcionales, no de redacción
+
+1. **La pantalla de impresoras de tickets no funcionaba para nadie**, el
+   administrador incluido. `GET /ventas/impresoras` caía en `GET /ventas/:id`
+   tomando «impresoras» por un identificador: 400. Es la tercera vez que
+   muerde el orden de registro de controladores en Nest, y la primera entre dos
+   controladores que comparten prefijo —la variante que la prueba que lo vigila
+   no podía ver—. Ya la ve.
+2. **La matriz de aprobaciones no la podía leer quien gobierna la empresa.**
+   Pedía el padrón completo de usuarios, que es del administrador, y al recibir
+   403 se declaraba sin acceso: tapaba el modo de sólo lectura que ella misma
+   tiene escrito para los cinco roles que la consultan. Ahora pide la lista
+   corta de personas y «sin acceso» significa no poder leer la matriz.
+3. **Tesorería no podía calcular un corte de caja.** Tiene la pantalla —el
+   módulo de caja es suyo— y no las ventas del día, que son la mitad de un
+   corte. El ERP le encargaba cerrar la caja y le pedía preguntarle a otro
+   cuánto se había vendido.
+
+### Lo que queda vigilando
+
+- `una-puerta-que-no-es-suya.spec.ts` — las siete llaves y envolturas.
+- `una-mitad-vedada-no-es-una-mitad-vacia.spec.ts` — la bandeja de dos mitades.
+- `un-cero-que-no-se-pregunto.spec.ts` — las cuatro afirmaciones.
+- `el-menu-no-ofrece-lo-que-no-se-puede-abrir.spec.ts` — los contenedores que
+  se contaban a sí mismos y los centros escritos a mano.
+- `una-ruta-literal-no-se-esconde-tras-un-parametro.spec.ts` — ahora también
+  entre controladores de mismo prefijo.
+
+**Importante al desplegar:** las rutas nuevas y las vedas nuevas no cambian
+nada hasta correr `POST /api/admin/permisos/sincronizar`, que reconcilia la
+tabla de endpoints con las plantillas. No es un comando de consola: es una
+llamada del propio ERP, autenticada como administrador. La sincronización
+repara las filas existentes —reescribe la pantalla de un endpoint cuando
+cambió y la BORRA cuando el endpoint dejó de declararla—, así que basta
+correrla una vez por instalación después de desplegar.
+
+Verificado el 22-oct-2026 después de sincronizar: 583 pantallas en lugar de
+596 —las trece puertas muertas ya no se ofrecen—, y de las respuestas 4xx que
+quedan ninguna deja una pantalla hueca ni una frase falsa: todas son mitades
+ajenas que la pantalla nombra.

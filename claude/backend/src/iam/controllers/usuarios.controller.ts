@@ -159,10 +159,23 @@ export class UsuariosController {
    * ============================================================================
    * La lista corta de personas, para un desplegable
    * ----------------------------------------------------------------------------
-   * Nombre e identificador, nada más. `GET /usuarios` trae el correo, el rol,
-   * el departamento y el estado de cada cuenta, y hay pantallas que sólo
-   * necesitan saber a quién asignarle algo —la de housekeeping, para decir qué
-   * camarista limpia cada cuarto—.
+   * Nombre, identificador y rol. `GET /usuarios` trae además el correo, el
+   * departamento y el estado de cada cuenta, y hay pantallas que sólo necesitan
+   * saber a quién asignarle algo —la de housekeeping, para decir qué camarista
+   * limpia cada cuarto; la matriz de aprobaciones, para decir quién firma—.
+   *
+   * EL ROL SE INCLUYE, y no es un descuido: la matriz de aprobaciones escribe
+   * «Nombre · rol» en su desplegable porque hay homónimos y porque el rol es lo
+   * que explica por qué esa persona puede firmar; y arma con esos roles la
+   * lista de los que YA están en uso, para no borrar en silencio un nivel
+   * existente cuyo rol salió del contrato. El nombre de un rol no es un dato
+   * reservado: aparece en la cabecera de la propia sesión.
+   *
+   * MEDIDO el 22-oct-2026 suplantando los trece roles: la matriz de
+   * aprobaciones pedía `GET /usuarios`, que es del administrador, y contestaba
+   * 403 a `direccion`, `contador` y `credito`. La pantalla lo decía bien —«no
+   * tienes el padrón de usuarios»— pero el resultado era que el rol que
+   * gobierna la empresa no podía configurar quién autoriza en ella.
    *
    * Es el mismo patrón que `GET /catalogo/almacenes/para-venta`, y por la misma
    * razón: darle la lista ancha a un rol de operación para llenar un
@@ -177,10 +190,13 @@ export class UsuariosController {
   @Get('para-asignar')
   async paraAsignar(@ActiveUser('empresaId') empresaId: string) {
     const usuarios = await this.usuariosService.obtenerTodos(empresaId, undefined, true);
-    return usuarios.map((u: { id: string; nombreCompleto: string }) => ({
-      id: u.id,
-      nombreCompleto: u.nombreCompleto,
-    }));
+    return usuarios.map(
+      (u: { id: string; nombreCompleto: string; rol?: string }) => ({
+        id: u.id,
+        nombreCompleto: u.nombreCompleto,
+        rol: u.rol ?? null,
+      }),
+    );
   }
 
   @Get(':id')

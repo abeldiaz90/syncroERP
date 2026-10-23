@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AlertTriangle, ArrowRight, Boxes, ClipboardCheck, MapPin, PackageCheck, Repeat2, ScanLine, Warehouse } from 'lucide-react';
 import { api, intentar } from '@/lib/api';
 import { usePermiso } from '@/hooks/use-permisos';
+import { useRutasPermitidas } from '@/hooks/use-rutas-permitidas';
 
 interface Integridad { total?: number; diferencias?: unknown[]; data?: unknown[] }
 interface Pendiente { total?: number }
@@ -47,6 +48,22 @@ export default function CentroAlmacenes() {
   const [diferencias, setDiferencias] = useState<number | null>(null);
   const [transferencias, setTransferencias] = useState<number | null>(null);
   const { tienePermiso } = usePermiso();
+  /*
+   * Y EL PERMISO DE PANTALLA, que es el que a este centro le faltaba.
+   *
+   * Las seis «operaciones frecuentes» de arriba se filtran por la ACCIÓN que
+   * disparan desde el 21-sep-2026. Los tres bloques del pie no se filtraban
+   * por nada: nueve enlaces escritos a mano en el JSX.
+   *
+   * MEDIDO el 22-oct-2026 suplantando al rol `cobranza`, que tiene 25
+   * pantallas y ninguna de almacén: este centro le ofrecía las nueve, y cada
+   * una aterrizaba en «esta sección no está en tu perfil». El propio centro
+   * genérico (`/dashboard/centros/[modulo]`) ya filtra sus renglones; éste es
+   * la otra puerta al mismo cuarto, escrita a mano, y se quedó atrás. Para eso
+   * existe `useRutasPermitidas`, que nació de este mismo defecto en el centro
+   * de nómina.
+   */
+  const { puedeAbrir } = useRutasPermitidas();
 
   useEffect(() => {
     let vivo = true;
@@ -85,7 +102,9 @@ export default function CentroAlmacenes() {
           <h1 className="text-2xl font-bold text-slate-900 mt-1">Almacenes</h1>
           <p className="text-[13px] text-slate-500 mt-1">Todo lo necesario para recibir, localizar, mover, contar y surtir mercancía.</p>
         </div>
-        <Link href="/dashboard/almacenes/existencias" className="btn btn-primario">Ver existencias <ArrowRight className="w-3.5 h-3.5" /></Link>
+        {puedeAbrir('/dashboard/almacenes/existencias') && (
+          <Link href="/dashboard/almacenes/existencias" className="btn btn-primario">Ver existencias <ArrowRight className="w-3.5 h-3.5" /></Link>
+        )}
       </header>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -109,17 +128,17 @@ export default function CentroAlmacenes() {
       </section>
 
       <section className="grid lg:grid-cols-3 gap-3">
-        <Bloque titulo="Entradas" links={[
+        <Bloque titulo="Entradas" puedeAbrir={puedeAbrir} links={[
           ['Recepciones de compra', '/dashboard/inventario/recepciones'],
           ['Transferencias por recibir', '/dashboard/inventario/transferencias'],
           ['Stock inicial', '/dashboard/inventario/stock-inicial'],
         ]} />
-        <Bloque titulo="Control físico" links={[
+        <Bloque titulo="Control físico" puedeAbrir={puedeAbrir} links={[
           ['Existencias por posición', '/dashboard/almacenes/existencias'],
           ['Conteos físicos', '/dashboard/inventario/conteos'],
           ['Ubicaciones', '/dashboard/inventario/ubicaciones'],
         ]} />
-        <Bloque titulo="Salidas y movimientos" links={[
+        <Bloque titulo="Salidas y movimientos" puedeAbrir={puedeAbrir} links={[
           ['Transferencias', '/dashboard/inventario/transferencias'],
           ['Reubicaciones', '/dashboard/inventario/reubicaciones'],
           ['Ajustes y mermas', '/dashboard/inventario/ajustes'],
@@ -132,6 +151,21 @@ export default function CentroAlmacenes() {
 function Kpi({ label, value, Icono, alerta = false }: { label: string; value: string; Icono: typeof Warehouse; alerta?: boolean }) {
   return <div className="panel p-4"><div className="flex items-center gap-2 text-[11.5px] text-slate-500"><Icono className={`w-4 h-4 ${alerta ? 'text-amber-500' : 'text-emerald-600'}`} />{label}</div><p className="text-[16px] font-bold text-slate-900 mt-2">{value}</p></div>;
 }
-function Bloque({ titulo, links }: { titulo: string; links: [string, string][] }) {
-  return <div className="panel p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-2">{titulo}</p>{links.map(([l,h]) => <Link key={h} href={h} className="flex items-center justify-between py-2.5 text-[12.5px] text-slate-700 hover:text-emerald-700 border-b border-slate-100 last:border-0">{l}<ArrowRight className="w-3.5 h-3.5" /></Link>)}</div>;
+/**
+ * Un bloque de enlaces que sólo lista lo que esta persona puede abrir, y que
+ * no se pinta si no queda nada: un encabezado solo —«Entradas» y debajo
+ * nada— se lee como un error de la pantalla, no como un límite del perfil.
+ */
+function Bloque({
+  titulo,
+  links,
+  puedeAbrir,
+}: {
+  titulo: string;
+  links: [string, string][];
+  puedeAbrir: (href: string) => boolean;
+}) {
+  const visibles = links.filter(([, h]) => puedeAbrir(h));
+  if (!visibles.length) return null;
+  return <div className="panel p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-2">{titulo}</p>{visibles.map(([l,h]) => <Link key={h} href={h} className="flex items-center justify-between py-2.5 text-[12.5px] text-slate-700 hover:text-emerald-700 border-b border-slate-100 last:border-0">{l}<ArrowRight className="w-3.5 h-3.5" /></Link>)}</div>;
 }

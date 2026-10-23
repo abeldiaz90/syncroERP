@@ -24,6 +24,24 @@
  *     estructura; no hay consulta automatizada al registro nacional. Aparece
  *     igual en el tablero, diciendo eso, porque un hueco sin explicar manda a
  *     buscar un módulo que no existe.
+ *
+ *  4. Y LA CUARTA, QUE FALTABA: UN TABLERO QUE NO SE PUDO LEER NO ES UN
+ *     TABLERO EN CEROS. La consulta iba envuelta en `intentar(..., null)`, que
+ *     devuelve `null` ante cualquier fallo, y abajo cada cifra se resolvía con
+ *     `?? 0`. El resultado era el tablero completo diciendo «Verificaciones
+ *     reales 0», «Clientes verificados 0 · 0% de la cartera activa» y «Sin
+ *     verificar 0 · nunca pasaron por el flujo», afirmaciones durísimas sobre
+ *     datos que nunca llegaron.
+ *
+ *     MEDIDO el 22-oct-2026 suplantando los trece roles: este tablero va
+ *     también en la cartera de clientes, y a `empleado`, `finanzas` y los
+ *     demás que abren esa pantalla sin alcanzar las validaciones les decía que
+ *     el 0% de la cartera está verificada. Es el mismo defecto que el corte de
+ *     caja: un cero que no se pudo preguntar no es un cero.
+ *
+ *     Ahora: vedado es una respuesta —no es tu tablero, y en la versión
+ *     compacta no se pinta—; cualquier otro fallo se dice; y en ningún caso
+ *     se enseña una cifra que no se leyó.
  * ============================================================================
  */
 
@@ -32,7 +50,7 @@ import Link from 'next/link';
 import {
   ShieldCheck, Play, Loader2, FlaskConical, IdCard, ChevronRight,
 } from 'lucide-react';
-import { api, intentar } from '@/lib/api';
+import { api, conPermiso } from '@/lib/api';
 import { Indicador } from '@/components/ui';
 import {
   CONTROLES, RES, EST, fechaLarga, dinero,
@@ -85,16 +103,70 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
   const [dias, setDias] = useState(90);
   const [datos, setDatos] = useState<ITablero | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [vedado, setVedado] = useState(false);
+  const [averiado, setAveriado] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
-    const d = await intentar<ITablero | null>(
-      api.get<ITablero>(`/integracion/validacion/tablero?dias=${dias}`), null);
-    setDatos(d);
-    setCargando(false);
+    try {
+      const r = await conPermiso(
+        api.get<ITablero>(`/integracion/validacion/tablero?dias=${dias}`),
+      );
+      setDatos(r.valor);
+      setVedado(r.vedado);
+      setAveriado(false);
+    } catch {
+      setDatos(null);
+      setVedado(false);
+      setAveriado(true);
+    } finally {
+      setCargando(false);
+    }
   }, [dias]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  /*
+   * En la cartera de clientes este tablero es un añadido: si no es de este
+   * perfil, no se pinta. En su propia pantalla sí se dice, porque alguien
+   * entró a propósito a verlo y merece saber por qué no está.
+   */
+  if (vedado && compacto) return null;
+  if (vedado) {
+    return (
+      <section className="panel p-5">
+        <h2 className="text-[17px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <ShieldCheck className="w-[18px] h-[18px] text-slate-400" />
+          Control de verificaciones
+        </h2>
+        <p className="text-[12.5px] text-slate-500 mt-1">
+          El control de verificaciones de la cartera no está en tu perfil, así
+          que esta pantalla no puede decirte cuánto se ha verificado ni cuánto
+          falta. No es que no haya nada: es que no se consultó.
+        </p>
+      </section>
+    );
+  }
+  if (averiado) {
+    return (
+      <section className="panel p-5 border-rose-200">
+        <h2 className="text-[17px] font-bold text-rose-800 tracking-tight flex items-center gap-2">
+          <ShieldCheck className="w-[18px] h-[18px] text-rose-500" />
+          Control de verificaciones
+        </h2>
+        <p className="text-[12.5px] text-slate-600 mt-1">
+          No se pudo leer el tablero. Las cifras no se muestran porque serían
+          ceros que nadie comprobó; vuelve a intentarlo.
+        </p>
+        <button
+          onClick={() => void cargar()}
+          className="mt-3 text-[12.5px] font-semibold text-indigo-600 hover:text-indigo-700"
+        >
+          Volver a intentar
+        </button>
+      </section>
+    );
+  }
 
   const porTipo = new Map((datos?.controles ?? []).map((c) => [c.tipo, c]));
   const totalReales = datos?.corridas.reales ?? 0;

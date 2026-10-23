@@ -27,7 +27,7 @@ import {
   Inbox, RefreshCw, AlertCircle, CheckCircle2, Archive, Loader2,
   ChevronDown, ChevronRight, ExternalLink,
 } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, conPermiso } from '@/lib/api';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { useContratacion } from '@/lib/contratacion';
 import { plural } from '@/lib/format';
@@ -93,6 +93,19 @@ export default function AvisosDelCorePage() {
   const [abierto, setAbierto] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const [huerfanos, setHuerfanos] = useState<IAviso[]>([]);
+  /*
+   * «No hay huérfanos» y «los huérfanos no son de tu rol» no son lo mismo.
+   *
+   * El `.catch(() => ({ avisos: [] }))` que había aquí se tragaba las dos
+   * cosas y también una avería: un 500 dejaba el panel vacío y el titular
+   * contando como si no hubiera nada esperando. MEDIDO el 22-oct-2026
+   * suplantando al rol `contador`, que tiene esta pantalla y no los huérfanos.
+   *
+   * Vedado es una respuesta —el panel no es suyo y no se pinta—; cualquier otro
+   * fallo se dice, porque entonces no se sabe si hay algo pendiente.
+   */
+  const [huerfanosVedados, setHuerfanosVedados] = useState(false);
+  const [errorHuerfanos, setErrorHuerfanos] = useState<string | null>(null);
   /* Para no afirmar que llegó todo bien cuando no hay remitente. */
   const plan = useContratacion();
 
@@ -103,11 +116,27 @@ export default function AvisosDelCorePage() {
       const q = estado === 'TODOS' ? '' : `?estado=${estado}`;
       const [propios, sinEmpresa] = await Promise.all([
         api.get<IRespuesta>(`/integracion/avisos${q}`),
-        // Si el rol no alcanza para verlos, la pantalla sigue funcionando.
-        api.get<IHuerfanos>('/integracion/avisos/huerfanos').catch(() => ({ avisos: [] })),
+        /*
+         * Si el rol no alcanza para verlos, la pantalla sigue funcionando y lo
+         * dice; si la consulta se cae, también. Lo que no se hace es presentar
+         * ninguno de los dos casos como una lista vacía.
+         */
+        conPermiso(api.get<IHuerfanos>('/integracion/avisos/huerfanos')).then(
+          (r): { valor: IHuerfanos | null; vedado: boolean; averia: boolean } => ({
+            ...r,
+            averia: false,
+          }),
+          () => ({ valor: null, vedado: false, averia: true }),
+        ),
       ]);
       setDatos(propios);
-      setHuerfanos(sinEmpresa.avisos ?? []);
+      setHuerfanos(sinEmpresa.valor?.avisos ?? []);
+      setHuerfanosVedados(sinEmpresa.vedado);
+      setErrorHuerfanos(
+        sinEmpresa.averia
+          ? 'No se pudieron leer los avisos sin correspondencia. Puede haber algo esperando que esta pantalla no está mostrando.'
+          : null,
+      );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'No fue posible leer el buzón.');
     } finally {
@@ -215,8 +244,16 @@ export default function AvisosDelCorePage() {
             <p className="font-medium text-gray-900">
               {pidenAlgo > 0
                 ? `${plural(pidenAlgo, "aviso")} ${pidenAlgo === 1 ? "pide" : "piden"} una decisión`
-                : 'Nada pendiente'}
+                : huerfanosVedados
+                  ? 'Nada pendiente de esta empresa'
+                  : 'Nada pendiente'}
             </p>
+            {/*
+              El titular habla de LO QUE SE PUDO MIRAR. Los avisos sin
+              correspondencia son de administración, y a quien no los alcanza
+              no se le puede decir «todo lo recibido fue un eco»: de esa mitad
+              no sabe nada. Se nombra el límite en vez de afirmar sobre ella.
+            */}
             <p className="text-sm text-gray-600">
               {pidenAlgo > 0
                 ? `Son hechos que ocurrieron en el core y que el ERP no tiene registrados${
@@ -224,7 +261,9 @@ export default function AvisosDelCorePage() {
                       ? `, ${huerfanosPendientes.length} de ellos sobre recursos que este ERP no conoce`
                       : ''
                   }.`
-                : 'Todo lo recibido fue el eco de operaciones que el ERP mismo originó.'}
+                : huerfanosVedados
+                  ? 'Todo lo recibido para esta empresa fue el eco de operaciones que el ERP mismo originó. Los avisos sobre recursos que este ERP no conoce son de administración y no están en tu perfil.'
+                  : 'Todo lo recibido fue el eco de operaciones que el ERP mismo originó.'}
             </p>
           </div>
         </div>
@@ -249,7 +288,14 @@ export default function AvisosDelCorePage() {
         ))}
       </div>
 
-      {huerfanos.length > 0 && (
+      {errorHuerfanos && (
+        <div className="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+          {errorHuerfanos}
+        </div>
+      )}
+
+      {/* Vedado: el panel no es de este perfil y no se pinta ni se promete. */}
+      {!huerfanosVedados && huerfanos.length > 0 && (
         <div className="mb-6">
           <div className="flex items-baseline gap-2 mb-2">
             <h2 className="text-sm font-semibold text-gray-900">

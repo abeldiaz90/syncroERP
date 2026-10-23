@@ -36,7 +36,7 @@ import {
   Search, ShieldOff, Loader2, Landmark, ExternalLink,
 } from 'lucide-react';
 
-import { MODULOS, detectarModulo, detectarItem, agruparItems, destinoDelModulo, puedeAbrirRenglon, RUTAS_CONTENEDOR } from './module-config';
+import { MODULOS, detectarModulo, detectarItem, agruparItems, destinoDelModulo, puedeAbrirRenglon, pantallasAlcanzables, RUTAS_CONTENEDOR } from './module-config';
 import { establecerVerComo, verComoActual, type VerComo } from '@/lib/ver-como';
 import { api, token, intentar, rutaDeAccesoConRegreso } from '@/lib/api';
 import { leerSesion, sesionVigente, iniciales, puedeEntrar, type Sesion } from '@/lib/session';
@@ -217,23 +217,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (RUTAS_LIBRES.has(pathname)) return false;
     // Los centros de trabajo son contenedores de navegación. Se permiten cuando
     // el usuario tiene acceso al menos a una pantalla real del módulo.
+    /*
+     * La cuenta va con `pantallasAlcanzables`, que deja fuera los propios
+     * contenedores. Con `puedeAbrirRenglon` el contenedor se contaba a sí
+     * mismo y siempre había «algo de dentro»: ver el comentario de
+     * `esContenedor` en `module-config.ts`, medido con el rol `cobranza`.
+     */
     if (pathname.startsWith('/dashboard/centros/') && modulo) {
-      return !modulo.items.some(
-        (i) =>
-          !i.oculto &&
-          puedeAbrirRenglon(i.href, (r) => puedeEntrar(permisos, r)) &&
-          contratado(plan, i),
-      );
+      return !pantallasAlcanzables(
+        modulo.items,
+        (r) => puedeEntrar(permisos, r),
+        (i) => contratado(plan, i),
+      ).length;
     }
     // Las portadas de módulo —el índice de reportes, el centro de almacenes—
     // se tratan igual que los centros de trabajo: son navegación, no datos.
     if (RUTAS_CONTENEDOR.has(pathname) && modulo) {
-      return !modulo.items.some(
-        (i) =>
-          !i.oculto &&
-          puedeAbrirRenglon(i.href, (r) => puedeEntrar(permisos, r)) &&
-          contratado(plan, i),
-      );
+      return !pantallasAlcanzables(
+        modulo.items,
+        (r) => puedeEntrar(permisos, r),
+        (i) => contratado(plan, i),
+      ).length;
     }
     return !puedeEntrar(permisos, pathname);
   }, [permisos, pathname, modulo, plan]);
@@ -242,11 +246,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     () =>
       MODULOS.map((m) => ({
         ...m,
-        accesibles: m.items.filter(
-          (i) =>
-            !i.oculto &&
-            puedeAbrirRenglon(i.href, (r) => puedeEntrar(permisos, r)) &&
-            contratado(plan, i),
+        /*
+         * `accesibles` decide DOS cosas: si el cajón se pinta y a dónde lleva
+         * su nombre. Las dos quieren pantallas reales, no contenedores: un
+         * módulo del que no se alcanza ninguna pantalla no es un módulo de
+         * esta persona, aunque su portada se abra sin permiso.
+         */
+        accesibles: pantallasAlcanzables(
+          m.items,
+          (r) => puedeEntrar(permisos, r),
+          (i) => contratado(plan, i),
         ),
       })).filter((m) => m.accesibles.length > 0),
     [permisos, plan],

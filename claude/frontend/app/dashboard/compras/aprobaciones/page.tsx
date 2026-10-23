@@ -151,6 +151,34 @@ const fmtMomento = (s?: string | null) =>
       })
     : 'fecha no registrada';
 
+/**
+ * Lo que se puede afirmar con lo que de verdad se consultó.
+ *
+ * «No tienes nada pendiente» es una conclusión sobre el mundo, y sólo se
+ * sostiene sobre las mitades que contestaron. Una mitad vedada no se nombra
+ * como vacía: se nombra como ajena.
+ */
+/** Lo mismo para el historial: sólo se promete lo que esta persona puede firmar. */
+export function frasesDelHistorialVacio(vedadas: { req: boolean; adj: boolean }): string {
+  if (vedadas.req && vedadas.adj)
+    return 'Ni las requisiciones ni las adjudicaciones de cotización están en tu perfil, así que aquí no va a quedar nada.';
+  if (vedadas.req)
+    return 'Aquí van a quedar las adjudicaciones de cotización que apruebes o rechaces. Autorizar requisiciones no está en tu perfil.';
+  if (vedadas.adj)
+    return 'Aquí van a quedar las requisiciones que apruebes o rechaces. Adjudicar cotizaciones no está en tu perfil.';
+  return 'Aquí van a quedar las requisiciones y adjudicaciones que apruebes o rechaces.';
+}
+
+export function frasesDelVacio(vedadas: { req: boolean; adj: boolean }): string {
+  if (vedadas.req && vedadas.adj)
+    return 'Ni las requisiciones ni las adjudicaciones de cotización están en tu perfil, así que esta pantalla no tiene nada que mostrarte.';
+  if (vedadas.req)
+    return 'No tienes adjudicaciones de cotización pendientes de aprobar. Autorizar requisiciones no está en tu perfil, así que de ésas no se dice nada.';
+  if (vedadas.adj)
+    return 'No tienes requisiciones pendientes de aprobar. Adjudicar cotizaciones no está en tu perfil, así que de ésas no se dice nada.';
+  return 'No tienes requisiciones ni adjudicaciones pendientes de aprobar.';
+}
+
 const fmtDinero = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' })
     .format(Number(n || 0));
@@ -160,6 +188,22 @@ export default function AprobacionesPage() {
   const [adjudicaciones, setAdjudicaciones] = useState<IAdjudicacion[]>([]);
   const [cargando, setCargando]         = useState(true);
   const [errorCarga, setErrorCarga] = useState('');
+  /*
+   * QUÉ MITADES NO SE PUDIERON CONSULTAR.
+   *
+   * La bandeja tiene dos mitades —requisiciones y adjudicación de
+   * cotizaciones— y hay perfiles que firman una y no la otra: el comprador
+   * adjudica cotizaciones y no autoriza requisiciones. Para ésos, una de las
+   * dos consultas contesta 403, que no es un fallo.
+   *
+   * Pero no saberlo convertía el 403 en una afirmación: con las dos listas
+   * vacías la pantalla decía «Todo al día · No tienes requisiciones ni
+   * adjudicaciones pendientes de aprobar», nombrando como vacía una mitad que
+   * nunca se pudo mirar. MEDIDO el 22-oct-2026 suplantando a `comprador`.
+   *
+   * Se guarda cuál fue vedada para hablar sólo de lo que sí se consultó.
+   */
+  const [vedadas, setVedadas] = useState<{ req: boolean; adj: boolean }>({ req: false, adj: false });
   const [comentarios, setComentarios]   = useState<Record<string, string>>({});
   const [expandidos, setExpandidos]     = useState<Record<string, boolean>>({});
   const [procesando, setProcesando]     = useState<string | null>(null);
@@ -176,6 +220,8 @@ export default function AprobacionesPage() {
    * pendientes: un vacío sin consulta de respaldo afirma sobre el mundo.
    */
   const [histPedido, setHistPedido]     = useState(false);
+  /* Mismo cuidado que en pendientes, para la otra pestaña. */
+  const [vedadasHist, setVedadasHist] = useState<{ req: boolean; adj: boolean }>({ req: false, adj: false });
 
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const tok = () => localStorage.getItem('syncro_token') ?? '';
@@ -215,6 +261,7 @@ export default function AprobacionesPage() {
         ? `No se pudieron consultar ${caidas.join(' ni ')}. Puede haber documentos esperando tu firma.`
         : '',
     );
+    setVedadas({ req: r.status === 403, adj: ra.status === 403 });
     setCargando(false);
   }, []);
 
@@ -245,6 +292,7 @@ export default function AprobacionesPage() {
         ? `No se pudo leer el historial de ${caidas.join(' ni ')}. Lo que ves abajo está incompleto.`
         : '',
     );
+    setVedadasHist({ req: r.status === 403, adj: ra.status === 403 });
     setHistPedido(true);
     setCargandoHist(false);
   }, []);
@@ -364,6 +412,7 @@ export default function AprobacionesPage() {
         <HistorialDeFirmas
           cargando={cargandoHist}
           error={errorHist}
+          vedadas={vedadasHist}
           requisiciones={histReq}
           adjudicaciones={histAdj}
         />
@@ -381,8 +430,10 @@ export default function AprobacionesPage() {
       ) : aprobaciones.length === 0 && adjudicaciones.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <Inbox className="w-16 h-16 text-slate-200 mx-auto mb-4"/>
-          <p className="font-bold text-xl text-slate-700">Todo al día</p>
-          <p className="text-slate-400 text-sm mt-1">No tienes requisiciones ni adjudicaciones pendientes de aprobar.</p>
+          <p className="font-bold text-xl text-slate-700">
+            {vedadas.req && vedadas.adj ? 'Esta bandeja no es de tu perfil' : 'Todo al día'}
+          </p>
+          <p className="text-slate-400 text-sm mt-1">{frasesDelVacio(vedadas)}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -643,11 +694,13 @@ export default function AprobacionesPage() {
 function HistorialDeFirmas({
   cargando,
   error,
+  vedadas,
   requisiciones,
   adjudicaciones,
 }: {
   cargando: boolean;
   error: string;
+  vedadas: { req: boolean; adj: boolean };
   requisiciones: IAprobacionResuelta[];
   adjudicaciones: IAdjudicacionResuelta[];
 }) {
@@ -676,10 +729,12 @@ function HistorialDeFirmas({
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
         <History className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-        <p className="font-bold text-xl text-slate-700">Todavía no has firmado nada</p>
-        <p className="text-slate-400 text-sm mt-1">
-          Aquí van a quedar las requisiciones y adjudicaciones que apruebes o rechaces.
+        <p className="font-bold text-xl text-slate-700">
+          {vedadas.req && vedadas.adj
+            ? 'Esta bandeja no es de tu perfil'
+            : 'Todavía no has firmado nada'}
         </p>
+        <p className="text-slate-400 text-sm mt-1">{frasesDelHistorialVacio(vedadas)}</p>
       </div>
     );
   }

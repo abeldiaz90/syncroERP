@@ -1249,8 +1249,49 @@ export function puedeAbrirRenglon(
   href: string,
   puedeEntrar: (ruta: string) => boolean,
 ): boolean {
-  if (href.startsWith('/dashboard/centros/') || RUTAS_CONTENEDOR.has(href)) return true;
+  if (esContenedor(href)) return true;
   return puedeEntrar(href);
+}
+
+/**
+ * ¿Es navegación y no una pantalla con datos propios?
+ *
+ * Importa para lo que NO puede contar. Un contenedor se abre cuando se
+ * alcanza algo de dentro, así que al preguntar «¿se alcanza algo de dentro?»
+ * hay que dejarlo fuera de la cuenta: si se incluye, se justifica a sí mismo.
+ *
+ * MEDIDO el 22-oct-2026 suplantando al rol `cobranza`, que tiene veinticinco
+ * pantallas y ninguna de almacén: el menú lateral le pintaba el cajón
+ * «Almacenes». Lo pintaba porque el módulo tenía un renglón «accesible»
+ * —`/dashboard/almacenes/centro`, el contenedor— y con uno basta para que el
+ * cajón se vea. Dentro no había nada que abrir, y el propio centro le ofrecía
+ * nueve enlaces que contestaban «esta sección no está en tu perfil».
+ *
+ * O sea: el contenedor se abría porque el módulo se veía, y el módulo se veía
+ * porque el contenedor se abría. La cuenta tiene que mirar pantallas reales.
+ */
+export function esContenedor(href: string): boolean {
+  return href.startsWith('/dashboard/centros/') || RUTAS_CONTENEDOR.has(href);
+}
+
+/**
+ * Las pantallas REALES de un módulo que esta persona alcanza.
+ *
+ * Es la cuenta con la que se decide si el cajón del menú se pinta y si un
+ * contenedor se puede abrir. Los contenedores no entran: no son pantallas.
+ */
+export function pantallasAlcanzables(
+  items: ModuleItem[],
+  puedeEntrar: (ruta: string) => boolean,
+  estaContratado: (i: ModuleItem) => boolean,
+): ModuleItem[] {
+  return items.filter(
+    (i) =>
+      !i.oculto &&
+      !esContenedor(i.href) &&
+      puedeEntrar(i.href) &&
+      estaContratado(i),
+  );
 }
 
 export function destinoDelModulo(

@@ -228,6 +228,33 @@ const ACCIONES_AUTORIZAR_ALMACEN = [
  */
 const ACCION_TABLERO_PENDIENTES = 'GET /configuracion/pendientes';
 
+/**
+ * ==========================================================================
+ * LA LISTA CORTA DE PERSONAS
+ * --------------------------------------------------------------------------
+ * `GET /usuarios/para-asignar` devuelve nombre, identificador y rol de las
+ * cuentas activas: lo mínimo para llenar un desplegable de «¿a quién?». El
+ * padrón completo —`GET /usuarios`, con correo, departamento y estado de cada
+ * cuenta— es del administrador, y darlo entero a un rol de operación para
+ * llenar un desplegable abre una puerta que nadie pidió.
+ *
+ * Hacen falta DOS pantallas que no son de administración:
+ *
+ *  · Housekeeping, para decir qué camarista limpia cada cuarto.
+ *  · La matriz de aprobaciones, para decir quién firma cada nivel. La leen
+ *    diez de los trece roles —ver por qué un documento te llega no es
+ *    gobernarlo— y hasta el 22-oct-2026 pedía el padrón completo: contestaba
+ *    403 a `direccion`, `contador`, `credito`, `finanzas` y los demás, y la
+ *    pantalla se declaraba sin acceso enseñando una negativa en vez de la
+ *    matriz que sí habían podido leer.
+ *
+ * Va como constante porque el motivo es uno y ya estaba copiado tres veces:
+ * la próxima pantalla que necesite elegir persona la añade aquí y no vuelve a
+ * explicarlo.
+ * ==========================================================================
+ */
+const ACCION_ELEGIR_PERSONA = 'GET /usuarios/para-asignar';
+
 const ACCIONES_AUTORIZAR_OPERACION = [
   // La requisición: verla en la bandeja y poder resolverla.
   'GET /compras/requisiciones/aprobaciones/pendientes',
@@ -627,6 +654,52 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'GET /compras/requisiciones/aprobaciones/pendientes',
       'PATCH /compras/requisiciones/aprobaciones/:id',
       /*
+       * Y EL HISTORIAL, que era la TERCERA puerta a la misma pantalla.
+       *
+       * `GET …/aprobaciones/historial` lleva su propio `@Navegable` con la
+       * MISMA pantalla que `pendientes` —es la otra pestaña, no otra pantalla—,
+       * así que vedar las dos acciones de arriba y las cuatro de abajo seguía
+       * dejando el renglón en el menú por esta sexta. MEDIDO el 22-oct-2026
+       * después de sincronizar: la bandeja se abría con sus dos mitades en 403.
+       *
+       * Y no pierde nada: el historial contesta «qué firmé yo», y éste es el
+       * rol que no firma. El seguimiento de las requisiciones que él levanta
+       * vive en su propia pantalla, que sí tiene.
+       */
+      'GET /compras/requisiciones/aprobaciones/historial',
+      /*
+       * Y LA OTRA MITAD DE ESA MISMA BANDEJA.
+       *
+       * Vedar las dos acciones de arriba no quitó la pantalla: `/dashboard/
+       * compras/aprobaciones` tiene dos mitades —requisiciones y adjudicación
+       * de cotizaciones— y el menú se arma con las rutas concedidas, de modo
+       * que basta UNA mitad viva para que el renglón se liste. La consulta de
+       * compras dejaba viva la de cotizaciones, así que el almacenista seguía
+       * viendo «Aprobaciones» en su centro de trabajo; al entrar, la mitad de
+       * requisiciones contestaba 403 en silencio y la pantalla concluía «Todo
+       * al día · No tienes requisiciones ni adjudicaciones pendientes», que es
+       * afirmar un vacío que nunca se pudo consultar.
+       *
+       * MEDIDO el 22-oct-2026 suplantando al rol: la pantalla en el menú, la
+       * mitad de requisiciones en 403, la de cotizaciones en 200.
+       *
+       * Adjudicar tampoco le toca: en el almacén se solicita y en compras se
+       * adjudica —lo dice la veda de `POST /compras/ordenes`, más arriba—, así
+       * que la mitad de cotizaciones no es un permiso que le falte configurar,
+       * es una puerta que no es suya.
+       *
+       * PRECISIÓN, medida después de sincronizar: estas cuatro NO eran lo que
+       * mantenía el renglón en el menú. Ninguna acción de cotizaciones declara
+       * esa pantalla; la sostenía `…/requisiciones/aprobaciones/historial`,
+       * vedado justo arriba. Se vedan igual, por separación de funciones y para
+       * no dejarle a la vista una bandeja que no puede usar, pero el motivo es
+       * ése y no el del menú.
+       */
+      'GET /compras/cotizaciones/aprobaciones/pendientes',
+      'GET /compras/cotizaciones/aprobaciones/historial',
+      'PATCH /compras/cotizaciones/:id/aprobar',
+      'PATCH /compras/cotizaciones/:id/rechazar',
+      /*
        * ======================================================================
        * La otra puerta al mismo almacén
        * ----------------------------------------------------------------------
@@ -764,6 +837,9 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * paga tesorería, contra lo que el almacén dio por recibido.
      */
     accionesIrrenunciables: [
+      /* Para elegir quién firma cada nivel en la matriz de aprobaciones, que
+         este rol LEE. Ver `ACCION_ELEGIR_PERSONA`, arriba. */
+      ACCION_ELEGIR_PERSONA,
       /*
        * ────────────────────────────────────────────────────────────────────
        * El impuesto del producto lo decide Contabilidad, y hasta hoy no podía
@@ -859,6 +935,9 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * en el almacén.
      */
     accionesIrrenunciables: [
+      /* Para elegir quién firma cada nivel en la matriz de aprobaciones, que
+         este rol LEE. Ver `ACCION_ELEGIR_PERSONA`, arriba. */
+      ACCION_ELEGIR_PERSONA,
       /*
        * ────────────────────────────────────────────────────────────────────
        * El impuesto del producto lo decide Contabilidad, y hasta hoy no podía
@@ -958,6 +1037,9 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * paga tesorería, contra lo que el almacén dio por recibido.
      */
     accionesIrrenunciables: [
+      /* Para elegir quién firma cada nivel en la matriz de aprobaciones, que
+         este rol LEE. Ver `ACCION_ELEGIR_PERSONA`, arriba. */
+      ACCION_ELEGIR_PERSONA,
       // El tablero de pendientes: cuentas, no documentos.
       ACCION_TABLERO_PENDIENTES,
       /*
@@ -994,6 +1076,26 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
        * no sirve para llevarse el padrón.
        */
       'GET /clientes/para-seleccion',
+      /*
+       * Y LAS VENTAS DEL DÍA, que es de lo que se hace un corte de caja.
+       *
+       * El menú le ofrece «Corte de caja» porque tiene el módulo `caja`
+       * —`GET /caja/turnos` es la llave de esa pantalla— y el corte se arma
+       * con DOS mitades: las ventas del día y los pagos de cobranza del día.
+       * La segunda la tenía; la primera, no: `ventas` no está entre sus
+       * módulos de consulta.
+       *
+       * MEDIDO el 22-oct-2026 suplantando los trece roles: la pantalla
+       * contestaba, correctamente, «Tu perfil no incluye las ventas, así que
+       * este corte no se puede calcular. Pídeselo a quien lleva la caja». O
+       * sea que el ERP le encargaba cerrar la caja y le pedía que le
+       * preguntara a otro cuánto se vendió. Es el mismo caso que las órdenes
+       * de compra, arriba: la acción sin la consulta no sirve.
+       *
+       * Va la LISTA en consulta, no el módulo: cobrar una venta es del
+       * mostrador, anularla es de quien la hizo. Tesorería la lee y la cuadra.
+       */
+      'GET /ventas',
     ],
   },
   {
@@ -1036,6 +1138,9 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * como simulación, que la puerta no acepta.
      */
     accionesIrrenunciables: [
+      /* Para elegir quién firma cada nivel en la matriz de aprobaciones, que
+         este rol LEE. Ver `ACCION_ELEGIR_PERSONA`, arriba. */
+      ACCION_ELEGIR_PERSONA,
       /*
        * El CATÁLOGO DE CUENTAS, en lectura, para poder enlazar.
        *
@@ -1180,18 +1285,7 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
        * desplegable necesita.
        */
       'GET /credito/cuentas-bancarias/para-cobro',
-      /*
-       * Y la lista corta de personas. Housekeeping dice qué camarista limpia
-       * cada cuarto, y ese desplegable se llenaba con `GET /usuarios`, que
-       * trae el correo, el rol y el departamento de cada cuenta y que
-       * hotelería no tiene. El 403 se volvía lista vacía: la pantalla ofrecía
-       * asignar y no había a quién.
-       *
-       * Es la tercera vez que aparece la misma forma en este mismo rol —los
-       * almacenes, las cajas y ahora las personas— y se resuelve igual: una
-       * lista corta que sólo sirve para elegir.
-       */
-      'GET /usuarios/para-asignar',
+      ACCION_ELEGIR_PERSONA,
     ],
     accionesVedadas: [
       'GET /credito/cuentas-bancarias',
@@ -1236,6 +1330,9 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
       'POST /rrhh/estructura/solicitudes/:id/finanzas',
     ],
     accionesIrrenunciables: [
+      /* Para elegir quién firma cada nivel en la matriz de aprobaciones, que
+         este rol LEE. Ver `ACCION_ELEGIR_PERSONA`, arriba. */
+      ACCION_ELEGIR_PERSONA,
       /*
        * El CATÁLOGO DE CUENTAS, en lectura, para poder enlazar.
        *
@@ -1311,14 +1408,7 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * para los tres roles que la usan.
      */
     accionesIrrenunciables: [
-      /*
-       * La lista corta de personas, para el desplegable de camarista en
-       * housekeeping. Este rol llega a esa pantalla —la abre por módulo— y
-       * no tiene `GET /usuarios`, que trae el correo, el rol y el
-       * departamento de cada cuenta. Sin esto el desplegable se queda vacío
-       * tragando un 403 y la pantalla ofrece asignar sin tener a quién.
-       */
-      'GET /usuarios/para-asignar',
+      ACCION_ELEGIR_PERSONA,
       /*
        * La puerta al registro financiero externo.
        *
@@ -1490,14 +1580,7 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
      * la nomina—.
      */
     accionesIrrenunciables: [
-      /*
-       * La lista corta de personas, para el desplegable de camarista en
-       * housekeeping. Este rol llega a esa pantalla —la abre por módulo— y
-       * no tiene `GET /usuarios`, que trae el correo, el rol y el
-       * departamento de cada cuenta. Sin esto el desplegable se queda vacío
-       * tragando un 403 y la pantalla ofrece asignar sin tener a quién.
-       */
-      'GET /usuarios/para-asignar',
+      ACCION_ELEGIR_PERSONA,
       /*
        * Anular una venta. `ROLES_AUTORIZADORES_ANULACION` designa a GERENCIA y
        * DIRECCION —y el umbral es cero a propósito: anular elimina la venta
@@ -1645,6 +1728,9 @@ export const PLANTILLAS_PERMISOS: PlantillaRol[] = [
     modulos: ['gobierno-aprobaciones'],
     modulosConsulta: ['aprobaciones', 'tablero'],
     accionesIrrenunciables: [
+      /* Para elegir quién firma cada nivel en la matriz de aprobaciones, que
+         este rol LEE. Ver `ACCION_ELEGIR_PERSONA`, arriba. */
+      ACCION_ELEGIR_PERSONA,
       'GET /departamentos',
       'GET /usuarios',
       'GET /usuarios/:id',

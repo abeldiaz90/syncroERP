@@ -21,6 +21,20 @@ import { join, relative, sep } from 'path';
  * porqué escrito—. Volvió a morder el 12-oct-2026 ENTRE DOS CONTROLADORES, que
  * es la variante que ningún comentario podía prevenir.
  *
+ * Y UNA TERCERA VEZ, el 22-oct-2026, con la variante que esta prueba no podía
+ * ver: dos controladores con el MISMO prefijo.
+ *
+ *     @Controller('ventas') class VentasController          @Get(':id')
+ *     @Controller('ventas') class ImpresionTicketsController @Get('impresoras')
+ *
+ *     GET /ventas/impresoras → cae en /ventas/:id con id = «impresoras» → 400
+ *
+ * `ImpresionTicketsController` no es hijo de nadie: comparte prefijo. La
+ * comprobación de abajo sólo miraba «prefijo del hijo = prefijo del padre + un
+ * segmento», así que este par no entraba en la cuenta y la prueba pasaba sin
+ * haber mirado el caso. Se rompía la pantalla de impresoras para TODOS los
+ * perfiles, administrador incluido, y ninguna prueba lo decía.
+ *
  * Y lo caro no fue el 400: la pantalla de pedidos cargaba entera, con todos
  * sus desplegables vacíos, porque ese 400 tumbaba el `Promise.all` que también
  * traía clientes, almacenes y productos. Una pantalla completa en la que no se
@@ -28,10 +42,15 @@ import { join, relative, sep } from 'path';
  *
  * CÓMO MIDE
  *
- * Lee el prefijo de cada `@Controller(...)` y, cuando un prefijo es hijo de
- * otro —`ventas/pedidos` bajo `ventas`—, comprueba que el HIJO esté declarado
- * antes que el padre en el array `controllers` de su módulo. No mira el texto
- * de la ruta: mira el orden real que Nest va a usar.
+ * Lee el prefijo de cada `@Controller(...)` y el orden real del array
+ * `controllers` de cada módulo —el que Nest va a usar— y persigue las dos
+ * formas del mismo defecto:
+ *
+ *  · El HIJO —`ventas/pedidos` bajo `ventas`— declarado después del padre.
+ *  · El HERMANO de mismo prefijo cuyas rutas LITERALES de un solo segmento
+ *    —`@Get('impresoras')`— quedan detrás del `:id` del otro.
+ *
+ * En los dos casos lo que decide es el orden de registro, no el texto.
  * ============================================================================
  */
 
@@ -50,6 +69,14 @@ function archivos(dir: string, sufijo: string, hallados: string[] = []): string[
 const prefijoPorClase = new Map<string, string>();
 /** Clase de controlador → ¿declara alguna ruta con parámetro en la raíz? */
 const conParametroEnLaRaiz = new Set<string>();
+/**
+ * Clase de controlador → sus rutas LITERALES de un solo segmento.
+ *
+ * Son las que un `:id` de la raíz se come cuando las dos clases comparten
+ * prefijo. `@Get('aprobaciones/pendientes')` no entra: son dos segmentos y
+ * `:id` exige uno.
+ */
+const literalesDeUnSegmento = new Map<string, string[]>();
 
 for (const ruta of archivos(SRC, '.controller.ts')) {
   const texto = readFileSync(ruta, 'utf8');
@@ -67,6 +94,15 @@ for (const ruta of archivos(SRC, '.controller.ts')) {
     if (/@(Get|Patch|Put|Delete|Post)\(\s*['"`]:[\w]+['"`]\s*\)/.test(texto)) {
       conParametroEnLaRaiz.add(clase);
     }
+    const literales = new Set<string>();
+    const decoradores =
+      /@(?:Get|Patch|Put|Delete|Post)\(\s*['"`]([^'"`:]+)['"`]\s*\)/g;
+    let d: RegExpExecArray | null;
+    while ((d = decoradores.exec(texto))) {
+      const sufijo = d[1].replace(/^\/+|\/+$/g, '');
+      if (sufijo !== '' && !sufijo.includes('/')) literales.add(sufijo);
+    }
+    literalesDeUnSegmento.set(clase, [...literales]);
   }
 }
 
@@ -92,6 +128,14 @@ describe('una ruta literal no se esconde detrás de una con parámetro', () => {
        culpables vacía y la prueba verde sin haber mirado nada. */
     expect(prefijoPorClase.size).toBeGreaterThan(40);
     expect(modulos.length).toBeGreaterThan(10);
+    /*
+     * Y que se hayan leído rutas literales: si el patrón de los decoradores
+     * dejara de casar, la segunda comprobación pasaría sin mirar nada, que es
+     * exactamente cómo este defecto llegó a producción la tercera vez.
+     */
+    expect(
+      [...literalesDeUnSegmento.values()].reduce((n, l) => n + l.length, 0),
+    ).toBeGreaterThan(50);
   });
 
   it('cada controlador hijo se registra antes que el padre que lo taparía', () => {
@@ -124,6 +168,20 @@ describe('una ruta literal no se esconde detrás de una con parámetro', () => {
                 `(«${prefijoHijo}») se registra DESPUÉS de ${padre} («${prefijoPadre}»), ` +
                 `que tiene una ruta con parámetro y se comería «${sobra}»`,
             );
+          }
+          /*
+           * EL HERMANO DE MISMO PREFIJO. Aquí no sobra ningún segmento: lo que
+           * el `:id` se come son las rutas literales de un segmento del otro
+           * controlador, una por una.
+           */
+          if (prefijoHijo === prefijoPadre) {
+            for (const literal of literalesDeUnSegmento.get(hijo) ?? []) {
+              culpables.push(
+                `${relative(SRC, ruta).split(sep).join('/')}: ${hijo} ` +
+                  `(«${prefijoHijo}») se registra DESPUÉS de ${padre} (mismo prefijo), ` +
+                  `que tiene una ruta con parámetro y se comería «${literal}»`,
+              );
+            }
           }
         }
       }

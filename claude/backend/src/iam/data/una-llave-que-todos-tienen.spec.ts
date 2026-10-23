@@ -83,16 +83,29 @@ function accionesSinPermiso(): string[] {
 
 /*
  * Las excepciones, una por una y con su motivo. Son catálogos de referencia
- * —bancos y formas de pago del SAT, países y estados, atributos por sector—
- * que cualquiera consulta y que nadie edita sin permiso: sus botones de alta
- * y edición van envueltos en `<PuedeCrear>` / `<PuedeEditar>`, comprobado. Que
- * estén en el menú de todos los roles es deliberado.
+ * —bancos y formas de pago del SAT, países y estados— que cualquiera consulta
+ * y que nadie edita sin permiso: sus botones de alta y edición van envueltos
+ * en `<PuedeCrear>` / `<PuedeEditar>`, comprobado. Que estén en el menú de
+ * todos los roles es deliberado.
+ *
+ * Y la condición que hace legítima una excepción es la que el caso de la ayuda
+ * escribe abajo: **la pantalla no consulta después nada que se niegue**. Una
+ * pantalla abierta a todos cuyo contenido pide permiso no es una excepción, es
+ * el defecto que esta prueba vigila, entrando por la puerta de la lista.
  *
  * Añadir algo a esta lista es una decisión, no un trámite: significa que la
  * pantalla la verán los trece roles.
  */
 const PANTALLAS_DE_CONSULTA_ABIERTA = [
-  'GET /catalogo/productos/atributos/:sector',
+  /*
+   * AQUÍ ESTABA `GET /catalogo/productos/atributos/:sector`, y no era una
+   * excepción legítima: la pantalla que concedía —«Atributos y variantes»— se
+   * llena con `GET /catalogo/atributos-personalizados/grupos`, que sí pide
+   * permiso, de modo que diez de los trece roles la abrían vacía. Medido el
+   * 22-oct-2026 con `cobranza`. El motivo escrito aquí abajo —«catálogos que
+   * cualquiera consulta y nadie edita sin permiso»— es cierto de los cuatro
+   * que quedan y era falso de ésa. Ver `endpoints-navegables.ts`.
+   */
   'GET /catalogos/bancos',
   'GET /catalogos/estados',
   'GET /catalogos/formas-pago',

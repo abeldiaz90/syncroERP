@@ -14,6 +14,8 @@ import { Confirmacion, ConfirmacionConMotivo, useAvisos } from '@/components/ui'
 import { fechaNumerica, hoyISO } from '@/lib/fechas';
 import { FOLIO, folioDe } from '@/lib/folios';
 import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
+import { ProtectedElement } from '@/app/components/ProtectedElement';
+import { usePermiso } from '@/hooks/use-permisos';
 
 /**
  * ============================================================================
@@ -89,6 +91,16 @@ export default function PedidosVentaPage() {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [vedado, setVedado] = useState({ pedidos: false, clientes: false, almacenes: false });
+  /*
+   * Y los catálogos del ALTA sólo se piden si se puede dar de alta.
+   *
+   * El almacén y el catálogo de productos no se usan en ninguna otra parte de
+   * esta pantalla: son los dos desplegables del formulario. Para un perfil de
+   * sólo lectura las dos consultas contestaban 403 —toleradas, pero pedidas
+   * igual— para llenar unos desplegables que ya no se pintan.
+   */
+  const { tienePermiso } = usePermiso();
+  const puedeCapturar = tienePermiso('POST', '/api/ventas/pedidos');
 
   const [clienteId, setClienteId] = useState('');
   const [almacenId, setAlmacenId] = useState('');
@@ -121,8 +133,12 @@ export default function PedidosVentaPage() {
            los renglones de todos los pedidos para contar unos pocos. */
         conPermiso(api.get<EnEspera[]>('/ventas/pedidos/en-espera')),
         conPermiso(api.get<any>('/clientes')),
-        conPermiso(api.get<any>('/catalogo/almacenes/para-venta')),
-        conPermiso(api.get<any>('/catalogo/productos', { query: { limite: 500 } })),
+        puedeCapturar
+          ? conPermiso(api.get<any>('/catalogo/almacenes/para-venta'))
+          : Promise.resolve({ valor: null, vedado: false }),
+        puedeCapturar
+          ? conPermiso(api.get<any>('/catalogo/productos', { query: { limite: 500 } }))
+          : Promise.resolve({ valor: null, vedado: false }),
       ]);
       setPedidos(Array.isArray(ps.valor) ? ps.valor : []);
       setEspera(Array.isArray(es.valor) ? es.valor : []);
@@ -146,9 +162,15 @@ export default function PedidosVentaPage() {
       setCargando(false);
     }
   };
+  /*
+   * Depende de `puedeCapturar`: los permisos llegan en una segunda vuelta y al
+   * primer render `tienePermiso` todavía dice que no. Sin esta dependencia, a
+   * quien SÍ captura le faltarían para siempre los dos catálogos del alta.
+   */
   useEffect(() => {
     void cargar();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [puedeCapturar]);
 
   const cambiar = (i: number, campo: 'productoId' | 'cantidad', valor: string) =>
     setLineas((ls) => ls.map((l, j) => (j === i ? { ...l, [campo]: valor } : l)));
@@ -302,6 +324,23 @@ export default function PedidosVentaPage() {
         </div>
       </div>
 
+      {/*
+        QUIEN NO CAPTURA PEDIDOS NO VE EL FORMULARIO DE CAPTURA.
+
+        MEDIDO el 22-oct-2026 suplantando al rol `cobranza`, que tiene los tres
+        GET de pedidos y ninguna escritura: la pantalla le pintaba el alta
+        entera. Los desplegables de producto y de almacén salían vacíos —sus
+        catálogos contestan 403— y el botón «Capturar pedido» respondía «Elige
+        al menos un producto con cantidad», que es una instrucción imposible de
+        seguir: un formulario que no se puede llenar y que, si se pudiera,
+        terminaría en otro 403.
+
+        El comentario de la carga ya cuenta la vez que este mismo desplegable
+        salió vacío por un error de lectura y «la pantalla cargaba, se veía
+        entera y no se podía capturar ni un pedido». Esto es lo mismo con otra
+        causa, y la causa correcta de no ofrecer el alta es el permiso.
+      */}
+      <ProtectedElement metodo="POST" ruta="/api/ventas/pedidos">
       <section className="border rounded-2xl p-4 space-y-4 bg-white">
         <h2 className="font-bold text-lg">Capturar un pedido</h2>
         <p className="text-sm text-slate-500">
@@ -399,6 +438,7 @@ export default function PedidosVentaPage() {
           {guardando ? 'Guardando…' : 'Capturar pedido'}
         </button>
       </section>
+      </ProtectedElement>
 
       {!!espera.length && (
         <section className="border border-amber-300 rounded-2xl bg-amber-50 overflow-hidden">
@@ -546,14 +586,20 @@ export default function PedidosVentaPage() {
             </table>
 
             <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
+              {/*
+                Y los botones del detalle, cada uno con la acción que dispara.
+                Para un perfil de sólo lectura los cuatro llevaban a un 403.
+              */}
               {detalle.estado === 'BORRADOR' && (
-                <button
-                  onClick={() => void confirmar(detalle.id)}
-                  className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold"
-                >
-                  <CheckCircle2 className="inline w-4 h-4 mr-1" />
-                  Confirmar y apartar
-                </button>
+                <ProtectedElement metodo="PATCH" ruta="/api/ventas/pedidos/:id/confirmar">
+                  <button
+                    onClick={() => void confirmar(detalle.id)}
+                    className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold"
+                  >
+                    <CheckCircle2 className="inline w-4 h-4 mr-1" />
+                    Confirmar y apartar
+                  </button>
+                </ProtectedElement>
               )}
               {(detalle.estado === 'CONFIRMADO' || detalle.estado === 'SURTIDO_PARCIAL') && (
                 <>
@@ -566,32 +612,38 @@ export default function PedidosVentaPage() {
                     <option value="TARJETA">Tarjeta</option>
                     <option value="TRANSFERENCIA">Transferencia</option>
                   </select>
-                  <button
-                    onClick={() => void surtir(detalle.id)}
-                    className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold"
-                  >
-                    <PackageCheck className="inline w-4 h-4 mr-1" />
-                    Surtir lo apartado
-                  </button>
-                  {detalle.backorder && (
+                  <ProtectedElement metodo="POST" ruta="/api/ventas/pedidos/:id/surtir">
                     <button
-                      onClick={() => void reintentar(detalle.id)}
-                      className="px-4 py-2 rounded-xl border font-semibold"
+                      onClick={() => void surtir(detalle.id)}
+                      className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold"
                     >
-                      <RefreshCw className="inline w-4 h-4 mr-1" />
-                      Volver a intentar el apartado
+                      <PackageCheck className="inline w-4 h-4 mr-1" />
+                      Surtir lo apartado
                     </button>
+                  </ProtectedElement>
+                  {detalle.backorder && (
+                    <ProtectedElement metodo="PATCH" ruta="/api/ventas/pedidos/:id/reintentar-apartado">
+                      <button
+                        onClick={() => void reintentar(detalle.id)}
+                        className="px-4 py-2 rounded-xl border font-semibold"
+                      >
+                        <RefreshCw className="inline w-4 h-4 mr-1" />
+                        Volver a intentar el apartado
+                      </button>
+                    </ProtectedElement>
                   )}
                 </>
               )}
               {detalle.estado !== 'CANCELADO' && detalle.estado !== 'SURTIDO' && (
-                <button
-                  onClick={() => { setErrorCancelar(null); setCancelando(detalle.id); }}
-                  className="px-4 py-2 rounded-xl border font-semibold text-red-700"
-                >
-                  <Ban className="inline w-4 h-4 mr-1" />
-                  Cancelar
-                </button>
+                <ProtectedElement metodo="PATCH" ruta="/api/ventas/pedidos/:id/cancelar">
+                  <button
+                    onClick={() => { setErrorCancelar(null); setCancelando(detalle.id); }}
+                    className="px-4 py-2 rounded-xl border font-semibold text-red-700"
+                  >
+                    <Ban className="inline w-4 h-4 mr-1" />
+                    Cancelar
+                  </button>
+                </ProtectedElement>
               )}
             </div>
           </div>

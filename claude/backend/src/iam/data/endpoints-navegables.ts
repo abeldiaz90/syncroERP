@@ -173,11 +173,36 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Productos',
     ordenMenu: 20,
   },
-  'GET /catalogo/productos/atributos/:sector': {
-    rutaFrontend: '/dashboard/productos/atributos',
-    titulo: 'Atributos y variantes',
-    ordenMenu: 21,
-  },
+  /*
+   * ════════════════════════════════════════════════════════════════════════
+   * AQUÍ `GET /catalogo/productos/atributos/:sector` CONCEDÍA UNA PANTALLA
+   * QUE NO SIRVE
+   * ------------------------------------------------------------------------
+   * Esa ruta devuelve la PLANTILLA de atributos de un sector —la que ofrece el
+   * desplegable «Sector de la industria» de la ficha de producto— y va marcada
+   * `@SkipPermisos`, así que la tienen los trece roles. Al apuntarla a
+   * `/dashboard/productos/atributos`, los trece tenían esa pantalla en el
+   * menú.
+   *
+   * Pero la pantalla no administra plantillas por sector: administra los GRUPOS
+   * de atributos de la empresa, y eso lo lee `GET /catalogo/
+   * atributos-personalizados/grupos`, que sí pide permiso.
+   *
+   * MEDIDO el 22-oct-2026 suplantando al rol `cobranza`: «Atributos y
+   * variantes» era la ÚNICA pantalla de productos que le aparecía, y al entrar
+   * su consulta contestaba 403. La pantalla cargaba vacía, sin decir por qué.
+   *
+   * `una-llave-que-todos-tienen.spec.ts` la tenía en su lista de «consulta
+   * abierta» con el motivo «catálogos de referencia que cualquiera consulta y
+   * que nadie edita sin permiso»; eso es cierto de bancos, países y formas de
+   * pago, y era falso de ésta: su propio contenido se niega. La defensa que la
+   * prueba exige —«la pantalla NO consulta después nada que se niegue»— aquí no
+   * se cumplía, y la lista lo afirmaba sin comprobarlo.
+   *
+   * La pantalla se concede ahora sólo por su `@Navegable`, que está sobre
+   * `GET /catalogo/atributos-personalizados/grupos`: la consulta que la llena.
+   * ════════════════════════════════════════════════════════════════════════
+   */
   /*
    * La lista de reposición. No pide un permiso nuevo: es el mismo catálogo
    * ordenado por urgencia, y quien lo consulta puede leerla. Sin esta entrada
@@ -248,7 +273,13 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
     titulo: 'Ajustes de stock',
     ordenMenu: 27,
   },
-  'GET /catalogo/importacion/stock-inicial': {
+  /*
+   * LA CARGA, no el listado de cargas ni la plantilla: ver qué se cargó antes
+   * no da de qué servir una pantalla cuyo único trabajo es subir el archivo.
+   * Ver el comentario en `importacion-stock.controller.ts`, que lo midió con
+   * el rol `comprador` el 22-oct-2026.
+   */
+  'POST /catalogo/importacion/stock-inicial': {
     rutaFrontend: '/dashboard/inventario/stock-inicial',
     titulo: 'Stock inicial',
     ordenMenu: 28,
@@ -638,7 +669,22 @@ export const ENDPOINTS_NAVEGABLES: Record<string, EndpointNavMeta> = {
   },
 
   /* ── ADMINISTRACIÓN ────────────────────────────────────────────────────── */
-  'GET /usuarios': {
+  /*
+   * EL DIRECTORIO, no el padrón.
+   *
+   * La pantalla de usuarios se llena con `GET /usuarios/directorio` —cada
+   * cuenta con su identidad en Keycloak y el estado de su invitación— y
+   * `GET /admin/permisos/resumen-roles`. Colgaba de `GET /usuarios`, que es
+   * la lista llana, y eso bastaba para ponerla en el menú de quien tiene la
+   * lista y no el directorio.
+   *
+   * MEDIDO el 22-oct-2026 suplantando los trece roles: `gobierno` —el único
+   * rol no administrador que gobierna la matriz de aprobaciones— tenía
+   * «Usuarios» en su menú, y al entrar las DOS consultas de la pantalla
+   * contestaban 403. Lo que ese rol necesita de las personas es a quién
+   * asignar un nivel, y eso es `GET /usuarios/para-asignar`.
+   */
+  'GET /usuarios/directorio': {
     rutaFrontend: '/dashboard/usuarios',
     titulo: 'Usuarios',
     ordenMenu: 110,

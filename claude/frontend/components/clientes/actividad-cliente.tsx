@@ -17,6 +17,13 @@
  * Los dos bloques fallan por separado a propósito: si el servicio de crédito no
  * contesta, la actividad comercial se sigue viendo, y al revés. Un expediente
  * que se cae entero porque un endpoint tardó no sirve en un mostrador.
+ *
+ * Y «no contesta» no es «no es tuyo». `intentar(..., null)` igualaba las dos
+ * cosas, y el bloque de crédito decía «No se pudo consultar su política de
+ * crédito AHORA MISMO»: una frase que promete que mañana sí, a quien nunca va a
+ * poder. MEDIDO el 22-oct-2026 recorriendo el front rol por rol: a `hoteleria`
+ * —que atiende al huésped y no lleva su cartera— le contestaban 403 la política
+ * y los créditos del cliente, y el pie seguía afirmando «0 créditos vigentes».
  * ============================================================================
  */
 
@@ -26,7 +33,7 @@ import {
   CreditCard, TrendingUp, AlertTriangle, Loader2, ShoppingBag,
   ArrowUpRight, Wallet, CalendarClock,
 } from 'lucide-react';
-import { api, intentar } from '@/lib/api';
+import { api, intentar, conPermiso } from '@/lib/api';
 
 interface IPolitica {
   limite: number; utilizado: number; disponible: number;
@@ -89,6 +96,8 @@ export function ActividadCliente({ clienteId }: { clienteId: string }) {
   const [ventas, setVentas] = useState<IVenta[]>([]);
   const [saldoFavor, setSaldoFavor] = useState(0);
   const [cargando, setCargando] = useState(true);
+  /* «No es de tu perfil» se dice una vez y no invita a volver a intentarlo. */
+  const [creditoVedado, setCreditoVedado] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -100,13 +109,19 @@ export function ActividadCliente({ clienteId }: { clienteId: string }) {
 
     (async () => {
       const [pol, cred, vtas, favor] = await Promise.all([
-        intentar<IPolitica | null>(api.get<IPolitica>(`/credito/creditos/cliente/${clienteId}/politica`), null),
+        /* Vedado es una respuesta; una avería sigue siendo «no se pudo». */
+        conPermiso(api.get<IPolitica>(`/credito/creditos/cliente/${clienteId}/politica`))
+          .catch((): { valor: IPolitica | null; vedado: boolean } => ({
+            valor: null,
+            vedado: false,
+          })),
         intentar<any>(api.get<any>(`/credito/creditos/cliente/${clienteId}`), []),
         intentar<any>(api.get<any>(`/ventas?clienteId=${clienteId}&limite=5&pagina=1`), null),
         intentar<{ saldo: number } | null>(api.get<{ saldo: number }>(`/ventas/clientes/${clienteId}/saldo-favor`), null),
       ]);
       if (!vivo) return;
-      setPolitica(pol);
+      setPolitica(pol.valor);
+      setCreditoVedado(pol.vedado);
       setCreditos(Array.isArray(cred) ? cred : (cred?.datos ?? cred?.items ?? []));
       // El listado de ventas viene paginado unas veces y plano otras según el
       // endpoint; se aceptan las dos formas en vez de romperse por la envoltura.
@@ -153,7 +168,12 @@ export function ActividadCliente({ clienteId }: { clienteId: string }) {
           )}
         </div>
 
-        {politica === null ? (
+        {creditoVedado ? (
+          <p className="text-[12.5px] text-slate-400">
+            La cartera de este cliente no está en tu perfil: desde aquí no se
+            puede saber cuánto debe ni cuánta línea le queda.
+          </p>
+        ) : politica === null ? (
           <p className="text-[12.5px] text-slate-400">
             No se pudo consultar su política de crédito ahora mismo.
           </p>

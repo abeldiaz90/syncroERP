@@ -38,11 +38,24 @@ export class ImportacionStockController {
     private readonly importacion: ImportacionStockInicialMasivaService,
   ) {}
 
-  @Navegable(
-    '/dashboard/inventario/stock-inicial',
-    'Carga de Stock Inicial',
-    28,
-  )
+  /*
+   * BAJAR LA PLANTILLA NO ES UNA RAZÓN PARA PONER LA PANTALLA EN UN MENÚ.
+   *
+   * Aquí vivía el `@Navegable` de `/dashboard/inventario/stock-inicial`, y la
+   * pantalla aparecía en el menú de cualquiera que pudiera bajar el Excel.
+   *
+   * MEDIDO el 22-oct-2026 suplantando al rol `comprador`: tenía el renglón
+   * «Stock inicial» en su centro de trabajo de productos; al entrar,
+   * `/catalogo/almacenes` contestaba 403 y el `POST` que carga el archivo
+   * tampoco es suyo. Una pantalla cuyo único trabajo es subir un archivo, sin
+   * el permiso de subirlo y sin los almacenes a los que cargaría, no es una
+   * pantalla incompleta: es una puerta que no es suya.
+   *
+   * La pantalla cuelga ahora del `POST` de abajo, que es la acción que la
+   * justifica. Es la misma regla que ya seguía su gemela: `/dashboard/
+   * inventario/importar` se concede con `POST /catalogo/importacion/productos`
+   * y no con la plantilla ni con el listado.
+   */
   @Get('plantilla')
   async plantillaExcel(
     @ActiveUser('empresaId') empresaId: string,
@@ -58,6 +71,11 @@ export class ImportacionStockController {
     res.send(buffer);
   }
 
+  @Navegable(
+    '/dashboard/inventario/stock-inicial',
+    'Carga de Stock Inicial',
+    28,
+  )
   @Post()
   @HttpCode(202)
   @UseInterceptors(

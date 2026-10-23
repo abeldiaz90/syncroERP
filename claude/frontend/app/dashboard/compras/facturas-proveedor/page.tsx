@@ -365,6 +365,21 @@ export default function FacturasProveedorPage() {
             {!!ordenId && (
               <span className="text-xs text-slate-500">Lo fija la orden: la factura es de quien entregó.</span>
             )}
+            {/*
+              `vedado.proveedores` se guardaba desde el principio y no se
+              pintaba en ningún sitio. MEDIDO el 22-oct-2026 suplantando al rol
+              `contador`, que registra facturas y no lee el padrón de
+              proveedores: el desplegable salía con «Elige…» y nada más, y una
+              factura sin orden —luz, honorarios, renta: justo las suyas— no se
+              podía capturar. El de órdenes, dos campos arriba, ya lo decía.
+            */}
+            {!ordenId && vedado.proveedores && (
+              <span className="text-xs text-amber-700">
+                No puedes leer el padrón de proveedores con tu rol. Para una
+                factura sin orden hace falta: pídelo a quien administra compras,
+                o captúrala desde su orden.
+              </span>
+            )}
           </label>
           <label className="text-sm">
             <span className="font-semibold">UUID fiscal (CFDI)</span>

@@ -175,7 +175,30 @@ export default function ProductosPage() {
         const sinPedir = Promise.resolve(null);
         const [rCat, rAlm, rMar, rImp, rListas, rUnids] = await Promise.all([
           peticion(`/catalogo/categorias`, { headers: h }),
-          peticion(`/catalogo/almacenes`, { headers: h }),
+          /*
+           * LOS ALMACENES NO SON UN FILTRO.
+           *
+           * Se piden sólo para los dos desplegables que ESCRIBEN inventario
+           * —la apertura de existencia de un producto nuevo y la entrada o
+           * salida sin documento—, y los tres botones que los abren ya van
+           * envueltos en `ProtectedElement`. Un perfil de consulta no los ve,
+           * así que para él esta lista no sirve de nada.
+           *
+           * Y pedirla igual tenía un costo visible: MEDIDO el 22-oct-2026
+           * suplantando al rol `comprador`, que lee el catálogo y no entra al
+           * almacén, `/catalogo/almacenes` contestaba 403 y la columna de
+           * filtros se pintaba en ámbar: «No se pudo consultar los almacenes.
+           * Los filtros de arriba pueden estar incompletos». Dos cosas falsas
+           * en una frase: una negativa no es una caída, y ninguno de esos
+           * filtros usa almacenes. Quien la leía desconfiaba de una lista que
+           * estaba completa.
+           *
+           * Mismo trato que los impuestos, dos líneas abajo: no pedida a
+           * propósito se queda vacía y en silencio.
+           */
+          tienePermiso('GET', '/api/catalogo/almacenes')
+            ? peticion(`/catalogo/almacenes`, { headers: h })
+            : sinPedir,
           peticion(`/catalogo/marcas`, { headers: h }),
           tienePermiso('GET', '/api/catalogo/impuestos')
             ? peticion(`/catalogo/impuestos`, { headers: h })

@@ -94,10 +94,25 @@ import { ImpresoraTermicaService } from '../impresion/impresora-termica.service'
      * `una-ruta-literal-no-se-esconde-tras-un-parametro.spec.ts`.
      * ────────────────────────────────────────────────────────────────────────
      */
+    /*
+     * Y LA TERCERA VEZ FUE SIN PREFIJO PROPIO.
+     *
+     * `ImpresionTicketsController` también es `@Controller('ventas')` —el MISMO
+     * prefijo que `VentasController`, no un hijo— y declara `@Get('impresoras')`.
+     * Registrado después, `GET /ventas/impresoras` casaba con `GET /ventas/:id`
+     * tomando «impresoras» por un uuid: 400 «El identificador o alguno de los
+     * valores no tiene el formato esperado», para los trece roles y para el
+     * administrador. La pantalla «Impresoras de tickets» no listaba ni una.
+     *
+     * MEDIDO el 22-oct-2026 recorriendo el front rol por rol. La prueba que
+     * vigila esto sólo comparaba prefijos PADRE/HIJO, así que dos controladores
+     * con el mismo prefijo le pasaban por delante: una prueba que no podía
+     * fallar en este caso. Ya mira también las rutas literales de un segmento.
+     */
     PedidosVentaController,
+    ImpresionTicketsController,
     VentasController,
     DashboardEjecutivoController,
-    ImpresionTicketsController,
   ],
   providers: [
     VentasService,

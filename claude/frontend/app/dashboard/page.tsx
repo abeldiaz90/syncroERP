@@ -14,13 +14,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Banknote, Receipt, TrendingUp, Users2 } from 'lucide-react';
 
-import { MODULOS, destinoDelModulo, puedeAbrirRenglon } from './module-config';
+import { MODULOS, destinoDelModulo, pantallasAlcanzables } from './module-config';
 import { api, intentar, token } from '@/lib/api';
 import { leerSesion, puedeEntrar, puedeVerEnlace } from '@/lib/session';
 import { Indicador } from '@/components/ui';
 import { dinero } from '@/lib/format';
 import { esRolAdministrador } from '@/lib/roles';
 import { EVENTO_VER_COMO, verComoActual } from '@/lib/ver-como';
+import { useContratacion, contratado } from '@/lib/contratacion';
 
 interface Metricas {
   ventasHoy: number;
@@ -54,6 +55,16 @@ export default function PanelPrincipal() {
   const [nombre, setNombre] = useState('');
   const [cargandoKpis, setCargandoKpis] = useState(true);
   const [verComoId, setVerComoId] = useState<string | null>(() => verComoActual()?.id ?? null);
+  /*
+   * LO CONTRATADO, que este panel no preguntaba.
+   *
+   * El menú lateral y los centros de trabajo filtran por `contratado` desde el
+   * 15-oct-2026 —«a una instalación que sólo usa el ERP no se le enseña la
+   * puerta del registro financiero externo»— y este panel, que es la TERCERA
+   * puerta al mismo sitio, seguía pintando sus cuadros sin preguntar. Las tres
+   * tienen que decir lo mismo.
+   */
+  const plan = useContratacion();
   useEffect(() => {
     const leer = () => setVerComoId(verComoActual()?.id ?? null);
     window.addEventListener(EVENTO_VER_COMO, leer);
@@ -170,10 +181,18 @@ export default function PanelPrincipal() {
   const hora = new Date().getHours();
   const saludo = hora < 12 ? 'Buenos días' : hora < 19 ? 'Buenas tardes' : 'Buenas noches';
 
+  /*
+   * La misma cuenta que el menú lateral, con la misma razón: los contenedores
+   * no son pantallas y no pueden justificar el cajón que los contiene. Y aquí
+   * `accesibles.length` además SE IMPRIME —«4 secciones»—, así que contar la
+   * portada inflaba una cifra que el usuario lee.
+   */
   const modulosVisibles = MODULOS.map((m) => ({
     ...m,
-    accesibles: m.items.filter(
-      (i) => !i.oculto && puedeAbrirRenglon(i.href, (r) => puedeEntrar(permisos, r)),
+    accesibles: pantallasAlcanzables(
+      m.items,
+      (r) => puedeEntrar(permisos, r),
+      (i) => contratado(plan, i),
     ),
   })).filter((m) => m.accesibles.length > 0);
 

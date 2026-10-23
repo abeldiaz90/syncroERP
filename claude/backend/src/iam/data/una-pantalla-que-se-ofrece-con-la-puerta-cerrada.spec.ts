@@ -87,13 +87,20 @@ const FRONTEND = ['claude/frontend', 'frontend', '../claude/frontend']
  *     que sí son imprescindibles —cuentas, cuentas contables, bancos— se
  *     nombran una por una cuando faltan.
  *   · AVISOS DEL CORE — habla por `ApiError.message` en vez de por el `status`:
- *     «No fue posible leer el buzón». Y el buzón huérfano lleva escrito que si
- *     el rol no alcanza para verlo, la pantalla sigue funcionando. El segundo
- *     renglón es la plantilla `/integracion/avisos${q}`, que es la misma ruta
- *     contada otra vez por el normalizador.
+ *     «No fue posible leer el buzón». El renglón que queda es la plantilla
+ *     `/integracion/avisos${q}`, que es la misma ruta contada otra vez por el
+ *     normalizador.
+ *
+ *     Y YA NO ESTÁ el del buzón huérfano. Llevaba escrito que «si el rol no
+ *     alcanza para verlo, la pantalla sigue funcionando», que era verdad a
+ *     medias: el `.catch(() => ({ avisos: [] }))` igualaba la negativa, la
+ *     avería y la lista vacía, y el titular acababa diciendo «Nada pendiente ·
+ *     todo lo recibido fue el eco de operaciones que el ERP mismo originó»
+ *     sobre una mitad que no se consultó. MEDIDO el 22-oct-2026 suplantando al
+ *     rol `contador`. Ahora distingue el 403 con `conPermiso`, así que el
+ *     filtro de arriba lo reconoce solo y no necesita excepción escrita.
  */
 const CON_MOTIVO: string[] = [
-  'creditos/avisos · contador · GET /integracion/avisos/huerfanos',
   'creditos/avisos · contador · GET /integracion/avisos:id',
   'creditos/cuentas-bancarias · cobranza · GET /catalogo/almacenes/para-venta',
   'creditos/cuentas-bancarias · cobranza · GET /catalogo/listas-precio',
@@ -111,7 +118,9 @@ const CON_MOTIVO: string[] = [
  * 21-oct-2026 el cruce dio 47 renglones; 34 eran pantallas que atienden el 403
  * después de la llamada y el detector no sabía verlo, 5 se arreglaron ese día
  * —estado de cuenta, cobranza, costos de recetas, corte de caja, clientes
- * desde el CRM— y 8 quedan arriba con su motivo escrito.
+ * desde el CRM— y 8 quedaron arriba con su motivo escrito. El 22-oct-2026, el
+ * barrido rol por rol desde el navegador arregló el del buzón huérfano, así
+ * que son 7.
  *
  * Si algo aparece aquí, es que una pantalla nueva —o una que cambió— se abre
  * para un rol al que le niegan una de sus lecturas y no se lo dice a nadie.
