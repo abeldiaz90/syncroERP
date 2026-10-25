@@ -8,6 +8,7 @@ import {
   BookOpen, Save, RefreshCw, Calculator
 } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 interface ICuentaContable {
   id: string; numeroCuenta: string; nombre: string; tipo: string;
 }
@@ -26,6 +27,7 @@ const fmt$ = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
 
 export default function PolizaManualPage() {
+  const t = useT();
   const router = useRouter();
   const [cuentas, setCuentas]     = useState<ICuentaContable[]>([]);
   const [tipo, setTipo]           = useState('DIARIO');
@@ -77,12 +79,12 @@ export default function PolizaManualPage() {
         else {
           setCuentas([]);
           toast$(r.status === 403
-            ? 'Tu perfil no incluye el catálogo de cuentas contables: no podrás capturar partidas.'
-            : 'No se pudo cargar el catálogo de cuentas contables.', false);
+            ? t("Tu perfil no incluye el catálogo de cuentas contables: no podrás capturar partidas.")
+            : t("No se pudo cargar el catálogo de cuentas contables."), false);
         }
       } catch {
         setCuentas([]);
-        toast$('No hay conexión con el servidor.', false);
+        toast$(t("No hay conexión con el servidor."), false);
       }
     })();
   }, []);
@@ -119,10 +121,10 @@ export default function PolizaManualPage() {
   };
 
   const guardar = async () => {
-    if (!concepto.trim()) { toast$('Escribe el concepto de la póliza', false); return; }
-    if (!cuadrada) { toast$('La póliza no está cuadrada (Debe ≠ Haber)', false); return; }
+    if (!concepto.trim()) { toast$(t("Escribe el concepto de la póliza"), false); return; }
+    if (!cuadrada) { toast$(t("La póliza no está cuadrada (Debe ≠ Haber)"), false); return; }
     const lineasValidas = lineas.filter(l => l.cuentaId && (l.cargo > 0 || l.abono > 0));
-    if (lineasValidas.length < 2) { toast$('Necesitas al menos 2 partidas válidas', false); return; }
+    if (lineasValidas.length < 2) { toast$(t("Necesitas al menos 2 partidas válidas"), false); return; }
 
     setGuardando(true);
     const r = await peticion(`/finanzas/polizas/manual`, {
@@ -144,7 +146,7 @@ export default function PolizaManualPage() {
       setTimeout(() => router.push('/dashboard/finanzas/polizas'), 1500);
     } else {
       const e = await r.json().catch(() => ({}));
-      toast$(e.message ?? 'Error al guardar', false);
+      toast$(e.message ?? t("Error al guardar"), false);
     }
   };
 
@@ -162,13 +164,13 @@ export default function PolizaManualPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Finanzas</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Finanzas")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <BookOpen className="w-8 h-8 text-indigo-500"/> Nueva Póliza Manual
+            <BookOpen className="w-8 h-8 text-indigo-500"/>  {t("Nueva Póliza Manual")}
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Registra asientos contables que no se generan automáticamente.</p>
+          <p className="text-slate-500 text-sm mt-1">{t("Registra asientos contables que no se generan automáticamente.")}</p>
         </div>
-        <button aria-label="Cerrar" title="Cerrar" onClick={() => router.back()}
+        <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => router.back()}
           className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50">
           <X className="w-4 h-4"/>
         </button>
@@ -180,13 +182,13 @@ export default function PolizaManualPage() {
 
           {/* Tipo */}
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Tipo de póliza</label>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-2">{t("Tipo de póliza")}</label>
             <div className="grid grid-cols-3 gap-2">
-              {TIPOS.map(t => (
-                <button key={t.value} onClick={() => setTipo(t.value)}
-                  className={`py-2 rounded-xl border-2 text-xs font-bold transition-all ${tipo === t.value ? 'text-white' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                  style={tipo === t.value ? { background: t.color, borderColor: t.color } : {}}>
-                  {t.label}
+              {TIPOS.map(cual => (
+                <button key={cual.value} onClick={() => setTipo(cual.value)}
+                  className={`py-2 rounded-xl border-2 text-xs font-bold transition-all ${tipo === cual.value ? 'text-white' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                  style={tipo === cual.value ? { background: cual.color, borderColor: cual.color } : {}}>
+                  {t(cual.label)}
                 </button>
               ))}
             </div>
@@ -194,28 +196,28 @@ export default function PolizaManualPage() {
 
           {/* Fecha */}
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Fecha</label>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-2">{t("Fecha")}</label>
             <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
               className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
           </div>
 
           {/* Folio (automático) */}
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Folio</label>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-2">{t("Folio")}</label>
             <div className="px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-mono text-slate-500 flex items-center gap-2">
               <span style={{ color: tipoInfo.color }}>{tipoInfo.prefix}</span>
               <span>-{new Date().getFullYear()}-</span>
               <span className="text-slate-400">####</span>
-              <span className="ml-auto text-[10px] text-slate-400">Asignado al guardar</span>
+              <span className="ml-auto text-[10px] text-slate-400">{t("Asignado al guardar")}</span>
             </div>
           </div>
         </div>
 
         {/* Concepto */}
         <div className="mt-4">
-          <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Concepto</label>
+          <label className="block text-xs font-bold uppercase text-slate-500 mb-2">{t("Concepto")}</label>
           <input type="text" value={concepto} onChange={e => setConcepto(e.target.value)}
-            placeholder="Ej: Pago de renta agosto 2026, Pago de luz CFE, Ajuste contable..."
+            placeholder={t("Ej: Pago de renta agosto 2026, Pago de luz CFE, Ajuste contable...")}
             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
         </div>
       </div>
@@ -223,10 +225,10 @@ export default function PolizaManualPage() {
       {/* Partidas */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-5">
         <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-between">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Partidas contables</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{t("Partidas contables")}</p>
           <button onClick={agregarLinea}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold transition-colors">
-            <Plus className="w-3.5 h-3.5"/> Agregar línea
+            <Plus className="w-3.5 h-3.5"/>  {t("Agregar línea")}
           </button>
         </div>
 
@@ -235,10 +237,10 @@ export default function PolizaManualPage() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr className="text-xs uppercase text-slate-500 font-bold">
                 <th className="px-4 py-3 text-left w-10">#</th>
-                <th className="px-4 py-3 text-left">Cuenta contable</th>
-                <th className="px-4 py-3 text-right w-36">Cargo (Debe)</th>
-                <th className="px-4 py-3 text-right w-36">Abono (Haber)</th>
-                <th className="px-4 py-3 text-left w-48">Referencia</th>
+                <th className="px-4 py-3 text-left">{t("Cuenta contable")}</th>
+                <th className="px-4 py-3 text-right w-36">{t("Cargo (Debe)")}</th>
+                <th className="px-4 py-3 text-right w-36">{t("Abono (Haber)")}</th>
+                <th className="px-4 py-3 text-left w-48">{t("Referencia")}</th>
                 <th className="px-4 py-3 w-10"></th>
               </tr>
             </thead>
@@ -256,7 +258,7 @@ export default function PolizaManualPage() {
                         onChange={e => { setFiltro(e.target.value); setLineaActiva(linea.id); }}
                         onFocus={() => { setLineaActiva(linea.id); setFiltro(''); }}
                         onBlur={() => setTimeout(() => setLineaActiva(null), 200)}
-                        placeholder="Buscar cuenta..."
+                        placeholder={t("Buscar cuenta...")}
                         className={`w-full px-3 py-2 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 ${linea.cuentaId ? 'border-indigo-200 bg-indigo-50 text-indigo-700 font-mono font-bold' : 'border-slate-200 bg-white'}`}
                       />
                       {lineaActiva === linea.id && filtro && cuentasFiltradas.length > 0 && (
@@ -266,7 +268,7 @@ export default function PolizaManualPage() {
                               onMouseDown={() => seleccionarCuenta(linea.id, c)}
                               className="flex items-center justify-between px-3 py-2 hover:bg-indigo-50 cursor-pointer border-b border-slate-50 last:border-0">
                               <span className="font-mono font-bold text-indigo-600 text-xs">{c.numeroCuenta}</span>
-                              <span className="text-slate-700 text-xs ml-2">{c.nombre}</span>
+                              <span className="text-slate-700 text-xs ml-2">{t(c.nombre)}</span>
                               <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                 c.tipo === 'ACTIVO' ? 'bg-blue-100 text-blue-700' :
                                 c.tipo === 'PASIVO' ? 'bg-pink-100 text-pink-700' :
@@ -307,13 +309,13 @@ export default function PolizaManualPage() {
                       value={linea.referencia}
                       onChange={e => actualizarLinea(linea.id, 'referencia', e.target.value)}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Ref. opcional"
+                      placeholder={t("Ref. opcional")}
                     />
                   </td>
 
                   {/* Eliminar */}
                   <td className="px-4 py-3 text-center">
-                    <button aria-label="Eliminar" title="Eliminar" onClick={() => eliminarLinea(linea.id)} disabled={lineas.length <= 2}
+                    <button aria-label={t("Eliminar")} title={t("Eliminar")} onClick={() => eliminarLinea(linea.id)} disabled={lineas.length <= 2}
                       className="p-1.5 text-rose-400 hover:bg-rose-50 rounded-lg disabled:opacity-20 transition-colors">
                       <Trash2 className="w-3.5 h-3.5"/>
                     </button>
@@ -325,7 +327,7 @@ export default function PolizaManualPage() {
             {/* Totales */}
             <tfoot className="bg-slate-50 border-t-2 border-slate-300">
               <tr>
-                <td colSpan={2} className="px-4 py-3 text-right text-xs font-bold uppercase text-slate-500">Totales:</td>
+                <td colSpan={2} className="px-4 py-3 text-right text-xs font-bold uppercase text-slate-500">{t("Totales:")}</td>
                 <td className="px-4 py-3 text-right font-black font-mono text-blue-700">{fmt$(totalDebe)}</td>
                 <td className="px-4 py-3 text-right font-black font-mono text-emerald-700">{fmt$(totalHaber)}</td>
                 <td colSpan={2} className="px-4 py-3">
@@ -361,28 +363,27 @@ export default function PolizaManualPage() {
         * Estos tres se pueden capturar tal cual.
         */}
       <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-5">
-        <p className="text-xs font-bold uppercase text-indigo-600 mb-2">💡 Ejemplos de asientos comunes</p>
+        <p className="text-xs font-bold uppercase text-indigo-600 mb-2">{t("💡 Ejemplos de asientos comunes")}</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-indigo-700">
           <div className="bg-white rounded-lg p-2.5 border border-indigo-100">
-            <p className="font-bold mb-1">Renta por pagar</p>
-            <p>Dr. 601.45 Arrendamiento</p>
-            <p className="pl-4">Cr. 205.02 Acreedores diversos</p>
+            <p className="font-bold mb-1">{t("Renta por pagar")}</p>
+            <p>{t("Dr. 601.45 Arrendamiento")}</p>
+            <p className="pl-4">{t("Cr. 205.02 Acreedores diversos")}</p>
           </div>
           <div className="bg-white rounded-lg p-2.5 border border-indigo-100">
-            <p className="font-bold mb-1">Papelería por pagar</p>
-            <p>Dr. 601.55 Papelería y artículos de oficina</p>
-            <p className="pl-4">Cr. 205.02 Acreedores diversos</p>
+            <p className="font-bold mb-1">{t("Papelería por pagar")}</p>
+            <p>{t("Dr. 601.55 Papelería y artículos de oficina")}</p>
+            <p className="pl-4">{t("Cr. 205.02 Acreedores diversos")}</p>
           </div>
           <div className="bg-white rounded-lg p-2.5 border border-indigo-100">
-            <p className="font-bold mb-1">Depreciación del mes</p>
-            <p>Dr. 613.04 Depreciación de mobiliario</p>
-            <p className="pl-4">Cr. 171.04 Depreciación acumulada</p>
+            <p className="font-bold mb-1">{t("Depreciación del mes")}</p>
+            <p>{t("Dr. 613.04 Depreciación de mobiliario")}</p>
+            <p className="pl-4">{t("Cr. 171.04 Depreciación acumulada")}</p>
           </div>
         </div>
         <p className="mt-2 text-[11px] text-indigo-600">
-          Caja, bancos, clientes, proveedores e inventario los lleva su propio
-          módulo y no admiten póliza manual: se registran ahí para que el
-          auxiliar y el mayor coincidan.
+          
+          {t("Caja, bancos, clientes, proveedores e inventario los lleva su propio módulo y no admiten póliza manual: se registran ahí para que el auxiliar y el mayor coincidan.")}
         </p>
       </div>
 
@@ -390,7 +391,8 @@ export default function PolizaManualPage() {
       <div className="flex gap-3">
         <button onClick={() => router.back()}
           className="flex-1 py-3 text-slate-700 font-semibold hover:bg-slate-100 rounded-xl transition-colors border border-slate-200">
-          Cancelar
+          
+          {t("Cancelar")}
         </button>
         <button onClick={guardar} disabled={guardando || !cuadrada || !concepto.trim()}
           className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md">

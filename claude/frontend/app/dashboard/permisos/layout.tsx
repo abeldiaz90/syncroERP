@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Shield, Link2 } from 'lucide-react';
 import { useContratacion, contratado, type RequiereCore } from '@/lib/contratacion';
+import { useT } from '@/components/I18nProvider';
 
 /*
  * `requiereCore` se escribe igual que en el mapa de módulos —el eje, no un
@@ -45,6 +46,7 @@ const PESTANAS: {
 ];
 
 export default function PermisosLayout({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const ruta = usePathname();
   /*
    * La correspondencia de roles solo existe cuando hay dos sistemas que
@@ -68,7 +70,7 @@ export default function PermisosLayout({ children }: { children: React.ReactNode
               marginBottom: -1, textDecoration: 'none',
             }}>
               <Icono style={{ width: 15, height: 15 }} />
-              {etiqueta}
+              {t(etiqueta)}
             </Link>
           );
         })}

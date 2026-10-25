@@ -11,6 +11,7 @@ import {
   Search, Calendar, Filter, XCircle, MapPin, Plus
 } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 // ==========================================
 // INTERFACES TYPESCRIPT
 // ==========================================
@@ -38,6 +39,7 @@ export interface IMovimiento {
 // COMPONENTE PRINCIPAL
 // ==========================================
 export default function KardexPage() {
+  const t = useT();
   const params = useParams();
   const id = params?.id as string;
   
@@ -195,7 +197,7 @@ export default function KardexPage() {
   // ==========================================
   const exportarExcel = () => {
     if (movimientosFiltrados.length === 0) return;
-    const encabezados = ['ID Movimiento', 'Fecha', 'Hora', 'Tipo', 'Almacén', 'Entrada (+)', 'Salida (-)', 'Saldo Local (Almacén)', 'Saldo Global (Empresa)', 'Motivo', 'Quién'];
+    const encabezados = ['ID Movimiento', 'Fecha', 'Hora', 'Tipo', t("Almacén"), 'Entrada (+)', 'Salida (-)', t("Saldo Local (Almacén)"), 'Saldo Global (Empresa)', 'Motivo', t("Quién")];
     const filas = movimientosFiltrados.map(m => {
       const fecha = new Date(m.fechaMovimiento).toLocaleDateString('es-MX');
       const hora = new Date(m.fechaMovimiento).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
@@ -228,8 +230,8 @@ export default function KardexPage() {
             <History className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-slate-800 leading-tight">Auditoría de Kardex</h1>
-            <p className="text-sm font-medium text-slate-500 mt-0.5">Libro mayor de movimientos de inventario</p>
+            <h1 className="text-xl font-black text-slate-800 leading-tight">{t("Auditoría de Kardex")}</h1>
+            <p className="text-sm font-medium text-slate-500 mt-0.5">{t("Libro mayor de movimientos de inventario")}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -237,7 +239,7 @@ export default function KardexPage() {
             <Download className="w-4 h-4" /> Excel ({movimientosFiltrados.length})
           </button>
           <Link href="/dashboard/productos" className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-slate-50 transition-colors shadow-sm">
-            <ArrowLeft className="w-4 h-4" /> Volver
+            <ArrowLeft className="w-4 h-4" />  {t("Volver")}
           </Link>
         </div>
       </header>
@@ -252,20 +254,20 @@ export default function KardexPage() {
               
               {/* Buscador libre */}
               <div className="lg:col-span-2">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Buscar Motivo o Ref.</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t("Buscar Motivo o Ref.")}</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Ej. Daño, OC #123..." className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-700" />
+                  <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder={t("Ej. Daño, OC #123...")} className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-700" />
                 </div>
               </div>
 
               {/* Filtro Almacén */}
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Almacén</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t("Almacén")}</label>
                 <div className="relative">
                   <Warehouse className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <select value={filtroAlmacen} onChange={(e) => setFiltroAlmacen(e.target.value)} className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-700 appearance-none">
-                    <option value="">Todos los almacenes</option>
+                    <option value="">{t("Todos los almacenes")}</option>
                     {almacenesUnicos.map(alm => <option key={alm as string} value={alm as string}>{alm as string}</option>)}
                   </select>
                 </div>
@@ -273,14 +275,14 @@ export default function KardexPage() {
 
               {/* Filtro Fechas */}
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Desde</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t("Desde")}</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-700" />
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Hasta</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t("Hasta")}</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-700" />
@@ -291,7 +293,7 @@ export default function KardexPage() {
             {/* Botón Limpiar */}
             {(busqueda || filtroAlmacen || filtroTipo || fechaInicio || fechaFin) && (
               <button onClick={limpiarFiltros} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 hover:text-slate-700 rounded-lg transition-colors h-[38px] shrink-0">
-                <XCircle className="w-4 h-4" /> Limpiar
+                <XCircle className="w-4 h-4" />  {t("Limpiar")}
               </button>
             )}
           </div>
@@ -302,7 +304,7 @@ export default function KardexPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-colors">
               <div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Entradas Filtradas</p>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">{t("Entradas Filtradas")}</p>
                 <p className="text-2xl font-black text-slate-800">{totalEntradas}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
@@ -312,7 +314,7 @@ export default function KardexPage() {
             
             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-rose-200 transition-colors">
               <div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Salidas Filtradas</p>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">{t("Salidas Filtradas")}</p>
                 <p className="text-2xl font-black text-slate-800">{totalSalidas}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-600 group-hover:scale-110 transition-transform">
@@ -322,7 +324,7 @@ export default function KardexPage() {
 
             <div className="bg-white p-5 rounded-xl border border-indigo-200 shadow-md flex items-center justify-between bg-gradient-to-br from-white to-indigo-50/50">
               <div>
-                <p className="text-[11px] font-bold text-indigo-500 uppercase tracking-widest mb-1">Existencia actual</p>
+                <p className="text-[11px] font-bold text-indigo-500 uppercase tracking-widest mb-1">{t("Existencia actual")}</p>
                 <p className="text-3xl font-black text-indigo-700">
                   {saldoGlobalActual === null ? '—' : saldoGlobalActual}
                 </p>
@@ -339,54 +341,54 @@ export default function KardexPage() {
           {cargando ? (
             <div className="p-16 text-center flex flex-col items-center justify-center text-slate-400">
               <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-              <p className="font-bold">Calculando saldos históricos...</p>
+              <p className="font-bold">{t("Calculando saldos históricos...")}</p>
             </div>
           ) : movimientos.length === 0 ? (
             <div className="p-16 text-center text-slate-500 flex flex-col items-center">
               <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
                 <Package className="w-10 h-10 text-slate-300" />
               </div>
-              <p className="text-xl font-black text-slate-800 mb-1">Sin historial de movimientos</p>
-              <p className="text-sm font-medium text-slate-500">Este producto aún no tiene entradas o salidas registradas en el almacén.</p>
+              <p className="text-xl font-black text-slate-800 mb-1">{t("Sin historial de movimientos")}</p>
+              <p className="text-sm font-medium text-slate-500">{t("Este producto aún no tiene entradas o salidas registradas en el almacén.")}</p>
             </div>
           ) : movimientosFiltrados.length === 0 ? (
             <div className="p-16 text-center text-slate-500 flex flex-col items-center">
               <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
                 <Filter className="w-8 h-8 text-slate-300" />
               </div>
-              <p className="text-lg font-black text-slate-700 mb-1">Cero resultados con estos filtros</p>
-              <button onClick={limpiarFiltros} className="text-indigo-600 font-bold hover:underline mt-2">Restablecer filtros</button>
+              <p className="text-lg font-black text-slate-700 mb-1">{t("Cero resultados con estos filtros")}</p>
+              <button onClick={limpiarFiltros} className="text-indigo-600 font-bold hover:underline mt-2">{t("Restablecer filtros")}</button>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left whitespace-nowrap">
                 <thead>
                   <tr className="bg-slate-100/50 border-b border-slate-200">
-                    <th colSpan={4} className="p-2 border-r border-slate-200 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Información del Documento</th>
-                    <th colSpan={2} className="p-2 border-r border-slate-200 text-center text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50/30">Cantidades Físicas</th>
-                    <th colSpan={2} className="p-2 border-r border-slate-200 text-center text-[10px] font-black text-slate-600 uppercase tracking-widest bg-slate-100">Saldos de Inventario</th>
-                    <th colSpan={2} className="p-2 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Referencia</th>
+                    <th colSpan={4} className="p-2 border-r border-slate-200 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">{t("Información del Documento")}</th>
+                    <th colSpan={2} className="p-2 border-r border-slate-200 text-center text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50/30">{t("Cantidades Físicas")}</th>
+                    <th colSpan={2} className="p-2 border-r border-slate-200 text-center text-[10px] font-black text-slate-600 uppercase tracking-widest bg-slate-100">{t("Saldos de Inventario")}</th>
+                    <th colSpan={2} className="p-2 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">{t("Referencia")}</th>
                   </tr>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider">
-                    <th className="px-5 py-4 font-bold border-r border-slate-200">Fecha / Hora</th>
-                    <th className="px-5 py-4 font-bold">Tipo</th>
-                    <th className="px-5 py-4 font-bold">Concepto</th>
-                    <th className="px-5 py-4 font-bold border-r border-slate-200">Almacén</th>
+                    <th className="px-5 py-4 font-bold border-r border-slate-200">{t("Fecha / Hora")}</th>
+                    <th className="px-5 py-4 font-bold">{t("Tipo")}</th>
+                    <th className="px-5 py-4 font-bold">{t("Concepto")}</th>
+                    <th className="px-5 py-4 font-bold border-r border-slate-200">{t("Almacén")}</th>
                     
-                    <th className="px-5 py-4 font-bold text-center text-emerald-700 bg-emerald-50/30">Entradas</th>
-                    <th className="px-5 py-4 font-bold text-center text-rose-700 bg-rose-50/30 border-r border-slate-200">Salidas</th>
+                    <th className="px-5 py-4 font-bold text-center text-emerald-700 bg-emerald-50/30">{t("Entradas")}</th>
+                    <th className="px-5 py-4 font-bold text-center text-rose-700 bg-rose-50/30 border-r border-slate-200">{t("Salidas")}</th>
                     
-                    <th className="px-5 py-4 font-bold text-center text-slate-700 bg-slate-100/50" title="Lo que quedó físicamente en ese almacén">Saldo Local</th>
-                    <th className="px-5 py-4 font-bold text-center text-indigo-700 bg-indigo-50/30 border-r border-slate-200" title="La suma total de todos los almacenes">Saldo Global</th>
+                    <th className="px-5 py-4 font-bold text-center text-slate-700 bg-slate-100/50" title={t("Lo que quedó físicamente en ese almacén")}>{t("Saldo Local")}</th>
+                    <th className="px-5 py-4 font-bold text-center text-indigo-700 bg-indigo-50/30 border-r border-slate-200" title={t("La suma total de todos los almacenes")}>{t("Saldo Global")}</th>
                     
-                    <th className="px-5 py-4 font-bold">Comentarios</th>
+                    <th className="px-5 py-4 font-bold">{t("Comentarios")}</th>
                     {/*
                       El movimiento guardaba `usuario_id` y el kardex no lo
                       enseñaba: llegaba un UUID suelto y no había columna. Una
                       investigación de inventario empieza aquí, y sin el nombre
                       acababa en la base de datos.
                     */}
-                    <th className="px-5 py-4 font-bold" title="Quién registró el movimiento. En los que nacen de un documento —venta, orden de compra, transferencia— el nombre está en ese documento.">Quién</th>
+                    <th className="px-5 py-4 font-bold" title={t("Quién registró el movimiento. En los que nacen de un documento —venta, orden de compra, transferencia— el nombre está en ese documento.")}>{t("Quién")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -409,11 +411,11 @@ export default function KardexPage() {
                           </span>
                         </td>
                         <td className="px-5 py-3">
-                          <span className="text-slate-600 font-semibold text-xs">{esEntrada ? 'Ingreso a inventario' : 'Descargo de inventario'}</span>
+                          <span className="text-slate-600 font-semibold text-xs">{esEntrada ? t("Ingreso a inventario") : t("Descargo de inventario")}</span>
                         </td>
                         <td className="px-5 py-3 text-slate-600 font-medium flex items-center gap-2 border-r border-slate-100">
                           <Warehouse className="w-4 h-4 text-slate-400" />
-                          {m.almacen?.nombre || 'General'}
+                          {m.almacen?.nombre || t("General")}
                         </td>
                         
                         <td className="px-5 py-3 text-center bg-emerald-50/10 font-mono">
@@ -432,8 +434,8 @@ export default function KardexPage() {
                           <span className="font-black text-indigo-700">{m.saldoGlobal === undefined ? '—' : m.saldoGlobal}</span>
                         </td>
                         
-                        <td className="px-5 py-3 text-slate-500 italic text-xs max-w-xs truncate" title={m.motivo}>
-                          {m.motivo || 'Sin comentarios'}
+                        <td className="px-5 py-3 text-slate-500 italic text-xs max-w-xs truncate" title={t(m.motivo)}>
+                          {m.motivo || t("Sin comentarios")}
                         </td>
 
                         <td className="px-5 py-3 text-xs">
@@ -442,7 +444,7 @@ export default function KardexPage() {
                           ) : (
                             <span
                               className="text-slate-300"
-                              title="Este movimiento no guardó quién lo hizo. Los anteriores al 5 de octubre de 2026 no lo registraban; si nació de un documento, el nombre está en ese documento."
+                              title={t("Este movimiento no guardó quién lo hizo. Los anteriores al 5 de octubre de 2026 no lo registraban; si nació de un documento, el nombre está en ese documento.")}
                             >
                               —
                             </span>
@@ -462,6 +464,7 @@ export default function KardexPage() {
 }
 
 function UbicacionesProducto({ productoId, apiUrl }: { productoId: string; apiUrl: string }) {
+  const t = useT();
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
   const [ubicaciones, setUbicaciones] = useState<any[]>([]);
   const [ubicacionId, setUbicacionId] = useState('');
@@ -476,15 +479,15 @@ function UbicacionesProducto({ productoId, apiUrl }: { productoId: string; apiUr
       ]);
       setAsignaciones(Array.isArray(a)?a:Array.isArray(a?.data)?a.data:[]);
       setUbicaciones(Array.isArray(u)?u:Array.isArray(u?.data)?u.data:[]);
-    } catch { setError('No fue posible cargar las ubicaciones físicas.'); }
+    } catch { setError(t("No fue posible cargar las ubicaciones físicas.")); }
   };
   useEffect(()=>{void cargar()},[productoId]);
-  const asignar=async()=>{if(!ubicacionId){setError('Selecciona una ubicación.');return;}setError('');const r=await peticion(`/catalogo/wms/productos/${productoId}/ubicaciones`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ubicacionId,esPrincipal:principal})});if(!r.ok){const x=await r.json().catch(()=>({}));setError(x.message||'No se pudo asignar.');return;}setUbicacionId('');setPrincipal(false);await cargar();};
+  const asignar=async()=>{if(!ubicacionId){setError(t("Selecciona una ubicación."));return;}setError('');const r=await peticion(`/catalogo/wms/productos/${productoId}/ubicaciones`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ubicacionId,esPrincipal:principal})});if(!r.ok){const x=await r.json().catch(()=>({}));setError(x.message||t("No se pudo asignar."));return;}setUbicacionId('');setPrincipal(false);await cargar();};
   /* «Hacer principal» escribe: si el servidor lo niega hay que decirlo, no recargar la misma lista y dejar que el usuario crea que cambió. */
-  const principalizar=async(id:string)=>{setError('');const r=await peticion(`/catalogo/wms/productos/${productoId}/ubicaciones/${id}`,{method:'PATCH',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({esPrincipal:true})});if(!r.ok){const x=await r.json().catch(()=>({}));setError(x.message||'No se pudo marcar como ubicación principal.');return;}await cargar();};
+  const principalizar=async(id:string)=>{setError('');const r=await peticion(`/catalogo/wms/productos/${productoId}/ubicaciones/${id}`,{method:'PATCH',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({esPrincipal:true})});if(!r.ok){const x=await r.json().catch(()=>({}));setError(x.message||t("No se pudo marcar como ubicación principal."));return;}await cargar();};
   return <section className="bg-white border border-slate-200 rounded-xl shadow-sm mb-6 overflow-hidden">
-    <div className="px-5 py-4 border-b flex items-center justify-between"><div><h2 className="font-black flex items-center gap-2"><MapPin className="w-4 h-4 text-indigo-600"/>Ubicación física del producto</h2><p className="text-xs text-slate-500 mt-1">Define dónde se surte y almacena este artículo en cada almacén.</p></div></div>
-    <div className="p-5 grid lg:grid-cols-[1fr_360px] gap-5"><div>{asignaciones.length===0?<div className="border border-dashed rounded-xl p-5 text-sm text-slate-500">Aún no tiene ubicaciones asignadas. El stock existe por almacén, pero el personal no sabe en qué pasillo, rack o posición encontrarlo.</div>:<div className="grid md:grid-cols-2 gap-3">{asignaciones.map(a=><div key={a.id} className="border rounded-xl p-4"><div className="flex justify-between gap-2"><div><p className="font-bold">{a.ubicacion?.codigo}</p><p className="text-xs text-slate-500">{a.almacen?.nombre}</p></div>{a.esPrincipal?<span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full h-fit">PRINCIPAL</span>:<button onClick={()=>principalizar(a.id)} className="text-xs text-indigo-600 font-bold">Hacer principal</button>}</div><p className="text-xs text-slate-500 mt-2">{[a.ubicacion?.zona,a.ubicacion?.pasillo,a.ubicacion?.rack,a.ubicacion?.nivel,a.ubicacion?.posicion].filter(Boolean).join(' / ')||'Ruta física sin detalle'}</p></div>)}</div>}</div>
-    <div className="bg-slate-50 rounded-xl p-4"><label className="text-xs font-bold text-slate-600">Asignar ubicación</label><select value={ubicacionId} onChange={e=>setUbicacionId(e.target.value)} className="w-full mt-2 p-2.5 border rounded-lg bg-white"><option value="">Selecciona...</option>{ubicaciones.filter(u=>u.activo!==false&&u.estado==='DISPONIBLE').map(u=><option key={u.id} value={u.id}>{u.almacen?.nombre} · {u.codigo}</option>)}</select><label className="flex items-center gap-2 text-xs mt-3"><input type="checkbox" checked={principal} onChange={e=>setPrincipal(e.target.checked)}/> Ubicación principal de surtido</label>{error&&<p className="text-xs text-rose-600 mt-2">{error}</p>}<button onClick={asignar} className="mt-3 w-full bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-bold flex items-center justify-center gap-2"><Plus className="w-4 h-4"/>Asignar</button></div></div>
+    <div className="px-5 py-4 border-b flex items-center justify-between"><div><h2 className="font-black flex items-center gap-2"><MapPin className="w-4 h-4 text-indigo-600"/>{t("Ubicación física del producto")}</h2><p className="text-xs text-slate-500 mt-1">{t("Define dónde se surte y almacena este artículo en cada almacén.")}</p></div></div>
+    <div className="p-5 grid lg:grid-cols-[1fr_360px] gap-5"><div>{asignaciones.length===0?<div className="border border-dashed rounded-xl p-5 text-sm text-slate-500">{t("Aún no tiene ubicaciones asignadas. El stock existe por almacén, pero el personal no sabe en qué pasillo, rack o posición encontrarlo.")}</div>:<div className="grid md:grid-cols-2 gap-3">{asignaciones.map(a=><div key={a.id} className="border rounded-xl p-4"><div className="flex justify-between gap-2"><div><p className="font-bold">{a.ubicacion?.codigo}</p><p className="text-xs text-slate-500">{t(a.almacen?.nombre)}</p></div>{a.esPrincipal?<span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full h-fit">PRINCIPAL</span>:<button onClick={()=>principalizar(a.id)} className="text-xs text-indigo-600 font-bold">{t("Hacer principal")}</button>}</div><p className="text-xs text-slate-500 mt-2">{[a.ubicacion?.zona,a.ubicacion?.pasillo,a.ubicacion?.rack,a.ubicacion?.nivel,a.ubicacion?.posicion].filter(Boolean).join(' / ')||t("Ruta física sin detalle")}</p></div>)}</div>}</div>
+    <div className="bg-slate-50 rounded-xl p-4"><label className="text-xs font-bold text-slate-600">{t("Asignar ubicación")}</label><select value={ubicacionId} onChange={e=>setUbicacionId(e.target.value)} className="w-full mt-2 p-2.5 border rounded-lg bg-white"><option value="">{t("Selecciona...")}</option>{ubicaciones.filter(u=>u.activo!==false&&u.estado==='DISPONIBLE').map(u=><option key={u.id} value={u.id}>{t(u.almacen?.nombre)} · {u.codigo}</option>)}</select><label className="flex items-center gap-2 text-xs mt-3"><input type="checkbox" checked={principal} onChange={e=>setPrincipal(e.target.checked)}/>  {t("Ubicación principal de surtido")}</label>{error&&<p className="text-xs text-rose-600 mt-2">{t(error)}</p>}<button onClick={asignar} className="mt-3 w-full bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-bold flex items-center justify-center gap-2"><Plus className="w-4 h-4"/>{t("Asignar")}</button></div></div>
   </section>;
 }

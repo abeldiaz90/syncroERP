@@ -1518,3 +1518,118 @@ Verificado el 22-oct-2026 después de sincronizar: 583 pantallas en lugar de
 596 —las trece puertas muertas ya no se ofrecen—, y de las respuestas 4xx que
 quedan ninguna deja una pantalla hueca ni una frase falsa: todas son mitades
 ajenas que la pantalla nombra.
+
+## El idioma de la pantalla (23-oct-2026)
+
+El ERP y el portal de Fineract operan en español y en inglés. El selector está en
+la barra lateral del ERP y en la barra superior del portal, y la elección viaja en
+la cookie `syncro_idioma`: en `localhost` las cookies no distinguen puerto, así
+que quien elige inglés en el ERP (3000) entra en inglés al portal (3002) sin
+volver a elegir.
+
+### Cómo está hecho
+
+La clave del diccionario **es el texto en español**. No hay claves inventadas
+(`menu.panel`): con más de 6,000 sitios, inventarlas obliga a tocar cada uno dos
+veces, y lo que importa es poder **contar** lo que falta. Un texto sin traducir se
+ve en español, que es correcto para la mitad de los usuarios, y aparece en la
+cuenta.
+
+`lib/idioma.ts` tiene la función pura `traducir(texto, idioma, datos?)`.
+`components/I18nProvider.tsx` la envuelve para las pantallas de cliente
+(`useT()`); las de servidor —10 en el ERP, 29 en el portal— no pueden leer un
+contexto de React y la llaman con `tDelServidor()`, que lee la cookie de la
+petición. Un solo diccionario, dos caminos.
+
+La fuente de verdad es `lib/traducciones/_en-US.json`. El `.ts` que importa la
+aplicación es **generado** por `herramientas/idioma-poner.mjs`.
+
+### La cuenta, y cómo exigirla
+
+    npm run idioma:revisar
+
+Sale con **código distinto de cero** si falta una traducción, si un marcador no
+cuadra, o si una llamada a `t()` se quedó sin su enganche. Hoy, en los dos
+frontends, las cuatro cuentas están en cero:
+
+| | ERP | Portal |
+|---|---|---|
+| textos que `t()` pide | 4,840 | 3,606 |
+| textos de tablas de módulo | 544 | 165 |
+| claves con marcadores / desiguales | 229 / 0 | 108 / 0 |
+| archivos rotos · sin enganche | 0 · 0 | 0 · 0 |
+
+### Lo que hay que saber para no romperlo
+
+- **Una frase con un valor en medio va en UNA clave con marcadores.**
+  `t('Faltan {n0} productos', { n0: n })`, nunca dos claves sueltas: en inglés el
+  número va en otro sitio. Si la traducción se come un marcador, el valor
+  desaparece de la pantalla sin un solo error en consola — por eso la revisión
+  cruza los marcadores de cada clave con los de su traducción.
+- **Un texto declarado en una constante de módulo se envuelve donde se pinta**, no
+  donde se declara: un hook no existe en el ámbito del módulo. `{grupo}` →
+  `{t(grupo)}`. `herramientas/idioma-tablas.mjs` los cuenta, porque
+  `idioma-pendientes.mjs` no puede: ahí la clave llega como variable.
+- **Comparar no es mostrar.** `estado === 'GENERADA'` no se traduce. Traducir una
+  comparación cambia el comportamiento del programa, no su idioma.
+- **`<option>` sin `value` manda su texto al servidor.** Se separa:
+  `<option value="TRANSFERENCIA">{t('TRANSFERENCIA')}</option>`.
+- **El `locale: 'en'` de los comandos a Fineract no es idioma de pantalla.** Es
+  cómo el core interpreta números y fechas (ver `frontend/lib/locale-del-core.ts`).
+  Cambiarlo rompe el parseo de importes.
+
+### Las pruebas que vigilan lo que la pantalla DICE
+
+Muchas pruebas del portal fijan una frase: que la bandeja se llame «Bandeja de
+doble autorización», que las dos listas de la auditoría tengan «Todas». Estaban
+escritas buscando la frase en el código, porque la frase estaba en el código.
+
+Al envolver el texto, nueve de esas aserciones se pusieron rojas sin que ninguna
+pantalla cambiara una palabra. **No se reescriben una por una**: eso son nueve
+copias de la misma regla, y en esta misma tanda tres averías salieron justo de
+escribir una regla dos veces. La regla vive en
+`frontend/pruebas/ayuda/sin-traducir.ts`: deshace el envoltorio y devuelve el
+código como se leía antes, así que la prueba vuelve a preguntar lo que su nombre
+promete.
+
+Lo importante de esa lupa es que **un marcador vuelve con la expresión que lo
+rellena**, no con su número: `t('Mostrar los {n0} restantes', { n0: visibles.length
+- pintados.length })` se lee otra vez como `Mostrar los {visibles.length -
+pintados.length} restantes`. Si volviera como `{n0}`, una prueba que vigilaba una
+**cuenta** se quedaría vigilando una frase, y un mutante que cambie la cuenta
+pasaría. Y no toca `{t(variable)}`: ahí no hay frase que restituir.
+
+La lupa tiene su propia prueba
+(`pruebas/deshacer-el-envoltorio-de-idioma.test.ts`): una lupa rota no pone
+ninguna prueba roja, las deja pasar todas.
+
+Dos avisos más que salieron de correr la suite:
+
+- **Una ruta del core no es texto.** `/api/v1/offices` se muestra en pantalla
+  dentro de un `<span class="mono">`, y el codemod lo envolvió por tener letras.
+  No sólo metió ruido en el diccionario: hizo que
+  `ninguna-pantalla-llama-a-una-ruta-que-no-existe` acusara a tres pantallas de
+  pedirle al BFF una ruta que no atiende. La prueba hacía bien en mirar las
+  cadenas; el que estaba mal era el codemod. El filtro está en
+  `herramientas/_texto-visible.mjs`, que es ahora el **único** sitio donde se
+  decide qué es texto y qué es maquinaria.
+- **El marcador `{n0}` se parece a una expresión de JSX sin evaluar.**
+  `textos-sin-evaluar.test.ts` lo acusaba. Bajarle la guardia a todo `{...}`
+  habría sido cambiar una prueba que falla por una que no puede fallar: se quitó
+  del barrido **sólo** la forma exacta del marcador y se añadió, leyendo el árbol,
+  la comprobación de que cada marcador llega con su dato. Son 120 en el portal, y
+  la prueba exige que sigan siendo más de 100: si la cuenta cae a cero, pasaría
+  sin haber mirado nada.
+
+### Los mensajes que vienen del core
+
+Fineract **no** traduce del lado del servidor: sus únicos paquetes de mensajes son
+`messages.properties` y `messages_de.properties`, con dos cadenas cada uno, y
+`ErrorHandler` no consulta ningún `MessageSource` ni mira `Accept-Language`. Lo
+que sí ofrece de forma nativa es **`userMessageGlobalisationCode`**, un
+identificador estable que acompaña al texto inglés de cada error; traducir es del
+cliente, igual que en la aplicación web oficial de Fineract.
+
+`frontend/lib/fineract-error.ts` casa primero ese **código** y sólo después la
+prosa inglesa, porque el inglés de un mensaje cambia entre versiones del core y el
+código no.

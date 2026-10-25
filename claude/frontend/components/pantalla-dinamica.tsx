@@ -39,6 +39,7 @@ import {
   type ValoresDinamicos,
 } from '@/lib/pantalla-dinamica';
 
+import { useT } from '@/components/I18nProvider';
 type PropsDeCampo = {
   campo: CampoDinamico;
   valor: unknown;
@@ -153,6 +154,7 @@ function Fecha({ campo, valor, onCambio, error, soloLectura }: PropsDeCampo) {
  * envíe sin haber elegido.
  */
 function Eleccion({ campo, valor, onCambio, error, soloLectura }: PropsDeCampo) {
+  const t = useT();
   return (
     <Seleccion
       value={comoTexto(valor)}
@@ -160,10 +162,10 @@ function Eleccion({ campo, valor, onCambio, error, soloLectura }: PropsDeCampo) 
       disabled={soloLectura}
       onChange={(e) => onCambio(campo.nombre, e.target.value)}
     >
-      <option value="">Elige una opción…</option>
+      <option value="">{t("Elige una opción…")}</option>
       {(campo.opciones ?? []).map((o) => (
         <option key={o.valor} value={o.valor}>
-          {o.etiqueta}
+          {t(o.etiqueta)}
         </option>
       ))}
     </Seleccion>
@@ -172,6 +174,7 @@ function Eleccion({ campo, valor, onCambio, error, soloLectura }: PropsDeCampo) 
 
 /** Selección múltiple con casillas: un `select multiple` no se usa bien en móvil. */
 function EleccionMultiple({ campo, valor, onCambio, soloLectura }: PropsDeCampo) {
+  const t = useT();
   const puestos = Array.isArray(valor) ? (valor as string[]) : [];
   const alternar = (v: string) =>
     onCambio(
@@ -189,17 +192,18 @@ function EleccionMultiple({ campo, valor, onCambio, soloLectura }: PropsDeCampo)
             disabled={soloLectura}
             onChange={() => alternar(o.valor)}
           />
-          {o.etiqueta}
+          {t(o.etiqueta)}
         </label>
       ))}
       {!(campo.opciones ?? []).length && (
-        <p className="text-[12px] text-slate-400">Sin opciones configuradas.</p>
+        <p className="text-[12px] text-slate-400">{t("Sin opciones configuradas.")}</p>
       )}
     </div>
   );
 }
 
 function Booleano({ campo, valor, onCambio, soloLectura }: PropsDeCampo) {
+  const t = useT();
   return (
     <label className="flex items-center gap-2 text-[13px] text-slate-700">
       <input
@@ -209,7 +213,7 @@ function Booleano({ campo, valor, onCambio, soloLectura }: PropsDeCampo) {
         disabled={soloLectura}
         onChange={(e) => onCambio(campo.nombre, e.target.checked)}
       />
-      {txt(campo.props, 'textoSi') ?? 'Sí'}
+      {txt(campo.props, 'textoSi') ?? t("Sí")}
     </label>
   );
 }
@@ -289,6 +293,7 @@ function CodigoPostal({ campo, valor, onCambio, error, soloLectura }: PropsDeCam
  * forma de descubrir en el servidor que no se mandó nada.
  */
 function Archivo(acepta: string, captura?: 'user' | 'environment') {
+  const t = useT();
   return function CampoDeArchivo({ campo, valor, onCambio, error, soloLectura }: PropsDeCampo) {
     const puesto = valor instanceof File ? valor : null;
     return (
@@ -303,8 +308,7 @@ function Archivo(acepta: string, captura?: 'user' | 'environment') {
         />
         {puesto && (
           <p className="mt-1 text-[11px] text-slate-500">
-            {puesto.name} · {(puesto.size / 1024).toFixed(0)} KB
-          </p>
+            {t("{n0} · {n1} KB", { n0: puesto.name, n1: (puesto.size / 1024).toFixed(0) })}</p>
         )}
       </div>
     );
@@ -351,6 +355,7 @@ export const REGISTRO: Record<ComponenteDibujable, React.ComponentType<PropsDeCa
 /* ── El hueco honesto ────────────────────────────────────────────────────── */
 
 function NoSeDibuja({ campo }: { campo: CampoDinamico }) {
+  const t = useT();
   return (
     <div
       role="alert"
@@ -358,9 +363,9 @@ function NoSeDibuja({ campo }: { campo: CampoDinamico }) {
     >
       <AlertTriangle className="mt-px h-4 w-4 shrink-0 text-amber-600" />
       <div className="text-[12.5px] leading-snug text-amber-900">
-        <b>Este portal no sabe dibujar «{String(campo.componente)}».</b>
+        <b>{t("Este portal no sabe dibujar «{n0}».", { n0: String(campo.componente) })}</b>
         <p className="mt-0.5">
-          El campo «{campo.etiqueta}» no se puede capturar aquí. No se omite a
+          El campo «{t(campo.etiqueta)}» no se puede capturar aquí. No se omite a
           propósito: omitirlo dejaría el expediente incompleto con aspecto de
           completo. Avisa a quien configuró el flujo.
         </p>
@@ -372,6 +377,7 @@ function NoSeDibuja({ campo }: { campo: CampoDinamico }) {
 /* ── Un campo ────────────────────────────────────────────────────────────── */
 
 export function CampoDePantalla(props: PropsDeCampo) {
+  const t = useT();
   const Componente = REGISTRO[props.campo.componente];
   if (!Componente) return <NoSeDibuja campo={props.campo} />;
 
@@ -380,9 +386,9 @@ export function CampoDePantalla(props: PropsDeCampo) {
 
   return (
     <Campo
-      etiqueta={props.campo.etiqueta}
+      etiqueta={t(props.campo.etiqueta)}
       requerido={props.campo.requerido}
-      ayuda={props.campo.ayuda}
+      ayuda={t(props.campo.ayuda)}
       error={props.error}
     >
       <Componente {...props} />
@@ -401,12 +407,13 @@ export function PasoDePantalla({
   errores?: Record<string, string>;
   soloLectura?: boolean;
 }) {
+  const t = useT();
   return (
     <section className="space-y-4">
       <div>
-        <h3 className="text-[15px] font-bold text-slate-900">{paso.titulo}</h3>
+        <h3 className="text-[15px] font-bold text-slate-900">{t(paso.titulo)}</h3>
         {paso.descripcion && (
-          <p className="mt-0.5 text-[12.5px] text-slate-500">{paso.descripcion}</p>
+          <p className="mt-0.5 text-[12.5px] text-slate-500">{t(paso.descripcion)}</p>
         )}
       </div>
       <div className="space-y-3.5">

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { AlertTriangle, CheckCircle2, RefreshCw, XCircle, ArrowRight } from 'lucide-react';
+import { useT } from '@/components/I18nProvider';
 type Hallazgo={
   codigo:string;
   severidad:'ERROR'|'ADVERTENCIA';
@@ -19,7 +20,8 @@ type Hallazgo={
   ejemplos?:Array<Record<string,unknown>>;
 };
 type Resultado={valido:boolean;fechaValidacion:string;resumen:{errores:number;advertencias:number;hallazgos:number};hallazgos:Hallazgo[]};
-export default function IntegridadPage(){const router=useRouter();const [r,setR]=useState<Resultado|null>(null);const [error,setError]=useState('');const [cargando,setCargando]=useState(true);const cargar=async()=>{setCargando(true);setError('');try{setR(await api.get<Resultado>('/configuracion/integridad'));}catch(e){setError(e instanceof ApiError?e.mensajeParaPantalla():'No se pudo validar la integridad.');}finally{setCargando(false)}};useEffect(()=>{cargar()},[]);return <div className="mx-auto max-w-5xl p-6 space-y-6"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-sm text-slate-500">Control preventivo</p><h1 className="text-3xl font-bold">Verificación de integridad</h1><p className="mt-1 text-slate-600">Ejecuta esta revisión después de importar, limpiar o migrar datos.</p></div><button onClick={cargar} className="flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-white"><RefreshCw size={16}/>Volver a validar</button></div>{cargando&&<div className="rounded-xl border p-5">Revisando datos…</div>}{error&&<div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">{error}</div>}{r&&<><section className={`rounded-2xl border p-6 ${r.valido?'border-emerald-200 bg-emerald-50':'border-red-200 bg-red-50'}`}><div className="flex items-center gap-3">{r.valido?<CheckCircle2 className="text-emerald-600" size={30}/>:<XCircle className="text-red-600" size={30}/>}<div><h2 className="text-xl font-bold">{r.valido?'Base consistente para continuar':'Se encontraron bloqueos de integridad'}</h2><p>{r.resumen.errores} errores · {r.resumen.advertencias} advertencias</p></div></div></section><div className="space-y-3">{r.hallazgos.length===0?<div className="rounded-2xl border bg-white p-6">No se encontraron hallazgos.</div>:r.hallazgos.map(h=>(
+export default function IntegridadPage(){
+  const t = useT();const router=useRouter();const [r,setR]=useState<Resultado|null>(null);const [error,setError]=useState('');const [cargando,setCargando]=useState(true);const cargar=async()=>{setCargando(true);setError('');try{setR(await api.get<Resultado>('/configuracion/integridad'));}catch(e){setError(e instanceof ApiError?e.mensajeParaPantalla():t("No se pudo validar la integridad."));}finally{setCargando(false)}};useEffect(()=>{cargar()},[]);return <div className="mx-auto max-w-5xl p-6 space-y-6"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-sm text-slate-500">{t("Control preventivo")}</p><h1 className="text-3xl font-bold">{t("Verificación de integridad")}</h1><p className="mt-1 text-slate-600">{t("Ejecuta esta revisión después de importar, limpiar o migrar datos.")}</p></div><button onClick={cargar} className="flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-white"><RefreshCw size={16}/>{t("Volver a validar")}</button></div>{cargando&&<div className="rounded-xl border p-5">{t("Revisando datos…")}</div>}{error&&<div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">{t(error)}</div>}{r&&<><section className={`rounded-2xl border p-6 ${r.valido?'border-emerald-200 bg-emerald-50':'border-red-200 bg-red-50'}`}><div className="flex items-center gap-3">{r.valido?<CheckCircle2 className="text-emerald-600" size={30}/>:<XCircle className="text-red-600" size={30}/>}<div><h2 className="text-xl font-bold">{r.valido?t("Base consistente para continuar"):t("Se encontraron bloqueos de integridad")}</h2><p>{t("{n0} errores · {n1} advertencias", { n0: r.resumen.errores, n1: r.resumen.advertencias })}</p></div></div></section><div className="space-y-3">{r.hallazgos.length===0?<div className="rounded-2xl border bg-white p-6">{t("No se encontraron hallazgos.")}</div>:r.hallazgos.map(h=>(
   /*
    * Era un <button> con todo dentro. Al añadir la tabla de ejemplos eso dejaba
    * una tabla dentro de un botón —HTML inválido, y un lector de pantalla lee el
@@ -31,10 +33,10 @@ export default function IntegridadPage(){const router=useRouter();const [r,setR]
       {h.severidad==='ERROR'?<XCircle className="text-red-500 shrink-0"/>:<AlertTriangle className="text-amber-500 shrink-0"/>}
       <div className="flex-1">
         <div className="flex items-center gap-2">
-          <h3 className="font-bold">{h.titulo}</h3>
+          <h3 className="font-bold">{t(h.titulo)}</h3>
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{h.cantidad}</span>
         </div>
-        <p className="mt-1 text-sm text-slate-600">{h.detalle}</p>
+        <p className="mt-1 text-sm text-slate-600">{t(h.detalle)}</p>
         {h.ejemplos&&h.ejemplos.length>0&&(
           <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-xs">
@@ -62,8 +64,7 @@ export default function IntegridadPage(){const router=useRouter();const [r,setR]
                * que mirar la lista completa, no sólo corregir lo que ve.
                */
               <p className="border-t border-slate-100 px-3 py-2 text-[11px] text-slate-500">
-                Se muestran {h.ejemplos.length} de {h.cantidad}.
-              </p>
+                {t("Se muestran {n0} de {n1}.", { n0: h.ejemplos.length, n1: h.cantidad })}</p>
             )}
           </div>
         )}
@@ -73,7 +74,8 @@ export default function IntegridadPage(){const router=useRouter();const [r,setR]
           onClick={()=>router.push(h.ruta!)}
           className="flex h-9 shrink-0 items-center gap-1 self-start rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"
         >
-          Abrir<ArrowRight size={14}/>
+          
+          {t("Abrir")}<ArrowRight size={14}/>
         </button>
       )}
     </div>

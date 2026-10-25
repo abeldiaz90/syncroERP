@@ -44,6 +44,7 @@ import {
   useAvisos,
 } from "@/components/ui";
 
+import { useT } from '@/components/I18nProvider';
 interface Estado {
   contabilidad: {
     modoEfectivo: string;
@@ -166,6 +167,7 @@ interface PolizasSinEspejo {
 }
 
 export default function EspejoContablePage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const { tienePermiso } = usePermiso();
   /*
@@ -275,9 +277,9 @@ export default function EspejoContablePage() {
     );
     avisar(
       r.encoladas === 0
-        ? "No quedaba ninguna por encolar."
-        : `${plural(r.encoladas, "póliza encolada", "pólizas encoladas")}: ${r.folios.join(", ")}. ` +
-          "Todavía no han salido: despacha la cola.",
+        ? t("No quedaba ninguna por encolar.")
+        : `${plural(r.encoladas, t("póliza encolada"), t("pólizas encoladas"))}: ${r.folios.join(", ")}. ` +
+          t("Todavía no han salido: despacha la cola."),
       r.encoladas === 0 ? "info" : "exito",
     );
     recargarTodo();
@@ -292,7 +294,7 @@ export default function EspejoContablePage() {
     avisar(
       r.creadas.length
         ? `Se crearía${r.creadas.length === 1 ? "" : "n"} ${plural(r.creadas.length, "cuenta")} en el mayor externo.`
-        : "No hace falta crear ninguna cuenta.",
+        : t("No hace falta crear ninguna cuenta."),
       "info",
     );
     return r;
@@ -316,7 +318,7 @@ export default function EspejoContablePage() {
   const mapearAMano = useAccion(async (cuenta: CuentaPendiente) => {
     const idExterno = eleccion[cuenta.id];
     if (!idExterno) {
-      avisar("Elige primero la cuenta del mayor externo.", "error");
+      avisar(t("Elige primero la cuenta del mayor externo."), "error");
       return;
     }
     const externa = externas.datos?.find((c) => c.id === idExterno);
@@ -331,7 +333,7 @@ export default function EspejoContablePage() {
 
   const reencolar = useAccion(async (id: string) => {
     await api.post(`/integracion/outbox/${id}/reencolar`);
-    avisar("Evento reencolado; se despachará en el siguiente ciclo.", "info");
+    avisar(t("Evento reencolado; se despachará en el siguiente ciclo."), "info");
     void sinEntregar.recargar();
   });
 
@@ -349,7 +351,7 @@ export default function EspejoContablePage() {
       : "";
     if (r.procesados > 0) {
       avisar(
-        `${plural(r.procesados, "póliza enviada", "pólizas enviadas")} al mayor externo` +
+        `${plural(r.procesados, t("póliza enviada"), t("pólizas enviadas"))} al mayor externo` +
           (r.fallidos > 0 ? `; ${r.fallidos} con error.` : ".") +
           aplazadas,
         r.fallidos > 0 ? "alerta" : "exito",
@@ -362,23 +364,23 @@ export default function EspejoContablePage() {
       );
     } else if (r.aplazados) {
       avisar(
-        `Nada por enviar todavía: ${plural(r.aplazados, "póliza")} ${r.aplazados === 1 ? "lleva" : "llevan"} fecha posterior a hoy y el mayor externo no puede asentarla${r.aplazados === 1 ? "" : "s"} aún. Se envía${r.aplazados === 1 ? "" : "n"} sola${r.aplazados === 1 ? "" : "s"} cuando llegue esa fecha; no hay nada que corregir.`,
+        `Nada por enviar todavía: ${plural(r.aplazados, t("póliza"))} ${r.aplazados === 1 ? "lleva" : "llevan"} fecha posterior a hoy y el mayor externo no puede asentarla${r.aplazados === 1 ? "" : "s"} aún. Se envía${r.aplazados === 1 ? "" : "n"} sola${r.aplazados === 1 ? "" : "s"} cuando llegue esa fecha; no hay nada que corregir.`,
         "info",
       );
     } else if (r.motivo === "SIN_ENLACE") {
       avisar(
-        "No hay enlace con el mayor externo ahora mismo. La cola no se movió; se despachará sola en cuanto vuelva.",
+        t("No hay enlace con el mayor externo ahora mismo. La cola no se movió; se despachará sola en cuanto vuelva."),
         "error",
       );
     } else if (r.motivo === "YA_EN_CURSO") {
-      avisar("Ya hay un despacho en curso. Vuelve a intentar en un momento.", "info");
+      avisar(t("Ya hay un despacho en curso. Vuelve a intentar en un momento."), "info");
     } else if (r.motivo === "SOLO_DETENIDOS") {
       avisar(
         `No se movió nada: ${plural(r.detenidos ?? 0, "evento detenido", "eventos detenidos")} que no ${(r.detenidos ?? 0) === 1 ? "vuelve solo" : "vuelven solos"} a la cola. Pulsa «Reintentar» en cada uno.`,
         "alerta",
       );
     } else {
-      avisar("No había nada pendiente por despachar.", "info");
+      avisar(t("No había nada pendiente por despachar."), "info");
     }
     recargarTodo();
   });
@@ -405,13 +407,13 @@ export default function EspejoContablePage() {
     if (r.completa === false) {
       avisar(
         r.interrumpida ??
-          "La comparación se interrumpió; lo que no se miró no se sabe.",
+          t("La comparación se interrumpió; lo que no se miró no se sabe."),
         "alerta",
       );
     } else {
       avisar(
         r.discrepancias === 0
-          ? `Los dos mayores coinciden en ${r.revisados === 1 ? "la" : "las"} ${plural(r.revisados, "póliza espejada", "pólizas espejadas")}.`
+          ? `Los dos mayores coinciden en ${r.revisados === 1 ? "la" : "las"} ${plural(r.revisados, t("póliza espejada"), t("pólizas espejadas"))}.`
           : `${plural(r.discrepancias, "diferencia")} entre el ERP y el mayor externo.`,
         r.discrepancias === 0 ? "exito" : "alerta",
       );
@@ -459,15 +461,16 @@ export default function EspejoContablePage() {
   return (
     <div className="p-6 max-w-[1300px] mx-auto">
       <EncabezadoPantalla
-        titulo="Espejo contable"
-        descripcion="Correspondencia de cuentas con el mayor externo y pólizas que esperan por ella"
+        titulo={t("Espejo contable")}
+        descripcion={t("Correspondencia de cuentas con el mayor externo y pólizas que esperan por ella")}
         acciones={
           <Boton
             variante="neutro"
             icono={<RefreshCw className="w-3.5 h-3.5" />}
             onClick={recargarTodo}
           >
-            Actualizar
+            
+            {t("Actualizar")}
           </Boton>
         }
       />
@@ -475,30 +478,31 @@ export default function EspejoContablePage() {
       {!espejoActivo && (
         <div className="panel p-4 mb-4 border-l-[3px] border-l-slate-400">
           <p className="text-[13px] font-semibold text-slate-900">
-            Esta empresa no espeja su contabilidad
+            
+            {t("Esta empresa no espeja su contabilidad")}
           </p>
           <p className="text-[12.5px] text-slate-500 mt-0.5">
-            Las pólizas se registran sólo en el ERP. La correspondencia de
-            cuentas no se usa mientras el espejo esté apagado.
+            
+            {t("Las pólizas se registran sólo en el ERP. La correspondencia de cuentas no se usa mientras el espejo esté apagado.")}
           </p>
         </div>
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador
-          etiqueta="Cuentas sin corresponder"
+          etiqueta={t("Cuentas sin corresponder")}
           color={sinMapear > 0 ? "#e11d48" : "#059669"}
           cargando={estado.cargando}
           icono={<AlertTriangle className="w-4 h-4" />}
           valor={sinMapear}
-          detalle="ya usadas por una póliza"
+          detalle={t("ya usadas por una póliza")}
         />
         <Indicador
-          etiqueta="Previstas por configuración"
+          etiqueta={t("Previstas por configuración")}
           color={(estado.datos?.contabilidad.cuentasPorMapear ?? 0) > 0 ? "#d97706" : "#64748b"}
           cargando={estado.cargando}
           valor={estado.datos?.contabilidad.cuentasPorMapear ?? 0}
-          detalle="fallarían en su primer uso"
+          detalle={t("fallarían en su primer uso")}
         />
         {/*
           El indicador contaba sólo lo detenido, y «sin espejar» es más que
@@ -507,7 +511,7 @@ export default function EspejoContablePage() {
           cuenta.
         */}
         <Indicador
-          etiqueta="Pólizas sin espejar"
+          etiqueta={t("Pólizas sin espejar")}
           color={
             (sinEntregar.datos?.length ?? 0) + totalSinEncolar > 0
               ? "#e11d48"
@@ -518,7 +522,7 @@ export default function EspejoContablePage() {
           detalle={
             totalSinEncolar > 0
               ? `${sinEntregar.datos?.length ?? 0} en la bandeja, ${totalSinEncolar} sin encolar`
-              : "esperan salir"
+              : t("esperan salir")
           }
         />
         {/*
@@ -529,14 +533,14 @@ export default function EspejoContablePage() {
           casilla dice lo que pasa y no alarma.
         */}
         <Indicador
-          etiqueta="Enlace"
+          etiqueta={t("Enlace")}
           color={enVuelo ? "#059669" : espejoActivo ? "#e11d48" : "#64748b"}
           cargando={estado.cargando}
           valor={
-            enVuelo ? "En línea" : espejoActivo ? "Sin enlace" : "No se usa"
+            enVuelo ? t("En línea") : espejoActivo ? t("Sin enlace") : t("No se usa")
           }
           detalle={
-            enVuelo || espejoActivo ? institucionDelCore : "el espejo está apagado"
+            enVuelo || espejoActivo ? institucionDelCore : t("el espejo está apagado")
           }
         />
       </div>
@@ -546,11 +550,12 @@ export default function EspejoContablePage() {
         <div className="panel-cabecera">
           <div>
             <p className="text-[13px] font-semibold text-slate-900">
-              Cuentas por corresponder
+              
+              {t("Cuentas por corresponder")}
             </p>
             <p className="text-[12px] text-slate-500 mt-0.5">
-              Mientras una cuenta no tenga equivalencia, su póliza no se manda:
-              un asiento a medias en el mayor externo es peor que ninguno.
+              
+              {t("Mientras una cuenta no tenga equivalencia, su póliza no se manda: un asiento a medias en el mayor externo es peor que ninguno.")}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -560,14 +565,16 @@ export default function EspejoContablePage() {
                 checked={incluirPrevistas}
                 onChange={(e) => setIncluirPrevistas(e.target.checked)}
               />
-              Incluir las previstas
+              
+              {t("Incluir las previstas")}
             </label>
             <Boton
               variante="neutro"
               cargando={simular.ejecutando}
               onClick={() => void simular.ejecutar()}
             >
-              Ver qué haría
+              
+              {t("Ver qué haría")}
             </Boton>
             <Boton
               variante="primario"
@@ -576,7 +583,8 @@ export default function EspejoContablePage() {
               disabled={!espejoActivo || !enVuelo}
               onClick={() => void aprovisionar.ejecutar()}
             >
-              Crear y corresponder
+              
+              {t("Crear y corresponder")}
             </Boton>
           </div>
         </div>
@@ -584,22 +592,22 @@ export default function EspejoContablePage() {
         {simulacion && (
           <div className="px-4 py-3 bg-amber-50/60 border-b border-amber-100">
             <p className="text-[12.5px] font-semibold text-amber-900">
-              Simulación — no se ha creado nada todavía
+              
+              {t("Simulación — no se ha creado nada todavía")}
             </p>
             <ul className="mt-1 space-y-0.5">
               {simulacion.creadas.map((c) => (
                 <li key={c.codigo} className="text-[12.5px] text-amber-800 cifra">
-                  {c.codigo} · {c.nombre} — se crearía como {c.clase}
+                  {c.codigo} · {t(c.nombre)} — se crearía como {c.clase}
                 </li>
               ))}
               {simulacion.reutilizadas.map((c) => (
                 <li key={c.codigo} className="text-[12.5px] text-slate-600 cifra">
-                  {c.codigo} — ya existe allá, se reutilizaría
-                </li>
+                  {t("{n0} — ya existe allá, se reutilizaría", { n0: c.codigo })}</li>
               ))}
               {simulacion.problemas.map((c) => (
                 <li key={c.codigo} className="text-[12.5px] text-rose-700 cifra">
-                  {c.codigo} — {c.error ?? "no se pudo resolver"}
+                  {c.codigo} — {c.error ?? t("no se pudo resolver")}
                 </li>
               ))}
             </ul>
@@ -609,12 +617,12 @@ export default function EspejoContablePage() {
         {pendientes.cargando ? (
           <Cargando />
         ) : pendientes.error ? (
-          <ErrorPantalla mensaje={pendientes.error} onReintentar={pendientes.recargar} />
+          <ErrorPantalla mensaje={t(pendientes.error)} onReintentar={pendientes.recargar} />
         ) : (pendientes.datos?.length ?? 0) === 0 &&
           (previstas.datos?.length ?? 0) === 0 ? (
           <SinDatos
-            titulo="Todas las cuentas tienen equivalencia"
-            descripcion="Ninguna póliza se quedará sin espejar por falta de correspondencia."
+            titulo={t("Todas las cuentas tienen equivalencia")}
+            descripcion={t("Ninguna póliza se quedará sin espejar por falta de correspondencia.")}
             icono={<CheckCircle2 className="w-5 h-5" />}
           />
         ) : (
@@ -622,10 +630,10 @@ export default function EspejoContablePage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Cuenta del ERP</th>
-                  <th>Nombre</th>
-                  <th>Situación</th>
-                  <th>Corresponder a mano</th>
+                  <th>{t("Cuenta del ERP")}</th>
+                  <th>{t("Nombre")}</th>
+                  <th>{t("Situación")}</th>
+                  <th>{t("Corresponder a mano")}</th>
                   <th />
                 </tr>
               </thead>
@@ -640,15 +648,15 @@ export default function EspejoContablePage() {
                 ].map((c) => (
                   <tr key={c.id} className={c.urgente ? "bg-rose-50/40" : ""}>
                     <td className="cifra text-slate-900">{c.numeroCuenta}</td>
-                    <td className="text-slate-700">{c.nombre}</td>
+                    <td className="text-slate-700">{t(c.nombre)}</td>
                     <td>
                       {c.urgente ? (
                         <Distintivo tono="peligro">
-                          {plural(c.usos ?? 0, "póliza detenida", "pólizas detenidas")}
+                          {plural(c.usos ?? 0, t("póliza detenida"), t("pólizas detenidas"))}
                         </Distintivo>
                       ) : (
                         <Distintivo tono="alerta">
-                          {c.motivo ?? "prevista por configuración"}
+                          {c.motivo ?? t("prevista por configuración")}
                         </Distintivo>
                       )}
                     </td>
@@ -660,12 +668,12 @@ export default function EspejoContablePage() {
                         }
                         className="w-64"
                       >
-                        <option value="">Elegir en el mayor externo…</option>
+                        <option value="">{t("Elegir en el mayor externo…")}</option>
                         {(externas.datos ?? [])
                           .filter((x) => x.admiteAsientoManual)
                           .map((x) => (
                             <option key={x.id} value={x.id}>
-                              {x.codigo} · {x.nombre}
+                              {x.codigo} · {t(x.nombre)}
                             </option>
                           ))}
                       </Seleccion>
@@ -676,7 +684,8 @@ export default function EspejoContablePage() {
                         disabled={!eleccion[c.id]}
                         onClick={() => void mapearAMano.ejecutar(c)}
                       >
-                        Corresponder
+                        
+                        {t("Corresponder")}
                       </Boton>
                     </td>
                   </tr>
@@ -693,12 +702,10 @@ export default function EspejoContablePage() {
           <div className="panel-cabecera">
             <div>
               <p className="text-[13px] font-semibold text-slate-900">
-                {plural(totalSinEncolar, "póliza")} que nunca {totalSinEncolar === 1 ? "se encoló" : "se encolaron"}
-              </p>
+                {t("{n0} que nunca {n1}", { n0: plural(totalSinEncolar, t("póliza")), n1: totalSinEncolar === 1 ? t("se encoló") : t("se encolaron") })}</p>
               <p className="text-[12px] text-slate-500 mt-0.5">
-                No están detenidas: no llegaron a entrar en la bandeja. Nacieron
-                antes de que el espejo existiera, o con el espejo apagado. El
-                cierre del mes no puede certificarse mientras sigan así.
+                
+                {t("No están detenidas: no llegaron a entrar en la bandeja. Nacieron antes de que el espejo existiera, o con el espejo apagado. El cierre del mes no puede certificarse mientras sigan así.")}
               </p>
             </div>
             {puedeEncolarFaltantes ? (
@@ -708,11 +715,13 @@ export default function EspejoContablePage() {
                 cargando={encolarFaltantes.ejecutando}
                 onClick={() => void encolarFaltantes.ejecutar()}
               >
-                Encolarlas
+                
+                {t("Encolarlas")}
               </Boton>
             ) : (
               <p className="text-[12px] text-slate-500 max-w-[220px] text-right">
-                Encolarlas es de Administración.
+                
+                {t("Encolarlas es de Administración.")}
               </p>
             )}
           </div>
@@ -721,9 +730,9 @@ export default function EspejoContablePage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Folio</th>
-                  <th>Fecha</th>
-                  <th>Concepto</th>
+                  <th>{t("Folio")}</th>
+                  <th>{t("Fecha")}</th>
+                  <th>{t("Concepto")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -740,8 +749,8 @@ export default function EspejoContablePage() {
             </table>
           </div>
           <p className="px-4 py-3 text-[12px] text-slate-500 border-t border-slate-100">
-            Encolarlas no las manda: quedan en la bandeja de abajo, y de ahí
-            salen con «Despachar la cola».
+            
+            {t("Encolarlas no las manda: quedan en la bandeja de abajo, y de ahí salen con «Despachar la cola».")}
           </p>
         </Panel>
       )}
@@ -751,11 +760,12 @@ export default function EspejoContablePage() {
         <div className="panel-cabecera">
           <div>
             <p className="text-[13px] font-semibold text-slate-900">
-              Pólizas que no llegaron al mayor externo
+              
+              {t("Pólizas que no llegaron al mayor externo")}
             </p>
             <p className="text-[12px] text-slate-500 mt-0.5">
-              Están registradas y son válidas en el ERP. Lo único que falta es
-              su reflejo afuera.
+              
+              {t("Están registradas y son válidas en el ERP. Lo único que falta es su reflejo afuera.")}
             </p>
           </div>
           {puedeDespachar ? (
@@ -765,11 +775,13 @@ export default function EspejoContablePage() {
               cargando={despachar.ejecutando}
               onClick={() => void despachar.ejecutar()}
             >
-              Despachar la cola
+              
+              {t("Despachar la cola")}
             </Boton>
           ) : (
             <p className="text-[12px] text-slate-500 max-w-[220px] text-right">
-              El reenvío al mayor externo lo hace Administración.
+              
+              {t("El reenvío al mayor externo lo hace Administración.")}
             </p>
           )}
         </div>
@@ -783,11 +795,11 @@ export default function EspejoContablePage() {
            * frase era falsa y salía en verde. Ahora afirma lo que mide.
            */
           <SinDatos
-            titulo="Nada pendiente de salir"
+            titulo={t("Nada pendiente de salir")}
             descripcion={
               totalSinEncolar > 0
                 ? `Ninguna póliza se detuvo por error. Pero ${totalSinEncolar} nunca se encolaron: están arriba.`
-                : "Ninguna póliza quedó detenida, y no hay ninguna sin encolar."
+                : t("Ninguna póliza quedó detenida, y no hay ninguna sin encolar.")
             }
             icono={<CheckCircle2 className="w-5 h-5" />}
           />
@@ -796,11 +808,11 @@ export default function EspejoContablePage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Tipo</th>
-                  <th>Estado</th>
-                  <th>Motivo por el que no ha salido</th>
-                  <th className="text-right">Intentos</th>
-                  <th>Registrada</th>
+                  <th>{t("Tipo")}</th>
+                  <th>{t("Estado")}</th>
+                  <th>{t("Motivo por el que no ha salido")}</th>
+                  <th className="text-right">{t("Intentos")}</th>
+                  <th>{t("Registrada")}</th>
                   <th />
                 </tr>
               </thead>
@@ -821,8 +833,8 @@ export default function EspejoContablePage() {
                       */}
                       {e.ultimoError ??
                         (e.estado === "PENDIENTE"
-                          ? "Todavía no se ha intentado; sale en el siguiente despacho."
-                          : "sin detalle")}
+                          ? t("Todavía no se ha intentado; sale en el siguiente despacho.")
+                          : t("sin detalle"))}
                     </td>
                     <td className="text-right cifra text-slate-600">{e.intentos}</td>
                     <td className="text-[12.5px] text-slate-500">
@@ -834,7 +846,8 @@ export default function EspejoContablePage() {
                           variante="neutro"
                           onClick={() => void reencolar.ejecutar(e.id)}
                         >
-                          Reintentar
+                          
+                          {t("Reintentar")}
                         </Boton>
                       )}
                     </td>
@@ -851,12 +864,12 @@ export default function EspejoContablePage() {
         <div className="panel-cabecera flex items-start justify-between gap-4">
           <div>
             <p className="text-[13px] font-semibold text-slate-900">
-              ¿Las dos contabilidades dicen lo mismo?
+              
+              {t("¿Las dos contabilidades dicen lo mismo?")}
             </p>
             <p className="text-[12px] text-slate-500 mt-0.5">
-              Que la póliza saliera no quiere decir que del otro lado aterrizara
-              lo mismo. Esto compara, póliza por póliza, la que se registró aquí
-              contra el asiento del mayor externo.
+              
+              {t("Que la póliza saliera no quiere decir que del otro lado aterrizara lo mismo. Esto compara, póliza por póliza, la que se registró aquí contra el asiento del mayor externo.")}
             </p>
           </div>
           {puedeConciliar && (
@@ -866,40 +879,36 @@ export default function EspejoContablePage() {
               cargando={conciliar.ejecutando}
               onClick={() => void conciliar.ejecutar()}
             >
-              Comparar ahora
+              
+              {t("Comparar ahora")}
             </Boton>
           )}
         </div>
 
         {conciliacion === null ? (
           <SinDatos
-            titulo="Sin comparar en esta sesión"
-            descripcion="La comparación también corre sola cada diez minutos; aquí se puede pedir en el momento."
+            titulo={t("Sin comparar en esta sesión")}
+            descripcion={t("La comparación también corre sola cada diez minutos; aquí se puede pedir en el momento.")}
             icono={<Link2 className="w-5 h-5" />}
           />
         ) : conciliacion.completa === false ? (
           <div className="p-4">
             <p className="text-[13px] font-semibold text-amber-800">
-              La comparación se interrumpió
+              
+              {t("La comparación se interrumpió")}
             </p>
             <p className="text-[12px] text-slate-600 mt-1 max-w-3xl">
               {conciliacion.interrumpida}
             </p>
             <p className="text-[12px] text-slate-500 mt-1">
-              Se revisaron {conciliacion.revisados}; quedaron{" "}
-              {conciliacion.pendientesDeComparar ?? 0} sin comparar. Vuelve a
-              pedirla cuando el enlace responda.
-            </p>
+              {t("Se revisaron {n0}; quedaron{n1} {n2} sin comparar. Vuelve a pedirla cuando el enlace responda.", { n0: conciliacion.revisados, n1: " ", n2: conciliacion.pendientesDeComparar ?? 0 })}</p>
           </div>
         ) : conciliacion.discrepancias === 0 ? (
           <div className="p-4">
             <p className="text-[13px] font-semibold text-emerald-700">
-              Coinciden en {conciliacion.revisados === 1 ? "la" : "las"} {plural(conciliacion.revisados, "póliza espejada", "pólizas espejadas")}
-            </p>
+              {t("Coinciden en {n0} {n1}", { n0: conciliacion.revisados === 1 ? "la" : "las", n1: plural(conciliacion.revisados, t("póliza espejada"), t("pólizas espejadas")) })}</p>
             <p className="text-[12px] text-slate-500 mt-0.5">
-              Comparación del {fechaHora(conciliacion.fecha)} · alcance{" "}
-              {conciliacion.alcance}
-            </p>
+              {t("Comparación del {n0} · alcance{n1} {n2}", { n0: fechaHora(conciliacion.fecha), n1: " ", n2: conciliacion.alcance })}</p>
             {/*
               Sin esto, «coinciden» se leería como «ya está todo», y hay pólizas
               que ni han salido. No coincidir y no haber salido son dos cosas, y
@@ -907,10 +916,7 @@ export default function EspejoContablePage() {
             */}
             {(conciliacion.enCamino?.length ?? 0) > 0 && (
               <p className="text-[12px] text-slate-600 mt-2">
-                Faltan {conciliacion.enCamino!.length} por salir; no son una
-                diferencia y no hay nada que hacer con ellas. El detalle está
-                abajo.
-              </p>
+                {t("Faltan {n0} por salir; no son una diferencia y no hay nada que hacer con ellas. El detalle está abajo.", { n0: conciliacion.enCamino!.length })}</p>
             )}
           </div>
         ) : (
@@ -918,9 +924,9 @@ export default function EspejoContablePage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Póliza</th>
-                  <th>Asiento externo</th>
-                  <th>Diferencia</th>
+                  <th>{t("Póliza")}</th>
+                  <th>{t("Asiento externo")}</th>
+                  <th>{t("Diferencia")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -928,10 +934,10 @@ export default function EspejoContablePage() {
                   <tr key={`${h.polizaId}-${h.codigo}`} className="bg-amber-50/50">
                     <td className="text-slate-900">{h.folio}</td>
                     <td className="text-[12.5px] text-slate-500">
-                      {h.asientoId ?? "no llegó"}
+                      {h.asientoId ?? t("no llegó")}
                     </td>
                     <td className="text-[12.5px] text-amber-800">
-                      <span className="font-semibold">{h.codigo}</span> · {h.detalle}
+                      <span className="font-semibold">{h.codigo}</span> · {t(h.detalle)}
                     </td>
                   </tr>
                 ))}
@@ -954,19 +960,18 @@ export default function EspejoContablePage() {
           <div className="border-t border-slate-200">
             <div className="px-4 py-2.5 bg-slate-50/60">
               <p className="text-[12.5px] font-semibold text-slate-700">
-                Todavía no han salido ({conciliacion!.enCamino!.length})
-              </p>
+                {t("Todavía no han salido ({n0})", { n0: conciliacion!.enCamino!.length })}</p>
               <p className="text-[12px] text-slate-500 mt-0.5">
-                Están en la cola con su motivo escrito y vuelven solas. No
-                cuentan como diferencia.
+                
+                {t("Están en la cola con su motivo escrito y vuelven solas. No cuentan como diferencia.")}
               </p>
             </div>
             <div className="overflow-x-auto">
               <table className="tabla">
                 <thead>
                   <tr>
-                    <th>Póliza</th>
-                    <th>Por qué no ha salido</th>
+                    <th>{t("Póliza")}</th>
+                    <th>{t("Por qué no ha salido")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -974,7 +979,7 @@ export default function EspejoContablePage() {
                     <tr key={`camino-${h.polizaId}`}>
                       <td className="text-slate-900">{h.folio}</td>
                       <td className="text-[12.5px] text-slate-600">
-                        {h.detalle}
+                        {t(h.detalle)}
                       </td>
                     </tr>
                   ))}
@@ -989,18 +994,18 @@ export default function EspejoContablePage() {
       <Panel sinRelleno>
         <div className="panel-cabecera">
           <p className="text-[13px] font-semibold text-slate-900">
-            Correspondencia vigente
+            
+            {t("Correspondencia vigente")}
           </p>
           <p className="text-[12px] text-slate-500 cifra">
-            {mapeos.datos?.length ?? 0} cuentas
-          </p>
+            {t("{n0} cuentas", { n0: mapeos.datos?.length ?? 0 })}</p>
         </div>
         {mapeos.cargando ? (
           <Cargando />
         ) : (mapeos.datos?.length ?? 0) === 0 ? (
           <SinDatos
-            titulo="Todavía no hay correspondencias"
-            descripcion="Ninguna cuenta del ERP tiene equivalente en el mayor externo."
+            titulo={t("Todavía no hay correspondencias")}
+            descripcion={t("Ninguna cuenta del ERP tiene equivalente en el mayor externo.")}
             icono={<ShieldAlert className="w-5 h-5" />}
           />
         ) : (
@@ -1008,10 +1013,10 @@ export default function EspejoContablePage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Cuenta del ERP</th>
-                  <th>Equivale a</th>
-                  <th>Identificador externo</th>
-                  <th>Estado</th>
+                  <th>{t("Cuenta del ERP")}</th>
+                  <th>{t("Equivale a")}</th>
+                  <th>{t("Identificador externo")}</th>
+                  <th>{t("Estado")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1024,7 +1029,7 @@ export default function EspejoContablePage() {
                     <td className="cifra text-slate-500">{m.idExterno}</td>
                     <td>
                       <Distintivo tono={m.activo ? "exito" : "neutro"}>
-                        {m.activo ? "Vigente" : "Inactiva"}
+                        {m.activo ? t("Vigente") : t("Inactiva")}
                       </Distintivo>
                     </td>
                   </tr>

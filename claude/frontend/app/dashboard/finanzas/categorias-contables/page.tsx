@@ -5,6 +5,7 @@ import { Tags, Edit2, CheckCircle2, AlertCircle, X, Save, Info, Plus, Sparkles, 
 import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement";
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 
+import { useT } from '@/components/I18nProvider';
 interface ICuenta { id: string; numeroCuenta: string; nombre: string; tipo: string; }
 interface ICategoria {
   id: string; nombre: string; descripcion: string; activo: boolean;
@@ -55,6 +56,7 @@ function autoMapearCuentas(cuentas: ICuenta[]): Record<string, string> {
 }
 
 export default function CategoriasContablesPage() {
+  const t = useT();
   const [categorias, setCategorias] = useState<ICategoria[]>([]);
   const [cuentas, setCuentas]       = useState<ICuenta[]>([]);
   const [cargando, setCargando]     = useState(true);
@@ -92,11 +94,11 @@ export default function CategoriasContablesPage() {
       sin cuentas asignadas.
     */
     if (rCat.ok) { setCategorias(await rCat.json()); }
-    else { setCategorias([]); setErrorCarga('No se pudieron consultar las categorías.'); }
+    else { setCategorias([]); setErrorCarga(t("No se pudieron consultar las categorías.")); }
     if (rCue.ok) { setCuentas(await rCue.json()); }
     else { setCuentas([]); setErrorCarga(rCue.status === 403
-      ? 'Tu perfil no incluye el catálogo de cuentas contables.'
-      : 'No se pudo consultar el catálogo de cuentas contables.'); }
+      ? t("Tu perfil no incluye el catálogo de cuentas contables.")
+      : t("No se pudo consultar el catálogo de cuentas contables.")); }
     setCargando(false);
   };
 
@@ -118,7 +120,7 @@ export default function CategoriasContablesPage() {
     const faltantes = Object.values(sugerido).filter(v => !v).length;
     setForm(sugerido);
     if (faltantes === 0) {
-      mostrarToast('Cuentas asignadas automáticamente. Revisa y guarda.');
+      mostrarToast(t("Cuentas asignadas automáticamente. Revisa y guarda."));
     } else {
       mostrarToast(`Se asignaron ${5 - faltantes} de 5. Faltan cuentas en tu catálogo.`, false);
     }
@@ -136,13 +138,13 @@ export default function CategoriasContablesPage() {
     });
     setGuardando(false);
     if (res.ok) { mostrarToast('Cuentas guardadas correctamente'); setModal(null); cargarTodo(); }
-    else { const e = await res.json().catch(() => ({})); mostrarToast(e.message ?? 'Error al guardar', false); }
+    else { const e = await res.json().catch(() => ({})); mostrarToast(e.message ?? t("Error al guardar"), false); }
   };
 
   // Abre el modal de confirmación (o avisa si no hay cuentas)
   const pedirConfirmacionAuto = () => {
     if (!hayCuentas) {
-      mostrarToast('No hay cuentas en tu catálogo. Créalas primero en Finanzas.', false);
+      mostrarToast(t("No hay cuentas en tu catálogo. Créalas primero en Finanzas."), false);
       return;
     }
     setConfirmAuto(true);
@@ -162,22 +164,22 @@ export default function CategoriasContablesPage() {
       if (res.ok) {
         mostrarToast(
           d.configuradas > 0
-            ? `${d.configuradas} ${d.configuradas === 1 ? 'categoría configurada' : 'categorías configuradas'} automáticamente.`
-            : 'Todas tus categorías ya estaban configuradas.',
+            ? `${d.configuradas} ${d.configuradas === 1 ? t("categoría configurada") : t("categorías configuradas")} automáticamente.`
+            : t("Todas tus categorías ya estaban configuradas."),
         );
         cargarTodo();
       } else {
-        mostrarToast(d?.message || 'No se pudo configurar automáticamente.', false);
+        mostrarToast(d?.message || t("No se pudo configurar automáticamente."), false);
       }
     } catch {
-      mostrarToast('Error de conexión con el servidor.', false);
+      mostrarToast(t("Error de conexión con el servidor."), false);
     }
     setAutoTodas(false);
     setConfirmAuto(false);
   };
 
   const crearCategoria = async () => {
-    if (!formNueva.nombre.trim()) { mostrarToast('El nombre es obligatorio', false); return; }
+    if (!formNueva.nombre.trim()) { mostrarToast(t("El nombre es obligatorio"), false); return; }
     setGuardandoNueva(true);
     const res = await peticion(`/catalogo/categorias`, {
       method: 'POST',
@@ -190,13 +192,13 @@ export default function CategoriasContablesPage() {
     });
     setGuardandoNueva(false);
     if (res.ok) {
-      mostrarToast('Categoría creada correctamente');
+      mostrarToast(t("Categoría creada correctamente"));
       setModalNueva(false);
       setFormNueva(FORM_NUEVA_VACIO);
       cargarTodo();
     } else {
       const e = await res.json().catch(() => ({}));
-      mostrarToast(Array.isArray(e.message) ? e.message[0] : e.message ?? 'Error al crear', false);
+      mostrarToast(Array.isArray(e.message) ? e.message[0] : e.message ?? t("Error al crear"), false);
     }
   };
 
@@ -229,18 +231,17 @@ export default function CategoriasContablesPage() {
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <Tags className="w-8 h-8 text-indigo-500" /> Categorías — Cuentas Contables
+            <Tags className="w-8 h-8 text-indigo-500" />  {t("Categorías — Cuentas Contables")}
           </h1>
           <p className="text-slate-500 mt-1.5 max-w-2xl">
-            A qué cuenta va cada familia de productos. De esto depende que una venta, una compra o una merma
-            generen su asiento —y que lo generen en la cuenta correcta—. El catálogo de categorías se administra
-            en Productos → Categorías; aquí se decide su contabilidad.
+            
+            {t("A qué cuenta va cada familia de productos. De esto depende que una venta, una compra o una merma generen su asiento —y que lo generen en la cuenta correcta—. El catálogo de categorías se administra en Productos → Categorías; aquí se decide su contabilidad.")}
           </p>
         </div>
         <PuedeCrear ruta="/api/catalogo/categorias">
           <button onClick={() => { setFormNueva(FORM_NUEVA_VACIO); setModalNueva(true); }}
             className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-md transition-colors shrink-0">
-            <Plus className="w-4 h-4" /> Nueva Categoría
+            <Plus className="w-4 h-4" />  {t("Nueva Categoría")}
           </button>
         </PuedeCrear>
       </div>
@@ -251,11 +252,9 @@ export default function CategoriasContablesPage() {
             <Wand2 className="w-6 h-6 text-white" />
           </div>
           <div className="flex-1">
-            <p className="font-bold text-white">¿No sabes de contabilidad? Deja que lo hagamos por ti</p>
+            <p className="font-bold text-white">{t("¿No sabes de contabilidad? Deja que lo hagamos por ti")}</p>
             <p className="text-indigo-100 text-sm mt-0.5">
-              Tienes {sinConfigurar} {sinConfigurar === 1 ? 'categoría' : 'categorías'} sin configurar.
-              Asignamos las cuentas correctas a todas con un clic. Podrás ajustarlas después.
-            </p>
+              {t("Tienes {n0} {n1} sin configurar. Asignamos las cuentas correctas a todas con un clic. Podrás ajustarlas después.", { n0: sinConfigurar, n1: sinConfigurar === 1 ? t("categoría") : t("categorías") })}</p>
           </div>
           <button onClick={pedirConfirmacionAuto} disabled={autoTodas}
             className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-indigo-700 font-bold rounded-xl hover:bg-indigo-50 shadow-md transition-colors shrink-0 disabled:opacity-70">
@@ -270,7 +269,7 @@ export default function CategoriasContablesPage() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex gap-3">
           <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <p className="text-sm text-amber-800">
-            <span className="font-bold">Aún no tienes cuentas contables.</span> Créalas primero en
+            <span className="font-bold">{t("Aún no tienes cuentas contables.")}</span> Créalas primero en
             Finanzas → Catálogo de Cuentas (o usa la configuración automática de cuentas) y luego vuelve aquí.
           </p>
         </div>
@@ -279,7 +278,7 @@ export default function CategoriasContablesPage() {
       <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6 flex gap-3">
         <Info className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
         <p className="text-sm text-indigo-800">
-          <span className="font-bold">¿Por qué aquí y no en Productos?</span> Quien administra el catálogo crea y
+          <span className="font-bold">{t("¿Por qué aquí y no en Productos?")}</span> Quien administra el catálogo crea y
           renombra categorías; quién responde por los estados financieros decide a qué cuenta van. Una categoría
           sin cuentas asignadas no genera asiento: sus ventas y sus salidas de almacén no llegan a la contabilidad.
         </p>
@@ -289,23 +288,24 @@ export default function CategoriasContablesPage() {
         {cargando ? (
           <div className="p-16 text-center text-slate-400">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            Cargando categorías...
+            
+            {t("Cargando categorías...")}
           </div>
         ) : categorias.length === 0 ? (
           <div className="p-16 text-center">
             <Tags className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-            <p className="font-semibold text-slate-600">No hay categorías</p>
-            <p className="text-sm text-slate-400 mt-1">Crea la primera con el botón "Nueva Categoría"</p>
+            <p className="font-semibold text-slate-600">{t("No hay categorías")}</p>
+            <p className="text-sm text-slate-400 mt-1">{t("Crea la primera con el botón \"Nueva Categoría\"")}</p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                <th className="px-5 py-3 text-left">Categoría</th>
-                <th className="px-5 py-3 text-center">Cuentas</th>
-                <th className="px-5 py-3 text-left hidden lg:table-cell">Cuenta de Ventas</th>
-                <th className="px-5 py-3 text-left hidden lg:table-cell">Cuenta de Inventario</th>
-                <th className="px-5 py-3 text-center">Acción</th>
+                <th className="px-5 py-3 text-left">{t("Categoría")}</th>
+                <th className="px-5 py-3 text-center">{t("Cuentas")}</th>
+                <th className="px-5 py-3 text-left hidden lg:table-cell">{t("Cuenta de Ventas")}</th>
+                <th className="px-5 py-3 text-left hidden lg:table-cell">{t("Cuenta de Inventario")}</th>
+                <th className="px-5 py-3 text-center">{t("Acción")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -316,8 +316,8 @@ export default function CategoriasContablesPage() {
                 return (
                   <tr key={cat.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4">
-                      <p className="font-semibold text-slate-900">{cat.nombre}</p>
-                      {cat.descripcion && <p className="text-xs text-slate-400 mt-0.5">{cat.descripcion}</p>}
+                      <p className="font-semibold text-slate-900">{t(cat.nombre)}</p>
+                      {cat.descripcion && <p className="text-xs text-slate-400 mt-0.5">{t(cat.descripcion)}</p>}
                     </td>
                     <td className="px-5 py-4 text-center">
                       <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${
@@ -333,21 +333,21 @@ export default function CategoriasContablesPage() {
                       <span className="text-sm font-mono text-slate-600">
                         {cat.cuentaVentasId
                           ? nombreCuenta(cat.cuentaVentasId)
-                          : <span className="text-rose-400 font-sans not-italic text-xs">Sin asignar</span>}
+                          : <span className="text-rose-400 font-sans not-italic text-xs">{t("Sin asignar")}</span>}
                       </span>
                     </td>
                     <td className="px-5 py-4 hidden lg:table-cell">
                       <span className="text-sm font-mono text-slate-600">
                         {cat.cuentaInventarioId
                           ? nombreCuenta(cat.cuentaInventarioId)
-                          : <span className="text-rose-400 font-sans not-italic text-xs">Sin asignar</span>}
+                          : <span className="text-rose-400 font-sans not-italic text-xs">{t("Sin asignar")}</span>}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-center">
                       <PuedeEditar ruta="/api/catalogo/categorias/:id/cuentas">
                         <button onClick={() => abrirModal(cat)}
                           className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
-                          <Edit2 className="w-3.5 h-3.5" /> Configurar
+                          <Edit2 className="w-3.5 h-3.5" />  {t("Configurar")}
                         </button>
                       </PuedeEditar>
                     </td>
@@ -365,60 +365,61 @@ export default function CategoriasContablesPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                <Plus className="w-5 h-5 text-indigo-500" /> Nueva Categoría
+                <Plus className="w-5 h-5 text-indigo-500" />  {t("Nueva Categoría")}
               </h2>
-              <button aria-label="Cerrar" title="Cerrar" onClick={() => setModalNueva(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full">
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setModalNueva(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Nombre *</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t("Nombre *")}</label>
                 <input
                   type="text"
                   value={formNueva.nombre}
                   onChange={e => setFormNueva(f => ({ ...f, nombre: e.target.value }))}
-                  placeholder="Ej. Electrónica, Farmacia, Ropa..."
+                  placeholder={t("Ej. Electrónica, Farmacia, Ropa...")}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Descripción</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t("Descripción")}</label>
                 <input
                   type="text"
                   value={formNueva.descripcion}
                   onChange={e => setFormNueva(f => ({ ...f, descripcion: e.target.value }))}
-                  placeholder="Descripción corta (opcional)"
+                  placeholder={t("Descripción corta (opcional)")}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Categoría padre</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t("Categoría padre")}</label>
                 <select
                   value={formNueva.categoriaPadreId}
                   onChange={e => setFormNueva(f => ({ ...f, categoriaPadreId: e.target.value }))}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
                 >
-                  <option value="">— Sin categoría padre (nivel raíz) —</option>
+                  <option value="">{t("— Sin categoría padre (nivel raíz) —")}</option>
                   {categorias.map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                    <option key={c.id} value={c.id}>{t(c.nombre)}</option>
                   ))}
                 </select>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                 <p className="text-xs text-blue-800">
-                  <span className="font-bold">Tip:</span> Después de crear la categoría, haz clic en "Configurar" para asignarle las cuentas contables (o usa la configuración automática).
+                  <span className="font-bold">{t("Tip:")}</span> Después de crear la categoría, haz clic en "Configurar" para asignarle las cuentas contables (o usa la configuración automática).
                 </p>
               </div>
             </div>
             <div className="flex justify-end gap-3 p-6 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
               <button onClick={() => setModalNueva(false)} className="px-5 py-2 text-slate-700 font-medium hover:bg-slate-200 rounded-lg transition-colors">
-                Cancelar
+                
+                {t("Cancelar")}
               </button>
               <button onClick={crearCategoria} disabled={guardandoNueva}
                 className="px-5 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 shadow-sm transition-colors">
                 {guardandoNueva ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Plus className="w-4 h-4" />}
-                {guardandoNueva ? 'Creando...' : 'Crear Categoría'}
+                {guardandoNueva ? t("Creando...") : t("Crear Categoría")}
               </button>
             </div>
           </div>
@@ -432,11 +433,11 @@ export default function CategoriasContablesPage() {
             <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                  <Tags className="w-5 h-5 text-indigo-500" /> {modal.nombre}
+                  <Tags className="w-5 h-5 text-indigo-500" /> {t(modal.nombre)}
                 </h2>
-                <p className="text-sm text-slate-500 mt-0.5">Asigna una cuenta contable para cada tipo de movimiento</p>
+                <p className="text-sm text-slate-500 mt-0.5">{t("Asigna una cuenta contable para cada tipo de movimiento")}</p>
               </div>
-              <button aria-label="Cerrar" title="Cerrar" onClick={() => setModal(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setModal(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -444,10 +445,11 @@ export default function CategoriasContablesPage() {
             <div className="px-6 pt-4 shrink-0">
               <button onClick={aplicarAutoEnModal} disabled={!hayCuentas}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-xl hover:opacity-95 shadow-md transition-all disabled:opacity-50">
-                <Wand2 className="w-4 h-4" /> Asignar cuentas automáticamente
+                <Wand2 className="w-4 h-4" />  {t("Asignar cuentas automáticamente")}
               </button>
               <p className="text-center text-[11px] text-slate-400 mt-1.5">
-                Rellena los campos de abajo con las cuentas sugeridas. Puedes ajustar cualquiera antes de guardar.
+                
+                {t("Rellena los campos de abajo con las cuentas sugeridas. Puedes ajustar cualquiera antes de guardar.")}
               </p>
             </div>
 
@@ -456,11 +458,11 @@ export default function CategoriasContablesPage() {
                 <div key={campo.key} className={`p-4 rounded-xl border ${colorMap[campo.color]}`}>
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <p className="font-bold text-sm">{campo.label}</p>
-                      <p className="text-xs mt-0.5 opacity-70">{campo.desc}</p>
+                      <p className="font-bold text-sm">{t(campo.label)}</p>
+                      <p className="text-xs mt-0.5 opacity-70">{t(campo.desc)}</p>
                     </div>
                     {form[campo.key] && (
-                      <span className="text-[10px] font-bold uppercase bg-white/60 px-2 py-0.5 rounded-full border border-current">asignada</span>
+                      <span className="text-[10px] font-bold uppercase bg-white/60 px-2 py-0.5 rounded-full border border-current">{t("asignada")}</span>
                     )}
                   </div>
                   <select
@@ -468,9 +470,9 @@ export default function CategoriasContablesPage() {
                     onChange={e => setForm(f => ({ ...f, [campo.key]: e.target.value }))}
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
                   >
-                    <option value="">— Sin asignar —</option>
+                    <option value="">{t("— Sin asignar —")}</option>
                     {cuentas.map(c => (
-                      <option key={c.id} value={c.id}>{c.numeroCuenta} – {c.nombre}</option>
+                      <option key={c.id} value={c.id}>{c.numeroCuenta} – {t(c.nombre)}</option>
                     ))}
                   </select>
                   <p className="text-[10px] mt-1.5 opacity-60">{campo.ejemplo}</p>
@@ -478,15 +480,16 @@ export default function CategoriasContablesPage() {
               ))}
             </div>
             <div className="flex justify-between items-center p-6 border-t border-slate-100 bg-slate-50 rounded-b-2xl shrink-0">
-              <p className="text-xs text-slate-400">{Object.values(form).filter(Boolean).length}/5 cuentas configuradas</p>
+              <p className="text-xs text-slate-400">{t("{n0}/5 cuentas configuradas", { n0: Object.values(form).filter(Boolean).length })}</p>
               <div className="flex gap-3">
                 <button onClick={() => setModal(null)} className="px-5 py-2 text-slate-700 font-medium hover:bg-slate-200 rounded-lg transition-colors">
-                  Cancelar
+                  
+                  {t("Cancelar")}
                 </button>
                 <button onClick={guardar} disabled={guardando}
                   className="px-5 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 shadow-sm transition-colors">
                   {guardando ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
-                  {guardando ? 'Guardando...' : 'Guardar configuración'}
+                  {guardando ? t("Guardando...") : t("Guardar configuración")}
                 </button>
               </div>
             </div>
@@ -497,10 +500,10 @@ export default function CategoriasContablesPage() {
       {/* ══ MODAL DE CONFIRMACIÓN (reemplaza al confirm nativo) ══ */}
       <ConfirmDialog
         abierto={confirmAuto}
-        titulo="Configurar cuentas automáticamente"
-        mensaje="Se asignarán las cuentas contables sugeridas a las categorías que aún no están configuradas. Podrás ajustar cualquiera después."
-        textoConfirmar="Sí, configurar"
-        textoCancelar="Cancelar"
+        titulo={t("Configurar cuentas automáticamente")}
+        mensaje={t("Se asignarán las cuentas contables sugeridas a las categorías que aún no están configuradas. Podrás ajustar cualquiera después.")}
+        textoConfirmar={t("Sí, configurar")}
+        textoCancelar={t("Cancelar")}
         variante="indigo"
         procesando={autoTodas}
         onConfirmar={configurarTodasAuto}

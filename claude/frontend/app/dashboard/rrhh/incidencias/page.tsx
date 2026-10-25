@@ -21,6 +21,7 @@ import {
   ErrorPantalla, Indicador, Modal, Panel, Seleccion, SinDatos, useAvisos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Empleado { id: string; numeroEmpleado: string; nombreCompleto: string }
 
 interface Incidencia {
@@ -110,6 +111,7 @@ const TONO_TIPO: Record<string, 'exito' | 'alerta' | 'peligro' | 'info' | 'neutr
 const etiquetaTipo = (t: string) => TIPOS.find((x) => x.valor === t)?.etiqueta ?? t;
 
 export default function IncidenciasPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const hoy = new Date();
   const primerDia = isoCorto(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
@@ -164,7 +166,7 @@ export default function IncidenciasPage() {
 
   const resolver = useAccion(async (id: string, accion: 'rechazar' | 'revertir', razon: string) => {
     await api.patch(`/rrhh/incidencias/${id}/${accion}`, { motivo: razon });
-    avisar(accion === 'rechazar' ? 'Incidencia rechazada.' : 'Aprobación retirada.', 'exito');
+    avisar(accion === 'rechazar' ? 'Incidencia rechazada.' : t("Aprobación retirada."), 'exito');
     setAResolver(null);
     setMotivo('');
     void incidencias.recargar();
@@ -194,35 +196,36 @@ export default function IncidenciasPage() {
   return (
     <div className="p-6 max-w-[1300px] mx-auto">
       <EncabezadoPantalla
-        titulo="Incidencias"
-        descripcion="Faltas, incapacidades, vacaciones y tiempo extraordinario"
+        titulo={t("Incidencias")}
+        descripcion={t("Faltas, incapacidades, vacaciones y tiempo extraordinario")}
         acciones={
           <Boton variante="primario" icono={<Plus className="w-3.5 h-3.5" />} onClick={() => setModalAbierto(true)}>
-            Registrar incidencia
+            
+            {t("Registrar incidencia")}
           </Boton>
         }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador
-          etiqueta="Incidencias del periodo" color="#db2777" cargando={incidencias.cargando}
+          etiqueta={t("Incidencias del periodo")} color="#db2777" cargando={incidencias.cargando}
           valor={resumen.total}
         />
         <Indicador
-          etiqueta="Pendientes de aprobar"
+          etiqueta={t("Pendientes de aprobar")}
           color={resumen.porAprobar > 0 ? '#d97706' : '#64748b'}
           cargando={incidencias.cargando}
           valor={resumen.porAprobar}
         />
         <Indicador
-          etiqueta="Días no pagados" color="#e11d48" cargando={incidencias.cargando}
+          etiqueta={t("Días no pagados")} color="#e11d48" cargando={incidencias.cargando}
           valor={resumen.diasNoPagados}
-          detalle="se descuentan de la nómina"
+          detalle={t("se descuentan de la nómina")}
         />
         <Indicador
-          etiqueta="Horas extra" color="#059669" cargando={incidencias.cargando}
+          etiqueta={t("Horas extra")} color="#059669" cargando={incidencias.cargando}
           valor={resumen.horasExtra}
-          detalle="dobles hasta 9, luego triples"
+          detalle={t("dobles hasta 9, luego triples")}
         />
       </div>
 
@@ -239,15 +242,16 @@ export default function IncidenciasPage() {
         {incidencias.cargando ? (
           <Cargando />
         ) : incidencias.error ? (
-          <ErrorPantalla mensaje={incidencias.error} onReintentar={incidencias.recargar} />
+          <ErrorPantalla mensaje={t(incidencias.error)} onReintentar={incidencias.recargar} />
         ) : resumen.total === 0 ? (
           <SinDatos
-            titulo="Sin incidencias en este periodo"
-            descripcion="Registra faltas, incapacidades o vacaciones para que el cálculo de nómina las considere."
+            titulo={t("Sin incidencias en este periodo")}
+            descripcion={t("Registra faltas, incapacidades o vacaciones para que el cálculo de nómina las considere.")}
             icono={<CalendarX2 className="w-5 h-5" />}
             accion={
               <Boton variante="primario" onClick={() => setModalAbierto(true)}>
-                Registrar la primera
+                
+                {t("Registrar la primera")}
               </Boton>
             }
           />
@@ -256,13 +260,13 @@ export default function IncidenciasPage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Empleado</th>
-                  <th>Tipo</th>
-                  <th>Del — al</th>
-                  <th className="text-right">Días</th>
-                  <th className="text-right">Horas</th>
-                  <th>Efecto en nómina</th>
-                  <th>Motivo</th>
+                  <th>{t("Empleado")}</th>
+                  <th>{t("Tipo")}</th>
+                  <th>{t("Del — al")}</th>
+                  <th className="text-right">{t("Días")}</th>
+                  <th className="text-right">{t("Horas")}</th>
+                  <th>{t("Efecto en nómina")}</th>
+                  <th>{t("Motivo")}</th>
                   <th />
                 </tr>
               </thead>
@@ -289,11 +293,11 @@ export default function IncidenciasPage() {
                     </td>
                     <td>
                       {i.tipo === 'HORAS_EXTRA' ? (
-                        <span className="text-[12px] text-emerald-700">Se paga adicional</span>
+                        <span className="text-[12px] text-emerald-700">{t("Se paga adicional")}</span>
                       ) : i.pagada ? (
-                        <span className="text-[12px] text-slate-500">Se paga normal</span>
+                        <span className="text-[12px] text-slate-500">{t("Se paga normal")}</span>
                       ) : (
-                        <span className="text-[12px] text-rose-600 font-medium">Se descuenta</span>
+                        <span className="text-[12px] text-rose-600 font-medium">{t("Se descuenta")}</span>
                       )}
                     </td>
                     <td className="text-slate-500 text-[12px]">
@@ -307,13 +311,13 @@ export default function IncidenciasPage() {
                             disabled={aprobar.ejecutando}
                             className="btn btn-fantasma btn-sm"
                           >
-                            <Check className="w-3.5 h-3.5" /> Aprobar
+                            <Check className="w-3.5 h-3.5" />  {t("Aprobar")}
                           </button>
                           <button
                             onClick={() => { setAResolver({ incidencia: i, accion: 'rechazar' }); setMotivo(''); }}
                             className="btn btn-fantasma btn-sm text-rose-600"
                           >
-                            <X className="w-3.5 h-3.5" /> Rechazar
+                            <X className="w-3.5 h-3.5" />  {t("Rechazar")}
                           </button>
                         </div>
                       ) : (
@@ -331,7 +335,7 @@ export default function IncidenciasPage() {
                               onClick={() => { setAResolver({ incidencia: i, accion: 'revertir' }); setMotivo(''); }}
                               className="btn btn-fantasma btn-sm"
                             >
-                              <Undo2 className="w-3.5 h-3.5" /> Retirar
+                              <Undo2 className="w-3.5 h-3.5" />  {t("Retirar")}
                             </button>
                           )}
                         </div>
@@ -348,17 +352,18 @@ export default function IncidenciasPage() {
       <Modal
         abierto={!!aResolver}
         onCerrar={() => { setAResolver(null); setMotivo(''); }}
-        titulo={aResolver?.accion === 'revertir' ? 'Retirar la aprobación' : 'Rechazar la incidencia'}
+        titulo={aResolver?.accion === 'revertir' ? t("Retirar la aprobación") : t("Rechazar la incidencia")}
         descripcion={
           aResolver
-            ? `${nombrePorId.get(aResolver.incidencia.empleadoId) ?? 'Empleado'} · ${fecha(aResolver.incidencia.fechaInicio)}`
+            ? `${nombrePorId.get(aResolver.incidencia.empleadoId) ?? t("Empleado")} · ${fecha(aResolver.incidencia.fechaInicio)}`
             : undefined
         }
         ancho={440}
         pie={
           <>
             <Boton variante="neutro" onClick={() => { setAResolver(null); setMotivo(''); }}>
-              Volver
+              
+              {t("Volver")}
             </Boton>
             <Boton
               variante={aResolver?.accion === 'revertir' ? 'primario' : 'peligro'}
@@ -366,21 +371,21 @@ export default function IncidenciasPage() {
               cargando={resolver.ejecutando}
               onClick={() => void resolver.ejecutar(aResolver!.incidencia.id, aResolver!.accion, motivo)}
             >
-              {aResolver?.accion === 'revertir' ? 'Retirar aprobación' : 'Rechazar'}
+              {aResolver?.accion === 'revertir' ? t("Retirar aprobación") : t("Rechazar")}
             </Boton>
           </>
         }
       >
         <p className="text-[13px] text-slate-600 mb-3.5 leading-relaxed">
           {aResolver?.accion === 'revertir'
-            ? 'La incidencia vuelve a quedar sin aprobar y deja de contar donde ya contaba. Queda escrito quién la retiró y por qué.'
-            : 'La incidencia queda rechazada y no vuelve a la lista de pendientes. Queda escrito quién la rechazó y por qué.'}
+            ? t("La incidencia vuelve a quedar sin aprobar y deja de contar donde ya contaba. Queda escrito quién la retiró y por qué.")
+            : t("La incidencia queda rechazada y no vuelve a la lista de pendientes. Queda escrito quién la rechazó y por qué.")}
         </p>
-        <Campo etiqueta="Motivo" requerido>
+        <Campo etiqueta={t("Motivo")} requerido>
           <Entrada
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
-            placeholder={aResolver?.accion === 'revertir' ? 'Se aprobó por error' : 'No corresponde a este periodo'}
+            placeholder={aResolver?.accion === 'revertir' ? t("Se aprobó por error") : t("No corresponde a este periodo")}
           />
         </Campo>
       </Modal>
@@ -409,6 +414,7 @@ function ModalNuevaIncidencia({
   onCerrar: () => void;
   onGuardar: (datos: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const [form, setForm] = useState({
     empleadoId: '', tipo: 'FALTA',
     fechaInicio: isoCorto(), fechaFin: isoCorto(),
@@ -439,14 +445,14 @@ function ModalNuevaIncidencia({
 
   const enviar = () => {
     const e: Record<string, string> = {};
-    if (!form.empleadoId) e.empleadoId = 'Elige al empleado.';
-    if (!form.fechaInicio) e.fechaInicio = 'Indica la fecha.';
-    if (form.fechaFin < form.fechaInicio) e.fechaFin = 'No puede ser anterior al inicio.';
+    if (!form.empleadoId) e.empleadoId = t("Elige al empleado.");
+    if (!form.fechaInicio) e.fechaInicio = t("Indica la fecha.");
+    if (form.fechaFin < form.fechaInicio) e.fechaFin = t("No puede ser anterior al inicio.");
     if (esPorHoras && (!form.horas || parseFloat(form.horas) <= 0)) {
-      e.horas = 'Indica cuántas horas extra fueron.';
+      e.horas = t("Indica cuántas horas extra fueron.");
     }
     if (form.tipo === 'INCAPACIDAD' && !form.folioIncapacidad.trim()) {
-      e.folioIncapacidad = 'El folio del IMSS es necesario para justificarla.';
+      e.folioIncapacidad = t("El folio del IMSS es necesario para justificarla.");
     }
 
     setErrores(e);
@@ -469,23 +475,23 @@ function ModalNuevaIncidencia({
     <Modal
       abierto={abierto}
       onCerrar={onCerrar}
-      titulo="Registrar incidencia"
+      titulo={t("Registrar incidencia")}
       ancho={560}
       pie={
         <>
-          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
-          <Boton variante="primario" onClick={enviar} cargando={guardando}>Registrar</Boton>
+          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>{t("Cancelar")}</Boton>
+          <Boton variante="primario" onClick={enviar} cargando={guardando}>{t("Registrar")}</Boton>
         </>
       }
     >
       <div className="space-y-3.5">
-        <Campo etiqueta="Empleado" requerido error={errores.empleadoId}>
+        <Campo etiqueta={t("Empleado")} requerido error={errores.empleadoId}>
           <Seleccion
             value={form.empleadoId}
             onChange={(e) => cambiar('empleadoId', e.target.value)}
             error={!!errores.empleadoId}
           >
-            <option value="">Elige uno…</option>
+            <option value="">{t("Elige uno…")}</option>
             {empleados.map((e) => (
               <option key={e.id} value={e.id}>
                 {e.numeroEmpleado} · {e.nombreCompleto}
@@ -494,14 +500,14 @@ function ModalNuevaIncidencia({
           </Seleccion>
         </Campo>
 
-        <Campo etiqueta="Tipo de incidencia" requerido>
+        <Campo etiqueta={t("Tipo de incidencia")} requerido>
           <Seleccion value={form.tipo} onChange={(e) => cambiar('tipo', e.target.value)}>
-            {TIPOS.map((t) => <option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}
+            {TIPOS.map((tipo) => <option key={tipo.valor} value={tipo.valor}>{t(tipo.etiqueta)}</option>)}
           </Seleccion>
         </Campo>
 
         <div className="grid grid-cols-2 gap-3.5">
-          <Campo etiqueta={esPorHoras ? 'Fecha' : 'Desde'} requerido error={errores.fechaInicio}>
+          <Campo etiqueta={esPorHoras ? t("Fecha") : t("Desde")} requerido error={errores.fechaInicio}>
             <Entrada
               type="date"
               value={form.fechaInicio}
@@ -511,7 +517,7 @@ function ModalNuevaIncidencia({
           </Campo>
 
           {esPorHoras ? (
-            <Campo etiqueta="Horas extra" requerido error={errores.horas}>
+            <Campo etiqueta={t("Horas extra")} requerido error={errores.horas}>
               <Entrada
                 type="number" step="0.5" min="0"
                 value={form.horas}
@@ -522,8 +528,8 @@ function ModalNuevaIncidencia({
             </Campo>
           ) : (
             <Campo
-              etiqueta="Hasta" requerido error={errores.fechaFin}
-              ayuda={dias > 0 ? `${dias} ${dias === 1 ? 'día' : 'días'}` : undefined}
+              etiqueta={t("Hasta")} requerido error={errores.fechaFin}
+              ayuda={dias > 0 ? `${dias} ${dias === 1 ? t("día") : t("días")}` : undefined}
             >
               <Entrada
                 type="date"
@@ -536,21 +542,21 @@ function ModalNuevaIncidencia({
         </div>
 
         {form.tipo === 'INCAPACIDAD' && (
-          <Campo etiqueta="Folio de incapacidad" requerido error={errores.folioIncapacidad}>
+          <Campo etiqueta={t("Folio de incapacidad")} requerido error={errores.folioIncapacidad}>
             <Entrada
               value={form.folioIncapacidad}
               onChange={(e) => cambiar('folioIncapacidad', e.target.value)}
               error={!!errores.folioIncapacidad}
-              placeholder="Folio del certificado del IMSS"
+              placeholder={t("Folio del certificado del IMSS")}
             />
           </Campo>
         )}
 
-        <Campo etiqueta="Motivo o comentario">
+        <Campo etiqueta={t("Motivo o comentario")}>
           <Entrada
             value={form.motivo}
             onChange={(e) => cambiar('motivo', e.target.value)}
-            placeholder="Contexto de la incidencia"
+            placeholder={t("Contexto de la incidencia")}
           />
         </Campo>
 
@@ -562,19 +568,19 @@ function ModalNuevaIncidencia({
             border: `1px solid ${tipoActual.pagaPorOmision ? '#a7f3d0' : '#fecdd3'}`,
           }}
         >
-          <span className="font-semibold">Efecto en nómina: </span>
+          <span className="font-semibold">{t("Efecto en nómina:")} </span>
           {form.tipo === 'HORAS_EXTRA'
-            ? 'se pagan como tiempo extraordinario — dobles las primeras 9 de la semana, triples el excedente.'
+            ? t("se pagan como tiempo extraordinario — dobles las primeras 9 de la semana, triples el excedente.")
             : tipoActual.pagaPorOmision
               ? ((dias || 0) === 1
-                  ? 'el día se paga de forma normal.'
+                  ? t("el día se paga de forma normal.")
                   : `los ${dias || 0} días se pagan de forma normal.`)
               : ((dias || 0) === 1
-                  ? 'el día se descuenta del periodo.'
+                  ? t("el día se descuenta del periodo.")
                   : `los ${dias || 0} días se descuentan del periodo.`)}
         </div>
 
-        {error && <p className="text-[12.5px] text-rose-600 font-medium">{error}</p>}
+        {error && <p className="text-[12.5px] text-rose-600 font-medium">{t(error)}</p>}
       </div>
     </Modal>
   );

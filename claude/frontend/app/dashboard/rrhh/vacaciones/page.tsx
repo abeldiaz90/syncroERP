@@ -8,6 +8,7 @@ import { solicitarTexto } from '@/components/ui/dialogos';
 import { BuscadorSeleccion } from '@/components/ui/BuscadorSeleccion';
 import { Boton, Cargando, Distintivo, EncabezadoPantalla, Panel, SinDatos, useAvisos } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 /*
  * El desglose del rango, tal y como lo cuenta el servidor.
  *
@@ -37,6 +38,7 @@ const hoy = () => isoCorto();
 const lista = <T,>(valor: unknown): T[] => Array.isArray(valor) ? valor as T[] : valor && typeof valor === 'object' && Array.isArray((valor as { data?: unknown }).data) ? (valor as { data: T[] }).data : [];
 
 export default function VacacionesPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
@@ -52,7 +54,7 @@ export default function VacacionesPage() {
     try {
       const [e, s] = await Promise.all([api.get<unknown>('/rrhh/empleados', { query: { estado: 'ACTIVO' } }), api.get<unknown>('/rrhh/vacaciones/solicitudes')]);
       setEmpleados(lista<Empleado>(e)); setSolicitudes(lista<Solicitud>(s));
-    } catch (e) { avisar(e instanceof Error ? e.message : 'No se pudieron cargar las vacaciones.', 'error'); }
+    } catch (e) { avisar(e instanceof Error ? e.message : t("No se pudieron cargar las vacaciones."), 'error'); }
     finally { setCargando(false); }
   }
   useEffect(() => { void cargar(); }, []);
@@ -117,9 +119,9 @@ export default function VacacionesPage() {
   }, [form.fechaInicio, form.fechaFin]);
   const visibles = solicitudes.filter((s) => filtro === 'TODAS' || s.estado === filtro);
   async function solicitar() {
-    if (!form.empleadoId || form.fechaFin < form.fechaInicio) return avisar('Selecciona empleado y un rango de fechas válido.', 'alerta');
+    if (!form.empleadoId || form.fechaFin < form.fechaInicio) return avisar(t("Selecciona empleado y un rango de fechas válido."), 'alerta');
     setProcesando('nueva');
-    try { await api.post('/rrhh/vacaciones/solicitudes', form); avisar('Solicitud enviada a la ruta de aprobación.', 'exito'); /*
+    try { await api.post('/rrhh/vacaciones/solicitudes', form); avisar(t("Solicitud enviada a la ruta de aprobación."), 'exito'); /*
        * Las fechas también vuelven a su sitio, no sólo el motivo.
        *
        * Dejándolas puestas, el aviso «este rango no cabe en el saldo» aparecía
@@ -128,44 +130,44 @@ export default function VacacionesPage() {
        * cuando acababa de entrar.
        */
       setForm((f) => ({ ...f, fechaInicio: hoy(), fechaFin: hoy(), motivo: '' })); await cargar(); if (form.empleadoId) setSaldo(await api.get(`/rrhh/vacaciones/saldo/${form.empleadoId}`)); }
-    catch (e) { avisar(e instanceof ApiError ? e.mensajeParaPantalla() : e instanceof Error ? e.message : 'No se pudo registrar.', 'error'); }
+    catch (e) { avisar(e instanceof ApiError ? e.mensajeParaPantalla() : e instanceof Error ? e.message : t("No se pudo registrar."), 'error'); }
     finally { setProcesando(null); }
   }
   async function resolver(s: Solicitud, aprobar: boolean) {
-    const motivo = aprobar ? await solicitarTexto('Puedes dejar evidencia de la revisión.', { titulo: 'Aprobar vacaciones' }) : await solicitarTexto('Explica por qué se rechaza la solicitud.', { titulo: 'Rechazar vacaciones', obligatorio: true, minimo: 5 });
+    const motivo = aprobar ? await solicitarTexto(t("Puedes dejar evidencia de la revisión."), { titulo: 'Aprobar vacaciones' }) : await solicitarTexto(t("Explica por qué se rechaza la solicitud."), { titulo: 'Rechazar vacaciones', obligatorio: true, minimo: 5 });
     /* El mínimo lo exige ya el diálogo, con el botón apagado y los caracteres
        que faltan a la vista. Aquí sólo queda el caso de cerrarlo sin escribir:
        antes, tres letras y «Continuar» se iban por este `return` sin decir nada,
        y la pantalla se leía como si el clic no hubiera hecho nada. */
     if (!aprobar && !motivo?.trim()) return;
     setProcesando(s.id);
-    try { const resultado = await api.patch<Solicitud>(`/rrhh/vacaciones/solicitudes/${s.id}/resolver`, { aprobar, motivo: motivo || undefined }); avisar(aprobar && resultado.estado === 'EN_REVISION' ? 'Nivel aprobado; continúa con el siguiente aprobador.' : aprobar ? 'Vacaciones aprobadas e incidencia generada.' : 'Solicitud rechazada y saldo liberado.', 'exito'); await cargar(); }
-    catch (e) { avisar(e instanceof ApiError ? e.mensajeParaPantalla() : e instanceof Error ? e.message : 'No se pudo resolver.', 'error'); }
+    try { const resultado = await api.patch<Solicitud>(`/rrhh/vacaciones/solicitudes/${s.id}/resolver`, { aprobar, motivo: motivo || undefined }); avisar(aprobar && resultado.estado === 'EN_REVISION' ? t("Nivel aprobado; continúa con el siguiente aprobador.") : aprobar ? 'Vacaciones aprobadas e incidencia generada.' : t("Solicitud rechazada y saldo liberado."), 'exito'); await cargar(); }
+    catch (e) { avisar(e instanceof ApiError ? e.mensajeParaPantalla() : e instanceof Error ? e.message : t("No se pudo resolver."), 'error'); }
     finally { setProcesando(null); }
   }
 
   if (cargando) return <Cargando />;
   return <div className="mx-auto max-w-[1450px] space-y-5 p-6">
-    <EncabezadoPantalla titulo="Vacaciones y saldos" descripcion="Solicitud, reserva de días, aprobación multinivel e incidencia automática para nómina." />
+    <EncabezadoPantalla titulo={t("Vacaciones y saldos")} descripcion={t("Solicitud, reserva de días, aprobación multinivel e incidencia automática para nómina.")} />
     <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
-      <Panel titulo="Nueva solicitud">
+      <Panel titulo={t("Nueva solicitud")}>
         <div className="space-y-4">
-          <label className="etiqueta-campo">Empleado</label>
-          <BuscadorSeleccion valor={form.empleadoId} onChange={(empleadoId) => setForm({ ...form, empleadoId })} opciones={empleados.map((e) => ({ valor: e.id, etiqueta: nombre(e.id), busqueda: e.numeroEmpleado }))} placeholder="Buscar empleado…" />
-          <div className="grid grid-cols-2 gap-3"><label className="text-sm">Desde<input type="date" className="entrada mt-1 w-full" value={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })}/></label><label className="text-sm">Hasta<input type="date" className="entrada mt-1 w-full" value={form.fechaFin} min={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaFin: e.target.value })}/></label></div>
-          <label className="text-sm">Motivo o referencia<textarea className="entrada mt-1 min-h-20 w-full py-2" maxLength={400} value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })}/></label>
+          <label className="etiqueta-campo">{t("Empleado")}</label>
+          <BuscadorSeleccion valor={form.empleadoId} onChange={(empleadoId) => setForm({ ...form, empleadoId })} opciones={empleados.map((e) => ({ valor: e.id, etiqueta: nombre(e.id), busqueda: e.numeroEmpleado }))} placeholder={t("Buscar empleado…")} />
+          <div className="grid grid-cols-2 gap-3"><label className="text-sm">{t("Desde")}<input type="date" className="entrada mt-1 w-full" value={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })}/></label><label className="text-sm">{t("Hasta")}<input type="date" className="entrada mt-1 w-full" value={form.fechaFin} min={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaFin: e.target.value })}/></label></div>
+          <label className="text-sm">{t("Motivo o referencia")}<textarea className="entrada mt-1 min-h-20 w-full py-2" maxLength={400} value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })}/></label>
           <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
             {diasNaturales === null ? (
-              <b>Elige un rango de fechas válido.</b>
+              <b>{t("Elige un rango de fechas válido.")}</b>
             ) : midiendo ? (
-              <b>Midiendo el rango…</b>
+              <b>{t("Midiendo el rango…")}</b>
             ) : desglose === null ? (
               <>
                 <b>
                   {plural(
                     diasNaturales,
-                    'día natural seleccionado',
-                    'días naturales seleccionados',
+                    t("día natural seleccionado"),
+                    t("días naturales seleccionados"),
                   )}
                   .
                 </b>
@@ -177,18 +179,16 @@ export default function VacacionesPage() {
             ) : (
               <>
                 <b>
-                  {plural(desglose.laborables, 'día laborable', 'días laborables')} de{' '}
-                  {plural(desglose.naturales, 'natural', 'naturales')}.
-                </b>
+                  {t("{n0} de{n1} {n2}.", { n0: plural(desglose.laborables, t("día laborable"), t("días laborables")), n1: ' ', n2: plural(desglose.naturales, 'natural', 'naturales') })}</b>
                 <br />
                 El sistema descontará exclusivamente los días laborables.
                 {desglose.noLaborables.length > 0 && (
                   <ul className="mt-1.5 space-y-0.5 text-slate-500">
                     {desglose.noLaborables.slice(0, 6).map((d) => (
-                      <li key={d.fecha}>· {fecha(d.fecha)} — {d.motivo}</li>
+                      <li key={d.fecha}>· {fecha(d.fecha)} — {t(d.motivo)}</li>
                     ))}
                     {desglose.noLaborables.length > 6 && (
-                      <li>· y {plural(desglose.noLaborables.length - 6, 'día más', 'días más')}.</li>
+                      <li>{t("· y {n0}.", { n0: plural(desglose.noLaborables.length - 6, t("día más"), t("días más")) })}</li>
                     )}
                   </ul>
                 )}
@@ -203,35 +203,33 @@ export default function VacacionesPage() {
             */}
           {seExcede && saldo && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">
-              <b>Este rango no cabe en el saldo.</b>
+              <b>{t("Este rango no cabe en el saldo.")}</b>
               <p className="mt-1">
-                Consume {plural(consume ?? 0, 'día laborable', 'días laborables')} y quedan{' '}
-                {plural(saldo.disponible, 'día disponible', 'días disponibles')}. Acorta el
-                rango o espera a que devengue más.
-              </p>
+                {t("Consume {n0} y quedan{n1} {n2}. Acorta el rango o espera a que devengue más.", { n0: plural(consume ?? 0, t("día laborable"), t("días laborables")), n1: ' ', n2: plural(saldo.disponible, t("día disponible"), t("días disponibles")) })}</p>
             </div>
           )}
           {sinDerecho && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            <b>Todavía no tiene derecho a vacaciones.</b>
+            <b>{t("Todavía no tiene derecho a vacaciones.")}</b>
             <p className="mt-1">
               Las vacaciones nacen al cumplir el primer año de servicios (LFT art. 76).
               {sinDerecho.proximoAniversario && <> Este empleado lo cumple el <b>{fecha(sinDerecho.proximoAniversario)}</b>.</>}
             </p>
-            {sinDerecho.fechaIngreso && <p className="mt-1 text-amber-700">Ingresó el {fecha(sinDerecho.fechaIngreso)}.</p>}
-            <p className="mt-1 text-amber-700">Mientras tanto, un permiso con o sin goce se registra en Incidencias.</p>
+            {sinDerecho.fechaIngreso && <p className="mt-1 text-amber-700">{t("Ingresó el {n0}.", { n0: fecha(sinDerecho.fechaIngreso) })}</p>}
+            <p className="mt-1 text-amber-700">{t("Mientras tanto, un permiso con o sin goce se registra en Incidencias.")}</p>
           </div>}
-          <Boton variante="primario" cargando={procesando === 'nueva'} disabled={!form.empleadoId || form.fechaFin < form.fechaInicio || Boolean(sinDerecho) || midiendo || seExcede} onClick={() => void solicitar()} className="w-full">Enviar a aprobación</Boton>
+          <Boton variante="primario" cargando={procesando === 'nueva'} disabled={!form.empleadoId || form.fechaFin < form.fechaInicio || Boolean(sinDerecho) || midiendo || seExcede} onClick={() => void solicitar()} className="w-full">{t("Enviar a aprobación")}</Boton>
         </div>
       </Panel>
       <div className="space-y-5">
-        {saldo && saldo.tieneDerecho !== false && <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6"><Metrica titulo="Devengados" valor={saldo.diasDevengados}/><Metrica titulo="Arrastre" valor={saldo.diasArrastre}/><Metrica titulo="Reservados" valor={saldo.diasReservados}/><Metrica titulo="Disfrutados" valor={saldo.diasDisfrutados}/><Metrica titulo="Cancelados" valor={saldo.diasCancelados}/><Metrica titulo="Disponibles" valor={saldo.disponible} destacado/></div>}
-        <Panel sinRelleno titulo="Solicitudes" accion={<select className="campo w-48" value={filtro} onChange={(e) => setFiltro(e.target.value)}><option value="TODAS">Todos los estados</option><option value="EN_REVISION">En revisión</option><option value="APROBADA">Aprobadas</option><option value="RECHAZADA">Rechazadas</option></select>}>
-          {!visibles.length ? <SinDatos icono={<Palmtree className="h-5 w-5"/>} titulo="No hay solicitudes" descripcion="Las solicitudes aparecerán aquí con su estado de aprobación."/> : <div className="overflow-x-auto"><table className="tabla"><thead><tr><th>Empleado</th><th>Periodo</th><th>Días laborables</th><th>Estado</th><th>Motivo</th><th>Acciones</th></tr></thead><tbody>{visibles.map((s) => <tr key={s.id}><td className="font-medium">{nombre(s.empleadoId)}</td><td>{fecha(s.fechaInicio)} – {fecha(s.fechaFin)}</td><td>{Number(s.diasSolicitados)}</td><td><Estado estado={s.estado}/></td><td><span>{s.motivo || '—'}</span>{s.motivoResolucion && <p className="text-xs text-slate-400">Resolución: {s.motivoResolucion}</p>}</td><td>{['CAPTURADA','EN_REVISION'].includes(s.estado) && <div className="flex gap-2"><Boton variante="primario" disabled={procesando === s.id} onClick={() => void resolver(s, true)}>Aprobar nivel</Boton><Boton variante="peligro" disabled={procesando === s.id} onClick={() => void resolver(s, false)}>Rechazar</Boton></div>}</td></tr>)}</tbody></table></div>}
+        {saldo && saldo.tieneDerecho !== false && <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6"><Metrica titulo={t("Devengados")} valor={saldo.diasDevengados}/><Metrica titulo={t("Arrastre")} valor={saldo.diasArrastre}/><Metrica titulo={t("Reservados")} valor={saldo.diasReservados}/><Metrica titulo={t("Disfrutados")} valor={saldo.diasDisfrutados}/><Metrica titulo={t("Cancelados")} valor={saldo.diasCancelados}/><Metrica titulo={t("Disponibles")} valor={saldo.disponible} destacado/></div>}
+        <Panel sinRelleno titulo={t("Solicitudes")} accion={<select className="campo w-48" value={filtro} onChange={(e) => setFiltro(e.target.value)}><option value="TODAS">{t("Todos los estados")}</option><option value="EN_REVISION">{t("En revisión")}</option><option value="APROBADA">{t("Aprobadas")}</option><option value="RECHAZADA">{t("Rechazadas")}</option></select>}>
+          {!visibles.length ? <SinDatos icono={<Palmtree className="h-5 w-5"/>} titulo={t("No hay solicitudes")} descripcion={t("Las solicitudes aparecerán aquí con su estado de aprobación.")}/> : <div className="overflow-x-auto"><table className="tabla"><thead><tr><th>{t("Empleado")}</th><th>{t("Periodo")}</th><th>{t("Días laborables")}</th><th>{t("Estado")}</th><th>{t("Motivo")}</th><th>{t("Acciones")}</th></tr></thead><tbody>{visibles.map((s) => <tr key={s.id}><td className="font-medium">{nombre(s.empleadoId)}</td><td>{fecha(s.fechaInicio)} – {fecha(s.fechaFin)}</td><td>{Number(s.diasSolicitados)}</td><td><Estado estado={s.estado}/></td><td><span>{s.motivo || '—'}</span>{s.motivoResolucion && <p className="text-xs text-slate-400">{t("Resolución: {n0}", { n0: s.motivoResolucion })}</p>}</td><td>{['CAPTURADA','EN_REVISION'].includes(s.estado) && <div className="flex gap-2"><Boton variante="primario" disabled={procesando === s.id} onClick={() => void resolver(s, true)}>{t("Aprobar nivel")}</Boton><Boton variante="peligro" disabled={procesando === s.id} onClick={() => void resolver(s, false)}>{t("Rechazar")}</Boton></div>}</td></tr>)}</tbody></table></div>}
         </Panel>
       </div>
     </div>
   </div>;
 }
 
-function Metrica({ titulo, valor, destacado = false }: { titulo: string; valor: number; destacado?: boolean }) { return <div className={`rounded-xl border p-3 ${destacado ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}><p className="text-[11px] font-semibold uppercase text-slate-500">{titulo}</p><p className={`mt-1 text-xl font-bold ${destacado ? 'text-emerald-700' : 'text-slate-900'}`}>{Number(valor || 0)}</p></div>; }
+function Metrica({ titulo, valor, destacado = false }: { titulo: string; valor: number; destacado?: boolean }) {
+  const t = useT(); return <div className={`rounded-xl border p-3 ${destacado ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}><p className="text-[11px] font-semibold uppercase text-slate-500">{t(titulo)}</p><p className={`mt-1 text-xl font-bold ${destacado ? 'text-emerald-700' : 'text-slate-900'}`}>{Number(valor || 0)}</p></div>; }
 function Estado({ estado }: { estado: string }) { const tono = estado === 'APROBADA' ? 'exito' : estado === 'RECHAZADA' ? 'peligro' : estado === 'EN_REVISION' ? 'alerta' : 'neutro'; const icono = estado === 'APROBADA' ? <CheckCircle2 className="h-3 w-3"/> : estado === 'RECHAZADA' ? <XCircle className="h-3 w-3"/> : <Clock3 className="h-3 w-3"/>; return <Distintivo tono={tono}><span className="inline-flex items-center gap-1">{icono}{estado.replaceAll('_',' ')}</span></Distintivo>; }

@@ -45,6 +45,7 @@ import {
 import { esRolAdministrador } from '@/lib/roles';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 // ── Tipos ───────────────────────────────────────────────────────────────────
 
 type Acceso = 'completo' | 'consulta' | 'ninguno';
@@ -121,8 +122,9 @@ function Selector({ valor, onChange, deshabilitado, minimo }: {
    */
   minimo?: boolean;
 }) {
+  const t = useT();
   const opciones: Array<{ id: Acceso; texto: string }> = [
-    { id: 'ninguno', texto: 'Sin acceso' },
+    { id: 'ninguno', texto: t("Sin acceso") },
     { id: 'consulta', texto: 'Solo consulta' },
     { id: 'completo', texto: 'Completo' },
   ];
@@ -137,7 +139,7 @@ function Selector({ valor, onChange, deshabilitado, minimo }: {
         const bloqueado = !!minimo && o.id === 'ninguno';
         return (
           <button key={o.id} type="button" disabled={deshabilitado || bloqueado}
-            title={bloqueado ? 'Este módulo es el trabajo propio del rol: se le puede quitar la escritura, no el acceso.' : undefined}
+            title={bloqueado ? t("Este módulo es el trabajo propio del rol: se le puede quitar la escritura, no el acceso.") : undefined}
             onClick={e => { e.stopPropagation(); if (!bloqueado) onChange(o.id); }}
             style={{
               padding: '5px 11px', borderRadius: 7, border: 'none',
@@ -149,7 +151,7 @@ function Selector({ valor, onChange, deshabilitado, minimo }: {
               boxShadow: activo ? '0 1px 3px rgba(15,23,42,.12)' : 'none',
               transition: 'all .15s',
             }}>
-            {o.texto}
+            {t(o.texto)}
           </button>
         );
       })}
@@ -176,6 +178,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
 // ── Pantalla ────────────────────────────────────────────────────────────────
 
 export default function PermisosPage() {
+  const t = useT();
   const [rol, setRol] = useState('');
   const [resumen, setResumen] = useState<IResumenRol[]>([]);
   const [modulos, setModulos] = useState<IModulo[]>([]);
@@ -273,7 +276,7 @@ export default function PermisosPage() {
       if (datos?.aviso) mostrarToast(datos.aviso, false);
       await Promise.all([cargarModulos(rol), cargarResumen()]);
     } else {
-      mostrarToast('No se pudieron guardar los accesos.', false);
+      mostrarToast(t("No se pudieron guardar los accesos."), false);
     }
   };
 
@@ -289,10 +292,10 @@ export default function PermisosPage() {
         await Promise.all([cargarModulos(rol), cargarResumen()]);
         mostrarToast(d.mensaje || 'Accesos sugeridos aplicados.', true);
       } else {
-        mostrarToast(d?.mensaje || 'Este rol no tiene accesos sugeridos.', false);
+        mostrarToast(d?.mensaje || t("Este rol no tiene accesos sugeridos."), false);
       }
     } catch {
-      mostrarToast('Error de conexión con el servidor.', false);
+      mostrarToast(t("Error de conexión con el servidor."), false);
     }
     setAplicando(false);
   };
@@ -302,11 +305,11 @@ export default function PermisosPage() {
     try {
       const res = await peticion(`/admin/permisos/sincronizar`, { method: 'POST', headers: h() });
       const d = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(d?.message || 'No fue posible sincronizar');
+      if (!res.ok) throw new Error(d?.message || t("No fue posible sincronizar"));
       await cargarModulos(rol);
       mostrarToast(`${d?.endpoints ?? 0} acciones sincronizadas.`, true);
     } catch (e: any) {
-      mostrarToast(e?.message || 'Error al sincronizar.', false);
+      mostrarToast(e?.message || t("Error al sincronizar."), false);
     }
     setSincronizando(false);
   };
@@ -340,7 +343,7 @@ export default function PermisosPage() {
     const res = await peticion(`/admin/permisos/rol/${encodeURIComponent(rol)}`, {
       method: 'PUT', headers: h(), body: JSON.stringify({ permisos: { [accion.id]: deseado } }),
     });
-    if (!res.ok) { mostrarToast('No se pudo cambiar esa acción.', false); return; }
+    if (!res.ok) { mostrarToast(t("No se pudo cambiar esa acción."), false); return; }
 
     const releido = await peticion(`/admin/permisos/rol/${encodeURIComponent(rol)}/modulo/${encodeURIComponent(moduloId)}`,
       { headers: h() },
@@ -370,7 +373,7 @@ export default function PermisosPage() {
     if (!r || resumen.some(x => x.rol.toLowerCase() === r)) return;
     setResumen(prev => [...prev, {
       rol: r, etiqueta: r, esAdministrador: false, tienePlantilla: false,
-      descripcion: 'Rol nuevo: todavía no tiene accesos. Elige sus módulos aquí abajo.',
+      descripcion: t("Rol nuevo: todavía no tiene accesos. Elige sus módulos aquí abajo."),
       usuarios: 0, accionesActivas: 0,
     }].sort((a, b) => a.rol.localeCompare(b.rol)));
     setRol(r); setNuevoRol(''); setCreandoRol(false);
@@ -378,7 +381,7 @@ export default function PermisosPage() {
 
   const cambiarRol = async (r: string) => {
     if (r === rol) return;
-    if (hayCambios && !await confirmarElegante('¿Descartar cambios y cambiar de rol?', { peligroso: true })) return;
+    if (hayCambios && !await confirmarElegante(t("¿Descartar cambios y cambiar de rol?"), { peligroso: true })) return;
     setRol(r);
   };
 
@@ -400,7 +403,7 @@ export default function PermisosPage() {
   if (cargando) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', flexDirection: 'column', gap: 16 }}>
       <Loader2 style={{ width: 32, height: 32, color: '#4f46e5', animation: 'spin 1s linear infinite' }}/>
-      <p style={{ color: '#64748b', fontSize: 13 }}>Cargando roles...</p>
+      <p style={{ color: '#64748b', fontSize: 13 }}>{t("Cargando roles...")}</p>
     </div>
   );
 
@@ -432,7 +435,7 @@ export default function PermisosPage() {
                 <Sparkles style={{ width: 22, height: 22, color: '#4f46e5' }}/>
               </div>
               <div>
-                <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', margin: 0 }}>Usar los módulos sugeridos</h3>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', margin: 0 }}>{t("Usar los módulos sugeridos")}</h3>
                 <p style={{ fontSize: 13, color: '#64748b', marginTop: 6, lineHeight: 1.55 }}>
                   Se reemplazará el acceso de <b>{rolActual?.etiqueta ?? rol}</b> por los módulos que le
                   corresponden a ese perfil, incluidos los que solo consulta. Lo que hayas ajustado a mano
@@ -443,11 +446,12 @@ export default function PermisosPage() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 24px', borderTop: '1px solid #f1f5f9', background: '#f8fafc', borderRadius: '0 0 18px 18px' }}>
               <button onClick={() => setConfirmPlantilla(false)}
                 style={{ padding: '9px 18px', border: 'none', background: 'transparent', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', borderRadius: 8 }}>
-                Cancelar
+                
+                {t("Cancelar")}
               </button>
               <button onClick={aplicarPlantilla}
                 style={{ padding: '9px 20px', border: 'none', background: 'linear-gradient(90deg,#4f46e5,#7c3aed)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Sparkles style={{ width: 15, height: 15 }}/> Sí, aplicar
+                <Sparkles style={{ width: 15, height: 15 }}/>  {t("Sí, aplicar")}
               </button>
             </div>
           </div>
@@ -460,10 +464,12 @@ export default function PermisosPage() {
         <div style={{ background: '#fff', border: '0.5px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', position: 'sticky', top: 16 }}>
           <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
             <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', color: '#94a3b8' }}>
-              Roles de la empresa
+              
+              {t("Roles de la empresa")}
             </p>
             <p style={{ fontSize: 12, color: '#64748b', marginTop: 4, lineHeight: 1.5 }}>
-              Cada usuario tiene uno. El rol decide qué módulos puede atender.
+              
+              {t("Cada usuario tiene uno. El rol decide qué módulos puede atender.")}
             </p>
           </div>
 
@@ -480,7 +486,7 @@ export default function PermisosPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     {r.esAdministrador && <Crown style={{ width: 13, height: 13, color: '#d97706', flexShrink: 0 }}/>}
                     <p style={{ fontSize: 13, fontWeight: 700, color: sel ? '#3730a3' : '#0f172a', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {r.etiqueta}
+                      {t(r.etiqueta)}
                     </p>
                     {r.usuarios > 0 && (
                       <span title={`${plural(r.usuarios, "usuario")} con este rol`} style={{
@@ -493,8 +499,8 @@ export default function PermisosPage() {
                   </div>
                   <p style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 2 }}>
                     {r.esAdministrador
-                      ? 'Acceso total'
-                      : r.accionesActivas === 0 ? 'Sin accesos configurados' : `${r.accionesActivas} acciones activas`}
+                      ? t("Acceso total")
+                      : r.accionesActivas === 0 ? t("Sin accesos configurados") : `${r.accionesActivas} acciones activas`}
                   </p>
                 </div>
               );
@@ -506,10 +512,10 @@ export default function PermisosPage() {
               <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 <input autoFocus value={nuevoRol} onChange={e => setNuevoRol(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') crearRol(); if (e.key === 'Escape') setCreandoRol(false); }}
-                  placeholder="nombre del rol"
+                  placeholder={t("nombre del rol")}
                   style={{ padding: '7px 10px', border: '1.5px solid #c7d2fe', borderRadius: 8, fontSize: 12, outline: 'none', flex: 1, minWidth: 0 }}/>
-                <button onClick={crearRol} style={{ padding: '7px 12px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Crear</button>
-                <button aria-label="Cerrar" title="Cerrar" onClick={() => setCreandoRol(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                <button onClick={crearRol} style={{ padding: '7px 12px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{t("Crear")}</button>
+                <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setCreandoRol(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
                   <X style={{ width: 14, height: 14, color: '#94a3b8' }}/>
                 </button>
               </div>
@@ -519,7 +525,7 @@ export default function PermisosPage() {
                 borderRadius: 8, fontSize: 12, color: '#64748b', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 600,
               }}>
-                <Plus style={{ width: 13, height: 13 }}/> Nuevo rol
+                <Plus style={{ width: 13, height: 13 }}/>  {t("Nuevo rol")}
               </button>
             )}
           </div>
@@ -538,16 +544,15 @@ export default function PermisosPage() {
                   {rolActual?.etiqueta ?? rol ?? '—'}
                 </h1>
                 <p style={{ color: '#64748b', fontSize: 12.5, marginTop: 5, maxWidth: 640, lineHeight: 1.5 }}>
-                  {rolActual?.descripcion}
+                  {t(rolActual?.descripcion)}
                 </p>
                 <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 6, fontFamily: 'monospace' }}>
-                  identificador: {rol}
-                </p>
+                  {t("identificador: {n0}", { n0: rol })}</p>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button type="button" onClick={sincronizar} disabled={sincronizando}
-                  title="Vuelve a descubrir las acciones que expone el servidor"
+                  title={t("Vuelve a descubrir las acciones que expone el servidor")}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 13px',
                     borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#475569',
@@ -570,7 +575,7 @@ export default function PermisosPage() {
                     {guardando
                       ? <Loader2 style={{ width: 14, height: 14, animation: 'spin 1s linear infinite' }}/>
                       : guardadoOk ? <Check style={{ width: 14, height: 14 }}/> : <Save style={{ width: 14, height: 14 }}/>}
-                    {guardadoOk ? 'Guardado' : hayCambios ? `Guardar ${tocados.size} ${tocados.size === 1 ? 'módulo' : 'módulos'}` : 'Sin cambios'}
+                    {guardadoOk ? t("Guardado") : hayCambios ? `Guardar ${tocados.size} ${tocados.size === 1 ? t("módulo") : t("módulos")}` : t("Sin cambios")}
                   </button>
                 )}
               </div>
@@ -582,24 +587,25 @@ export default function PermisosPage() {
                   <p style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
                     {conAcceso}<span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}> / {modulos.length}</span>
                   </p>
-                  <p style={{ fontSize: 11, color: '#94a3b8' }}>módulos que atiende</p>
+                  <p style={{ fontSize: 11, color: '#94a3b8' }}>{t("módulos que atiende")}</p>
                 </div>
                 <div>
                   <p style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
                     {accionesActivas}<span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}> / {totalAcciones}</span>
                   </p>
-                  <p style={{ fontSize: 11, color: '#94a3b8' }}>acciones activas</p>
+                  <p style={{ fontSize: 11, color: '#94a3b8' }}>{t("acciones activas")}</p>
                 </div>
                 <div>
                   <p style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>{rolActual?.usuarios ?? 0}</p>
                   <p style={{ fontSize: 11, color: '#94a3b8' }}>
-                    usuarios · <Link href="/dashboard/usuarios" style={{ color: '#4f46e5', fontWeight: 700 }}>asignar</Link>
+                    
+                    {t("usuarios ·")} <Link href="/dashboard/usuarios" style={{ color: '#4f46e5', fontWeight: 700 }}>{t("asignar")}</Link>
                   </p>
                 </div>
-                {hayCambios && <span style={{ fontSize: 12, color: '#b45309', fontWeight: 700 }}>● cambios sin guardar</span>}
+                {hayCambios && <span style={{ fontSize: 12, color: '#b45309', fontWeight: 700 }}>{t("● cambios sin guardar")}</span>}
                 <div style={{ marginLeft: 'auto' }}>
                   <button onClick={() => setConfirmPlantilla(true)} disabled={aplicando || !rolActual?.tienePlantilla}
-                    title={rolActual?.tienePlantilla ? 'Aplica los módulos típicos de este perfil' : 'Este rol no tiene un perfil sugerido'}
+                    title={rolActual?.tienePlantilla ? t("Aplica los módulos típicos de este perfil") : t("Este rol no tiene un perfil sugerido")}
                     style={{
                       padding: '9px 16px', borderRadius: 10, border: 'none',
                       background: rolActual?.tienePlantilla ? 'linear-gradient(90deg,#4f46e5,#7c3aed)' : '#e2e8f0',
@@ -621,8 +627,8 @@ export default function PermisosPage() {
                 marginTop: 16, padding: '12px 14px', borderRadius: 10, background: '#fffbeb',
                 border: '1px solid #fde68a', fontSize: 12.5, color: '#92400e', lineHeight: 1.55,
               }}>
-                Este rol no pasa por la tabla de permisos: el servidor lo reconoce como administrador
-                y lo deja entrar a todo. Por eso no hay nada que configurar aquí.
+                
+                {t("Este rol no pasa por la tabla de permisos: el servidor lo reconoce como administrador y lo deja entrar a todo. Por eso no hay nada que configurar aquí.")}
               </div>
             )}
           </div>
@@ -637,7 +643,7 @@ export default function PermisosPage() {
                 <p style={{
                   fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.6px',
                   color: '#94a3b8', margin: '4px 0 8px 2px',
-                }}>{grupo}</p>
+                }}>{t(grupo)}</p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {lista.map(m => {
@@ -667,26 +673,26 @@ export default function PermisosPage() {
 
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                              <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{m.nombre}</p>
+                              <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{t(m.nombre)}</p>
                               {m.sensible && (
-                                <span title="Da poder sobre el propio sistema. Concédelo a conciencia."
+                                <span title={t("Da poder sobre el propio sistema. Concédelo a conciencia.")}
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10,
                                     fontWeight: 700, color: '#b45309', background: '#fffbeb',
                                     border: '1px solid #fde68a', borderRadius: 20, padding: '1px 7px',
                                   }}>
-                                  <AlertTriangle style={{ width: 10, height: 10 }}/> sensible
+                                  <AlertTriangle style={{ width: 10, height: 10 }}/>  {t("sensible")}
                                 </span>
                               )}
                             </div>
                             <p style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2, lineHeight: 1.45 }}>
-                              {m.descripcion}
+                              {t(m.descripcion)}
                             </p>
                           </div>
 
                           {!esAdmin && <Selector valor={est} minimo={m.minimo} onChange={v => cambiarAcceso(m, v)}/>}
                           {esAdmin && (
-                            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#15803d' }}>Acceso completo</span>
+                            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#15803d' }}>{t("Acceso completo")}</span>
                           )}
                         </div>
 
@@ -695,11 +701,10 @@ export default function PermisosPage() {
                           borderTop: '1px solid #f4f7fa', background: '#fcfdfe', flexWrap: 'wrap',
                         }}>
                           <span style={{ fontSize: 11, fontWeight: 700, color: estilo.color }}>
-                            {est === 'parcial' ? '◎ Ajustado a mano' : estilo.etiqueta}
+                            {est === 'parcial' ? t("◎ Ajustado a mano") : estilo.etiqueta}
                           </span>
                           <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                            {m.activos} de {m.acciones} acciones · {m.accionesConsulta} de consulta
-                          </span>
+                            {t("{n0} de {n1} acciones · {n2} de consulta", { n0: m.activos, n1: m.acciones, n2: m.accionesConsulta })}</span>
                           {!esAdmin && (
                             <button onClick={() => abrirDetalle(m)}
                               style={{
@@ -716,8 +721,8 @@ export default function PermisosPage() {
                         {abierto && (
                           <div style={{ borderTop: '1px solid #eef2f7', background: '#f8fafc' }}>
                             <p style={{ fontSize: 10.5, color: '#94a3b8', padding: '8px 16px 4px', lineHeight: 1.5 }}>
-                              Acción por acción, para los casos raros. Se guarda al instante y deja el módulo
-                              marcado como «ajustado a mano».
+                              
+                              {t("Acción por acción, para los casos raros. Se guarda al instante y deja el módulo marcado como «ajustado a mano».")}
                             </p>
                             {!secciones ? (
                               <div style={{ padding: 16, display: 'flex', justifyContent: 'center' }}>
@@ -726,7 +731,7 @@ export default function PermisosPage() {
                             ) : secciones.map(sec => (
                               <div key={sec.clave} style={{ borderTop: '1px solid #eef2f7' }}>
                                 <p style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', padding: '8px 16px 2px' }}>
-                                  {sec.etiqueta}
+                                  {t(sec.etiqueta)}
                                 </p>
                                 {sec.acciones.map(a => {
                                   const nombre = accionDe(a.metodo);
@@ -740,8 +745,8 @@ export default function PermisosPage() {
                                       <span style={{
                                         fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
                                         background: c.bg, color: c.text, minWidth: 72, textAlign: 'center', flexShrink: 0,
-                                      }}>{nombre}</span>
-                                      <span style={{ fontSize: 12, color: '#475569', flex: 1, minWidth: 0 }}>{a.nombre}</span>
+                                      }}>{t(nombre)}</span>
+                                      <span style={{ fontSize: 12, color: '#475569', flex: 1, minWidth: 0 }}>{t(a.nombre)}</span>
                                       <span style={{ fontSize: 10.5, fontFamily: 'monospace', color: '#b0bac9' }}>
                                         {a.metodo} {a.ruta}
                                       </span>

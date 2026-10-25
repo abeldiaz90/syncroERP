@@ -53,6 +53,7 @@ import {
 import { solicitarTexto } from "@/components/ui/dialogos";
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface Discrepancia {
   id: string;
   fechaCorte: string;
@@ -150,6 +151,7 @@ const dinero = (n: number) =>
   }).format(Number(n) || 0);
 
 export default function ConciliacionCarteraPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [filtro, setFiltro] = useState("");
 
@@ -196,7 +198,7 @@ export default function ConciliacionCarteraPage() {
      */
     const revisadas =
       r.revisados === 1
-        ? "Revisada una entidad"
+        ? t("Revisada una entidad")
         : `Revisadas ${r.revisados} entidades`;
     avisar(
       r.discrepancias === 0
@@ -214,8 +216,8 @@ export default function ConciliacionCarteraPage() {
      * reconstruir meses después por qué se cerró, y nadie se acuerda.
      */
     const nota = await solicitarTexto(
-      "Di por qué se cierra. Queda escrito: es lo que alguien va a leer cuando pregunte por esta diferencia.",
-      { titulo: "Cerrar la diferencia", obligatorio: true },
+      t("Di por qué se cierra. Queda escrito: es lo que alguien va a leer cuando pregunte por esta diferencia."),
+      { titulo: t("Cerrar la diferencia"), obligatorio: true },
     );
     if (!nota || !nota.trim()) return;
     const r = await resolver.ejecutar(d.id, nota.trim());
@@ -227,15 +229,16 @@ export default function ConciliacionCarteraPage() {
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto">
       <EncabezadoPantalla
-        titulo="Conciliación de cartera"
-        descripcion="Compara la cartera del ERP con la del registro externo. Mientras haya diferencias abiertas, la empresa no puede ejercer autoridad sobre el core."
+        titulo={t("Conciliación de cartera")}
+        descripcion={t("Compara la cartera del ERP con la del registro externo. Mientras haya diferencias abiertas, la empresa no puede ejercer autoridad sobre el core.")}
         acciones={
           <Boton
             onClick={ejecutar}
             cargando={conciliar.ejecutando}
             icono={<RefreshCw className="w-4 h-4" />}
           >
-            Conciliar ahora
+            
+            {t("Conciliar ahora")}
           </Boton>
         }
       />
@@ -261,40 +264,40 @@ export default function ConciliacionCarteraPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
         <Indicador
-          etiqueta="Diferencias abiertas"
+          etiqueta={t("Diferencias abiertas")}
           valor={abiertas.datos?.length ?? 0}
           color={(abiertas.datos?.length ?? 0) > 0 ? "#dc2626" : "#059669"}
           cargando={abiertas.cargando}
           icono={<Scale className="w-4 h-4" />}
         />
         <Indicador
-          etiqueta="Sólo en el core"
+          etiqueta={t("Sólo en el core")}
           valor={soloEnExterno}
-          detalle="Clientes que el ERP no conoce"
+          detalle={t("Clientes que el ERP no conoce")}
           color={soloEnExterno > 0 ? "#d97706" : "#64748b"}
           cargando={abiertas.cargando}
           icono={<UserX className="w-4 h-4" />}
         />
         <Indicador
-          etiqueta="Último corte"
+          etiqueta={t("Último corte")}
           valor={
             abiertas.datos?.length
               ? fechaCorta(abiertas.datos[0].fechaCorte)
               : "—"
           }
-          detalle="La conciliación corre sola cada noche"
+          detalle={t("La conciliación corre sola cada noche")}
           cargando={abiertas.cargando}
           icono={<CheckCircle2 className="w-4 h-4" />}
         />
       </div>
 
       <Panel
-        titulo="Diferencias abiertas"
+        titulo={t("Diferencias abiertas")}
         accion={
           <input
             value={filtro}
             onChange={(e) => setFiltro(e.target.value)}
-            placeholder="Filtrar…"
+            placeholder={t("Filtrar…")}
             className="px-3 py-1.5 text-[13px] border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-100"
           />
         }
@@ -304,20 +307,20 @@ export default function ConciliacionCarteraPage() {
           <Cargando filas={4} />
         ) : abiertas.error ? (
           <ErrorPantalla
-            mensaje={abiertas.error}
+            mensaje={t(abiertas.error)}
             onReintentar={() => void abiertas.recargar()}
           />
         ) : lista.length === 0 ? (
           <SinDatos
             titulo={
               filtro
-                ? "Ninguna coincide con el filtro"
-                : "No hay diferencias abiertas"
+                ? t("Ninguna coincide con el filtro")
+                : t("No hay diferencias abiertas")
             }
             descripcion={
               filtro
                 ? `Hay ${abiertas.datos?.length ?? 0} diferencias; ninguna dice «${filtro}».`
-                : "La última conciliación no encontró diferencias entre la cartera del ERP y la del core. Corre sola cada noche."
+                : t("La última conciliación no encontró diferencias entre la cartera del ERP y la del core. Corre sola cada noche.")
             }
             icono={<CheckCircle2 className="w-8 h-8 text-emerald-500" />}
           />
@@ -339,7 +342,7 @@ export default function ConciliacionCarteraPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-[13.5px] font-semibold text-slate-800">
-                        {info.titulo}
+                        {t(info.titulo)}
                       </p>
                       <Distintivo tono={info.tono}>{d.concepto}</Distintivo>
                       <span className="text-[11.5px] text-slate-400">
@@ -353,12 +356,12 @@ export default function ConciliacionCarteraPage() {
                     )}
                     {d.detalle && (
                       <p className="text-[12.5px] text-slate-600 mt-1 leading-relaxed">
-                        {d.detalle}
+                        {t(d.detalle)}
                       </p>
                     )}
                     {info.queHacer && (
                       <p className="text-[12px] text-slate-500 mt-1.5 italic">
-                        {info.queHacer}
+                        {t(info.queHacer)}
                       </p>
                     )}
                     {/*
@@ -371,9 +374,7 @@ export default function ConciliacionCarteraPage() {
                       Number(d.valorExterno) !== 0) &&
                       d.concepto !== "SOLO_EN_EXTERNO" && (
                         <p className="text-[12px] text-slate-500 mt-1.5 font-mono">
-                          ERP {dinero(d.valorErp)} · core{" "}
-                          {dinero(d.valorExterno)}
-                        </p>
+                          {t("ERP {n0} · core{n1} {n2}", { n0: dinero(d.valorErp), n1: " ", n2: dinero(d.valorExterno) })}</p>
                       )}
                   </div>
                   <Boton
@@ -381,7 +382,8 @@ export default function ConciliacionCarteraPage() {
                     onClick={() => void cerrar(d)}
                     cargando={resolver.ejecutando}
                   >
-                    Cerrar
+                    
+                    {t("Cerrar")}
                   </Boton>
                 </div>
               );

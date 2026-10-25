@@ -17,6 +17,7 @@ import { api } from '@/lib/api';
 import { useDatos } from '@/hooks/use-datos';
 import { Cargando, EncabezadoPantalla, ErrorPantalla, Panel, SinDatos } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface DocumentoListado {
   id: string;
   titulo: string;
@@ -38,10 +39,11 @@ const FECHA = new Intl.DateTimeFormat('es-MX', {
 });
 
 export default function AyudaPage() {
+  const t = useT();
   const lista = useDatos<Respuesta>(() => api.get<Respuesta>('/documentacion'), []);
 
   if (lista.cargando) return <Cargando />;
-  if (lista.error) return <ErrorPantalla mensaje={lista.error} onReintentar={lista.recargar} />;
+  if (lista.error) return <ErrorPantalla mensaje={t(lista.error)} onReintentar={lista.recargar} />;
 
   const datos = lista.datos;
   const documentos = datos?.documentos ?? [];
@@ -49,8 +51,8 @@ export default function AyudaPage() {
   return (
     <div className="max-w-5xl">
       <EncabezadoPantalla
-        titulo="Ayuda y documentación"
-        descripcion="La documentación del sistema, tal como está en el repositorio. Se lee aquí o se descarga en PDF."
+        titulo={t("Ayuda y documentación")}
+        descripcion={t("La documentación del sistema, tal como está en el repositorio. Se lee aquí o se descarga en PDF.")}
       />
 
       {/*
@@ -63,9 +65,10 @@ export default function AyudaPage() {
             <FileText className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-[13px] text-slate-700">
               <p className="font-semibold text-slate-900 mb-1">
-                No se encontró la carpeta de documentación en el servidor.
+                
+                {t("No se encontró la carpeta de documentación en el servidor.")}
               </p>
-              <p className="text-slate-600">{datos.motivo}</p>
+              <p className="text-slate-600">{t(datos.motivo)}</p>
             </div>
           </div>
         </Panel>
@@ -73,8 +76,8 @@ export default function AyudaPage() {
 
       {documentos.length === 0 ? (
         <SinDatos
-          titulo="No hay documentos publicados"
-          descripcion="La documentación vive en la carpeta docs/ del repositorio del ERP."
+          titulo={t("No hay documentos publicados")}
+          descripcion={t("La documentación vive en la carpeta docs/ del repositorio del ERP.")}
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -88,21 +91,20 @@ export default function AyudaPage() {
                 <BookOpen className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-[14px] font-semibold text-slate-900">{d.titulo}</h3>
+                    <h3 className="text-[14px] font-semibold text-slate-900">{t(d.titulo)}</h3>
                     {d.restringido && (
                       <span
                         className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500"
-                        title="Documentación técnica: sólo la ve el administrador del sistema."
+                        title={t("Documentación técnica: sólo la ve el administrador del sistema.")}
                       >
-                        <Lock className="w-3 h-3" /> Técnica
+                        <Lock className="w-3 h-3" />  {t("Técnica")}
                       </span>
                     )}
                   </div>
-                  <p className="text-[12.5px] text-slate-600 mt-1 leading-relaxed">{d.resumen}</p>
+                  <p className="text-[12.5px] text-slate-600 mt-1 leading-relaxed">{t(d.resumen)}</p>
                   {d.actualizado && (
                     <p className="text-[11px] text-slate-400 mt-2">
-                      Actualizado el {FECHA.format(new Date(d.actualizado))}
-                    </p>
+                      {t("Actualizado el {n0}", { n0: FECHA.format(new Date(d.actualizado)) })}</p>
                   )}
                 </div>
               </div>

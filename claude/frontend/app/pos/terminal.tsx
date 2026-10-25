@@ -17,6 +17,7 @@ import { token as sesionToken } from '@/lib/sesion';
 import { EVENTO_VER_COMO, quienAtiende } from '@/lib/ver-como';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 const n   = (v: any): number => Number(v) || 0;
 /*
  * `maximumFractionDigits: 2` no es adorno: faltaba, y los importes de renglón se
@@ -129,6 +130,7 @@ interface ITurnoAbierto {
 }
 
 export default function TerminalPos() {
+  const t = useT();
   const BASE_URL = API_URL.replace(/\/api$/, '');
 
   const [busqueda,          setBusqueda]         = useState('');
@@ -499,7 +501,7 @@ export default function TerminalPos() {
        (nueva.listaPrecioId && nueva.listaPrecioId !== listaPrecioId)),
     );
     if (carrito.length > 0 && cambiaContexto) {
-      setErrorMsg('Vacía el carrito antes de cambiar de caja: ésta vende desde otro almacén o con otra lista de precios, y el stock y los precios ya fueron confirmados.');
+      setErrorMsg(t("Vacía el carrito antes de cambiar de caja: ésta vende desde otro almacén o con otra lista de precios, y el stock y los precios ya fueron confirmados."));
       setTimeout(() => setErrorMsg(''), 6000);
       return;
     }
@@ -561,7 +563,7 @@ export default function TerminalPos() {
   // ── Crear cliente al vuelo desde el POS ─────────────────────────
   const crearClienteRapido = async () => {
     setErrorCliente('');
-    if (!nuevoCliente.nombre.trim()) { setErrorCliente('El nombre es obligatorio'); return; }
+    if (!nuevoCliente.nombre.trim()) { setErrorCliente(t("El nombre es obligatorio")); return; }
     setGuardandoCliente(true);
     try {
       const d = await api.post<ICliente>('/clientes', {
@@ -579,7 +581,7 @@ export default function TerminalPos() {
         setNuevoCliente({ nombre: '', telefono: '', rfc: '', email: '' });
       }
     } catch (error) {
-      setErrorCliente(error instanceof ApiError ? error.mensajeParaPantalla() : 'No se pudo crear el cliente');
+      setErrorCliente(error instanceof ApiError ? error.mensajeParaPantalla() : t("No se pudo crear el cliente"));
     }
     setGuardandoCliente(false);
   };
@@ -648,15 +650,15 @@ export default function TerminalPos() {
       if (oficial.sinPrecio) {
         const nombreLista = listasPrecio.find(lista => lista.id === listaPrecioId)?.nombre;
         throw new Error(
-          `${prod.nombre} no tiene un precio mayor a cero${nombreLista ? ` en la lista "${nombreLista}"` : ' en la lista seleccionada'}. ` +
-          'Asígnalo en Catálogos → Listas de precio y vuelve a intentarlo.',
+          `${prod.nombre} no tiene un precio mayor a cero${nombreLista ? ` en la lista "${nombreLista}"` : t("en la lista seleccionada")}. ` +
+          t("Asígnalo en Catálogos → Listas de precio y vuelve a intentarlo."),
         );
       }
       precio = n(oficial.precioUnitario);
       tasaIVA = n(oficial.impuestoPorcentaje) / 100;
     } catch (error) {
       setErrorMsg(
-        error instanceof Error ? error.message : 'No se pudo consultar el precio',
+        error instanceof Error ? error.message : t("No se pudo consultar el precio"),
       );
       setTimeout(() => setErrorMsg(''), 6000);
       return;
@@ -752,25 +754,25 @@ export default function TerminalPos() {
   const procesarVenta = async () => {
     if (ventaEnCursoRef.current || !carrito.length) return;
     if (!almacenId) {
-      setErrorMsg('Configura y selecciona un almacén activo antes de vender.');
+      setErrorMsg(t("Configura y selecciona un almacén activo antes de vender."));
       return;
     }
     if (!listaPrecioId) {
-      setErrorMsg('Configura una lista de precios antes de vender.');
+      setErrorMsg(t("Configura una lista de precios antes de vender."));
       return;
     }
     if (['EFECTIVO', 'TARJETA', 'TRANSFERENCIA', 'CHEQUE', 'MSI_BANCO', 'OTRO'].includes(metodoPago) && !cuentaBancariaId) {
-      setErrorMsg('Selecciona la cuenta financiera o TPV que recibirá el cobro.');
+      setErrorMsg(t("Selecciona la cuenta financiera o TPV que recibirá el cobro."));
       return;
     }
     if (esCredito(metodoPago) && !productoCreditoId) {
-      setErrorMsg('Selecciona el producto de crédito con el que se vende.'); setTimeout(()=>setErrorMsg(''),5000); return;
+      setErrorMsg(t("Selecciona el producto de crédito con el que se vende.")); setTimeout(()=>setErrorMsg(''),5000); return;
     }
     if (esCredito(metodoPago) && !cliente) {
-      setErrorMsg('Para ventas a crédito debes seleccionar un cliente.'); setTimeout(()=>setErrorMsg(''),5000); return;
+      setErrorMsg(t("Para ventas a crédito debes seleccionar un cliente.")); setTimeout(()=>setErrorMsg(''),5000); return;
     }
     if (esCredito(metodoPago) && politicaCredito && !politicaCredito.puedeComprarCredito) {
-      setErrorMsg(politicaCredito.razonBloqueo || 'El cliente no tiene crédito disponible.'); return;
+      setErrorMsg(politicaCredito.razonBloqueo || t("El cliente no tiene crédito disponible.")); return;
     }
     ventaEnCursoRef.current = true;
     setProcesando(true);
@@ -859,7 +861,7 @@ export default function TerminalPos() {
             modo: 'NAVEGADOR',
             impreso: false,
             reimpresion: false,
-            motivo: 'No se pudo avisar a la impresora. Abre el ticket e imprímelo desde el navegador.',
+            motivo: t("No se pudo avisar a la impresora. Abre el ticket e imprímelo desde el navegador."),
           }),
         );
       /*
@@ -881,7 +883,7 @@ export default function TerminalPos() {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) {
         idempotenciaVentaRef.current = null;
       }
-      setErrorMsg(error instanceof ApiError ? error.mensajeParaPantalla() : 'No se pudo procesar la venta.');
+      setErrorMsg(error instanceof ApiError ? error.mensajeParaPantalla() : t("No se pudo procesar la venta."));
       setTimeout(()=>setErrorMsg(''),6000);
     }
     finally {
@@ -979,17 +981,16 @@ export default function TerminalPos() {
         <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
           <CheckCircle2 className="w-10 h-10 text-emerald-600"/>
         </div>
-        <h2 className="text-2xl font-black text-slate-800 mb-2">¡Venta Completada!</h2>
+        <h2 className="text-2xl font-black text-slate-800 mb-2">{t("¡Venta Completada!")}</h2>
         <p className="text-slate-500 mb-1">Ticket <span className="font-bold text-slate-700">#{ventaExitosa.folio}</span></p>
         {esCredito(metodoPago) && (
-          <p className="text-sm text-indigo-600 font-medium mt-1">Crédito generado en módulo de Cobranza</p>
+          <p className="text-sm text-indigo-600 font-medium mt-1">{t("Crédito generado en módulo de Cobranza")}</p>
         )}
         {/* Lo cobrado según el servidor, no según esta pantalla. */}
         <p className="text-4xl font-black text-emerald-600 my-6">${fmt(ventaExitosa.total)}</p>
         {saldoAplicado>0&&(
           <p className="text-xs text-slate-500 -mt-4 mb-6">
-            Se aplicaron ${fmt(saldoAplicado)} de saldo a favor
-          </p>
+            {t("Se aplicaron ${n0} de saldo a favor", { n0: fmt(saldoAplicado) })}</p>
         )}
 
         {/*
@@ -1000,22 +1001,23 @@ export default function TerminalPos() {
         {ventaExitosa.discrepancias.length > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-left">
             <p className="text-sm font-bold text-amber-800 mb-1">
-              El precio de catálogo era distinto al de la pantalla
+              
+              {t("El precio de catálogo era distinto al de la pantalla")}
             </p>
             <p className="text-xs text-amber-700 mb-2">
-              Se cobró el del catálogo. Avísale al cliente antes de cerrar.
+              
+              {t("Se cobró el del catálogo. Avísale al cliente antes de cerrar.")}
             </p>
             {ventaExitosa.discrepancias.map((d, i) => (
               <p key={i} className="text-xs text-amber-900">
-                {d.productoNombre}: se mostraba ${fmt(d.precioMostrado)}, se cobró ${fmt(d.precioReal)}
-              </p>
+                {t("{n0}: se mostraba ${n1}, se cobró ${n2}", { n0: d.productoNombre, n1: fmt(d.precioMostrado), n2: fmt(d.precioReal) })}</p>
             ))}
           </div>
         )}
 
         {ventaExitosa.recibido !== null && ventaExitosa.recibido - ventaExitosa.total >= 0 && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6">
-            <p className="text-sm text-emerald-700 font-medium">Cambio a entregar</p>
+            <p className="text-sm text-emerald-700 font-medium">{t("Cambio a entregar")}</p>
             <p className="text-3xl font-black text-emerald-700">
               ${fmt(ventaExitosa.recibido - ventaExitosa.total)}
             </p>
@@ -1024,10 +1026,10 @@ export default function TerminalPos() {
         {ventaExitosa.recibido !== null && ventaExitosa.recibido - ventaExitosa.total < 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
             <p className="text-sm font-bold text-amber-800">
-              Faltan ${fmt(ventaExitosa.total - ventaExitosa.recibido)} por cobrar
-            </p>
+              {t("Faltan ${n0} por cobrar", { n0: fmt(ventaExitosa.total - ventaExitosa.recibido) })}</p>
             <p className="text-xs text-amber-700">
-              El importe final fue mayor al que se mostraba en la pantalla.
+              
+              {t("El importe final fue mayor al que se mostraba en la pantalla.")}
             </p>
           </div>
         )}
@@ -1043,27 +1045,27 @@ export default function TerminalPos() {
           *                      siempre existe: abrir el ticket e imprimirlo.
           */}
         {impresion === null && (
-          <p className="text-xs text-slate-400 mb-3">Mandando el ticket a la impresora…</p>
+          <p className="text-xs text-slate-400 mb-3">{t("Mandando el ticket a la impresora…")}</p>
         )}
         {impresion?.impreso && (
           <p className="text-xs text-emerald-600 font-medium mb-3">
-            Ticket impreso{impresion.reimpresion ? ' (reimpresión)' : ''}.
-          </p>
+            {t("Ticket impreso{n0}.", { n0: impresion.reimpresion ? t("(reimpresión)") : '' })}</p>
         )}
         {impresion && !impresion.impreso && impresion.modo === 'RED' && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-left">
-            <p className="text-xs font-bold text-amber-800 mb-1">El ticket no salió</p>
-            <p className="text-xs text-amber-700">{impresion.motivo}</p>
+            <p className="text-xs font-bold text-amber-800 mb-1">{t("El ticket no salió")}</p>
+            <p className="text-xs text-amber-700">{t(impresion.motivo)}</p>
             <p className="text-xs text-amber-700 mt-1">
-              La venta quedó cobrada. Puedes abrir el ticket e imprimirlo desde el navegador.
+              
+              {t("La venta quedó cobrada. Puedes abrir el ticket e imprimirlo desde el navegador.")}
             </p>
           </div>
         )}
 
         <div className="flex gap-3">
-          <button onClick={()=>window.open(`/dashboard/ventas/${ventaExitosa.id}/ticket`,'_blank')}
+          <button onClick={()=>window.open(`/dashboard/ventas/${ventaExitosa.id}/ticket`,"_blank")}
             className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50">
-            <Receipt className="w-5 h-5"/> Ticket
+            <Receipt className="w-5 h-5"/>  {t("Ticket")}
           </button>
           {impresion?.modo === 'RED' && (
             <button
@@ -1078,14 +1080,14 @@ export default function TerminalPos() {
                   .catch(() => undefined)
                   .finally(() => setReimprimiendo(false));
               }}
-              title="Vuelve a mandar el ticket; saldrá marcado como reimpresión"
+              title={t("Vuelve a mandar el ticket; saldrá marcado como reimpresión")}
               className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-              <Printer className="w-5 h-5"/> {reimprimiendo ? 'Mandando…' : 'Reimprimir'}
+              <Printer className="w-5 h-5"/> {reimprimiendo ? t("Mandando…") : t("Reimprimir")}
             </button>
           )}
           <button onClick={limpiarCarrito}
             className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">
-            <RotateCcw className="w-5 h-5"/> Nueva Venta
+            <RotateCcw className="w-5 h-5"/>  {t("Nueva Venta")}
           </button>
         </div>
       </div>
@@ -1097,7 +1099,7 @@ export default function TerminalPos() {
       {errorMsg&&(
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-rose-600 text-white px-6 py-3 rounded-xl shadow-2xl font-bold flex items-center gap-3 max-w-lg text-sm">
           <AlertCircle className="w-5 h-5 shrink-0"/> {errorMsg}
-          <button aria-label="Cerrar el aviso de error" title="Cerrar el aviso de error" onClick={()=>setErrorMsg('')}><X className="w-4 h-4"/></button>
+          <button aria-label={t("Cerrar el aviso de error")} title={t("Cerrar el aviso de error")} onClick={()=>setErrorMsg('')}><X className="w-4 h-4"/></button>
         </div>
       )}
 
@@ -1107,9 +1109,9 @@ export default function TerminalPos() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"/>
             <input ref={searchRef} type="text" value={busqueda} onChange={e=>setBusqueda(e.target.value)}
-              placeholder="Buscar por nombre, SKU o código de barras..."
+              placeholder={t("Buscar por nombre, SKU o código de barras...")}
               className="w-full pl-10 pr-10 py-2.5 bg-slate-100 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white font-medium text-slate-800"/>
-            {busqueda&&<button aria-label="Limpiar la búsqueda" title="Limpiar la búsqueda" onClick={()=>{setBusqueda('');searchRef.current?.focus()}} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><X className="w-4 h-4"/></button>}
+            {busqueda&&<button aria-label={t("Limpiar la búsqueda")} title={t("Limpiar la búsqueda")} onClick={()=>{setBusqueda('');searchRef.current?.focus()}} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><X className="w-4 h-4"/></button>}
           </div>
           {/*
             * ──────────────────────────────────────────────────────────────────
@@ -1150,16 +1152,16 @@ export default function TerminalPos() {
           {almacenes.length>0&&(
             puedeElegirAlmacen&&almacenes.length>1 ? (
               <label className="flex flex-col gap-0.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">Almacén</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">{t("Almacén")}</span>
                 <select value={almacenId} onChange={e=>cambiarContextoVenta('almacén',e.target.value)}
-                  aria-label="Almacén del que sale la mercancía"
+                  aria-label={t("Almacén del que sale la mercancía")}
                   className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  {almacenes.map((a:any)=><option key={a.id} value={a.id}>{a.nombre}</option>)}
+                  {almacenes.map((a:any)=><option key={a.id} value={a.id}>{t(a.nombre)}</option>)}
                 </select>
               </label>
             ) : (
               <div className="flex flex-col gap-0.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">Almacén</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">{t("Almacén")}</span>
                 <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-600">
                   {almacenes.find((a:any)=>a.id===almacenId)?.nombre ?? '—'}
                 </div>
@@ -1169,16 +1171,16 @@ export default function TerminalPos() {
           {listasPrecio.length>0&&(
             puedeElegirLista&&listasPrecio.length>1 ? (
               <label className="flex flex-col gap-0.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">Lista de precios</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">{t("Lista de precios")}</span>
                 <select value={listaPrecioId} onChange={e=>cambiarContextoVenta('lista de precios',e.target.value)}
-                  aria-label="Lista de precios aplicable"
+                  aria-label={t("Lista de precios aplicable")}
                   className="max-w-48 px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  {listasPrecio.map(lista=><option key={lista.id} value={lista.id}>{lista.nombre}{lista.esPorDefecto?' · Predeterminada':''}</option>)}
+                  {listasPrecio.map(lista=><option key={lista.id} value={lista.id}>{t(lista.nombre)}{lista.esPorDefecto?t("· Predeterminada"):''}</option>)}
                 </select>
               </label>
             ) : (
               <div className="flex flex-col gap-0.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">Lista de precios</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">{t("Lista de precios")}</span>
                 <div className="max-w-48 truncate px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-600">
                   {listasPrecio.find(l=>l.id===listaPrecioId)?.nombre ?? '—'}
                 </div>
@@ -1190,15 +1192,15 @@ export default function TerminalPos() {
           {!busqueda.trim() ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400">
               <Barcode className="w-16 h-16 mb-4 text-slate-200"/>
-              <p className="text-lg font-bold text-slate-500">Busca un producto para comenzar</p>
-              <p className="text-sm mt-1">Escribe el nombre, SKU o escanea el código de barras</p>
+              <p className="text-lg font-bold text-slate-500">{t("Busca un producto para comenzar")}</p>
+              <p className="text-sm mt-1">{t("Escribe el nombre, SKU o escanea el código de barras")}</p>
             </div>
           ) : cargandoProds ? (
             <div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-500"/></div>
           ) : productos.length===0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400">
               <Package className="w-12 h-12 mb-3 text-slate-200"/>
-              <p className="font-bold text-slate-500">Sin resultados para "{busqueda}"</p>
+              <p className="font-bold text-slate-500">{t("Sin resultados para \"{n0}\"", { n0: busqueda })}</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -1211,12 +1213,12 @@ export default function TerminalPos() {
                     className={`relative bg-white rounded-xl border-2 p-3 text-left transition-all active:scale-95 ${agotado?'border-slate-100 opacity-50 cursor-not-allowed':enCarrito?'border-blue-400 shadow-md shadow-blue-100':'border-slate-200 hover:border-blue-300 hover:shadow-md cursor-pointer'}`}>
                     {enCarrito&&<span className="absolute -top-2 -right-2 w-6 h-6 bg-blue-600 text-white text-xs font-black rounded-full flex items-center justify-center z-10">{enCarrito.cantidad}</span>}
                     <div className="aspect-square bg-slate-100 rounded-lg mb-2 overflow-hidden">
-                      {img?<img src={`${BASE_URL}${img.url}`} alt={prod.nombre} className="w-full h-full object-cover"/>:<div className="w-full h-full flex items-center justify-center"><Package className="w-8 h-8 text-slate-300"/></div>}
+                      {img?<img src={`${BASE_URL}${img.url}`} alt={t(prod.nombre)} className="w-full h-full object-cover"/>:<div className="w-full h-full flex items-center justify-center"><Package className="w-8 h-8 text-slate-300"/></div>}
                     </div>
                     <p className="text-[10px] font-bold text-slate-400 truncate">{prod.sku}</p>
-                    <p className="text-xs font-bold text-slate-800 leading-tight line-clamp-2 mb-1">{prod.nombre}</p>
+                    <p className="text-xs font-bold text-slate-800 leading-tight line-clamp-2 mb-1">{t(prod.nombre)}</p>
                     <p className="text-sm font-black text-blue-600">${fmt(precio)}</p>
-                    <p className={`text-[10px] font-bold mt-0.5 ${agotado?'text-rose-500':'text-slate-400'}`}>{prod.tipo==='SERVICIO'?'Servicio · sin inventario':agotado?'Sin stock':`${n(prod.stockActual)} ${prod.unidadMedida||''}`}</p>
+                    <p className={`text-[10px] font-bold mt-0.5 ${agotado?'text-rose-500':'text-slate-400'}`}>{prod.tipo==='SERVICIO'?t("Servicio · sin inventario"):agotado?t("Sin stock"):`${n(prod.stockActual)} ${prod.unidadMedida||''}`}</p>
                   </button>
                 );
               })}
@@ -1232,14 +1234,14 @@ export default function TerminalPos() {
             <ShoppingCart className="w-5 h-5 text-blue-600"/>
             <span className="font-black text-slate-800">Carrito {carrito.length>0&&<span className="text-blue-600">({carrito.length})</span>}</span>
           </div>
-          {carrito.length>0&&<button onClick={limpiarCarrito} className="text-xs font-bold text-rose-500 hover:text-rose-700 flex items-center gap-1"><X className="w-3.5 h-3.5"/> Limpiar</button>}
+          {carrito.length>0&&<button onClick={limpiarCarrito} className="text-xs font-bold text-rose-500 hover:text-rose-700 flex items-center gap-1"><X className="w-3.5 h-3.5"/>  {t("Limpiar")}</button>}
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {carrito.length===0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-300 p-6">
               <ShoppingCart className="w-16 h-16 mb-3"/>
-              <p className="text-sm font-bold text-slate-400 text-center">El carrito está vacío.<br/>Busca y agrega productos.</p>
+              <p className="text-sm font-bold text-slate-400 text-center">{t("El carrito está vacío.")}<br/>{t("Busca y agrega productos.")}</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -1249,26 +1251,26 @@ export default function TerminalPos() {
                   <div key={item.productoId} className="px-4 py-3">
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1 min-w-0 mr-2">
-                        <p className="text-sm font-bold text-slate-800 leading-tight">{item.nombre}</p>
+                        <p className="text-sm font-bold text-slate-800 leading-tight">{t(item.nombre)}</p>
                         <p className="text-[10px] font-bold text-slate-400">{item.sku}</p>
                       </div>
-                      <button aria-label="Quitar el artículo del ticket" title="Quitar el artículo del ticket" onClick={()=>eliminarItem(item.productoId)} className="p-1 text-slate-300 hover:text-rose-500 rounded"><Trash2 className="w-4 h-4"/></button>
+                      <button aria-label={t("Quitar el artículo del ticket")} title={t("Quitar el artículo del ticket")} onClick={()=>eliminarItem(item.productoId)} className="p-1 text-slate-300 hover:text-rose-500 rounded"><Trash2 className="w-4 h-4"/></button>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
-                        <button aria-label="Quitar una unidad" title="Quitar una unidad" onClick={()=>actualizarCantidad(item.productoId,-1)} className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100"><Minus className="w-3.5 h-3.5"/></button>
+                        <button aria-label={t("Quitar una unidad")} title={t("Quitar una unidad")} onClick={()=>actualizarCantidad(item.productoId,-1)} className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100"><Minus className="w-3.5 h-3.5"/></button>
                         <span className="w-10 text-center text-sm font-black text-slate-800">{item.cantidad}</span>
-                        <button aria-label="Agregar una unidad" title="Agregar una unidad" onClick={()=>actualizarCantidad(item.productoId,1)} disabled={item.cantidad>=item.stockDisponible} className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-40"><Plus className="w-3.5 h-3.5"/></button>
+                        <button aria-label={t("Agregar una unidad")} title={t("Agregar una unidad")} onClick={()=>actualizarCantidad(item.productoId,1)} disabled={item.cantidad>=item.stockDisponible} className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-40"><Plus className="w-3.5 h-3.5"/></button>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-black text-slate-900">${fmt(itemTotal)}</p>
-                        <p className="text-[10px] text-slate-400">${fmt(item.precioUnitario)} c/u {item.tasaIVA>0&&`+IVA`}</p>
+                        <p className="text-[10px] text-slate-400">{t("${n0} c/u {n1}", { n0: fmt(item.precioUnitario), n1: item.tasaIVA>0&&t("+IVA") })}</p>
                       </div>
                     </div>
                     {n(topeDescuento)>0 && (
                       <div className="mt-2 flex items-center gap-2">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide whitespace-nowrap" htmlFor={`desc-${item.productoId}`}>
-                          Desc. $ <span className="text-slate-300">(máx {n(topeDescuento)}%)</span>
+                          Desc. $ <span className="text-slate-300">{t("(máx {n0}%)", { n0: n(topeDescuento) })}</span>
                         </label>
                         <input id={`desc-${item.productoId}`} type="number" min="0" max={descuentoMaximoDe(item)} step="0.01" value={item.descuento||''} onChange={e=>actualizarDescuento(item.productoId,e.target.value)}
                           className="w-full px-2 py-1 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700" placeholder="0.00"/>
@@ -1284,9 +1286,8 @@ export default function TerminalPos() {
                 */}
               {topeDescuento===0 && (
                 <p className="text-[10.5px] text-slate-400 leading-snug px-1">
-                  Los precios salen de la lista de precios vigente. Tu perfil no aplica
-                  descuentos en caja; si este cliente debe pagar menos, pide a Finanzas
-                  una lista de precios para él.
+                  
+                  {t("Los precios salen de la lista de precios vigente. Tu perfil no aplica descuentos en caja; si este cliente debe pagar menos, pide a Finanzas una lista de precios para él.")}
                 </p>
               )}
             </div>
@@ -1301,35 +1302,35 @@ export default function TerminalPos() {
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-blue-600"/>
                   <div>
-                    <p className="text-xs font-bold text-blue-800">{cliente.nombre}</p>
+                    <p className="text-xs font-bold text-blue-800">{t(cliente.nombre)}</p>
                     {cliente.rfc&&<p className="text-[10px] text-blue-600">{cliente.rfc}</p>}
                   </div>
                 </div>
-                <button aria-label="Quitar el cliente del ticket" title="Quitar el cliente del ticket" onClick={()=>setCliente(null)} className="text-blue-400 hover:text-blue-700"><X className="w-4 h-4"/></button>
+                <button aria-label={t("Quitar el cliente del ticket")} title={t("Quitar el cliente del ticket")} onClick={()=>setCliente(null)} className="text-blue-400 hover:text-blue-700"><X className="w-4 h-4"/></button>
               </div>
             ) : (
               <div className="relative">
-                <button aria-label="Buscar un cliente" title="Buscar un cliente" onClick={()=>setShowClienteSearch(!showClienteSearch)}
+                <button aria-label={t("Buscar un cliente")} title={t("Buscar un cliente")} onClick={()=>setShowClienteSearch(!showClienteSearch)}
                   className={`w-full flex items-center gap-2 px-3 py-2 border rounded-xl text-sm font-medium transition-colors bg-white ${esCredito(metodoPago)?'border-amber-400 text-amber-700 animate-pulse':'border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-600'}`}>
                   <Store className="w-4 h-4"/>
-                  <span>{esCredito(metodoPago)?'⚠ Selecciona un cliente (requerido)':'Público General'}</span>
+                  <span>{esCredito(metodoPago)?t("⚠ Selecciona un cliente (requerido)"):t("Público General")}</span>
                   <ChevronDown className="w-3.5 h-3.5 ml-auto"/>
                 </button>
                 {showClienteSearch&&(
                   <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20">
                     <div className="p-2 border-b border-slate-100">
                       <input type="text" value={busquedaCliente} onChange={e=>setBusquedaCliente(e.target.value)}
-                        placeholder="Buscar cliente..." className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" autoFocus/>
+                        placeholder={t("Buscar cliente...")} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" autoFocus/>
                     </div>
                     <div className="max-h-40 overflow-y-auto">
                       {clientes.map(c=>(
                         <button key={c.id} onClick={()=>{setCliente(c);setShowClienteSearch(false);setBusquedaCliente('');}}
                           className="w-full text-left px-3 py-2.5 text-sm hover:bg-blue-50 border-b border-slate-50 last:border-0">
-                          <p className="font-bold text-slate-800">{c.nombre}</p>
+                          <p className="font-bold text-slate-800">{t(c.nombre)}</p>
                           {c.rfc&&<p className="text-[10px] text-slate-400">{c.rfc}</p>}
                         </button>
                       ))}
-                      {busquedaCliente&&clientes.length===0&&<p className="px-3 py-3 text-xs text-slate-400 text-center">Sin resultados</p>}
+                      {busquedaCliente&&clientes.length===0&&<p className="px-3 py-3 text-xs text-slate-400 text-center">{t("Sin resultados")}</p>}
                     </div>
                     {/* Crear cliente al vuelo */}
                     <button
@@ -1340,7 +1341,7 @@ export default function TerminalPos() {
                         setShowClienteSearch(false);
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-blue-600 hover:bg-blue-50 border-t border-slate-100">
-                      <Plus className="w-4 h-4" /> Nuevo cliente
+                      <Plus className="w-4 h-4" />  {t("Nuevo cliente")}
                     </button>
                   </div>
                 )}
@@ -1352,14 +1353,14 @@ export default function TerminalPos() {
             <div className="mx-4 mb-3 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-xs space-y-2">
               {saldoFavor>0 && (
                 <label className="flex items-center justify-between gap-3 cursor-pointer">
-                  <span className="font-semibold text-cyan-900">Usar saldo a favor (${fmt(Math.min(saldoFavor,total))})</span>
+                  <span className="font-semibold text-cyan-900">{t("Usar saldo a favor (${n0})", { n0: fmt(Math.min(saldoFavor,total)) })}</span>
                   <input type="checkbox" checked={usarSaldoFavor} onChange={e=>setUsarSaldoFavor(e.target.checked)}
                     className="w-4 h-4 rounded text-cyan-600"/>
                 </label>
               )}
               {politicaCredito && (
                 <div className={politicaCredito.puedeComprarCredito?'text-indigo-800':'text-rose-700'}>
-                  <p className="font-bold">Crédito disponible: ${fmt(politicaCredito.disponible)} · plazo máximo {politicaCredito.diasCredito} días</p>
+                  <p className="font-bold">{t("Crédito disponible: ${n0} · plazo máximo {n1} días", { n0: fmt(politicaCredito.disponible), n1: politicaCredito.diasCredito })}</p>
                   {!politicaCredito.puedeComprarCredito && <p>{politicaCredito.razonBloqueo}</p>}
                 </div>
               )}
@@ -1372,16 +1373,18 @@ export default function TerminalPos() {
             <div className="flex mb-2 border border-slate-200 rounded-xl overflow-hidden">
               <button onClick={()=>{setMetodoSeccion('contado');setMetodoPago('EFECTIVO');setProductoCreditoId('')}}
                 className={`flex-1 py-1.5 text-xs font-bold transition-colors ${metodoPago==='EFECTIVO'||metodoPago==='TARJETA'||metodoPago==='TRANSFERENCIA'||metodoPago==='MSI_BANCO'?'bg-blue-600 text-white':'bg-white text-slate-500 hover:bg-slate-50'}`}>
-                Contado
+                
+                {t("Contado")}
               </button>
               <button onClick={()=>{
                   setMetodoSeccion('credito');
                   if (productosCredito[0]) elegirProducto(productosCredito[0]);
                 }}
                 disabled={productosCredito.length===0}
-                title={productosCredito.length===0 ? 'No hay productos de crédito vendibles. Configúralos en Crédito → Productos.' : undefined}
+                title={productosCredito.length===0 ? t("No hay productos de crédito vendibles. Configúralos en Crédito → Productos.") : undefined}
                 className={`flex-1 py-1.5 text-xs font-bold transition-colors ${esCredito(metodoPago)?'bg-indigo-600 text-white':'bg-white text-slate-500 hover:bg-slate-50'}`}>
-                Crédito
+                
+                {t("Crédito")}
               </button>
             </div>
 
@@ -1390,7 +1393,7 @@ export default function TerminalPos() {
                 {METODOS_CONTADO.map(m=>(
                   <button key={m.id} onClick={()=>setMetodoPago(m.id)}
                     className={`flex flex-col items-center gap-1 py-2 rounded-xl border-2 text-[10px] font-bold transition-all ${metodoPago===m.id?'border-blue-500 bg-blue-50 text-blue-700':'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
-                    <m.icon className="w-4 h-4"/> {m.label}
+                    <m.icon className="w-4 h-4"/> {t(m.label)}
                   </button>
                 ))}
               </div>
@@ -1411,11 +1414,11 @@ export default function TerminalPos() {
                       title={fuera ? `El cliente tiene ${n(politicaCredito?.diasCredito)} días de línea y este producto necesita ${plazoMin}.` : (p.descripcion ?? undefined)}
                       className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-2 text-[10px] font-bold transition-all disabled:opacity-40 ${productoCreditoId===p.id?'border-indigo-500 bg-indigo-50 text-indigo-700':'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
                       {aPlazos(p) ? <Calculator className="w-4 h-4"/> : <Calendar className="w-4 h-4"/>}
-                      <span className="text-center leading-tight">{p.nombre}</span>
+                      <span className="text-center leading-tight">{t(p.nombre)}</span>
                       <span className="font-normal text-[9px] text-slate-400">
                         {aPlazos(p)
-                          ? `${p.cuotasMinimas}-${p.cuotasMaximas} × ${p.cadaCuantos} ${p.unidadPlazo==='MESES'?'mes':'días'}`
-                          : `${p.cadaCuantos} ${p.unidadPlazo==='MESES'?'mes':'días'}`}
+                          ? `${p.cuotasMinimas}-${p.cuotasMaximas} × ${p.cadaCuantos} ${p.unidadPlazo==='MESES'?'mes':t("días")}`
+                          : `${p.cadaCuantos} ${p.unidadPlazo==='MESES'?'mes':t("días")}`}
                         {!p.sinInteres && ` · ${p.tasaInteresMensual}%`}
                       </span>
                     </button>
@@ -1423,7 +1426,8 @@ export default function TerminalPos() {
                 })}
                 {productosCredito.length===0&&(
                   <p className="col-span-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2">
-                    No hay productos de crédito vendibles. Configúralos en Crédito → Productos.
+                    
+                    {t("No hay productos de crédito vendibles. Configúralos en Crédito → Productos.")}
                   </p>
                 )}
               </div>
@@ -1435,7 +1439,7 @@ export default function TerminalPos() {
                 <div className="flex-1 relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
                   <input type="number" step="0.01" min={totalEfectivo} value={montoRecibido} onChange={e=>setMontoRecibido(e.target.value)}
-                    placeholder="Monto recibido" className="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"/>
+                    placeholder={t("Monto recibido")} className="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"/>
                 </div>
                 {cambio!==null&&<div className={`px-3 py-2 rounded-xl text-sm font-black text-center min-w-[80px] ${cambio>=0?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-700'}`}>{cambio>=0?`+$${fmt(cambio)}`:`-$${fmt(Math.abs(cambio))}`}</div>}
               </div>
@@ -1445,12 +1449,12 @@ export default function TerminalPos() {
             {aPlazos(productoSel)&&tablaAmort.length>0&&(
               <div className="mt-2 bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs">
                 <div className="flex justify-between font-bold text-indigo-800 mb-1">
-                  <span>{numeroCuotas} cuotas {sinInteres?'sin interés':`al ${tasaInteres}% mensual`}</span>
-                  <button onClick={()=>setModalCredito(true)} className="text-indigo-600 hover:underline flex items-center gap-0.5">Ver tabla <ChevronRight className="w-3 h-3"/></button>
+                  <span>{t("{n0} cuotas {n1}", { n0: numeroCuotas, n1: sinInteres?t("sin interés"):`al ${tasaInteres}% mensual` })}</span>
+                  <button onClick={()=>setModalCredito(true)} className="text-indigo-600 hover:underline flex items-center gap-0.5">{t("Ver tabla")} <ChevronRight className="w-3 h-3"/></button>
                 </div>
                 <div className="flex justify-between text-indigo-700">
-                  <span>Enganche: ${fmt(n(enganche))}</span>
-                  <span>Cuota: ${fmt(tablaAmort[0]?.montoCuota)}</span>
+                  <span>{t("Enganche: ${n0}", { n0: fmt(n(enganche)) })}</span>
+                  <span>{t("Cuota: ${n0}", { n0: fmt(tablaAmort[0]?.montoCuota) })}</span>
                 </div>
               </div>
             )}
@@ -1460,7 +1464,7 @@ export default function TerminalPos() {
               <div className="mt-2 bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-800">
                 <div className="flex items-center gap-2 font-bold">
                   <Clock className="w-3.5 h-3.5"/>
-                  Pago total en {productoSel.unidadPlazo==='MESES'?plural(productoSel.cadaCuantos,'mes','meses'):plural(productoSel.cadaCuantos,'día','días')}: <span className="text-base">${fmt(total-saldoAplicado)}</span>
+                  Pago total en {productoSel.unidadPlazo==='MESES'?plural(productoSel.cadaCuantos,'mes','meses'):plural(productoSel.cadaCuantos,t("día"),t("días"))}: <span className="text-base">${fmt(total-saldoAplicado)}</span>
                 </div>
                 {/*
                   * La fecha se toma de la tabla simulada, que es la que aplica la
@@ -1468,9 +1472,9 @@ export default function TerminalPos() {
                   * un sábado que el crédito no va a tener.
                   */}
                 {!!tablaAmort[0]&&(
-                  <div className="mt-0.5 font-semibold">Vence el {fechaCorta(tablaAmort[0].fechaVencimiento)}</div>
+                  <div className="mt-0.5 font-semibold">{t("Vence el {n0}", { n0: fechaCorta(tablaAmort[0].fechaVencimiento) })}</div>
                 )}
-                {!cliente&&<p className="text-amber-600 font-semibold mt-1">⚠ Selecciona un cliente para continuar</p>}
+                {!cliente&&<p className="text-amber-600 font-semibold mt-1">{t("⚠ Selecciona un cliente para continuar")}</p>}
               </div>
             )}
 
@@ -1479,13 +1483,13 @@ export default function TerminalPos() {
               <div className="mt-2">
                 <select value={cuentaBancariaId} onChange={e=>cambiarCaja(e.target.value)}
                   className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                  <option value="">— Cuenta bancaria —</option>
+                  <option value="">{t("— Cuenta bancaria —")}</option>
                   {cuentasBancarias.filter(c=>{
                     if(esCredito(metodoPago)||metodoPago==='EFECTIVO') return c.tipo==='CAJA';
                     if(metodoPago==='TARJETA'||metodoPago==='MSI_BANCO') return c.tipo==='TPV';
                     if(metodoPago==='TRANSFERENCIA') return c.tipo==='BANCO';
                     return true;
-                  }).map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  }).map(c=><option key={c.id} value={c.id}>{t(c.nombre)}</option>)}
                 </select>
                 {/*
                   DE QUIÉN ES ESTE CAJÓN
@@ -1502,28 +1506,31 @@ export default function TerminalPos() {
                     onClick={() => setVerLecturaCaja(true)}
                     className="mt-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 hover:underline"
                   >
-                    Ver cuánto debería haber en el cajón
+                    
+                    {t("Ver cuánto debería haber en el cajón")}
                   </button>
                 )}
                 {cajaElegida?.tipo==='CAJA' && turnoDeLaCaja && verLecturaCaja && (
                   <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-[11px] font-semibold text-slate-700">
-                        Lectura de caja · no cierra el turno
+                        
+                        {t("Lectura de caja · no cierra el turno")}
                       </p>
                       <button
                         type="button"
                         onClick={() => setVerLecturaCaja(false)}
                         className="shrink-0 text-[11px] font-medium text-slate-500 hover:text-slate-800 hover:underline"
                       >
-                        Ocultar
+                        
+                        {t("Ocultar")}
                       </button>
                     </div>
                     <dl className="mt-1 space-y-0.5 text-[11.5px]">
                       {([
-                        ['Fondo inicial', turnoDeLaCaja.fondoInicial],
-                        ['Entradas', turnoDeLaCaja.totalEntradas],
-                        ['Salidas', turnoDeLaCaja.totalSalidas],
+                        [t("Fondo inicial"), turnoDeLaCaja.fondoInicial],
+                        [t("Entradas"), turnoDeLaCaja.totalEntradas],
+                        [t("Salidas"), turnoDeLaCaja.totalSalidas],
                       ] as const).map(([rotulo, valor]) => (
                         <div key={rotulo} className="flex justify-between text-slate-500">
                           <dt>{rotulo}</dt>
@@ -1531,7 +1538,7 @@ export default function TerminalPos() {
                         </div>
                       ))}
                       <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-800">
-                        <dt>Debería haber</dt>
+                        <dt>{t("Debería haber")}</dt>
                         <dd className="font-mono">${fmt(n(turnoDeLaCaja.efectivoEsperado ?? 0))}</dd>
                       </div>
                     </dl>
@@ -1542,20 +1549,19 @@ export default function TerminalPos() {
                       sería la peor frase de esta pantalla.
                     */}
                     <p className="mt-1.5 text-[10.5px] leading-snug text-slate-500">
-                      Es lo que el sistema lleva registrado desde que se abrió el
-                      turno. Cuadrarlo contra el efectivo contado es el corte, y
-                      se hace en Tesorería → Caja, corte y arqueo.
+                      
+                      {t("Es lo que el sistema lleva registrado desde que se abrió el turno. Cuadrarlo contra el efectivo contado es el corte, y se hace en Tesorería → Caja, corte y arqueo.")}
                     </p>
                   </div>
                 )}
                 {cajaElegida?.tipo==='CAJA' && turnoDeLaCaja && (
                   <p className={`mt-1 text-[11px] leading-snug ${turnoDeOtro ? 'text-amber-700 font-semibold' : 'text-slate-500'}`}>
                     {turnoDeOtro ? '⚠ ' : ''}
-                    Turno abierto por {turnoDeLaCaja.usuarioAperturaNombre ?? 'alguien que no se pudo identificar'}
-                    {' · desde '}
+                    Turno abierto por {turnoDeLaCaja.usuarioAperturaNombre ?? t("alguien que no se pudo identificar")}
+                    {t("· desde")}
                     {new Date(turnoDeLaCaja.fechaApertura).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
                     {/* La hora en es-MX ya termina en «p. m.»: un punto más se lee como errata. */}
-                    {turnoDeOtro ? ' · Si tu efectivo va a otro cajón, elige tu caja antes de cobrar.' : ''}
+                    {turnoDeOtro ? t("· Si tu efectivo va a otro cajón, elige tu caja antes de cobrar.") : ''}
                   </p>
                 )}
               </div>
@@ -1564,14 +1570,14 @@ export default function TerminalPos() {
 
           {/* Totales */}
           <div className="px-4 pb-3 space-y-1 border-t border-slate-200 pt-3">
-            <div className="flex justify-between text-sm text-slate-500"><span>Subtotal</span><span className="font-semibold font-mono">${fmt(subtotal)}</span></div>
-            <div className="flex justify-between text-sm text-slate-500"><span>IVA</span><span className="font-semibold font-mono">${fmt(impuestos)}</span></div>
-            {saldoAplicado>0&&<div className="flex justify-between text-sm text-cyan-700"><span>Saldo a favor aplicado</span><span className="font-semibold font-mono">-${fmt(saldoAplicado)}</span></div>}
+            <div className="flex justify-between text-sm text-slate-500"><span>{t("Subtotal")}</span><span className="font-semibold font-mono">${fmt(subtotal)}</span></div>
+            <div className="flex justify-between text-sm text-slate-500"><span>{t("IVA")}</span><span className="font-semibold font-mono">${fmt(impuestos)}</span></div>
+            {saldoAplicado>0&&<div className="flex justify-between text-sm text-cyan-700"><span>{t("Saldo a favor aplicado")}</span><span className="font-semibold font-mono">-${fmt(saldoAplicado)}</span></div>}
             <div className="flex justify-between items-center border-t border-slate-200 pt-2 mt-2">
               <span className="text-base font-black text-slate-800">TOTAL</span>
               <span className="text-2xl font-black text-slate-900 tracking-tight">${fmt(total)}</span>
             </div>
-            {saldoAplicado>0&&<div className="flex justify-between font-bold text-sm text-slate-700"><span>RESTO A PAGAR</span><span>${fmt(totalEfectivo)}</span></div>}
+            {saldoAplicado>0&&<div className="flex justify-between font-bold text-sm text-slate-700"><span>{t("RESTO A PAGAR")}</span><span>${fmt(totalEfectivo)}</span></div>}
           </div>
 
           {/* Botón cobrar */}
@@ -1582,12 +1588,12 @@ export default function TerminalPos() {
             </button>
             {metodoPago==='EFECTIVO'&&!montoRecibido&&carrito.length>0&&(
               <p className="text-center text-xs text-amber-600 font-medium mt-2 flex items-center justify-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5"/> Ingresa el monto recibido para el cambio
+                <AlertCircle className="w-3.5 h-3.5"/>  {t("Ingresa el monto recibido para el cambio")}
               </p>
             )}
             {requiereCuenta&&!cuentaBancariaId&&carrito.length>0&&(
               <p className="text-center text-xs text-amber-600 font-medium mt-2 flex items-center justify-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5"/> Configura o selecciona la cuenta de cobro correspondiente
+                <AlertCircle className="w-3.5 h-3.5"/>  {t("Configura o selecciona la cuenta de cobro correspondiente")}
               </p>
             )}
             {/*
@@ -1598,17 +1604,17 @@ export default function TerminalPos() {
             */}
             {sinTurnoAbierto&&(
               <p className="text-center text-xs text-rose-600 font-medium mt-2 flex items-center justify-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5"/> Esta caja no tiene turno abierto: ábrelo en Tesorería → Caja, corte y arqueo antes de cobrar en efectivo.
+                <AlertCircle className="w-3.5 h-3.5"/>  {t("Esta caja no tiene turno abierto: ábrelo en Tesorería → Caja, corte y arqueo antes de cobrar en efectivo.")}
               </p>
             )}
             {faltaAlmacen&&(
               <p className="text-center text-xs text-rose-600 font-medium mt-2 flex items-center justify-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5"/> No hay almacén disponible para vender. Pídelo a tu administrador.
+                <AlertCircle className="w-3.5 h-3.5"/>  {t("No hay almacén disponible para vender. Pídelo a tu administrador.")}
               </p>
             )}
             {!listaPrecioId&&(
               <p className="text-center text-xs text-rose-600 font-medium mt-2 flex items-center justify-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5"/> No existe una lista de precios configurada
+                <AlertCircle className="w-3.5 h-3.5"/>  {t("No existe una lista de precios configurada")}
               </p>
             )}
           </div>
@@ -1622,27 +1628,27 @@ export default function TerminalPos() {
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="font-bold flex items-center gap-2">
                 <Calculator className="w-5 h-5 text-indigo-400"/>
-                {productoSel ? productoSel.nombre : 'Configurar Plan de Pagos'}
+                {productoSel ? productoSel.nombre : t("Configurar Plan de Pagos")}
                 {!!productoSel&&<span className="font-normal text-xs text-slate-400">{productoSel.codigo}</span>}
               </h2>
-              <button aria-label="Cerrar la ventana de crédito" title="Cerrar la ventana de crédito" onClick={()=>setModalCredito(false)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
+              <button aria-label={t("Cerrar la ventana de crédito")} title={t("Cerrar la ventana de crédito")} onClick={()=>setModalCredito(false)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-6 overflow-y-auto">
               {/* Configuración */}
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Total de la venta</label>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Total de la venta")}</label>
                   <p className="text-2xl font-black text-slate-900">${fmt(total)}</p>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Enganche ($)</label>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Enganche ($)")}</label>
                   <input type="number" min="0" max={total} value={enganche} onChange={e=>setEnganche(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
                     Número de cuotas
-                    {!!productoSel&&<span className="font-normal normal-case text-slate-400"> · de {productoSel.cuotasMinimas} a {productoSel.cuotasMaximas}</span>}
+                    {!!productoSel&&<span className="font-normal normal-case text-slate-400"> {t("· de {n0} a {n1}", { n0: productoSel.cuotasMinimas, n1: productoSel.cuotasMaximas })}</span>}
                   </label>
                   {/*
                     * Los atajos son los del producto, no [3,6,9,12] fijos: un
@@ -1661,15 +1667,14 @@ export default function TerminalPos() {
                     max={cuotasMaxPermitidas}
                     value={numeroCuotas}
                     onChange={e=>setNumeroCuotas(e.target.value)}
-                    className="w-full px-3 py-2 mt-1.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="O escribe un número"/>
+                    className="w-full px-3 py-2 mt-1.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder={t("O escribe un número")}/>
                   {!!productoSel&&cuotasMaxPermitidas<productoSel.cuotasMaximas&&(
                     <p className="mt-1 text-[11px] text-amber-700">
-                      La línea del cliente ({n(politicaCredito?.diasCredito)} días) no alcanza para las {productoSel.cuotasMaximas} cuotas del producto.
-                    </p>
+                      {t("La línea del cliente ({n0} días) no alcanza para las {n1} cuotas del producto.", { n0: n(politicaCredito?.diasCredito), n1: productoSel.cuotasMaximas })}</p>
                   )}
                   {fueraDeRango&&(
                     <p className="mt-1 text-[11px] text-rose-600 font-semibold">
-                      {productoSel?.nombre} admite de {productoSel?.cuotasMinimas} a {productoSel?.cuotasMaximas} cuotas.
+                      {t(productoSel?.nombre)} admite de {productoSel?.cuotasMinimas} a {productoSel?.cuotasMaximas} cuotas.
                     </p>
                   )}
                 </div>
@@ -1680,36 +1685,36 @@ export default function TerminalPos() {
                   */}
                 <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
                   <p className="text-sm font-bold text-slate-800">
-                    {sinInteres ? 'Sin intereses' : `${productoSel?.tasaInteresMensual ?? tasaInteres}% mensual`}
+                    {sinInteres ? t("Sin intereses") : `${productoSel?.tasaInteresMensual ?? tasaInteres}% mensual`}
                   </p>
                   <p className="text-xs text-slate-500">
                     {sinInteres
-                      ? 'La empresa absorbe el costo financiero. Lo define el producto.'
-                      : 'Tasa del producto, sobre saldos insolutos.'}
+                      ? t("La empresa absorbe el costo financiero. Lo define el producto.")
+                      : t("Tasa del producto, sobre saldos insolutos.")}
                   </p>
                 </div>
                 {!!productoSel?.tasaEditable&&!sinInteres&&(
                   <div>
                     <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
                       Tasa de interés mensual (%)
-                      <span className="font-normal normal-case text-slate-400"> · editable en este producto</span>
+                      <span className="font-normal normal-case text-slate-400">  {t("· editable en este producto")}</span>
                     </label>
                     <input type="number" min="0" step="0.1" value={tasaInteres} onChange={e=>setTasaInteres(e.target.value)}
                       className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
                   </div>
                 )}
                 <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs space-y-1 text-indigo-800">
-                  <div className="flex justify-between"><span>Capital financiado:</span><span className="font-bold">${fmt(total-saldoAplicado-n(enganche))}</span></div>
+                  <div className="flex justify-between"><span>{t("Capital financiado:")}</span><span className="font-bold">${fmt(total-saldoAplicado-n(enganche))}</span></div>
                   {tablaAmort.length>0&&<>
-                    <div className="flex justify-between"><span>Cuota mensual:</span><span className="font-bold">${fmt(tablaAmort[0]?.montoCuota)}</span></div>
-                    <div className="flex justify-between"><span>Total a pagar:</span><span className="font-bold">${fmt(tablaAmort.reduce((s,c)=>s+c.montoCuota,0)+n(enganche))}</span></div>
-                    {!sinInteres&&<div className="flex justify-between"><span>Total intereses:</span><span className="font-bold text-rose-600">${fmt(tablaAmort.reduce((s,c)=>s+c.montoInteres,0))}</span></div>}
+                    <div className="flex justify-between"><span>{t("Cuota mensual:")}</span><span className="font-bold">${fmt(tablaAmort[0]?.montoCuota)}</span></div>
+                    <div className="flex justify-between"><span>{t("Total a pagar:")}</span><span className="font-bold">${fmt(tablaAmort.reduce((s,c)=>s+c.montoCuota,0)+n(enganche))}</span></div>
+                    {!sinInteres&&<div className="flex justify-between"><span>{t("Total intereses:")}</span><span className="font-bold text-rose-600">${fmt(tablaAmort.reduce((s,c)=>s+c.montoInteres,0))}</span></div>}
                   </>}
                 </div>
               </div>
               {/* Tabla amortización */}
               <div>
-                <p className="text-xs font-bold uppercase text-slate-500 mb-2">Tabla de amortización</p>
+                <p className="text-xs font-bold uppercase text-slate-500 mb-2">{t("Tabla de amortización")}</p>
                 {cargandoAmort ? (
                   <div className="flex items-center justify-center h-32"><Loader2 className="w-6 h-6 animate-spin text-indigo-500"/></div>
                 ) : tablaAmort.length>0 ? (
@@ -1718,10 +1723,10 @@ export default function TerminalPos() {
                       <thead className="bg-slate-50 sticky top-0">
                         <tr>
                           <th className="px-3 py-2 text-left text-slate-500 font-bold">#</th>
-                          <th className="px-3 py-2 text-right text-slate-500 font-bold">Capital</th>
-                          {!sinInteres&&<th className="px-3 py-2 text-right text-slate-500 font-bold">Interés</th>}
-                          <th className="px-3 py-2 text-right text-slate-500 font-bold">Cuota</th>
-                          <th className="px-3 py-2 text-right text-slate-500 font-bold">Saldo</th>
+                          <th className="px-3 py-2 text-right text-slate-500 font-bold">{t("Capital")}</th>
+                          {!sinInteres&&<th className="px-3 py-2 text-right text-slate-500 font-bold">{t("Interés")}</th>}
+                          <th className="px-3 py-2 text-right text-slate-500 font-bold">{t("Cuota")}</th>
+                          <th className="px-3 py-2 text-right text-slate-500 font-bold">{t("Saldo")}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1738,15 +1743,15 @@ export default function TerminalPos() {
                     </table>
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-400 text-center py-8">Configura los parámetros para ver la tabla</p>
+                  <p className="text-sm text-slate-400 text-center py-8">{t("Configura los parámetros para ver la tabla")}</p>
                 )}
               </div>
             </div>
             <div className="flex gap-3 p-6 border-t border-slate-100 bg-slate-50 shrink-0">
-              <button onClick={()=>setModalCredito(false)} className="flex-1 py-2.5 text-slate-700 font-medium hover:bg-slate-200 rounded-xl">Cancelar</button>
+              <button onClick={()=>setModalCredito(false)} className="flex-1 py-2.5 text-slate-700 font-medium hover:bg-slate-200 rounded-xl">{t("Cancelar")}</button>
               <button onClick={()=>setModalCredito(false)}
                 className="flex-1 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 flex items-center justify-center gap-2">
-                <CheckCircle2 className="w-4 h-4"/> Confirmar plan
+                <CheckCircle2 className="w-4 h-4"/>  {t("Confirmar plan")}
               </button>
             </div>
           </div>
@@ -1760,9 +1765,9 @@ export default function TerminalPos() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                <User className="w-5 h-5 text-blue-500" /> Nuevo cliente
+                <User className="w-5 h-5 text-blue-500" />  {t("Nuevo cliente")}
               </h3>
-              <button aria-label="Cerrar sin crear el cliente" title="Cerrar sin crear el cliente" onClick={() => setShowNuevoCliente(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full">
+              <button aria-label={t("Cerrar sin crear el cliente")} title={t("Cerrar sin crear el cliente")} onClick={() => setShowNuevoCliente(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1771,46 +1776,47 @@ export default function TerminalPos() {
                 <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 text-xs text-rose-700">{errorCliente}</div>
               )}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Nombre *</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t("Nombre *")}</label>
                 <input autoFocus value={nuevoCliente.nombre}
                   onChange={e => setNuevoCliente(c => ({ ...c, nombre: e.target.value }))}
                   onKeyDown={e => { if (e.key === 'Enter') crearClienteRapido(); }}
-                  placeholder="Nombre del cliente"
+                  placeholder={t("Nombre del cliente")}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Teléfono</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t("Teléfono")}</label>
                   <input value={nuevoCliente.telefono}
                     onChange={e => setNuevoCliente(c => ({ ...c, telefono: e.target.value }))}
-                    placeholder="Opcional" maxLength={20}
+                    placeholder={t("Opcional")} maxLength={20}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">RFC</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t("RFC")}</label>
                   <input value={nuevoCliente.rfc}
                     onChange={e => setNuevoCliente(c => ({ ...c, rfc: e.target.value.toUpperCase() }))}
-                    placeholder="Opcional" maxLength={13}
+                    placeholder={t("Opcional")} maxLength={13}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Correo</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t("Correo")}</label>
                 <input value={nuevoCliente.email} type="email"
                   onChange={e => setNuevoCliente(c => ({ ...c, email: e.target.value }))}
-                  placeholder="Opcional"
+                  placeholder={t("Opcional")}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
             <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
               <button onClick={() => setShowNuevoCliente(false)} disabled={guardandoCliente}
                 className="px-4 py-2 text-sm text-slate-700 font-medium hover:bg-slate-200 rounded-lg disabled:opacity-50">
-                Cancelar
+                
+                {t("Cancelar")}
               </button>
               <button onClick={crearClienteRapido} disabled={guardandoCliente}
                 className="px-4 py-2 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">
                 {guardandoCliente ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                {guardandoCliente ? 'Creando…' : 'Crear y usar'}
+                {guardandoCliente ? t("Creando…") : t("Crear y usar")}
               </button>
             </div>
           </div>

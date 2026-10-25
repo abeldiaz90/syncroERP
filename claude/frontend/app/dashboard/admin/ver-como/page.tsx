@@ -35,6 +35,7 @@ import {
   type VerComo,
 } from '@/lib/ver-como';
 
+import { useT } from '@/components/I18nProvider';
 interface Candidato {
   id: string;
   nombreCompleto: string;
@@ -49,6 +50,7 @@ interface Estado {
 }
 
 export default function VerComoPage() {
+  const t = useT();
   const estado = useDatos<Estado>(() => api.get<Estado>('/iam/suplantacion'), []);
   const [actual, setActual] = useState<VerComo | null>(null);
 
@@ -80,19 +82,19 @@ export default function VerComoPage() {
 
   if (estado.cargando) return <Cargando />;
   if (estado.error)
-    return <ErrorPantalla mensaje={estado.error} onReintentar={estado.recargar} />;
+    return <ErrorPantalla mensaje={t(estado.error)} onReintentar={estado.recargar} />;
 
   const porRol = new Map<string, Candidato[]>();
   for (const c of lista.datos ?? []) {
-    const clave = c.rol || 'SIN ROL';
+    const clave = c.rol || t("SIN ROL");
     porRol.set(clave, [...(porRol.get(clave) ?? []), c]);
   }
 
   return (
     <div className="max-w-4xl">
       <EncabezadoPantalla
-        titulo="Ver el ERP como otra persona"
-        descripcion="Para comprobar qué ve y qué puede hacer cada rol sin tener que entrar trece veces."
+        titulo={t("Ver el ERP como otra persona")}
+        descripcion={t("Para comprobar qué ve y qué puede hacer cada rol sin tener que entrar trece veces.")}
       />
 
       {!habilitada && (
@@ -101,10 +103,11 @@ export default function VerComoPage() {
             <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-[13px] text-slate-600 leading-relaxed">
               <p className="font-semibold text-slate-800 mb-1">
-                Está desactivado en esta instalación.
+                
+                {t("Está desactivado en esta instalación.")}
               </p>
               <p>
-                Se enciende con <code>SUPLANTACION_HABILITADA=true</code> y sólo
+                Se enciende con <code>{t("SUPLANTACION_HABILITADA=true")}</code> y sólo
                 fuera de producción. Son dos candados y hacen falta los dos: en
                 una instalación productiva no se enciende aunque se ponga la
                 variable.
@@ -119,7 +122,7 @@ export default function VerComoPage() {
           <div className="flex items-center justify-between gap-4 p-4">
             <div className="text-[13px] text-slate-700">
               Estás viendo el ERP como{' '}
-              <b className="text-slate-900">{actual.nombre}</b>{' '}
+              <b className="text-slate-900">{t(actual.nombre)}</b>{' '}
               <span className="text-slate-500">({actual.rol})</span>. Lo que
               guardes queda registrado a tu nombre.
             </div>
@@ -128,7 +131,8 @@ export default function VerComoPage() {
               className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-[12.5px] font-medium text-slate-700 hover:bg-slate-50"
             >
               <EyeOff className="w-3.5 h-3.5" />
-              Volver a ser yo
+              
+              {t("Volver a ser yo")}
             </button>
           </div>
         </Panel>
@@ -136,11 +140,11 @@ export default function VerComoPage() {
 
       {habilitada && lista.cargando && <Cargando />}
       {habilitada && lista.error && (
-        <ErrorPantalla mensaje={lista.error} onReintentar={lista.recargar} />
+        <ErrorPantalla mensaje={t(lista.error)} onReintentar={lista.recargar} />
       )}
 
       {habilitada && !lista.cargando && !lista.error && porRol.size === 0 && (
-        <SinDatos titulo="No hay otras personas dadas de alta en esta empresa." />
+        <SinDatos titulo={t("No hay otras personas dadas de alta en esta empresa.")} />
       )}
 
       {[...porRol.entries()].map(([rol, gente]) => (
@@ -168,7 +172,7 @@ export default function VerComoPage() {
                   className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-[12.5px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  {actual?.id === c.id ? 'Lo estás viendo' : 'Ver como'}
+                  {actual?.id === c.id ? t("Lo estás viendo") : t("Ver como")}
                 </button>
               </li>
             ))}

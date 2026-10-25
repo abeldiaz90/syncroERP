@@ -4,6 +4,7 @@ import { peticion } from '@/lib/api';
 import { fechaCorta, diaISO, mesEnCurso } from '@/lib/fechas';
 import { Search, CheckCircle2, AlertCircle, Calendar, X, Printer } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 interface IBalanza {
   id: string; numeroCuenta: string; nombre: string;
   cargos: number; abonos: number; saldoFinal: number;
@@ -49,13 +50,14 @@ const rangosDeHoy = () => {
 const fmt$ = (n: number) => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(n);
 
 export default function BalanzaComprobacionPage() {
+  const t = useT();
   const [cuentas, setCuentas]         = useState<IBalanza[]>([]);
   const [cargando, setCargando]       = useState(true);
   const [busqueda, setBusqueda]       = useState('');
   const RANGOS = useMemo(rangosDeHoy, []);
   const [fechaDesde, setFechaDesde]   = useState(() => RANGOS[0].desde);
   const [fechaHasta, setFechaHasta]   = useState(() => RANGOS[0].hasta);
-  const [rangoActivo, setRangoActivo] = useState('Este mes');
+  const [rangoActivo, setRangoActivo] = useState(t("Este mes"));
   /*
     Una balanza vacía cuadra sola: cero cargos contra cero abonos. Como la
     consulta se hacía con `if (res.ok)` y sin `else`, cualquier fallo —un 403,
@@ -84,12 +86,12 @@ export default function BalanzaComprobacionPage() {
       } else {
         setCuentas([]);
         setError(res.status === 403
-          ? 'Tu perfil no incluye la consulta de la balanza.'
-          : 'No se pudo consultar la balanza. Los importes de esta pantalla no son válidos.');
+          ? t("Tu perfil no incluye la consulta de la balanza.")
+          : t("No se pudo consultar la balanza. Los importes de esta pantalla no son válidos."));
       }
     } catch {
       setCuentas([]);
-      setError('No hay conexión con el servidor. Los importes de esta pantalla no son válidos.');
+      setError(t("No hay conexión con el servidor. Los importes de esta pantalla no son válidos."));
     } finally { setCargando(false); }
   }, [api]);
 
@@ -115,7 +117,7 @@ export default function BalanzaComprobacionPage() {
     cuentas: filtradas.filter(c => c.numeroCuenta.startsWith(d)),
   })).filter(g => g.cuentas.length > 0);
 
-  const periodoLabel = rangoActivo === 'Histórico' ? 'Histórico completo'
+  const periodoLabel = rangoActivo === 'Histórico' ? t("Histórico completo")
     : `${fmtLabel(fechaDesde)} — ${fmtLabel(fechaHasta)}`;
 
   return (
@@ -124,8 +126,8 @@ export default function BalanzaComprobacionPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Reporte Financiero</p>
-          <h1 className="text-3xl font-black text-slate-900">Balanza de Comprobación</h1>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Reporte Financiero")}</p>
+          <h1 className="text-3xl font-black text-slate-900">{t("Balanza de Comprobación")}</h1>
           <p className="text-slate-500 text-sm mt-1">{periodoLabel}</p>
         </div>
         <div className="flex items-center gap-3">
@@ -143,14 +145,14 @@ export default function BalanzaComprobacionPage() {
           </div>
           <button onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 shadow-sm">
-            <Printer className="w-4 h-4" /> Imprimir
+            <Printer className="w-4 h-4" />  {t("Imprimir")}
           </button>
         </div>
       </div>
 
       {error && (
         <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          {error}
+          {t(error)}
         </div>
       )}
 
@@ -158,7 +160,7 @@ export default function BalanzaComprobacionPage() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
           <Calendar className="w-4 h-4 text-indigo-400" />
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Período</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{t("Período")}</span>
         </div>
         <div className="flex flex-wrap gap-2 mb-3">
           {RANGOS.map(r => (
@@ -167,29 +169,30 @@ export default function BalanzaComprobacionPage() {
                 rangoActivo === r.label
                   ? 'bg-indigo-600 text-white border-indigo-600'
                   : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300'
-              }`}>{r.label}</button>
+              }`}>{t(r.label)}</button>
           ))}
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Desde</label>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t("Desde")}</label>
             <input type="date" value={fechaDesde}
-              onChange={e => { setFechaDesde(e.target.value); setRangoActivo('Personalizado'); }}
+              onChange={e => { setFechaDesde(e.target.value); setRangoActivo(t("Personalizado")); }}
               className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Hasta</label>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t("Hasta")}</label>
             <input type="date" value={fechaHasta}
-              onChange={e => { setFechaHasta(e.target.value); setRangoActivo('Personalizado'); }}
+              onChange={e => { setFechaHasta(e.target.value); setRangoActivo(t("Personalizado")); }}
               className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
-          <button onClick={() => { setRangoActivo('Personalizado'); fetchBalanza(fechaDesde, fechaHasta); }}
+          <button onClick={() => { setRangoActivo(t("Personalizado")); fetchBalanza(fechaDesde, fechaHasta); }}
             className="px-4 py-1.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
-            Aplicar
+            
+            {t("Aplicar")}
           </button>
           {rangoActivo === 'Personalizado' && (
             <button onClick={() => aplicarRango(RANGOS[0])} className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600">
-              <X className="w-3 h-3" /> Limpiar
+              <X className="w-3 h-3" />  {t("Limpiar")}
             </button>
           )}
         </div>
@@ -198,7 +201,7 @@ export default function BalanzaComprobacionPage() {
       {/* Buscador */}
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input type="text" placeholder="Buscar por número o nombre de cuenta..." value={busqueda}
+        <input type="text" placeholder={t("Buscar por número o nombre de cuenta...")} value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
           className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm" />
       </div>
@@ -206,7 +209,7 @@ export default function BalanzaComprobacionPage() {
       {cargando ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-20 text-center">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-slate-400 text-sm">Calculando balanza...</p>
+          <p className="text-slate-400 text-sm">{t("Calculando balanza...")}</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -214,8 +217,8 @@ export default function BalanzaComprobacionPage() {
           {/* Cabecera documento */}
           <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
             <div>
-              <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">SyncroERP</p>
-              <p className="font-black uppercase tracking-wide">Balanza de Comprobación</p>
+              <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">{t("SyncroERP")}</p>
+              <p className="font-black uppercase tracking-wide">{t("Balanza de Comprobación")}</p>
             </div>
             <p className="text-sm text-slate-300">{periodoLabel}</p>
           </div>
@@ -226,18 +229,18 @@ export default function BalanzaComprobacionPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-100 text-xs uppercase tracking-wider font-bold text-slate-500">
-                  <th className="px-5 py-2.5 text-left">Cuenta</th>
-                  <th className="px-5 py-2.5 text-left">Nombre</th>
-                  <th className="px-5 py-2.5 text-right">Debe</th>
-                  <th className="px-5 py-2.5 text-right">Haber</th>
-                  <th className="px-5 py-2.5 text-right">Saldo</th>
+                  <th className="px-5 py-2.5 text-left">{t("Cuenta")}</th>
+                  <th className="px-5 py-2.5 text-left">{t("Nombre")}</th>
+                  <th className="px-5 py-2.5 text-right">{t("Debe")}</th>
+                  <th className="px-5 py-2.5 text-right">{t("Haber")}</th>
+                  <th className="px-5 py-2.5 text-right">{t("Saldo")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtradas.map(c => (
                   <tr key={c.id} className="hover:bg-slate-50">
                     <td className="px-5 py-2.5 font-mono font-bold text-indigo-600">{c.numeroCuenta}</td>
-                    <td className="px-5 py-2.5 text-slate-700">{c.nombre}</td>
+                    <td className="px-5 py-2.5 text-slate-700">{t(c.nombre)}</td>
                     <td className="px-5 py-2.5 text-right font-mono text-slate-600">{c.cargos > 0 ? fmt$(c.cargos) : '—'}</td>
                     <td className="px-5 py-2.5 text-right font-mono text-slate-600">{c.abonos > 0 ? fmt$(c.abonos) : '—'}</td>
                     <td className={`px-5 py-2.5 text-right font-mono font-bold ${c.saldoFinal > 0 ? 'text-indigo-700' : c.saldoFinal < 0 ? 'text-rose-600' : 'text-slate-400'}`}>
@@ -263,7 +266,7 @@ export default function BalanzaComprobacionPage() {
                           {g.digito}
                         </span>
                         <span className="text-xs font-black uppercase tracking-widest">{TIPO_LABEL[g.digito]}</span>
-                        <span className="text-xs text-slate-500">({g.cuentas.length} cuenta{g.cuentas.length>1?'s':''})</span>
+                        <span className="text-xs text-slate-500">{t("({n0} cuenta{n1})", { n0: g.cuentas.length, n1: g.cuentas.length>1?'s':'' })}</span>
                       </div>
                     </div>
                     {/* Filas de cuentas */}
@@ -272,7 +275,7 @@ export default function BalanzaComprobacionPage() {
                         {g.cuentas.map(c => (
                           <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                             <td className="pl-8 pr-4 py-2.5 font-mono text-xs text-indigo-500 w-20">{c.numeroCuenta}</td>
-                            <td className="px-4 py-2.5 text-slate-700 flex-1">{c.nombre}</td>
+                            <td className="px-4 py-2.5 text-slate-700 flex-1">{t(c.nombre)}</td>
                             <td className="px-4 py-2.5 text-right font-mono text-slate-500 w-36">
                               {c.cargos > 0 ? fmt$(c.cargos) : <span className="text-slate-200">—</span>}
                             </td>
@@ -288,8 +291,7 @@ export default function BalanzaComprobacionPage() {
                       <tfoot>
                         <tr className={`text-xs font-bold border-t border-slate-200 ${TIPO_BADGE[g.digito]}`}>
                           <td colSpan={2} className="pl-8 pr-4 py-2 uppercase tracking-wider">
-                            Subtotal {TIPO_LABEL[g.digito]}
-                          </td>
+                            {t("Subtotal {n0}", { n0: TIPO_LABEL[g.digito] })}</td>
                           <td className="px-4 py-2 text-right font-mono">{fmt$(totalG_cargos)}</td>
                           <td className="px-4 py-2 text-right font-mono">{fmt$(totalG_abonos)}</td>
                           <td className="px-5 py-2 text-right font-mono">{fmt$(totalG_saldo)}</td>
@@ -308,7 +310,7 @@ export default function BalanzaComprobacionPage() {
               <div className="flex-1">
                 {cuadrada
                   ? <div className="flex items-center gap-2 text-emerald-700 font-black text-sm uppercase tracking-widest">
-                      <CheckCircle2 className="w-4 h-4" /> Sumas Iguales — Contabilidad Cuadrada
+                      <CheckCircle2 className="w-4 h-4" />  {t("Sumas Iguales — Contabilidad Cuadrada")}
                     </div>
                   : <div className="flex items-center gap-2 text-rose-700 font-black text-sm uppercase tracking-widest">
                       <AlertCircle className="w-4 h-4" /> Descuadrado — Diferencia: {fmt$(Math.abs(totalCargos - totalAbonos))}
@@ -317,11 +319,11 @@ export default function BalanzaComprobacionPage() {
               </div>
               <div className="flex gap-8 text-right">
                 <div>
-                  <p className="text-[10px] font-bold uppercase text-slate-500 mb-0.5">Total Debe</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-500 mb-0.5">{t("Total Debe")}</p>
                   <p className="font-mono font-black text-slate-900">{fmt$(totalCargos)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase text-slate-500 mb-0.5">Total Haber</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-500 mb-0.5">{t("Total Haber")}</p>
                   <p className="font-mono font-black text-slate-900">{fmt$(totalAbonos)}</p>
                 </div>
               </div>
@@ -330,7 +332,7 @@ export default function BalanzaComprobacionPage() {
 
           {/* Footer */}
           <div className="border-t border-slate-100 px-6 py-3 bg-slate-50 flex justify-between">
-            <p className="text-xs text-slate-400">SyncroERP — Generado automáticamente</p>
+            <p className="text-xs text-slate-400">{t("SyncroERP — Generado automáticamente")}</p>
             <p className="text-xs text-slate-400">{new Date().toLocaleString('es-MX')}</p>
           </div>
         </div>

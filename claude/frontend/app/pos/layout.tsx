@@ -32,7 +32,9 @@ import { verComoActual } from '@/lib/ver-como';
 import { esRolAdministrador } from '@/lib/roles';
 import { api, rutaDeAccesoConRegreso } from '@/lib/api';
 
+import { useT } from '@/components/I18nProvider';
 export default function PosLayout({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const router = useRouter();
   const [estado, setEstado] = useState<'cargando' | 'dentro' | 'sin-acceso' | 'sin-respuesta'>('cargando');
 
@@ -105,17 +107,18 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="h-screen grid place-items-center bg-slate-900 px-6">
         <div className="max-w-sm text-center">
-          <p className="text-lg font-bold text-white mb-2">No pudimos consultar tu perfil</p>
+          <p className="text-lg font-bold text-white mb-2">{t("No pudimos consultar tu perfil")}</p>
           <p className="text-sm text-white/70 mb-5">
-            No es que te falte la caja: no se pudo preguntar al servidor. Suele
-            ser momentáneo. Vuelve a intentarlo en unos segundos.
+            
+            {t("No es que te falte la caja: no se pudo preguntar al servidor. Suele ser momentáneo. Vuelve a intentarlo en unos segundos.")}
           </p>
           <button
             type="button"
             onClick={() => window.location.reload()}
             className="px-4 py-2 rounded-xl bg-white text-slate-900 text-sm font-bold"
           >
-            Reintentar
+            
+            {t("Reintentar")}
           </button>
         </div>
       </div>
@@ -126,16 +129,17 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="h-screen grid place-items-center bg-slate-900 px-6">
         <div className="max-w-sm text-center">
-          <p className="text-lg font-bold text-white mb-2">Tu perfil no incluye la caja</p>
+          <p className="text-lg font-bold text-white mb-2">{t("Tu perfil no incluye la caja")}</p>
           <p className="text-sm text-slate-300 mb-6">
-            Para cobrar hace falta el módulo de ventas. Pídeselo al administrador desde
-            Administración → Roles y permisos.
+            
+            {t("Para cobrar hace falta el módulo de ventas. Pídeselo al administrador desde Administración → Roles y permisos.")}
           </p>
           <button
             onClick={() => window.close()}
             className="px-4 py-2 rounded-xl bg-white/10 text-white text-sm font-semibold hover:bg-white/20"
           >
-            Cerrar la ventana
+            
+            {t("Cerrar la ventana")}
           </button>
         </div>
       </div>

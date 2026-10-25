@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Printer, FileText, ChevronLeft, Building2, Calendar, FileBox } from 'lucide-react';
 import { FOLIO, folioDe } from '@/lib/folios';
 
+import { useT } from '@/components/I18nProvider';
 // ==========================================
 // INTERFACES TYPESCRIPT
 // ==========================================
@@ -42,6 +43,7 @@ export interface ICotizacion {
 // COMPONENTE PRINCIPAL
 // ==========================================
 export default function PdfCotizacionPage() {
+  const t = useT();
   const params = useParams();
   const id = params?.id;
   const cotizacionId = Array.isArray(id) ? id[0] : id;
@@ -72,7 +74,7 @@ export default function PdfCotizacionPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
         <FileText className="w-10 h-10 text-indigo-500 animate-pulse mb-4" />
-        <p className="text-slate-500 font-medium text-lg">Preparando documento comercial...</p>
+        <p className="text-slate-500 font-medium text-lg">{t("Preparando documento comercial...")}</p>
       </div>
     );
   }
@@ -87,14 +89,16 @@ export default function PdfCotizacionPage() {
           className="flex items-center gap-2 px-4 py-2 bg-white text-slate-600 rounded-lg hover:bg-slate-50 hover:text-indigo-600 font-medium transition-colors border border-slate-200 shadow-sm"
         >
           <ChevronLeft className="w-4 h-4" />
-          Volver a Cotizaciones
+          
+          {t("Volver a Cotizaciones")}
         </Link>
         <button
           onClick={() => window.print()}
           className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold transition-all shadow-md shadow-indigo-200 active:scale-95"
         >
           <Printer className="w-5 h-5" />
-          Imprimir / Exportar a PDF
+          
+          {t("Imprimir / Exportar a PDF")}
         </button>
       </div>
 
@@ -108,12 +112,12 @@ export default function PdfCotizacionPage() {
             <div className="w-16 h-16 bg-indigo-600 rounded-xl flex items-center justify-center mb-4 print:bg-slate-900">
               <FileBox className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">Cotización</h1>
-            <p className="text-slate-500 font-medium mt-1">Documento comercial interno</p>
+            <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">{t("Cotización")}</h1>
+            <p className="text-slate-500 font-medium mt-1">{t("Documento comercial interno")}</p>
           </div>
           
           <div className="text-right mt-6 md:mt-0">
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Folio</p>
+            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">{t("Folio")}</p>
             <p className="text-3xl font-black text-indigo-600 print:text-slate-900">
               {folioDe(cotizacion, FOLIO.COTIZACION)}
             </p>
@@ -130,29 +134,30 @@ export default function PdfCotizacionPage() {
           {/* Datos del Proveedor */}
           <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 print:border-slate-300 print:bg-transparent">
             <h4 className="text-xs font-bold text-indigo-600 print:text-slate-900 uppercase tracking-widest mb-3 flex items-center gap-2">
-              <Building2 className="w-4 h-4" /> Proveedor Seleccionado
+              <Building2 className="w-4 h-4" />  {t("Proveedor Seleccionado")}
             </h4>
             <p className="font-bold text-slate-900 text-xl leading-tight mb-2">
-              {cotizacion.proveedor?.nombre || 'Proveedor no especificado'}
+              {cotizacion.proveedor?.nombre || t("Proveedor no especificado")}
             </p>
             <div className="space-y-1 text-sm text-slate-600">
-              {cotizacion.proveedor?.rfc && <p><strong className="text-slate-800">RFC:</strong> {cotizacion.proveedor.rfc}</p>}
-              {cotizacion.proveedor?.contactoNombre && <p><strong className="text-slate-800">Atención a:</strong> {cotizacion.proveedor.contactoNombre}</p>}
-              {cotizacion.proveedor?.telefono && <p><strong className="text-slate-800">Teléfono:</strong> {cotizacion.proveedor.telefono}</p>}
+              {cotizacion.proveedor?.rfc && <p><strong className="text-slate-800">{t("RFC:")}</strong> {cotizacion.proveedor.rfc}</p>}
+              {cotizacion.proveedor?.contactoNombre && <p><strong className="text-slate-800">{t("Atención a:")}</strong> {cotizacion.proveedor.contactoNombre}</p>}
+              {cotizacion.proveedor?.telefono && <p><strong className="text-slate-800">{t("Teléfono:")}</strong> {cotizacion.proveedor.telefono}</p>}
             </div>
           </div>
           
           {/* Datos de Referencia Interna */}
           <div className="flex flex-col justify-center items-end text-right p-6">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Documento Origen</h4>
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{t("Documento Origen")}</h4>
             {cotizacion.requisicion ? (
               <>
-                <p className="font-medium text-slate-600">Basado en Requisición:</p>
+                <p className="font-medium text-slate-600">{t("Basado en Requisición:")}</p>
                 <p className="font-black text-2xl text-slate-800 mt-1">{folioDe(cotizacion.requisicion, FOLIO.REQUISICION)}</p>
               </>
             ) : (
               <p className="font-bold text-slate-500 italic bg-slate-100 px-4 py-2 rounded-lg print:bg-transparent print:border">
-                Cotización directa (Sin Requisición)
+                
+                {t("Cotización directa (Sin Requisición)")}
               </p>
             )}
           </div>
@@ -163,10 +168,10 @@ export default function PdfCotizacionPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-900 text-white print:bg-slate-200 print:text-slate-900 print:border-b-2 print:border-slate-900">
-                <th className="p-4 font-bold uppercase text-xs tracking-wider">Descripción</th>
-                <th className="p-4 text-center font-bold uppercase text-xs tracking-wider w-24">Cant.</th>
-                <th className="p-4 text-right font-bold uppercase text-xs tracking-wider w-32">Precio Unit.</th>
-                <th className="p-4 text-right font-bold uppercase text-xs tracking-wider w-40">Importe</th>
+                <th className="p-4 font-bold uppercase text-xs tracking-wider">{t("Descripción")}</th>
+                <th className="p-4 text-center font-bold uppercase text-xs tracking-wider w-24">{t("Cant.")}</th>
+                <th className="p-4 text-right font-bold uppercase text-xs tracking-wider w-32">{t("Precio Unit.")}</th>
+                <th className="p-4 text-right font-bold uppercase text-xs tracking-wider w-40">{t("Importe")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -186,7 +191,8 @@ export default function PdfCotizacionPage() {
               ) : (
                 <tr>
                   <td colSpan={4} className="p-8 text-center text-slate-500 italic">
-                    No hay partidas registradas en esta cotización.
+                    
+                    {t("No hay partidas registradas en esta cotización.")}
                   </td>
                 </tr>
               )}
@@ -200,13 +206,14 @@ export default function PdfCotizacionPage() {
           {/* Notas Comerciales (Ocupa 7 columnas) */}
           <div className="md:col-span-7">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-200 pb-2">
-              Condiciones y Notas
+              
+              {t("Condiciones y Notas")}
             </h4>
             <div className="text-sm text-slate-600 italic bg-slate-50 p-5 rounded-xl border border-slate-100 print:bg-transparent print:border-slate-300 min-h-[100px]">
               {cotizacion.notas ? (
                 <p className="whitespace-pre-wrap">{cotizacion.notas}</p>
               ) : (
-                <p className="text-slate-400">No se adjuntaron condiciones adicionales a esta cotización.</p>
+                <p className="text-slate-400">{t("No se adjuntaron condiciones adicionales a esta cotización.")}</p>
               )}
             </div>
           </div>
@@ -216,15 +223,15 @@ export default function PdfCotizacionPage() {
             <div className="bg-slate-50 rounded-xl p-6 border border-slate-100 print:bg-transparent print:border-slate-400">
               <div className="space-y-3">
                 <div className="flex justify-between text-slate-600 font-medium">
-                  <span>Subtotal</span>
+                  <span>{t("Subtotal")}</span>
                   <span className="font-mono">${cotizacion.subtotal?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between text-slate-600 font-medium">
-                  <span>I.V.A. (16%)</span>
+                  <span>{t("I.V.A. (16%)")}</span>
                   <span className="font-mono">${cotizacion.impuestoTotal?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="pt-4 border-t-2 border-slate-200 print:border-slate-400 flex justify-between items-center mt-2">
-                  <span className="text-sm font-black text-slate-900 uppercase tracking-wider">Total Final</span>
+                  <span className="text-sm font-black text-slate-900 uppercase tracking-wider">{t("Total Final")}</span>
                   <span className="text-2xl font-black text-indigo-600 print:text-slate-900">
                     ${cotizacion.total?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                   </span>
@@ -238,12 +245,12 @@ export default function PdfCotizacionPage() {
         {/* Bloque de Firmas para Impresión */}
         <div className="mt-32 grid grid-cols-2 gap-16 px-8 print:mt-40 break-inside-avoid">
           <div className="text-center border-t border-slate-400 pt-3">
-            <p className="text-xs font-bold text-slate-800 uppercase tracking-widest">Aprobación de Compras</p>
-            <p className="text-xs text-slate-500 mt-1">Nombre y Firma</p>
+            <p className="text-xs font-bold text-slate-800 uppercase tracking-widest">{t("Aprobación de Compras")}</p>
+            <p className="text-xs text-slate-500 mt-1">{t("Nombre y Firma")}</p>
           </div>
           <div className="text-center border-t border-slate-400 pt-3">
-            <p className="text-xs font-bold text-slate-800 uppercase tracking-widest">Aprobación de Finanzas</p>
-            <p className="text-xs text-slate-500 mt-1">Nombre y Firma</p>
+            <p className="text-xs font-bold text-slate-800 uppercase tracking-widest">{t("Aprobación de Finanzas")}</p>
+            <p className="text-xs text-slate-500 mt-1">{t("Nombre y Firma")}</p>
           </div>
         </div>
 

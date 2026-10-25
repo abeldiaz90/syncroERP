@@ -14,6 +14,7 @@ import {
 
 import { api, ApiError } from '@/lib/api';
 
+import { useT } from '@/components/I18nProvider';
 type ClienteVenta = {
   id: string;
   nombre: string;
@@ -51,6 +52,7 @@ const FORMULARIO_INICIAL = {
 };
 
 export default function FacturarVentaPage() {
+  const t = useT();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const ventaId = params.id;
@@ -92,7 +94,7 @@ export default function FacturarVentaPage() {
         setError(
           e instanceof ApiError
             ? e.mensajeParaPantalla()
-            : 'No se pudo cargar la venta.',
+            : t("No se pudo cargar la venta."),
         );
       })
       .finally(() => activo && setCargando(false));
@@ -135,7 +137,7 @@ export default function FacturarVentaPage() {
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : 'No se pudo timbrar la factura.',
+          : t("No se pudo timbrar la factura."),
       );
     } finally {
       setTimbrando(false);
@@ -154,8 +156,8 @@ export default function FacturarVentaPage() {
     return (
       <div className="max-w-xl mx-auto p-8 mt-12 bg-white border rounded-2xl">
         <AlertCircle className="w-10 h-10 text-rose-500 mb-3" />
-        <h1 className="text-xl font-bold">No fue posible abrir la venta</h1>
-        <p className="text-slate-500 mt-2">{error}</p>
+        <h1 className="text-xl font-bold">{t("No fue posible abrir la venta")}</h1>
+        <p className="text-slate-500 mt-2">{t(error)}</p>
       </div>
     );
   }
@@ -165,10 +167,10 @@ export default function FacturarVentaPage() {
    * acortan: quien cancela tiene que poder reconocer el que le dijeron.
    */
   const MOTIVOS_SAT: Array<{ clave: string; texto: string }> = [
-    { clave: '01', texto: '01 · Comprobante emitido con errores con relación' },
-    { clave: '02', texto: '02 · Comprobante emitido con errores sin relación' },
-    { clave: '03', texto: '03 · No se llevó a cabo la operación' },
-    { clave: '04', texto: '04 · Operación nominativa relacionada en la factura global' },
+    { clave: '01', texto: t("01 · Comprobante emitido con errores con relación") },
+    { clave: '02', texto: t("02 · Comprobante emitido con errores sin relación") },
+    { clave: '03', texto: t("03 · No se llevó a cabo la operación") },
+    { clave: '04', texto: t("04 · Operación nominativa relacionada en la factura global") },
   ];
 
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -192,7 +194,7 @@ export default function FacturarVentaPage() {
        * leer —que el PAC rechazó, que falta el UUID, que ya estaba cancelada—
        * y un genérico lo escondería.
        */
-      setErrorCancelacion(e instanceof Error ? e.message : 'No se pudo cancelar el CFDI.');
+      setErrorCancelacion(e instanceof Error ? e.message : t("No se pudo cancelar el CFDI."));
     } finally {
       setEnviandoCancelacion(false);
     }
@@ -205,10 +207,9 @@ export default function FacturarVentaPage() {
           <div className="w-20 h-20 rounded-full bg-emerald-100 grid place-items-center mx-auto">
             <CheckCircle2 className="w-11 h-11 text-emerald-600" />
           </div>
-          <h1 className="text-2xl font-black mt-5">CFDI timbrado</h1>
+          <h1 className="text-2xl font-black mt-5">{t("CFDI timbrado")}</h1>
           <p className="text-slate-500 mt-2">
-            {factura.serie}-{factura.folio} · Venta #{venta.folio}
-          </p>
+            {t("{n0}-{n1} · Venta #{n2}", { n0: factura.serie, n1: factura.folio, n2: venta.folio })}</p>
           <p className="font-mono text-xs break-all bg-slate-50 rounded-xl p-3 mt-5">
             {factura.uuid}
           </p>
@@ -222,7 +223,7 @@ export default function FacturarVentaPage() {
               }
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 text-white px-5 py-3 font-bold"
             >
-              <Download className="w-4 h-4" /> Descargar PDF
+              <Download className="w-4 h-4" />  {t("Descargar PDF")}
             </button>
             <button
               onClick={() =>
@@ -233,7 +234,7 @@ export default function FacturarVentaPage() {
               }
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-3 font-bold"
             >
-              <ReceiptText className="w-4 h-4" /> Descargar XML
+              <ReceiptText className="w-4 h-4" />  {t("Descargar XML")}
             </button>
           </div>
           {/*
@@ -257,32 +258,34 @@ export default function FacturarVentaPage() {
               onClick={() => setCancelando(true)}
               className="mt-5 block w-full text-sm font-semibold text-rose-600 hover:text-rose-700"
             >
-              Cancelar este CFDI
+              
+              {t("Cancelar este CFDI")}
             </button>
           )}
           {factura.estado === 'CANCELADA' && (
             <p className="mt-5 text-sm font-semibold text-slate-500">
-              Este CFDI está cancelado.
+              
+              {t("Este CFDI está cancelado.")}
             </p>
           )}
 
           {cancelando && (
             <div className="mt-6 text-left border border-rose-200 bg-rose-50/50 rounded-2xl p-5">
-              <h2 className="font-bold text-slate-900">Cancelar el CFDI</h2>
+              <h2 className="font-bold text-slate-900">{t("Cancelar el CFDI")}</h2>
               <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-                Se cancela ante el SAT a través del PAC. Queda registrado el motivo y el
-                acuse; el CFDI no desaparece, pasa a cancelado.
+                
+                {t("Se cancela ante el SAT a través del PAC. Queda registrado el motivo y el acuse; el CFDI no desaparece, pasa a cancelado.")}
               </p>
 
               <label className="block mt-4">
-                <span className="text-xs font-semibold text-slate-600">Motivo del SAT</span>
+                <span className="text-xs font-semibold text-slate-600">{t("Motivo del SAT")}</span>
                 <select
                   value={motivoCancelacion}
                   onChange={(e) => { setMotivoCancelacion(e.target.value); setErrorCancelacion(''); }}
                   className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"
                 >
                   {MOTIVOS_SAT.map((m) => (
-                    <option key={m.clave} value={m.clave}>{m.texto}</option>
+                    <option key={m.clave} value={m.clave}>{t(m.texto)}</option>
                   ))}
                 </select>
               </label>
@@ -290,7 +293,8 @@ export default function FacturarVentaPage() {
               {motivoCancelacion === '01' && (
                 <label className="block mt-3">
                   <span className="text-xs font-semibold text-slate-600">
-                    UUID del comprobante que lo sustituye
+                    
+                    {t("UUID del comprobante que lo sustituye")}
                   </span>
                   <input
                     value={uuidSustitucion}
@@ -299,8 +303,8 @@ export default function FacturarVentaPage() {
                     className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono"
                   />
                   <span className="block text-[11px] text-slate-500 mt-1">
-                    El motivo 01 exige decir qué CFDI sustituye a éste. Tiene que estar
-                    timbrado ya.
+                    
+                    {t("El motivo 01 exige decir qué CFDI sustituye a éste. Tiene que estar timbrado ya.")}
                   </span>
                 </label>
               )}
@@ -315,14 +319,15 @@ export default function FacturarVentaPage() {
                   disabled={enviandoCancelacion}
                   className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold"
                 >
-                  Volver
+                  
+                  {t("Volver")}
                 </button>
                 <button
                   onClick={() => void cancelarCfdi()}
                   disabled={enviandoCancelacion || faltaSustituto}
                   className="flex-1 rounded-xl bg-rose-600 text-white px-4 py-2.5 text-sm font-bold disabled:opacity-50"
                 >
-                  {enviandoCancelacion ? 'Cancelando…' : 'Cancelar el CFDI'}
+                  {enviandoCancelacion ? t("Cancelando…") : t("Cancelar el CFDI")}
                 </button>
               </div>
             </div>
@@ -332,7 +337,8 @@ export default function FacturarVentaPage() {
             onClick={() => router.push('/dashboard/ventas/historial')}
             className="mt-6 text-sm font-semibold text-indigo-600"
           >
-            Volver al historial
+            
+            {t("Volver al historial")}
           </button>
         </div>
       </div>
@@ -345,7 +351,7 @@ export default function FacturarVentaPage() {
         onClick={() => router.back()}
         className="inline-flex items-center gap-2 text-sm text-slate-600 mb-5"
       >
-        <ArrowLeft className="w-4 h-4" /> Regresar
+        <ArrowLeft className="w-4 h-4" />  {t("Regresar")}
       </button>
 
       <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
@@ -354,31 +360,30 @@ export default function FacturarVentaPage() {
             <FileSignature className="w-6 h-6 text-indigo-700" />
           </div>
           <div>
-            <h1 className="text-2xl font-black">Facturar venta #{venta.folio}</h1>
+            <h1 className="text-2xl font-black">{t("Facturar venta #{n0}", { n0: venta.folio })}</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Total: ${Number(venta.total).toLocaleString('es-MX', {
+              {t("Total: ${n0}", { n0: Number(venta.total).toLocaleString('es-MX', {
                 minimumFractionDigits: 2,
-              })}
-            </p>
+              }) })}</p>
           </div>
         </div>
 
         <form onSubmit={timbrar} className="p-6 md:p-8 space-y-5">
           {error && (
             <div className="flex items-start gap-2 p-4 rounded-xl bg-rose-50 text-rose-700 text-sm">
-              <AlertCircle className="w-5 h-5 shrink-0" /> {error}
+              <AlertCircle className="w-5 h-5 shrink-0" /> {t(error)}
             </div>
           )}
 
           <div className="grid md:grid-cols-2 gap-4">
             <Campo
-              label="RFC receptor"
+              label={t("RFC receptor")}
               value={form.rfcReceptor}
               onChange={(value) => setForm((v) => ({ ...v, rfcReceptor: value }))}
               maxLength={13}
             />
             <Campo
-              label="Código postal fiscal"
+              label={t("Código postal fiscal")}
               value={form.codigoPostalReceptor}
               onChange={(value) =>
                 setForm((v) => ({ ...v, codigoPostalReceptor: value }))
@@ -387,7 +392,7 @@ export default function FacturarVentaPage() {
             />
           </div>
           <Campo
-            label="Nombre o razón social"
+            label={t("Nombre o razón social")}
             value={form.nombreReceptor}
             onChange={(value) =>
               setForm((v) => ({ ...v, nombreReceptor: value }))
@@ -396,25 +401,26 @@ export default function FacturarVentaPage() {
           />
           <div className="grid md:grid-cols-2 gap-4">
             <Campo
-              label="Régimen fiscal"
+              label={t("Régimen fiscal")}
               value={form.regimenFiscalReceptor}
               onChange={(value) =>
                 setForm((v) => ({ ...v, regimenFiscalReceptor: value }))
               }
-              placeholder="Ej. 601"
+              placeholder={t("Ej. 601")}
               maxLength={3}
             />
             <Campo
-              label="Uso CFDI"
+              label={t("Uso CFDI")}
               value={form.usoCFDI}
               onChange={(value) => setForm((v) => ({ ...v, usoCFDI: value }))}
-              placeholder="Ej. G03"
+              placeholder={t("Ej. G03")}
               maxLength={3}
             />
           </div>
           <label className="block">
             <span className="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">
-              Observaciones
+              
+              {t("Observaciones")}
             </span>
             <textarea
               value={form.notas}
@@ -455,10 +461,11 @@ function Campo({
   placeholder?: string;
   maxLength?: number;
 }) {
+  const t = useT();
   return (
     <label className="block">
       <span className="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">
-        {label}
+        {t(label)}
       </span>
       <input
         value={value}

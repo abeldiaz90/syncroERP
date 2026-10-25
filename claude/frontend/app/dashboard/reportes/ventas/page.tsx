@@ -6,6 +6,7 @@ import { diaDe, diaISO, fechaCorta, mesHastaHoy } from '@/lib/fechas';
 import { BarChart2, RefreshCw, TrendingUp, DollarSign, ShoppingBag, CreditCard } from 'lucide-react';
 import { ExportBar } from '../../../components/export-bar';
 
+import { useT } from '@/components/I18nProvider';
 interface IVenta {
   id: string; folio: number; fechaVenta: string; metodoPago: string;
   estado: string;
@@ -46,6 +47,7 @@ const COLUMNAS_VENTAS = [
 ];
 
 export default function ReporteVentasPage() {
+  const t = useT();
   const [ventas, setVentas]     = useState<IVenta[]>([]);
   const [cargando, setCargando] = useState(false);
   /*
@@ -59,7 +61,7 @@ export default function ReporteVentasPage() {
     const hoy = new Date();
     return [
       { label: 'Hoy',          d: RANGO.hasta, h: RANGO.hasta },
-      { label: 'Este mes',     d: RANGO.desde, h: RANGO.hasta },
+      { label: t("Este mes"),     d: RANGO.desde, h: RANGO.hasta },
       { label: 'Mes anterior', d: diaISO(new Date(hoy.getFullYear(), hoy.getMonth()-1, 1)), h: diaISO(new Date(hoy.getFullYear(), hoy.getMonth(), 0)) },
     ];
   }, [RANGO]);
@@ -80,12 +82,12 @@ export default function ReporteVentasPage() {
       else {
         setVentas([]);
         setError(r.status === 403
-          ? 'Tu perfil no incluye el reporte de ventas.'
-          : 'No se pudo consultar el reporte de ventas.');
+          ? t("Tu perfil no incluye el reporte de ventas.")
+          : t("No se pudo consultar el reporte de ventas."));
       }
     } catch {
       setVentas([]);
-      setError('No hay conexión con el servidor.');
+      setError(t("No hay conexión con el servidor."));
     }
     setCargando(false);
   }, [desde, hasta]);
@@ -140,24 +142,24 @@ export default function ReporteVentasPage() {
 
       {error && (
         <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          {error}
+          {t(error)}
         </div>
       )}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Reportes</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Reportes")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <BarChart2 className="w-8 h-8 text-indigo-500"/> Reporte de Ventas
+            <BarChart2 className="w-8 h-8 text-indigo-500"/>  {t("Reporte de Ventas")}
           </h1>
         </div>
         <div className="flex items-center gap-2 print:hidden">
           <ExportBar
-            titulo="Reporte_Ventas"
+            titulo={"Reporte_Ventas"}
             subtitulo={`Del ${desde} al ${hasta}`}
             datos={ventasFiltradas}
             columnas={COLUMNAS_VENTAS}
           />
-          <button aria-label="Volver a cargar" title="Volver a cargar" onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50">
+          <button aria-label={t("Volver a cargar")} title={t("Volver a cargar")} onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50">
             <RefreshCw className="w-4 h-4"/>
           </button>
         </div>
@@ -166,29 +168,29 @@ export default function ReporteVentasPage() {
       {/* Filtros */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-5 flex flex-wrap gap-3 items-end print:hidden">
         <div>
-          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Desde</label>
+          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t("Desde")}</label>
           <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Hasta</label>
+          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t("Hasta")}</label>
           <input type="date" value={hasta} onChange={e => setHasta(e.target.value)}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Agrupar por</label>
+          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t("Agrupar por")}</label>
           <select value={agrupacion} onChange={e => setAgrupacion(e.target.value as any)}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="dia">Día</option>
-            <option value="metodo">Método de pago</option>
-            <option value="cliente">Cliente</option>
+            <option value="dia">{t("Día")}</option>
+            <option value="metodo">{t("Método de pago")}</option>
+            <option value="cliente">{t("Cliente")}</option>
           </select>
         </div>
         {/* Accesos rápidos */}
         {ATAJOS.map(q => (
           <button key={q.label} onClick={() => { setDesde(q.d); setHasta(q.h); }}
             className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${desde === q.d && hasta === q.h ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
-            {q.label}
+            {t(q.label)}
           </button>
         ))}
       </div>
@@ -196,10 +198,10 @@ export default function ReporteVentasPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
         {[
-          { label: 'Total ventas', val: totalVentas, icon: DollarSign, color: 'indigo' },
-          { label: 'Núm. ventas',  val: ventasFiltradas.length, icon: ShoppingBag, color: 'blue', noFmt: true },
+          { label: t("Total ventas"), val: totalVentas, icon: DollarSign, color: 'indigo' },
+          { label: t("Núm. ventas"),  val: ventasFiltradas.length, icon: ShoppingBag, color: 'blue', noFmt: true },
           {
-            label: 'Ticket prom.',
+            label: t("Ticket prom."),
             val: ticketPromedio,
             icon: TrendingUp,
             color: 'emerald',
@@ -208,7 +210,7 @@ export default function ReporteVentasPage() {
                 ? ''
                 : `sobre ${conImporte.length} de ${ventasFiltradas.length}; el resto se devolvió entero`,
           },
-          { label: 'IVA generado', val: totalIVA, icon: CreditCard, color: 'amber' },
+          { label: t("IVA generado"), val: totalIVA, icon: CreditCard, color: 'amber' },
         ].map(k => {
           const Icon = k.icon;
           return (
@@ -217,13 +219,13 @@ export default function ReporteVentasPage() {
                 <div className={`w-8 h-8 rounded-lg bg-${k.color}-50 flex items-center justify-center`}>
                   <Icon className={`w-4 h-4 text-${k.color}-500`}/>
                 </div>
-                <p className="text-xs font-bold uppercase text-slate-400">{k.label}</p>
+                <p className="text-xs font-bold uppercase text-slate-400">{t(k.label)}</p>
               </div>
               <p className={`text-xl font-black text-${k.color}-600`}>
                 {k.noFmt ? k.val : fmt$(Number(k.val))}
               </p>
               {k.pie && (
-                <p className="mt-1 text-[11px] leading-tight text-slate-400">{k.pie}</p>
+                <p className="mt-1 text-[11px] leading-tight text-slate-400">{t(k.pie)}</p>
               )}
             </div>
           );
@@ -234,9 +236,9 @@ export default function ReporteVentasPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-5">
         <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-between">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-            {agrupacion === 'dia' ? 'Por Día' : agrupacion === 'metodo' ? 'Por Método de Pago' : 'Por Cliente'}
+            {agrupacion === 'dia' ? t("Por Día") : agrupacion === 'metodo' ? t("Por Método de Pago") : t("Por Cliente")}
           </p>
-          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : plural(ventasFiltradas.length, 'venta')}</p>
+          <p className="text-xs text-slate-400">{cargando ? t("Consultando…") : plural(ventasFiltradas.length, 'venta')}</p>
         </div>
         {cargando ? (
           <div className="p-12 text-center">
@@ -246,10 +248,10 @@ export default function ReporteVentasPage() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr className="text-xs uppercase text-slate-500 font-bold">
-                <th className="px-5 py-3 text-left">{agrupacion === 'dia' ? 'Fecha' : agrupacion === 'metodo' ? 'Método' : 'Cliente'}</th>
-                <th className="px-5 py-3 text-center">Ventas</th>
-                <th className="px-5 py-3 text-right">Total</th>
-                <th className="px-5 py-3 text-right">% del período</th>
+                <th className="px-5 py-3 text-left">{agrupacion === 'dia' ? t("Fecha") : agrupacion === 'metodo' ? t("Método") : t("Cliente")}</th>
+                <th className="px-5 py-3 text-center">{t("Ventas")}</th>
+                <th className="px-5 py-3 text-right">{t("Total")}</th>
+                <th className="px-5 py-3 text-right">{t("% del período")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -263,7 +265,7 @@ export default function ReporteVentasPage() {
               ))}
               {agrupacion === 'metodo' && (Object.entries(porMetodo) as Array<[string, { label: string; total: number; count: number }]>).sort((a,b) => b[1].total - a[1].total).map(([k, d]) => (
                 <tr key={k} className="hover:bg-slate-50">
-                  <td className="px-5 py-3 font-medium text-slate-800">{d.label}</td>
+                  <td className="px-5 py-3 font-medium text-slate-800">{t(d.label)}</td>
                   <td className="px-5 py-3 text-center text-slate-500">{d.count}</td>
                   <td className="px-5 py-3 text-right font-bold font-mono">{fmt$(d.total)}</td>
                   <td className="px-5 py-3 text-right text-slate-400">{totalVentas > 0 ? ((d.total / totalVentas) * 100).toFixed(1) : 0}%</td>
@@ -271,7 +273,7 @@ export default function ReporteVentasPage() {
               ))}
               {agrupacion === 'cliente' && (Object.entries(porCliente) as Array<[string, { total: number; count: number }]>).sort((a,b) => b[1].total - a[1].total).map(([nombre, d]) => (
                 <tr key={nombre} className="hover:bg-slate-50">
-                  <td className="px-5 py-3 font-medium text-slate-800">{nombre}</td>
+                  <td className="px-5 py-3 font-medium text-slate-800">{t(nombre)}</td>
                   <td className="px-5 py-3 text-center text-slate-500">{d.count}</td>
                   <td className="px-5 py-3 text-right font-bold font-mono">{fmt$(d.total)}</td>
                   <td className="px-5 py-3 text-right text-slate-400">{totalVentas > 0 ? ((d.total / totalVentas) * 100).toFixed(1) : 0}%</td>
@@ -280,7 +282,7 @@ export default function ReporteVentasPage() {
             </tbody>
             <tfoot className="border-t-2 border-slate-300 bg-slate-50">
               <tr>
-                <td className="px-5 py-3 font-black uppercase text-xs text-slate-500">Total</td>
+                <td className="px-5 py-3 font-black uppercase text-xs text-slate-500">{t("Total")}</td>
                 <td className="px-5 py-3 text-center font-black">{ventasFiltradas.length}</td>
                 <td className="px-5 py-3 text-right font-black font-mono text-indigo-700">{fmt$(totalVentas)}</td>
                 <td className="px-5 py-3 text-right font-black">100%</td>
@@ -293,19 +295,19 @@ export default function ReporteVentasPage() {
       {/* Detalle de todas las ventas */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-900 text-white px-5 py-3">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Detalle de ventas</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{t("Detalle de ventas")}</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr className="text-xs uppercase text-slate-500 font-bold">
-                <th className="px-4 py-3 text-left">Folio</th>
-                <th className="px-4 py-3 text-left">Fecha</th>
-                <th className="px-4 py-3 text-left">Cliente</th>
-                <th className="px-4 py-3 text-left">Método</th>
-                <th className="px-4 py-3 text-right">Subtotal</th>
-                <th className="px-4 py-3 text-right">IVA</th>
-                <th className="px-4 py-3 text-right">Total</th>
+                <th className="px-4 py-3 text-left">{t("Folio")}</th>
+                <th className="px-4 py-3 text-left">{t("Fecha")}</th>
+                <th className="px-4 py-3 text-left">{t("Cliente")}</th>
+                <th className="px-4 py-3 text-left">{t("Método")}</th>
+                <th className="px-4 py-3 text-right">{t("Subtotal")}</th>
+                <th className="px-4 py-3 text-right">{t("IVA")}</th>
+                <th className="px-4 py-3 text-right">{t("Total")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -313,13 +315,13 @@ export default function ReporteVentasPage() {
                 <tr key={v.id} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-mono font-bold text-indigo-600">#{String(v.folio).padStart(5,'0')}</td>
                   <td className="px-4 py-2.5 text-slate-500">{fmtF(v.fechaVenta)}</td>
-                  <td className="px-4 py-2.5 text-slate-700">{v.cliente?.nombre ?? 'Mostrador'}</td>
+                  <td className="px-4 py-2.5 text-slate-700">{v.cliente?.nombre ?? t("Mostrador")}</td>
                   <td className="px-4 py-2.5"><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{METODO_LABEL[v.metodoPago] ?? v.metodoPago}</span></td>
                   <td className="px-4 py-2.5 text-right font-mono">{fmt$(Number(v.subtotal))}</td>
                   <td className="px-4 py-2.5 text-right font-mono text-slate-400">{fmt$(Number(v.impuestoTotal))}</td>
                   <td className="px-4 py-2.5 text-right font-mono font-bold">
                     {fmt$(neto(v))}
-                    {Number(v.totalDevuelto ?? 0) > 0 && <span className="block text-[10px] text-amber-600">Devuelto {fmt$(Number(v.totalDevuelto))}</span>}
+                    {Number(v.totalDevuelto ?? 0) > 0 && <span className="block text-[10px] text-amber-600">{t("Devuelto {n0}", { n0: fmt$(Number(v.totalDevuelto)) })}</span>}
                   </td>
                 </tr>
               ))}

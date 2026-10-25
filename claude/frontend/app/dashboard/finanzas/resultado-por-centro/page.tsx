@@ -4,6 +4,7 @@ import { AlertCircle, Building2, Calendar } from 'lucide-react';
 import { diaISO, mesEnCurso } from '@/lib/fechas';
 import { api, ApiError } from '@/lib/api';
 
+import { useT } from '@/components/I18nProvider';
 /*
  * ============================================================================
  * El resultado, abierto por centro de costo
@@ -62,13 +63,14 @@ const rangosDeHoy = () => {
 };
 
 export default function ResultadoPorCentroPage() {
+  const t = useT();
   const RANGOS = useMemo(rangosDeHoy, []);
   const [datos, setDatos] = useState<IRespuesta | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [desde, setDesde] = useState(() => RANGOS[0].desde);
   const [hasta, setHasta] = useState(() => RANGOS[0].hasta);
-  const [rangoActivo, setRangoActivo] = useState('Este mes');
+  const [rangoActivo, setRangoActivo] = useState(t("Este mes"));
 
   const consultar = useCallback(
     async (d = desde, h = hasta) => {
@@ -94,8 +96,8 @@ export default function ResultadoPorCentroPage() {
         setDatos(null);
         setError(
           e instanceof ApiError && e.status === 403
-            ? 'Tu perfil no incluye la consulta del resultado por centro.'
-            : 'No se pudo consultar el resultado por centro. Las cifras de esta pantalla no son válidas.',
+            ? t("Tu perfil no incluye la consulta del resultado por centro.")
+            : t("No se pudo consultar el resultado por centro. Las cifras de esta pantalla no son válidas."),
         );
       } finally {
         setCargando(false);
@@ -118,11 +120,12 @@ export default function ResultadoPorCentroPage() {
         <Building2 className="h-6 w-6 text-slate-500" />
         <div>
           <h1 className="text-xl font-semibold text-slate-800">
-            Resultado por centro de costo
+            
+            {t("Resultado por centro de costo")}
           </h1>
           <p className="text-sm text-slate-500">
-            Ingresos, costos y gastos de cada centro. El renglón «Sin clasificar» es lo
-            que todavía no se captura con centro: sin él, la suma no daría el total.
+            
+            {t("Ingresos, costos y gastos de cada centro. El renglón «Sin clasificar» es lo que todavía no se captura con centro: sin él, la suma no daría el total.")}
           </p>
         </div>
       </header>
@@ -143,7 +146,7 @@ export default function ResultadoPorCentroPage() {
                 : 'bg-white text-slate-600 border border-slate-200'
             }`}
           >
-            {r.label}
+            {t(r.label)}
           </button>
         ))}
         <span className="mx-2 h-5 w-px bg-slate-200" />
@@ -162,25 +165,27 @@ export default function ResultadoPorCentroPage() {
         />
         <button
           onClick={() => {
-            setRangoActivo('Personalizado');
+            setRangoActivo(t("Personalizado"));
             consultar(desde, hasta);
           }}
           className="rounded-md bg-slate-800 px-3 py-1.5 text-sm text-white"
         >
-          Consultar
+          
+          {t("Consultar")}
         </button>
       </div>
 
       {error && (
         <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
+          <span>{t(error)}</span>
         </div>
       )}
 
       {!error && !cargando && conCentro.length === 0 && !sinClasificar && (
         <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
-          No hay movimientos de resultado en el período.
+          
+          {t("No hay movimientos de resultado en el período.")}
         </div>
       )}
 
@@ -189,11 +194,11 @@ export default function ResultadoPorCentroPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 text-left text-slate-500">
               <tr>
-                <th className="px-4 py-2 font-medium">Centro</th>
-                <th className="px-4 py-2 text-right font-medium">Ingresos</th>
-                <th className="px-4 py-2 text-right font-medium">Costos</th>
-                <th className="px-4 py-2 text-right font-medium">Gastos</th>
-                <th className="px-4 py-2 text-right font-medium">Resultado</th>
+                <th className="px-4 py-2 font-medium">{t("Centro")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("Ingresos")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("Costos")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("Gastos")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("Resultado")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -202,7 +207,8 @@ export default function ResultadoPorCentroPage() {
                   <td className="px-4 py-2 text-amber-800">
                     Sin clasificar
                     <span className="ml-2 text-xs text-amber-700">
-                      partidas sin centro — no se reparten ni se esconden
+                      
+                      {t("partidas sin centro — no se reparten ni se esconden")}
                     </span>
                   </td>
                   <td className="px-4 py-2 text-right">{fmt$(sinClasificar.ingresos)}</td>
@@ -239,7 +245,7 @@ export default function ResultadoPorCentroPage() {
             {datos && (
               <tfoot className="border-t-2 border-slate-200 bg-slate-50 font-medium">
                 <tr>
-                  <td className="px-4 py-2 text-slate-700">Total de la empresa</td>
+                  <td className="px-4 py-2 text-slate-700">{t("Total de la empresa")}</td>
                   <td className="px-4 py-2 text-right">{fmt$(datos.total.ingresos)}</td>
                   <td className="px-4 py-2 text-right">{fmt$(datos.total.costos)}</td>
                   <td className="px-4 py-2 text-right">{fmt$(datos.total.gastos)}</td>

@@ -12,6 +12,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 type Req = { codigo: string; completo: boolean };
 type Mod = { requisitos: Req[] };
 type Diag = { modulos: Record<string, Mod> };
@@ -40,6 +41,7 @@ export default function WizardPreparacion({
   pasos: PasoWizard[];
   operacionRuta: string;
 }) {
+  const t = useT();
   const router = useRouter();
   const claveManual = `syncroerp.wizard.${modulo}.${titulo.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.revisados`;
   const [diagnostico, setDiagnostico] = useState<Diag | null>(null);
@@ -56,7 +58,7 @@ export default function WizardPreparacion({
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : 'No se pudo evaluar la configuración.',
+          : t("No se pudo evaluar la configuración."),
       );
     } finally {
       setCargando(false);
@@ -116,7 +118,7 @@ export default function WizardPreparacion({
   }
 
   if (cargando && !diagnostico) {
-    return <div className="p-8">Preparando el asistente…</div>;
+    return <div className="p-8">{t("Preparando el asistente…")}</div>;
   }
 
   return (
@@ -124,22 +126,21 @@ export default function WizardPreparacion({
       <section className="rounded-3xl bg-slate-950 p-7 text-white">
         <div className="flex flex-wrap justify-between gap-4">
           <div>
-            <p className="text-sm text-slate-300">Asistente guiado</p>
-            <h1 className="text-3xl font-bold">{titulo}</h1>
-            <p className="mt-2 max-w-2xl text-slate-300">{descripcion}</p>
+            <p className="text-sm text-slate-300">{t("Asistente guiado")}</p>
+            <h1 className="text-3xl font-bold">{t(titulo)}</h1>
+            <p className="mt-2 max-w-2xl text-slate-300">{t(descripcion)}</p>
           </div>
           <button onClick={() => void cargar()} className="flex h-fit items-center gap-2 rounded-xl bg-white/10 px-4 py-2">
             <RefreshCw size={16} className={cargando ? 'animate-spin' : ''} />
-            Validar
+            
+            {t("Validar")}
           </button>
         </div>
         <div className="mt-5 h-3 rounded-full bg-white/15">
           <div className="h-3 rounded-full bg-emerald-400 transition-all" style={{ width: `${porcentaje}%` }} />
         </div>
         <p className="mt-2 text-sm text-slate-300">
-          {hechos} de {obligatorios.length}{' '}
-          {obligatorios.length === 1 ? 'paso obligatorio verificado' : 'pasos obligatorios verificados'}
-        </p>
+          {t("{n0} de {n1}{n2} {n3}", { n0: hechos, n1: obligatorios.length, n2: ' ', n3: obligatorios.length === 1 ? t("paso obligatorio verificado") : t("pasos obligatorios verificados") })}</p>
         {/*
           * Lo que el sistema comprueba y lo que alguien declara no son lo
           * mismo, y el centro de preparación sólo mide lo primero. Un
@@ -150,7 +151,7 @@ export default function WizardPreparacion({
         {pendientesManuales.length > 0 && (
           <p className="mt-1 text-sm text-amber-200">
             {pendientesManuales.length === 1
-              ? 'Uno de ellos no lo puede comprobar el sistema: espera tu confirmación.'
+              ? t("Uno de ellos no lo puede comprobar el sistema: espera tu confirmación.")
               : `${pendientesManuales.length} de ellos no los puede comprobar el sistema: esperan tu confirmación.`}
           </p>
         )}
@@ -158,7 +159,7 @@ export default function WizardPreparacion({
 
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
-          <ShieldAlert className="mr-2 inline" size={18} />{error}
+          <ShieldAlert className="mr-2 inline" size={18} />{t(error)}
         </div>
       )}
 
@@ -169,20 +170,21 @@ export default function WizardPreparacion({
               <div className="mt-0.5">{p.completo ? <CheckCircle2 className="text-emerald-600" /> : <Circle className={siguiente?.codigo === p.codigo ? 'text-indigo-600' : 'text-slate-300'} />}</div>
               <div className="flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-slate-400">PASO {i + 1}</span>
-                  {p.opcional && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">Opcional</span>}
-                  {p.manual && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Confirmación manual</span>}
-                  {siguiente?.codigo === p.codigo && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">Siguiente acción</span>}
+                  <span className="text-xs font-bold text-slate-400">{t("PASO {n0}", { n0: i + 1 })}</span>
+                  {p.opcional && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{t("Opcional")}</span>}
+                  {p.manual && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">{t("Confirmación manual")}</span>}
+                  {siguiente?.codigo === p.codigo && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">{t("Siguiente acción")}</span>}
                 </div>
-                <h2 className="mt-1 font-bold">{p.titulo}</h2>
-                <p className="mt-1 text-sm text-slate-600">{p.descripcion}</p>
+                <h2 className="mt-1 font-bold">{t(p.titulo)}</h2>
+                <p className="mt-1 text-sm text-slate-600">{t(p.descripcion)}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button onClick={() => router.push(p.ruta)} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
-                    Abrir paso <ArrowRight size={16} />
+                    
+                    {t("Abrir paso")} <ArrowRight size={16} />
                   </button>
                   {p.manual && (
                     <button onClick={() => alternarRevisado(p.codigo)} className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
-                      <ClipboardCheck size={16} />{p.completo ? 'Marcar pendiente' : 'Ya realicé y revisé este paso'}
+                      <ClipboardCheck size={16} />{p.completo ? t("Marcar pendiente") : t("Ya realicé y revisé este paso")}
                     </button>
                   )}
                 </div>
@@ -193,13 +195,13 @@ export default function WizardPreparacion({
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <button onClick={() => router.push('/dashboard/configuracion/centro')} className="rounded-xl border px-5 py-3 font-semibold">Volver al centro</button>
+        <button onClick={() => router.push('/dashboard/configuracion/centro')} className="rounded-xl border px-5 py-3 font-semibold">{t("Volver al centro")}</button>
         <button disabled={pendientesObligatorios.length > 0} onClick={() => router.push(operacionRuta)} className="rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
           {pendientesObligatorios.length
             ? pendientesObligatorios.length === 1
-              ? 'Falta 1 paso obligatorio'
+              ? t("Falta 1 paso obligatorio")
               : `Faltan ${pendientesObligatorios.length} pasos obligatorios`
-            : 'Ir a operar'}
+            : t("Ir a operar")}
         </button>
       </div>
     </div>

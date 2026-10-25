@@ -20,6 +20,7 @@ import {
   Panel, Seleccion, SinDatos, useAvisos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Resultado {
   ejercicio: number;
   mes: number;
@@ -36,6 +37,7 @@ const MESES = [
 ];
 
 export default function DepreciacionPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const ahora = new Date();
 
@@ -57,7 +59,7 @@ export default function DepreciacionPage() {
         ? `1 activo depreciado por ${dinero(r.importeTotal)}.`
         : r.activosProcesados > 1
           ? `${r.activosProcesados} activos depreciados por ${dinero(r.importeTotal)}.`
-          : 'No había activos por depreciar en ese periodo.',
+          : t("No había activos por depreciar en ese periodo."),
       r.activosProcesados > 0 ? 'exito' : 'info',
     );
     return r;
@@ -78,7 +80,7 @@ export default function DepreciacionPage() {
     setConfirmarReversion(false);
     avisar(
       r.revertidos === 1
-        ? 'Se revirtió 1 registro de depreciación.'
+        ? t("Se revirtió 1 registro de depreciación.")
         : `Se revirtieron ${r.revertidos} registros de depreciación.`,
       'exito',
     );
@@ -90,22 +92,22 @@ export default function DepreciacionPage() {
   return (
     <div className="p-6 max-w-[1100px] mx-auto">
       <EncabezadoPantalla
-        titulo="Corrida de depreciación"
-        descripcion="Calcula y registra la depreciación mensual de todos los activos"
+        titulo={t("Corrida de depreciación")}
+        descripcion={t("Calcula y registra la depreciación mensual de todos los activos")}
       />
 
       {/* Periodo */}
-      <Panel titulo="Periodo a depreciar" className="mb-5">
+      <Panel titulo={t("Periodo a depreciar")} className="mb-5">
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-40">
-            <Campo etiqueta="Mes">
+            <Campo etiqueta={t("Mes")}>
               <Seleccion value={mes} onChange={(e) => { setMes(Number(e.target.value)); setResultado(null); }}>
                 {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
               </Seleccion>
             </Campo>
           </div>
           <div className="w-32">
-            <Campo etiqueta="Ejercicio">
+            <Campo etiqueta={t("Ejercicio")}>
               <Seleccion value={ejercicio} onChange={(e) => { setEjercicio(Number(e.target.value)); setResultado(null); }}>
                 {anios.map((a) => <option key={a} value={a}>{a}</option>)}
               </Seleccion>
@@ -118,7 +120,8 @@ export default function DepreciacionPage() {
             onClick={() => { correr.limpiarError(); setConfirmarCorrida(true); }}
             cargando={correr.ejecutando}
           >
-            Ejecutar corrida
+            
+            {t("Ejecutar corrida")}
           </Boton>
 
           {resultado && (
@@ -127,15 +130,16 @@ export default function DepreciacionPage() {
               icono={<RotateCcw className="w-3.5 h-3.5" />}
               onClick={() => { revertir.limpiarError(); setConfirmarReversion(true); }}
             >
-              Revertir este periodo
+              
+              {t("Revertir este periodo")}
             </Boton>
           )}
         </div>
 
         <p className="text-[12px] text-slate-500 mt-3.5 flex items-start gap-1.5">
           <TriangleAlert className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-px" />
-          Ejecutar dos veces el mismo periodo no duplica el gasto: los activos ya
-          depreciados se omiten.
+          
+          {t("Ejecutar dos veces el mismo periodo no duplica el gasto: los activos ya depreciados se omiten.")}
         </p>
       </Panel>
 
@@ -143,18 +147,18 @@ export default function DepreciacionPage() {
       {!resultado ? (
         <Panel sinRelleno>
           <SinDatos
-            titulo="Aún no has ejecutado la corrida"
-            descripcion="Elige el periodo y ejecuta. Verás el detalle activo por activo antes de que nada se registre en la contabilidad."
+            titulo={t("Aún no has ejecutado la corrida")}
+            descripcion={t("Elige el periodo y ejecuta. Verás el detalle activo por activo antes de que nada se registre en la contabilidad.")}
             icono={<CalendarCheck className="w-5 h-5" />}
           />
         </Panel>
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            <ResumenCorrida etiqueta="Activos depreciados" valor={String(resultado.activosProcesados)} color="#65a30d" />
-            <ResumenCorrida etiqueta="Importe del mes" valor={dinero(resultado.importeTotal)} color="#0f172a" />
-            <ResumenCorrida etiqueta="Omitidos" valor={String(resultado.activosOmitidos)} color="#64748b" />
-            <ResumenCorrida etiqueta="Quedaron al 100%" valor={String(resultado.totalmenteDepreciados)} color="#d97706" />
+            <ResumenCorrida etiqueta={t("Activos depreciados")} valor={String(resultado.activosProcesados)} color="#65a30d" />
+            <ResumenCorrida etiqueta={t("Importe del mes")} valor={dinero(resultado.importeTotal)} color="#0f172a" />
+            <ResumenCorrida etiqueta={t("Omitidos")} valor={String(resultado.activosOmitidos)} color="#64748b" />
+            <ResumenCorrida etiqueta={t("Quedaron al 100%")} valor={String(resultado.totalmenteDepreciados)} color="#d97706" />
           </div>
 
           <Panel
@@ -165,17 +169,17 @@ export default function DepreciacionPage() {
               <table className="tabla">
                 <thead>
                   <tr>
-                    <th>Código</th>
-                    <th>Activo</th>
-                    <th className="text-right">Depreciación del mes</th>
-                    <th>Observación</th>
+                    <th>{t("Código")}</th>
+                    <th>{t("Activo")}</th>
+                    <th className="text-right">{t("Depreciación del mes")}</th>
+                    <th>{t("Observación")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {resultado.detalle.map((d) => (
                     <tr key={d.codigo}>
                       <td className="font-semibold text-slate-900 cifra">{d.codigo}</td>
-                      <td className="text-slate-700">{d.nombre}</td>
+                      <td className="text-slate-700">{t(d.nombre)}</td>
                       <td className="text-right cifra">
                         {d.importe > 0
                           ? <span className="font-semibold text-slate-900">{dinero(d.importe)}</span>
@@ -183,15 +187,15 @@ export default function DepreciacionPage() {
                       </td>
                       <td>
                         {d.motivo
-                          ? <Distintivo tono="neutro">{d.motivo}</Distintivo>
-                          : <Distintivo tono="exito">Depreciado</Distintivo>}
+                          ? <Distintivo tono="neutro">{t(d.motivo)}</Distintivo>
+                          : <Distintivo tono="exito">{t("Depreciado")}</Distintivo>}
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={2}>Total del periodo</td>
+                    <td colSpan={2}>{t("Total del periodo")}</td>
                     <td className="text-right cifra">{dinero(resultado.importeTotal)}</td>
                     <td />
                   </tr>
@@ -204,9 +208,9 @@ export default function DepreciacionPage() {
 
       <Confirmacion
         abierto={confirmarCorrida}
-        titulo="Ejecutar la corrida"
+        titulo={t("Ejecutar la corrida")}
         mensaje={`Se depreciarán todos los activos elegibles de ${MESES[mes - 1]} ${ejercicio}. La operación queda registrada y afecta el valor en libros.`}
-        textoConfirmar="Ejecutar"
+        textoConfirmar={t("Ejecutar")}
         procesando={correr.ejecutando}
         error={correr.error}
         onConfirmar={() => void correr.ejecutar()}
@@ -216,9 +220,9 @@ export default function DepreciacionPage() {
       <Confirmacion
         abierto={confirmarReversion}
         peligroso
-        titulo="Revertir la depreciación"
+        titulo={t("Revertir la depreciación")}
         mensaje={`Se eliminarán los registros de ${MESES[mes - 1]} ${ejercicio} y la depreciación acumulada de cada activo volverá a su valor anterior. Sólo se puede revertir el último periodo depreciado.`}
-        textoConfirmar="Revertir"
+        textoConfirmar={t("Revertir")}
         procesando={revertir.ejecutando}
         error={revertir.error}
         onConfirmar={() => void revertir.ejecutar()}
@@ -229,9 +233,10 @@ export default function DepreciacionPage() {
 }
 
 function ResumenCorrida({ etiqueta, valor, color }: { etiqueta: string; valor: string; color: string }) {
+  const t = useT();
   return (
     <div className="panel px-4 py-3">
-      <p className="eyebrow">{etiqueta}</p>
+      <p className="eyebrow">{t(etiqueta)}</p>
       <p className="text-[20px] font-bold mt-1 cifra" style={{ color }}>{valor}</p>
     </div>
   );

@@ -6,6 +6,7 @@ import { BriefcaseBusiness, FileSignature, History, RefreshCw } from "lucide-rea
 import { api, ApiError } from "@/lib/api";
 import { dinero, fecha } from "@/lib/format";
 
+import { useT } from '@/components/I18nProvider';
 interface Empleado {
   id: string;
   numeroEmpleado: string;
@@ -80,6 +81,7 @@ const inicial: Formulario = {
 };
 
 export default function ContratosLaboralesPage() {
+  const t = useT();
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [puestos, setPuestos] = useState<Puesto[]>([]);
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
@@ -113,7 +115,7 @@ export default function ContratosLaboralesPage() {
       setDepartamentos(Array.isArray(listaDepartamentos) ? listaDepartamentos : []);
       if (!empleadoId && activos[0]) setEmpleadoId(activos[0].id);
     } catch (error) {
-      setMensaje({ texto: error instanceof ApiError ? error.mensajeParaPantalla() : "No se pudieron cargar empleados y catálogos.", ok: false });
+      setMensaje({ texto: error instanceof ApiError ? error.mensajeParaPantalla() : t("No se pudieron cargar empleados y catálogos."), ok: false });
     } finally {
       setCargando(false);
     }
@@ -133,7 +135,7 @@ export default function ContratosLaboralesPage() {
       setContratos(Array.isArray(listaContratos) ? listaContratos : []);
       setMovimientos(Array.isArray(listaMovimientos) ? listaMovimientos : []);
     } catch (error) {
-      setMensaje({ texto: error instanceof ApiError ? error.mensajeParaPantalla() : "No se pudo cargar el historial laboral.", ok: false });
+      setMensaje({ texto: error instanceof ApiError ? error.mensajeParaPantalla() : t("No se pudo cargar el historial laboral."), ok: false });
     }
   }
 
@@ -156,15 +158,15 @@ export default function ContratosLaboralesPage() {
   async function guardar() {
     setMensaje(null);
     if (!empleadoId || !form.fechaInicio || !form.departamentoId || Number(form.salarioDiario) <= 0) {
-      setMensaje({ texto: "Selecciona empleado, fecha, área y un salario diario válido.", ok: false });
+      setMensaje({ texto: t("Selecciona empleado, fecha, área y un salario diario válido."), ok: false });
       return;
     }
     if (form.tipoContrato === "DETERMINADO" && !form.fechaFin) {
-      setMensaje({ texto: "El contrato determinado requiere fecha final.", ok: false });
+      setMensaje({ texto: t("El contrato determinado requiere fecha final."), ok: false });
       return;
     }
     if (Number(form.salarioDiarioIntegrado || form.salarioDiario) < Number(form.salarioDiario)) {
-      setMensaje({ texto: "El salario diario integrado no puede ser menor al salario diario.", ok: false });
+      setMensaje({ texto: t("El salario diario integrado no puede ser menor al salario diario."), ok: false });
       return;
     }
     setGuardando(true);
@@ -181,10 +183,10 @@ export default function ContratosLaboralesPage() {
         centroCostos: form.centroCostos.trim() || undefined,
         observaciones: form.observaciones.trim() || undefined,
       });
-      setMensaje({ texto: "Contrato creado y expediente laboral actualizado en una sola transacción.", ok: true });
+      setMensaje({ texto: t("Contrato creado y expediente laboral actualizado en una sola transacción."), ok: true });
       await Promise.all([cargarHistorial(empleadoId), cargarCatalogos()]);
     } catch (error) {
-      setMensaje({ texto: error instanceof ApiError ? error.mensajeParaPantalla() : "No se pudo crear el contrato.", ok: false });
+      setMensaje({ texto: error instanceof ApiError ? error.mensajeParaPantalla() : t("No se pudo crear el contrato."), ok: false });
     } finally {
       setGuardando(false);
     }
@@ -194,50 +196,50 @@ export default function ContratosLaboralesPage() {
     <main className="mx-auto max-w-7xl space-y-5 p-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900"><FileSignature className="h-6 w-6 text-indigo-600" /> Contratos laborales</h1>
-          <p className="mt-1 text-sm text-slate-500">Conserva vigencias, salarios, puesto, área e historial de cada cambio.</p>
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900"><FileSignature className="h-6 w-6 text-indigo-600" />  {t("Contratos laborales")}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t("Conserva vigencias, salarios, puesto, área e historial de cada cambio.")}</p>
         </div>
-        <button type="button" onClick={() => void cargarCatalogos()} disabled={cargando} className="btn btn-secundario inline-flex items-center gap-2"><RefreshCw className={`h-4 w-4 ${cargando ? "animate-spin" : ""}`} />Actualizar</button>
+        <button type="button" onClick={() => void cargarCatalogos()} disabled={cargando} className="btn btn-secundario inline-flex items-center gap-2"><RefreshCw className={`h-4 w-4 ${cargando ? "animate-spin" : ""}`} />{t("Actualizar")}</button>
       </header>
 
-      {mensaje ? <div className={`rounded-xl border p-4 text-sm ${mensaje.ok ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>{mensaje.texto}</div> : null}
+      {mensaje ? <div className={`rounded-xl border p-4 text-sm ${mensaje.ok ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>{t(mensaje.texto)}</div> : null}
 
       <section className="rounded-2xl border bg-white p-5 shadow-sm">
-        <label className="text-sm font-semibold text-slate-700">Empleado
+        <label className="text-sm font-semibold text-slate-700">{t("Empleado")}
           <select className="entrada mt-1 w-full" value={empleadoId} onChange={(e) => setEmpleadoId(e.target.value)}>
-            <option value="">Seleccionar…</option>
+            <option value="">{t("Seleccionar…")}</option>
             {empleados.map((item) => <option key={item.id} value={item.id}>{item.numeroEmpleado} · {item.nombreCompleto}</option>)}
           </select>
         </label>
-        {empleado ? <p className="mt-2 text-xs text-slate-500">Ingreso: {fecha(empleado.fechaIngreso)} · Salario actual: {dinero(empleado.salarioDiario)}</p> : null}
+        {empleado ? <p className="mt-2 text-xs text-slate-500">{t("Ingreso: {n0} · Salario actual: {n1}", { n0: fecha(empleado.fechaIngreso), n1: dinero(empleado.salarioDiario) })}</p> : null}
       </section>
 
       <section className="rounded-2xl border bg-white p-5 shadow-sm">
-        <h2 className="flex items-center gap-2 font-bold text-slate-900"><BriefcaseBusiness className="h-5 w-5 text-indigo-600" /> Nuevo contrato o cambio laboral</h2>
+        <h2 className="flex items-center gap-2 font-bold text-slate-900"><BriefcaseBusiness className="h-5 w-5 text-indigo-600" />  {t("Nuevo contrato o cambio laboral")}</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <label className="text-sm font-medium">Tipo de contrato<select className="entrada mt-1 w-full" value={form.tipoContrato} onChange={(e) => setForm({ ...form, tipoContrato: e.target.value })}><option value="INDETERMINADO">Indeterminado</option><option value="DETERMINADO">Determinado</option><option value="POR_OBRA">Por obra</option><option value="CAPACITACION">Capacitación</option><option value="HONORARIOS">Honorarios</option></select></label>
-          <label className="text-sm font-medium">Fecha inicial<input className="entrada mt-1 w-full" type="date" value={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })} /></label>
-          <label className="text-sm font-medium">Fecha final<input className="entrada mt-1 w-full" type="date" value={form.fechaFin} onChange={(e) => setForm({ ...form, fechaFin: e.target.value })} /></label>
-          <label className="text-sm font-medium">Área<select className="entrada mt-1 w-full" value={form.departamentoId} onChange={(e) => setForm({ ...form, departamentoId: e.target.value, puestoId: "" })}><option value="">Seleccionar…</option>{departamentos.filter((item) => item.activo).map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
-          <label className="text-sm font-medium">Puesto<select className="entrada mt-1 w-full" value={form.puestoId} onChange={(e) => setForm({ ...form, puestoId: e.target.value })}><option value="">Sin puesto</option>{puestosDisponibles.map((item) => <option key={item.id} value={item.id}>{item.clave} · {item.nombre}</option>)}</select>{puestoSeleccionado ? <span className="mt-1 block text-xs text-slate-500">Tabulador: {dinero(puestoSeleccionado.salarioMinimo)} – {dinero(puestoSeleccionado.salarioMaximo)}</span> : null}</label>
-          <label className="text-sm font-medium">Centro de costos<input className="entrada mt-1 w-full" value={form.centroCostos} maxLength={120} onChange={(e) => setForm({ ...form, centroCostos: e.target.value })} /></label>
-          <label className="text-sm font-medium">Salario diario<input className="entrada mt-1 w-full" type="number" min="0.01" step="0.01" value={form.salarioDiario} onChange={(e) => setForm({ ...form, salarioDiario: e.target.value })} /></label>
-          <label className="text-sm font-medium">Salario diario integrado<input className="entrada mt-1 w-full" type="number" min="0.01" step="0.01" value={form.salarioDiarioIntegrado} onChange={(e) => setForm({ ...form, salarioDiarioIntegrado: e.target.value })} /></label>
-          <label className="text-sm font-medium md:col-span-2 lg:col-span-3">Observaciones<textarea className="entrada mt-1 min-h-20 w-full py-2" maxLength={500} value={form.observaciones} onChange={(e) => setForm({ ...form, observaciones: e.target.value })} /></label>
+          <label className="text-sm font-medium">{t("Tipo de contrato")}<select className="entrada mt-1 w-full" value={form.tipoContrato} onChange={(e) => setForm({ ...form, tipoContrato: e.target.value })}><option value="INDETERMINADO">{t("Indeterminado")}</option><option value="DETERMINADO">{t("Determinado")}</option><option value="POR_OBRA">{t("Por obra")}</option><option value="CAPACITACION">{t("Capacitación")}</option><option value="HONORARIOS">{t("Honorarios")}</option></select></label>
+          <label className="text-sm font-medium">{t("Fecha inicial")}<input className="entrada mt-1 w-full" type="date" value={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })} /></label>
+          <label className="text-sm font-medium">{t("Fecha final")}<input className="entrada mt-1 w-full" type="date" value={form.fechaFin} onChange={(e) => setForm({ ...form, fechaFin: e.target.value })} /></label>
+          <label className="text-sm font-medium">{t("Área")}<select className="entrada mt-1 w-full" value={form.departamentoId} onChange={(e) => setForm({ ...form, departamentoId: e.target.value, puestoId: "" })}><option value="">{t("Seleccionar…")}</option>{departamentos.filter((item) => item.activo).map((item) => <option key={item.id} value={item.id}>{t(item.nombre)}</option>)}</select></label>
+          <label className="text-sm font-medium">Puesto<select className="entrada mt-1 w-full" value={form.puestoId} onChange={(e) => setForm({ ...form, puestoId: e.target.value })}><option value="">{t("Sin puesto")}</option>{puestosDisponibles.map((item) => <option key={item.id} value={item.id}>{item.clave} · {t(item.nombre)}</option>)}</select>{puestoSeleccionado ? <span className="mt-1 block text-xs text-slate-500">{t("Tabulador: {n0} – {n1}", { n0: dinero(puestoSeleccionado.salarioMinimo), n1: dinero(puestoSeleccionado.salarioMaximo) })}</span> : null}</label>
+          <label className="text-sm font-medium">{t("Centro de costos")}<input className="entrada mt-1 w-full" value={form.centroCostos} maxLength={120} onChange={(e) => setForm({ ...form, centroCostos: e.target.value })} /></label>
+          <label className="text-sm font-medium">{t("Salario diario")}<input className="entrada mt-1 w-full" type="number" min="0.01" step="0.01" value={form.salarioDiario} onChange={(e) => setForm({ ...form, salarioDiario: e.target.value })} /></label>
+          <label className="text-sm font-medium">{t("Salario diario integrado")}<input className="entrada mt-1 w-full" type="number" min="0.01" step="0.01" value={form.salarioDiarioIntegrado} onChange={(e) => setForm({ ...form, salarioDiarioIntegrado: e.target.value })} /></label>
+          <label className="text-sm font-medium md:col-span-2 lg:col-span-3">{t("Observaciones")}<textarea className="entrada mt-1 min-h-20 w-full py-2" maxLength={500} value={form.observaciones} onChange={(e) => setForm({ ...form, observaciones: e.target.value })} /></label>
         </div>
-        <div className="mt-4 flex justify-end"><button type="button" className="btn btn-primario" disabled={guardando || !empleadoId} onClick={() => void guardar()}>{guardando ? "Guardando…" : "Crear contrato"}</button></div>
+        <div className="mt-4 flex justify-end"><button type="button" className="btn btn-primario" disabled={guardando || !empleadoId} onClick={() => void guardar()}>{guardando ? t("Guardando…") : t("Crear contrato")}</button></div>
       </section>
 
       <div className="grid gap-5 xl:grid-cols-2">
         <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-          <div className="border-b p-5"><h2 className="font-bold">Historial de contratos</h2></div>
-          <div className="overflow-x-auto"><table className="tabla"><thead><tr><th>Vigencia</th><th>Tipo</th><th>Salario</th><th>Estado</th></tr></thead><tbody>{contratos.map((contrato) => <tr key={contrato.id}><td>{fecha(contrato.fechaInicio)} – {contrato.fechaFin ? fecha(contrato.fechaFin) : "Abierto"}</td><td>{contrato.tipoContrato}</td><td>{dinero(contrato.salarioDiario)}<br/><span className="text-xs text-slate-400">SDI {dinero(contrato.salarioDiarioIntegrado)}</span></td><td><span className={`rounded-full px-2 py-1 text-xs font-bold ${contrato.vigente ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{contrato.vigente ? "Vigente" : "Cerrado"}</span></td></tr>)}</tbody></table></div>
-          {!contratos.length ? <p className="p-8 text-center text-sm text-slate-500">No hay contratos registrados para el empleado.</p> : null}
+          <div className="border-b p-5"><h2 className="font-bold">{t("Historial de contratos")}</h2></div>
+          <div className="overflow-x-auto"><table className="tabla"><thead><tr><th>{t("Vigencia")}</th><th>{t("Tipo")}</th><th>{t("Salario")}</th><th>{t("Estado")}</th></tr></thead><tbody>{contratos.map((contrato) => <tr key={contrato.id}><td>{fecha(contrato.fechaInicio)} – {contrato.fechaFin ? fecha(contrato.fechaFin) : t("Abierto")}</td><td>{contrato.tipoContrato}</td><td>{dinero(contrato.salarioDiario)}<br/><span className="text-xs text-slate-400">{t("SDI {n0}", { n0: dinero(contrato.salarioDiarioIntegrado) })}</span></td><td><span className={`rounded-full px-2 py-1 text-xs font-bold ${contrato.vigente ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{contrato.vigente ? t("Vigente") : t("Cerrado")}</span></td></tr>)}</tbody></table></div>
+          {!contratos.length ? <p className="p-8 text-center text-sm text-slate-500">{t("No hay contratos registrados para el empleado.")}</p> : null}
         </section>
         <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-          <div className="border-b p-5"><h2 className="flex items-center gap-2 font-bold"><History className="h-4 w-4" /> Movimientos laborales</h2></div>
-          <div className="divide-y">{movimientos.map((movimiento) => <div key={movimiento.id} className="p-4"><div className="flex justify-between gap-3"><b className="text-sm">{movimiento.tipo}</b><span className="text-xs text-slate-500">{fecha(movimiento.fechaEfectiva)}</span></div><p className="mt-1 text-xs text-slate-500">{movimiento.motivo || "Sin observaciones"}</p></div>)}</div>
-          {!movimientos.length ? <p className="p-8 text-center text-sm text-slate-500">No hay movimientos laborales registrados.</p> : null}
+          <div className="border-b p-5"><h2 className="flex items-center gap-2 font-bold"><History className="h-4 w-4" />  {t("Movimientos laborales")}</h2></div>
+          <div className="divide-y">{movimientos.map((movimiento) => <div key={movimiento.id} className="p-4"><div className="flex justify-between gap-3"><b className="text-sm">{movimiento.tipo}</b><span className="text-xs text-slate-500">{fecha(movimiento.fechaEfectiva)}</span></div><p className="mt-1 text-xs text-slate-500">{movimiento.motivo || t("Sin observaciones")}</p></div>)}</div>
+          {!movimientos.length ? <p className="p-8 text-center text-sm text-slate-500">{t("No hay movimientos laborales registrados.")}</p> : null}
         </section>
       </div>
     </main>

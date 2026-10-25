@@ -3,6 +3,7 @@
 import React from 'react';
 import { usePermiso } from '@/hooks/use-permisos';
 
+import { useT } from '@/components/I18nProvider';
 // ─────────────────────────────────────────────────────────────────
 // TIPOS
 // ─────────────────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ export function ProtectedElement({
   claseDeshabilitado = 'opacity-40 pointer-events-none cursor-not-allowed select-none',
   alternativa = null,
 }: ProtectedElementProps) {
+  const t = useT();
   const { tienePermiso, cargando } = usePermiso();
 
   // Mientras carga, no mostramos nada para evitar flash de contenido no autorizado
@@ -66,7 +68,7 @@ export function ProtectedElement({
       return (
         <span
           className={claseDeshabilitado}
-          title="No tienes permiso para esta acción"
+          title={t("No tienes permiso para esta acción")}
           aria-disabled="true"
         >
           {children}

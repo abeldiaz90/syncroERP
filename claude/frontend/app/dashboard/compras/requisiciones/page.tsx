@@ -13,6 +13,7 @@ import { PuedeCrear, ProtectedElement } from '@/app/components/ProtectedElement'
 import { FOLIO, folioDe } from '@/lib/folios';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface IProducto { id: string; nombre: string; sku: string; }
 interface IDetalle { productoId: string; nombre: string; cantidadSolicitada: number; notas?: string; }
 interface IAprobacion {
@@ -62,6 +63,7 @@ const fmtFecha = (s: string) =>
   new Date(s).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 
 export default function RequisicionesPage() {
+  const t = useT();
   const [requisiciones, setRequisiciones] = useState<IRequisicion[]>([]);
   const [cargando, setCargando]   = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -115,12 +117,12 @@ export default function RequisicionesPage() {
       else {
         setRequisiciones([]);
         setErrorCarga(res.status === 403
-          ? 'Tu perfil no incluye la consulta de requisiciones.'
-          : 'No se pudieron consultar las requisiciones.');
+          ? t("Tu perfil no incluye la consulta de requisiciones.")
+          : t("No se pudieron consultar las requisiciones."));
       }
     } catch {
       setRequisiciones([]);
-      setErrorCarga('No hay conexión con el servidor.');
+      setErrorCarga(t("No hay conexión con el servidor."));
     }
     setCargando(false);
   }, []);
@@ -199,7 +201,7 @@ export default function RequisicionesPage() {
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!detalles.length) { toast$('Agrega al menos un producto', false); return; }
+    if (!detalles.length) { toast$(t("Agrega al menos un producto"), false); return; }
     /*
      * La edición a medias se confirma, no se tira. Se calcula aquí el cuerpo
      * para no depender de que el estado ya se haya actualizado.
@@ -219,22 +221,22 @@ export default function RequisicionesPage() {
     setGuardando(false);
     if (res.ok) {
       setModalOpen(false); setDetalles([]); setNotas(''); setPrioridad('NORMAL'); setFechaRequerida('');
-      cargar(); toast$('Requisición creada');
+      cargar(); toast$(t("Requisición creada"));
     } else {
       const e = await res.json().catch(() => ({}));
-      toast$(e.message ?? 'Error al guardar', false);
+      toast$(e.message ?? t("Error al guardar"), false);
     }
   };
 
   const cancelarReq = async (id: string) => {
-    if (!await confirmarElegante('¿Cancelar esta requisición?', { peligroso: true })) return;
+    if (!await confirmarElegante(t("¿Cancelar esta requisición?"), { peligroso: true })) return;
     const res = await peticion(`/compras/requisiciones/${id}/cancelar`, { method: 'PATCH', headers: h() });
-    if (res.ok) { cargar(); toast$('Requisición cancelada'); }
+    if (res.ok) { cargar(); toast$(t("Requisición cancelada")); }
     else {
       // El backend explica por que no se puede (estado, rol, solicitante).
       // Sustituirlo por "Error al cancelar" borraba la unica pista util.
       const e = await res.json().catch(() => ({}));
-      toast$(e.message ?? 'No se pudo cancelar la requisición', false);
+      toast$(e.message ?? t("No se pudo cancelar la requisición"), false);
     }
   };
 
@@ -259,23 +261,23 @@ export default function RequisicionesPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Compras</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Compras")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <ClipboardList className="w-8 h-8 text-indigo-500"/> Requisiciones
+            <ClipboardList className="w-8 h-8 text-indigo-500"/>  {t("Requisiciones")}
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Solicita materiales y supervisa el estado de tus pedidos.</p>
+          <p className="text-slate-500 text-sm mt-1">{t("Solicita materiales y supervisa el estado de tus pedidos.")}</p>
         </div>
         <div className="flex items-center gap-3">
-          <button aria-label="Volver a cargar las requisiciones" title="Volver a cargar las requisiciones" onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm">
+          <button aria-label={t("Volver a cargar las requisiciones")} title={t("Volver a cargar las requisiciones")} onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm">
             <RefreshCw className="w-4 h-4"/>
           </button>
           <PuedeCrear ruta="/api/compras/requisiciones">
             <button
               onClick={() => { setDetalles([]); setNotas(''); setPrioridad('NORMAL'); setFechaRequerida(''); setModalOpen(true); }}
               disabled={sinDepartamento}
-              title={sinDepartamento ? 'Tu usuario aún no tiene departamento asignado' : undefined}
+              title={sinDepartamento ? t("Tu usuario aún no tiene departamento asignado") : undefined}
               className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-indigo-600">
-              <Plus className="w-4 h-4"/> Nueva Requisición
+              <Plus className="w-4 h-4"/>  {t("Nueva Requisición")}
             </button>
           </PuedeCrear>
         </div>
@@ -285,11 +287,10 @@ export default function RequisicionesPage() {
         <div className="mb-6 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
           <div className="text-sm text-amber-900">
-            <p className="font-bold">Te falta un departamento para poder solicitar.</p>
+            <p className="font-bold">{t("Te falta un departamento para poder solicitar.")}</p>
             <p className="mt-0.5 text-amber-800">
-              De tu departamento salen los aprobadores de la requisición, así que el sistema no puede
-              enrutarla sin él. Pídele al administrador que te asigne uno en Usuarios; no tienes que
-              hacer nada más y esta pantalla funcionará sola.
+              
+              {t("De tu departamento salen los aprobadores de la requisición, así que el sistema no puede enrutarla sin él. Pídele al administrador que te asigne uno en Usuarios; no tienes que hacer nada más y esta pantalla funcionará sola.")}
             </p>
           </div>
         </div>
@@ -298,10 +299,10 @@ export default function RequisicionesPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Total',      val: stats.total,     color: 'slate',   filter: '' },
-          { label: 'Pendientes', val: stats.pendiente, color: 'amber',   filter: 'PENDIENTE' },
-          { label: 'Cotizando',  val: stats.cotizando, color: 'blue',    filter: 'COTIZANDO' },
-          { label: 'Recibidas',  val: stats.recibida,  color: 'emerald', filter: 'RECIBIDA' },
+          { label: t("Total"),      val: stats.total,     color: 'slate',   filter: '' },
+          { label: t("Pendientes"), val: stats.pendiente, color: 'amber',   filter: 'PENDIENTE' },
+          { label: t("Cotizando"),  val: stats.cotizando, color: 'blue',    filter: 'COTIZANDO' },
+          { label: t("Recibidas"),  val: stats.recibida,  color: 'emerald', filter: 'RECIBIDA' },
         ].map(k => (
           /*
            * Mientras se consulta, el número no se afirma.
@@ -322,9 +323,9 @@ export default function RequisicionesPage() {
           <button key={k.label} disabled={cargando}
             onClick={() => setFiltroEstado(filtroEstado === k.filter ? '' : k.filter)}
             className={`bg-white rounded-2xl border-2 p-4 text-left transition-all shadow-sm ${cargando ? 'cursor-default' : 'hover:shadow-md'} ${filtroEstado === k.filter && !cargando ? `border-${k.color}-400` : 'border-slate-200'}`}>
-            <p className="text-xs font-bold uppercase text-slate-400 mb-1">{k.label}</p>
+            <p className="text-xs font-bold uppercase text-slate-400 mb-1">{t(k.label)}</p>
             {cargando ? (
-              <p className="text-3xl font-black text-slate-300" title="Todavía se está consultando">
+              <p className="text-3xl font-black text-slate-300" title={t("Todavía se está consultando")}>
                 —
               </p>
             ) : (
@@ -337,20 +338,21 @@ export default function RequisicionesPage() {
       {/* Tabla */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-900 text-white px-6 py-3 flex items-center justify-between">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Registro de Requisiciones</p>
-          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : plural(filtradas.length, 'registro')}</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{t("Registro de Requisiciones")}</p>
+          <p className="text-xs text-slate-400">{cargando ? t("Consultando…") : plural(filtradas.length, 'registro')}</p>
         </div>
 
         {cargando ? (
           <div className="p-16 text-center">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
-            <p className="text-slate-400 text-sm">Cargando...</p>
+            <p className="text-slate-400 text-sm">{t("Cargando...")}</p>
           </div>
         ) : errorCarga ? (
           <div className="p-16 text-center">
             <p className="font-semibold text-rose-700">{errorCarga}</p>
             <p className="text-sm text-slate-500 mt-1">
-              La lista no está vacía: no se pudo consultar.
+              
+              {t("La lista no está vacía: no se pudo consultar.")}
             </p>
           </div>
         ) : filtradas.length === 0 ? (
@@ -360,18 +362,17 @@ export default function RequisicionesPage() {
               {filtroEstado
                 ? `Ninguna de las ${requisiciones.length} requisiciones que ves está en estado "${filtroEstado}"`
                 : alcance === 'propias-y-firmadas'
-                  ? 'No tienes requisiciones a tu nombre ni pendientes de firmar'
-                  : 'No hay requisiciones registradas'}
+                  ? t("No tienes requisiciones a tu nombre ni pendientes de firmar")
+                  : t("No hay requisiciones registradas")}
             </p>
             <p className="text-sm text-slate-400 mt-1">
               {filtroEstado ? (
                 <button onClick={() => setFiltroEstado('')} className="underline hover:text-slate-600">
-                  Quitar el filtro y ver las {requisiciones.length}
-                </button>
+                  {t("Quitar el filtro y ver las {n0}", { n0: requisiciones.length })}</button>
               ) : alcance === 'propias-y-firmadas' ? (
-                'Esta pantalla te muestra las que tú solicitaste y las que te tocó firmar. Las demás las ve Compras.'
+                t("Esta pantalla te muestra las que tú solicitaste y las que te tocó firmar. Las demás las ve Compras.")
               ) : (
-                'Crea la primera requisición.'
+                t("Crea la primera requisición.")
               )}
             </p>
           </div>
@@ -380,13 +381,13 @@ export default function RequisicionesPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                  <th className="px-5 py-3 text-left">Folio / Fecha</th>
-                  <th className="px-5 py-3 text-left">Solicitante</th>
-                  <th className="px-5 py-3 text-center">Prioridad</th>
-                  <th className="px-5 py-3 text-center">Productos</th>
-                  <th className="px-5 py-3 text-center">Fecha Requerida</th>
-                  <th className="px-5 py-3 text-center">Estado</th>
-                  <th className="px-5 py-3 text-center">Acciones</th>
+                  <th className="px-5 py-3 text-left">{t("Folio / Fecha")}</th>
+                  <th className="px-5 py-3 text-left">{t("Solicitante")}</th>
+                  <th className="px-5 py-3 text-center">{t("Prioridad")}</th>
+                  <th className="px-5 py-3 text-center">{t("Productos")}</th>
+                  <th className="px-5 py-3 text-center">{t("Fecha Requerida")}</th>
+                  <th className="px-5 py-3 text-center">{t("Estado")}</th>
+                  <th className="px-5 py-3 text-center">{t("Acciones")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -405,7 +406,7 @@ export default function RequisicionesPage() {
                       </td>
                       <td className="px-5 py-4 text-center">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${prioridadCfg.cls}`}>
-                          {prioridadCfg.label}
+                          {t(prioridadCfg.label)}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-center">
@@ -418,14 +419,14 @@ export default function RequisicionesPage() {
                       </td>
                       <td className="px-5 py-4 text-center">
                         <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border ${cfg.cls}`}>
-                          <CfgIcon className="w-3 h-3"/> {cfg.label}
+                          <CfgIcon className="w-3 h-3"/> {t(cfg.label)}
                         </span>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-center gap-1">
                           <ProtectedElement metodo="GET" ruta="/api/compras/requisiciones/:id">
                             <Link href={`/dashboard/compras/requisiciones/${req.id}`}
-                              className="p-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors" title="Ver detalle">
+                              className="p-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors" title={t("Ver detalle")}>
                               <Eye className="w-4 h-4"/>
                             </Link>
                           </ProtectedElement>
@@ -450,18 +451,18 @@ export default function RequisicionesPage() {
                                     className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-xs font-medium"
                                     title={firma?.usuario?.nombreCompleto
                                       ? `Esta requisicion avanza cuando la firme ${firma.usuario.nombreCompleto}`
-                                      : 'Esta requisicion espera una firma de autorizacion'}
+                                      : t("Esta requisicion espera una firma de autorizacion")}
                                   >
                                     <Clock className="w-3.5 h-3.5" />
                                     {firma?.usuario?.nombreCompleto
                                       ? `Espera firma de ${firma.usuario.nombreCompleto}`
-                                      : 'Espera autorizacion'}
+                                      : t("Espera autorizacion")}
                                   </span>
                                 );
                               })()}
                               <ProtectedElement metodo="PATCH" ruta="/api/compras/requisiciones/:id/cancelar">
                                 <button onClick={() => cancelarReq(req.id)}
-                                  className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition-colors" title="Cancelar">
+                                  className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition-colors" title={t("Cancelar")}>
                                   <XCircle className="w-4 h-4"/>
                                 </button>
                               </ProtectedElement>
@@ -485,9 +486,9 @@ export default function RequisicionesPage() {
 
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                <ClipboardList className="w-5 h-5 text-indigo-500"/> Nueva Requisición de Compra
+                <ClipboardList className="w-5 h-5 text-indigo-500"/>  {t("Nueva Requisición de Compra")}
               </h2>
-              <button aria-label="Cerrar" title="Cerrar" onClick={() => setModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl">
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl">
                 <X className="w-5 h-5"/>
               </button>
             </div>
@@ -498,20 +499,20 @@ export default function RequisicionesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">
-                    <Flag className="w-3 h-3 inline mr-1"/> Prioridad
+                    <Flag className="w-3 h-3 inline mr-1"/>  {t("Prioridad")}
                   </label>
                   <div className="grid grid-cols-4 gap-1.5">
                     {Object.entries(PRIORIDAD_CONFIG).map(([k, v]) => (
                       <button key={k} type="button" onClick={() => setPrioridad(k)}
                         className={`py-1.5 rounded-lg border text-[10px] font-bold transition-colors ${prioridad === k ? v.cls : 'border-slate-200 text-slate-400 hover:border-slate-300'}`}>
-                        {v.label}
+                        {t(v.label)}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">
-                    <Calendar className="w-3 h-3 inline mr-1"/> Fecha requerida
+                    <Calendar className="w-3 h-3 inline mr-1"/>  {t("Fecha requerida")}
                   </label>
                   <input type="date" value={fechaRequerida} onChange={e => setFechaRequerida(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
@@ -521,13 +522,13 @@ export default function RequisicionesPage() {
               {/* Buscador de productos */}
               <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
                 <label className="block text-xs font-bold uppercase text-slate-500 mb-2">
-                  <Search className="w-3 h-3 inline mr-1"/> Agregar productos
+                  <Search className="w-3 h-3 inline mr-1"/>  {t("Agregar productos")}
                 </label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
                   <input ref={inputRef} type="text" value={busqueda}
                     onChange={e => { setBusqueda(e.target.value); setProdSeleccionado(null); }}
-                    placeholder="Busca por nombre o SKU..."
+                    placeholder={t("Busca por nombre o SKU...")}
                     className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
                   {/*
                     * Sin resultados hay que DECIRLO. Antes el desplegable
@@ -537,15 +538,14 @@ export default function RequisicionesPage() {
                     */}
                   {sugerencias.length === 0 && busqueda.length >= 2 && !prodSeleccionado && (
                     <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 px-4 py-3 text-sm text-slate-500">
-                      Ningún producto activo coincide con «{busqueda}».
-                    </div>
+                      {t("Ningún producto activo coincide con «{n0}».", { n0: busqueda })}</div>
                   )}
                   {sugerencias.length > 0 && busqueda.length >= 2 && (
                     <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-48 overflow-auto">
                       {sugerencias.map(p => (
                         <li key={p.id} onMouseDown={() => { setProdSeleccionado(p); setBusqueda(p.nombre); setSugerencias([]); }}
                           className="flex items-center justify-between px-4 py-2.5 hover:bg-indigo-50 cursor-pointer border-b border-slate-50 last:border-0">
-                          <span className="font-medium text-slate-800 text-sm">{p.nombre}</span>
+                          <span className="font-medium text-slate-800 text-sm">{t(p.nombre)}</span>
                           <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{p.sku}</span>
                         </li>
                       ))}
@@ -555,13 +555,13 @@ export default function RequisicionesPage() {
                 {prodSeleccionado && (
                   <div className="flex items-center gap-3 mt-3">
                     <div className="flex-1 px-3 py-2 bg-white border border-indigo-200 rounded-xl text-sm font-medium text-slate-700 truncate">
-                      {prodSeleccionado.nombre}
+                      {t(prodSeleccionado.nombre)}
                     </div>
                     <input type="number" min="1" value={cantidad} onChange={e => setCantidad(Number(e.target.value))}
                       className="w-20 px-2 py-2 bg-white border border-indigo-200 rounded-xl text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
                     <button type="button" onClick={agregarDetalle}
                       className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700">
-                      {detalles.some(d => d.productoId === prodSeleccionado.id) ? 'Actualizar' : 'Agregar'}
+                      {detalles.some(d => d.productoId === prodSeleccionado.id) ? t("Actualizar") : t("Agregar")}
                     </button>
                   </div>
                 )}
@@ -572,14 +572,13 @@ export default function RequisicionesPage() {
                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
                     <p className="text-xs font-bold uppercase text-slate-500">
-                      Partidas ({detalles.length})
-                    </p>
+                      {t("Partidas ({n0})", { n0: detalles.length })}</p>
                   </div>
                   <ul className="divide-y divide-slate-100">
                     {detalles.map((d, idx) => (
                       <li key={idx} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
                         <div className="flex-1">
-                          <p className="font-medium text-slate-800 text-sm">{d.nombre}</p>
+                          <p className="font-medium text-slate-800 text-sm">{t(d.nombre)}</p>
                         </div>
                         {editIdx === idx ? (
                           <div className="flex items-center gap-2">
@@ -590,16 +589,16 @@ export default function RequisicionesPage() {
                                 else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditIdx(null); }
                               }}
                               className="w-16 px-2 py-1 border border-indigo-300 rounded-lg text-sm text-center font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500" autoFocus/>
-                            <button aria-label="Guardar la cantidad" title="Guardar la cantidad" onClick={() => confirmarCantidad(idx, editCant)}
+                            <button aria-label={t("Guardar la cantidad")} title={t("Guardar la cantidad")} onClick={() => confirmarCantidad(idx, editCant)}
                               className="text-emerald-600 hover:text-emerald-700 p-1"><CheckCircle2 className="w-4 h-4"/></button>
-                            <button aria-label="Descartar el cambio" title="Descartar el cambio" onClick={() => setEditIdx(null)} className="text-slate-400 p-1"><X className="w-4 h-4"/></button>
+                            <button aria-label={t("Descartar el cambio")} title={t("Descartar el cambio")} onClick={() => setEditIdx(null)} className="text-slate-400 p-1"><X className="w-4 h-4"/></button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">×{d.cantidadSolicitada}</span>
-                            <button aria-label="Editar la cantidad del renglón" title="Editar la cantidad del renglón" onClick={() => { setEditIdx(idx); setEditCant(d.cantidadSolicitada); }}
+                            <button aria-label={t("Editar la cantidad del renglón")} title={t("Editar la cantidad del renglón")} onClick={() => { setEditIdx(idx); setEditCant(d.cantidadSolicitada); }}
                               className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg"><Edit2 className="w-3.5 h-3.5"/></button>
-                            <button aria-label="Quitar el renglón" title="Quitar el renglón" onClick={() => setDetalles(prev => prev.filter((_,i)=>i!==idx))}
+                            <button aria-label={t("Quitar el renglón")} title={t("Quitar el renglón")} onClick={() => setDetalles(prev => prev.filter((_,i)=>i!==idx))}
                               className="p-1.5 text-rose-400 hover:bg-rose-50 rounded-lg"><Trash2 className="w-3.5 h-3.5"/></button>
                           </div>
                         )}
@@ -611,24 +610,25 @@ export default function RequisicionesPage() {
 
               {/* Notas */}
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Justificación / Notas</label>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">{t("Justificación / Notas")}</label>
                 <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={3}
-                  placeholder="Motivo de la compra, especificaciones adicionales..."
+                  placeholder={t("Motivo de la compra, especificaciones adicionales...")}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
               </div>
 
               <div className="flex items-start gap-3 p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-800 text-xs">
                 <Info className="w-4 h-4 mt-0.5 shrink-0"/>
-                Los aprobadores se asignan automáticamente según tu departamento.
+                
+                {t("Los aprobadores se asignan automáticamente según tu departamento.")}
               </div>
             </div>
 
             <div className="flex gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
-              <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 text-slate-700 font-medium hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
+              <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 text-slate-700 font-medium hover:bg-slate-200 rounded-xl transition-colors">{t("Cancelar")}</button>
               <button onClick={guardar} disabled={guardando || !detalles.length || sinDepartamento}
                 className="flex-1 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">
                 {guardando ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <Plus className="w-4 h-4"/>}
-                {guardando ? 'Guardando...' : 'Crear Requisición'}
+                {guardando ? t("Guardando...") : t("Crear Requisición")}
               </button>
             </div>
           </div>

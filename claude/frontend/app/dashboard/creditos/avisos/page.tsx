@@ -32,6 +32,7 @@ import { confirmarElegante } from '@/components/ui/dialogos';
 import { useContratacion } from '@/lib/contratacion';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 type Estado = 'PENDIENTE' | 'PROCESADO' | 'IGNORADO' | 'FALLIDO' | 'DESCARTADO';
 
 interface IAviso {
@@ -86,6 +87,7 @@ const fecha = (v: string | null) =>
   v ? new Date(v).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
 export default function AvisosDelCorePage() {
+  const t = useT();
   const [datos, setDatos] = useState<IRespuesta | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -134,11 +136,11 @@ export default function AvisosDelCorePage() {
       setHuerfanosVedados(sinEmpresa.vedado);
       setErrorHuerfanos(
         sinEmpresa.averia
-          ? 'No se pudieron leer los avisos sin correspondencia. Puede haber algo esperando que esta pantalla no está mostrando.'
+          ? t("No se pudieron leer los avisos sin correspondencia. Puede haber algo esperando que esta pantalla no está mostrando.")
           : null,
       );
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'No fue posible leer el buzón.');
+      setError(e instanceof ApiError ? e.message : t("No fue posible leer el buzón."));
     } finally {
       setCargando(false);
     }
@@ -149,8 +151,8 @@ export default function AvisosDelCorePage() {
   const resolver = async (aviso: IAviso, decision: 'PROCESADO' | 'DESCARTADO') => {
     const texto =
       decision === 'PROCESADO'
-        ? '¿Ya reflejaste este hecho en el ERP? El aviso deja de señalarse, pero esta pantalla no aplica nada por su cuenta.'
-        : '¿Descartar este aviso? Queda registrado que se decidió no aplicarlo.';
+        ? t("¿Ya reflejaste este hecho en el ERP? El aviso deja de señalarse, pero esta pantalla no aplica nada por su cuenta.")
+        : t("¿Descartar este aviso? Queda registrado que se decidió no aplicarlo.");
     if (!(await confirmarElegante(texto, { titulo: 'Cerrar aviso' }))) return;
 
     setTrabajando(aviso.id);
@@ -158,7 +160,7 @@ export default function AvisosDelCorePage() {
       await api.patch(`/integracion/avisos/${aviso.id}/resolver`, { decision });
       await cargar(filtro);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'No fue posible cerrar el aviso.');
+      setError(e instanceof ApiError ? e.message : t("No fue posible cerrar el aviso."));
     } finally {
       setTrabajando(null);
     }
@@ -180,11 +182,12 @@ export default function AvisosDelCorePage() {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
             <Inbox className="w-6 h-6 text-amber-600" />
-            Avisos del core
+            
+            {t("Avisos del core")}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Lo que pasó en el registro externo. Aquí sólo se revisa y se cierra: el reflejo se hace
-            con la operación del ERP que corresponda.
+            
+            {t("Lo que pasó en el registro externo. Aquí sólo se revisa y se cierra: el reflejo se hace con la operación del ERP que corresponda.")}
           </p>
         </div>
         <button
@@ -192,14 +195,15 @@ export default function AvisosDelCorePage() {
           className="px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 flex items-center gap-2"
         >
           <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />
-          Actualizar
+          
+          {t("Actualizar")}
         </button>
       </div>
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-start gap-2">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          {error}
+          {t(error)}
         </div>
       )}
 
@@ -218,11 +222,12 @@ export default function AvisosDelCorePage() {
             <Inbox className="w-5 h-5 text-slate-500 shrink-0" />
             <div>
               <p className="font-medium text-gray-900">
-                Esta empresa no está integrada con un registro externo
+                
+                {t("Esta empresa no está integrada con un registro externo")}
               </p>
               <p className="text-sm text-gray-600">
-                El buzón no recibe nada porque no hay quien le escriba. Toda la
-                operación vive en el ERP.
+                
+                {t("El buzón no recibe nada porque no hay quien le escriba. Toda la operación vive en el ERP.")}
               </p>
             </div>
           </div>
@@ -245,8 +250,8 @@ export default function AvisosDelCorePage() {
               {pidenAlgo > 0
                 ? `${plural(pidenAlgo, "aviso")} ${pidenAlgo === 1 ? "pide" : "piden"} una decisión`
                 : huerfanosVedados
-                  ? 'Nada pendiente de esta empresa'
-                  : 'Nada pendiente'}
+                  ? t("Nada pendiente de esta empresa")
+                  : t("Nada pendiente")}
             </p>
             {/*
               El titular habla de LO QUE SE PUDO MIRAR. Los avisos sin
@@ -262,8 +267,8 @@ export default function AvisosDelCorePage() {
                       : ''
                   }.`
                 : huerfanosVedados
-                  ? 'Todo lo recibido para esta empresa fue el eco de operaciones que el ERP mismo originó. Los avisos sobre recursos que este ERP no conoce son de administración y no están en tu perfil.'
-                  : 'Todo lo recibido fue el eco de operaciones que el ERP mismo originó.'}
+                  ? t("Todo lo recibido para esta empresa fue el eco de operaciones que el ERP mismo originó. Los avisos sobre recursos que este ERP no conoce son de administración y no están en tu perfil.")
+                  : t("Todo lo recibido fue el eco de operaciones que el ERP mismo originó.")}
             </p>
           </div>
         </div>
@@ -275,7 +280,8 @@ export default function AvisosDelCorePage() {
           onClick={() => setFiltro('TODOS')}
           className={`px-3 py-1.5 text-sm rounded-full border ${filtro === 'TODOS' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white hover:bg-gray-50'}`}
         >
-          Todos
+          
+          {t("Todos")}
         </button>
         {ESTADOS.map((e) => (
           <button
@@ -283,7 +289,7 @@ export default function AvisosDelCorePage() {
             onClick={() => setFiltro(e.clave)}
             className={`px-3 py-1.5 text-sm rounded-full border ${filtro === e.clave ? 'bg-gray-900 text-white border-gray-900' : 'bg-white hover:bg-gray-50'}`}
           >
-            {e.etiqueta} · {totalDe(e.clave)}
+            {t(e.etiqueta)} · {totalDe(e.clave)}
           </button>
         ))}
       </div>
@@ -299,11 +305,11 @@ export default function AvisosDelCorePage() {
         <div className="mb-6">
           <div className="flex items-baseline gap-2 mb-2">
             <h2 className="text-sm font-semibold text-gray-900">
-              Sin correspondencia en el ERP
+              
+              {t("Sin correspondencia en el ERP")}
             </h2>
             <span className="text-xs text-gray-500">
-              {plural(huerfanos.length, "aviso")} sobre recursos que este ERP no conoce
-            </span>
+              {t("{n0} sobre recursos que este ERP no conoce", { n0: plural(huerfanos.length, "aviso") })}</span>
           </div>
           {/*
             Van arriba y aparte del filtro por estado: no se pueden atribuir a
@@ -322,7 +328,7 @@ export default function AvisosDelCorePage() {
                     {a.entidad}/{a.accion}
                   </span>
                   {a.idExterno && (
-                    <span className="text-sm text-gray-500">recurso {a.idExterno}</span>
+                    <span className="text-sm text-gray-500">{t("recurso {n0}", { n0: a.idExterno })}</span>
                   )}
                   <span className="text-sm text-gray-400 ml-auto">{fecha(a.recibidoEn)}</span>
                 </div>
@@ -339,15 +345,14 @@ export default function AvisosDelCorePage() {
                   * el contenido.
                   */}
                 {a.detalle && (
-                  <p className="text-xs text-gray-500 mt-2 italic">{a.detalle}</p>
+                  <p className="text-xs text-gray-500 mt-2 italic">{t(a.detalle)}</p>
                 )}
               </div>
             ))}
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            No se pueden cerrar desde aquí: sin empresa a la cual pertenecer, no hay a quién
-            atribuir la decisión. Se resuelven dando de alta el recurso en el ERP, o aceptando que
-            vive sólo en el core.
+            
+            {t("No se pueden cerrar desde aquí: sin empresa a la cual pertenecer, no hay a quién atribuir la decisión. Se resuelven dando de alta el recurso en el ERP, o aceptando que vive sólo en el core.")}
           </p>
         </div>
       )}
@@ -355,17 +360,17 @@ export default function AvisosDelCorePage() {
       <div className="bg-white border rounded-lg divide-y">
         {cargando && (
           <div className="p-8 text-center text-gray-500 flex items-center justify-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" /> Consultando el buzón…
+            <Loader2 className="w-4 h-4 animate-spin" />  {t("Consultando el buzón…")}
           </div>
         )}
 
         {!cargando && (datos?.avisos.length ?? 0) === 0 && (
           <div className="p-8 text-center text-gray-500">
-            <p>No hay avisos en este estado.</p>
+            <p>{t("No hay avisos en este estado.")}</p>
             {filtro === 'PENDIENTE' && (
               <p className="text-sm mt-1">
-                Si el hook está dado de alta y nunca llega nada, revisa que el core pueda alcanzar
-                la dirección del ERP.
+                
+                {t("Si el hook está dado de alta y nunca llega nada, revisa que el core pueda alcanzar la dirección del ERP.")}
               </p>
             )}
           </div>
@@ -381,7 +386,7 @@ export default function AvisosDelCorePage() {
                 <button
                   onClick={() => setAbierto(expandido ? null : a.id)}
                   className="mt-0.5 text-gray-400 hover:text-gray-600 shrink-0"
-                  aria-label={expandido ? 'Ocultar el detalle' : 'Ver el detalle'}
+                  aria-label={expandido ? t("Ocultar el detalle") : t("Ver el detalle")}
                 >
                   {expandido ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                 </button>
@@ -398,7 +403,7 @@ export default function AvisosDelCorePage() {
                       {a.entidad}/{a.accion}
                     </span>
                     {a.idExterno && (
-                      <span className="text-sm text-gray-500">recurso {a.idExterno}</span>
+                      <span className="text-sm text-gray-500">{t("recurso {n0}", { n0: a.idExterno })}</span>
                     )}
                     <span className="text-sm text-gray-400 ml-auto">{fecha(a.recibidoEn)}</span>
                   </div>
@@ -407,7 +412,7 @@ export default function AvisosDelCorePage() {
                     <p className="text-sm text-gray-700 mt-1.5">{a.diagnostico}</p>
                   )}
                   {a.error && (
-                    <p className="text-sm text-red-700 mt-1">{a.error}</p>
+                    <p className="text-sm text-red-700 mt-1">{t(a.error)}</p>
                   )}
 
                   {expandido && (
@@ -416,7 +421,7 @@ export default function AvisosDelCorePage() {
                         <div>Entidad del ERP: <span className="font-mono">{a.entidadId ?? '—'}</span></div>
                         <div>Tipo de vínculo: <span className="font-mono">{a.tipoVinculo ?? '—'}</span></div>
                         <div>Inquilino: <span className="font-mono">{a.tenant ?? '—'}</span></div>
-                        <div>Resuelto: {fecha(a.resueltoEn)}</div>
+                        <div>{t("Resuelto: {n0}", { n0: fecha(a.resueltoEn) })}</div>
                       </div>
                       {/*
                         El cuerpo tal como llegó. Cuando algo no cuadre, la pregunta va a ser
@@ -424,7 +429,7 @@ export default function AvisosDelCorePage() {
                         nosotros no puede contestarla.
                       */}
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Detalle del aviso:</p>
+                        <p className="text-xs text-gray-500 mb-1">{t("Detalle del aviso:")}</p>
                         <pre className="text-xs bg-gray-50 border rounded p-2 overflow-x-auto max-h-64">
 {JSON.stringify(a.cuerpo ?? a.cuerpoTexto ?? null, null, 2)}
                         </pre>
@@ -440,7 +445,8 @@ export default function AvisosDelCorePage() {
                         className="px-3 py-1.5 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        Ya lo reflejé
+                        
+                        {t("Ya lo reflejé")}
                       </button>
                       <button
                         disabled={trabajando === a.id}
@@ -448,7 +454,8 @@ export default function AvisosDelCorePage() {
                         className="px-3 py-1.5 text-sm rounded-lg border hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
                       >
                         <Archive className="w-3.5 h-3.5" />
-                        No aplica
+                        
+                        {t("No aplica")}
                       </button>
                       {a.entidad === 'LOAN' && a.entidadId && (
                         <a
@@ -456,7 +463,8 @@ export default function AvisosDelCorePage() {
                           className="px-3 py-1.5 text-sm rounded-lg border hover:bg-gray-50 flex items-center gap-1.5"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
-                          Abrir el crédito
+                          
+                          {t("Abrir el crédito")}
                         </a>
                       )}
                     </div>
@@ -469,9 +477,8 @@ export default function AvisosDelCorePage() {
       </div>
 
       <p className="text-xs text-gray-500 mt-4">
-        «Ya lo reflejé» no aplica nada: registra que una persona lo revisó. El movimiento se captura
-        con la operación del ERP que corresponda, porque un cobro necesita cuenta de caja, método y
-        asiento, y el aviso no los trae.
+        
+        {t("«Ya lo reflejé» no aplica nada: registra que una persona lo revisó. El movimiento se captura con la operación del ERP que corresponda, porque un cobro necesita cuenta de caja, método y asiento, y el aviso no los trae.")}
       </p>
     </div>
   );

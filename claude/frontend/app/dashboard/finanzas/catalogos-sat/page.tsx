@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 
+import { useT } from '@/components/I18nProvider';
 type Resumen = {
   version: {
     clave: string;
@@ -84,6 +85,7 @@ const nombreCatalogo: Record<string, string> = {
 };
 
 export default function CatalogosSatPage() {
+  const t = useT();
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null);
   const [diagnosticoIva, setDiagnosticoIva] = useState<DiagnosticoIva | null>(
@@ -182,7 +184,8 @@ export default function CatalogosSatPage() {
       <div className="grid min-h-[55vh] place-items-center">
         <div className="text-center text-sm text-slate-500">
           <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-violet-600" />
-          Verificando la clasificación SAT…
+          
+          {t("Verificando la clasificación SAT…")}
         </div>
       </div>
     );
@@ -200,14 +203,16 @@ export default function CatalogosSatPage() {
         </div>
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600">
-            Contabilidad electrónica · México
+            
+            {t("Contabilidad electrónica · México")}
           </p>
           <h1 className="mt-1 text-2xl font-black text-slate-950">
-            Asistente de clasificación SAT
+            
+            {t("Asistente de clasificación SAT")}
           </h1>
           <p className="mt-1 max-w-3xl text-sm text-slate-500">
-            Relaciona las cuentas de tu empresa con el Anexo 24. El catálogo
-            oficial no se modifica; únicamente confirmas la equivalencia.
+            
+            {t("Relaciona las cuentas de tu empresa con el Anexo 24. El catálogo oficial no se modifica; únicamente confirmas la equivalencia.")}
           </p>
         </div>
         {resumen && (
@@ -217,7 +222,8 @@ export default function CatalogosSatPage() {
             rel="noreferrer"
             className="md:ml-auto inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-violet-300 hover:text-violet-700"
           >
-            Documento oficial
+            
+            {t("Documento oficial")}
             <ExternalLink className="h-4 w-4" />
           </a>
         )}
@@ -226,36 +232,36 @@ export default function CatalogosSatPage() {
       {error && (
         <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-          {error}
+          {t(error)}
         </div>
       )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <Indicador
           icono={<ShieldCheck />}
-          etiqueta="Versión oficial"
+          etiqueta={t("Versión oficial")}
           valor={`Anexo 24 · ${resumen?.version?.ejercicio ?? 2026}`}
           detalle={`Publicado ${fecha(resumen?.version?.fechaPublicacion)}`}
           color="violet"
         />
         <Indicador
           icono={<FileCheck2 />}
-          etiqueta="Cuentas clasificadas"
+          etiqueta={t("Cuentas clasificadas")}
           valor={`${diagnostico?.totalMapeadas ?? 0} de ${diagnostico?.totalCuentasAfectables ?? 0}`}
           detalle={
             diagnostico?.completo
-              ? "Todas tienen código oficial"
-              : "Hay cuentas sin equivalencia"
+              ? t("Todas tienen código oficial")
+              : t("Hay cuentas sin equivalencia")
           }
           color={diagnostico?.completo ? "emerald" : "amber"}
         />
         <Indicador
           icono={<BadgeCheck />}
-          etiqueta="Revisión humana"
+          etiqueta={t("Revisión humana")}
           valor={
-            totalRevisiones === 0 ? "Completa" : `${totalRevisiones} pendientes`
+            totalRevisiones === 0 ? t("Completa") : `${totalRevisiones} pendientes`
           }
-          detalle="Las sugerencias quedan auditadas"
+          detalle={t("Las sugerencias quedan auditadas")}
           color={totalRevisiones === 0 ? "emerald" : "amber"}
         />
       </div>
@@ -265,7 +271,7 @@ export default function CatalogosSatPage() {
           key={advertencia}
           className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
         >
-          <b>Revisión necesaria:</b> {advertencia}
+          <b>{t("Revisión necesaria:")}</b> {advertencia}
         </div>
       ))}
 
@@ -274,25 +280,25 @@ export default function CatalogosSatPage() {
           <div className="flex items-start gap-3">
             <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
             <div>
-              <h2 className="font-black">Operaciones históricas por revisar</h2>
+              <h2 className="font-black">{t("Operaciones históricas por revisar")}</h2>
               <p className="mt-1 text-sm text-rose-800">
-                {diagnosticoIva.mensaje}
+                {t(diagnosticoIva.mensaje)}
               </p>
               <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2">
                 <DatoHistorico
-                  etiqueta="Ventas a crédito"
+                  etiqueta={t("Ventas a crédito")}
                   total={diagnosticoIva.ventasCreditoConIvaCobrado}
                 />
                 <DatoHistorico
-                  etiqueta="Compras a crédito"
+                  etiqueta={t("Compras a crédito")}
                   total={diagnosticoIva.comprasConIvaMarcadoPagado}
                 />
                 <DatoHistorico
-                  etiqueta="Cobros sin reclasificar"
+                  etiqueta={t("Cobros sin reclasificar")}
                   total={diagnosticoIva.cobranzasSinReclasificacionIva}
                 />
                 <DatoHistorico
-                  etiqueta="Pagos sin reclasificar"
+                  etiqueta={t("Pagos sin reclasificar")}
                   total={diagnosticoIva.pagosProveedorSinReclasificacionIva}
                 />
               </div>
@@ -308,12 +314,12 @@ export default function CatalogosSatPage() {
           </div>
           <div>
             <h2 className="font-black text-emerald-950">
-              Clasificación SAT revisada
+              
+              {t("Clasificación SAT revisada")}
             </h2>
             <p className="mt-1 text-sm text-emerald-800">
-              Las cuentas operativas están relacionadas con la versión oficial
-              vigente. Los cambios futuros conservarán el historial por
-              ejercicio.
+              
+              {t("Las cuentas operativas están relacionadas con la versión oficial vigente. Los cambios futuros conservarán el historial por ejercicio.")}
             </p>
           </div>
         </section>
@@ -321,13 +327,13 @@ export default function CatalogosSatPage() {
         <div className="grid gap-6 xl:grid-cols-2">
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <EncabezadoSeccion
-              titulo="Sugerencias del sistema"
-              texto="Confirma si la equivalencia describe realmente el uso de la cuenta."
+              titulo={t("Sugerencias del sistema")}
+              texto={t("Confirma si la equivalencia describe realmente el uso de la cuenta.")}
               cantidad={diagnostico?.sinConfirmar?.length ?? 0}
             />
             <div className="divide-y divide-slate-100">
               {diagnostico?.sinConfirmar?.length === 0 && (
-                <Vacio texto="No hay sugerencias pendientes de confirmar." />
+                <Vacio texto={t("No hay sugerencias pendientes de confirmar.")} />
               )}
               {diagnostico?.sinConfirmar?.map((sugerencia) => (
                 <div
@@ -346,7 +352,7 @@ export default function CatalogosSatPage() {
                       <b className="font-mono text-slate-700">
                         {sugerencia.codigo}
                       </b>{" "}
-                      · {sugerencia.nombre}
+                      · {t(sugerencia.nombre)}
                     </p>
                   </div>
                   <button
@@ -368,13 +374,13 @@ export default function CatalogosSatPage() {
 
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <EncabezadoSeccion
-              titulo="Cuentas sin clasificación"
-              texto="Busca el concepto SAT que mejor represente su naturaleza y uso principal."
+              titulo={t("Cuentas sin clasificación")}
+              texto={t("Busca el concepto SAT que mejor represente su naturaleza y uso principal.")}
               cantidad={diagnostico?.pendientes?.length ?? 0}
             />
             <div className="divide-y divide-slate-100">
               {diagnostico?.pendientes?.length === 0 && (
-                <Vacio texto="No hay cuentas operativas sin clasificar." />
+                <Vacio texto={t("No hay cuentas operativas sin clasificar.")} />
               )}
               {diagnostico?.pendientes?.map((cuenta) => (
                 <button
@@ -390,10 +396,11 @@ export default function CatalogosSatPage() {
                       <span className="mr-2 font-mono text-violet-700">
                         {cuenta.numeroCuenta}
                       </span>
-                      {cuenta.nombre}
+                      {t(cuenta.nombre)}
                     </p>
                     <p className="mt-1 text-xs text-amber-700">
-                      Requiere seleccionar un código agrupador.
+                      
+                      {t("Requiere seleccionar un código agrupador.")}
                     </p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-slate-400" />
@@ -408,7 +415,8 @@ export default function CatalogosSatPage() {
         <div className="flex items-center gap-2">
           <Landmark className="h-5 w-5 text-violet-600" />
           <h2 className="font-black text-slate-900">
-            Catálogos precargados en el sistema
+            
+            {t("Catálogos precargados en el sistema")}
           </h2>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -418,7 +426,7 @@ export default function CatalogosSatPage() {
                 {nombreCatalogo[clave] ?? clave}
               </p>
               <p className="mt-1 text-2xl font-black text-slate-900">{total}</p>
-              <p className="text-xs text-slate-500">registros oficiales</p>
+              <p className="text-xs text-slate-500">{t("registros oficiales")}</p>
             </div>
           ))}
         </div>
@@ -438,13 +446,14 @@ export default function CatalogosSatPage() {
             <div className="flex items-start gap-3 border-b border-slate-200 p-5">
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold uppercase text-violet-600">
-                  Clasificar cuenta
+                  
+                  {t("Clasificar cuenta")}
                 </p>
                 <h2 className="mt-1 truncate font-black text-slate-950">
-                  {seleccionada.numeroCuenta} · {seleccionada.nombre}
+                  {seleccionada.numeroCuenta} · {t(seleccionada.nombre)}
                 </h2>
               </div>
-              <button aria-label="Cerrar" title="Cerrar"
+              <button aria-label={t("Cerrar")} title={t("Cerrar")}
                 onClick={() => setSeleccionada(null)}
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
               >
@@ -458,20 +467,21 @@ export default function CatalogosSatPage() {
                   autoFocus
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
-                  placeholder="Ej. caja, inventario, IVA no cobrado…"
+                  placeholder={t("Ej. caja, inventario, IVA no cobrado…")}
                   className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
                 />
               </label>
               <p className="mt-2 text-xs text-slate-500">
-                Selecciona por naturaleza y por el uso predominante de la
-                cuenta. Si tienes duda, deja la revisión a tu contador.
+                
+                {t("Selecciona por naturaleza y por el uso predominante de la cuenta. Si tienes duda, deja la revisión a tu contador.")}
               </p>
             </div>
             <div className="max-h-[52vh] overflow-y-auto border-t border-slate-100">
               {buscando ? (
                 <div className="p-10 text-center text-sm text-slate-500">
                   <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin" />
-                  Buscando en el Anexo 24…
+                  
+                  {t("Buscando en el Anexo 24…")}
                 </div>
               ) : (
                 resultados.map((entrada) => (
@@ -485,13 +495,13 @@ export default function CatalogosSatPage() {
                       {entrada.clave}
                     </span>
                     <span className="text-sm text-slate-700">
-                      {entrada.nombre}
+                      {t(entrada.nombre)}
                     </span>
                   </button>
                 ))
               )}
               {!buscando && resultados.length === 0 && (
-                <Vacio texto="No encontramos coincidencias. Prueba con otra palabra." />
+                <Vacio texto={t("No encontramos coincidencias. Prueba con otra palabra.")} />
               )}
             </div>
           </div>
@@ -514,6 +524,7 @@ function Indicador({
   detalle: string;
   color: "violet" | "emerald" | "amber";
 }) {
+  const t = useT();
   const tonos = {
     violet: "bg-violet-50 text-violet-700",
     emerald: "bg-emerald-50 text-emerald-700",
@@ -527,10 +538,10 @@ function Indicador({
         {icono}
       </div>
       <p className="mt-4 text-xs font-bold uppercase tracking-wide text-slate-400">
-        {etiqueta}
+        {t(etiqueta)}
       </p>
       <p className="mt-1 text-xl font-black text-slate-950">{valor}</p>
-      <p className="mt-1 text-xs text-slate-500">{detalle}</p>
+      <p className="mt-1 text-xs text-slate-500">{t(detalle)}</p>
     </div>
   );
 }
@@ -544,21 +555,23 @@ function EncabezadoSeccion({
   texto: string;
   cantidad: number;
 }) {
+  const t = useT();
   return (
     <div className="border-b border-slate-200 p-5">
       <div className="flex items-center gap-2">
-        <h2 className="font-black text-slate-900">{titulo}</h2>
+        <h2 className="font-black text-slate-900">{t(titulo)}</h2>
         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">
           {cantidad}
         </span>
       </div>
-      <p className="mt-1 text-xs text-slate-500">{texto}</p>
+      <p className="mt-1 text-xs text-slate-500">{t(texto)}</p>
     </div>
   );
 }
 
 function Vacio({ texto }: { texto: string }) {
-  return <div className="p-8 text-center text-sm text-slate-400">{texto}</div>;
+  const t = useT();
+  return <div className="p-8 text-center text-sm text-slate-400">{t(texto)}</div>;
 }
 
 function DatoHistorico({
@@ -568,9 +581,10 @@ function DatoHistorico({
   etiqueta: string;
   total: number;
 }) {
+  const t = useT();
   return (
     <div className="flex items-center justify-between rounded-lg bg-white/70 px-3 py-2">
-      <span>{etiqueta}</span>
+      <span>{t(etiqueta)}</span>
       <b>{total}</b>
     </div>
   );

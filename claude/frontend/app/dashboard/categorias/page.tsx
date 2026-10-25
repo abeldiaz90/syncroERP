@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement";
 
+import { useT } from '@/components/I18nProvider';
 interface ICategoria {
   id: string; nombre: string; descripcion: string; activo: boolean;
   categoriaPadreId: string | null;
@@ -53,6 +54,7 @@ const CAMPOS_CUENTAS = [
 const FORM_VACIO = { nombre: '', descripcion: '', categoriaPadreId: '' };
 
 export default function CategoriasPage() {
+  const t = useT();
   const [categorias, setCategorias] = useState<ICategoria[]>([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -91,7 +93,7 @@ export default function CategoriasPage() {
   };
 
   const guardar = async () => {
-    if (!form.nombre.trim()) { mostrarToast('El nombre es obligatorio', false); return; }
+    if (!form.nombre.trim()) { mostrarToast(t("El nombre es obligatorio"), false); return; }
     const esNueva = modal === 'nueva';
     setGuardando(true);
     /*
@@ -114,12 +116,12 @@ export default function CategoriasPage() {
     );
     setGuardando(false);
     if (res.ok) {
-      mostrarToast(esNueva ? 'Categoría creada' : 'Categoría actualizada');
+      mostrarToast(esNueva ? t("Categoría creada") : t("Categoría actualizada"));
       setModal(null);
       cargar();
     } else {
       const e = await res.json().catch(() => ({}));
-      mostrarToast(Array.isArray(e.message) ? e.message[0] : e.message ?? 'No se pudo guardar', false);
+      mostrarToast(Array.isArray(e.message) ? e.message[0] : e.message ?? t("No se pudo guardar"), false);
     }
   };
 
@@ -128,8 +130,8 @@ export default function CategoriasPage() {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${tok()}` },
     });
-    if (res.ok) { mostrarToast(cat.activo ? 'Categoría desactivada' : 'Categoría activada'); cargar(); }
-    else { const e = await res.json().catch(() => ({})); mostrarToast(e.message ?? 'No se pudo cambiar el estado', false); }
+    if (res.ok) { mostrarToast(cat.activo ? t("Categoría desactivada") : t("Categoría activada")); cargar(); }
+    else { const e = await res.json().catch(() => ({})); mostrarToast(e.message ?? t("No se pudo cambiar el estado"), false); }
   };
 
   const contarAsignadas = (cat: ICategoria) =>
@@ -152,17 +154,17 @@ export default function CategoriasPage() {
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <Tags className="w-8 h-8 text-teal-600" /> Categorías de productos
+            <Tags className="w-8 h-8 text-teal-600" />  {t("Categorías de productos")}
           </h1>
           <p className="text-slate-500 mt-1.5 max-w-2xl">
-            Cómo se agrupa el catálogo. De la categoría dependen el árbol de productos, los reportes por
-            familia y —desde Finanzas— las cuentas contables con las que se registra cada movimiento.
+            
+            {t("Cómo se agrupa el catálogo. De la categoría dependen el árbol de productos, los reportes por familia y —desde Finanzas— las cuentas contables con las que se registra cada movimiento.")}
           </p>
         </div>
         <PuedeCrear ruta="/api/catalogo/categorias">
           <button onClick={abrirNueva}
             className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white font-semibold rounded-xl hover:bg-teal-700 shadow-md transition-colors shrink-0">
-            <Plus className="w-4 h-4" /> Nueva categoría
+            <Plus className="w-4 h-4" />  {t("Nueva categoría")}
           </button>
         </PuedeCrear>
       </div>
@@ -172,12 +174,12 @@ export default function CategoriasPage() {
           <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <p className="text-sm text-amber-800">
             <span className="font-bold">
-              {sinContabilidad} {sinContabilidad === 1 ? 'categoría' : 'categorías'} sin contabilidad completa.
-            </span>{' '}
+              {t("{n0} {n1} sin contabilidad completa.", { n0: sinContabilidad, n1: sinContabilidad === 1 ? t("categoría") : t("categorías") })}</span>{' '}
             Lo que se venda o se dé de baja en ellas no llega a la contabilidad. Quien lleva la contabilidad lo
             resuelve en{' '}
             <Link href="/dashboard/finanzas/categorias-contables" className="font-semibold underline underline-offset-2 inline-flex items-center gap-1">
-              Finanzas → Categorías contables <ExternalLink className="w-3 h-3" />
+              
+              {t("Finanzas → Categorías contables")} <ExternalLink className="w-3 h-3" />
             </Link>.
           </p>
         </div>
@@ -186,7 +188,7 @@ export default function CategoriasPage() {
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 flex gap-3">
         <Info className="w-5 h-5 text-slate-500 shrink-0 mt-0.5" />
         <p className="text-sm text-slate-600">
-          <span className="font-bold">Las cuentas contables no se cambian aquí.</span> Se ven en sólo lectura,
+          <span className="font-bold">{t("Las cuentas contables no se cambian aquí.")}</span> Se ven en sólo lectura,
           para saber qué falta. Asignarlas es trabajo de Contabilidad y se hace en su propia pantalla: de esas
           cinco cuentas depende dónde aterriza el costo de toda una familia de productos.
         </p>
@@ -196,23 +198,24 @@ export default function CategoriasPage() {
         {cargando ? (
           <div className="p-16 text-center text-slate-400">
             <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            Cargando categorías…
+            
+            {t("Cargando categorías…")}
           </div>
         ) : categorias.length === 0 ? (
           <div className="p-16 text-center">
             <Tags className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-            <p className="font-semibold text-slate-600">No hay categorías</p>
-            <p className="text-sm text-slate-400 mt-1">Crea la primera con el botón «Nueva categoría»</p>
+            <p className="font-semibold text-slate-600">{t("No hay categorías")}</p>
+            <p className="text-sm text-slate-400 mt-1">{t("Crea la primera con el botón «Nueva categoría»")}</p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                <th className="px-5 py-3 text-left">Categoría</th>
-                <th className="px-5 py-3 text-left hidden md:table-cell">Depende de</th>
-                <th className="px-5 py-3 text-center">Estado</th>
-                <th className="px-5 py-3 text-center">Contabilidad</th>
-                <th className="px-5 py-3 text-center">Acciones</th>
+                <th className="px-5 py-3 text-left">{t("Categoría")}</th>
+                <th className="px-5 py-3 text-left hidden md:table-cell">{t("Depende de")}</th>
+                <th className="px-5 py-3 text-center">{t("Estado")}</th>
+                <th className="px-5 py-3 text-center">{t("Contabilidad")}</th>
+                <th className="px-5 py-3 text-center">{t("Acciones")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -223,24 +226,24 @@ export default function CategoriasPage() {
                 return (
                   <tr key={cat.id} className={`hover:bg-slate-50 transition-colors ${cat.activo ? '' : 'opacity-60'}`}>
                     <td className="px-5 py-4">
-                      <p className="font-semibold text-slate-900">{cat.nombre}</p>
-                      {cat.descripcion && <p className="text-xs text-slate-400 mt-0.5">{cat.descripcion}</p>}
+                      <p className="font-semibold text-slate-900">{t(cat.nombre)}</p>
+                      {cat.descripcion && <p className="text-xs text-slate-400 mt-0.5">{t(cat.descripcion)}</p>}
                     </td>
                     <td className="px-5 py-4 hidden md:table-cell text-sm text-slate-500">
-                      {nombrePadre(cat.categoriaPadreId) ?? <span className="text-slate-300">— nivel raíz —</span>}
+                      {nombrePadre(cat.categoriaPadreId) ?? <span className="text-slate-300">{t("— nivel raíz —")}</span>}
                     </td>
                     <td className="px-5 py-4 text-center">
                       <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${
                         cat.activo ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                    : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                        {cat.activo ? 'Activa' : 'Inactiva'}
+                        {cat.activo ? t("Activa") : t("Inactiva")}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-center">
                       {/* Sólo lectura: se informa, no se toca. */}
                       <Link
                         href="/dashboard/finanzas/categorias-contables"
-                        title="Lo configura Contabilidad"
+                        title={t("Lo configura Contabilidad")}
                         className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border transition-colors ${
                           completa ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' :
                           parcial  ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' :
@@ -254,12 +257,12 @@ export default function CategoriasPage() {
                         <PuedeEditar ruta="/api/catalogo/categorias/:id">
                           <button onClick={() => abrirEdicion(cat)}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
-                            <Edit2 className="w-3.5 h-3.5" /> Editar
+                            <Edit2 className="w-3.5 h-3.5" />  {t("Editar")}
                           </button>
                         </PuedeEditar>
                         <PuedeEditar ruta="/api/catalogo/categorias/:id/estado">
                           <button onClick={() => alternarEstado(cat)}
-                            title={cat.activo ? 'Desactivar' : 'Activar'}
+                            title={cat.activo ? t("Desactivar") : t("Activar")}
                             className="inline-flex items-center p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
                             <Power className="w-4 h-4" />
                           </button>
@@ -281,50 +284,50 @@ export default function CategoriasPage() {
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                 <Tags className="w-5 h-5 text-teal-600" />
-                {modal === 'nueva' ? 'Nueva categoría' : modal.nombre}
+                {modal === 'nueva' ? t("Nueva categoría") : modal.nombre}
               </h2>
-              <button aria-label="Cerrar" title="Cerrar" onClick={() => setModal(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full">
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setModal(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Nombre *</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t("Nombre *")}</label>
                 <input
                   type="text"
                   value={form.nombre}
                   onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                  placeholder="Ej. Electrónica, Farmacia, Ropa…"
+                  placeholder={t("Ej. Electrónica, Farmacia, Ropa…")}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Descripción</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t("Descripción")}</label>
                 <input
                   type="text"
                   value={form.descripcion}
                   onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-                  placeholder="Descripción corta (opcional)"
+                  placeholder={t("Descripción corta (opcional)")}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Categoría padre</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t("Categoría padre")}</label>
                 <select
                   value={form.categoriaPadreId}
                   onChange={e => setForm(f => ({ ...f, categoriaPadreId: e.target.value }))}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors"
                 >
-                  <option value="">— Sin categoría padre (nivel raíz) —</option>
+                  <option value="">{t("— Sin categoría padre (nivel raíz) —")}</option>
                   {categorias
                     .filter(c => modal === 'nueva' || c.id !== modal.id)
-                    .map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    .map(c => <option key={c.id} value={c.id}>{t(c.nombre)}</option>)}
                 </select>
               </div>
               {modal === 'nueva' && (
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
                   <p className="text-xs text-slate-600">
-                    <span className="font-bold">Después:</span> para que sus ventas y movimientos lleguen a la
+                    <span className="font-bold">{t("Después:")}</span> para que sus ventas y movimientos lleguen a la
                     contabilidad, Contabilidad debe asignarle sus cinco cuentas en Finanzas → Categorías
                     contables. Hasta entonces la categoría funciona, pero no contabiliza.
                   </p>
@@ -333,12 +336,13 @@ export default function CategoriasPage() {
             </div>
             <div className="flex justify-end gap-3 p-6 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
               <button onClick={() => setModal(null)} className="px-5 py-2 text-slate-700 font-medium hover:bg-slate-200 rounded-lg transition-colors">
-                Cancelar
+                
+                {t("Cancelar")}
               </button>
               <button onClick={guardar} disabled={guardando}
                 className="px-5 py-2 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2 shadow-sm transition-colors">
                 {guardando ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
-                {guardando ? 'Guardando…' : modal === 'nueva' ? 'Crear categoría' : 'Guardar cambios'}
+                {guardando ? t("Guardando…") : modal === 'nueva' ? t("Crear categoría") : t("Guardar cambios")}
               </button>
             </div>
           </div>

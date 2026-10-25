@@ -15,6 +15,7 @@ import { useAvisos } from '@/components/ui';
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { FOLIO, folioDe } from '@/lib/folios';
 
+import { useT } from '@/components/I18nProvider';
 interface ICaptura {
   cantidadRecibidaOk: number;
   cantidadRechazada: number;
@@ -26,6 +27,7 @@ interface ICaptura {
 }
 
 export default function RecepcionDetallePage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const params = useParams();
   const router = useRouter();
@@ -90,7 +92,7 @@ export default function RecepcionDetallePage() {
       }
       if (resAlm.ok) setAlmacenes(await resAlm.json());
       setCargando(false);
-    }).catch(() => { setToast({ mensaje: 'Error de conexión con el servidor', tipo: 'error' }); setCargando(false); });
+    }).catch(() => { setToast({ mensaje: t("Error de conexión con el servidor"), tipo: 'error' }); setCargando(false); });
   }, [id, apiUrl]);
 
   useEffect(() => {
@@ -158,7 +160,7 @@ export default function RecepcionDetallePage() {
         setToast({ mensaje: e.message ?? `No se pudo asignar a ${codigo}`, tipo: 'error' });
       }
     } catch {
-      setToast({ mensaje: 'Error de conexión al asignar la ubicación', tipo: 'error' });
+      setToast({ mensaje: t("Error de conexión al asignar la ubicación"), tipo: 'error' });
     } finally {
       setAsignando(null);
     }
@@ -175,8 +177,8 @@ export default function RecepcionDetallePage() {
   };
 
   const handleRecibir = async () => {
-    if (!almacenSeleccionado) return setToast({ mensaje: 'Selecciona la rampa o almacén de ingreso', tipo: 'error' });
-    if (Object.values(capturas).some(c => c.cantidadRecibidaOk > 0 && !c.ubicacionId)) return setToast({ mensaje: 'Selecciona una ubicación física para cada partida recibida', tipo: 'error' });
+    if (!almacenSeleccionado) return setToast({ mensaje: t("Selecciona la rampa o almacén de ingreso"), tipo: 'error' });
+    if (Object.values(capturas).some(c => c.cantidadRecibidaOk > 0 && !c.ubicacionId)) return setToast({ mensaje: t("Selecciona una ubicación física para cada partida recibida"), tipo: 'error' });
 
     /*
      * El acomodo se verifica ANTES de mandar, no despues del 400.
@@ -195,7 +197,7 @@ export default function RecepcionDetallePage() {
       .map(([detalleId, c]) => {
         const det = oc?.detalles?.find((x: any) => x.id === detalleId);
         const ubi = ubicaciones.find((u: any) => u.id === c.ubicacionId);
-        return `${det?.producto?.nombre ?? 'producto'} → ${ubi?.codigo ?? 'posición'}`;
+        return `${det?.producto?.nombre ?? 'producto'} → ${ubi?.codigo ?? t("posición")}`;
       });
     if (sinCasa.length) {
       return setToast({
@@ -209,7 +211,7 @@ export default function RecepcionDetallePage() {
     const detallesProcesados = Object.keys(capturas).map(key => ({ id: key, ...capturas[key] }));
 
     if (detallesProcesados.some(d => d.cantidadRechazada > 0 && !d.motivoRechazo))
-      return setToast({ mensaje: 'Debes seleccionar un motivo para la mercancía rechazada', tipo: 'error' });
+      return setToast({ mensaje: t("Debes seleccionar un motivo para la mercancía rechazada"), tipo: 'error' });
 
     const faltanDatosTrazabilidad = detallesProcesados.some(d => {
       if (d.cantidadRecibidaOk <= 0) return false;
@@ -218,7 +220,7 @@ export default function RecepcionDetallePage() {
       if (producto?.requiereCaducidad && !d.fechaCaducidad) return true;
       return false;
     });
-    if (faltanDatosTrazabilidad) return setToast({ mensaje: 'Faltan capturar Lotes o Fechas de Caducidad obligatorios', tipo: 'error' });
+    if (faltanDatosTrazabilidad) return setToast({ mensaje: t("Faltan capturar Lotes o Fechas de Caducidad obligatorios"), tipo: 'error' });
 
     const almacenNombre = almacenes.find(a => a.id === almacenSeleccionado)?.nombre;
     /*
@@ -239,7 +241,7 @@ export default function RecepcionDetallePage() {
       return (d.cantidadRecibidaOk * factor) < pendiente;
     });
 
-    if (!await confirmarElegante(`Se dará entrada física en ${almacenNombre}. ${hayIncidencias ? 'Has reportado mermas o faltantes.' : 'Todo coincide con el manifiesto original.'}`, { titulo: hayIncidencias ? 'Registrar ingreso con incidencias' : 'Confirmar ingreso', peligroso: hayIncidencias })) return;
+    if (!await confirmarElegante(`Se dará entrada física en ${almacenNombre}. ${hayIncidencias ? t("Has reportado mermas o faltantes.") : t("Todo coincide con el manifiesto original.")}`, { titulo: hayIncidencias ? t("Registrar ingreso con incidencias") : 'Confirmar ingreso', peligroso: hayIncidencias })) return;
 
     setProcesando(true);
     const token = localStorage.getItem('syncro_token');
@@ -255,11 +257,11 @@ export default function RecepcionDetallePage() {
       });
       if (res.ok) {
         sessionStorage.removeItem(`syncro_recepcion_idempotencia_${id}`);
-        avisar('El manifiesto y el inventario fueron actualizados.', 'exito');
+        avisar(t("El manifiesto y el inventario fueron actualizados."), 'exito');
         router.push('/dashboard/inventario/recepciones');
       } else {
         const errorData = await res.json();
-        throw new Error(errorData.message || 'Error al procesar la recepción');
+        throw new Error(errorData.message || t("Error al procesar la recepción"));
       }
     } catch (error: any) { setToast({ mensaje: error.message, tipo: 'error' }); setProcesando(false); }
   };
@@ -283,21 +285,21 @@ export default function RecepcionDetallePage() {
   const puedeRecibir = !!oc && oc.estado !== 'CANCELADA' && !recepcionCompleta;
   const huboRechazos = !!oc?.detalles?.some((d: any) => Number(d.cantidadRechazada || 0) > 0);
 
-  if (cargando) return <div className="flex flex-col items-center justify-center p-20 text-slate-400"><Loader2 className="w-10 h-10 animate-spin text-emerald-500 mb-4" /><p className="font-bold">Cargando manifiesto...</p></div>;
-  if (!oc) return <div className="text-center p-20 text-rose-500 font-bold">Documento no encontrado.</div>;
+  if (cargando) return <div className="flex flex-col items-center justify-center p-20 text-slate-400"><Loader2 className="w-10 h-10 animate-spin text-emerald-500 mb-4" /><p className="font-bold">{t("Cargando manifiesto...")}</p></div>;
+  if (!oc) return <div className="text-center p-20 text-rose-500 font-bold">{t("Documento no encontrado.")}</div>;
 
-  const motivosRechazo = ['Caja Abierta / Rota', 'Producto Dañado', 'Faltante de Origen', 'Producto Equivocado', 'Caducado'];
+  const motivosRechazo = ['Caja Abierta / Rota', t("Producto Dañado"), t("Faltante de Origen"), 'Producto Equivocado', 'Caducado'];
 
   return (
     <div className="p-4 md:p-8 max-w-[1600px] mx-auto space-y-6 animate-in fade-in duration-500 text-slate-800">
       {toast && (
         <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-xl shadow-2xl font-bold text-white ${toast.tipo === 'exito' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
-          {toast.mensaje}
+          {t(toast.mensaje)}
         </div>
       )}
 
       <Link href="/dashboard/inventario/recepciones" className="flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-bold w-fit transition-colors">
-        <ChevronLeft className="w-4 h-4" /> Volver al Control de Entradas
+        <ChevronLeft className="w-4 h-4" />  {t("Volver al Control de Entradas")}
       </Link>
 
       <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
@@ -306,12 +308,13 @@ export default function RecepcionDetallePage() {
           <div>
             <h1 className="text-3xl font-black flex items-center gap-3">
               <div className="p-3 bg-emerald-100 rounded-2xl text-emerald-600"><Truck className="w-6 h-6" /></div>
-              Manifiesto de Recepción
+              
+              {t("Manifiesto de Recepción")}
             </h1>
             <p className="text-slate-500 mt-2 font-bold font-mono text-lg">{folioDe(oc, FOLIO.ORDEN_COMPRA)}</p>
           </div>
           <span className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest ${recepcionCompleta ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : oc.estadoRecepcion === 'PARCIAL' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
-            {recepcionCompleta ? 'Recepción completa' : oc.estadoRecepcion === 'PARCIAL' ? 'Entrega incompleta' : 'Por recibir'}
+            {recepcionCompleta ? t("Recepción completa") : oc.estadoRecepcion === 'PARCIAL' ? t("Entrega incompleta") : t("Por recibir")}
           </span>
         </div>
 
@@ -319,18 +322,18 @@ export default function RecepcionDetallePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="flex gap-4 items-center bg-slate-50 p-5 rounded-2xl border border-slate-100">
             <Building2 className="w-8 h-8 text-slate-400" />
-            <div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Proveedor</p><p className="font-bold text-lg mt-0.5">{oc.proveedor?.nombre}</p></div>
+            <div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t("Proveedor")}</p><p className="font-bold text-lg mt-0.5">{t(oc.proveedor?.nombre)}</p></div>
           </div>
           <div className="flex gap-4 items-center bg-slate-50 p-5 rounded-2xl border border-slate-100">
             <Calendar className="w-8 h-8 text-slate-400" />
-            <div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fecha de Emisión</p><p className="font-bold text-lg mt-0.5">{new Date(oc.fechaCreacion).toLocaleDateString('es-MX')}</p></div>
+            <div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t("Fecha de Emisión")}</p><p className="font-bold text-lg mt-0.5">{new Date(oc.fechaCreacion).toLocaleDateString('es-MX')}</p></div>
           </div>
         </div>
 
         {/* Tabla */}
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Verificación y Trazabilidad</h3>
-          {puedeRecibir && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">Cantidades OK pre-llenadas</span>}
+          <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">{t("Verificación y Trazabilidad")}</h3>
+          {puedeRecibir && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">{t("Cantidades OK pre-llenadas")}</span>}
         </div>
 
         <div className="border border-slate-200 rounded-2xl overflow-hidden mb-8">
@@ -338,12 +341,12 @@ export default function RecepcionDetallePage() {
             <table className="w-full text-left whitespace-nowrap">
               <thead className="bg-slate-900 text-white text-[11px] uppercase tracking-widest font-black">
                 <tr>
-                  <th className="px-4 py-4">Producto / SKU</th>
-                  <th className="px-4 py-4 text-center">Por recibir</th>
-                  <th className="px-4 py-4 text-center">Trazabilidad / Empaque</th>
-                  <th className="px-4 py-4 text-center text-emerald-400">Cant. OK</th>
-                  <th className="px-4 py-4 text-center text-rose-400">Rechazo</th>
-                  <th className="px-4 py-4">Motivo</th>
+                  <th className="px-4 py-4">{t("Producto / SKU")}</th>
+                  <th className="px-4 py-4 text-center">{t("Por recibir")}</th>
+                  <th className="px-4 py-4 text-center">{t("Trazabilidad / Empaque")}</th>
+                  <th className="px-4 py-4 text-center text-emerald-400">{t("Cant. OK")}</th>
+                  <th className="px-4 py-4 text-center text-rose-400">{t("Rechazo")}</th>
+                  <th className="px-4 py-4">{t("Motivo")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
@@ -362,7 +365,7 @@ export default function RecepcionDetallePage() {
                   return (
                     <tr key={det.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="px-4 py-4">
-                        <p className="font-bold text-slate-800 truncate max-w-[200px]" title={producto?.nombre}>{producto?.nombre}</p>
+                        <p className="font-bold text-slate-800 truncate max-w-[200px]" title={t(producto?.nombre)}>{t(producto?.nombre)}</p>
                         <span className="text-[10px] text-slate-400 font-mono mt-0.5">{producto?.sku}</span>
                       </td>
                       <td className="px-4 py-4 text-center">
@@ -370,8 +373,7 @@ export default function RecepcionDetallePage() {
                         <span className="block text-[9px] text-slate-400 uppercase">{producto?.unidadMedida}</span>
                         {yaRecibido > 0 && (
                           <span className="block text-[9px] text-emerald-600 font-bold mt-0.5">
-                            {yaRecibido} ya en almacén
-                          </span>
+                            {t("{n0} ya en almacén", { n0: yaRecibido })}</span>
                         )}
                       </td>
                       <td className="px-4 py-4 bg-slate-50/50">
@@ -380,7 +382,7 @@ export default function RecepcionDetallePage() {
                             <div className="flex items-center gap-2">
                               <Warehouse className="w-4 h-4 text-emerald-500 shrink-0" />
                               <select value={estadoCaptura?.ubicacionId} onChange={(e) => handleCapturaChange(det.id, 'ubicacionId', e.target.value)} className={`w-full text-xs font-bold p-1.5 border rounded bg-white outline-none ${!estadoCaptura?.ubicacionId ? 'border-rose-300 text-rose-700' : 'border-emerald-200 text-emerald-700'}`}>
-                                <option value="">Ubicación obligatoria...</option>
+                                <option value="">{t("Ubicación obligatoria...")}</option>
                                 {/*
                                   Las posiciones donde el producto YA tiene casa van
                                   primero y marcadas. Antes todas se veían iguales y
@@ -397,8 +399,8 @@ export default function RecepcionDetallePage() {
                                   })
                                   .map((u:any) => (
                                     <option key={u.id} value={u.id}>
-                                      {tieneCasaEn(det.productoId, u.id) ? '★ ' : ''}{u.codigo} · {u.zona || 'Sin zona'}
-                                      {tieneCasaEn(det.productoId, u.id) ? '' : ' — sin asignar'}
+                                      {tieneCasaEn(det.productoId, u.id) ? '★ ' : ''}{u.codigo} · {u.zona || t("Sin zona")}
+                                      {tieneCasaEn(det.productoId, u.id) ? '' : t("— sin asignar")}
                                     </option>
                                   ))}
                               </select>
@@ -411,15 +413,15 @@ export default function RecepcionDetallePage() {
                             */}
                             {estadoCaptura?.ubicacionId && !tieneCasaEn(det.productoId, estadoCaptura.ubicacionId) && (() => {
                               const ubi = ubicaciones.find((u: any) => u.id === estadoCaptura.ubicacionId);
-                              const codigo = ubi?.codigo ?? 'esta posición';
+                              const codigo = ubi?.codigo ?? t("esta posición");
                               const clave = `${det.productoId}:${estadoCaptura.ubicacionId}`;
                               return (
                                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 space-y-1.5">
                                   <p className="text-[10px] leading-snug text-amber-800">
                                     <strong>{codigo}</strong> todavía no es casa de este producto.
                                     {puedeAsignarUbicacion
-                                      ? ' Asígnala para poder guardar la entrada.'
-                                      : ' Pide al responsable del almacén que la asigne: sin eso, la recepción no se puede guardar.'}
+                                      ? t("Asígnala para poder guardar la entrada.")
+                                      : t("Pide al responsable del almacén que la asigne: sin eso, la recepción no se puede guardar.")}
                                   </p>
                                   {puedeAsignarUbicacion && (
                                     <button
@@ -441,15 +443,15 @@ export default function RecepcionDetallePage() {
                               <div className="flex items-center gap-2">
                                 <Layers className="w-4 h-4 text-blue-500 shrink-0" />
                                 <select value={estadoCaptura?.equivalenciaId} onChange={(e) => handleCapturaChange(det.id, 'equivalenciaId', e.target.value)} className="w-full text-xs font-bold p-1.5 border border-blue-200 rounded text-blue-700 bg-white outline-none">
-                                  <option value="">{producto.unidadMedida} (Base)</option>
-                                  {producto.equivalencias.map((eq: any) => <option key={eq.id} value={eq.id}>{eq.nombreEmpaque} (x{eq.factorConversion})</option>)}
+                                  <option value="">{t("{n0} (Base)", { n0: producto.unidadMedida })}</option>
+                                  {producto.equivalencias.map((eq: any) => <option key={eq.id} value={eq.id}>{t("{n0} (x{n1})", { n0: eq.nombreEmpaque, n1: eq.factorConversion })}</option>)}
                                 </select>
                               </div>
                             )}
                             {producto?.requiereLote && (
                               <div className="flex items-center gap-2">
                                 <Hash className="w-4 h-4 text-amber-500 shrink-0" />
-                                <input type="text" placeholder="LOTE OBLIGATORIO" value={estadoCaptura?.lote} onChange={(e) => handleCapturaChange(det.id, 'lote', e.target.value.toUpperCase())} className={`w-full text-xs p-1.5 border rounded outline-none uppercase font-mono ${!estadoCaptura?.lote ? 'border-amber-300 bg-amber-50 placeholder:text-amber-400/70' : 'border-slate-300 bg-white'}`} />
+                                <input type="text" placeholder={t("LOTE OBLIGATORIO")} value={estadoCaptura?.lote} onChange={(e) => handleCapturaChange(det.id, 'lote', e.target.value.toUpperCase())} className={`w-full text-xs p-1.5 border rounded outline-none uppercase font-mono ${!estadoCaptura?.lote ? 'border-amber-300 bg-amber-50 placeholder:text-amber-400/70' : 'border-slate-300 bg-white'}`} />
                               </div>
                             )}
                             {producto?.requiereCaducidad && (
@@ -459,14 +461,14 @@ export default function RecepcionDetallePage() {
                               </div>
                             )}
                             {!producto?.requiereLote && !producto?.requiereCaducidad && !producto?.equivalencias?.length && (
-                              <span className="text-xs text-slate-400 font-bold block text-center">N/A</span>
+                              <span className="text-xs text-slate-400 font-bold block text-center">{t("N/A")}</span>
                             )}
                           </div>
                         ) : (
                           <div className="text-[10px] space-y-1">
-                            <p><span className="font-bold text-slate-400">Ingresó como:</span> {estadoCaptura?.equivalenciaId ? 'Empaque Múltiple' : 'Unidad Base'}</p>
-                            {producto?.requiereLote && <p><span className="font-bold text-slate-400">Lote:</span> {estadoCaptura?.lote || 'N/A'}</p>}
-                            {producto?.requiereCaducidad && <p><span className="font-bold text-slate-400">Caducidad:</span> {estadoCaptura?.fechaCaducidad || 'N/A'}</p>}
+                            <p><span className="font-bold text-slate-400">{t("Ingresó como:")}</span> {estadoCaptura?.equivalenciaId ? t("Empaque Múltiple") : t("Unidad Base")}</p>
+                            {producto?.requiereLote && <p><span className="font-bold text-slate-400">{t("Lote:")}</span> {estadoCaptura?.lote || 'N/A'}</p>}
+                            {producto?.requiereCaducidad && <p><span className="font-bold text-slate-400">{t("Caducidad:")}</span> {estadoCaptura?.fechaCaducidad || 'N/A'}</p>}
                           </div>
                         )}
                       </td>
@@ -486,7 +488,7 @@ export default function RecepcionDetallePage() {
                             <div className="flex items-center gap-2">
                               <select disabled={estadoCaptura?.cantidadRechazada === 0} value={estadoCaptura?.motivoRechazo} onChange={(e) => handleCapturaChange(det.id, 'motivoRechazo', e.target.value)}
                                 className={`w-full p-2.5 rounded-xl border outline-none text-xs font-bold transition-all ${estadoCaptura?.cantidadRechazada > 0 ? estadoCaptura?.motivoRechazo ? 'bg-white border-rose-300 text-rose-700' : 'bg-rose-100 border-rose-500 text-rose-700 ring-2 ring-rose-500/20' : 'bg-slate-100 border-transparent text-slate-400 cursor-not-allowed'}`}>
-                                <option value="">Seleccione motivo...</option>
+                                <option value="">{t("Seleccione motivo...")}</option>
                                 {motivosRechazo.map(m => <option key={m} value={m}>{m}</option>)}
                               </select>
                               {diferencia !== 0 && <div className="text-amber-500" title={`Discrepancia: ${Math.abs(diferencia)} unidades sin justificar`}><AlertTriangle className="w-5 h-5" /></div>}
@@ -512,12 +514,12 @@ export default function RecepcionDetallePage() {
         {puedeRecibir ? (
           <div className="bg-slate-900 p-8 rounded-[2rem] flex flex-col md:flex-row items-center gap-6 justify-between shadow-xl">
             <div className="flex-1 w-full">
-              <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Rampa o almacén de ingreso</label>
+              <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">{t("Rampa o almacén de ingreso")}</label>
               <div className="relative">
                 <Warehouse className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <select value={almacenSeleccionado} onChange={(e) => setAlmacenSeleccionado(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-800 border-none rounded-xl text-white font-bold outline-none focus:ring-2 focus:ring-emerald-500 appearance-none">
-                  <option value="">Seleccione el destino...</option>
-                  {almacenes.map(alm => <option key={alm.id} value={alm.id}>{alm.nombre}</option>)}
+                  <option value="">{t("Seleccione el destino...")}</option>
+                  {almacenes.map(alm => <option key={alm.id} value={alm.id}>{t(alm.nombre)}</option>)}
                 </select>
               </div>
             </div>
@@ -525,19 +527,19 @@ export default function RecepcionDetallePage() {
             <ProtectedElement metodo="PATCH" ruta="/api/compras/ordenes/:id/recibir">
               <button onClick={handleRecibir} disabled={procesando || !almacenSeleccionado} className="w-full md:w-auto px-8 py-4 bg-emerald-500 text-white rounded-xl font-black hover:bg-emerald-400 disabled:bg-slate-700 disabled:text-slate-500 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 mt-6 md:mt-0">
                 {procesando ? <Loader2 className="animate-spin w-6 h-6" /> : <PackageCheck className="w-6 h-6" />}
-                {procesando ? 'Procesando Manifiesto...' : 'Firmar y Cerrar Documento'}
+                {procesando ? t("Procesando Manifiesto...") : t("Firmar y Cerrar Documento")}
               </button>
             </ProtectedElement>
           </div>
         ) : huboRechazos ? (
           <div className="bg-rose-50 p-8 rounded-2xl border border-rose-200 flex items-center gap-4 text-rose-700">
             <div className="p-3 bg-rose-100 rounded-full"><ShieldAlert className="w-8 h-8" /></div>
-            <div><p className="font-black text-xl">Documento con Discrepancias Logísticas</p><p className="text-sm font-medium mt-1">Este manifiesto se cerró con mercancía rechazada. Compras ha sido notificado para gestionar devoluciones.</p></div>
+            <div><p className="font-black text-xl">{t("Documento con Discrepancias Logísticas")}</p><p className="text-sm font-medium mt-1">{t("Este manifiesto se cerró con mercancía rechazada. Compras ha sido notificado para gestionar devoluciones.")}</p></div>
           </div>
         ) : (
           <div className="bg-emerald-50 p-8 rounded-2xl border border-emerald-200 flex items-center gap-4 text-emerald-700">
             <div className="p-3 bg-emerald-100 rounded-full"><CheckCircle2 className="w-8 h-8" /></div>
-            <div><p className="font-black text-xl">Recepción Perfecta</p><p className="text-sm font-medium mt-1">Todo el manifiesto fue ingresado al inventario físico sin novedades.</p></div>
+            <div><p className="font-black text-xl">{t("Recepción Perfecta")}</p><p className="text-sm font-medium mt-1">{t("Todo el manifiesto fue ingresado al inventario físico sin novedades.")}</p></div>
           </div>
         )}
       </div>

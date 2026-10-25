@@ -6,7 +6,9 @@ import { iniciarSesionKeycloak } from '@/lib/keycloak';
 import { sesionVigente, leerSesion } from '@/lib/session';
 import { token } from '@/lib/api';
 
+import { useT } from '@/components/I18nProvider';
 export default function LoginPage() {
+  const t = useT();
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
 
@@ -34,7 +36,7 @@ export default function LoginPage() {
       await iniciarSesionKeycloak(siguiente);
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : 'No se pudo conectar con SUMA.',
+        e instanceof Error ? e.message : t("No se pudo conectar con SUMA."),
       );
       setCargando(false);
     }
@@ -48,17 +50,19 @@ export default function LoginPage() {
             <LogIn className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900">
-            Syncro ERP
+            
+            {t("Syncro ERP")}
           </h1>
           <p className="mt-1 font-medium text-slate-500">
-            Acceso centralizado con tu identidad SUMA
+            
+            {t("Acceso centralizado con tu identidad SUMA")}
           </p>
         </div>
 
         {error && (
           <div className="mb-6 flex items-start gap-3 rounded-2xl bg-rose-50 p-4 text-sm text-rose-700">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-            <p className="font-medium">{error}</p>
+            <p className="font-medium">{t(error)}</p>
           </div>
         )}
 
@@ -80,8 +84,8 @@ export default function LoginPage() {
         </button>
 
         <p className="mt-5 text-center text-xs leading-5 text-slate-400">
-          La contraseña y el segundo factor se administran únicamente en
-          Keycloak de SUMA.
+          
+          {t("La contraseña y el segundo factor se administran únicamente en Keycloak de SUMA.")}
         </p>
       </section>
     </main>

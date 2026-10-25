@@ -15,7 +15,8 @@ import {
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
-import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement"; // ← NUEVO
+import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement"; import { useT } from '@/components/I18nProvider';
+// ← NUEVO
 
 export interface IBanco {
   id: string;
@@ -27,6 +28,7 @@ export interface IBanco {
 }
 
 export default function BancosPage() {
+  const t = useT();
   const [bancos, setBancos] = useState<IBanco[]>([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
@@ -64,9 +66,9 @@ export default function BancosPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setBancos(await res.json());
-      else mostrarToast("Error al cargar la lista de bancos", "error");
+      else mostrarToast(t("Error al cargar la lista de bancos"), "error");
     } catch {
-      mostrarToast("Error de conexión con el servidor", "error");
+      mostrarToast(t("Error de conexión con el servidor"), "error");
     } finally {
       setCargando(false);
     }
@@ -92,12 +94,12 @@ export default function BancosPage() {
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nombre.trim()) {
-      mostrarToast("El nombre del banco es obligatorio.", "info");
+      mostrarToast(t("El nombre del banco es obligatorio."), "info");
       return;
     }
     if (!/^\d{3}$/.test(formData.clave)) {
       mostrarToast(
-        "La clave bancaria debe contener exactamente tres dígitos.",
+        t("La clave bancaria debe contener exactamente tres dígitos."),
         "info",
       );
       return;
@@ -133,7 +135,7 @@ export default function BancosPage() {
         );
       }
     } catch {
-      mostrarToast("Error de conexión al intentar guardar.", "error");
+      mostrarToast(t("Error de conexión al intentar guardar."), "error");
     } finally {
       setGuardando(false);
     }
@@ -158,9 +160,9 @@ export default function BancosPage() {
           `Banco ${activo ? "desactivado" : "activado"} correctamente.`,
           "exito",
         );
-      } else mostrarToast("Error al cambiar el estado del banco", "error");
+      } else mostrarToast(t("Error al cambiar el estado del banco"), "error");
     } catch {
-      mostrarToast("Error de conexión con el servidor", "error");
+      mostrarToast(t("Error de conexión con el servidor"), "error");
     }
   };
 
@@ -180,7 +182,7 @@ export default function BancosPage() {
         >
           {toast.tipo === "exito" && <CheckCircle2 className="w-5 h-5" />}
           {toast.tipo === "error" && <AlertCircle className="w-5 h-5" />}
-          {toast.mensaje}
+          {t(toast.mensaje)}
         </div>
       )}
 
@@ -188,11 +190,12 @@ export default function BancosPage() {
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
             <Landmark className="w-8 h-8 text-indigo-500" />
-            Catálogo de Bancos
+            
+            {t("Catálogo de Bancos")}
           </h1>
           <p className="text-slate-500 mt-1">
-            94 instituciones oficiales del Anexo 24 de 2026, más tus bancos
-            personalizados.
+            
+            {t("94 instituciones oficiales del Anexo 24 de 2026, más tus bancos personalizados.")}
           </p>
         </div>
         {/* ✅ Solo aparece si tiene POST /api/catalogos/bancos */}
@@ -201,7 +204,7 @@ export default function BancosPage() {
             onClick={abrirModalCrear}
             className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-indigo-700 hover:shadow-md transition-all active:scale-95"
           >
-            <Plus className="w-5 h-5" /> Nuevo Banco
+            <Plus className="w-5 h-5" />  {t("Nuevo Banco")}
           </button>
         </PuedeCrear>
       </div>
@@ -211,7 +214,7 @@ export default function BancosPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input
             type="text"
-            placeholder="Buscar por clave o nombre..."
+            placeholder={t("Buscar por clave o nombre...")}
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
@@ -223,24 +226,26 @@ export default function BancosPage() {
         {cargando ? (
           <div className="p-12 text-center flex flex-col items-center text-slate-400">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            Cargando bancos...
+            
+            {t("Cargando bancos...")}
           </div>
         ) : bancosFiltrados.length === 0 ? (
           <div className="p-12 text-center text-slate-500 flex flex-col items-center">
             <Landmark className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <p className="text-lg font-medium text-slate-700">
-              No se encontraron bancos
+              
+              {t("No se encontraron bancos")}
             </p>
           </div>
         ) : (
           <table className="w-full text-left whitespace-nowrap">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm uppercase tracking-wider">
-                <th className="p-4 font-semibold w-24">Clave</th>
-                <th className="p-4 font-semibold">Nombre del Banco</th>
-                <th className="p-4 font-semibold text-center w-32">Origen</th>
-                <th className="p-4 font-semibold text-center w-32">Estado</th>
-                <th className="p-4 font-semibold text-center w-32">Acciones</th>
+                <th className="p-4 font-semibold w-24">{t("Clave")}</th>
+                <th className="p-4 font-semibold">{t("Nombre del Banco")}</th>
+                <th className="p-4 font-semibold text-center w-32">{t("Origen")}</th>
+                <th className="p-4 font-semibold text-center w-32">{t("Estado")}</th>
+                <th className="p-4 font-semibold text-center w-32">{t("Acciones")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -253,13 +258,13 @@ export default function BancosPage() {
                     {banco.clave ?? "—"}
                   </td>
                   <td className="p-4 font-bold text-slate-900">
-                    {banco.nombre}
+                    {t(banco.nombre)}
                   </td>
                   <td className="p-4 text-center">
                     <span
                       className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${banco.esOficial ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}
                     >
-                      {banco.esOficial ? "SAT 2026" : "Personalizado"}
+                      {banco.esOficial ? t("SAT 2026") : t("Personalizado")}
                     </span>
                   </td>
                   <td className="p-4 text-center">
@@ -269,7 +274,7 @@ export default function BancosPage() {
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${banco.activo ? "bg-emerald-500" : "bg-slate-400"}`}
                       ></span>
-                      {banco.activo ? "Activo" : "Inactivo"}
+                      {banco.activo ? t("Activo") : t("Inactivo")}
                     </span>
                   </td>
                   <td className="p-4">
@@ -280,7 +285,7 @@ export default function BancosPage() {
                           <button
                             onClick={() => abrirModalEditar(banco)}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                            title="Editar"
+                            title={t("Editar")}
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
@@ -294,7 +299,7 @@ export default function BancosPage() {
                               handleCambiarEstado(banco.id, banco.activo)
                             }
                             className={`p-2 rounded-lg transition-colors ${banco.activo ? "text-rose-600 hover:bg-rose-50" : "text-emerald-600 hover:bg-emerald-50"}`}
-                            title={banco.activo ? "Desactivar" : "Activar"}
+                            title={banco.activo ? t("Desactivar") : t("Activar")}
                           >
                             <Power className="w-4 h-4" />
                           </button>
@@ -302,7 +307,8 @@ export default function BancosPage() {
                       )}
                       {banco.esOficial && (
                         <span className="text-xs text-slate-400">
-                          Protegido
+                          
+                          {t("Protegido")}
                         </span>
                       )}
                     </div>
@@ -320,9 +326,9 @@ export default function BancosPage() {
             <div className="flex justify-between items-center p-6 border-b border-slate-100">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <Landmark className="w-5 h-5 text-indigo-500" />
-                {editandoId ? "Editar Banco" : "Nuevo Banco"}
+                {editandoId ? t("Editar Banco") : t("Nuevo Banco")}
               </h2>
-              <button aria-label="Cerrar" title="Cerrar"
+              <button aria-label={t("Cerrar")} title={t("Cerrar")}
                 onClick={() => setIsModalOpen(false)}
                 className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"
               >
@@ -336,19 +342,21 @@ export default function BancosPage() {
                 className="space-y-4"
               >
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Nombre del Banco *
+                  
+                  {t("Nombre del Banco *")}
                 </label>
                 <input
                   required
                   name="nombre"
-                  placeholder="Ej. BBVA, Santander..."
+                  placeholder={t("Ej. BBVA, Santander...")}
                   value={formData.nombre}
                   onChange={handleChange}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                 />
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Clave bancaria / prefijo CLABE *
+                    
+                    {t("Clave bancaria / prefijo CLABE *")}
                   </label>
                   <input
                     required
@@ -356,7 +364,7 @@ export default function BancosPage() {
                     inputMode="numeric"
                     maxLength={3}
                     pattern="\d{3}"
-                    placeholder="Ej. 012"
+                    placeholder={t("Ej. 012")}
                     value={formData.clave}
                     onChange={(e) =>
                       setFormData({
@@ -367,9 +375,8 @@ export default function BancosPage() {
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   />
                   <p className="mt-1.5 text-xs text-slate-500">
-                    Son los primeros tres dígitos de una CLABE de 18 dígitos.
-                    La CLABE completa se captura al registrar la cuenta de la
-                    empresa.
+                    
+                    {t("Son los primeros tres dígitos de una CLABE de 18 dígitos. La CLABE completa se captura al registrar la cuenta de la empresa.")}
                   </p>
                 </div>
               </form>
@@ -381,7 +388,8 @@ export default function BancosPage() {
                 className="px-4 py-2 text-slate-700 font-medium hover:bg-slate-200 rounded-lg"
                 disabled={guardando}
               >
-                Cancelar
+                
+                {t("Cancelar")}
               </button>
               <button
                 type="submit"
@@ -392,7 +400,7 @@ export default function BancosPage() {
                 {guardando && (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 )}
-                {guardando ? "Guardando..." : "Guardar"}
+                {guardando ? t("Guardando...") : t("Guardar")}
               </button>
             </div>
           </div>

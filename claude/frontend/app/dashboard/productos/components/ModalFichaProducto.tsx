@@ -23,6 +23,7 @@ import SelectConCrear from './SelectConCrear';
 import { usePermiso } from '@/hooks/use-permisos';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 // ─── Tipos internos ───────────────────────────────────────────────
 interface IAtributo {
   clave: string; etiqueta: string; valor: string;
@@ -112,6 +113,7 @@ function EquivalenciasArbol({ equivalencias, unidadBase, onChange }: {
   equivalencias: IEquivalencia[]; unidadBase: string;
   onChange: (eqs: IEquivalencia[]) => void;
 }) {
+  const t = useT();
   const calcularFactorTotal = (idx: number): number => {
     const eq = equivalencias[idx];
     if (eq.padreIdx == null) return eq.factorConversion;
@@ -165,33 +167,33 @@ function EquivalenciasArbol({ equivalencias, unidadBase, onChange }: {
               <div className="flex-1 bg-white border border-slate-200 rounded-lg p-3 shadow-sm">
                 <div className="grid grid-cols-12 gap-2 items-end">
                   <div className="col-span-4">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nombre del empaque</label>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t("Nombre del empaque")}</label>
                     <input type="text" value={eq.nombreEmpaque}
                       onChange={(e) => actualizarCampo(i, 'nombreEmpaque', e.target.value)}
                       className="w-full px-2 py-1.5 text-sm bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-800"
-                      placeholder="Ej. Caja, Paquete..." />
+                      placeholder={t("Ej. Caja, Paquete...")} />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contiene</label>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t("Contiene")}</label>
                     <input type="number" min="1" value={eq.factorConversion || ''}
                       onChange={(e) => actualizarCampo(i, 'factorConversion', Number(e.target.value))}
                       className="w-full px-2 py-1.5 text-sm bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-800 font-mono font-bold" />
                   </div>
                   <div className="col-span-2 pb-1.5">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">De</label>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t("De")}</label>
                     <div className="px-2 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded text-slate-600 font-medium truncate">
                       {nombrePadre}
                     </div>
                   </div>
                   <div className="col-span-3">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Código de barras</label>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t("Código de barras")}</label>
                     <input type="text" value={eq.codigoBarras || ''}
                       onChange={(e) => actualizarCampo(i, 'codigoBarras', e.target.value)}
                       className="w-full px-2 py-1.5 text-sm bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-slate-800"
-                      placeholder="EAN opcional" />
+                      placeholder={t("EAN opcional")} />
                   </div>
                   <div className="col-span-1 flex justify-end">
-                    <button aria-label="Eliminar el renglón" title="Eliminar el renglón" type="button" onClick={() => eliminarNodo(i)}
+                    <button aria-label={t("Eliminar el renglón")} title={t("Eliminar el renglón")} type="button" onClick={() => eliminarNodo(i)}
                       className="p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -206,7 +208,7 @@ function EquivalenciasArbol({ equivalencias, unidadBase, onChange }: {
                 )}
                 <button type="button" onClick={() => agregarNivel(i)}
                   className="mt-2 text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors">
-                  <Plus className="w-3 h-3" /> Agregar sub-empaque dentro de {eq.nombreEmpaque || 'este nivel'}
+                  <Plus className="w-3 h-3" /> Agregar sub-empaque dentro de {eq.nombreEmpaque || t("este nivel")}
                 </button>
               </div>
             </div>
@@ -220,24 +222,24 @@ function EquivalenciasArbol({ equivalencias, unidadBase, onChange }: {
     <div>
       <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
         <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-        <span className="text-sm font-bold text-blue-800">Unidad base: {unidadBase}</span>
-        <span className="text-xs text-blue-600 ml-auto">Factor = 1 (referencia)</span>
+        <span className="text-sm font-bold text-blue-800">{t("Unidad base: {n0}", { n0: unidadBase })}</span>
+        <span className="text-xs text-blue-600 ml-auto">{t("Factor = 1 (referencia)")}</span>
       </div>
       <div className="space-y-1">{renderNodos(null, 0)}</div>
       <button type="button" onClick={() => agregarNivel(null)}
         className="mt-3 w-full py-2 border-2 border-dashed border-slate-300 rounded-lg text-sm font-bold text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
-        <Plus className="w-4 h-4" /> Agregar empaque de nivel raíz
+        <Plus className="w-4 h-4" />  {t("Agregar empaque de nivel raíz")}
       </button>
       {equivalencias.length > 0 && (
         <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-          <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Resumen de jerarquía</p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">{t("Resumen de jerarquía")}</p>
           <div className="flex flex-wrap gap-2">
             {[{ nombre: unidadBase, factor: 1 }, ...equivalencias.map((eq, i) => ({
               nombre: eq.nombreEmpaque || `Nivel ${i + 1}`,
               factor: eq.nombreEmpaque ? calcularFactorTotal(i) : 0,
             }))].filter(e => e.factor > 0 && e.nombre).map((e, i, arr) => (
               <div key={i} className="flex items-center gap-1">
-                <span className="text-xs font-bold text-slate-700 bg-white border border-slate-200 px-2 py-1 rounded">{e.nombre}</span>
+                <span className="text-xs font-bold text-slate-700 bg-white border border-slate-200 px-2 py-1 rounded">{t(e.nombre)}</span>
                 {i < arr.length - 1 && <ArrowRight className="w-3 h-3 text-slate-400" />}
               </div>
             ))}
@@ -255,6 +257,7 @@ export default function ModalFichaProducto({
   unidades, setCategorias, setMarcas, setUnidades,
   guardando, onSubmit, inputFileRef, handleSeleccionarImagenes, BASE_URL,
 }: Props) {
+  const t = useT();
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const token = typeof window !== 'undefined' ? (localStorage.getItem('syncro_token') ?? '') : '';
@@ -393,11 +396,11 @@ export default function ModalFichaProducto({
 
   const validarFormulario = (): ErrorProducto => {
     const e: ErrorProducto = {};
-    if (!formData.nombre?.trim()) e.nombre = 'Captura el nombre comercial.';
-    else if (formData.nombre.trim().length < 2) e.nombre = 'El nombre debe tener al menos 2 caracteres.';
-    if (!formData.sku?.trim()) e.sku = 'Captura un SKU único.';
-    if (!formData.categoriaId) e.categoriaId = 'Selecciona una categoría.';
-    if (!formData.unidadMedida?.trim()) e.unidadMedida = 'Selecciona la unidad base.';
+    if (!formData.nombre?.trim()) e.nombre = t("Captura el nombre comercial.");
+    else if (formData.nombre.trim().length < 2) e.nombre = t("El nombre debe tener al menos 2 caracteres.");
+    if (!formData.sku?.trim()) e.sku = t("Captura un SKU único.");
+    if (!formData.categoriaId) e.categoriaId = t("Selecciona una categoría.");
+    if (!formData.unidadMedida?.trim()) e.unidadMedida = t("Selecciona la unidad base.");
     /*
      * ══════════════════════════════════════════════════════════════════════
      * Existir y estar listo para vender no son lo mismo
@@ -422,16 +425,16 @@ export default function ModalFichaProducto({
      * pestaña que para este usuario no existe. Queda encerrado sin manera de
      * ver qué está mal.
      */
-    if (editarCosto && Number(formData.precioCompra) < 0) e.precioCompra = 'El costo no puede ser negativo.';
-    if (verPrecios && (formData.precios ?? []).some(p => Number(p.precio) < 0)) e.precios = 'Un precio de venta no puede ser negativo.';
-    if (Number(formData.stockActual) < 0) e.stockActual = 'El stock inicial no puede ser negativo.';
-    if (!productoEditandoId && Number(formData.stockActual) > 0 && !formData.almacenId) e.almacenId = 'Selecciona el almacén del stock inicial.';
-    if (Number(formData.stockMinimo) < 0) e.stockMinimo = 'El mínimo no puede ser negativo.';
-    if (formData.stockMaximo != null && Number(formData.stockMaximo) < Number(formData.stockMinimo)) e.stockMaximo = 'El máximo no puede ser menor al mínimo.';
-    if (formData.puntoReorden != null && formData.stockMaximo != null && Number(formData.puntoReorden) > Number(formData.stockMaximo)) e.puntoReorden = 'El punto de reorden no puede superar el máximo.';
-    if (formData.temperaturaMinC != null && formData.temperaturaMaxC != null && Number(formData.temperaturaMinC) > Number(formData.temperaturaMaxC)) e.temperaturaMinC = 'La temperatura mínima no puede superar la máxima.';
-    if (formData.requiereCaducidad && !formData.requiereLote) e.requiereLote = 'Para controlar caducidad debes activar el control por lote.';
-    if ((formData.equivalencias ?? []).some(eq => !eq.nombreEmpaque?.trim() || Number(eq.factorConversion) < 1)) e.equivalencias = 'Todos los empaques requieren nombre y factor mayor o igual a 1.';
+    if (editarCosto && Number(formData.precioCompra) < 0) e.precioCompra = t("El costo no puede ser negativo.");
+    if (verPrecios && (formData.precios ?? []).some(p => Number(p.precio) < 0)) e.precios = t("Un precio de venta no puede ser negativo.");
+    if (Number(formData.stockActual) < 0) e.stockActual = t("El stock inicial no puede ser negativo.");
+    if (!productoEditandoId && Number(formData.stockActual) > 0 && !formData.almacenId) e.almacenId = t("Selecciona el almacén del stock inicial.");
+    if (Number(formData.stockMinimo) < 0) e.stockMinimo = t("El mínimo no puede ser negativo.");
+    if (formData.stockMaximo != null && Number(formData.stockMaximo) < Number(formData.stockMinimo)) e.stockMaximo = t("El máximo no puede ser menor al mínimo.");
+    if (formData.puntoReorden != null && formData.stockMaximo != null && Number(formData.puntoReorden) > Number(formData.stockMaximo)) e.puntoReorden = t("El punto de reorden no puede superar el máximo.");
+    if (formData.temperaturaMinC != null && formData.temperaturaMaxC != null && Number(formData.temperaturaMinC) > Number(formData.temperaturaMaxC)) e.temperaturaMinC = t("La temperatura mínima no puede superar la máxima.");
+    if (formData.requiereCaducidad && !formData.requiereLote) e.requiereLote = t("Para controlar caducidad debes activar el control por lote.");
+    if ((formData.equivalencias ?? []).some(eq => !eq.nombreEmpaque?.trim() || Number(eq.factorConversion) < 1)) e.equivalencias = t("Todos los empaques requieren nombre y factor mayor o igual a 1.");
     return e;
   };
 
@@ -533,12 +536,12 @@ export default function ModalFichaProducto({
   const TABS = [
     { id: 'general',    label: 'Datos Generales',  icon: <FileText className="w-4 h-4" /> },
     ...(editarCosto || verPrecios
-      ? [{ id: 'precios', label: 'Costos y Precios', icon: <DollarSign className="w-4 h-4" /> }]
+      ? [{ id: 'precios', label: t("Costos y Precios"), icon: <DollarSign className="w-4 h-4" /> }]
       : []),
-    { id: 'logistica',  label: 'Logística',        icon: <Box className="w-4 h-4" /> },
+    { id: 'logistica',  label: t("Logística"),        icon: <Box className="w-4 h-4" /> },
     { id: 'sectorial',  label: 'Atributos Sector', icon: <FlaskConical className="w-4 h-4" /> },
     { id: 'empaques',   label: 'Empaques',         icon: <Layers className="w-4 h-4" /> },
-    { id: 'multimedia', label: 'Imágenes',         icon: <ImageIcon className="w-4 h-4" /> },
+    { id: 'multimedia', label: t("Imágenes"),         icon: <ImageIcon className="w-4 h-4" /> },
   ] as const;
 
   const eqs = ((fd.equivalencias ?? []) as IEquivalencia[]);
@@ -555,14 +558,14 @@ export default function ModalFichaProducto({
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-800 leading-none">
-                {productoEditandoId ? 'Edición de Material' : 'Nuevo Material'}
+                {productoEditandoId ? t("Edición de Material") : t("Nuevo Material")}
               </h2>
               <p className="text-xs text-slate-500 mt-1">
-                {productoEditandoId ? `SKU: ${formData.sku}` : 'Completa los datos en cada sección'}
+                {productoEditandoId ? `SKU: ${formData.sku}` : t("Completa los datos en cada sección")}
               </p>
             </div>
           </div>
-          <button aria-label="Cerrar la ficha del producto" title="Cerrar la ficha del producto" type="button" onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-md transition-colors">
+          <button aria-label={t("Cerrar la ficha del producto")} title={t("Cerrar la ficha del producto")} type="button" onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-md transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -576,7 +579,7 @@ export default function ModalFichaProducto({
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all ${
                     activeTab === tab.id ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-600 font-medium hover:bg-slate-50'
                   }`}>
-                  {tab.icon} {tab.label}
+                  {tab.icon} {t(tab.label)}
                 </button>
               ))}
             </nav>
@@ -587,9 +590,9 @@ export default function ModalFichaProducto({
             <form id="producto-form" onSubmit={handleSubmitConAtributos} className="max-w-3xl mx-auto" noValidate>
               {intentoGuardar && Object.keys(errores).length > 0 && (
                 <div className="mb-5 rounded-lg border border-rose-200 bg-rose-50 p-4" role="alert">
-                  <p className="font-bold text-rose-800">No se puede guardar el producto</p>
+                  <p className="font-bold text-rose-800">{t("No se puede guardar el producto")}</p>
                   <p className="mt-1 text-sm text-rose-700">
-                    Corrige {plural(Object.keys(errores).length, "campo marcado", "campos marcados")}
+                    Corrige {plural(Object.keys(errores).length, t("campo marcado"), t("campos marcados"))}
                     {seccionesConError.length > 0 && (
                       <> en {seccionesConError.map((s) => NOMBRE_SECCION[s]).join(', ')}</>
                     )}
@@ -601,75 +604,75 @@ export default function ModalFichaProducto({
               {/* ══ GENERAL ══ */}
               <div className={activeTab === 'general' ? 'block' : 'hidden'}>
                 <div className={sec}>
-                  <h3 className={stit}><Info className="w-4 h-4 text-blue-500" /> Identificación</h3>
+                  <h3 className={stit}><Info className="w-4 h-4 text-blue-500" />  {t("Identificación")}</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className={lbl}>Nombre Comercial *</label>
-                      <input name="nombre" value={formData.nombre} onChange={handleChange} className={claseCampo('nombre')} aria-invalid={Boolean(errores.nombre)} placeholder="Ej. Paracetamol 500mg Tabletas" />
+                      <label className={lbl}>{t("Nombre Comercial *")}</label>
+                      <input name="nombre" value={formData.nombre} onChange={handleChange} className={claseCampo('nombre')} aria-invalid={Boolean(errores.nombre)} placeholder={t("Ej. Paracetamol 500mg Tabletas")} />
                       <MensajeError campo="nombre" />
                     </div>
                     <div>
-                      <label className={lbl}>Nombre Corto (tickets — máx 60 caracteres)</label>
+                      <label className={lbl}>{t("Nombre Corto (tickets — máx 60 caracteres)")}</label>
                       <input name="nombreCorto" value={(fd.nombreCorto as string) || ''} onChange={handleChange} maxLength={60} className={inp} />
                       <p className="text-[10px] text-slate-400 mt-1">{((fd.nombreCorto as string) || '').length}/60</p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                      <div><label className={lbl}>SKU *</label>
-                        <input name="sku" value={formData.sku} onChange={handleChange} className={`${claseCampo('sku')} font-mono`} aria-invalid={Boolean(errores.sku)} placeholder="MAT-001" />
+                      <div><label className={lbl}>{t("SKU *")}</label>
+                        <input name="sku" value={formData.sku} onChange={handleChange} className={`${claseCampo('sku')} font-mono`} aria-invalid={Boolean(errores.sku)} placeholder={t("MAT-001")} />
                         <MensajeError campo="sku" /></div>
-                      <div><label className={lbl}>Código de Barras</label>
+                      <div><label className={lbl}>{t("Código de Barras")}</label>
                         <input name="codigoBarras" value={formData.codigoBarras || ''} onChange={handleChange} className={`${inp} font-mono`} /></div>
-                      <div><label className={lbl}>Código Barras 2</label>
+                      <div><label className={lbl}>{t("Código Barras 2")}</label>
                         <input name="codigoBarras2" value={(fd.codigoBarras2 as string) || ''} onChange={handleChange} className={`${inp} font-mono`} /></div>
-                      <div><label className={lbl}>Código Proveedor</label>
+                      <div><label className={lbl}>{t("Código Proveedor")}</label>
                         <input name="codigoProveedor" value={(fd.codigoProveedor as string) || ''} onChange={handleChange} className={inp} /></div>
                     </div>
-                    <div><label className={lbl}>Descripción Técnica</label>
+                    <div><label className={lbl}>{t("Descripción Técnica")}</label>
                       <textarea name="descripcion" value={formData.descripcion || ''} onChange={handleChange} className={`${inp} resize-none`} rows={3} /></div>
-                    <div><label className={lbl}>Observaciones Internas</label>
+                    <div><label className={lbl}>{t("Observaciones Internas")}</label>
                       <textarea name="observacionesInternas" value={(fd.observacionesInternas as string) || ''} onChange={handleChange} className={`${inp} resize-none bg-amber-50 border-amber-200`} rows={2} /></div>
                   </div>
                 </div>
                 <div className={sec}>
-                  <h3 className={stit}><Tags className="w-4 h-4 text-blue-500" /> Clasificación</h3>
+                  <h3 className={stit}><Tags className="w-4 h-4 text-blue-500" />  {t("Clasificación")}</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div><label className={lbl}>Tipo de Producto</label>
+                    <div><label className={lbl}>{t("Tipo de Producto")}</label>
                       <select name="tipo" value={(fd.tipo as string) || 'FISICO'} onChange={handleChange} className={inp}>
-                        {TIPOS_PRODUCTO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
+                        {TIPOS_PRODUCTO.map(tipo => <option key={tipo.value} value={tipo.value}>{t(tipo.label)}</option>)}</select></div>
                     <div>
                       <SelectConCrear
-                        label="Categoría"
+                        label={t("Categoría")}
                         name="categoriaId"
                         value={formData.categoriaId || ''}
                         opciones={categorias}
-                        textoVacio="— Sin categoría —"
+                        textoVacio={t("— Sin categoría —")}
                         onChange={handleChange}
                         endpointCrear={`/catalogo/categorias`}
                         token={token}
                         onCreado={(nueva) => setCategorias(prev => [...prev, nueva])}
                         className={claseCampo('categoriaId')}
-                        tituloModal="Nueva categoría"
-                        campos={[{ key: 'nombre', label: 'Nombre', placeholder: 'Ej. Bebidas, Abarrotes…' }]}
+                        tituloModal={t("Nueva categoría")}
+                        campos={[{ key: 'nombre', label: t("Nombre"), placeholder: t("Ej. Bebidas, Abarrotes…") }]}
                       />
                       <MensajeError campo="categoriaId" />
                     </div>
                     <div>
                       <SelectConCrear
-                        label="Marca"
+                        label={t("Marca")}
                         name="marcaId"
                         value={formData.marcaId || ''}
                         opciones={marcas}
-                        textoVacio="— Sin marca —"
+                        textoVacio={t("— Sin marca —")}
                         onChange={handleChange}
                         endpointCrear={`/catalogo/marcas`}
                         token={token}
                         onCreado={(nueva) => setMarcas(prev => [...prev, nueva])}
                         className={inp}
                         tituloModal="Nueva marca"
-                        campos={[{ key: 'nombre', label: 'Nombre', placeholder: 'Ej. Coca-Cola, Bimbo…' }]}
+                        campos={[{ key: 'nombre', label: t("Nombre"), placeholder: t("Ej. Coca-Cola, Bimbo…") }]}
                       />
                     </div>
-                    <div><label className={lbl}>Unidad de Medida Base</label>
+                    <div><label className={lbl}>{t("Unidad de Medida Base")}</label>
                       {/*
                         * ══════════════════════════════════════════════════════
                         * La unidad se guarda como TEXTO y se desincroniza
@@ -706,9 +709,9 @@ export default function ModalFichaProducto({
                             if (u?.claveSAT) setFormData(prev => ({ ...prev, claveUnidadSAT: u.claveSAT }));
                           }}
                           className={`${claseCampo('unidadMedida')} ${productoEditandoId ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''}`}>
-                          <option value="">— Seleccionar unidad —</option>
+                          <option value="">{t("— Seleccionar unidad —")}</option>
                           {unidades.map((u: any) => (
-                            <option key={u.id} value={u.nombre}>{u.nombre}{u.abreviatura ? ` (${u.abreviatura})` : ''}</option>
+                            <option key={u.id} value={u.nombre}>{t(u.nombre)}{u.abreviatura ? ` (${u.abreviatura})` : ''}</option>
                           ))}
                           {/*
                             * Una unidad que el producto trae y el catálogo ya no
@@ -722,29 +725,28 @@ export default function ModalFichaProducto({
                                 String(formData.unidadMedida).toLowerCase(),
                             ) && (
                               <option value={formData.unidadMedida}>
-                                {formData.unidadMedida} (fuera del catálogo)
-                              </option>
+                                {t("{n0} (fuera del catálogo)", { n0: formData.unidadMedida })}</option>
                             )}
                         </select>
                         {!productoEditandoId && (
-                          <button type="button" title="Crear unidad" onClick={() => setModalUnidad(true)}
+                          <button type="button" title={t("Crear unidad")} onClick={() => setModalUnidad(true)}
                             className="shrink-0 w-10 flex items-center justify-center bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-100">
                             <Plus className="w-4 h-4" />
                           </button>
                         )}
                       </div>
                       <MensajeError campo="unidadMedida" />
-                      {productoEditandoId && <p className="text-[10px] text-amber-600 mt-1">La unidad base no puede cambiarse.</p>}</div>
+                      {productoEditandoId && <p className="text-[10px] text-amber-600 mt-1">{t("La unidad base no puede cambiarse.")}</p>}</div>
                   </div>
                 </div>
                 <div className={sec}>
-                  <h3 className={stit}><Barcode className="w-4 h-4 text-blue-500" /> Catálogo SAT — requerido para CFDI</h3>
+                  <h3 className={stit}><Barcode className="w-4 h-4 text-blue-500" />  {t("Catálogo SAT — requerido para CFDI")}</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div><label className={lbl}>Clave Producto SAT</label>
-                      <input name="claveSAT" value={(fd.claveSAT as string) || ''} onChange={handleChange} className={`${inp} font-mono`} placeholder="Ej. 50202300" /></div>
-                    <div><label className={lbl}>Clave Unidad SAT</label>
-                      <input name="claveUnidadSAT" value={(fd.claveUnidadSAT as string) || ''} onChange={handleChange} className={`${inp} font-mono`} placeholder="Ej. H87" />
-                      <p className="text-[10px] text-slate-400 mt-1">H87=Pieza · KGM=Kilo · LTR=Litro</p></div>
+                    <div><label className={lbl}>{t("Clave Producto SAT")}</label>
+                      <input name="claveSAT" value={(fd.claveSAT as string) || ''} onChange={handleChange} className={`${inp} font-mono`} placeholder={t("Ej. 50202300")} /></div>
+                    <div><label className={lbl}>{t("Clave Unidad SAT")}</label>
+                      <input name="claveUnidadSAT" value={(fd.claveUnidadSAT as string) || ''} onChange={handleChange} className={`${inp} font-mono`} placeholder={t("Ej. H87")} />
+                      <p className="text-[10px] text-slate-400 mt-1">{t("H87=Pieza · KGM=Kilo · LTR=Litro")}</p></div>
                   </div>
                   {/*
                     * Sin estas dos claves el producto se da de alta igual —hay
@@ -756,8 +758,7 @@ export default function ModalFichaProducto({
                     */}
                   {(!fd.claveSAT || !fd.claveUnidadSAT) && (
                     <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
-                      Sin estas claves el producto se guarda, pero <strong>no se
-                      podrá facturar</strong>: al timbrar, el SAT las exige. Déjalas
+                      Sin estas claves el producto se guarda, pero <strong>{t("no se podrá facturar")}</strong>: al timbrar, el SAT las exige. Déjalas
                       vacías sólo si este artículo nunca se vende al cliente.
                     </p>
                   )}
@@ -767,9 +768,9 @@ export default function ModalFichaProducto({
               {/* ══ PRECIOS ══ */}
               <div className={activeTab === 'precios' ? 'block' : 'hidden'}>
                 <div className={sec}>
-                  <h3 className={stit}><Layers className="w-4 h-4 text-blue-500" /> Costo de Adquisición</h3>
+                  <h3 className={stit}><Layers className="w-4 h-4 text-blue-500" />  {t("Costo de Adquisición")}</h3>
                   <div className="grid grid-cols-3 gap-4">
-                    <div><label className={lbl}>Costo de reposición</label>
+                    <div><label className={lbl}>{t("Costo de reposición")}</label>
                       <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
                         <input
                           type="number" step="0.0001" name="precioCompra"
@@ -777,20 +778,20 @@ export default function ModalFichaProducto({
                           onChange={handleChange}
                           readOnly={!editarCosto}
                           disabled={!editarCosto}
-                          title={editarCosto ? undefined : 'Lo mantiene cada recepción de compra'}
+                          title={editarCosto ? undefined : t("Lo mantiene cada recepción de compra")}
                           className={`${claseCampo('precioCompra')} pl-8 ${editarCosto ? '' : 'bg-slate-100 text-slate-500 cursor-not-allowed'}`}
                           aria-invalid={Boolean(errores.precioCompra)} /></div>
                       <p className="text-[11px] text-slate-500 mt-1">
                         {editarCosto
-                          ? 'Referencia de compra. Cada recepción lo actualiza con el precio de la orden.'
-                          : 'Lo actualiza solo, con el precio de cada orden de compra recibida.'}
+                          ? t("Referencia de compra. Cada recepción lo actualiza con el precio de la orden.")
+                          : t("Lo actualiza solo, con el precio de cada orden de compra recibida.")}
                       </p>
                       <MensajeError campo="precioCompra" /></div>
-                    <div><label className={lbl}>Moneda</label>
+                    <div><label className={lbl}>{t("Moneda")}</label>
                       <select name="monedaCosto" value={(fd.monedaCosto as string) || 'MXN'} onChange={handleChange} disabled={!editarCosto}
                         className={`${inp} ${editarCosto ? '' : 'bg-slate-100 text-slate-500 cursor-not-allowed'}`}>
-                        {MONEDAS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
-                    <div><label className={lbl}>Método de Costeo</label>
+                        {MONEDAS.map(m => <option key={m.value} value={m.value}>{t(m.label)}</option>)}</select></div>
+                    <div><label className={lbl}>{t("Método de Costeo")}</label>
                       {/*
                         * Cambiar de promedio ponderado a costo estándar cambia
                         * el valor del inventario y el costo de cada venta
@@ -799,13 +800,13 @@ export default function ModalFichaProducto({
                         */}
                       <select name="tipoCosto" value={(fd.tipoCosto as string) || 'PROMEDIO'} onChange={handleChange} disabled={!editarCosto}
                         className={`${inp} ${editarCosto ? '' : 'bg-slate-100 text-slate-500 cursor-not-allowed'}`}>
-                        {TIPOS_COSTO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
+                        {TIPOS_COSTO.map(modo => <option key={modo.value} value={modo.value}>{t(modo.label)}</option>)}</select></div>
                   </div>
                 </div>
                 <div className={sec}>
-                  <h3 className={stit}><DollarSign className="w-4 h-4 text-emerald-600" /> Precios de Venta por Lista</h3>
+                  <h3 className={stit}><DollarSign className="w-4 h-4 text-emerald-600" />  {t("Precios de Venta por Lista")}</h3>
                   <div className="mb-4 max-w-xs">
-                    <label className={lbl}>Impuesto</label>
+                    <label className={lbl}>{t("Impuesto")}</label>
                     {/*
                       * Si la lista viene vacía no es que no haya impuestos: es
                       * que este perfil no los consulta. El impuesto aplicable
@@ -815,8 +816,8 @@ export default function ModalFichaProducto({
                       */}
                     {!verPrecios && (
                       <p className="text-[11px] text-slate-500 mb-1.5">
-                        Lo define Contabilidad. Puedes guardar el producto sin esto; no podrá facturarse
-                        hasta que lo asignen.
+                        
+                        {t("Lo define Contabilidad. Puedes guardar el producto sin esto; no podrá facturarse hasta que lo asignen.")}
                       </p>
                     )}
                     <select name="impuestoId" value={formData.impuestoId || ''} onChange={handleChange} className={claseCampo('impuestoId')} aria-invalid={Boolean(errores.impuestoId)}>
@@ -828,8 +829,8 @@ export default function ModalFichaProducto({
                         * compra sale con IVA cero y la póliza de la recepción
                         * también.
                         */}
-                      <option value="">Sin impuesto asignado</option>
-                      {impuestos.map(i => <option key={i.id} value={i.id}>{i.nombre} ({i.porcentaje}%)</option>)}
+                      <option value="">{t("Sin impuesto asignado")}</option>
+                      {impuestos.map(i => <option key={i.id} value={i.id}>{t(i.nombre)} ({i.porcentaje}%)</option>)}
                     </select>
                     <MensajeError campo="impuestoId" />
                   </div>
@@ -843,13 +844,14 @@ export default function ModalFichaProducto({
                     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
                       <AlertCircle className="w-4 h-4 text-slate-400 shrink-0" />
                       <p className="text-xs font-medium text-slate-600">
-                        El precio de venta lo fija Ventas. No forma parte de tu ficha.
+                        
+                        {t("El precio de venta lo fija Ventas. No forma parte de tu ficha.")}
                       </p>
                     </div>
                   ) : listasPrecio.length === 0 ? (
                     <div className="flex items-center gap-3 p-3 bg-amber-50 rounded border border-amber-200">
                       <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <p className="text-xs font-medium text-amber-800">No hay listas de precio configuradas.</p>
+                      <p className="text-xs font-medium text-amber-800">{t("No hay listas de precio configuradas.")}</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-4">
@@ -858,8 +860,8 @@ export default function ModalFichaProducto({
                         return (
                           <div key={lista.id} className={`p-3 rounded-md border ${lista.esPorDefecto ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-slate-50'}`}>
                             <label className="flex items-center justify-between text-xs font-bold text-slate-700 mb-2">
-                              <span>{lista.nombre}</span>
-                              {lista.esPorDefecto && <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded font-bold">PÚBLICO</span>}
+                              <span>{t(lista.nombre)}</span>
+                              {lista.esPorDefecto && <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded font-bold">{t("PÚBLICO")}</span>}
                             </label>
                             <div className="relative">
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
@@ -887,45 +889,45 @@ export default function ModalFichaProducto({
                   * cuatro campos se iban con ella. Su casa es Logística.
                   */}
                 <div className={sec}>
-                  <h3 className={stit}><Settings2 className="w-4 h-4 text-blue-500" /> Control de Inventario</h3>
+                  <h3 className={stit}><Settings2 className="w-4 h-4 text-blue-500" />  {t("Control de Inventario")}</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div><label className={lbl}>Stock Mínimo</label>
+                    <div><label className={lbl}>{t("Stock Mínimo")}</label>
                       <input type="number" min="0" name="stockMinimo" value={(fd.stockMinimo as number) ?? 5} onChange={handleChange} className={claseCampo('stockMinimo')} />
                       <MensajeError campo="stockMinimo" /></div>
-                    <div><label className={lbl}>Stock Máximo</label>
+                    <div><label className={lbl}>{t("Stock Máximo")}</label>
                       <input type="number" min="0" name="stockMaximo" value={(fd.stockMaximo as string) || ''} onChange={handleChange} className={claseCampo('stockMaximo')} />
                       <MensajeError campo="stockMaximo" /></div>
-                    <div><label className={lbl}>Punto de Reorden</label>
+                    <div><label className={lbl}>{t("Punto de Reorden")}</label>
                       <input type="number" min="0" name="puntoReorden" value={(fd.puntoReorden as string) || ''} onChange={handleChange} className={claseCampo('puntoReorden')} />
                       <MensajeError campo="puntoReorden" /></div>
-                    <div><label className={lbl}>Cant. Mínima de Compra</label>
+                    <div><label className={lbl}>{t("Cant. Mínima de Compra")}</label>
                       <input type="number" min="0" step="0.001" name="cantidadMinimaPedido" value={(fd.cantidadMinimaPedido as string) || ''} onChange={handleChange} className={inp} /></div>
                   </div>
                 </div>
                 <div className={sec}>
-                  <h3 className={stit}><Box className="w-4 h-4 text-blue-500" /> Dimensiones Físicas</h3>
+                  <h3 className={stit}><Box className="w-4 h-4 text-blue-500" />  {t("Dimensiones Físicas")}</h3>
                   <div className="grid grid-cols-3 gap-4">
-                    <div><label className={lbl}>Peso Bruto (Kg)</label>
+                    <div><label className={lbl}>{t("Peso Bruto (Kg)")}</label>
                       <input type="number" step="0.001" name="pesoKg" value={formData.pesoKg || ''} onChange={handleChange} className={inp} /></div>
-                    <div><label className={lbl}>Volumen (cm³)</label>
+                    <div><label className={lbl}>{t("Volumen (cm³)")}</label>
                       <input type="number" step="0.01" name="volumenCm3" value={formData.volumenCm3 || ''} onChange={handleChange} className={inp} /></div>
-                    <div><label className={lbl}>Días de Vida Útil</label>
+                    <div><label className={lbl}>{t("Días de Vida Útil")}</label>
                       <input type="number" min="0" name="diasVidaUtil" value={(fd.diasVidaUtil as string) || ''} onChange={handleChange} className={inp} /></div>
                   </div>
                 </div>
                 <div className={sec}>
-                  <h3 className={stit}><Thermometer className="w-4 h-4 text-blue-500" /> Almacenamiento</h3>
+                  <h3 className={stit}><Thermometer className="w-4 h-4 text-blue-500" />  {t("Almacenamiento")}</h3>
                   <div>
-                    <label className={lbl}>Condición de Almacén</label>
+                    <label className={lbl}>{t("Condición de Almacén")}</label>
                     <select name="condicionAlmacen" value={(fd.condicionAlmacen as string) || 'AMBIENTE'} onChange={handleChange} className={inp}>
-                      {CONDICIONES_ALMACEN.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                      {CONDICIONES_ALMACEN.map(c => <option key={c.value} value={c.value}>{t(c.label)}</option>)}
                     </select>
                     {['REFRIGERADO','CONGELADO','CONTROLADO'].includes((fd.condicionAlmacen as string)) && (
                       <div className="grid grid-cols-2 gap-4 mt-4">
-                        <div><label className={lbl}>Temp. Mínima (°C)</label>
+                        <div><label className={lbl}>{t("Temp. Mínima (°C)")}</label>
                           <input type="number" step="0.1" name="temperaturaMinC" value={(fd.temperaturaMinC as string) ?? ''} onChange={handleChange} className={claseCampo('temperaturaMinC')} />
                           <MensajeError campo="temperaturaMinC" /></div>
-                        <div><label className={lbl}>Temp. Máxima (°C)</label>
+                        <div><label className={lbl}>{t("Temp. Máxima (°C)")}</label>
                           <input type="number" step="0.1" name="temperaturaMaxC" value={(fd.temperaturaMaxC as string) ?? ''} onChange={handleChange} className={claseCampo('temperaturaMaxC')} />
                           <MensajeError campo="temperaturaMaxC" /></div>
                       </div>
@@ -933,16 +935,16 @@ export default function ModalFichaProducto({
                   </div>
                 </div>
                 <div className={sec}>
-                  <h3 className={stit}><Globe className="w-4 h-4 text-blue-500" /> Comercio Exterior</h3>
+                  <h3 className={stit}><Globe className="w-4 h-4 text-blue-500" />  {t("Comercio Exterior")}</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div><label className={lbl}>Fracción Arancelaria</label>
-                      <input name="fraccionArancelaria" value={(fd.fraccionArancelaria as string) || ''} onChange={handleChange} className={`${inp} font-mono`} placeholder="Ej. 0201.10.01" /></div>
-                    <div><label className={lbl}>País de Origen</label>
-                      <input name="paisOrigen" value={(fd.paisOrigen as string) || ''} onChange={handleChange} className={`${inp} font-mono`} placeholder="MEX" maxLength={3} /></div>
+                    <div><label className={lbl}>{t("Fracción Arancelaria")}</label>
+                      <input name="fraccionArancelaria" value={(fd.fraccionArancelaria as string) || ''} onChange={handleChange} className={`${inp} font-mono`} placeholder={t("Ej. 0201.10.01")} /></div>
+                    <div><label className={lbl}>{t("País de Origen")}</label>
+                      <input name="paisOrigen" value={(fd.paisOrigen as string) || ''} onChange={handleChange} className={`${inp} font-mono`} placeholder={t("MEX")} maxLength={3} /></div>
                   </div>
                 </div>
                 <div className={sec}>
-                  <h3 className={stit}><AlertCircle className="w-4 h-4 text-blue-500" /> Políticas de Inventario</h3>
+                  <h3 className={stit}><AlertCircle className="w-4 h-4 text-blue-500" />  {t("Políticas de Inventario")}</h3>
                   {/*
                     * Sólo se ofrecen los interruptores que el sistema HONRA.
                     *
@@ -967,40 +969,38 @@ export default function ModalFichaProducto({
                     */}
                   <div className="space-y-3">
                     {[
-                      { key: 'requiereLote', label: 'Control por Lotes', desc: 'Exige número de lote al recibir mercancía', locked: !!productoEditandoId },
-                      { key: 'requiereCaducidad', label: 'Manejo de Caducidad', desc: 'Exige fecha al recibir y surte por FEFO', locked: !!productoEditandoId },
+                      { key: 'requiereLote', label: t("Control por Lotes"), desc: t("Exige número de lote al recibir mercancía"), locked: !!productoEditandoId },
+                      { key: 'requiereCaducidad', label: t("Manejo de Caducidad"), desc: t("Exige fecha al recibir y surte por FEFO"), locked: !!productoEditandoId },
                     ].map(({ key, label, desc, locked }) => (
                       <label key={key} className={`flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-md transition-colors ${locked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50'}`}>
                         <input type="checkbox" checked={!!(fd[key])} onChange={(e) => handleCheckbox(key, e.target.checked)}
                           disabled={locked} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                         <div>
-                          <span className="block text-sm font-semibold text-slate-800">{label}</span>
-                          <span className="block text-xs text-slate-500">{desc}</span>
+                          <span className="block text-sm font-semibold text-slate-800">{t(label)}</span>
+                          <span className="block text-xs text-slate-500">{t(desc)}</span>
                         </div>
                       </label>
                     ))}
                   </div>
                   <MensajeError campo="requiereLote" />
                   <p className="mt-3 text-xs text-slate-500 leading-relaxed">
-                    Ningún producto se vende por debajo de su existencia: el
-                    almacén rechaza la salida y el mostrador avisa antes de
-                    cobrar. El control por número de serie y la venta en
-                    negativo con backorder no están en vigor todavía.
+                    
+                    {t("Ningún producto se vende por debajo de su existencia: el almacén rechaza la salida y el mostrador avisa antes de cobrar. El control por número de serie y la venta en negativo con backorder no están en vigor todavía.")}
                   </p>
                 </div>
                 {!productoEditandoId && (
                   <div className="bg-emerald-50 p-5 rounded-lg border border-emerald-200">
                     <h3 className="text-sm font-bold text-emerald-800 mb-4 pb-2 border-b border-emerald-200 flex items-center gap-2">
-                      <PackagePlus className="w-4 h-4" /> Apertura de Inventario
+                      <PackagePlus className="w-4 h-4" />  {t("Apertura de Inventario")}
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-[11px] font-semibold text-emerald-700 uppercase mb-1.5">Cantidad Inicial</label>
+                      <div><label className="block text-[11px] font-semibold text-emerald-700 uppercase mb-1.5">{t("Cantidad Inicial")}</label>
                         <input type="number" name="stockActual" value={(fd.stockActual as number) ?? 0} onChange={handleChange} className={`${claseCampo('stockActual')} border-emerald-300`} />
                         <MensajeError campo="stockActual" /></div>
-                      <div><label className="block text-[11px] font-semibold text-emerald-700 uppercase mb-1.5">Almacén Destino</label>
+                      <div><label className="block text-[11px] font-semibold text-emerald-700 uppercase mb-1.5">{t("Almacén Destino")}</label>
                         <select name="almacenId" value={formData.almacenId || ''} onChange={handleChange} className={`${claseCampo('almacenId')} border-emerald-300`}>
-                          <option value="">— Seleccionar —</option>
-                          {almacenes.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+                          <option value="">{t("— Seleccionar —")}</option>
+                          {almacenes.map(a => <option key={a.id} value={a.id}>{t(a.nombre)}</option>)}
                         </select>
                         <MensajeError campo="almacenId" /></div>
                     </div>
@@ -1011,15 +1011,15 @@ export default function ModalFichaProducto({
               {/* ══ SECTOR ══ */}
               <div className={activeTab === 'sectorial' ? 'block' : 'hidden'}>
                 <div className={sec}>
-                  <h3 className={stit}><FlaskConical className="w-4 h-4 text-purple-500" /> Sector de la Industria</h3>
+                  <h3 className={stit}><FlaskConical className="w-4 h-4 text-purple-500" />  {t("Sector de la Industria")}</h3>
                   <div className="flex items-center gap-3">
                     <select value={sectorSeleccionado} onChange={(e) => cargarPresetSector(e.target.value)} className={`${inp} max-w-xs`}>
-                      <option value="">— Sin plantilla de atributos —</option>
-                      {gruposAtributos.map(g => <option key={g.id} value={g.nombre}>{g.nombre}</option>)}
+                      <option value="">{t("— Sin plantilla de atributos —")}</option>
+                      {gruposAtributos.map(g => <option key={g.id} value={g.nombre}>{t(g.nombre)}</option>)}
                     </select>
                     {cargandoPreset && <Loader2 className="w-5 h-5 animate-spin text-blue-500" />}
                     <a href="/dashboard/productos/atributos" target="_blank" rel="noreferrer"
-                      className="text-xs text-blue-600 hover:underline whitespace-nowrap">⚙ Administrar plantillas</a>
+                      className="text-xs text-blue-600 hover:underline whitespace-nowrap">{t("⚙ Administrar plantillas")}</a>
                   </div>
                 </div>
                 {atributos.length > 0 && (
@@ -1030,7 +1030,7 @@ export default function ModalFichaProducto({
                     <div className="grid grid-cols-2 gap-4">
                       {atributos.map(attr => (
                         <div key={attr.clave}>
-                          <label className={lbl}>{attr.etiqueta}
+                          <label className={lbl}>{t(attr.etiqueta)}
                             {attr.unidad && <span className="text-blue-500 ml-1 normal-case">({attr.unidad})</span>}
                           </label>
                           {attr.tipoValor === 'BOOLEAN' ? (
@@ -1038,7 +1038,7 @@ export default function ModalFichaProducto({
                               <input type="checkbox" checked={attr.valor === 'true'}
                                 onChange={(e) => handleAtributo(attr.clave, e.target.checked ? 'true' : 'false')}
                                 className="w-4 h-4 rounded border-slate-300 text-blue-600" />
-                              <span className="text-sm text-slate-700 font-medium">Sí</span>
+                              <span className="text-sm text-slate-700 font-medium">{t("Sí")}</span>
                             </label>
                           ) : attr.tipoValor === 'NUMBER' ? (
                             <input type="number" step="0.01" value={attr.valor}
@@ -1046,7 +1046,7 @@ export default function ModalFichaProducto({
                           ) : attr.tipoValor === 'SELECT' && attr.opciones ? (
                             <select value={attr.valor}
                               onChange={(e) => handleAtributo(attr.clave, e.target.value)} className={inp}>
-                              <option value="">— Selecciona —</option>
+                              <option value="">{t("— Selecciona —")}</option>
                               {attr.opciones.split('|').map(op => <option key={op} value={op}>{op}</option>)}
                             </select>
                           ) : attr.tipoValor === 'DATE' ? (
@@ -1065,7 +1065,7 @@ export default function ModalFichaProducto({
                 {!sectorSeleccionado && (
                   <div className="text-center py-16 text-slate-400">
                     <FlaskConical className="w-14 h-14 mx-auto mb-3 text-slate-200" />
-                    <p className="font-bold text-slate-500">Selecciona una plantilla de atributos — créalas en ⚙ Administrar plantillas</p>
+                    <p className="font-bold text-slate-500">{t("Selecciona una plantilla de atributos — créalas en ⚙ Administrar plantillas")}</p>
                   </div>
                 )}
               </div>
@@ -1073,12 +1073,13 @@ export default function ModalFichaProducto({
               {/* ══ EMPAQUES ══ */}
               <div className={activeTab === 'empaques' ? 'block' : 'hidden'}>
                 <div className={sec}>
-                  <h3 className={stit}><Layers className="w-4 h-4 text-blue-500" /> Jerarquía de Empaques</h3>
+                  <h3 className={stit}><Layers className="w-4 h-4 text-blue-500" />  {t("Jerarquía de Empaques")}</h3>
                   <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-5 flex items-start gap-3">
                     <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
                     <p className="text-xs text-slate-600 font-medium">
-                      Define cómo se empaca el producto en niveles.<br/>
-                      Ej: <code className="bg-white border px-1 rounded">Pieza → Paquete x12 → Caja x10 paquetes = 120 piezas/caja</code>
+                      
+                      {t("Define cómo se empaca el producto en niveles.")}<br/>
+                      Ej: <code className="bg-white border px-1 rounded">{t("Pieza → Paquete x12 → Caja x10 paquetes = 120 piezas/caja")}</code>
                     </p>
                   </div>
                   <EquivalenciasArbol equivalencias={eqs} unidadBase={formData.unidadMedida}
@@ -1091,26 +1092,26 @@ export default function ModalFichaProducto({
               <div className={activeTab === 'multimedia' ? 'block' : 'hidden'}>
                 <div className={sec}>
                   <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><ImageIcon className="w-4 h-4 text-blue-500" /> Galería</h3>
-                    <span className="text-xs font-semibold text-slate-500">{plural(formData.imagenes.length, "imagen", "imágenes")}</span>
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><ImageIcon className="w-4 h-4 text-blue-500" />  {t("Galería")}</h3>
+                    <span className="text-xs font-semibold text-slate-500">{plural(formData.imagenes.length, "imagen", t("imágenes"))}</span>
                   </div>
                   <div className="grid grid-cols-4 gap-4">
                     <div onClick={() => inputFileRef.current?.click()}
                       className="aspect-square border-2 border-dashed border-slate-300 rounded-md flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors text-slate-400 hover:text-blue-600 bg-slate-50">
-                      <Plus className="w-6 h-6 mb-1" /><span className="text-[10px] font-bold uppercase">Subir</span>
+                      <Plus className="w-6 h-6 mb-1" /><span className="text-[10px] font-bold uppercase">{t("Subir")}</span>
                     </div>
                     {formData.imagenes.map((img, idx) => (
                       <div key={idx} className={`relative group rounded-md overflow-hidden aspect-square border ${img.principal ? 'border-blue-500 ring-2 ring-blue-200' : 'border-slate-200'}`}>
                         <img src={`${BASE_URL}${img.url}`} className="w-full h-full object-cover" alt="" />
                         <div className="absolute inset-0 bg-slate-900/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                          <button aria-label="Usar como imagen principal" title="Usar como imagen principal" type="button" className="p-1.5 bg-white text-blue-600 rounded shadow-sm hover:scale-110 transition-transform"
+                          <button aria-label={t("Usar como imagen principal")} title={t("Usar como imagen principal")} type="button" className="p-1.5 bg-white text-blue-600 rounded shadow-sm hover:scale-110 transition-transform"
                             onClick={() => setFormData(p => ({ ...p, imagenes: p.imagenes.map((m, i) => ({ ...m, principal: i === idx })) }))}>
                             <Star className="w-3.5 h-3.5" /></button>
-                          <button aria-label="Eliminar la imagen" title="Eliminar la imagen" type="button" className="p-1.5 bg-rose-500 text-white rounded shadow-sm hover:scale-110 transition-transform"
+                          <button aria-label={t("Eliminar la imagen")} title={t("Eliminar la imagen")} type="button" className="p-1.5 bg-rose-500 text-white rounded shadow-sm hover:scale-110 transition-transform"
                             onClick={() => setFormData(p => ({ ...p, imagenes: p.imagenes.filter((_, i) => i !== idx) }))}>
                             <Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
-                        {img.principal && <div className="absolute top-1 left-1 bg-blue-600 text-white text-[9px] uppercase font-bold px-1.5 py-0.5 rounded">Principal</div>}
+                        {img.principal && <div className="absolute top-1 left-1 bg-blue-600 text-white text-[9px] uppercase font-bold px-1.5 py-0.5 rounded">{t("Principal")}</div>}
                       </div>
                     ))}
                   </div>
@@ -1127,13 +1128,14 @@ export default function ModalFichaProducto({
           <p className="text-xs text-slate-400">
             {atributos.filter(a => a.valor?.trim()).length > 0 && (
               <span className="text-purple-600 font-bold">
-                {plural(atributos.filter(a => a.valor?.trim()).length, 'atributo sectorial listo', 'atributos sectoriales listos')}
+                {plural(atributos.filter(a => a.valor?.trim()).length, t("atributo sectorial listo"), t("atributos sectoriales listos"))}
               </span>
             )}
           </p>
           <div className="flex gap-3">
             <button type="button" onClick={onClose} className="px-5 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
-              Cerrar
+              
+              {t("Cerrar")}
             </button>
             <button type="submit" form="producto-form" disabled={guardando}
               aria-disabled={guardando}
@@ -1153,34 +1155,34 @@ export default function ModalFichaProducto({
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                <Plus className="w-4 h-4 text-indigo-500" /> Nueva unidad de medida
+                <Plus className="w-4 h-4 text-indigo-500" />  {t("Nueva unidad de medida")}
               </h3>
-              <button aria-label="Cerrar" title="Cerrar" onClick={() => setModalUnidad(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full">
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setModalUnidad(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="p-5 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Nombre *</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t("Nombre *")}</label>
                 <input autoFocus value={nuevaUnidad.nombre}
                   onChange={e => setNuevaUnidad(u => ({ ...u, nombre: e.target.value }))}
                   onKeyDown={e => { if (e.key === 'Enter') crearUnidadRapida(); }}
-                  placeholder="Ej. Pieza, Kilogramo…"
+                  placeholder={t("Ej. Pieza, Kilogramo…")}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Abreviatura</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t("Abreviatura")}</label>
                   <input value={nuevaUnidad.abreviatura}
                     onChange={e => setNuevaUnidad(u => ({ ...u, abreviatura: e.target.value }))}
-                    placeholder="pza, kg…" maxLength={10}
+                    placeholder={t("pza, kg…")} maxLength={10}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Clave SAT</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t("Clave SAT")}</label>
                   <input value={nuevaUnidad.claveSAT}
                     onChange={e => setNuevaUnidad(u => ({ ...u, claveSAT: e.target.value.toUpperCase() }))}
-                    placeholder="H87…" maxLength={10}
+                    placeholder={t("H87…")} maxLength={10}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono" />
                 </div>
               </div>
@@ -1188,12 +1190,13 @@ export default function ModalFichaProducto({
             <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
               <button onClick={() => setModalUnidad(false)} disabled={guardandoUnidad}
                 className="px-4 py-2 text-sm text-slate-700 font-medium hover:bg-slate-200 rounded-lg disabled:opacity-50">
-                Cancelar
+                
+                {t("Cancelar")}
               </button>
               <button onClick={crearUnidadRapida} disabled={guardandoUnidad}
                 className="px-4 py-2 text-sm bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-60 flex items-center gap-2">
                 {guardandoUnidad ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                {guardandoUnidad ? 'Creando…' : 'Crear y usar'}
+                {guardandoUnidad ? t("Creando…") : t("Crear y usar")}
               </button>
             </div>
           </div>

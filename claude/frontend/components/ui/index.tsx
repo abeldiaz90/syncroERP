@@ -13,6 +13,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { AlertTriangle, CheckCircle2, Info, Loader2, X, XCircle, Inbox } from 'lucide-react';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 /* ── Encabezado de pantalla ──────────────────────────────────────────────── */
 
 export function EncabezadoPantalla({
@@ -23,12 +24,13 @@ export function EncabezadoPantalla({
   acciones?: React.ReactNode;
   migas?: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="flex items-start justify-between gap-4 mb-5">
       <div className="min-w-0">
         {migas}
-        <h1 className="text-[19px] font-bold text-slate-900 leading-tight truncate">{titulo}</h1>
-        {descripcion && <p className="text-[13px] text-slate-500 mt-0.5">{descripcion}</p>}
+        <h1 className="text-[19px] font-bold text-slate-900 leading-tight truncate">{t(titulo)}</h1>
+        {descripcion && <p className="text-[13px] text-slate-500 mt-0.5">{t(descripcion)}</p>}
       </div>
       {acciones && <div className="flex items-center gap-2 shrink-0">{acciones}</div>}
     </div>
@@ -46,11 +48,12 @@ export function Panel({
   sinRelleno?: boolean;
   className?: string;
 }) {
+  const t = useT();
   return (
     <section className={`panel ${className}`}>
       {(titulo || accion) && (
         <header className="panel-cabecera">
-          {titulo && <h2 className="text-[13px] font-semibold text-slate-900">{titulo}</h2>}
+          {titulo && <h2 className="text-[13px] font-semibold text-slate-900">{t(titulo)}</h2>}
           {accion}
         </header>
       )}
@@ -93,16 +96,17 @@ export function Campo({
   ayuda?: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div>
       <label className="etiqueta-campo">
-        {etiqueta}
+        {t(etiqueta)}
         {requerido && <span className="text-rose-500 ml-0.5">*</span>}
       </label>
       {children}
       {error
-        ? <p className="mt-1 text-[11px] text-rose-600 font-medium">{error}</p>
-        : ayuda && <p className="mt-1 text-[11px] text-slate-400">{ayuda}</p>}
+        ? <p className="mt-1 text-[11px] text-rose-600 font-medium">{t(error)}</p>
+        : ayuda && <p className="mt-1 text-[11px] text-slate-400">{t(ayuda)}</p>}
     </div>
   );
 }
@@ -139,8 +143,9 @@ export function Distintivo({
 /* ── Estados de la pantalla ──────────────────────────────────────────────── */
 
 export function Cargando({ filas = 6 }: { filas?: number }) {
+  const t = useT();
   return (
-    <div className="p-4 space-y-2" role="status" aria-label="Cargando">
+    <div className="p-4 space-y-2" role="status" aria-label={t("Cargando")}>
       {Array.from({ length: filas }).map((_, i) => (
         <div key={i} className="esqueleto h-9" style={{ opacity: 1 - i * 0.1 }} />
       ))}
@@ -159,13 +164,14 @@ export function SinDatos({
   accion?: React.ReactNode;
   icono?: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col items-center justify-center text-center py-16 px-6">
       <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center mb-3 text-slate-400">
         {icono ?? <Inbox className="w-5 h-5" />}
       </div>
-      <p className="text-[14px] font-semibold text-slate-800">{titulo}</p>
-      {descripcion && <p className="text-[12.5px] text-slate-500 mt-1 max-w-sm">{descripcion}</p>}
+      <p className="text-[14px] font-semibold text-slate-800">{t(titulo)}</p>
+      {descripcion && <p className="text-[12.5px] text-slate-500 mt-1 max-w-sm">{t(descripcion)}</p>}
       {accion && <div className="mt-4">{accion}</div>}
     </div>
   );
@@ -177,15 +183,16 @@ export function ErrorPantalla({
   mensaje: string;
   onReintentar?: () => void;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col items-center justify-center text-center py-14 px-6">
       <div className="w-11 h-11 rounded-xl bg-rose-50 flex items-center justify-center mb-3">
         <XCircle className="w-5 h-5 text-rose-500" />
       </div>
-      <p className="text-[14px] font-semibold text-slate-800">No se pudo cargar la información</p>
-      <p className="text-[12.5px] text-slate-500 mt-1 max-w-md">{mensaje}</p>
+      <p className="text-[14px] font-semibold text-slate-800">{t("No se pudo cargar la información")}</p>
+      <p className="text-[12.5px] text-slate-500 mt-1 max-w-md">{t(mensaje)}</p>
       {onReintentar && (
-        <Boton variante="neutro" className="mt-4" onClick={onReintentar}>Reintentar</Boton>
+        <Boton variante="neutro" className="mt-4" onClick={onReintentar}>{t("Reintentar")}</Boton>
       )}
     </div>
   );
@@ -204,6 +211,7 @@ export function Modal({
   pie?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const t = useT();
   useEffect(() => {
     if (!abierto) return;
     const alTeclear = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
@@ -224,7 +232,7 @@ export function Modal({
       onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}
       role="dialog"
       aria-modal="true"
-      aria-label={titulo}
+      aria-label={t(titulo)}
     >
       <div
         className="bg-white rounded-xl shadow-2xl w-full my-auto"
@@ -233,15 +241,15 @@ export function Modal({
       >
         <header className="flex items-start justify-between gap-4 px-5 py-4 border-b border-slate-100">
           <div>
-            <h2 className="text-[15px] font-bold text-slate-900">{titulo}</h2>
-            {descripcion && <p className="text-[12.5px] text-slate-500 mt-0.5">{descripcion}</p>}
+            <h2 className="text-[15px] font-bold text-slate-900">{t(titulo)}</h2>
+            {descripcion && <p className="text-[12.5px] text-slate-500 mt-0.5">{t(descripcion)}</p>}
           </div>
-          <button onClick={onCerrar} className="btn btn-fantasma btn-icono btn-sm" aria-label="Cerrar">
+          <button onClick={onCerrar} className="btn btn-fantasma btn-icono btn-sm" aria-label={t("Cerrar")}>
             <X className="w-4 h-4" />
           </button>
         </header>
         <div className="px-5 py-4">{children}</div>
-        {pie && <footer className="flex justify-end gap-2 px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 rounded-b-xl">{pie}</footer>}
+        {pie && <footer className="flex justify-end gap-2 px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 rounded-b-xl">{t(pie)}</footer>}
       </div>
     </div>
   );
@@ -266,6 +274,7 @@ const ICONO_TONO: Record<Tono, React.ReactNode> = {
 };
 
 export function ProveedorAvisos({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const [avisos, setAvisos] = useState<Aviso[]>([]);
 
   const avisar = useCallback((texto: string, tono: Tono = 'info') => {
@@ -284,11 +293,11 @@ export function ProveedorAvisos({ children }: { children: React.ReactNode }) {
             className="flex items-start gap-2.5 bg-white border border-slate-200 rounded-lg shadow-lg px-3.5 py-2.5 min-w-[260px] max-w-sm"
           >
             <span className="mt-0.5 shrink-0">{ICONO_TONO[a.tono]}</span>
-            <p className="text-[12.5px] text-slate-700 leading-snug">{a.texto}</p>
+            <p className="text-[12.5px] text-slate-700 leading-snug">{t(a.texto)}</p>
             <button
               onClick={() => setAvisos((x) => x.filter((y) => y.id !== a.id))}
               className="ml-auto text-slate-300 hover:text-slate-500 shrink-0"
-              aria-label="Descartar"
+              aria-label={t("Descartar")}
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -328,35 +337,36 @@ export function Confirmacion({
   procesando?: boolean;
   error?: string | null;
 }) {
+  const t = useT();
   return (
     <Modal
       abierto={abierto}
       onCerrar={onCancelar}
-      titulo={titulo}
+      titulo={t(titulo)}
       ancho={420}
       pie={
         <>
           <Boton variante="neutro" onClick={onCancelar} disabled={procesando}>
-            {error ? 'Cerrar' : 'Cancelar'}
+            {error ? t("Cerrar") : t("Cancelar")}
           </Boton>
           <Boton
             variante={peligroso ? 'peligro' : 'primario'}
             onClick={onConfirmar}
             cargando={procesando}
           >
-            {error ? 'Reintentar' : textoConfirmar}
+            {error ? t("Reintentar") : textoConfirmar}
           </Boton>
         </>
       }
     >
-      <p className="text-[13px] text-slate-600 leading-relaxed">{mensaje}</p>
+      <p className="text-[13px] text-slate-600 leading-relaxed">{t(mensaje)}</p>
       {error && (
         <div
           role="alert"
           className="mt-3.5 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5"
         >
           <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-px" />
-          <p className="text-[12.5px] text-rose-700 leading-snug">{error}</p>
+          <p className="text-[12.5px] text-rose-700 leading-snug">{t(error)}</p>
         </div>
       )}
     </Modal>
@@ -412,6 +422,7 @@ export function ConfirmacionConMotivo({
   procesando?: boolean;
   error?: string | null;
 }) {
+  const t = useT();
   const [motivo, setMotivo] = useState('');
   const referencia = React.useRef<HTMLTextAreaElement>(null);
 
@@ -432,12 +443,13 @@ export function ConfirmacionConMotivo({
     <Modal
       abierto={abierto}
       onCerrar={onCancelar}
-      titulo={titulo}
+      titulo={t(titulo)}
       ancho={460}
       pie={
         <>
           <Boton variante="neutro" onClick={onCancelar} disabled={procesando}>
-            Cerrar
+            
+            {t("Cerrar")}
           </Boton>
           <Boton
             variante={peligroso ? 'peligro' : 'primario'}
@@ -445,20 +457,20 @@ export function ConfirmacionConMotivo({
             cargando={procesando}
             disabled={!listo}
           >
-            {error ? 'Reintentar' : textoConfirmar}
+            {error ? t("Reintentar") : textoConfirmar}
           </Boton>
         </>
       }
     >
-      <p className="text-[13px] text-slate-600 leading-relaxed">{mensaje}</p>
+      <p className="text-[13px] text-slate-600 leading-relaxed">{t(mensaje)}</p>
       <div className="mt-3.5">
         <Campo
-          etiqueta={etiqueta}
+          etiqueta={t(etiqueta)}
           requerido
           ayuda={
             listo
-              ? (ayuda ?? 'Queda en la bitácora, con tu nombre y la fecha.')
-              : `${plural(falta, 'carácter', 'caracteres')} más para poder continuar.`
+              ? (ayuda ?? t("Queda en la bitácora, con tu nombre y la fecha."))
+              : `${plural(falta, t("carácter"), 'caracteres')} más para poder continuar.`
           }
         >
           <textarea
@@ -468,7 +480,7 @@ export function ConfirmacionConMotivo({
             rows={3}
             disabled={procesando}
             className="campo resize-y"
-            placeholder="Por qué se cancela"
+            placeholder={t("Por qué se cancela")}
           />
         </Campo>
       </div>
@@ -478,7 +490,7 @@ export function ConfirmacionConMotivo({
           className="mt-3.5 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5"
         >
           <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-px" />
-          <p className="text-[12.5px] text-rose-700 leading-snug">{error}</p>
+          <p className="text-[12.5px] text-rose-700 leading-snug">{t(error)}</p>
         </div>
       )}
     </Modal>
@@ -497,16 +509,17 @@ export function Indicador({
   cargando?: boolean;
   icono?: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="panel px-4 py-3.5">
       <div className="flex items-start justify-between gap-2">
-        <p className="eyebrow">{etiqueta}</p>
+        <p className="eyebrow">{t(etiqueta)}</p>
         {icono && <span style={{ color }} className="opacity-70">{icono}</span>}
       </div>
       {cargando
         ? <div className="esqueleto h-7 w-24 mt-2" />
         : <p className="text-[22px] font-bold mt-1.5 leading-none cifra" style={{ color }}>{valor}</p>}
-      {detalle && <p className="text-[11.5px] text-slate-400 mt-1.5">{detalle}</p>}
+      {detalle && <p className="text-[11.5px] text-slate-400 mt-1.5">{t(detalle)}</p>}
     </div>
   );
 }

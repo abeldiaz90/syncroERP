@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { api, ApiError, conPermiso } from '@/lib/api';
 
+import { useT } from '@/components/I18nProvider';
 type CuentaCaja = {
   id: string;
   nombre: string;
@@ -184,6 +185,7 @@ const DENOMINACIONES = [
 const llaveDe = (d: (typeof DENOMINACIONES)[number]) => `${d.clase}-${d.valor}`;
 
 export default function CajaPage() {
+  const t = useT();
   const [cuentas, setCuentas] = useState<CuentaCaja[]>([]);
   /** El catálogo de cuentas de caja no es de todos los roles que ven esta pantalla. */
   const [cuentasVedadas, setCuentasVedadas] = useState(false);
@@ -498,7 +500,7 @@ export default function CajaPage() {
         cuentaCajaId: cuentaNueva,
         fondoInicial: Number(fondo),
       }),
-      'La caja quedó abierta y lista para operar.',
+      t("La caja quedó abierta y lista para operar."),
     );
     if (ok) setFondo('0');
   }
@@ -508,8 +510,8 @@ export default function CajaPage() {
     if (!movimiento.cuentaContrapartidaId) {
       setAviso({
         texto: sinContrapartida
-          ? 'Esta sesión no tiene ninguna cuenta contable contra la que registrar el movimiento. Lo lleva Contabilidad.'
-          : 'Elige la cuenta contra la que se registra el movimiento.',
+          ? t("Esta sesión no tiene ninguna cuenta contable contra la que registrar el movimiento. Lo lleva Contabilidad.")
+          : t("Elige la cuenta contra la que se registra el movimiento."),
         ok: false,
       });
       return;
@@ -522,7 +524,7 @@ export default function CajaPage() {
         referencia: movimiento.referencia.trim() || undefined,
         cuentaContrapartidaId: movimiento.cuentaContrapartidaId,
       }),
-      tipo === 'entrada' ? 'La entrada quedó registrada.' : 'El retiro quedó registrado.',
+      tipo === 'entrada' ? t("La entrada quedó registrada.") : t("El retiro quedó registrado."),
     );
     if (ok) setMovimiento({ importe: '', concepto: '', referencia: '', cuentaContrapartidaId: '' });
   }
@@ -546,7 +548,7 @@ export default function CajaPage() {
     if (montones && !hayAlgunMonton) {
       setAviso({
         texto:
-          'Todavía no has contado ningún montón. Si el cajón está vacío, escribe 0 en alguna denominación para dejarlo dicho.',
+          t("Todavía no has contado ningún montón. Si el cajón está vacío, escribe 0 en alguna denominación para dejarlo dicho."),
         ok: false,
       });
       return;
@@ -587,7 +589,7 @@ export default function CajaPage() {
     return (
       <div className="min-h-[55vh] grid place-items-center text-slate-500">
         <div className="flex items-center gap-2 text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" /> Preparando operación de caja…
+          <Loader2 className="h-4 w-4 animate-spin" />  {t("Preparando operación de caja…")}
         </div>
       </div>
     );
@@ -597,10 +599,11 @@ export default function CajaPage() {
     <main className="mx-auto max-w-7xl space-y-5 p-4 md:p-6">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Tesorería</p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-950">Caja, corte y arqueo</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">{t("Tesorería")}</p>
+          <h1 className="mt-1 text-2xl font-bold text-slate-950">{t("Caja, corte y arqueo")}</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Cada venta, cobranza, reembolso, entrada y retiro en efectivo queda ligado al turno abierto.
+            
+            {t("Cada venta, cobranza, reembolso, entrada y retiro en efectivo queda ligado al turno abierto.")}
           </p>
         </div>
         <button
@@ -608,13 +611,13 @@ export default function CajaPage() {
           onClick={() => void cargar()}
           className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
         >
-          <RefreshCw className="h-4 w-4" /> Actualizar
+          <RefreshCw className="h-4 w-4" />  {t("Actualizar")}
         </button>
       </header>
 
       {aviso && (
         <div className={`rounded-xl border px-4 py-3 text-sm ${aviso.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
-          {aviso.texto}
+          {t(aviso.texto)}
         </div>
       )}
 
@@ -625,18 +628,18 @@ export default function CajaPage() {
          * perder el viaje.
          */
         <section className="rounded-2xl border border-slate-300 bg-slate-50 p-6">
-          <h2 className="font-semibold text-slate-900">El catálogo de cajas no está en tu perfil</h2>
+          <h2 className="font-semibold text-slate-900">{t("El catálogo de cajas no está en tu perfil")}</h2>
           <p className="mt-1 text-sm text-slate-700">
-            Las cuentas de caja las administra Crédito y cobranza. Puedes seguir
-            consultando los turnos abiertos, pero para arquear una caja necesitas
-            que tu rol incluya ese catálogo.
+            
+            {t("Las cuentas de caja las administra Crédito y cobranza. Puedes seguir consultando los turnos abiertos, pero para arquear una caja necesitas que tu rol incluya ese catálogo.")}
           </p>
         </section>
       ) : !cuentas.length ? (
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <h2 className="font-semibold text-amber-950">Primero crea una cuenta de tipo Caja</h2>
+          <h2 className="font-semibold text-amber-950">{t("Primero crea una cuenta de tipo Caja")}</h2>
           <p className="mt-1 text-sm text-amber-800">
-            Ve a Crédito y cobranza → Cuentas bancarias, registra la caja física y relaciónala con su cuenta contable.
+            
+            {t("Ve a Crédito y cobranza → Cuentas bancarias, registra la caja física y relaciónala con su cuenta contable.")}
           </p>
         </section>
       ) : !turnos.length ? (
@@ -645,21 +648,24 @@ export default function CajaPage() {
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700">
               <LockKeyhole className="h-5 w-5" />
             </div>
-            <h2 className="mt-4 text-lg font-semibold text-slate-950">No hay cajas abiertas</h2>
+            <h2 className="mt-4 text-lg font-semibold text-slate-950">{t("No hay cajas abiertas")}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              El POS bloqueará cobros en efectivo hasta que exista un turno abierto para la caja elegida.
+              
+              {t("El POS bloqueará cobros en efectivo hasta que exista un turno abierto para la caja elegida.")}
             </p>
           </div>
           <form onSubmit={abrir} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="font-semibold text-slate-950">Abrir turno</h2>
+            <h2 className="font-semibold text-slate-950">{t("Abrir turno")}</h2>
             <label className="block text-sm font-medium text-slate-700">
-              Caja
+              
+              {t("Caja")}
               <select value={cuentaNueva} onChange={(e) => setCuentaNueva(e.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3">
-                {cuentas.map((cuenta) => <option key={cuenta.id} value={cuenta.id}>{cuenta.nombre}</option>)}
+                {cuentas.map((cuenta) => <option key={cuenta.id} value={cuenta.id}>{t(cuenta.nombre)}</option>)}
               </select>
             </label>
             <label className="block text-sm font-medium text-slate-700">
-              Fondo inicial
+              
+              {t("Fondo inicial")}
               <input value={fondo} onChange={(e) => setFondo(e.target.value)} type="number" min="0" step="0.01" className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 px-3" required />
             </label>
             <button disabled={procesando || !cuentaNueva} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-cyan-700 px-4 text-sm font-semibold text-white hover:bg-cyan-800 disabled:opacity-50">
@@ -694,7 +700,7 @@ export default function CajaPage() {
                 <p className="mt-1 text-xs text-slate-500">
                   {item.usuarioAperturaNombre
                     ? `Abierta por ${item.usuarioAperturaNombre}`
-                    : 'Abierta'}
+                    : t("Abierta")}
                   {' · '}
                   {new Date(item.fechaApertura).toLocaleString('es-MX')}
                 </p>
@@ -704,13 +710,13 @@ export default function CajaPage() {
 
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              { label: 'Fondo inicial', valor: turno?.fondoInicial ?? 0, icono: CircleDollarSign },
-              { label: 'Entradas', valor: resumen?.turno.totalEntradas ?? turno?.totalEntradas ?? 0, icono: ArrowDownCircle },
-              { label: 'Salidas', valor: resumen?.turno.totalSalidas ?? turno?.totalSalidas ?? 0, icono: ArrowUpCircle },
-              { label: 'Efectivo esperado', valor: resumen?.turno.efectivoEsperado ?? turno?.efectivoEsperado ?? 0, icono: Scale },
+              { label: t("Fondo inicial"), valor: turno?.fondoInicial ?? 0, icono: CircleDollarSign },
+              { label: t("Entradas"), valor: resumen?.turno.totalEntradas ?? turno?.totalEntradas ?? 0, icono: ArrowDownCircle },
+              { label: t("Salidas"), valor: resumen?.turno.totalSalidas ?? turno?.totalSalidas ?? 0, icono: ArrowUpCircle },
+              { label: t("Efectivo esperado"), valor: resumen?.turno.efectivoEsperado ?? turno?.efectivoEsperado ?? 0, icono: Scale },
             ].map(({ label, valor, icono: Icono }) => (
               <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between text-slate-500"><span className="text-xs font-medium uppercase tracking-wide">{label}</span><Icono className="h-4 w-4" /></div>
+                <div className="flex items-center justify-between text-slate-500"><span className="text-xs font-medium uppercase tracking-wide">{t(label)}</span><Icono className="h-4 w-4" /></div>
                 <p className="mt-2 text-xl font-bold text-slate-950">{moneda.format(Number(valor))}</p>
               </div>
             ))}
@@ -719,12 +725,12 @@ export default function CajaPage() {
           <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-5 py-4">
-                <h2 className="font-semibold text-slate-950">Movimientos del turno</h2>
+                <h2 className="font-semibold text-slate-950">{t("Movimientos del turno")}</h2>
               </div>
               <div className="max-h-[520px] overflow-auto">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <tr><th className="px-4 py-3">Hora</th><th className="px-4 py-3">Tipo</th><th className="px-4 py-3">Concepto</th><th className="px-4 py-3 text-right">Importe</th></tr>
+                    <tr><th className="px-4 py-3">{t("Hora")}</th><th className="px-4 py-3">{t("Tipo")}</th><th className="px-4 py-3">{t("Concepto")}</th><th className="px-4 py-3 text-right">{t("Importe")}</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {(movimientos ?? []).map((item) => (
@@ -736,9 +742,9 @@ export default function CajaPage() {
                       </tr>
                     ))}
                     {movimientos === null ? (
-                      <tr><td colSpan={4} className="px-4 py-10 text-center text-slate-400">Leyendo los movimientos de esta caja…</td></tr>
+                      <tr><td colSpan={4} className="px-4 py-10 text-center text-slate-400">{t("Leyendo los movimientos de esta caja…")}</td></tr>
                     ) : !movimientos.length ? (
-                      <tr><td colSpan={4} className="px-4 py-10 text-center text-slate-400">El turno todavía no tiene movimientos.</td></tr>
+                      <tr><td colSpan={4} className="px-4 py-10 text-center text-slate-400">{t("El turno todavía no tiene movimientos.")}</td></tr>
                     ) : null}
                   </tbody>
                 </table>
@@ -747,29 +753,30 @@ export default function CajaPage() {
 
             <div className="space-y-5">
               <form onSubmit={(e) => { e.preventDefault(); void registrarManual('entrada'); }} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="font-semibold text-slate-950">Entrada o retiro manual</h2>
-                <input value={movimiento.importe} onChange={(e) => setMovimiento({ ...movimiento, importe: e.target.value })} aria-label="Importe del movimiento" type="number" min="0.01" step="0.01" placeholder="Importe" className="h-10 w-full rounded-lg border border-slate-200 px-3" required />
-                <input value={movimiento.concepto} onChange={(e) => setMovimiento({ ...movimiento, concepto: e.target.value })} aria-label="Concepto del movimiento" placeholder="Concepto" maxLength={300} className="h-10 w-full rounded-lg border border-slate-200 px-3" required />
-                <input value={movimiento.referencia} onChange={(e) => setMovimiento({ ...movimiento, referencia: e.target.value })} aria-label="Referencia del movimiento" placeholder="Referencia opcional" maxLength={120} className="h-10 w-full rounded-lg border border-slate-200 px-3" />
-                <select value={movimiento.cuentaContrapartidaId} onChange={(e) => setMovimiento({ ...movimiento, cuentaContrapartidaId: e.target.value })} aria-label="Cuenta de contrapartida" className="h-10 w-full rounded-lg border border-slate-200 px-3" required>
-                  <option value="">¿Contra qué cuenta se registra?</option>
+                <h2 className="font-semibold text-slate-950">{t("Entrada o retiro manual")}</h2>
+                <input value={movimiento.importe} onChange={(e) => setMovimiento({ ...movimiento, importe: e.target.value })} aria-label={t("Importe del movimiento")} type="number" min="0.01" step="0.01" placeholder={t("Importe")} className="h-10 w-full rounded-lg border border-slate-200 px-3" required />
+                <input value={movimiento.concepto} onChange={(e) => setMovimiento({ ...movimiento, concepto: e.target.value })} aria-label={t("Concepto del movimiento")} placeholder={t("Concepto")} maxLength={300} className="h-10 w-full rounded-lg border border-slate-200 px-3" required />
+                <input value={movimiento.referencia} onChange={(e) => setMovimiento({ ...movimiento, referencia: e.target.value })} aria-label={t("Referencia del movimiento")} placeholder={t("Referencia opcional")} maxLength={120} className="h-10 w-full rounded-lg border border-slate-200 px-3" />
+                <select value={movimiento.cuentaContrapartidaId} onChange={(e) => setMovimiento({ ...movimiento, cuentaContrapartidaId: e.target.value })} aria-label={t("Cuenta de contrapartida")} className="h-10 w-full rounded-lg border border-slate-200 px-3" required>
+                  <option value="">{t("¿Contra qué cuenta se registra?")}</option>
                   {cuentasContables.map((cuenta) => (
-                    <option key={cuenta.id} value={cuenta.id}>{cuenta.numeroCuenta} · {cuenta.nombre}</option>
+                    <option key={cuenta.id} value={cuenta.id}>{cuenta.numeroCuenta} · {t(cuenta.nombre)}</option>
                   ))}
                 </select>
                 {sinContrapartida && (
                   <p className="text-xs font-medium text-amber-700">
                     {contablesVedadas
-                      ? 'El catálogo de cuentas contables no está en tu perfil, así que no hay contra qué registrar el movimiento. Lo lleva Contabilidad.'
-                      : 'No hay ninguna cuenta contable que admita movimiento manual. Pídelo a Contabilidad antes de registrar entradas o retiros.'}
+                      ? t("El catálogo de cuentas contables no está en tu perfil, así que no hay contra qué registrar el movimiento. Lo lleva Contabilidad.")
+                      : t("No hay ninguna cuenta contable que admita movimiento manual. Pídelo a Contabilidad antes de registrar entradas o retiros.")}
                   </p>
                 )}
                 <p className="text-xs text-slate-500">
-                  Un retiro puede ser un depósito al banco, un gasto o una entrega a dirección, y cada caso afecta una cuenta distinta. El movimiento se refleja en el turno, en Tesorería y en la contabilidad.
+                  
+                  {t("Un retiro puede ser un depósito al banco, un gasto o una entrega a dirección, y cada caso afecta una cuenta distinta. El movimiento se refleja en el turno, en Tesorería y en la contabilidad.")}
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  <button disabled={procesando || sinContrapartida} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white disabled:opacity-50"><ArrowDownCircle className="h-4 w-4" /> Entrada</button>
-                  <button disabled={procesando || sinContrapartida} type="button" onClick={() => void registrarManual('retiro')} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-600 text-sm font-semibold text-white disabled:opacity-50"><ArrowUpCircle className="h-4 w-4" /> Retiro</button>
+                  <button disabled={procesando || sinContrapartida} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white disabled:opacity-50"><ArrowDownCircle className="h-4 w-4" />  {t("Entrada")}</button>
+                  <button disabled={procesando || sinContrapartida} type="button" onClick={() => void registrarManual('retiro')} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-600 text-sm font-semibold text-white disabled:opacity-50"><ArrowUpCircle className="h-4 w-4" />  {t("Retiro")}</button>
                 </div>
               </form>
 
@@ -794,40 +801,44 @@ export default function CajaPage() {
                 ────────────────────────────────────────────────────────────────
               */}
               <form onSubmit={cerrar} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-cyan-700" /><h2 className="font-semibold text-slate-950">Corte y arqueo</h2></div>
+                <div className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-cyan-700" /><h2 className="font-semibold text-slate-950">{t("Corte y arqueo")}</h2></div>
                 <p className="text-sm text-slate-500">
-                  Cuenta físicamente el efectivo. Cerrar el turno no se deshace.
+                  
+                  {t("Cuenta físicamente el efectivo. Cerrar el turno no se deshace.")}
                 </p>
                 {montones === null ? (
                   <>
-                    <input value={conteo} onChange={(e) => setConteo(e.target.value)} aria-label="Efectivo contado" type="number" min="0" step="0.01" placeholder="Efectivo contado" className="h-10 w-full rounded-lg border border-slate-200 px-3" required />
+                    <input value={conteo} onChange={(e) => setConteo(e.target.value)} aria-label={t("Efectivo contado")} type="number" min="0" step="0.01" placeholder={t("Efectivo contado")} className="h-10 w-full rounded-lg border border-slate-200 px-3" required />
                     <button
                       type="button"
                       onClick={() => setMontones({})}
                       className="text-[12px] font-medium text-cyan-700 hover:text-cyan-900 hover:underline"
                     >
-                      Contar por denominaciones
+                      
+                      {t("Contar por denominaciones")}
                     </button>
                   </>
                 ) : (
                   <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-[12px] font-semibold text-slate-700">
-                        Cuenta los montones; la suma la hace el sistema
+                        
+                        {t("Cuenta los montones; la suma la hace el sistema")}
                       </p>
                       <button
                         type="button"
                         onClick={() => { setMontones(null); setConteo(''); }}
                         className="shrink-0 text-[11.5px] font-medium text-slate-500 hover:text-slate-800 hover:underline"
                       >
-                        Teclear el total
+                        
+                        {t("Teclear el total")}
                       </button>
                     </div>
 
                     {(['billete', 'moneda'] as const).map((clase) => (
                       <div key={clase} className="mt-2.5">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                          {clase === 'billete' ? 'Billetes' : 'Monedas'}
+                          {clase === 'billete' ? t("Billetes") : t("Monedas")}
                         </p>
                         <div className="mt-1 grid grid-cols-3 gap-1.5">
                           {DENOMINACIONES.filter((d) => d.clase === clase).map((d) => {
@@ -836,7 +847,7 @@ export default function CajaPage() {
                             const parcial = Number.isFinite(piezas) && piezas > 0 ? piezas * d.valor : 0;
                             return (
                               <label key={llave} className="block">
-                                <span className="block text-[11px] font-medium text-slate-600">{d.etiqueta}</span>
+                                <span className="block text-[11px] font-medium text-slate-600">{t(d.etiqueta)}</span>
                                 <input
                                   value={montones[llave] ?? ''}
                                   onChange={(e) =>
@@ -861,7 +872,7 @@ export default function CajaPage() {
                     ))}
 
                     <div className="mt-3 flex items-baseline justify-between border-t border-slate-200 pt-2">
-                      <span className="text-[12px] font-semibold text-slate-700">Total contado</span>
+                      <span className="text-[12px] font-semibold text-slate-700">{t("Total contado")}</span>
                       <span className="text-[15px] font-bold text-slate-900">
                         {moneda.format(totalMontones ?? 0)}
                       </span>
@@ -877,7 +888,7 @@ export default function CajaPage() {
                     <input
                       value={contadoEfectivo}
                       onChange={() => undefined}
-                      aria-label="Efectivo contado"
+                      aria-label={t("Efectivo contado")}
                       type="number"
                       readOnly
                       tabIndex={-1}
@@ -902,8 +913,8 @@ export default function CajaPage() {
                     </p>
                     {!arqueo.cuadra && (
                       <p className="mt-1">
-                        Al cerrar, esa diferencia se registra en una póliza a tu
-                        nombre. Explícala abajo antes de cerrar.
+                        
+                        {t("Al cerrar, esa diferencia se registra en una póliza a tu nombre. Explícala abajo antes de cerrar.")}
                       </p>
                     )}
                   </div>
@@ -911,13 +922,13 @@ export default function CajaPage() {
                 <textarea
                   value={observaciones}
                   onChange={(e) => setObservaciones(e.target.value)}
-                  aria-label="Observaciones del arqueo"
-                  placeholder={arqueo && !arqueo.cuadra ? 'Explica la diferencia (obligatorio)' : 'Observaciones del arqueo'}
+                  aria-label={t("Observaciones del arqueo")}
+                  placeholder={arqueo && !arqueo.cuadra ? t("Explica la diferencia (obligatorio)") : t("Observaciones del arqueo")}
                   maxLength={500}
                   required={Boolean(arqueo && !arqueo.cuadra)}
                   className="min-h-24 w-full rounded-lg border border-slate-200 p-3"
                 />
-                <button disabled={procesando} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 text-sm font-semibold text-white disabled:opacity-50"><LockKeyhole className="h-4 w-4" /> Cerrar turno</button>
+                <button disabled={procesando} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 text-sm font-semibold text-white disabled:opacity-50"><LockKeyhole className="h-4 w-4" />  {t("Cerrar turno")}</button>
               </form>
             </div>
           </section>

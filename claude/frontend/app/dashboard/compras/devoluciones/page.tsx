@@ -7,6 +7,7 @@ import { useAvisos } from '@/components/ui';
 import { fechaNumerica, hoyISO } from '@/lib/fechas';
 import { FOLIO, folioDe } from '@/lib/folios';
 
+import { useT } from '@/components/I18nProvider';
 /**
  * ============================================================================
  * Devoluciones a proveedor
@@ -61,6 +62,7 @@ const dinero = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
 
 export default function DevolucionesProveedorPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [ordenes, setOrdenes] = useState<Orden[]>([]);
   const [almacenes, setAlmacenes] = useState<Almacen[]>([]);
@@ -126,7 +128,7 @@ export default function DevolucionesProveedorPage() {
         devoluciones: devs.vedado,
       });
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cargar.', 'error');
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo cargar."), 'error');
     } finally {
       setCargando(false);
     }
@@ -152,7 +154,7 @@ export default function DevolucionesProveedorPage() {
         const donde = d?.almacenesRecepcion ?? [];
         setAlmacenId(donde.length === 1 ? donde[0].id : '');
       })
-      .catch((e) => avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo leer la orden.', 'error'));
+      .catch((e) => avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo leer la orden."), 'error'));
   }, [ordenId]);
 
   const lineas = useMemo(
@@ -169,13 +171,13 @@ export default function DevolucionesProveedorPage() {
   const excedida = lineas.find((l) => l.cant > l.disponible + 0.0001);
 
   const registrar = async () => {
-    if (!ordenId) return avisar('Elige la orden de compra que se devuelve.', 'alerta');
-    if (!almacenId) return avisar('Elige el almacén del que sale la mercancía.', 'alerta');
-    if (motivo.trim().length < 5) return avisar('Captura el motivo: mínimo cinco caracteres.', 'alerta');
-    if (!hayCantidades) return avisar('Indica cuánto se devuelve de al menos una partida.', 'alerta');
+    if (!ordenId) return avisar(t("Elige la orden de compra que se devuelve."), 'alerta');
+    if (!almacenId) return avisar(t("Elige el almacén del que sale la mercancía."), 'alerta');
+    if (motivo.trim().length < 5) return avisar(t("Captura el motivo: mínimo cinco caracteres."), 'alerta');
+    if (!hayCantidades) return avisar(t("Indica cuánto se devuelve de al menos una partida."), 'alerta');
     if (excedida) {
       return avisar(
-        `${excedida.producto ?? 'Una partida'}: como mucho se pueden devolver ${excedida.disponible}.`,
+        `${excedida.producto ?? t("Una partida")}: como mucho se pueden devolver ${excedida.disponible}.`,
         'alerta',
       );
     }
@@ -198,7 +200,7 @@ export default function DevolucionesProveedorPage() {
       setOrdenId(''); setMotivo(''); setNota(''); setCantidades({});
       await cargar();
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo registrar la devolución.', 'error');
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo registrar la devolución."), 'error');
     } finally {
       setGuardando(false);
     }
@@ -208,100 +210,98 @@ export default function DevolucionesProveedorPage() {
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black flex items-center gap-3"><Undo2 />Devoluciones a proveedor</h1>
+          <h1 className="text-3xl font-black flex items-center gap-3"><Undo2 />{t("Devoluciones a proveedor")}</h1>
           <p className="text-slate-500">
-            La mercancía sale del almacén y baja lo que se le debe al proveedor. No es un ajuste de inventario:
-            un ajuste es una merma nuestra; esto cambia la cuenta por pagar.
+            
+            {t("La mercancía sale del almacén y baja lo que se le debe al proveedor. No es un ajuste de inventario: un ajuste es una merma nuestra; esto cambia la cuenta por pagar.")}
           </p>
         </div>
         <div className="flex gap-2">
-          <Link href="/dashboard/compras/ordenes" className="px-4 py-2 rounded-xl border font-semibold">Órdenes de compra</Link>
-          <button aria-label="Volver a cargar" title="Volver a cargar" onClick={() => void cargar()} className="p-2 border rounded-xl"><RefreshCw className={cargando ? 'animate-spin' : ''} /></button>
+          <Link href="/dashboard/compras/ordenes" className="px-4 py-2 rounded-xl border font-semibold">{t("Órdenes de compra")}</Link>
+          <button aria-label={t("Volver a cargar")} title={t("Volver a cargar")} onClick={() => void cargar()} className="p-2 border rounded-xl"><RefreshCw className={cargando ? 'animate-spin' : ''} /></button>
         </div>
       </div>
 
       <div className="bg-white border rounded-3xl p-6 space-y-4 shadow-sm">
         <div className="grid md:grid-cols-4 gap-4">
           <label className="space-y-1 md:col-span-2">
-            <span className="text-sm font-bold">Orden de compra *</span>
+            <span className="text-sm font-bold">{t("Orden de compra *")}</span>
             <select value={ordenId} onChange={(e) => setOrdenId(e.target.value)} className="w-full p-3 border rounded-xl">
-              <option value="">Elige la orden recibida…</option>
+              <option value="">{t("Elige la orden recibida…")}</option>
               {ordenes.map((o) => (
                 <option key={o.id} value={o.id}>
-                  {folioDe(o, FOLIO.ORDEN_COMPRA)} · {o.proveedor?.nombre ?? 'Proveedor'} · {dinero(Number(o.total))} · {o.estado}
+                  {folioDe(o, FOLIO.ORDEN_COMPRA)} · {o.proveedor?.nombre ?? t("Proveedor")} · {dinero(Number(o.total))} · {o.estado}
                 </option>
               ))}
             </select>
             {ordenes.length === 0 && !cargando && (
               <p className="text-xs text-slate-500">
                 {vedado.ordenes
-                  ? 'Las órdenes de compra no están en tu perfil, así que aquí no hay de dónde elegir. No significa que no haya.'
-                  : 'No hay órdenes recibidas: sólo se puede devolver lo que ya entró.'}
+                  ? t("Las órdenes de compra no están en tu perfil, así que aquí no hay de dónde elegir. No significa que no haya.")
+                  : t("No hay órdenes recibidas: sólo se puede devolver lo que ya entró.")}
               </p>
             )}
           </label>
           <label className="space-y-1">
-            <span className="text-sm font-bold">Almacén de salida *</span>
+            <span className="text-sm font-bold">{t("Almacén de salida *")}</span>
             <select value={almacenId} onChange={(e) => setAlmacenId(e.target.value)} className="w-full p-3 border rounded-xl">
-              <option value="">Elige…</option>
+              <option value="">{t("Elige…")}</option>
               {(devolvible?.almacenesRecepcion?.length
                 ? devolvible.almacenesRecepcion
                 : almacenes
-              ).map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+              ).map((a) => <option key={a.id} value={a.id}>{t(a.nombre)}</option>)}
             </select>
             {vedado.almacenes && !devolvible?.almacenesRecepcion?.length && (
               <span className="text-xs text-amber-700">
-                El catálogo de almacenes no está en tu perfil, así que el
-                desplegable sale vacío. No es que no haya almacenes: es que no
-                se pueden leer desde este rol.
+                
+                {t("El catálogo de almacenes no está en tu perfil, así que el desplegable sale vacío. No es que no haya almacenes: es que no se pueden leer desde este rol.")}
               </span>
             )}
             {devolvible && !devolvible.almacenesRecepcion?.length && (
               <span className="text-xs text-amber-700">
-                Esta orden no tiene recepción registrada, así que no se sabe en
-                qué almacén entró la mercancía. Elige con cuidado: si ahí no hay
-                existencia, la devolución se va a rechazar.
+                
+                {t("Esta orden no tiene recepción registrada, así que no se sabe en qué almacén entró la mercancía. Elige con cuidado: si ahí no hay existencia, la devolución se va a rechazar.")}
               </span>
             )}
           </label>
           <label className="space-y-1">
-            <span className="text-sm font-bold">Fecha *</span>
+            <span className="text-sm font-bold">{t("Fecha *")}</span>
             <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-full p-3 border rounded-xl" />
           </label>
           <label className="space-y-1 md:col-span-3">
-            <span className="text-sm font-bold">Motivo *</span>
+            <span className="text-sm font-bold">{t("Motivo *")}</span>
             <input
               value={motivo} onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Mercancía dañada en tránsito, modelo equivocado, caducidad corta…"
+              placeholder={t("Mercancía dañada en tránsito, modelo equivocado, caducidad corta…")}
               className="w-full p-3 border rounded-xl"
             />
           </label>
           <label className="space-y-1">
-            <span className="text-sm font-bold">Nota de crédito del proveedor</span>
-            <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Folio, si ya la emitió" className="w-full p-3 border rounded-xl" />
+            <span className="text-sm font-bold">{t("Nota de crédito del proveedor")}</span>
+            <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder={t("Folio, si ya la emitió")} className="w-full p-3 border rounded-xl" />
           </label>
         </div>
 
         {devolvible && (
           <div className="border rounded-2xl overflow-hidden">
             <div className="px-5 py-3 bg-slate-900 text-white text-xs font-bold uppercase tracking-widest flex justify-between">
-              <span>{devolvible.folio} · {devolvible.proveedor ?? 'Proveedor'}</span>
+              <span>{devolvible.folio} · {devolvible.proveedor ?? t("Proveedor")}</span>
               <span className="text-slate-400">
                 {devolvible.estadoPago === 'PAGADA'
-                  ? 'Orden pagada: el IVA se devuelve de acreditable pagado'
-                  : 'Orden por pagar: el IVA se devuelve de pendiente de pago'}
+                  ? t("Orden pagada: el IVA se devuelve de acreditable pagado")
+                  : t("Orden por pagar: el IVA se devuelve de pendiente de pago")}
               </span>
             </div>
             <table className="w-full text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="p-3 text-left">Producto</th>
-                  <th className="text-center">Recibido</th>
-                  <th className="text-center">Ya devuelto</th>
-                  <th className="text-center">Se puede devolver</th>
-                  <th className="text-right">Costo</th>
-                  <th className="text-center w-36">Devolver</th>
-                  <th className="text-right">Importe</th>
+                  <th className="p-3 text-left">{t("Producto")}</th>
+                  <th className="text-center">{t("Recibido")}</th>
+                  <th className="text-center">{t("Ya devuelto")}</th>
+                  <th className="text-center">{t("Se puede devolver")}</th>
+                  <th className="text-right">{t("Costo")}</th>
+                  <th className="text-center w-36">{t("Devolver")}</th>
+                  <th className="text-right">{t("Importe")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -321,7 +321,7 @@ export default function DevolucionesProveedorPage() {
                         disabled={l.disponible <= 0}
                         value={cantidades[l.detalleOrdenId] ?? ''}
                         onChange={(e) => setCantidades((p) => ({ ...p, [l.detalleOrdenId]: e.target.value }))}
-                        placeholder={l.disponible <= 0 ? 'Nada pendiente' : '0'}
+                        placeholder={l.disponible <= 0 ? t("Nada pendiente") : '0'}
                         className={`w-28 p-2 border rounded-lg text-right ${l.cant > l.disponible + 0.0001 ? 'border-rose-400 bg-rose-50' : ''}`}
                       />
                     </td>
@@ -346,29 +346,29 @@ export default function DevolucionesProveedorPage() {
           className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <PackageMinus className="w-4 h-4" />
-          {guardando ? 'Registrando…' : 'Registrar devolución'}
+          {guardando ? t("Registrando…") : t("Registrar devolución")}
         </button>
       </div>
 
       <div className="bg-white border rounded-3xl overflow-hidden">
-        <div className="p-5 border-b font-black">Devoluciones registradas</div>
+        <div className="p-5 border-b font-black">{t("Devoluciones registradas")}</div>
         {devoluciones.length === 0 ? (
           <p className="p-10 text-center text-sm text-slate-500">
             {vedado.devoluciones
-              ? 'No puedes leer el registro de devoluciones con tu perfil. Esto no quiere decir que no haya ninguna.'
-              : 'Todavía no hay devoluciones. Aquí quedará el rastro de cada mercancía que se le regresó a un proveedor.'}
+              ? t("No puedes leer el registro de devoluciones con tu perfil. Esto no quiere decir que no haya ninguna.")
+              : t("Todavía no hay devoluciones. Aquí quedará el rastro de cada mercancía que se le regresó a un proveedor.")}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="p-3 text-left">Folio</th>
-                  <th className="p-3 text-left">Fecha</th>
-                  <th className="p-3 text-left">Almacén</th>
-                  <th className="p-3 text-left">Motivo</th>
-                  <th className="p-3 text-left">Nota de crédito</th>
-                  <th className="text-right p-3">Total</th>
+                  <th className="p-3 text-left">{t("Folio")}</th>
+                  <th className="p-3 text-left">{t("Fecha")}</th>
+                  <th className="p-3 text-left">{t("Almacén")}</th>
+                  <th className="p-3 text-left">{t("Motivo")}</th>
+                  <th className="p-3 text-left">{t("Nota de crédito")}</th>
+                  <th className="text-right p-3">{t("Total")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -378,7 +378,7 @@ export default function DevolucionesProveedorPage() {
                     <td className="p-3">{fechaNumerica(d.fecha)}</td>
                     <td className="p-3">{d.almacen?.nombre ?? ''}</td>
                     <td className="p-3">
-                      {d.motivo}
+                      {t(d.motivo)}
                       {d.detalles?.length ? (
                         <p className="text-xs text-slate-500 mt-1">
                           {d.detalles.map((x) => `${x.producto?.nombre ?? ''} ×${Number(x.cantidad)}`).join(' · ')}

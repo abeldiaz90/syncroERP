@@ -25,6 +25,7 @@ import {
   ErrorPantalla, Indicador, Modal, Panel, Seleccion, SinDatos, useAvisos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Actividad {
   id: string;
   tipo: string;
@@ -64,6 +65,7 @@ const iconoDe = (tipo: string) => TIPOS.find((t) => t.valor === tipo)?.Icono ?? 
 const etiquetaDe = (tipo: string) => TIPOS.find((t) => t.valor === tipo)?.etiqueta ?? tipo;
 
 export default function ActividadesPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const hoy = new Date();
 
@@ -118,34 +120,35 @@ export default function ActividadesPage() {
   return (
     <div className="p-6 max-w-[1300px] mx-auto">
       <EncabezadoPantalla
-        titulo="Actividades"
-        descripcion="Llamadas, reuniones y seguimiento comercial"
+        titulo={t("Actividades")}
+        descripcion={t("Llamadas, reuniones y seguimiento comercial")}
         acciones={
           <Boton variante="primario" icono={<Plus className="w-3.5 h-3.5" />} onClick={() => setModalAbierto(true)}>
-            Agendar actividad
+            
+            {t("Agendar actividad")}
           </Boton>
         }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador
-          etiqueta="Atrasadas"
+          etiqueta={t("Atrasadas")}
           color={(agenda.datos?.resumen?.atrasadas ?? 0) > 0 ? '#e11d48' : '#64748b'}
           cargando={agenda.cargando}
           icono={<CalendarClock className="w-4 h-4" />}
           valor={agenda.datos?.resumen?.atrasadas ?? 0}
-          detalle="pendientes de fechas pasadas"
+          detalle={t("pendientes de fechas pasadas")}
         />
         <Indicador
-          etiqueta="Para hoy" color="#ea580c" cargando={agenda.cargando}
+          etiqueta={t("Para hoy")} color="#ea580c" cargando={agenda.cargando}
           valor={agenda.datos?.resumen?.pendientesHoy ?? 0}
         />
         <Indicador
-          etiqueta="En el rango" color="#0f172a" cargando={actividades.cargando}
+          etiqueta={t("En el rango")} color="#0f172a" cargando={actividades.cargando}
           valor={actividades.datos?.length ?? 0}
         />
         <Indicador
-          etiqueta="Oportunidades abiertas" color="#4f46e5" cargando={oportunidades.cargando}
+          etiqueta={t("Oportunidades abiertas")} color="#4f46e5" cargando={oportunidades.cargando}
           valor={oportunidades.datos?.length ?? 0}
         />
       </div>
@@ -155,7 +158,7 @@ export default function ActividadesPage() {
         <Panel
           sinRelleno
           className="mb-4 border-l-[3px] border-l-rose-400"
-          titulo="Atrasadas"
+          titulo={t("Atrasadas")}
           accion={
             <span className="text-[11.5px] text-rose-600 font-semibold cifra">
               {agenda.datos!.vencidas.length}
@@ -173,7 +176,7 @@ export default function ActividadesPage() {
 
       {/* Agenda del día */}
       {(agenda.datos?.hoy?.length ?? 0) > 0 && (
-        <Panel sinRelleno className="mb-4" titulo="Hoy">
+        <Panel sinRelleno className="mb-4" titulo={t("Hoy")}>
           <ListaActividades
             actividades={agenda.datos!.hoy}
             tituloOportunidad={tituloOportunidad}
@@ -197,31 +200,34 @@ export default function ActividadesPage() {
               onChange={(e) => setSoloPendientes(e.target.checked)}
               className="accent-orange-500"
             />
-            Solo pendientes
+            
+            {t("Solo pendientes")}
           </label>
         </div>
 
         {actividades.cargando ? (
           <Cargando />
         ) : actividades.error ? (
-          <ErrorPantalla mensaje={actividades.error} onReintentar={actividades.recargar} />
+          <ErrorPantalla mensaje={t(actividades.error)} onReintentar={actividades.recargar} />
         ) : (actividades.datos?.length ?? 0) === 0 ? (
           <SinDatos
-            titulo={soloPendientes ? 'Nada pendiente en este rango' : 'Sin actividades en este rango'}
+            titulo={soloPendientes ? t("Nada pendiente en este rango") : t("Sin actividades en este rango")}
             descripcion={
               hayOportunidadesAbiertas
-                ? 'Agenda llamadas y reuniones para no perder el seguimiento de tus oportunidades.'
-                : 'Una actividad cuelga de una oportunidad abierta, y ahora mismo no hay ninguna. Abre una en el Pipeline y vuelve.'
+                ? t("Agenda llamadas y reuniones para no perder el seguimiento de tus oportunidades.")
+                : t("Una actividad cuelga de una oportunidad abierta, y ahora mismo no hay ninguna. Abre una en el Pipeline y vuelve.")
             }
             icono={<CalendarClock className="w-5 h-5" />}
             accion={
               hayOportunidadesAbiertas ? (
                 <Boton variante="primario" onClick={() => setModalAbierto(true)}>
-                  Agendar la primera
+                  
+                  {t("Agendar la primera")}
                 </Boton>
               ) : (
                 <Link href="/dashboard/crm/pipeline" className="btn btn-primario">
-                  Ir al Pipeline
+                  
+                  {t("Ir al Pipeline")}
                 </Link>
               )
             }
@@ -265,6 +271,7 @@ function ListaActividades({
   onCompletar: (a: Actividad) => void;
   resaltarVencidas?: boolean;
 }) {
+  const t = useT();
   return (
     <div className="divide-y divide-slate-50">
       {actividades.map((a) => {
@@ -298,12 +305,12 @@ function ListaActividades({
               )}
 
               {a.detalle && !a.completada && (
-                <p className="text-[12px] text-slate-500 mt-1 line-clamp-2">{a.detalle}</p>
+                <p className="text-[12px] text-slate-500 mt-1 line-clamp-2">{t(a.detalle)}</p>
               )}
 
               {a.resultado && (
                 <p className="text-[12px] text-emerald-700 mt-1">
-                  <span className="font-medium">Resultado:</span> {a.resultado}
+                  <span className="font-medium">{t("Resultado:")}</span> {a.resultado}
                 </p>
               )}
             </div>
@@ -312,14 +319,14 @@ function ListaActividades({
               <p className={`text-[12px] cifra ${vencida && !a.completada ? 'text-rose-600 font-semibold' : 'text-slate-500'}`}>
                 {fechaHora(a.fechaProgramada)}
               </p>
-              <p className="text-[11px] text-slate-400">{a.duracionMinutos} min</p>
+              <p className="text-[11px] text-slate-400">{t("{n0} min", { n0: a.duracionMinutos })}</p>
 
               {!a.completada && (
                 <button
                   onClick={() => onCompletar(a)}
                   className="btn btn-fantasma btn-sm mt-1 text-[11.5px]"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Completar
+                  <CheckCircle2 className="w-3.5 h-3.5" />  {t("Completar")}
                 </button>
               )}
             </div>
@@ -341,6 +348,7 @@ function ModalNuevaActividad({
   onCerrar: () => void;
   onGuardar: (datos: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const enUnaHora = new Date(Date.now() + 3_600_000);
   const [form, setForm] = useState({
     tipo: 'LLAMADA',
@@ -360,9 +368,9 @@ function ModalNuevaActividad({
 
   const enviar = () => {
     const e: Record<string, string> = {};
-    if (!form.asunto.trim()) e.asunto = 'Describe qué vas a hacer.';
-    if (!form.oportunidadId) e.oportunidadId = 'Liga la actividad a una oportunidad.';
-    if (!form.fecha || !form.hora) e.fecha = 'Indica cuándo.';
+    if (!form.asunto.trim()) e.asunto = t("Describe qué vas a hacer.");
+    if (!form.oportunidadId) e.oportunidadId = t("Liga la actividad a una oportunidad.");
+    if (!form.fecha || !form.hora) e.fecha = t("Indica cuándo.");
 
     setErrores(e);
     if (Object.keys(e).length) return;
@@ -384,40 +392,40 @@ function ModalNuevaActividad({
     <Modal
       abierto={abierto}
       onCerrar={onCerrar}
-      titulo="Agendar actividad"
+      titulo={t("Agendar actividad")}
       ancho={560}
       pie={
         <>
-          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
-          <Boton variante="primario" onClick={enviar} cargando={guardando}>Agendar</Boton>
+          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>{t("Cancelar")}</Boton>
+          <Boton variante="primario" onClick={enviar} cargando={guardando}>{t("Agendar")}</Boton>
         </>
       }
     >
       <div className="space-y-3.5">
         <div className="grid grid-cols-2 gap-3.5">
-          <Campo etiqueta="Tipo" requerido>
+          <Campo etiqueta={t("Tipo")} requerido>
             <Seleccion value={form.tipo} onChange={(e) => cambiar('tipo', e.target.value)}>
-              {TIPOS.map((t) => <option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}
+              {TIPOS.map((tipo) => <option key={tipo.valor} value={tipo.valor}>{t(tipo.etiqueta)}</option>)}
             </Seleccion>
           </Campo>
 
-          <Campo etiqueta="Duración">
+          <Campo etiqueta={t("Duración")}>
             <Seleccion value={form.duracionMinutos} onChange={(e) => cambiar('duracionMinutos', e.target.value)}>
-              <option value="15">15 minutos</option>
-              <option value="30">30 minutos</option>
-              <option value="60">1 hora</option>
-              <option value="120">2 horas</option>
-              <option value="240">Media jornada</option>
+              <option value="15">{t("15 minutos")}</option>
+              <option value="30">{t("30 minutos")}</option>
+              <option value="60">{t("1 hora")}</option>
+              <option value="120">{t("2 horas")}</option>
+              <option value="240">{t("Media jornada")}</option>
             </Seleccion>
           </Campo>
         </div>
 
-        <Campo etiqueta="Asunto" requerido error={errores.asunto}>
+        <Campo etiqueta={t("Asunto")} requerido error={errores.asunto}>
           <Entrada
             value={form.asunto}
             onChange={(e) => cambiar('asunto', e.target.value)}
             error={!!errores.asunto}
-            placeholder="Llamar para confirmar la propuesta"
+            placeholder={t("Llamar para confirmar la propuesta")}
           />
         </Campo>
 
@@ -429,13 +437,13 @@ function ModalNuevaActividad({
           * —y dónde se arregla— cuesta dos líneas.
           */}
         <Campo
-          etiqueta="Oportunidad"
+          etiqueta={t("Oportunidad")}
           requerido
           error={errores.oportunidadId}
           ayuda={
             oportunidades.length
               ? undefined
-              : 'No hay ninguna oportunidad abierta a la que colgar esta actividad. Ábrela primero en el Pipeline.'
+              : t("No hay ninguna oportunidad abierta a la que colgar esta actividad. Ábrela primero en el Pipeline.")
           }
         >
           <Seleccion
@@ -445,16 +453,16 @@ function ModalNuevaActividad({
             disabled={!oportunidades.length}
           >
             <option value="">
-              {oportunidades.length ? 'Elige una…' : 'No hay oportunidades abiertas'}
+              {oportunidades.length ? t("Elige una…") : t("No hay oportunidades abiertas")}
             </option>
             {oportunidades.map((o) => (
-              <option key={o.id} value={o.id}>{o.folio} · {o.titulo}</option>
+              <option key={o.id} value={o.id}>{o.folio} · {t(o.titulo)}</option>
             ))}
           </Seleccion>
         </Campo>
 
         <div className="grid grid-cols-2 gap-3.5">
-          <Campo etiqueta="Fecha" requerido error={errores.fecha}>
+          <Campo etiqueta={t("Fecha")} requerido error={errores.fecha}>
             <Entrada
               type="date"
               value={form.fecha}
@@ -462,17 +470,17 @@ function ModalNuevaActividad({
               error={!!errores.fecha}
             />
           </Campo>
-          <Campo etiqueta="Hora" requerido>
+          <Campo etiqueta={t("Hora")} requerido>
             <Entrada type="time" value={form.hora} onChange={(e) => cambiar('hora', e.target.value)} />
           </Campo>
         </div>
 
-        <Campo etiqueta="Notas previas">
+        <Campo etiqueta={t("Notas previas")}>
           <textarea
             className="campo"
             value={form.detalle}
             onChange={(e) => cambiar('detalle', e.target.value)}
-            placeholder="Puntos a tratar, contexto de la conversación anterior…"
+            placeholder={t("Puntos a tratar, contexto de la conversación anterior…")}
           />
         </Campo>
       </div>
@@ -490,12 +498,13 @@ function ModalCompletar({
   onCerrar: () => void;
   onConfirmar: (resultado: string) => void;
 }) {
+  const t = useT();
   const [resultado, setResultado] = useState('');
   const [error, setError] = useState('');
 
   const enviar = () => {
     if (!resultado.trim()) {
-      setError('Escribe qué pasó. Sin esto, la próxima vez nadie sabrá en qué quedó.');
+      setError(t("Escribe qué pasó. Sin esto, la próxima vez nadie sabrá en qué quedó."));
       return;
     }
     onConfirmar(resultado.trim());
@@ -505,25 +514,26 @@ function ModalCompletar({
     <Modal
       abierto
       onCerrar={onCerrar}
-      titulo="Completar actividad"
+      titulo={t("Completar actividad")}
       descripcion={actividad.asunto}
       ancho={480}
       pie={
         <>
-          <Boton variante="neutro" onClick={onCerrar} disabled={procesando}>Cancelar</Boton>
+          <Boton variante="neutro" onClick={onCerrar} disabled={procesando}>{t("Cancelar")}</Boton>
           <Boton variante="primario" onClick={enviar} cargando={procesando}>
-            Marcar como completada
+            
+            {t("Marcar como completada")}
           </Boton>
         </>
       }
     >
-      <Campo etiqueta="¿Qué pasó?" requerido error={error}>
+      <Campo etiqueta={t("¿Qué pasó?")} requerido error={error}>
         <textarea
           className={`campo ${error ? 'campo-error' : ''}`}
           style={{ minHeight: 110 }}
           value={resultado}
           onChange={(e) => { setResultado(e.target.value); setError(''); }}
-          placeholder="Aceptó la propuesta con descuento del 5 %. Pide entrega antes del 15."
+          placeholder={t("Aceptó la propuesta con descuento del 5 %. Pide entrega antes del 15.")}
           autoFocus
         />
       </Campo>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 
+import { useT } from '@/components/I18nProvider';
 type Hallazgo = {
   codigo: string;
   modulo: string;
@@ -39,6 +40,7 @@ type Diagnostico = {
 };
 
 export default function IntegridadFinancieraPage() {
+  const t = useT();
   const [data, setData] = useState<Diagnostico | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -49,7 +51,7 @@ export default function IntegridadFinancieraPage() {
     try {
       setData(await api.get<Diagnostico>('/finanzas/integridad/diagnostico'));
     } catch (e) {
-      setError(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo generar el diagnóstico.');
+      setError(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo generar el diagnóstico."));
     } finally {
       setCargando(false);
     }
@@ -77,32 +79,32 @@ export default function IntegridadFinancieraPage() {
     <main className="mx-auto max-w-7xl p-6 space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-violet-700">Control transversal</p>
-          <h1 className="text-3xl font-bold text-slate-900">Integridad financiera</h1>
-          <p className="mt-1 text-slate-600">Detecta operaciones cerradas sin póliza, saldos incoherentes y procesos fiscales o bancarios pendientes.</p>
+          <p className="text-sm font-medium text-violet-700">{t("Control transversal")}</p>
+          <h1 className="text-3xl font-bold text-slate-900">{t("Integridad financiera")}</h1>
+          <p className="mt-1 text-slate-600">{t("Detecta operaciones cerradas sin póliza, saldos incoherentes y procesos fiscales o bancarios pendientes.")}</p>
         </div>
         <button onClick={() => void cargar()} disabled={cargando} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-white disabled:opacity-50">
-          <RefreshCw size={17} className={cargando ? 'animate-spin' : ''} /> Actualizar
+          <RefreshCw size={17} className={cargando ? 'animate-spin' : ''} />  {t("Actualizar")}
         </button>
       </header>
 
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>}
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">{t(error)}</div>}
       {data && (
         <>
           <section className={`rounded-2xl border p-5 ${color}`}>
             <div className="flex items-center gap-3">
               {data.estado === 'SALUDABLE' ? <ShieldCheck size={30} /> : <AlertTriangle size={30} />}
-              <div><p className="text-sm font-semibold">Estado del control</p><p className="text-2xl font-bold">{data.estado.replace('_', ' ')}</p>{leyenda && <p className="mt-1 text-sm font-normal">{leyenda}</p>}</div>
+              <div><p className="text-sm font-semibold">{t("Estado del control")}</p><p className="text-2xl font-bold">{data.estado.replace('_', ' ')}</p>{leyenda && <p className="mt-1 text-sm font-normal">{t(leyenda)}</p>}</div>
             </div>
           </section>
           <section className="grid gap-4 md:grid-cols-4">
             {[
-              ['Comprobaciones', data.comprobaciones],
-              ['Hallazgos activos', data.resumen.hallazgosActivos],
-              ['Registros críticos', data.resumen.criticos],
-              ['Registros altos', data.resumen.altos],
-              ['Sin poder medir', data.resumen.noMedibles],
-            ].map(([label, value]) => <article key={String(label)} className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-3xl font-bold text-slate-900">{value}</p></article>)}
+              [t("Comprobaciones"), data.comprobaciones],
+              [t("Hallazgos activos"), data.resumen.hallazgosActivos],
+              [t("Registros críticos"), data.resumen.criticos],
+              [t("Registros altos"), data.resumen.altos],
+              [t("Sin poder medir"), data.resumen.noMedibles],
+            ].map(([label, value]) => <article key={String(label)} className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{t(label)}</p><p className="mt-1 text-3xl font-bold text-slate-900">{value}</p></article>)}
           </section>
           <section className="space-y-3">
             {data.hallazgos.length === 0 ? (
@@ -110,14 +112,14 @@ export default function IntegridadFinancieraPage() {
             ) : data.hallazgos.map((h) => (
               <article key={h.codigo} className={`rounded-2xl border bg-white p-5 shadow-sm ${h.estado === 'NO_MEDIBLE' ? 'border-dashed border-slate-300' : ''}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">{h.modulo} · {h.codigo}</p><h2 className="mt-1 text-lg font-semibold text-slate-900">{h.descripcion}</h2></div>
+                  <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">{t(h.modulo)} · {h.codigo}</p><h2 className="mt-1 text-lg font-semibold text-slate-900">{t(h.descripcion)}</h2></div>
                   {h.estado === 'NO_MEDIBLE' ? (
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-600">No se pudo medir</span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-600">{t("No se pudo medir")}</span>
                   ) : (
                     <span className={`rounded-full px-3 py-1 text-sm font-bold ${h.severidad === 'CRITICA' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{h.severidad}: {h.cantidad}</span>
                   )}
                 </div>
-                {h.detalle && <p className="mt-3 rounded-xl bg-slate-50 p-3 font-mono text-xs text-slate-600">{h.detalle}</p>}
+                {h.detalle && <p className="mt-3 rounded-xl bg-slate-50 p-3 font-mono text-xs text-slate-600">{t(h.detalle)}</p>}
                 {h.ejemplos && h.ejemplos.length > 0 && (
                   <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
                     {h.ejemplos.map((e) => (
@@ -132,17 +134,17 @@ export default function IntegridadFinancieraPage() {
                        */
                       <li className="px-3 py-2 text-[11px] text-slate-500">
                         {h.masSinNombrar === 1
-                          ? 'Hay una más sin nombrar aquí.'
+                          ? t("Hay una más sin nombrar aquí.")
                           : `Hay ${h.masSinNombrar} más sin nombrar aquí.`}
                       </li>
                     ) : null}
                   </ul>
                 )}
-                <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700"><strong>Acción:</strong> {h.accion}</p>
+                <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700"><strong>{t("Acción:")}</strong> {h.accion}</p>
               </article>
             ))}
           </section>
-          <p className="text-xs text-slate-500">Generado: {new Date(data.generadoEn).toLocaleString('es-MX')}</p>
+          <p className="text-xs text-slate-500">{t("Generado: {n0}", { n0: new Date(data.generadoEn).toLocaleString('es-MX') })}</p>
         </>
       )}
     </main>

@@ -21,6 +21,7 @@ import {
   ErrorPantalla, Modal, Panel, Seleccion, SinDatos, useAvisos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Activo {
   id: string;
   codigo: string;
@@ -44,6 +45,7 @@ const MOTIVOS = [
 ];
 
 export default function BajasPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [busqueda, setBusqueda] = useState('');
   const [aDarDeBaja, setADarDeBaja] = useState<Activo | null>(null);
@@ -64,7 +66,7 @@ export default function BajasPage() {
         ? `Activo dado de baja con utilidad de ${dinero(r.resultado)}.`
         : r.tipoResultado === 'PERDIDA'
           ? `Activo dado de baja con pérdida de ${dinero(Math.abs(r.resultado))}.`
-          : 'Activo dado de baja sin efecto en resultados.',
+          : t("Activo dado de baja sin efecto en resultados."),
       r.tipoResultado === 'PERDIDA' ? 'alerta' : 'exito',
     );
     void activos.recargar();
@@ -82,8 +84,8 @@ export default function BajasPage() {
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
       <EncabezadoPantalla
-        titulo="Bajas y ventas"
-        descripcion="Retiro de activos con cálculo de utilidad o pérdida"
+        titulo={t("Bajas y ventas")}
+        descripcion={t("Retiro de activos con cálculo de utilidad o pérdida")}
       />
 
       {/* Disponibles para baja */}
@@ -94,23 +96,22 @@ export default function BajasPage() {
             <Entrada
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por código o nombre"
+              placeholder={t("Buscar por código o nombre")}
               className="pl-8"
             />
           </div>
           <p className="text-[12px] text-slate-500 cifra">
-            {vigentes.length} activos vigentes
-          </p>
+            {t("{n0} activos vigentes", { n0: vigentes.length })}</p>
         </div>
 
         {activos.cargando ? (
           <Cargando />
         ) : activos.error ? (
-          <ErrorPantalla mensaje={activos.error} onReintentar={activos.recargar} />
+          <ErrorPantalla mensaje={t(activos.error)} onReintentar={activos.recargar} />
         ) : vigentes.length === 0 ? (
           <SinDatos
-            titulo="No hay activos disponibles para dar de baja"
-            descripcion="Todos los activos registrados ya fueron retirados, o todavía no has registrado ninguno."
+            titulo={t("No hay activos disponibles para dar de baja")}
+            descripcion={t("Todos los activos registrados ya fueron retirados, o todavía no has registrado ninguno.")}
             icono={<PackageMinus className="w-5 h-5" />}
           />
         ) : (
@@ -118,12 +119,12 @@ export default function BajasPage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Código</th>
-                  <th>Activo</th>
-                  <th>Categoría</th>
-                  <th className="text-right">Costo</th>
-                  <th className="text-right">Depreciado</th>
-                  <th className="text-right">Valor en libros</th>
+                  <th>{t("Código")}</th>
+                  <th>{t("Activo")}</th>
+                  <th>{t("Categoría")}</th>
+                  <th className="text-right">{t("Costo")}</th>
+                  <th className="text-right">{t("Depreciado")}</th>
+                  <th className="text-right">{t("Valor en libros")}</th>
                   <th />
                 </tr>
               </thead>
@@ -131,7 +132,7 @@ export default function BajasPage() {
                 {vigentes.map((a) => (
                   <tr key={a.id}>
                     <td className="cifra font-semibold text-slate-900">{a.codigo}</td>
-                    <td className="text-slate-800">{a.nombre}</td>
+                    <td className="text-slate-800">{t(a.nombre)}</td>
                     <td className="text-slate-500">{a.categoria?.nombre ?? '—'}</td>
                     <td className="text-right cifra">{dinero(a.costoAdquisicion)}</td>
                     <td className="text-right cifra text-amber-700">{dinero(a.depreciacionAcumulada)}</td>
@@ -143,7 +144,7 @@ export default function BajasPage() {
                         onClick={() => setADarDeBaja(a)}
                         className="btn btn-fantasma btn-sm"
                       >
-                        <ArchiveX className="w-3.5 h-3.5" /> Dar de baja
+                        <ArchiveX className="w-3.5 h-3.5" />  {t("Dar de baja")}
                       </button>
                     </td>
                   </tr>
@@ -156,18 +157,18 @@ export default function BajasPage() {
 
       {/* Historial */}
       {dadosDeBaja.length > 0 && (
-        <Panel sinRelleno titulo="Activos retirados">
+        <Panel sinRelleno titulo={t("Activos retirados")}>
           <div className="overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Código</th>
-                  <th>Activo</th>
-                  <th>Fecha de baja</th>
-                  <th>Motivo</th>
-                  <th className="text-right">Valor en libros</th>
-                  <th className="text-right">Recibido</th>
-                  <th className="text-right">Resultado</th>
+                  <th>{t("Código")}</th>
+                  <th>{t("Activo")}</th>
+                  <th>{t("Fecha de baja")}</th>
+                  <th>{t("Motivo")}</th>
+                  <th className="text-right">{t("Valor en libros")}</th>
+                  <th className="text-right">{t("Recibido")}</th>
+                  <th className="text-right">{t("Resultado")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -178,7 +179,7 @@ export default function BajasPage() {
                   return (
                     <tr key={a.id}>
                       <td className="cifra font-semibold text-slate-900">{a.codigo}</td>
-                      <td className="text-slate-700">{a.nombre}</td>
+                      <td className="text-slate-700">{t(a.nombre)}</td>
                       <td className="cifra text-slate-500">{fecha(a.fechaBaja)}</td>
                       <td>
                         <Distintivo tono={a.estado === 'VENDIDO' ? 'info' : 'neutro'}>
@@ -226,6 +227,7 @@ function ModalBaja({
   onCerrar: () => void;
   onConfirmar: (datos: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const [motivo, setMotivo] = useState('VENTA');
   const [fechaBaja, setFechaBaja] = useState(isoCorto());
   const [valorVenta, setValorVenta] = useState('');
@@ -239,7 +241,7 @@ function ModalBaja({
 
   const enviar = () => {
     if (esVenta && (!valorVenta || parseFloat(valorVenta) <= 0)) {
-      setError('Indica en cuánto se vendió.');
+      setError(t("Indica en cuánto se vendió."));
       return;
     }
     setError('');
@@ -255,33 +257,34 @@ function ModalBaja({
     <Modal
       abierto
       onCerrar={onCerrar}
-      titulo="Dar de baja el activo"
+      titulo={t("Dar de baja el activo")}
       descripcion={`${activo.codigo} · ${activo.nombre}`}
       ancho={520}
       pie={
         <>
-          <Boton variante="neutro" onClick={onCerrar} disabled={procesando}>Cancelar</Boton>
+          <Boton variante="neutro" onClick={onCerrar} disabled={procesando}>{t("Cancelar")}</Boton>
           <Boton variante="peligro" onClick={enviar} cargando={procesando}>
-            Confirmar baja
+            
+            {t("Confirmar baja")}
           </Boton>
         </>
       }
     >
       <div className="space-y-3.5">
         <div className="grid grid-cols-2 gap-3.5">
-          <Campo etiqueta="Motivo" requerido>
+          <Campo etiqueta={t("Motivo")} requerido>
             <Seleccion value={motivo} onChange={(e) => { setMotivo(e.target.value); setError(''); }}>
-              {MOTIVOS.map((m) => <option key={m.valor} value={m.valor}>{m.etiqueta}</option>)}
+              {MOTIVOS.map((m) => <option key={m.valor} value={m.valor}>{t(m.etiqueta)}</option>)}
             </Seleccion>
           </Campo>
 
-          <Campo etiqueta="Fecha de baja" requerido>
+          <Campo etiqueta={t("Fecha de baja")} requerido>
             <Entrada type="date" value={fechaBaja} onChange={(e) => setFechaBaja(e.target.value)} />
           </Campo>
         </div>
 
         {esVenta && (
-          <Campo etiqueta="Valor de venta" requerido error={error}>
+          <Campo etiqueta={t("Valor de venta")} requerido error={error}>
             <Entrada
               type="number" step="0.01" min="0"
               value={valorVenta}
@@ -293,28 +296,28 @@ function ModalBaja({
           </Campo>
         )}
 
-        <Campo etiqueta="Notas">
+        <Campo etiqueta={t("Notas")}>
           <Entrada
             value={notas}
             onChange={(e) => setNotas(e.target.value)}
-            placeholder="Comprador, número de factura, referencia del siniestro…"
+            placeholder={t("Comprador, número de factura, referencia del siniestro…")}
           />
         </Campo>
 
         {/* Efecto contable, antes de confirmar */}
         <div className="rounded-lg bg-slate-50 border border-slate-200 px-3.5 py-3 space-y-1.5">
-          <p className="eyebrow">Efecto en resultados</p>
+          <p className="eyebrow">{t("Efecto en resultados")}</p>
           <div className="flex items-center justify-between text-[12.5px]">
-            <span className="text-slate-600">Valor en libros</span>
+            <span className="text-slate-600">{t("Valor en libros")}</span>
             <span className="cifra text-slate-800">{dinero(libros)}</span>
           </div>
           <div className="flex items-center justify-between text-[12.5px]">
-            <span className="text-slate-600">{esVenta ? 'Se recibe' : 'No se recibe nada'}</span>
+            <span className="text-slate-600">{esVenta ? t("Se recibe") : t("No se recibe nada")}</span>
             <span className="cifra text-slate-800">{dinero(recibido)}</span>
           </div>
           <div className="flex items-center justify-between pt-1.5 border-t border-slate-200">
             <span className="text-[12.5px] font-semibold text-slate-700">
-              {resultado > 0 ? 'Utilidad' : resultado < 0 ? 'Pérdida' : 'Sin efecto'}
+              {resultado > 0 ? t("Utilidad") : resultado < 0 ? t("Pérdida") : t("Sin efecto")}
             </span>
             <span
               className="text-[14px] font-bold cifra"
@@ -326,7 +329,8 @@ function ModalBaja({
         </div>
 
         <p className="text-[11.5px] text-slate-400">
-          La baja no se puede deshacer desde la pantalla. Verifica la fecha antes de confirmar.
+          
+          {t("La baja no se puede deshacer desde la pantalla. Verifica la fecha antes de confirmar.")}
         </p>
       </div>
     </Modal>

@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "audit:ui": "python3 ../tools/auditar-madurez-ui.py"
+    "audit:ui": "python3 ../tools/auditar-madurez-ui.py",
+    "idioma:revisar": "node herramientas/idioma-revisar.mjs app,components && node herramientas/idioma-desensombrar.mjs app,components && node herramientas/idioma-pendientes.mjs en-US && node herramientas/idioma-tablas.mjs app,components,lib --faltan=en-US && node herramientas/idioma-render.mjs app,components,lib",
+    "idioma:pendientes": "node herramientas/idioma-pendientes.mjs en-US --listar 50"
   },
   "dependencies": {
     "lucide-react": "^1.17.0",

@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 
+import { useT } from '@/components/I18nProvider';
 export default function FinanzasLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const t = useT();
   const router = useRouter();
   const [permitido, setPermitido] = useState(false);
 
@@ -35,7 +37,8 @@ export default function FinanzasLayout({
       <div className="grid min-h-[55vh] place-items-center">
         <div className="text-center text-sm text-slate-500">
           <Loader2 className="mx-auto mb-3 h-7 w-7 animate-spin text-violet-600" />
-          Verificando la activación de Finanzas…
+          
+          {t("Verificando la activación de Finanzas…")}
         </div>
       </div>
     );

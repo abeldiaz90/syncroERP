@@ -24,6 +24,7 @@ import {
   ErrorPantalla, Modal, Panel, Seleccion, SinDatos, useAvisos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Cuenta { id: string; nombre: string; saldo: number }
 
 interface Reporte {
@@ -54,6 +55,7 @@ const MESES = [
 ];
 
 export default function ConciliacionPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const ahora = new Date();
   const anterior = new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1);
@@ -103,7 +105,7 @@ export default function ConciliacionPage() {
     setEstadoCuentaId(e.id);
     setCerrada(false);
     setModalCarga(false);
-    avisar('Estado de cuenta cargado y cuadrado.', 'exito');
+    avisar(t("Estado de cuenta cargado y cuadrado."), 'exito');
     return e;
   });
 
@@ -158,16 +160,16 @@ export default function ConciliacionPage() {
   const emparejar = async (lineaId: string) => {
     const movimientoId = eleccion[lineaId];
     if (!movimientoId) {
-      avisar('Elige con cuál de tus movimientos corresponde esta línea.', 'alerta');
+      avisar(t("Elige con cuál de tus movimientos corresponde esta línea."), 'alerta');
       return;
     }
     setEmparejando(lineaId);
     try {
       await api.post('/tesoreria/conciliacion/manual', { lineaId, movimientoId });
-      avisar('Línea emparejada.', 'exito');
+      avisar(t("Línea emparejada."), 'exito');
       await verReporte.ejecutar();
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo emparejar.', 'error');
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo emparejar."), 'error');
     } finally {
       setEmparejando('');
     }
@@ -193,26 +195,26 @@ export default function ConciliacionPage() {
   return (
     <div className="p-6 max-w-[1300px] mx-auto">
       <EncabezadoPantalla
-        titulo="Conciliación bancaria"
-        descripcion="Compara tus movimientos contra el estado de cuenta del banco"
+        titulo={t("Conciliación bancaria")}
+        descripcion={t("Compara tus movimientos contra el estado de cuenta del banco")}
       />
 
       {/* Selección de periodo */}
-      <Panel titulo="Cuenta y periodo" className="mb-5">
+      <Panel titulo={t("Cuenta y periodo")} className="mb-5">
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-56">
-            <Campo etiqueta="Cuenta bancaria">
+            <Campo etiqueta={t("Cuenta bancaria")}>
               <Seleccion value={cuentaId} onChange={(e) => { setCuentaId(e.target.value); setReporte(null); setEstadoCuentaId(''); }}>
-                <option value="">Elige una…</option>
+                <option value="">{t("Elige una…")}</option>
                 {(cuentas.datos ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>{c.nombre} · {dinero(c.saldo)}</option>
+                  <option key={c.id} value={c.id}>{t(c.nombre)} · {dinero(c.saldo)}</option>
                 ))}
               </Seleccion>
             </Campo>
           </div>
 
           <div className="w-36">
-            <Campo etiqueta="Mes">
+            <Campo etiqueta={t("Mes")}>
               <Seleccion value={mes} onChange={(e) => { setMes(Number(e.target.value)); setReporte(null); }}>
                 {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
               </Seleccion>
@@ -220,7 +222,7 @@ export default function ConciliacionPage() {
           </div>
 
           <div className="w-28">
-            <Campo etiqueta="Ejercicio">
+            <Campo etiqueta={t("Ejercicio")}>
               <Seleccion value={ejercicio} onChange={(e) => { setEjercicio(Number(e.target.value)); setReporte(null); }}>
                 {anios.map((a) => <option key={a} value={a}>{a}</option>)}
               </Seleccion>
@@ -233,7 +235,8 @@ export default function ConciliacionPage() {
             onClick={() => setModalCarga(true)}
             disabled={!cuentaId}
           >
-            Cargar estado de cuenta
+            
+            {t("Cargar estado de cuenta")}
           </Boton>
 
           {estadoCuentaId && (
@@ -244,7 +247,8 @@ export default function ConciliacionPage() {
                 onClick={() => void conciliar.ejecutar()}
                 cargando={conciliar.ejecutando}
               >
-                Conciliar automáticamente
+                
+                {t("Conciliar automáticamente")}
               </Boton>
               <Boton
                 variante="neutro"
@@ -252,7 +256,8 @@ export default function ConciliacionPage() {
                 onClick={() => void verReporte.ejecutar()}
                 cargando={verReporte.ejecutando}
               >
-                Ver reporte
+                
+                {t("Ver reporte")}
               </Boton>
             </>
           )}
@@ -269,8 +274,8 @@ export default function ConciliacionPage() {
       {!reporte ? (
         <Panel sinRelleno>
           <SinDatos
-            titulo="Carga el estado de cuenta para empezar"
-            descripcion="Elige la cuenta y el periodo, pega los movimientos del banco desde Excel y deja que el sistema empareje lo que pueda."
+            titulo={t("Carga el estado de cuenta para empezar")}
+            descripcion={t("Elige la cuenta y el periodo, pega los movimientos del banco desde Excel y deja que el sistema empareje lo que pueda.")}
             icono={<Scale className="w-5 h-5" />}
           />
         </Panel>
@@ -288,25 +293,25 @@ export default function ConciliacionPage() {
                     ? `Hay una diferencia de ${dinero(Math.abs(reporte.diferencia))}`
                     : pendientesBanco > 0
                       ? pendientesBanco === 1
-                        ? "Queda un movimiento del banco sin explicar"
+                        ? t("Queda un movimiento del banco sin explicar")
                         : `Quedan ${pendientesBanco} movimientos del banco sin explicar`
-                      : 'La conciliación cuadra'}
+                      : t("La conciliación cuadra")}
                 </p>
                 <p className="text-[12.5px] text-slate-500 mt-0.5">
                   {!reporte.cuadra
-                    ? 'Revisa las partidas de abajo: suelen ser movimientos capturados con importe distinto o que faltan por registrar.'
+                    ? t("Revisa las partidas de abajo: suelen ser movimientos capturados con importe distinto o que faltan por registrar.")
                     : pendientesBanco > 0
-                      ? 'La diferencia da cero porque cada operación está contada en los dos lados a la vez. Empareja abajo cada línea del banco con tu movimiento: mientras queden líneas sin explicar, la conciliación no está hecha.'
+                      ? t("La diferencia da cero porque cada operación está contada en los dos lados a la vez. Empareja abajo cada línea del banco con tu movimiento: mientras queden líneas sin explicar, la conciliación no está hecha.")
                       : `Periodo ${reporte.periodo}. El saldo conciliado coincide con tus libros.`}
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <Distintivo tono={listoParaCerrar ? 'exito' : 'peligro'}>
-                  {listoParaCerrar ? 'Conciliado' : reporte.cuadra ? 'Sin emparejar' : 'Con diferencia'}
+                  {listoParaCerrar ? t("Conciliado") : reporte.cuadra ? t("Sin emparejar") : t("Con diferencia")}
                 </Distintivo>
                 {listoParaCerrar &&
                   (cerrada ? (
-                    <Distintivo tono="exito">Cerrada</Distintivo>
+                    <Distintivo tono="exito">{t("Cerrada")}</Distintivo>
                   ) : (
                     <Boton
                       variante="primario"
@@ -314,7 +319,8 @@ export default function ConciliacionPage() {
                       onClick={() => void cerrarConciliacion.ejecutar()}
                       cargando={cerrarConciliacion.ejecutando}
                     >
-                      Cerrar conciliación del periodo
+                      
+                      {t("Cerrar conciliación del periodo")}
                     </Boton>
                   ))}
               </div>
@@ -322,23 +328,23 @@ export default function ConciliacionPage() {
           </div>
 
           {/* Aritmética de la conciliación */}
-          <Panel titulo="Cómo se llega al saldo conciliado" className="mb-4">
+          <Panel titulo={t("Cómo se llega al saldo conciliado")} className="mb-4">
             <div className="max-w-lg space-y-1.5">
-              <FilaAritmetica etiqueta="Saldo según el banco" valor={reporte.saldoSegunBanco} />
-              <FilaAritmetica etiqueta="Más: depósitos en tránsito" valor={reporte.depositosEnTransito} signo="+" />
-              <FilaAritmetica etiqueta="Menos: cheques en tránsito" valor={reporte.chequesEnTransito} signo="−" />
+              <FilaAritmetica etiqueta={t("Saldo según el banco")} valor={reporte.saldoSegunBanco} />
+              <FilaAritmetica etiqueta={t("Más: depósitos en tránsito")} valor={reporte.depositosEnTransito} signo="+" />
+              <FilaAritmetica etiqueta={t("Menos: cheques en tránsito")} valor={reporte.chequesEnTransito} signo="−" />
               <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                <span className="text-[13px] font-bold text-slate-900">Saldo conciliado</span>
+                <span className="text-[13px] font-bold text-slate-900">{t("Saldo conciliado")}</span>
                 <span className="text-[15px] font-bold text-slate-900 cifra">
                   {dinero(reporte.saldoConciliado)}
                 </span>
               </div>
               <div className="flex items-center justify-between pt-2.5">
-                <span className="text-[12.5px] text-slate-500">Saldo según tus libros</span>
+                <span className="text-[12.5px] text-slate-500">{t("Saldo según tus libros")}</span>
                 <span className="text-[12.5px] text-slate-700 cifra">{dinero(reporte.saldoSegunLibros)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[12.5px] font-semibold text-slate-700">Diferencia</span>
+                <span className="text-[12.5px] font-semibold text-slate-700">{t("Diferencia")}</span>
                 <span
                   className="text-[13px] font-bold cifra"
                   style={{ color: reporte.cuadra ? '#059669' : '#e11d48' }}
@@ -353,7 +359,7 @@ export default function ConciliacionPage() {
             {/* En tránsito */}
             <Panel
               sinRelleno
-              titulo="Registrado por ti, aún no en el banco"
+              titulo={t("Registrado por ti, aún no en el banco")}
               accion={
                 <span className="text-[11.5px] text-slate-400 cifra">
                   {reporte.detalle.enTransito.length}
@@ -362,16 +368,17 @@ export default function ConciliacionPage() {
             >
               {reporte.detalle.enTransito.length === 0 ? (
                 <p className="px-4 py-8 text-center text-[12.5px] text-slate-400">
-                  Nada pendiente. Todos tus movimientos aparecen en el estado de cuenta.
+                  
+                  {t("Nada pendiente. Todos tus movimientos aparecen en el estado de cuenta.")}
                 </p>
               ) : (
                 <table className="tabla">
                   <thead>
                     <tr>
-                      <th>Folio</th>
-                      <th>Fecha</th>
-                      <th>Concepto</th>
-                      <th className="text-right">Importe</th>
+                      <th>{t("Folio")}</th>
+                      <th>{t("Fecha")}</th>
+                      <th>{t("Concepto")}</th>
+                      <th className="text-right">{t("Importe")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -391,7 +398,7 @@ export default function ConciliacionPage() {
             {/* No registrados */}
             <Panel
               sinRelleno
-              titulo="En el banco, sin registrar por ti"
+              titulo={t("En el banco, sin registrar por ti")}
               accion={
                 <span className="text-[11.5px] text-slate-400 cifra">
                   {reporte.detalle.noRegistrados.length}
@@ -400,17 +407,18 @@ export default function ConciliacionPage() {
             >
               {reporte.detalle.noRegistrados.length === 0 ? (
                 <p className="px-4 py-8 text-center text-[12.5px] text-slate-400">
-                  Nada pendiente. Tienes registrado todo lo que reporta el banco.
+                  
+                  {t("Nada pendiente. Tienes registrado todo lo que reporta el banco.")}
                 </p>
               ) : (
                 <table className="tabla">
                   <thead>
                     <tr>
-                      <th>Fecha</th>
-                      <th>Descripción</th>
-                      <th className="text-right">Cargo</th>
-                      <th className="text-right">Abono</th>
-                      <th>Emparejar con</th>
+                      <th>{t("Fecha")}</th>
+                      <th>{t("Descripción")}</th>
+                      <th className="text-right">{t("Cargo")}</th>
+                      <th className="text-right">{t("Abono")}</th>
+                      <th>{t("Emparejar con")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -419,7 +427,7 @@ export default function ConciliacionPage() {
                       return (
                       <tr key={l.id ?? i}>
                         <td className="cifra text-slate-500">{fecha(l.fecha)}</td>
-                        <td className="text-slate-700">{l.descripcion}</td>
+                        <td className="text-slate-700">{t(l.descripcion)}</td>
                         <td className="text-right cifra text-rose-600">
                           {Number(l.cargo) > 0 ? dinero(l.cargo) : ''}
                         </td>
@@ -429,7 +437,8 @@ export default function ConciliacionPage() {
                         <td>
                           {opciones.length === 0 ? (
                             <span className="text-[11.5px] text-slate-400">
-                              Ninguno de tus movimientos coincide: regístralo en Movimientos bancarios.
+                              
+                              {t("Ninguno de tus movimientos coincide: regístralo en Movimientos bancarios.")}
                             </span>
                           ) : (
                             <div className="flex items-center gap-2">
@@ -438,7 +447,7 @@ export default function ConciliacionPage() {
                                 value={eleccion[l.id] ?? ''}
                                 onChange={(e) => setEleccion((p) => ({ ...p, [l.id]: e.target.value }))}
                               >
-                                <option value="">Elige…</option>
+                                <option value="">{t("Elige…")}</option>
                                 {opciones.map((m) => (
                                   <option key={m.id} value={m.id}>
                                     {fecha(m.fecha)} · {m.concepto}
@@ -451,7 +460,7 @@ export default function ConciliacionPage() {
                                 onClick={() => void emparejar(l.id)}
                                 className="text-[12px] font-semibold px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50"
                               >
-                                {emparejando === l.id ? '…' : 'Emparejar'}
+                                {emparejando === l.id ? '…' : t("Emparejar")}
                               </button>
                             </div>
                           )}
@@ -482,9 +491,10 @@ export default function ConciliacionPage() {
 function FilaAritmetica({
   etiqueta, valor, signo,
 }: { etiqueta: string; valor: number; signo?: string }) {
+  const t = useT();
   return (
     <div className="flex items-center justify-between">
-      <span className="text-[12.5px] text-slate-600">{etiqueta}</span>
+      <span className="text-[12.5px] text-slate-600">{t(etiqueta)}</span>
       <span className="text-[12.5px] text-slate-800 cifra">
         {signo && <span className="text-slate-400 mr-1">{signo}</span>}
         {dinero(valor)}
@@ -552,6 +562,7 @@ function ModalCargaEstado({
   onCerrar: () => void;
   onGuardar: (datos: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const [saldoInicial, setSaldoInicial] = useState('');
   const [saldoFinal, setSaldoFinal] = useState('');
   const [pegado, setPegado] = useState('');
@@ -581,12 +592,12 @@ function ModalCargaEstado({
     if (!lineas.length && !mesSinMovimientos) {
       setError(
         pegado.trim()
-          ? 'No se entendió ningún movimiento de lo que pegaste.'
-          : 'Pega los movimientos del banco, o captura el mismo saldo inicial y final si el mes no tuvo movimientos.',
+          ? t("No se entendió ningún movimiento de lo que pegaste.")
+          : t("Pega los movimientos del banco, o captura el mismo saldo inicial y final si el mes no tuvo movimientos."),
       );
       return;
     }
-    if (!saldoFinal) { setError('Captura el saldo final que reporta el banco.'); return; }
+    if (!saldoFinal) { setError(t("Captura el saldo final que reporta el banco.")); return; }
     if (!cuadra) {
       setError(
         `Los movimientos no llegan al saldo final. Con lo pegado da ${dinero(calculado)} ` +
@@ -609,12 +620,12 @@ function ModalCargaEstado({
     <Modal
       abierto={abierto}
       onCerrar={onCerrar}
-      titulo="Cargar estado de cuenta"
+      titulo={t("Cargar estado de cuenta")}
       descripcion={`${MESES[mes - 1]} de ${ejercicio}`}
       ancho={720}
       pie={
         <>
-          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
+          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>{t("Cancelar")}</Boton>
           <Boton
             variante="primario"
             onClick={enviar}
@@ -624,15 +635,15 @@ function ModalCargaEstado({
             {lineas.length > 0
               ? `Cargar ${lineas.length} movimientos`
               : mesSinMovimientos
-                ? 'Cargar mes sin movimientos'
-                : 'Cargar'}
+                ? t("Cargar mes sin movimientos")
+                : t("Cargar")}
           </Boton>
         </>
       }
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3.5">
-          <Campo etiqueta="Saldo inicial del banco" ayuda="El del cierre del mes anterior">
+          <Campo etiqueta={t("Saldo inicial del banco")} ayuda={t("El del cierre del mes anterior")}>
             <Entrada
               type="number" step="0.01"
               value={saldoInicial}
@@ -640,7 +651,7 @@ function ModalCargaEstado({
               placeholder="0.00"
             />
           </Campo>
-          <Campo etiqueta="Saldo final del banco" requerido>
+          <Campo etiqueta={t("Saldo final del banco")} requerido>
             <Entrada
               type="number" step="0.01"
               value={saldoFinal}
@@ -653,7 +664,8 @@ function ModalCargaEstado({
         <div>
           <label className="etiqueta-campo flex items-center gap-1.5">
             <ClipboardPaste className="w-3 h-3" />
-            Movimientos del banco
+            
+            {t("Movimientos del banco")}
           </label>
           <textarea
             className="campo font-mono text-[11.5px]"
@@ -661,14 +673,15 @@ function ModalCargaEstado({
             value={pegado}
             onChange={(e) => { setPegado(e.target.value); setError(''); }}
             placeholder={
-              'Pega directamente desde Excel. Una línea por movimiento:\n' +
-              'fecha ⇥ descripción ⇥ referencia ⇥ cargo ⇥ abono\n\n' +
-              '01/03/2026\tPago proveedor ACME\t4471\t12500.00\t\n' +
-              '03/03/2026\tDepósito cliente\t\t\t8900.00'
+              t("Pega directamente desde Excel. Una línea por movimiento:") +
+              t("fecha ⇥ descripción ⇥ referencia ⇥ cargo ⇥ abono") +
+              t("01/03/2026 Pago proveedor ACME 4471 12500.00") +
+              t("03/03/2026 Depósito cliente 8900.00")
             }
           />
           <p className="mt-1 text-[11px] text-slate-400">
-            Acepta fechas dd/mm/aaaa o aaaa-mm-dd. Los símbolos de moneda y las comas se ignoran.
+            
+            {t("Acepta fechas dd/mm/aaaa o aaaa-mm-dd. Los símbolos de moneda y las comas se ignoran.")}
           </p>
         </div>
 
@@ -685,23 +698,23 @@ function ModalCargaEstado({
               <span className="text-slate-700">
                 {lineas.length} movimientos interpretados
                 {ignoradas > 0 && (
-                  <span className="text-amber-700"> · {ignoradas} líneas ignoradas</span>
+                  <span className="text-amber-700"> {t("· {n0} líneas ignoradas", { n0: ignoradas })}</span>
                 )}
               </span>
               <span className="cifra font-semibold" style={{ color: cuadra ? '#047857' : '#b45309' }}>
-                {cuadra ? 'Cuadra' : `Difiere ${dinero(calculado - declarado)}`}
+                {cuadra ? t("Cuadra") : `Difiere ${dinero(calculado - declarado)}`}
               </span>
             </div>
             <div className="flex gap-4 mt-1.5 text-[11.5px] text-slate-500 cifra">
-              <span>Cargos {dinero(sumaCargos)}</span>
-              <span>Abonos {dinero(sumaAbonos)}</span>
-              <span>Resultado {dinero(calculado)}</span>
+              <span>{t("Cargos {n0}", { n0: dinero(sumaCargos) })}</span>
+              <span>{t("Abonos {n0}", { n0: dinero(sumaAbonos) })}</span>
+              <span>{t("Resultado {n0}", { n0: dinero(calculado) })}</span>
             </div>
           </div>
         )}
 
         {error && (
-          <p className="text-[12.5px] text-rose-600 font-medium">{error}</p>
+          <p className="text-[12.5px] text-rose-600 font-medium">{t(error)}</p>
         )}
       </div>
     </Modal>

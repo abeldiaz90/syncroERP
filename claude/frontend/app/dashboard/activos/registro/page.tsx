@@ -16,6 +16,7 @@ import {
   ErrorPantalla, Indicador, Modal, Panel, Seleccion, SinDatos, useAvisos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Activo {
   id: string;
   codigo: string;
@@ -61,6 +62,7 @@ const ETIQUETA_ESTADO: Record<string, string> = {
 };
 
 export default function RegistroActivosPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [busqueda, setBusqueda] = useState('');
   const [estado, setEstado] = useState('');
@@ -98,7 +100,7 @@ export default function RegistroActivosPage() {
     avisar(
       r.creadas > 0
         ? `Se crearon ${r.creadas} categorías con las tasas del art. 34 LISR.`
-        : 'Las categorías ya estaban creadas.',
+        : t("Las categorías ya estaban creadas."),
       'exito',
     );
     void categorias.recargar();
@@ -144,8 +146,8 @@ export default function RegistroActivosPage() {
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
       <EncabezadoPantalla
-        titulo="Registro de activos"
-        descripcion="Altas, costo histórico y valor en libros"
+        titulo={t("Registro de activos")}
+        descripcion={t("Altas, costo histórico y valor en libros")}
         acciones={
           <Boton
             variante="primario"
@@ -153,7 +155,8 @@ export default function RegistroActivosPage() {
             onClick={() => setModalAbierto(true)}
             disabled={sinCategorias}
           >
-            Registrar activo
+            
+            {t("Registrar activo")}
           </Boton>
         }
       />
@@ -161,23 +164,23 @@ export default function RegistroActivosPage() {
       {/* Indicadores */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador
-          etiqueta="Activos en uso" color="#65a30d" cargando={resumen.cargando}
+          etiqueta={t("Activos en uso")} color="#65a30d" cargando={resumen.cargando}
           icono={<Building className="w-4 h-4" />}
           valor={resumen.datos?.totalActivos ?? 0}
           detalle={`${resumen.datos?.totalmenteDepreciados ?? 0} totalmente depreciados`}
         />
         <Indicador
-          etiqueta="Costo histórico" color="#0f172a" cargando={resumen.cargando}
+          etiqueta={t("Costo histórico")} color="#0f172a" cargando={resumen.cargando}
           valor={dinero(resumen.datos?.costoTotal)}
         />
         <Indicador
-          etiqueta="Depreciación acumulada" color="#d97706" cargando={resumen.cargando}
+          etiqueta={t("Depreciación acumulada")} color="#d97706" cargando={resumen.cargando}
           valor={dinero(resumen.datos?.depreciacionAcumulada)}
         />
         <Indicador
-          etiqueta="Valor en libros" color="#059669" cargando={resumen.cargando}
+          etiqueta={t("Valor en libros")} color="#059669" cargando={resumen.cargando}
           valor={dinero(resumen.datos?.valorEnLibros)}
-          detalle="neto contable"
+          detalle={t("neto contable")}
         />
       </div>
 
@@ -185,10 +188,12 @@ export default function RegistroActivosPage() {
         <div className="panel p-4 mb-4 flex items-center justify-between gap-4">
           <div>
             <p className="text-[13px] font-semibold text-slate-800">
-              Falta configurar las categorías
+              
+              {t("Falta configurar las categorías")}
             </p>
             <p className="text-[12px] text-slate-500 mt-0.5">
-              Cada activo pertenece a una categoría, que define su tasa de depreciación.
+              
+              {t("Cada activo pertenece a una categoría, que define su tasa de depreciación.")}
             </p>
           </div>
           <Boton
@@ -196,7 +201,8 @@ export default function RegistroActivosPage() {
             cargando={sembrar.ejecutando}
             onClick={() => void sembrar.ejecutar()}
           >
-            Crear las siete categorías estándar
+            
+            {t("Crear las siete categorías estándar")}
           </Boton>
         </div>
       )}
@@ -210,12 +216,12 @@ export default function RegistroActivosPage() {
               <Entrada
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por código, nombre o serie"
+                placeholder={t("Buscar por código, nombre o serie")}
                 className="pl-8"
               />
             </div>
             <Seleccion value={estado} onChange={(e) => setEstado(e.target.value)} className="w-40">
-              <option value="">Todos los estados</option>
+              <option value="">{t("Todos los estados")}</option>
               {Object.entries(ETIQUETA_ESTADO).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
               ))}
@@ -232,20 +238,21 @@ export default function RegistroActivosPage() {
         {activos.cargando ? (
           <Cargando />
         ) : activos.error ? (
-          <ErrorPantalla mensaje={activos.error} onReintentar={activos.recargar} />
+          <ErrorPantalla mensaje={t(activos.error)} onReintentar={activos.recargar} />
         ) : (activos.datos?.length ?? 0) === 0 ? (
           <SinDatos
-            titulo={busqueda || estado ? 'Ningún activo coincide con el filtro' : 'Todavía no hay activos registrados'}
+            titulo={busqueda || estado ? t("Ningún activo coincide con el filtro") : t("Todavía no hay activos registrados")}
             descripcion={
               busqueda || estado
-                ? 'Prueba con otro término o quita el filtro de estado.'
-                : 'Registra la maquinaria, el equipo de cómputo y el transporte para que la depreciación se calcule sola.'
+                ? t("Prueba con otro término o quita el filtro de estado.")
+                : t("Registra la maquinaria, el equipo de cómputo y el transporte para que la depreciación se calcule sola.")
             }
             icono={<Building className="w-5 h-5" />}
             accion={
               !busqueda && !estado && !sinCategorias ? (
                 <Boton variante="primario" onClick={() => setModalAbierto(true)}>
-                  Registrar el primero
+                  
+                  {t("Registrar el primero")}
                 </Boton>
               ) : undefined
             }
@@ -255,15 +262,15 @@ export default function RegistroActivosPage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Código</th>
-                  <th>Activo</th>
-                  <th>Categoría</th>
-                  <th>Adquisición</th>
-                  <th className="text-right">Costo</th>
-                  <th className="text-right">Tasa</th>
-                  <th className="text-right">Depreciado</th>
-                  <th className="text-right">En libros</th>
-                  <th>Estado</th>
+                  <th>{t("Código")}</th>
+                  <th>{t("Activo")}</th>
+                  <th>{t("Categoría")}</th>
+                  <th>{t("Adquisición")}</th>
+                  <th className="text-right">{t("Costo")}</th>
+                  <th className="text-right">{t("Tasa")}</th>
+                  <th className="text-right">{t("Depreciado")}</th>
+                  <th className="text-right">{t("En libros")}</th>
+                  <th>{t("Estado")}</th>
                   <th />
                 </tr>
               </thead>
@@ -272,7 +279,7 @@ export default function RegistroActivosPage() {
                   <tr key={a.id}>
                     <td className="font-semibold text-slate-900 cifra">{a.codigo}</td>
                     <td>
-                      <p className="text-slate-900">{a.nombre}</p>
+                      <p className="text-slate-900">{t(a.nombre)}</p>
                       {a.ubicacion && (
                         <p className="text-[11px] text-slate-400">{a.ubicacion}</p>
                       )}
@@ -304,7 +311,7 @@ export default function RegistroActivosPage() {
                         <button
                           type="button"
                           className="btn btn-fantasma btn-sm btn-icono"
-                          title="Corregir la ficha"
+                          title={t("Corregir la ficha")}
                           onClick={() => setACorregir(a)}
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -348,6 +355,7 @@ function ModalNuevoActivo({
   onCerrar: () => void;
   onGuardar: (datos: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const [form, setForm] = useState({
     nombre: '', categoriaId: '', fechaAdquisicion: '',
     costoAdquisicion: '', valorResidual: '0',
@@ -362,16 +370,16 @@ function ModalNuevoActivo({
 
   const validar = () => {
     const e: Record<string, string> = {};
-    if (!form.nombre.trim()) e.nombre = 'Escribe cómo se llama el activo.';
-    if (!form.categoriaId) e.categoriaId = 'Elige una categoría.';
-    if (!form.fechaAdquisicion) e.fechaAdquisicion = 'Indica la fecha de compra.';
+    if (!form.nombre.trim()) e.nombre = t("Escribe cómo se llama el activo.");
+    if (!form.categoriaId) e.categoriaId = t("Elige una categoría.");
+    if (!form.fechaAdquisicion) e.fechaAdquisicion = t("Indica la fecha de compra.");
 
     const costo = parseFloat(form.costoAdquisicion);
-    if (!costo || costo <= 0) e.costoAdquisicion = 'El costo debe ser mayor que cero.';
+    if (!costo || costo <= 0) e.costoAdquisicion = t("El costo debe ser mayor que cero.");
 
     const residual = parseFloat(form.valorResidual || '0');
     if (residual >= costo) {
-      e.valorResidual = 'El valor residual debe ser menor al costo.';
+      e.valorResidual = t("El valor residual debe ser menor al costo.");
     }
 
     setErrores(e);
@@ -393,43 +401,43 @@ function ModalNuevoActivo({
     <Modal
       abierto={abierto}
       onCerrar={onCerrar}
-      titulo="Registrar activo"
-      descripcion="La depreciación empieza el mes siguiente a la fecha de adquisición."
+      titulo={t("Registrar activo")}
+      descripcion={t("La depreciación empieza el mes siguiente a la fecha de adquisición.")}
       ancho={620}
       pie={
         <>
-          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
-          <Boton variante="primario" onClick={enviar} cargando={guardando}>Registrar activo</Boton>
+          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>{t("Cancelar")}</Boton>
+          <Boton variante="primario" onClick={enviar} cargando={guardando}>{t("Registrar activo")}</Boton>
         </>
       }
     >
       <div className="grid grid-cols-2 gap-3.5">
         <div className="col-span-2">
-          <Campo etiqueta="Nombre del activo" requerido error={errores.nombre}>
+          <Campo etiqueta={t("Nombre del activo")} requerido error={errores.nombre}>
             <Entrada
               value={form.nombre}
               onChange={(e) => cambiar('nombre', e.target.value)}
               error={!!errores.nombre}
-              placeholder="Camioneta Nissan NP300 blanca"
+              placeholder={t("Camioneta Nissan NP300 blanca")}
             />
           </Campo>
         </div>
 
-        <Campo etiqueta="Categoría" requerido error={errores.categoriaId}
+        <Campo etiqueta={t("Categoría")} requerido error={errores.categoriaId}
           ayuda={categoria ? `Se depreciará al ${categoria.tasaAnual}% anual` : undefined}>
           <Seleccion
             value={form.categoriaId}
             onChange={(e) => cambiar('categoriaId', e.target.value)}
             error={!!errores.categoriaId}
           >
-            <option value="">Elige una…</option>
+            <option value="">{t("Elige una…")}</option>
             {categorias.map((c) => (
-              <option key={c.id} value={c.id}>{c.nombre} · {c.tasaAnual}%</option>
+              <option key={c.id} value={c.id}>{t(c.nombre)} · {c.tasaAnual}%</option>
             ))}
           </Seleccion>
         </Campo>
 
-        <Campo etiqueta="Fecha de adquisición" requerido error={errores.fechaAdquisicion}>
+        <Campo etiqueta={t("Fecha de adquisición")} requerido error={errores.fechaAdquisicion}>
           <Entrada
             type="date"
             value={form.fechaAdquisicion}
@@ -438,7 +446,7 @@ function ModalNuevoActivo({
           />
         </Campo>
 
-        <Campo etiqueta="Costo de adquisición" requerido error={errores.costoAdquisicion}>
+        <Campo etiqueta={t("Costo de adquisición")} requerido error={errores.costoAdquisicion}>
           <Entrada
             type="number" step="0.01" min="0"
             value={form.costoAdquisicion}
@@ -448,8 +456,8 @@ function ModalNuevoActivo({
           />
         </Campo>
 
-        <Campo etiqueta="Valor residual" error={errores.valorResidual}
-          ayuda="Lo que valdrá al final de su vida útil">
+        <Campo etiqueta={t("Valor residual")} error={errores.valorResidual}
+          ayuda={t("Lo que valdrá al final de su vida útil")}>
           <Entrada
             type="number" step="0.01" min="0"
             value={form.valorResidual}
@@ -458,11 +466,11 @@ function ModalNuevoActivo({
           />
         </Campo>
 
-        <Campo etiqueta="Marca"><Entrada value={form.marca} onChange={(e) => cambiar('marca', e.target.value)} /></Campo>
-        <Campo etiqueta="Modelo"><Entrada value={form.modelo} onChange={(e) => cambiar('modelo', e.target.value)} /></Campo>
-        <Campo etiqueta="Número de serie"><Entrada value={form.numeroSerie} onChange={(e) => cambiar('numeroSerie', e.target.value)} /></Campo>
-        <Campo etiqueta="Ubicación" ayuda="Dónde está físicamente">
-          <Entrada value={form.ubicacion} onChange={(e) => cambiar('ubicacion', e.target.value)} placeholder="Almacén central" />
+        <Campo etiqueta={t("Marca")}><Entrada value={form.marca} onChange={(e) => cambiar('marca', e.target.value)} /></Campo>
+        <Campo etiqueta={t("Modelo")}><Entrada value={form.modelo} onChange={(e) => cambiar('modelo', e.target.value)} /></Campo>
+        <Campo etiqueta={t("Número de serie")}><Entrada value={form.numeroSerie} onChange={(e) => cambiar('numeroSerie', e.target.value)} /></Campo>
+        <Campo etiqueta={t("Ubicación")} ayuda={t("Dónde está físicamente")}>
+          <Entrada value={form.ubicacion} onChange={(e) => cambiar('ubicacion', e.target.value)} placeholder={t("Almacén central")} />
         </Campo>
       </div>
     </Modal>
@@ -498,6 +506,7 @@ function ModalCorregirActivo({
   onCerrar: () => void;
   onGuardar: (datos: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const [form, setForm] = useState<Record<string, string>>({});
   const [listo, setListo] = useState<string | null>(null);
 
@@ -559,49 +568,49 @@ function ModalCorregirActivo({
       abierto={!!activo}
       onCerrar={onCerrar}
       titulo={`Corregir ${activo.codigo}`}
-      descripcion="Se guarda sólo lo que cambies. El código no se toca: es el que está pegado en la etiqueta."
+      descripcion={t("Se guarda sólo lo que cambies. El código no se toca: es el que está pegado en la etiqueta.")}
       ancho={620}
       pie={
         <>
-          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
-          <Boton variante="primario" onClick={enviar} cargando={guardando}>Guardar cambios</Boton>
+          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>{t("Cancelar")}</Boton>
+          <Boton variante="primario" onClick={enviar} cargando={guardando}>{t("Guardar cambios")}</Boton>
         </>
       }
     >
       <div className="grid grid-cols-2 gap-3.5">
         <div className="col-span-2">
-          <Campo etiqueta="Nombre del activo">
+          <Campo etiqueta={t("Nombre del activo")}>
             <Entrada value={form.nombre ?? ''} onChange={(e) => cambiar('nombre', e.target.value)} />
           </Campo>
         </div>
         <div className="col-span-2">
-          <Campo etiqueta="Descripción">
+          <Campo etiqueta={t("Descripción")}>
             <Entrada value={form.descripcion ?? ''} onChange={(e) => cambiar('descripcion', e.target.value)} />
           </Campo>
         </div>
-        <Campo etiqueta="Marca"><Entrada value={form.marca ?? ''} onChange={(e) => cambiar('marca', e.target.value)} /></Campo>
-        <Campo etiqueta="Modelo"><Entrada value={form.modelo ?? ''} onChange={(e) => cambiar('modelo', e.target.value)} /></Campo>
-        <Campo etiqueta="Número de serie"><Entrada value={form.numeroSerie ?? ''} onChange={(e) => cambiar('numeroSerie', e.target.value)} /></Campo>
-        <Campo etiqueta="Ubicación" ayuda="Dónde está físicamente">
+        <Campo etiqueta={t("Marca")}><Entrada value={form.marca ?? ''} onChange={(e) => cambiar('marca', e.target.value)} /></Campo>
+        <Campo etiqueta={t("Modelo")}><Entrada value={form.modelo ?? ''} onChange={(e) => cambiar('modelo', e.target.value)} /></Campo>
+        <Campo etiqueta={t("Número de serie")}><Entrada value={form.numeroSerie ?? ''} onChange={(e) => cambiar('numeroSerie', e.target.value)} /></Campo>
+        <Campo etiqueta={t("Ubicación")} ayuda={t("Dónde está físicamente")}>
           <Entrada value={form.ubicacion ?? ''} onChange={(e) => cambiar('ubicacion', e.target.value)} />
         </Campo>
 
         {yaSeDeprecio ? (
           <div className="col-span-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
             <p className="text-[12.5px] text-amber-900">
-              <strong>El costo y la vida útil ya no se corrigen aquí:</strong> este activo lleva{' '}
+              <strong>{t("El costo y la vida útil ya no se corrigen aquí:")}</strong> este activo lleva{' '}
               {dinero(activo.depreciacionAcumulada)} depreciados. Cambiar la base dejaría los meses
               ya asentados calculados con una base y los nuevos con otra.
             </p>
             <p className="text-[12px] text-amber-800 mt-1">
-              Si de verdad está mal, revierte esas corridas en <em>Activos → Depreciación</em>,
+              Si de verdad está mal, revierte esas corridas en <em>{t("Activos → Depreciación")}</em>,
               corrige la ficha y vuelve a correrlas.
             </p>
           </div>
         ) : (
           <Campo
-            etiqueta="Costo de adquisición"
-            ayuda="Todavía se puede corregir: este activo no tiene depreciación corrida"
+            etiqueta={t("Costo de adquisición")}
+            ayuda={t("Todavía se puede corregir: este activo no tiene depreciación corrida")}
           >
             <Entrada
               type="number" step="0.01" min="0"

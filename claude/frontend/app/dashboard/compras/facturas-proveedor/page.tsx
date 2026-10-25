@@ -8,6 +8,7 @@ import { fechaNumerica, hoyISO } from '@/lib/fechas';
 import { FOLIO, folioDe } from '@/lib/folios';
 import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
 
+import { useT } from '@/components/I18nProvider';
 /**
  * ============================================================================
  * Facturas de proveedor y el cotejo de tres vías
@@ -88,6 +89,7 @@ const COLOR: Record<string, string> = {
 };
 
 export default function FacturasProveedorPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [ordenes, setOrdenes] = useState<Orden[]>([]);
@@ -135,7 +137,7 @@ export default function FacturasProveedorPage() {
       setProveedores(listaPr);
       setVedado({ facturas: fs.vedado, ordenes: oc.vedado, proveedores: pr.vedado });
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cargar.', 'error');
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo cargar."), 'error');
     } finally {
       setCargando(false);
     }
@@ -171,7 +173,7 @@ export default function FacturasProveedorPage() {
         );
       })
       .catch((e) =>
-        avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo leer la orden.', 'error'),
+        avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo leer la orden."), 'error'),
       );
   }, [ordenId]);
 
@@ -196,9 +198,9 @@ export default function FacturasProveedorPage() {
     ]);
 
   const registrar = async () => {
-    if (!proveedorId) return avisar('Elige el proveedor que emite la factura.', 'alerta');
+    if (!proveedorId) return avisar(t("Elige el proveedor que emite la factura."), 'alerta');
     const utiles = lineas.filter((l) => Number(l.cantidad) > 0);
-    if (!utiles.length) return avisar('La factura necesita al menos una partida con cantidad.', 'alerta');
+    if (!utiles.length) return avisar(t("La factura necesita al menos una partida con cantidad."), 'alerta');
     setGuardando(true);
     try {
       const r = await api.post<any>('/compras/facturas-proveedor', {
@@ -234,7 +236,7 @@ export default function FacturasProveedorPage() {
       await cargar();
     } catch (e) {
       avisar(
-        e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo registrar la factura.',
+        e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo registrar la factura."),
         'error',
       );
     } finally {
@@ -247,7 +249,7 @@ export default function FacturasProveedorPage() {
       const f = await api.get<any>(`/compras/facturas-proveedor/${id}`);
       setDetalle({ factura: f, cotejo: f.cotejo ?? null });
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo abrir la factura.', 'error');
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo abrir la factura."), 'error');
     }
   };
 
@@ -256,14 +258,14 @@ export default function FacturasProveedorPage() {
       const r = await api.patch<any>(`/compras/facturas-proveedor/${id}/recotejar`, {});
       avisar(
         r.cotejo?.conciliado
-          ? 'Ya coincide: la factura quedó conciliada.'
+          ? t("Ya coincide: la factura quedó conciliada.")
           : `Sigue habiendo diferencias: ${r.cotejo?.resumen ?? ''}`,
         r.cotejo?.conciliado ? 'exito' : 'alerta',
       );
       await cargar();
       await ver(id);
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cotejar.', 'error');
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo cotejar."), 'error');
     }
   };
 
@@ -286,7 +288,7 @@ export default function FacturasProveedorPage() {
       await cargar();
     } catch (e) {
       setErrorCancelar(
-        e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cancelar.',
+        e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo cancelar."),
       );
     } finally {
       setCancelandoProcesa(false);
@@ -304,20 +306,22 @@ export default function FacturasProveedorPage() {
         <div>
           <h1 className="text-3xl font-black flex items-center gap-3">
             <FileText />
-            Facturas de proveedor
+            
+            {t("Facturas de proveedor")}
           </h1>
           <p className="text-slate-500">
-            El tercer lado del triángulo: lo que pedí, lo que llegó y lo que me cobran. Al guardar se
-            coteja partida por partida, y el pago no puede pasar de lo facturado.
+            
+            {t("El tercer lado del triángulo: lo que pedí, lo que llegó y lo que me cobran. Al guardar se coteja partida por partida, y el pago no puede pasar de lo facturado.")}
           </p>
         </div>
         <div className="flex gap-2">
           <Link href="/dashboard/compras/ordenes" className="px-4 py-2 rounded-xl border font-semibold">
-            Órdenes de compra
+            
+            {t("Órdenes de compra")}
           </Link>
           <button
-            aria-label="Volver a cargar"
-            title="Volver a cargar"
+            aria-label={t("Volver a cargar")}
+            title={t("Volver a cargar")}
             onClick={() => void cargar()}
             className="p-2 border rounded-xl"
           >
@@ -327,43 +331,43 @@ export default function FacturasProveedorPage() {
       </div>
 
       <section className="border rounded-2xl p-4 space-y-4 bg-white">
-        <h2 className="font-bold text-lg">Capturar la factura que llegó</h2>
+        <h2 className="font-bold text-lg">{t("Capturar la factura que llegó")}</h2>
         <div className="grid md:grid-cols-3 gap-3">
           <label className="text-sm">
-            <span className="font-semibold">Orden de compra</span>
+            <span className="font-semibold">{t("Orden de compra")}</span>
             <select
               className="w-full border rounded-xl p-2 mt-1"
               value={ordenId}
               onChange={(e) => setOrdenId(e.target.value)}
             >
-              <option value="">Sin orden (luz, honorarios, renta…)</option>
+              <option value="">{t("Sin orden (luz, honorarios, renta…)")}</option>
               {ordenes.map((o) => (
                 <option key={o.id} value={o.id}>
-                  {folioDe(o, FOLIO.ORDEN_COMPRA)} · {o.proveedor?.nombre ?? 'Proveedor'} · {dinero(o.total)}
+                  {folioDe(o, FOLIO.ORDEN_COMPRA)} · {o.proveedor?.nombre ?? t("Proveedor")} · {dinero(o.total)}
                 </option>
               ))}
             </select>
             {vedado.ordenes && (
-              <span className="text-xs text-amber-700">No puedes leer las órdenes con tu rol.</span>
+              <span className="text-xs text-amber-700">{t("No puedes leer las órdenes con tu rol.")}</span>
             )}
           </label>
           <label className="text-sm">
-            <span className="font-semibold">Proveedor</span>
+            <span className="font-semibold">{t("Proveedor")}</span>
             <select
               className="w-full border rounded-xl p-2 mt-1"
               value={proveedorId}
               onChange={(e) => setProveedorId(e.target.value)}
               disabled={!!ordenId}
             >
-              <option value="">Elige…</option>
+              <option value="">{t("Elige…")}</option>
               {proveedores.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.nombre}
+                  {t(p.nombre)}
                 </option>
               ))}
             </select>
             {!!ordenId && (
-              <span className="text-xs text-slate-500">Lo fija la orden: la factura es de quien entregó.</span>
+              <span className="text-xs text-slate-500">{t("Lo fija la orden: la factura es de quien entregó.")}</span>
             )}
             {/*
               `vedado.proveedores` se guardaba desde el principio y no se
@@ -375,14 +379,13 @@ export default function FacturasProveedorPage() {
             */}
             {!ordenId && vedado.proveedores && (
               <span className="text-xs text-amber-700">
-                No puedes leer el padrón de proveedores con tu rol. Para una
-                factura sin orden hace falta: pídelo a quien administra compras,
-                o captúrala desde su orden.
+                
+                {t("No puedes leer el padrón de proveedores con tu rol. Para una factura sin orden hace falta: pídelo a quien administra compras, o captúrala desde su orden.")}
               </span>
             )}
           </label>
           <label className="text-sm">
-            <span className="font-semibold">UUID fiscal (CFDI)</span>
+            <span className="font-semibold">{t("UUID fiscal (CFDI)")}</span>
             <input
               className="w-full border rounded-xl p-2 mt-1 font-mono text-xs"
               placeholder="8-4-4-4-12"
@@ -391,7 +394,7 @@ export default function FacturasProveedorPage() {
             />
           </label>
           <label className="text-sm">
-            <span className="font-semibold">Folio del proveedor</span>
+            <span className="font-semibold">{t("Folio del proveedor")}</span>
             <input
               className="w-full border rounded-xl p-2 mt-1"
               value={folioProveedor}
@@ -399,7 +402,7 @@ export default function FacturasProveedorPage() {
             />
           </label>
           <label className="text-sm">
-            <span className="font-semibold">Fecha de emisión</span>
+            <span className="font-semibold">{t("Fecha de emisión")}</span>
             <input
               type="date"
               className="w-full border rounded-xl p-2 mt-1"
@@ -408,7 +411,7 @@ export default function FacturasProveedorPage() {
             />
           </label>
           <label className="text-sm">
-            <span className="font-semibold">Vence</span>
+            <span className="font-semibold">{t("Vence")}</span>
             <input
               type="date"
               className="w-full border rounded-xl p-2 mt-1"
@@ -423,12 +426,12 @@ export default function FacturasProveedorPage() {
             <table className="w-full text-sm">
               <thead className="text-left text-slate-500">
                 <tr>
-                  <th className="p-2">Concepto</th>
-                  <th className="p-2 text-right">Pedido</th>
-                  <th className="p-2 text-right">Recibido</th>
-                  <th className="p-2 text-right">Se factura</th>
-                  <th className="p-2 text-right">Precio</th>
-                  <th className="p-2 text-right">Importe</th>
+                  <th className="p-2">{t("Concepto")}</th>
+                  <th className="p-2 text-right">{t("Pedido")}</th>
+                  <th className="p-2 text-right">{t("Recibido")}</th>
+                  <th className="p-2 text-right">{t("Se factura")}</th>
+                  <th className="p-2 text-right">{t("Precio")}</th>
+                  <th className="p-2 text-right">{t("Importe")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -442,7 +445,7 @@ export default function FacturasProveedorPage() {
                           className="w-full border rounded-lg p-1"
                           value={l.descripcion}
                           onChange={(e) => cambiar(i, 'descripcion', e.target.value)}
-                          placeholder="Concepto"
+                          placeholder={t("Concepto")}
                         />
                       </td>
                       <td className="p-2 text-right text-slate-500">{d ? d.cantidad : '—'}</td>
@@ -472,7 +475,8 @@ export default function FacturasProveedorPage() {
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <button onClick={agregarLinea} className="px-3 py-2 rounded-xl border text-sm font-semibold">
-            + Partida que no está en la orden
+            
+            {t("+ Partida que no está en la orden")}
           </button>
           <div className="text-right text-sm">
             <div>Subtotal: <b>{dinero(totales.subtotal)}</b></div>
@@ -484,7 +488,7 @@ export default function FacturasProveedorPage() {
         <textarea
           className="w-full border rounded-xl p-2 text-sm"
           rows={2}
-          placeholder="Notas (opcional)"
+          placeholder={t("Notas (opcional)")}
           value={notas}
           onChange={(e) => setNotas(e.target.value)}
         />
@@ -494,27 +498,28 @@ export default function FacturasProveedorPage() {
           disabled={guardando}
           className="px-5 py-2 rounded-xl bg-slate-900 text-white font-bold disabled:opacity-50"
         >
-          {guardando ? 'Guardando…' : 'Registrar y cotejar'}
+          {guardando ? t("Guardando…") : t("Registrar y cotejar")}
         </button>
       </section>
 
       <section className="border rounded-2xl bg-white overflow-hidden">
-        <h2 className="font-bold text-lg p-4 pb-2">Capturadas</h2>
+        <h2 className="font-bold text-lg p-4 pb-2">{t("Capturadas")}</h2>
         {vedado.facturas ? (
           <p className="p-4 text-amber-700 text-sm">
-            Tu rol no puede leer las facturas de proveedor. No es que no haya: es que no se te muestran.
+            
+            {t("Tu rol no puede leer las facturas de proveedor. No es que no haya: es que no se te muestran.")}
           </p>
         ) : !facturas.length ? (
-          <p className="p-4 text-slate-500 text-sm">Todavía no hay facturas capturadas.</p>
+          <p className="p-4 text-slate-500 text-sm">{t("Todavía no hay facturas capturadas.")}</p>
         ) : (
           <table className="w-full text-sm">
             <thead className="text-left text-slate-500">
               <tr>
-                <th className="p-3">Folio</th>
-                <th className="p-3">Del proveedor</th>
-                <th className="p-3">Emitida</th>
-                <th className="p-3 text-right">Total</th>
-                <th className="p-3">Estado</th>
+                <th className="p-3">{t("Folio")}</th>
+                <th className="p-3">{t("Del proveedor")}</th>
+                <th className="p-3">{t("Emitida")}</th>
+                <th className="p-3 text-right">{t("Total")}</th>
+                <th className="p-3">{t("Estado")}</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
@@ -531,16 +536,16 @@ export default function FacturasProveedorPage() {
                     </span>
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    <button onClick={() => void ver(f.id)} className="px-2 py-1 border rounded-lg mr-1" title="Ver el cotejo">
+                    <button onClick={() => void ver(f.id)} className="px-2 py-1 border rounded-lg mr-1" title={t("Ver el cotejo")}>
                       <ScanSearch className="inline w-4 h-4" />
                     </button>
                     {f.estado === 'CON_DIFERENCIAS' && (
-                      <button onClick={() => void recotejar(f.id)} className="px-2 py-1 border rounded-lg mr-1" title="Volver a cotejar">
+                      <button onClick={() => void recotejar(f.id)} className="px-2 py-1 border rounded-lg mr-1" title={t("Volver a cotejar")}>
                         <RefreshCw className="inline w-4 h-4" />
                       </button>
                     )}
                     {f.estado !== 'CANCELADA' && (
-                      <button onClick={() => pedirMotivo(f.id)} className="px-2 py-1 border rounded-lg" title="Cancelar">
+                      <button onClick={() => pedirMotivo(f.id)} className="px-2 py-1 border rounded-lg" title={t("Cancelar")}>
                         <Ban className="inline w-4 h-4" />
                       </button>
                     )}
@@ -561,28 +566,30 @@ export default function FacturasProveedorPage() {
               </h3>
               {/* Un modal sin salida visible es un modal del que la gente sale recargando. */}
               <button onClick={() => setDetalle(null)} className="px-3 py-1 border rounded-xl font-semibold">
-                Cerrar
+                
+                {t("Cerrar")}
               </button>
             </div>
             {!detalle.cotejo ? (
               <p className="text-slate-500 text-sm">
-                Esta factura no tiene orden de compra: no hay contra qué cotejarla y se revisa a mano.
+                
+                {t("Esta factura no tiene orden de compra: no hay contra qué cotejarla y se revisa a mano.")}
               </p>
             ) : (
               <>
                 <p className={`flex items-center gap-2 font-semibold ${detalle.cotejo.conciliado ? 'text-emerald-700' : 'text-amber-800'}`}>
                   {detalle.cotejo.conciliado ? <CheckCircle2 /> : <AlertTriangle />}
-                  {detalle.cotejo.resumen}
+                  {t(detalle.cotejo.resumen)}
                 </p>
                 <table className="w-full text-sm">
                   <thead className="text-left text-slate-500">
                     <tr>
-                      <th className="p-2">Concepto</th>
-                      <th className="p-2 text-right">Pedido</th>
-                      <th className="p-2 text-right">Recibido</th>
-                      <th className="p-2 text-right">Facturado</th>
-                      <th className="p-2 text-right">Pactado</th>
-                      <th className="p-2 text-right">Cobran</th>
+                      <th className="p-2">{t("Concepto")}</th>
+                      <th className="p-2 text-right">{t("Pedido")}</th>
+                      <th className="p-2 text-right">{t("Recibido")}</th>
+                      <th className="p-2 text-right">{t("Facturado")}</th>
+                      <th className="p-2 text-right">{t("Pactado")}</th>
+                      <th className="p-2 text-right">{t("Cobran")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -592,7 +599,7 @@ export default function FacturasProveedorPage() {
                           {r.descripcion ?? '—'}
                           {r.diferencias.map((d, j) => (
                             <div key={j} className="text-xs text-amber-900 mt-1">
-                              · {d.detalle}
+                              · {t(d.detalle)}
                             </div>
                           ))}
                         </td>
@@ -613,9 +620,9 @@ export default function FacturasProveedorPage() {
 
       <ConfirmacionConMotivo
         abierto={!!cancelando}
-        titulo="Cancelar la factura del proveedor"
-        mensaje="La factura queda cancelada y deja de contar para el cotejo y para el pago. No se borra: se marca, y el motivo queda en la bitácora."
-        textoConfirmar="Cancelar la factura"
+        titulo={t("Cancelar la factura del proveedor")}
+        mensaje={t("La factura queda cancelada y deja de contar para el cotejo y para el pago. No se borra: se marca, y el motivo queda en la bitácora.")}
+        textoConfirmar={t("Cancelar la factura")}
         onConfirmar={(motivo) => void cancelar(motivo)}
         onCancelar={() => { setCancelando(null); setErrorCancelar(null); }}
         procesando={cancelandoProcesa}

@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { api, intentar } from '@/lib/api';
 
+import { useT } from '@/components/I18nProvider';
 export type TipoPaso =
   | 'IDENTIDAD_INE' | 'BURO_CREDITO' | 'CIRCULO_CREDITO' | 'HISTORIAL_INTERNO'
   | 'LISTA_BLOQUEO' | 'POLITICA_INTERNA' | 'REVISION_MANUAL';
@@ -102,6 +103,7 @@ export function ExpedienteCliente({ clienteId, limiteHistoria, limitePropuesto }
    */
   limitePropuesto?: number;
 }) {
+  const t = useT();
   const [corridas, setCorridas] = useState<IEjecucionExp[]>([]);
   const [detalle, setDetalle] = useState<Record<string, IPasoExp[]>>({});
   const [abierta, setAbierta] = useState<string | null>(null);
@@ -172,7 +174,7 @@ export function ExpedienteCliente({ clienteId, limiteHistoria, limitePropuesto }
   if (cargando) {
     return (
       <div className="flex items-center gap-2 text-sm text-slate-500 py-4">
-        <Loader2 className="w-4 h-4 animate-spin" /> Reuniendo el expediente…
+        <Loader2 className="w-4 h-4 animate-spin" />  {t("Reuniendo el expediente…")}
       </div>
     );
   }
@@ -184,15 +186,16 @@ export function ExpedienteCliente({ clienteId, limiteHistoria, limitePropuesto }
         <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
           <div>
             <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" /> Qué está comprobado hoy
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />  {t("Qué está comprobado hoy")}
             </h3>
             <p className="text-xs text-slate-500">
-              La última respuesta de cada control. Puede venir de corridas distintas.
+              
+              {t("La última respuesta de cada control. Puede venir de corridas distintas.")}
             </p>
           </div>
           <Link href={irAVerificar}
             className="px-3 py-1.5 text-sm rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 shrink-0">
-            <Play className="w-4 h-4" /> Verificar
+            <Play className="w-4 h-4" />  {t("Verificar")}
           </Link>
         </div>
 
@@ -205,11 +208,11 @@ export function ExpedienteCliente({ clienteId, limiteHistoria, limitePropuesto }
                 <div className="flex items-start gap-2">
                   <Icono className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-800">{nombre}</p>
+                    <p className="text-sm font-semibold text-slate-800">{t(nombre)}</p>
                     {r ? (
                       <>
                         <span className={`inline-flex items-center gap-1 mt-1 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold ${r.clase}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${r.punto}`} /> {r.nombre}
+                          <span className={`w-1.5 h-1.5 rounded-full ${r.punto}`} /> {t(r.nombre)}
                         </span>
                         <p className="text-[11px] text-slate-400 mt-1">
                           {fechaLarga(ultimo?.cuando)}
@@ -218,7 +221,7 @@ export function ExpedienteCliente({ clienteId, limiteHistoria, limitePropuesto }
                       </>
                     ) : (
                       <p className="text-[11px] text-slate-400 mt-1">
-                        Nunca se ha corrido. <span className="text-slate-300">{que}</span>
+                        Nunca se ha corrido. <span className="text-slate-300">{t(que)}</span>
                       </p>
                     )}
                   </div>
@@ -231,16 +234,16 @@ export function ExpedienteCliente({ clienteId, limiteHistoria, limitePropuesto }
 
       {/* ── La historia ────────────────────────────────────────────── */}
       <section>
-        <h3 className="text-sm font-bold text-slate-700 mb-1">Historia de verificaciones</h3>
+        <h3 className="text-sm font-bold text-slate-700 mb-1">{t("Historia de verificaciones")}</h3>
         <p className="text-xs text-slate-500 mb-3">
-          De la más reciente a la más antigua. Las simulaciones van marcadas: se hicieron, pero no
-          habilitan la autorización de una línea.
+          
+          {t("De la más reciente a la más antigua. Las simulaciones van marcadas: se hicieron, pero no habilitan la autorización de una línea.")}
         </p>
 
         {corridas.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-            Este cliente no tiene ninguna verificación. Si va a pedir crédito, hay que correrle el
-            flujo antes de autorizarle una línea.
+            
+            {t("Este cliente no tiene ninguna verificación. Si va a pedir crédito, hay que correrle el flujo antes de autorizarle una línea.")}
           </div>
         ) : (
           <div className="space-y-2">
@@ -259,11 +262,11 @@ export function ExpedienteCliente({ clienteId, limiteHistoria, limitePropuesto }
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${est.clase}`}>
-                          {est.nombre}
+                          {t(est.nombre)}
                         </span>
                         {c.simulacion && (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700">
-                            <FlaskConical className="w-3 h-3" /> simulación
+                            <FlaskConical className="w-3 h-3" />  {t("simulación")}
                           </span>
                         )}
                         <span className="text-xs text-slate-400">{fechaLarga(c.fechaCreacion)}</span>
@@ -289,10 +292,10 @@ export function ExpedienteCliente({ clienteId, limiteHistoria, limitePropuesto }
                       )}
                       {!pasos ? (
                         <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Abriendo el detalle…
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />  {t("Abriendo el detalle…")}
                         </div>
                       ) : pasos.length === 0 ? (
-                        <p className="text-xs text-slate-500">Esta corrida no registró pasos.</p>
+                        <p className="text-xs text-slate-500">{t("Esta corrida no registró pasos.")}</p>
                       ) : (
                         <div className="space-y-1.5">
                           {pasos.map((p) => {
@@ -302,11 +305,11 @@ export function ExpedienteCliente({ clienteId, limiteHistoria, limitePropuesto }
                                 className="flex items-start gap-3 rounded-lg bg-white border border-slate-200 px-3 py-2">
                                 <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${r.punto}`} />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold text-slate-800">{p.orden}. {p.etiqueta}</p>
-                                  {p.detalle && <p className="text-[11px] text-slate-500">{p.detalle}</p>}
+                                  <p className="text-xs font-semibold text-slate-800">{p.orden}. {t(p.etiqueta)}</p>
+                                  {p.detalle && <p className="text-[11px] text-slate-500">{t(p.detalle)}</p>}
                                 </div>
                                 <span className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold ${r.clase}`}>
-                                  {r.nombre}
+                                  {t(r.nombre)}
                                 </span>
                                 <span className="shrink-0 text-[11px] tabular-nums text-slate-500 w-10 text-right">
                                   {p.puntosAportados > 0 ? `+${p.puntosAportados}` : p.puntosAportados}
@@ -325,8 +328,7 @@ export function ExpedienteCliente({ clienteId, limiteHistoria, limitePropuesto }
             {limiteHistoria && corridas.length > limiteHistoria && (
               <Link href={`/dashboard/clientes/${clienteId}/expediente`}
                 className="block text-center text-xs text-indigo-600 hover:underline py-2">
-                Ver las {corridas.length} verificaciones →
-              </Link>
+                {t("Ver las {n0} verificaciones →", { n0: corridas.length })}</Link>
             )}
           </div>
         )}
@@ -335,8 +337,8 @@ export function ExpedienteCliente({ clienteId, limiteHistoria, limitePropuesto }
       {reales.length > 0 && (
         <p className="text-xs text-slate-400 flex items-start gap-1.5">
           <CreditCard className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-          El candado de aprobación mira el expediente más reciente no simulado, y compara el importe
-          a autorizar contra el que se verificó. Autorizar más obliga a verificar de nuevo.
+          
+          {t("El candado de aprobación mira el expediente más reciente no simulado, y compara el importe a autorizar contra el que se verificó. Autorizar más obliga a verificar de nuevo.")}
         </p>
       )}
     </div>

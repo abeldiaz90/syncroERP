@@ -6,6 +6,7 @@ import { api, ApiError } from '@/lib/api';
 import { Confirmacion, useAvisos } from '@/components/ui';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 /**
  * ============================================================================
  * Cierre del ejercicio
@@ -48,6 +49,7 @@ const dinero = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(n) || 0);
 
 export default function CierreAnualPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [ejercicio, setEjercicio] = useState(new Date().getFullYear() - 1);
   const [d, setD] = useState<Diagnostico | null>(null);
@@ -63,7 +65,7 @@ export default function CierreAnualPage() {
     } catch (e) {
       setD(null);
       avisar(
-        e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo leer el ejercicio.',
+        e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo leer el ejercicio."),
         'error',
       );
     } finally {
@@ -87,7 +89,7 @@ export default function CierreAnualPage() {
     try {
       const r = await api.post<any>(`/finanzas/cierre-anual/${ejercicio}/traspasar`, {});
       avisar(
-        `Póliza ${r.poliza?.folio ?? ''} asentada · ${r.esUtilidad ? 'utilidad' : 'pérdida'} de ` +
+        `Póliza ${r.poliza?.folio ?? ''} asentada · ${r.esUtilidad ? 'utilidad' : t("pérdida")} de ` +
           `${dinero(Math.abs(r.resultado))}. ${r.siguientePaso}`,
         'exito',
       );
@@ -95,7 +97,7 @@ export default function CierreAnualPage() {
       await cargar(ejercicio);
     } catch (e) {
       setErrorTraspaso(
-        e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo traspasar el resultado.',
+        e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo traspasar el resultado."),
       );
     } finally {
       setTraspasando(false);
@@ -110,11 +112,12 @@ export default function CierreAnualPage() {
         <div>
           <h1 className="text-3xl font-black flex items-center gap-3">
             <CalendarCheck />
-            Cierre del ejercicio
+            
+            {t("Cierre del ejercicio")}
           </h1>
           <p className="text-slate-500">
-            Deja en cero ingresos, costos y gastos, y manda el resultado del año al capital. Sin
-            esto, en enero el estado de resultados sigue contando las ventas del año pasado.
+            
+            {t("Deja en cero ingresos, costos y gastos, y manda el resultado del año al capital. Sin esto, en enero el estado de resultados sigue contando las ventas del año pasado.")}
           </p>
         </div>
         <div className="flex gap-2 items-center">
@@ -125,8 +128,8 @@ export default function CierreAnualPage() {
             onChange={(e) => setEjercicio(Number(e.target.value))}
           />
           <button
-            aria-label="Volver a revisar"
-            title="Volver a revisar"
+            aria-label={t("Volver a revisar")}
+            title={t("Volver a revisar")}
             onClick={() => void cargar(ejercicio)}
             className="p-2 border rounded-xl"
           >
@@ -139,26 +142,27 @@ export default function CierreAnualPage() {
         <>
           <section className="grid md:grid-cols-4 gap-3">
             {[
-              { etiqueta: 'Ingresos', valor: dinero(d.totalIngresos), color: 'text-emerald-700' },
-              { etiqueta: 'Costos', valor: dinero(d.totalCostos), color: 'text-slate-700' },
-              { etiqueta: 'Gastos', valor: dinero(d.totalGastos), color: 'text-slate-700' },
+              { etiqueta: t("Ingresos"), valor: dinero(d.totalIngresos), color: 'text-emerald-700' },
+              { etiqueta: t("Costos"), valor: dinero(d.totalCostos), color: 'text-slate-700' },
+              { etiqueta: t("Gastos"), valor: dinero(d.totalGastos), color: 'text-slate-700' },
               {
-                etiqueta: d.resultado >= 0 ? 'Utilidad' : 'Pérdida',
+                etiqueta: d.resultado >= 0 ? t("Utilidad") : t("Pérdida"),
                 valor: dinero(Math.abs(d.resultado)),
                 color: d.resultado >= 0 ? 'text-blue-700' : 'text-rose-700',
               },
-            ].map((t) => (
-              <div key={t.etiqueta} className="border rounded-2xl p-4 bg-white">
+            ].map((tarjeta) => (
+              <div key={tarjeta.etiqueta} className="border rounded-2xl p-4 bg-white">
                 <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">
-                  {t.etiqueta}
+                  {/* no-se-traduce: la etiqueta ya viene de t("…") */}
+                  {tarjeta.etiqueta}
                 </div>
-                <div className={`text-2xl font-black ${t.color}`}>{t.valor}</div>
+                <div className={`text-2xl font-black ${tarjeta.color}`}>{tarjeta.valor}</div>
               </div>
             ))}
           </section>
 
           <section className="border rounded-2xl p-4 bg-white space-y-3">
-            <h2 className="font-bold text-lg">Los doce meses</h2>
+            <h2 className="font-bold text-lg">{t("Los doce meses")}</h2>
             <div className="flex flex-wrap gap-2">
               {MESES.map((nombre, i) => {
                 const mes = i + 1;
@@ -174,20 +178,20 @@ export default function CierreAnualPage() {
                           : 'bg-amber-100 text-amber-900'
                     }`}
                   >
-                    {nombre}
-                    {cerrado ? ' · cerrado' : mes === 12 ? ' · abierto (así debe estar)' : ' · abierto'}
+                    {t(nombre)}
+                    {cerrado ? t("· cerrado") : mes === 12 ? t("· abierto (así debe estar)") : t("· abierto")}
                   </span>
                 );
               })}
             </div>
             <p className="text-sm text-slate-500">
-              El traspaso se asienta con <b>diciembre abierto</b>: la póliza lleva fecha del 31 de
+              El traspaso se asienta con <b>{t("diciembre abierto")}</b>: la póliza lleva fecha del 31 de
               diciembre y un período cerrado no admite pólizas. Cerrar diciembre después es el acto
               que sella el ejercicio.
             </p>
             <p className="text-sm text-slate-500">
               Resultado a capital:{' '}
-              <b>{d.cuentaUtilidad ?? 'sin cuenta configurada'}</b>
+              <b>{d.cuentaUtilidad ?? t("sin cuenta configurada")}</b>
               {d.cuentaPerdida ? ` · pérdida a ${d.cuentaPerdida}` : ''}
             </p>
           </section>
@@ -196,7 +200,8 @@ export default function CierreAnualPage() {
             <section className="border border-amber-300 rounded-2xl p-4 bg-amber-50 space-y-2">
               <h2 className="font-bold text-lg flex items-center gap-2 text-amber-900">
                 <AlertTriangle className="w-5 h-5" />
-                Todavía no se puede cerrar
+                
+                {t("Todavía no se puede cerrar")}
               </h2>
               <ul className="list-disc pl-5 text-sm text-amber-900 space-y-1">
                 {d.impedimentos.map((m, i) => (
@@ -208,12 +213,13 @@ export default function CierreAnualPage() {
             <section className="border border-emerald-300 rounded-2xl p-4 bg-emerald-50 space-y-3">
               <h2 className="font-bold text-lg flex items-center gap-2 text-emerald-900">
                 <CheckCircle2 className="w-5 h-5" />
-                Listo para traspasar
+                
+                {t("Listo para traspasar")}
               </h2>
               <p className="text-sm text-emerald-900">
-                {d.cuentasPorSaldar === 1 ? 'Se saldará' : 'Se saldarán'}{' '}
+                {d.cuentasPorSaldar === 1 ? t("Se saldará") : t("Se saldarán")}{' '}
                 <b>{plural(d.cuentasPorSaldar, 'cuenta')}</b> y se asentará{' '}
-                {d.resultado >= 0 ? 'una utilidad' : 'una pérdida'} de{' '}
+                {d.resultado >= 0 ? t("una utilidad") : t("una pérdida")} de{' '}
                 <b>{dinero(Math.abs(d.resultado))}</b>.
               </p>
               <button
@@ -221,7 +227,7 @@ export default function CierreAnualPage() {
                 disabled={traspasando || !puede}
                 className="px-5 py-2 rounded-xl bg-slate-900 text-white font-bold disabled:opacity-50"
               >
-                {traspasando ? 'Asentando…' : 'Traspasar el resultado'}
+                {traspasando ? t("Asentando…") : t("Traspasar el resultado")}
               </button>
             </section>
           )}
@@ -230,7 +236,8 @@ export default function CierreAnualPage() {
             <p className="text-sm text-slate-500">
               Ya asentado en la póliza <b>{d.yaAsentado.folio}</b>.{' '}
               <Link href="/dashboard/finanzas/polizas" className="underline">
-                Ver pólizas
+                
+                {t("Ver pólizas")}
               </Link>
             </p>
           )}
@@ -241,7 +248,7 @@ export default function CierreAnualPage() {
         abierto={preguntando}
         titulo={`Traspasar el resultado del ${ejercicio}`}
         mensaje={`Se asentará la póliza de cierre del ${ejercicio} con fecha 31 de diciembre. Deja en cero las cuentas de ingreso, costo y gasto y manda el resultado al capital.`}
-        textoConfirmar="Asentar la póliza de cierre"
+        textoConfirmar={t("Asentar la póliza de cierre")}
         peligroso
         procesando={traspasando}
         error={errorTraspaso}

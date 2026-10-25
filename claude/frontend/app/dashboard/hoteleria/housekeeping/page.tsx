@@ -15,6 +15,7 @@ import {
   Wrench,
 } from "lucide-react";
 
+import { useT } from '@/components/I18nProvider';
 interface ITarea {
   id: string;
   habitacionNumero: string;
@@ -36,6 +37,7 @@ interface IHotel {
 }
 
 export default function HousekeepingPage() {
+  const t = useT();
   const api =
     process.env.NEXT_PUBLIC_API_URL ||
     (process.env.NODE_ENV === "production"
@@ -165,7 +167,7 @@ export default function HousekeepingPage() {
       return;
     }
     const d = await r.json().catch(() => null);
-    mostrar(d?.message || "No se pudo asignar la tarea.", false);
+    mostrar(d?.message || t("No se pudo asignar la tarea."), false);
   };
 
   const ejecutarTarea = async (hab: IHab) => {
@@ -175,7 +177,7 @@ export default function HousekeepingPage() {
         ["PENDIENTE", "EN_PROCESO"].includes(t.estado),
     );
     if (!tarea) {
-      mostrar("No existe una tarea activa para esta habitación.", false);
+      mostrar(t("No existe una tarea activa para esta habitación."), false);
       return;
     }
     const accion = tarea.estado === "PENDIENTE" ? "iniciar" : "terminar";
@@ -192,7 +194,7 @@ export default function HousekeepingPage() {
       return;
     }
     const d = await r.json().catch(() => null);
-    mostrar(d?.message || "No se pudo actualizar la tarea.", false);
+    mostrar(d?.message || t("No se pudo actualizar la tarea."), false);
   };
 
   const inspeccionar = async (hab: IHab, aprobado: boolean) => {
@@ -200,7 +202,7 @@ export default function HousekeepingPage() {
       (t) => t.habitacionId === hab.id && t.estado === "TERMINADA",
     );
     if (!tarea) {
-      mostrar("No se encontró la limpieza terminada.", false);
+      mostrar(t("No se encontró la limpieza terminada."), false);
       return;
     }
     /*
@@ -221,7 +223,7 @@ export default function HousekeepingPage() {
     if (!aprobado) {
       const motivo = await solicitarTexto(
         `¿Qué encontraste mal en la habitación ${hab.numero}? Lo va a leer quien la vuelva a limpiar.`,
-        { titulo: "Rechazar la inspección", obligatorio: true },
+        { titulo: t("Rechazar la inspección"), obligatorio: true },
       );
       if (motivo === null) return;
       comentario = motivo;
@@ -243,7 +245,7 @@ export default function HousekeepingPage() {
       return;
     }
     const d = await r.json().catch(() => null);
-    mostrar(d?.message || "No se pudo registrar la inspección.", false);
+    mostrar(d?.message || t("No se pudo registrar la inspección."), false);
   };
 
   const volverDisponible = async (hab: IHab) => {
@@ -285,13 +287,16 @@ export default function HousekeepingPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-[0.15em] mb-1">
-            Operación
+            
+            {t("Operación")}
           </p>
           <h1 className="text-3xl font-semibold text-slate-900 tracking-tight">
-            Housekeeping
+            
+            {t("Housekeeping")}
           </h1>
           <p className="text-slate-500 mt-1">
-            Habitaciones que requieren limpieza o mantenimiento.
+            
+            {t("Habitaciones que requieren limpieza o mantenimiento.")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -303,12 +308,12 @@ export default function HousekeepingPage() {
             >
               {hoteles.map((ho) => (
                 <option key={ho.id} value={ho.id}>
-                  {ho.nombre}
+                  {t(ho.nombre)}
                 </option>
               ))}
             </select>
           )}
-          <button aria-label="Volver a cargar" title="Volver a cargar"
+          <button aria-label={t("Volver a cargar")} title={t("Volver a cargar")}
             onClick={cargar}
             className="p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50"
           >
@@ -322,9 +327,10 @@ export default function HousekeepingPage() {
       enMantenimiento.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center">
           <CheckCircle2 className="w-12 h-12 text-emerald-200 mx-auto mb-3" />
-          <p className="font-semibold text-slate-700">Todo en orden</p>
+          <p className="font-semibold text-slate-700">{t("Todo en orden")}</p>
           <p className="text-sm text-slate-400 mt-1">
-            No hay habitaciones pendientes de limpieza o mantenimiento.
+            
+            {t("No hay habitaciones pendientes de limpieza o mantenimiento.")}
           </p>
         </div>
       ) : (
@@ -335,7 +341,8 @@ export default function HousekeepingPage() {
               <div className="flex items-center gap-2 mb-4">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
                 <h3 className="font-semibold text-slate-900">
-                  Pendientes de limpieza
+                  
+                  {t("Pendientes de limpieza")}
                 </h3>
                 <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                   {enLimpieza.length}
@@ -356,11 +363,12 @@ export default function HousekeepingPage() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {hab.tipoHabitacion?.nombre} · Piso {hab.piso}
+                          {t(hab.tipoHabitacion?.nombre)} · Piso {hab.piso}
                         </p>
                       </div>
                       <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-full">
-                        Limpieza
+                        
+                        {t("Limpieza")}
                       </span>
                     </div>
                     {(() => {
@@ -394,14 +402,14 @@ export default function HousekeepingPage() {
                         return (
                           <>
                             <p className="text-[12px] text-slate-500 mb-3 leading-relaxed">
-                              Esta habitación no tiene tarea de limpieza. Las crea el
-                              check-out; la pusieron en limpieza a mano.
+                              
+                              {"Esta habitación no tiene tarea de limpieza. Las crea el check-out; la pusieron en limpieza a mano."}
                             </p>
                             <button
                               onClick={() => volverDisponible(hab)}
                               className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50"
                             >
-                              <Check className="w-4 h-4" /> Darla por limpia
+                              <Check className="w-4 h-4" />  {"Darla por limpia"}
                             </button>
                           </>
                         );
@@ -409,7 +417,8 @@ export default function HousekeepingPage() {
                       return (
                         <div className="mb-3">
                           <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                            Camarista
+                            
+                            {"Camarista"}
                           </label>
                           <select
                             value={personas.find((p) => p.nombreCompleto === t.asignadoANombre)?.id ?? ""}
@@ -419,7 +428,7 @@ export default function HousekeepingPage() {
                             }}
                             className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm bg-white"
                           >
-                            <option value="">Sin asignar</option>
+                            <option value="">{"Sin asignar"}</option>
                             {personas.map((p) => (
                               <option key={p.id} value={p.id}>{p.nombreCompleto}</option>
                             ))}
@@ -462,7 +471,8 @@ export default function HousekeepingPage() {
               <div className="flex items-center gap-2 mb-4">
                 <span className="w-2.5 h-2.5 rounded-full bg-violet-500" />
                 <h3 className="font-semibold text-slate-900">
-                  Pendientes de inspección
+                  
+                  {t("Pendientes de inspección")}
                 </h3>
                 <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                   {enInspeccion.length}
@@ -483,11 +493,12 @@ export default function HousekeepingPage() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {hab.tipoHabitacion?.nombre} · Piso {hab.piso}
+                          {t(hab.tipoHabitacion?.nombre)} · Piso {hab.piso}
                         </p>
                       </div>
                       <span className="text-[11px] text-violet-700 bg-violet-50 px-2 py-1 rounded-full">
-                        Inspección
+                        
+                        {t("Inspección")}
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -496,14 +507,16 @@ export default function HousekeepingPage() {
                         className="rounded-lg border border-rose-200 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50"
                       >
                         <X className="inline w-4 h-4 mr-1" />
-                        Rechazar
+                        
+                        {t("Rechazar")}
                       </button>
                       <button
                         onClick={() => void inspeccionar(hab, true)}
                         className="rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white hover:bg-emerald-700"
                       >
                         <Check className="inline w-4 h-4 mr-1" />
-                        Aprobar
+                        
+                        {t("Aprobar")}
                       </button>
                     </div>
                   </div>
@@ -518,7 +531,8 @@ export default function HousekeepingPage() {
               <div className="flex items-center gap-2 mb-4">
                 <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
                 <h3 className="font-semibold text-slate-900">
-                  En mantenimiento
+                  
+                  {t("En mantenimiento")}
                 </h3>
                 <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                   {enMantenimiento.length}
@@ -539,18 +553,19 @@ export default function HousekeepingPage() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {hab.tipoHabitacion?.nombre} · Piso {hab.piso}
+                          {t(hab.tipoHabitacion?.nombre)} · Piso {hab.piso}
                         </p>
                       </div>
                       <span className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
-                        Mantenim.
+                        
+                        {t("Mantenim.")}
                       </span>
                     </div>
                     <button
                       onClick={() => volverDisponible(hab)}
                       className="w-full flex items-center justify-center gap-2 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800"
                     >
-                      <Check className="w-4 h-4" /> Marcar disponible
+                      <Check className="w-4 h-4" />  {t("Marcar disponible")}
                     </button>
                   </div>
                 ))}

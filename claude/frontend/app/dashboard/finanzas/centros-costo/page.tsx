@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, Building2, Plus, Power } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 
+import { useT } from '@/components/I18nProvider';
 /*
  * ============================================================================
  * Centros de costo
@@ -44,6 +45,7 @@ const vacio = {
 };
 
 export default function CentrosCostoPage() {
+  const t = useT();
   const [centros, setCentros] = useState<ICentro[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -68,8 +70,8 @@ export default function CentrosCostoPage() {
         setCentros([]);
         setError(
           e instanceof ApiError && e.status === 403
-            ? 'Tu perfil no incluye el catálogo de centros de costo.'
-            : 'No se pudo consultar el catálogo de centros de costo.',
+            ? t("Tu perfil no incluye el catálogo de centros de costo.")
+            : t("No se pudo consultar el catálogo de centros de costo."),
         );
       } finally {
         setCargando(false);
@@ -97,7 +99,7 @@ export default function CentrosCostoPage() {
       setForm({ ...vacio });
       setAviso(
         centros.length === 0
-          ? 'Primer centro dado de alta. A partir de ahora, las pólizas manuales de cuentas de resultado tienen que decir a qué centro pertenecen.'
+          ? t("Primer centro dado de alta. A partir de ahora, las pólizas manuales de cuentas de resultado tienen que decir a qué centro pertenecen.")
           : '',
       );
       await consultar();
@@ -105,7 +107,7 @@ export default function CentrosCostoPage() {
       /* El servidor explica por qué —código repetido, padre de otra empresa,
        * círculo en el árbol— y eso se enseña tal cual: es más útil que
        * «no se pudo guardar». */
-      setError(e instanceof ApiError ? e.message : 'No se pudo guardar el centro de costo.');
+      setError(e instanceof ApiError ? e.message : t("No se pudo guardar el centro de costo."));
     } finally {
       setGuardando(false);
     }
@@ -117,7 +119,7 @@ export default function CentrosCostoPage() {
       await api.patch(`/finanzas/centros-costo/${c.id}`, { activo: !c.activo });
       await consultar();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'No se pudo cambiar el estado.');
+      setError(e instanceof ApiError ? e.message : t("No se pudo cambiar el estado."));
     }
   };
 
@@ -128,10 +130,10 @@ export default function CentrosCostoPage() {
       <header className="flex items-center gap-3">
         <Building2 className="h-6 w-6 text-slate-500" />
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Centros de costo</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{t("Centros de costo")}</h1>
           <p className="text-sm text-slate-500">
-            La dimensión con la que el estado de resultados se abre por sucursal,
-            proyecto o línea de negocio.
+            
+            {t("La dimensión con la que el estado de resultados se abre por sucursal, proyecto o línea de negocio.")}
           </p>
         </div>
       </header>
@@ -139,20 +141,20 @@ export default function CentrosCostoPage() {
       {centros.length === 0 && !cargando && !error && (
         <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
           Esta empresa todavía no lleva centros de costo, y por eso las pólizas no
-          los piden. <strong>En cuanto des de alta el primero</strong>, toda partida
+          los piden. <strong>{t("En cuanto des de alta el primero")}</strong>, toda partida
           manual de una cuenta de ingreso, costo o gasto tendrá que decir a cuál
           pertenece.
         </div>
       )}
       {aviso && (
         <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
-          {aviso}
+          {t(aviso)}
         </div>
       )}
       {error && (
         <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
+          <span>{t(error)}</span>
         </div>
       )}
 
@@ -160,13 +162,13 @@ export default function CentrosCostoPage() {
         <input
           value={form.codigo}
           onChange={(e) => setForm({ ...form, codigo: e.target.value })}
-          placeholder="Código"
+          placeholder={t("Código")}
           className="rounded-md border border-slate-200 px-2 py-1.5 text-sm"
         />
         <input
           value={form.nombre}
           onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-          placeholder="Nombre"
+          placeholder={t("Nombre")}
           className="rounded-md border border-slate-200 px-2 py-1.5 text-sm md:col-span-2"
         />
         <select
@@ -185,18 +187,18 @@ export default function CentrosCostoPage() {
           onChange={(e) => setForm({ ...form, padreId: e.target.value })}
           className="rounded-md border border-slate-200 px-2 py-1.5 text-sm"
         >
-          <option value="">Sin padre</option>
+          <option value="">{t("Sin padre")}</option>
           {padres.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.codigo} · {c.nombre}
+              {c.codigo} · {t(c.nombre)}
             </option>
           ))}
         </select>
         <input
           value={form.oficinaExternaId}
           onChange={(e) => setForm({ ...form, oficinaExternaId: e.target.value })}
-          placeholder="Oficina del core (opcional)"
-          title="La oficina de Fineract que corresponde a este centro. Fineract admite una sola oficina por asiento: una póliza repartida entre centros de oficinas distintas se espeja con la de la empresa."
+          placeholder={t("Oficina del core (opcional)")}
+          title={t("La oficina de Fineract que corresponde a este centro. Fineract admite una sola oficina por asiento: una póliza repartida entre centros de oficinas distintas se espeja con la de la empresa.")}
           className="rounded-md border border-slate-200 px-2 py-1.5 text-sm md:col-span-2"
         />
         <button
@@ -204,7 +206,7 @@ export default function CentrosCostoPage() {
           disabled={guardando || !form.codigo.trim() || !form.nombre.trim()}
           className="flex items-center justify-center gap-1 rounded-md bg-slate-800 px-3 py-1.5 text-sm text-white disabled:opacity-40"
         >
-          <Plus className="h-4 w-4" /> Agregar
+          <Plus className="h-4 w-4" />  {t("Agregar")}
         </button>
       </div>
 
@@ -217,19 +219,20 @@ export default function CentrosCostoPage() {
             consultar(e.target.checked);
           }}
         />
-        Ver también los desactivados
+        
+        {t("Ver también los desactivados")}
       </label>
 
       <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-slate-500">
             <tr>
-              <th className="px-4 py-2 font-medium">Código</th>
-              <th className="px-4 py-2 font-medium">Nombre</th>
-              <th className="px-4 py-2 font-medium">Tipo</th>
-              <th className="px-4 py-2 font-medium">Recibe movimientos</th>
-              <th className="px-4 py-2 font-medium">Oficina del core</th>
-              <th className="px-4 py-2 font-medium">Estado</th>
+              <th className="px-4 py-2 font-medium">{t("Código")}</th>
+              <th className="px-4 py-2 font-medium">{t("Nombre")}</th>
+              <th className="px-4 py-2 font-medium">{t("Tipo")}</th>
+              <th className="px-4 py-2 font-medium">{t("Recibe movimientos")}</th>
+              <th className="px-4 py-2 font-medium">{t("Oficina del core")}</th>
+              <th className="px-4 py-2 font-medium">{t("Estado")}</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
@@ -238,32 +241,33 @@ export default function CentrosCostoPage() {
               <tr key={c.id} className={c.activo ? '' : 'bg-slate-50 text-slate-400'}>
                 <td className="px-4 py-2 font-mono text-xs">{c.codigo}</td>
                 <td className="px-4 py-2" style={{ paddingLeft: 16 + (c.nivel ?? 0) * 16 }}>
-                  {c.nombre}
+                  {t(c.nombre)}
                 </td>
                 <td className="px-4 py-2 text-slate-500">{c.tipo.replace('_', ' ')}</td>
                 <td className="px-4 py-2">
                   {c.aceptaMovimientos ? (
-                    'Sí'
+                    t("Sí")
                   ) : (
-                    <span title="Agrupa a otros centros: su saldo es la suma de ellos.">
-                      No — agrupa
+                    <span title={t("Agrupa a otros centros: su saldo es la suma de ellos.")}>
+                      
+                      {t("No — agrupa")}
                     </span>
                   )}
                 </td>
                 <td className="px-4 py-2 text-slate-500">{c.oficinaExternaId ?? '—'}</td>
-                <td className="px-4 py-2">{c.activo ? 'Activo' : 'Desactivado'}</td>
+                <td className="px-4 py-2">{c.activo ? t("Activo") : t("Desactivado")}</td>
                 <td className="px-4 py-2 text-right">
                   <button
                     onClick={() => alternarActivo(c)}
                     className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800"
                     title={
                       c.activo
-                        ? 'Deja de ofrecerse para capturar; su historia se conserva'
-                        : 'Vuelve a ofrecerse para capturar'
+                        ? t("Deja de ofrecerse para capturar; su historia se conserva")
+                        : t("Vuelve a ofrecerse para capturar")
                     }
                   >
                     <Power className="h-3.5 w-3.5" />
-                    {c.activo ? 'Desactivar' : 'Activar'}
+                    {c.activo ? t("Desactivar") : t("Activar")}
                   </button>
                 </td>
               </tr>
@@ -271,7 +275,8 @@ export default function CentrosCostoPage() {
             {centros.length === 0 && !cargando && (
               <tr>
                 <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
-                  Sin centros de costo.
+                  
+                  {t("Sin centros de costo.")}
                 </td>
               </tr>
             )}

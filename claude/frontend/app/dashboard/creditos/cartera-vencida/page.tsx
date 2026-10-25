@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { ProtectedElement } from '@/app/components/ProtectedElement';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface IAgingItem {
   cuota: {
     id: string; numeroCuota: number; fechaVencimiento: string;
@@ -40,6 +41,7 @@ const BUCKETS = [
 ] as const;
 
 export default function CarteraVencidaPage() {
+  const t = useT();
   const [cartera, setCartera]     = useState<ICartera|null>(null);
   const [cargando, setCargando]   = useState(true);
   const [bucketAbierto, setBucketAbierto] = useState<string>('d30');
@@ -84,13 +86,13 @@ export default function CarteraVencidaPage() {
       setCartera(null);
       setAviso({
         texto: res.status === 403
-          ? 'Tu perfil no incluye la consulta de cartera vencida.'
-          : 'No se pudo consultar la cartera vencida. Vuelve a intentarlo.',
+          ? t("Tu perfil no incluye la consulta de cartera vencida.")
+          : t("No se pudo consultar la cartera vencida. Vuelve a intentarlo."),
         ok: false,
       });
     } catch {
       setCartera(null);
-      setAviso({ texto: 'No hay conexión con el servidor.', ok: false });
+      setAviso({ texto: t("No hay conexión con el servidor."), ok: false });
     } finally { setCargando(false); }
   };
 
@@ -111,7 +113,7 @@ export default function CarteraVencidaPage() {
         const d = await res.json().catch(() => null);
         setAviso({
           texto: (Array.isArray(d?.message) ? d.message.join(', ') : d?.message)
-            || 'No se pudo recalcular la antigüedad. Los números siguen como estaban.',
+            || t("No se pudo recalcular la antigüedad. Los números siguen como estaban."),
           ok: false,
         });
         return;
@@ -119,7 +121,7 @@ export default function CarteraVencidaPage() {
       await cargar();
       setAviso({ texto: 'Antigüedad recalculada.', ok: true });
     } catch {
-      setAviso({ texto: 'No hay conexión con el servidor. No se recalculó nada.', ok: false });
+      setAviso({ texto: t("No hay conexión con el servidor. No se recalculó nada."), ok: false });
     } finally { setRecalculando(false); }
   };
 
@@ -133,7 +135,7 @@ export default function CarteraVencidaPage() {
   if (cargando) return (
     <div className="p-16 text-center">
       <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
-      <p className="text-slate-400 text-sm">Cargando cartera...</p>
+      <p className="text-slate-400 text-sm">{t("Cargando cartera...")}</p>
     </div>
   );
 
@@ -142,24 +144,24 @@ export default function CarteraVencidaPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Crédito & Cobranza</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Crédito & Cobranza")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <TrendingDown className="w-8 h-8 text-rose-500"/> Cartera Vencida
+            <TrendingDown className="w-8 h-8 text-rose-500"/>  {t("Cartera Vencida")}
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Análisis de antigüedad de saldos (aging report).</p>
+          <p className="text-slate-500 text-sm mt-1">{t("Análisis de antigüedad de saldos (aging report).")}</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={cargar}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 text-sm font-medium hover:bg-slate-50 shadow-sm">
-            <RefreshCw className="w-4 h-4"/> Actualizar
+            <RefreshCw className="w-4 h-4"/>  {t("Actualizar")}
           </button>
           {/* Recalcular SÍ escribe: sólo aparece para quien puede hacerlo. */}
           <ProtectedElement metodo="POST" ruta="/api/credito/cobranza/actualizar-vencidos">
             <button onClick={recalcular} disabled={recalculando}
-              title="Vuelve a clasificar las cuotas por días de atraso"
+              title={t("Vuelve a clasificar las cuotas por días de atraso")}
               className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl text-sm font-semibold hover:bg-rose-700 shadow-sm disabled:opacity-50">
               <RefreshCw className={`w-4 h-4 ${recalculando ? 'animate-spin' : ''}`}/>
-              {recalculando ? 'Recalculando…' : 'Recalcular antigüedad'}
+              {recalculando ? t("Recalculando…") : t("Recalcular antigüedad")}
             </button>
           </ProtectedElement>
         </div>
@@ -167,33 +169,33 @@ export default function CarteraVencidaPage() {
 
       {aviso && (
         <div className={`mb-6 rounded-xl px-4 py-3 text-sm ${aviso.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
-          {aviso.texto}
+          {t(aviso.texto)}
         </div>
       )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase text-slate-500 mb-1">Cartera Total</p>
+          <p className="text-xs font-bold uppercase text-slate-500 mb-1">{t("Cartera Total")}</p>
           <p className="text-2xl font-black text-slate-900">{fmt$(totalGeneral)}</p>
-          <p className="text-xs text-slate-400 mt-1">{cartera?(Object.values(cartera) as IAgingItem[][]).reduce((s,b)=>s+b.length,0):0} cuotas</p>
+          <p className="text-xs text-slate-400 mt-1">{t("{n0} cuotas", { n0: cartera?(Object.values(cartera) as IAgingItem[][]).reduce((s,b)=>s+b.length,0):0 })}</p>
         </div>
         <div className="bg-white rounded-2xl border border-rose-200 p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase text-rose-500 mb-1">Total Vencido</p>
+          <p className="text-xs font-bold uppercase text-rose-500 mb-1">{t("Total Vencido")}</p>
           <p className="text-2xl font-black text-rose-600">{fmt$(totalVencido)}</p>
-          <p className="text-xs text-rose-400 mt-1">{totalGeneral>0?Math.round(totalVencido/totalGeneral*100):0}% de la cartera</p>
+          <p className="text-xs text-rose-400 mt-1">{t("{n0}% de la cartera", { n0: totalGeneral>0?Math.round(totalVencido/totalGeneral*100):0 })}</p>
         </div>
         <div className="bg-white rounded-2xl border border-amber-200 p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase text-amber-500 mb-1">Más de 90 días</p>
+          <p className="text-xs font-bold uppercase text-amber-500 mb-1">{t("Más de 90 días")}</p>
           <p className="text-2xl font-black text-amber-600">{fmt$(cartera?totalBucket(cartera.d90mas):0)}</p>
-          <p className="text-xs text-amber-400 mt-1">{cartera?.d90mas?.length??0} cuotas críticas</p>
+          <p className="text-xs text-amber-400 mt-1">{t("{n0} cuotas críticas", { n0: cartera?.d90mas?.length??0 })}</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase text-slate-500 mb-1">Clientes con adeudo</p>
+          <p className="text-xs font-bold uppercase text-slate-500 mb-1">{t("Clientes con adeudo")}</p>
           <p className="text-2xl font-black text-slate-900">
             {cartera?clientesUnicos([...cartera.d30,...cartera.d60,...cartera.d90,...cartera.d90mas]):0}
           </p>
-          <p className="text-xs text-slate-400 mt-1">con saldo vencido</p>
+          <p className="text-xs text-slate-400 mt-1">{t("con saldo vencido")}</p>
         </div>
       </div>
 
@@ -201,7 +203,7 @@ export default function CarteraVencidaPage() {
       {cartera&&(
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
           <div className="px-6 py-4 border-b border-slate-100">
-            <h2 className="font-bold text-slate-800">Distribución por antigüedad</h2>
+            <h2 className="font-bold text-slate-800">{t("Distribución por antigüedad")}</h2>
           </div>
           <div className="p-6">
             {/* Barra visual */}
@@ -224,9 +226,9 @@ export default function CarteraVencidaPage() {
                 return (
                   <div key={b.key} className={`p-3 rounded-xl border ${b.bg} ${b.border} cursor-pointer transition-all ${bucketAbierto===b.key?'ring-2 ring-offset-1 ring-indigo-400':''}`}
                     onClick={()=>setBucketAbierto(bucketAbierto===b.key?'':b.key)}>
-                    <p className={`text-xs font-bold ${b.text}`}>{b.label}</p>
+                    <p className={`text-xs font-bold ${b.text}`}>{t(b.label)}</p>
                     <p className={`text-lg font-black ${b.text} mt-1`}>{fmt$(monto)}</p>
-                    <p className={`text-[10px] ${b.text} opacity-70`}>{items.length} cuotas · {pct}%</p>
+                    <p className={`text-[10px] ${b.text} opacity-70`}>{t("{n0} cuotas · {n1}%", { n0: items.length, n1: pct })}</p>
                   </div>
                 );
               })}
@@ -241,26 +243,26 @@ export default function CarteraVencidaPage() {
         const items = cartera[bucketAbierto as keyof ICartera] as IAgingItem[];
         if (!items||items.length===0) return (
           <div className={`rounded-2xl border ${bucket.bg} ${bucket.border} p-8 text-center`}>
-            <p className={`font-semibold ${bucket.text}`}>Sin cuotas en este rango</p>
+            <p className={`font-semibold ${bucket.text}`}>{t("Sin cuotas en este rango")}</p>
           </div>
         );
         return (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className={`flex items-center justify-between px-6 py-4 ${bucket.bg} border-b ${bucket.border}`}>
-              <h3 className={`font-bold ${bucket.text}`}>{bucket.label} — {plural(items.length, "cuota")}</h3>
+              <h3 className={`font-bold ${bucket.text}`}>{t(bucket.label)} — {plural(items.length, "cuota")}</h3>
               <span className={`font-black text-lg ${bucket.text}`}>{fmt$(totalBucket(items))}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                    <th className="px-5 py-3 text-left">Cliente</th>
-                    <th className="px-5 py-3 text-left">Crédito</th>
-                    <th className="px-5 py-3 text-center">Cuota</th>
-                    <th className="px-5 py-3 text-center">Vencimiento</th>
-                    <th className="px-5 py-3 text-center">Días vencida</th>
-                    <th className="px-5 py-3 text-right">Pendiente</th>
-                    <th className="px-5 py-3 text-center">Acción</th>
+                    <th className="px-5 py-3 text-left">{t("Cliente")}</th>
+                    <th className="px-5 py-3 text-left">{t("Crédito")}</th>
+                    <th className="px-5 py-3 text-center">{t("Cuota")}</th>
+                    <th className="px-5 py-3 text-center">{t("Vencimiento")}</th>
+                    <th className="px-5 py-3 text-center">{t("Días vencida")}</th>
+                    <th className="px-5 py-3 text-right">{t("Pendiente")}</th>
+                    <th className="px-5 py-3 text-center">{t("Acción")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -277,14 +279,15 @@ export default function CarteraVencidaPage() {
                       <td className="px-5 py-3 text-center text-slate-500 text-xs">{fmtFecha(item.cuota.fechaVencimiento)}</td>
                       <td className="px-5 py-3 text-center">
                         <span className={`text-xs font-bold px-2 py-1 rounded-full ${bucket.bg} ${bucket.text}`}>
-                          {item.diasVencida>0?`${item.diasVencida} días`:'Al corriente'}
+                          {item.diasVencida>0?`${item.diasVencida} días`:t("Al corriente")}
                         </span>
                       </td>
                       <td className="px-5 py-3 text-right font-mono font-bold text-slate-900">{fmt$(item.montoPendiente)}</td>
                       <td className="px-5 py-3 text-center">
                         <Link href="/dashboard/creditos/cobranza"
                           className="inline-flex items-center gap-1 text-xs text-indigo-600 font-semibold hover:underline">
-                          Cobrar <ChevronRight className="w-3 h-3"/>
+                          
+                          {t("Cobrar")} <ChevronRight className="w-3 h-3"/>
                         </Link>
                       </td>
                     </tr>
@@ -292,7 +295,7 @@ export default function CarteraVencidaPage() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-100 border-t-2 border-slate-300">
-                    <td colSpan={5} className="px-5 py-3 text-right text-xs font-bold uppercase text-slate-600 tracking-wider">Total {bucket.label}</td>
+                    <td colSpan={5} className="px-5 py-3 text-right text-xs font-bold uppercase text-slate-600 tracking-wider">Total {t(bucket.label)}</td>
                     <td className="px-5 py-3 text-right font-mono font-black text-slate-900">{fmt$(totalBucket(items))}</td>
                     <td/>
                   </tr>

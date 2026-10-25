@@ -23,6 +23,7 @@ import { api, ApiError } from "@/lib/api";
 import { solicitarTexto } from "@/components/ui/dialogos";
 import { fechaCorta } from "@/lib/fechas";
 
+import { useT } from '@/components/I18nProvider';
 type Hotel = { id: string; nombre: string };
 type Cliente = {
   id: string;
@@ -115,6 +116,7 @@ const hoy = () => {
 };
 
 export default function CityLedgerPage() {
+  const t = useT();
   const [hoteles, setHoteles] = useState<Hotel[]>([]);
   const [hotelId, setHotelId] = useState("");
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -166,8 +168,8 @@ export default function CityLedgerPage() {
         .catch((e: unknown) =>
           fallo(
             e,
-            "Tu perfil no puede consultar las propiedades.",
-            "No se pudieron consultar las propiedades.",
+            t("Tu perfil no puede consultar las propiedades."),
+            t("No se pudieron consultar las propiedades."),
           ),
         ),
       api
@@ -175,8 +177,8 @@ export default function CityLedgerPage() {
         .catch((e: unknown) =>
           fallo(
             e,
-            "Tu perfil no puede consultar clientes: no podrás abrir convenios nuevos.",
-            "No se pudo consultar la lista de clientes.",
+            t("Tu perfil no puede consultar clientes: no podrás abrir convenios nuevos."),
+            t("No se pudo consultar la lista de clientes."),
           ),
         ),
       api
@@ -184,8 +186,8 @@ export default function CityLedgerPage() {
         .catch((e: unknown) =>
           fallo(
             e,
-            "Tu perfil no puede elegir caja: podrás ver la cartera, no cobrarla.",
-            "No se pudo consultar la lista de cajas.",
+            t("Tu perfil no puede elegir caja: podrás ver la cartera, no cobrarla."),
+            t("No se pudo consultar la lista de cajas."),
           ),
         ),
     ]);
@@ -223,7 +225,7 @@ export default function CityLedgerPage() {
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : "No se pudo consultar la cartera.",
+          : t("No se pudo consultar la cartera."),
       );
     } finally {
       setCargando(false);
@@ -273,7 +275,7 @@ export default function CityLedgerPage() {
       Icono: Clock3,
     },
     {
-      etiqueta: "Crédito disponible",
+      etiqueta: t("Crédito disponible"),
       valor: dinero(resumen.disponible),
       Icono: CreditCard,
     },
@@ -301,13 +303,13 @@ export default function CityLedgerPage() {
         {},
       );
       setMensajeEsAviso(false);
-            setMensaje("Convenio reenviado a la bandeja central de aprobaciones");
+            setMensaje(t("Convenio reenviado a la bandeja central de aprobaciones"));
       await cargarOperacion();
     } catch (e) {
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : "No se pudo reenviar el convenio.",
+          : t("No se pudo reenviar el convenio."),
       );
     }
   };
@@ -326,14 +328,14 @@ export default function CityLedgerPage() {
       );
       setMensajeEsAviso(false);
       setMensaje(
-        "Convenio suspendido. La cartera histórica permanece disponible para cobranza.",
+        t("Convenio suspendido. La cartera histórica permanece disponible para cobranza."),
       );
       await cargarOperacion();
     } catch (e) {
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : "No se pudo suspender el convenio.",
+          : t("No se pudo suspender el convenio."),
       );
     }
   };
@@ -352,14 +354,14 @@ export default function CityLedgerPage() {
       );
       setMensajeEsAviso(false);
       setMensaje(
-        "Convenio cancelado. Los saldos existentes permanecen disponibles para cobranza.",
+        t("Convenio cancelado. Los saldos existentes permanecen disponibles para cobranza."),
       );
       await cargarOperacion();
     } catch (e) {
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : "No se pudo cancelar el convenio.",
+          : t("No se pudo cancelar el convenio."),
       );
     }
   };
@@ -378,7 +380,7 @@ export default function CityLedgerPage() {
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : "No se pudo ejecutar el diagnóstico.",
+          : t("No se pudo ejecutar el diagnóstico."),
       );
     } finally {
       setCargando(false);
@@ -399,12 +401,12 @@ export default function CityLedgerPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-cyan-200">
-              <ShieldCheck className="h-4 w-4" /> Crédito hotelero controlado
+              <ShieldCheck className="h-4 w-4" />  {t("Crédito hotelero controlado")}
             </div>
-            <h1 className="text-3xl font-bold">City Ledger</h1>
+            <h1 className="text-3xl font-bold">{t("City Ledger")}</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-300">
-              Convenios que consumen una sola línea maestra, cartera global,
-              antigüedad de saldos y cobranza conectada con Finanzas.
+              
+              {t("Convenios que consumen una sola línea maestra, cartera global, antigüedad de saldos y cobranza conectada con Finanzas.")}
             </p>
           </div>
           <div className="flex gap-2">
@@ -419,14 +421,14 @@ export default function CityLedgerPage() {
                   key={hotel.id}
                   value={hotel.id}
                 >
-                  {hotel.nombre}
+                  {t(hotel.nombre)}
                 </option>
               ))}
             </select>
             <button
               onClick={() => void cargarOperacion()}
               className="rounded-xl bg-white/10 p-2.5 hover:bg-white/20"
-              title="Actualizar"
+              title={t("Actualizar")}
             >
               <RefreshCw
                 className={`h-5 w-5 ${cargando ? "animate-spin" : ""}`}
@@ -441,7 +443,7 @@ export default function CityLedgerPage() {
               className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur"
             >
               <Icono className="mb-3 h-5 w-5 text-cyan-300" />
-              <p className="text-xs text-slate-300">{etiqueta}</p>
+              <p className="text-xs text-slate-300">{t(etiqueta)}</p>
               <p className="mt-1 text-xl font-bold">{valor}</p>
             </div>
           ))}
@@ -450,7 +452,7 @@ export default function CityLedgerPage() {
 
       {error && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-          {error}
+          {t(error)}
         </div>
       )}
       {mensaje && (
@@ -462,7 +464,7 @@ export default function CityLedgerPage() {
           }`}
         >
           {mensajeEsAviso ? "⚠ " : ""}
-          {mensaje}
+          {t(mensaje)}
         </div>
       )}
 
@@ -478,7 +480,7 @@ export default function CityLedgerPage() {
             className={`rounded-xl px-4 py-2 text-sm font-semibold ${pestana === item ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}
           >
             {item === "AUDITORIA"
-              ? "Auditoría histórica"
+              ? t("Auditoría histórica")
               : item.charAt(0) + item.slice(1).toLowerCase()}
           </button>
         ))}
@@ -488,11 +490,12 @@ export default function CityLedgerPage() {
         <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
           <div className="border-b p-5">
             <h2 className="font-bold text-slate-900">
-              Estado de cuenta consolidado
+              
+              {t("Estado de cuenta consolidado")}
             </h2>
             <p className="text-sm text-slate-500">
-              Cada saldo conserva su folio, vencimiento e IVA pendiente de
-              reclasificar.
+              
+              {t("Cada saldo conserva su folio, vencimiento e IVA pendiente de reclasificar.")}
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -500,14 +503,14 @@ export default function CityLedgerPage() {
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
                   {[
-                    "Folio",
-                    "Convenio",
-                    "Emisión",
-                    "Vencimiento",
-                    "Antigüedad",
-                    "Original",
-                    "Saldo",
-                    "Estado",
+                    t("Folio"),
+                    t("Convenio"),
+                    t("Emisión"),
+                    t("Vencimiento"),
+                    t("Antigüedad"),
+                    t("Original"),
+                    t("Saldo"),
+                    t("Estado"),
                     "",
                   ].map((h) => (
                     <th key={h} className="px-4 py-3 text-left">
@@ -543,7 +546,7 @@ export default function CityLedgerPage() {
                       >
                         {cuenta.diasVencidos > 0
                           ? `${cuenta.diasVencidos} días`
-                          : "Corriente"}
+                          : t("Corriente")}
                       </td>
                       <td className="px-4 py-3">
                         {dinero(cuenta.importeOriginal, cuenta.moneda)}
@@ -564,7 +567,8 @@ export default function CityLedgerPage() {
                             onClick={() => setCuentaCobro(cuenta)}
                             className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700"
                           >
-                            Registrar cobro
+                            
+                            {t("Registrar cobro")}
                           </button>
                         )}
                       </td>
@@ -577,7 +581,8 @@ export default function CityLedgerPage() {
           {/* Vacio de verdad, no vacio por consulta caida. */}
           {!cartera.length && !error && (
             <div className="p-12 text-center text-slate-500">
-              No hay cuentas por cobrar para esta propiedad.
+              
+              {t("No hay cuentas por cobrar para esta propiedad.")}
             </div>
           )}
         </section>
@@ -591,7 +596,8 @@ export default function CityLedgerPage() {
               className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white"
             >
               <Plus className="h-4 w-4" />
-              Solicitar convenio
+              
+              {t("Solicitar convenio")}
             </button>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
@@ -609,8 +615,7 @@ export default function CityLedgerPage() {
                       {convenio.nombreComercial}
                     </h3>
                     <p className="text-sm text-slate-500">
-                      {convenio.tipo} · {convenio.diasCreditoVigente ?? convenio.diasCredito} días · Línea v{convenio.versionCreditoClienteActual ?? convenio.versionCreditoCliente ?? 1}
-                    </p>
+                      {t("{n0} · {n1} días · Línea v{n2}", { n0: convenio.tipo, n1: convenio.diasCreditoVigente ?? convenio.diasCredito, n2: convenio.versionCreditoClienteActual ?? convenio.versionCreditoCliente ?? 1 })}</p>
                   </div>
                   <span
                     className={`h-fit rounded-full px-3 py-1 text-xs font-bold ${convenio.estado === "APROBADO" ? "bg-emerald-50 text-emerald-700" : convenio.estado === "PENDIENTE" ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700"}`}
@@ -620,41 +625,39 @@ export default function CityLedgerPage() {
                 </div>
                 <div className="mt-5 grid grid-cols-3 gap-3 text-sm">
                   <div>
-                    <p className="text-xs text-slate-500">Línea maestra</p>
+                    <p className="text-xs text-slate-500">{t("Línea maestra")}</p>
                     <p className="font-bold">
                       {dinero(convenio.limiteCreditoVigente ?? convenio.limiteCredito)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Exposición global</p>
+                    <p className="text-xs text-slate-500">{t("Exposición global")}</p>
                     <p className="font-bold">
                       {dinero(convenio.saldoUtilizadoGlobal ?? convenio.saldoUtilizado)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Disponible global</p>
+                    <p className="text-xs text-slate-500">{t("Disponible global")}</p>
                     <p className="font-bold text-emerald-700">
                       {dinero(convenio.creditoDisponible)}
                     </p>
                   </div>
                 </div>
                 <p className="mt-3 text-xs text-slate-500">
-                  Saldo originado por este convenio: {dinero(convenio.saldoUtilizado)}.
-                  La disponibilidad considera también ventas a crédito y otros hoteles.
-                </p>
+                  {t("Saldo originado por este convenio: {n0}. La disponibilidad considera también ventas a crédito y otros hoteles.", { n0: dinero(convenio.saldoUtilizado) })}</p>
                 <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
                   Vigencia: <strong>{convenio.vigenciaDesde}</strong> a{" "}
-                  <strong>{convenio.vigenciaHasta || "sin fecha final"}</strong> ·
-                  Vencidos: <strong>{convenio.bloquearConSaldoVencido === false ? "excepción maestra" : "bloquean nuevos cargos"}</strong>
+                  <strong>{convenio.vigenciaHasta || t("sin fecha final")}</strong> ·
+                  Vencidos: <strong>{convenio.bloquearConSaldoVencido === false ? t("excepción maestra") : t("bloquean nuevos cargos")}</strong>
                 </div>
                 {(convenio.versionCreditoClienteActual ?? convenio.versionCreditoCliente ?? 1) !== (convenio.versionCreditoCliente ?? 1) && (
                   <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                    Evidencia del ciclo anterior: línea {dinero(convenio.limiteCreditoSnapshot ?? convenio.limiteCredito)} a {convenio.diasCreditoSnapshot ?? convenio.diasCredito} días, versión {convenio.versionCreditoCliente ?? 1}.
-                  </p>
+                    {t("Evidencia del ciclo anterior: línea {n0} a {n1} días, versión {n2}.", { n0: dinero(convenio.limiteCreditoSnapshot ?? convenio.limiteCredito), n1: convenio.diasCreditoSnapshot ?? convenio.diasCredito, n2: convenio.versionCreditoCliente ?? 1 })}</p>
                 )}
                 {convenio.condicionesCreditoVigentes === false && (
                   <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
-                    La línea maestra cambió después de aprobar este convenio. El convenio debe reenviarse a aprobación antes de aceptar nuevos cargos.
+                    
+                    {t("La línea maestra cambió después de aprobar este convenio. El convenio debe reenviarse a aprobación antes de aceptar nuevos cargos.")}
                   </p>
                 )}
                 {convenio.estado === "PENDIENTE" && (
@@ -664,7 +667,8 @@ export default function CityLedgerPage() {
                       className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-50 px-3 py-2.5 text-sm font-bold text-indigo-700 hover:bg-indigo-100"
                     >
                       <ShieldCheck className="h-4 w-4" />
-                      Ver en bandeja de aprobaciones
+                      
+                      {t("Ver en bandeja de aprobaciones")}
                     </Link>
                   </div>
                 )}
@@ -682,8 +686,8 @@ export default function CityLedgerPage() {
                         <RefreshCw className="h-4 w-4" />
                       )}
                       {requiereRenovacion(convenio)
-                        ? "Renovar y enviar a aprobación"
-                        : "Reenviar a aprobación"}
+                        ? t("Renovar y enviar a aprobación")
+                        : t("Reenviar a aprobación")}
                     </button>
                   </div>
                 )}
@@ -694,7 +698,8 @@ export default function CityLedgerPage() {
                       className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-50"
                     >
                       <Clock3 className="h-4 w-4" />
-                      Suspender nuevos cargos
+                      
+                      {t("Suspender nuevos cargos")}
                     </button>
                   </div>
                 )}
@@ -705,7 +710,8 @@ export default function CityLedgerPage() {
                       className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50"
                     >
                       <Ban className="h-4 w-4" />
-                      Cancelar convenio
+                      
+                      {t("Cancelar convenio")}
                     </button>
                   </div>
                 )}
@@ -721,18 +727,20 @@ export default function CityLedgerPage() {
             <div>
               <h2 className="flex items-center gap-2 font-bold">
                 <FileSearch className="h-5 w-5 text-indigo-600" />
-                Diagnóstico histórico de crédito hotelero
+                
+                {t("Diagnóstico histórico de crédito hotelero")}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Sólo lectura: identifica cierres anteriores sin City Ledger;
-                nunca modifica pólizas automáticamente.
+                
+                {t("Sólo lectura: identifica cierres anteriores sin City Ledger; nunca modifica pólizas automáticamente.")}
               </p>
             </div>
             <button
               onClick={() => void cargarDiagnostico()}
               className="rounded-xl border px-4 py-2 text-sm font-semibold"
             >
-              Ejecutar
+              
+              {t("Ejecutar")}
             </button>
           </div>
           {diagnostico && (
@@ -743,8 +751,8 @@ export default function CityLedgerPage() {
                 >
                   <p className="font-bold">
                     {preparacion.listo
-                      ? "Estructura mínima lista"
-                      : "Crédito hotelero bloqueado para producción"}
+                      ? t("Estructura mínima lista")
+                      : t("Crédito hotelero bloqueado para producción")}
                   </p>
                   <p className="mt-1 text-sm">{preparacion.recomendacion}</p>
                   {!!preparacion.bloqueos.length && (
@@ -758,10 +766,10 @@ export default function CityLedgerPage() {
               )}
               <div className="mt-5 grid gap-3 sm:grid-cols-4">
                 {[
-                  ["Folios a crédito", diagnostico.totalFoliosCredito],
-                  ["Sin City Ledger", diagnostico.sinCityLedger],
-                  ["Con póliza", diagnostico.conPolizaGenerada],
-                  ["Pendientes", diagnostico.pendientesContables],
+                  [t("Folios a crédito"), diagnostico.totalFoliosCredito],
+                  [t("Sin City Ledger"), diagnostico.sinCityLedger],
+                  [t("Con póliza"), diagnostico.conPolizaGenerada],
+                  [t("Pendientes"), diagnostico.pendientesContables],
                 ].map(([l, v]) => (
                   <div key={String(l)} className="rounded-xl bg-slate-50 p-4">
                     <p className="text-xs text-slate-500">{l}</p>
@@ -785,7 +793,7 @@ export default function CityLedgerPage() {
           onOk={async () => {
             setModalConvenio(false);
             setMensajeEsAviso(false);
-            setMensaje("Convenio enviado a aprobación");
+            setMensaje(t("Convenio enviado a aprobación"));
             await cargarOperacion();
           }}
         />
@@ -797,7 +805,7 @@ export default function CityLedgerPage() {
           onOk={async () => {
             setConvenioRenovar(null);
             setMensajeEsAviso(false);
-            setMensaje("Convenio renovado y enviado a aprobación");
+            setMensaje(t("Convenio renovado y enviado a aprobación"));
             await cargarOperacion();
           }}
         />
@@ -813,7 +821,7 @@ export default function CityLedgerPage() {
             setMensaje(
               advertencias.length
                 ? advertencias.join(" ")
-                : "Cobro registrado y contabilizado",
+                : t("Cobro registrado y contabilizado"),
             );
             await cargarOperacion();
           }}
@@ -834,6 +842,7 @@ function ModalConvenio({
   onClose: () => void;
   onOk: () => void;
 }) {
+  const t = useT();
   const [busqueda, setBusqueda] = useState("");
   const [clienteId, setClienteId] = useState("");
   const [selectorAbierto, setSelectorAbierto] = useState(false);
@@ -900,21 +909,21 @@ function ModalConvenio({
 
   const guardar = async () => {
     if (!clienteSeleccionado) {
-      setError("Selecciona una empresa o agencia de la lista de resultados.");
+      setError(t("Selecciona una empresa o agencia de la lista de resultados."));
       setSelectorAbierto(true);
       requestAnimationFrame(() => buscadorRef.current?.focus());
       return;
     }
     if (clienteSeleccionado.estadoCredito !== "AUTORIZADO") {
-      setError("La línea maestra del cliente debe estar autorizada.");
+      setError(t("La línea maestra del cliente debe estar autorizada."));
       return;
     }
     if (clienteSeleccionado.estadoSolicitudCredito === "PENDIENTE") {
-      setError("Resuelve primero la propuesta de cambio de crédito del cliente.");
+      setError(t("Resuelve primero la propuesta de cambio de crédito del cliente."));
       return;
     }
     if (!clienteSeleccionado.clasificacionHotelera) {
-      setError("El cliente debe estar clasificado como EMPRESA o AGENCIA en el catálogo de Clientes.");
+      setError(t("El cliente debe estar clasificado como EMPRESA o AGENCIA en el catálogo de Clientes."));
       return;
     }
     setGuardando(true);
@@ -932,7 +941,7 @@ function ModalConvenio({
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : "No se pudo solicitar el convenio.",
+          : t("No se pudo solicitar el convenio."),
       );
       setGuardando(false);
     }
@@ -949,12 +958,13 @@ function ModalConvenio({
       >
         <div className="flex justify-between border-b p-5">
           <div>
-            <h3 className="text-xl font-bold">Solicitar convenio</h3>
+            <h3 className="text-xl font-bold">{t("Solicitar convenio")}</h3>
             <p className="text-sm text-slate-500">
-              El límite y plazo se heredan de la línea maestra del cliente.
+              
+              {t("El límite y plazo se heredan de la línea maestra del cliente.")}
             </p>
           </div>
-          <button onClick={onClose} aria-label="Cerrar" title="Cerrar">
+          <button onClick={onClose} aria-label={t("Cerrar")} title={t("Cerrar")}>
             <X />
           </button>
         </div>
@@ -962,7 +972,7 @@ function ModalConvenio({
         <div className="space-y-4 p-5">
           {error && (
             <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
-              {error}
+              {t(error)}
             </div>
           )}
 
@@ -986,7 +996,7 @@ function ModalConvenio({
                       </span>
                     </div>
                     <p className="mt-0.5 pl-6 text-xs text-emerald-700">
-                      {clienteSeleccionado.rfc || "RFC no registrado"}
+                      {clienteSeleccionado.rfc || t("RFC no registrado")}
                     </p>
                   </div>
                   <button
@@ -994,21 +1004,21 @@ function ModalConvenio({
                     onClick={limpiarSeleccion}
                     className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
                   >
-                    Cambiar
+                    
+                    {t("Cambiar")}
                   </button>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3 rounded-lg bg-white/70 p-3 text-xs">
                   <div>
-                    <p className="text-slate-500">Línea autorizada</p>
+                    <p className="text-slate-500">{t("Línea autorizada")}</p>
                     <p className="mt-1 font-black text-slate-900">
                       {dinero(clienteSeleccionado.limiteCredito)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-slate-500">Plazo autorizado</p>
+                    <p className="text-slate-500">{t("Plazo autorizado")}</p>
                     <p className="mt-1 font-black text-slate-900">
-                      {clienteSeleccionado.diasCredito} días
-                    </p>
+                      {t("{n0} días", { n0: clienteSeleccionado.diasCredito })}</p>
                   </div>
                 </div>
               </div>
@@ -1036,7 +1046,7 @@ function ModalConvenio({
                       ? "border-rose-300 focus:border-rose-400"
                       : "focus:border-indigo-400"
                   }`}
-                  placeholder="Escribe razón social, nombre o RFC"
+                  placeholder={t("Escribe razón social, nombre o RFC")}
                 />
 
                 {selectorAbierto && (
@@ -1048,16 +1058,17 @@ function ModalConvenio({
                     {clientes.length === 0 ? (
                       <div className="p-3 text-sm text-slate-600">
                         <p className="font-semibold text-slate-800">
-                          No hay personas morales activas registradas.
+                          
+                          {t("No hay personas morales activas registradas.")}
                         </p>
                         <p className="mt-1 text-xs">
-                          Registra primero la empresa o agencia en Clientes.
+                          
+                          {t("Registra primero la empresa o agencia en Clientes.")}
                         </p>
                       </div>
                     ) : visibles.length === 0 ? (
                       <div className="p-3 text-sm text-slate-600">
-                        No se encontraron coincidencias para “{busqueda.trim()}”.
-                      </div>
+                        {t("No se encontraron coincidencias para “{n0}”.", { n0: busqueda.trim() })}</div>
                     ) : (
                       visibles.map((cliente) => {
                         const autorizado =
@@ -1082,8 +1093,7 @@ function ModalConvenio({
                                 {cliente.razonSocial || cliente.nombre}
                               </p>
                               <p className="mt-0.5 text-xs text-slate-500">
-                                {cliente.rfc || "Sin RFC"} · {cliente.clasificacionHotelera || "Sin clasificación hotelera"} · {dinero(cliente.limiteCredito)} · {cliente.diasCredito} días{cliente.estadoSolicitudCredito === "PENDIENTE" ? " · cambio en aprobación" : ""}
-                              </p>
+                                {t("{n0} · {n1} · {n2} · {n3} días{n4}", { n0: cliente.rfc || t("Sin RFC"), n1: cliente.clasificacionHotelera || t("Sin clasificación hotelera"), n2: dinero(cliente.limiteCredito), n3: cliente.diasCredito, n4: cliente.estadoSolicitudCredito === "PENDIENTE" ? t("· cambio en aprobación") : "" })}</p>
                             </div>
                             <span
                               className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${
@@ -1105,14 +1115,14 @@ function ModalConvenio({
           </div>
 
           <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3 text-xs text-indigo-800">
-            <strong>Una sola fuente de verdad:</strong> el convenio no crea una
+            <strong>{t("Una sola fuente de verdad:")}</strong> el convenio no crea una
             segunda línea. Usa el límite y los días aprobados en el catálogo de
             Clientes; la disponibilidad se calcula con ventas a crédito y City
             Ledger de todos los hoteles.
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <Campo label="Número de convenio">
+            <Campo label={t("Número de convenio")}>
               <input
                 value={form.numeroConvenio}
                 onChange={(e) =>
@@ -1122,12 +1132,12 @@ function ModalConvenio({
                 className="w-full rounded-xl border p-2.5"
               />
             </Campo>
-            <Campo label="Clasificación heredada">
+            <Campo label={t("Clasificación heredada")}>
               <div className="w-full rounded-xl border bg-slate-50 p-2.5 text-sm font-bold text-slate-700">
-                {clienteSeleccionado?.clasificacionHotelera || "Selecciona un cliente clasificado"}
+                {clienteSeleccionado?.clasificacionHotelera || t("Selecciona un cliente clasificado")}
               </div>
             </Campo>
-            <Campo label="Vigente desde">
+            <Campo label={t("Vigente desde")}>
               <input
                 type="date"
                 value={form.vigenciaDesde}
@@ -1137,7 +1147,7 @@ function ModalConvenio({
                 className="w-full rounded-xl border p-2.5"
               />
             </Campo>
-            <Campo label="Vigente hasta (opcional)">
+            <Campo label={t("Vigente hasta (opcional)")}>
               <input
                 type="date"
                 value={form.vigenciaHasta}
@@ -1152,12 +1162,13 @@ function ModalConvenio({
           <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
-              <strong>Política heredada de la línea maestra:</strong>{" "}
+              <strong>{t("Política heredada de la línea maestra:")}</strong>{" "}
               {clienteSeleccionado?.bloquearCreditoConSaldoVencido === false
-                ? "la matriz autorizó operar aun con saldo vencido global."
-                : "se bloquearán nuevas operaciones cuando exista saldo vencido global en Ventas o City Ledger."}
+                ? t("la matriz autorizó operar aun con saldo vencido global.")
+                : t("se bloquearán nuevas operaciones cuando exista saldo vencido global en Ventas o City Ledger.")}
               <p className="mt-1 text-xs">
-                El convenio no puede modificar esta regla; cualquier cambio debe solicitarse desde Clientes y volver a aprobación.
+                
+                {t("El convenio no puede modificar esta regla; cualquier cambio debe solicitarse desde Clientes y volver a aprobación.")}
               </p>
             </div>
           </div>
@@ -1165,7 +1176,8 @@ function ModalConvenio({
 
         <div className="flex justify-end gap-2 border-t bg-slate-50 p-4">
           <button onClick={onClose} className="rounded-xl px-4 py-2">
-            Cancelar
+            
+            {t("Cancelar")}
           </button>
           <button
             onClick={() => void guardar()}
@@ -1178,12 +1190,12 @@ function ModalConvenio({
             }
             title={
               clienteSeleccionado
-                ? "Enviar a la bandeja central de aprobaciones"
-                : "Selecciona primero una empresa o agencia"
+                ? t("Enviar a la bandeja central de aprobaciones")
+                : t("Selecciona primero una empresa o agencia")
             }
             className="rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {guardando ? "Enviando…" : "Enviar a aprobación"}
+            {guardando ? t("Enviando…") : t("Enviar a aprobación")}
           </button>
         </div>
       </div>
@@ -1200,6 +1212,7 @@ function ModalRenovarConvenio({
   onClose: () => void;
   onOk: () => void;
 }) {
+  const t = useT();
   const [form, setForm] = useState({
     numeroConvenio: convenio.numeroConvenio,
     vigenciaDesde: hoy(),
@@ -1210,7 +1223,7 @@ function ModalRenovarConvenio({
 
   const guardar = async () => {
     if (form.vigenciaHasta && form.vigenciaHasta < form.vigenciaDesde) {
-      setError("La vigencia final no puede ser anterior a la inicial.");
+      setError(t("La vigencia final no puede ser anterior a la inicial."));
       return;
     }
     setGuardando(true);
@@ -1229,7 +1242,7 @@ function ModalRenovarConvenio({
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : "No se pudo renovar el convenio.",
+          : t("No se pudo renovar el convenio."),
       );
       setGuardando(false);
     }
@@ -1246,22 +1259,21 @@ function ModalRenovarConvenio({
       >
         <div className="flex justify-between border-b p-5">
           <div>
-            <h3 className="text-xl font-bold">Renovar convenio</h3>
+            <h3 className="text-xl font-bold">{t("Renovar convenio")}</h3>
             <p className="text-sm text-slate-500">
-              {convenio.nombreComercial} · la línea y el plazo seguirán heredándose del cliente.
-            </p>
+              {t("{n0} · la línea y el plazo seguirán heredándose del cliente.", { n0: convenio.nombreComercial })}</p>
           </div>
-          <button onClick={onClose} aria-label="Cerrar" title="Cerrar">
+          <button onClick={onClose} aria-label={t("Cerrar")} title={t("Cerrar")}>
             <X />
           </button>
         </div>
         <div className="space-y-4 p-5">
           {error && (
             <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
-              {error}
+              {t(error)}
             </div>
           )}
-          <Campo label="Número de convenio">
+          <Campo label={t("Número de convenio")}>
             <input
               value={form.numeroConvenio}
               onChange={(event) =>
@@ -1272,7 +1284,7 @@ function ModalRenovarConvenio({
             />
           </Campo>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Campo label="Nueva vigencia desde">
+            <Campo label={t("Nueva vigencia desde")}>
               <input
                 type="date"
                 value={form.vigenciaDesde}
@@ -1282,7 +1294,7 @@ function ModalRenovarConvenio({
                 className="w-full rounded-xl border p-2.5"
               />
             </Campo>
-            <Campo label="Vigente hasta (opcional)">
+            <Campo label={t("Vigente hasta (opcional)")}>
               <input
                 type="date"
                 value={form.vigenciaHasta}
@@ -1294,12 +1306,14 @@ function ModalRenovarConvenio({
             </Campo>
           </div>
           <div className="rounded-xl bg-indigo-50 p-3 text-xs text-indigo-700">
-            La renovación crea un nuevo ciclo de aprobación. No modifica ni cancela la cartera histórica del convenio.
+            
+            {t("La renovación crea un nuevo ciclo de aprobación. No modifica ni cancela la cartera histórica del convenio.")}
           </div>
         </div>
         <div className="flex justify-end gap-2 border-t bg-slate-50 p-4">
           <button onClick={onClose} className="rounded-xl px-4 py-2">
-            Cancelar
+            
+            {t("Cancelar")}
           </button>
           <button
             disabled={
@@ -1310,7 +1324,7 @@ function ModalRenovarConvenio({
             onClick={() => void guardar()}
             className="rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white disabled:opacity-50"
           >
-            {guardando ? "Enviando…" : "Renovar y solicitar aprobación"}
+            {guardando ? t("Enviando…") : t("Renovar y solicitar aprobación")}
           </button>
         </div>
       </div>
@@ -1329,6 +1343,7 @@ function ModalCobro({
   onClose: () => void;
   onOk: (advertencias: string[]) => void;
 }) {
+  const t = useT();
   const [form, setForm] = useState({
     importe: Number(cuenta.saldoPendiente),
     metodoPago: "TRANSFERENCIA",
@@ -1377,7 +1392,7 @@ function ModalCobro({
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : "No se pudo registrar el cobro.",
+          : t("No se pudo registrar el cobro."),
       );
       setGuardando(false);
     }
@@ -1393,23 +1408,21 @@ function ModalCobro({
       >
         <div className="flex justify-between border-b p-5">
           <div>
-            <h3 className="text-xl font-bold">Registrar cobro</h3>
+            <h3 className="text-xl font-bold">{t("Registrar cobro")}</h3>
             <p className="text-sm text-slate-500">
-              {cuenta.folioReferencia} · Saldo{" "}
-              {dinero(cuenta.saldoPendiente, cuenta.moneda)}
-            </p>
+              {t("{n0} · Saldo{n1} {n2}", { n0: cuenta.folioReferencia, n1: " ", n2: dinero(cuenta.saldoPendiente, cuenta.moneda) })}</p>
           </div>
-          <button aria-label="Cerrar" title="Cerrar" onClick={onClose}>
+          <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={onClose}>
             <X />
           </button>
         </div>
         <div className="space-y-4 p-5">
           {error && (
             <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
-              {error}
+              {t(error)}
             </div>
           )}
-          <Campo label="Importe">
+          <Campo label={t("Importe")}>
             <input
               type="number"
               min="0.01"
@@ -1422,7 +1435,7 @@ function ModalCobro({
               className="w-full rounded-xl border p-2.5"
             />
           </Campo>
-          <Campo label="Método">
+          <Campo label={t("Método")}>
             <select
               value={form.metodoPago}
               onChange={(e) => {
@@ -1446,14 +1459,14 @@ function ModalCobro({
               }}
               className="w-full rounded-xl border p-2.5"
             >
-              <option>TRANSFERENCIA</option>
-              <option>CHEQUE</option>
-              <option>TARJETA</option>
-              <option>EFECTIVO</option>
-              <option>OTRO</option>
+              <option value="TRANSFERENCIA">{t("TRANSFERENCIA")}</option>
+              <option value="CHEQUE">{t("CHEQUE")}</option>
+              <option value="TARJETA">{t("TARJETA")}</option>
+              <option value="EFECTIVO">{t("EFECTIVO")}</option>
+              <option value="OTRO">{t("OTRO")}</option>
             </select>
           </Campo>
-          <Campo label={tipoCuentaEsperado === "CAJA" ? "Caja receptora" : tipoCuentaEsperado === "TPV" ? "Terminal receptora" : "Cuenta receptora"}>
+          <Campo label={tipoCuentaEsperado === "CAJA" ? t("Caja receptora") : tipoCuentaEsperado === "TPV" ? t("Terminal receptora") : t("Cuenta receptora")}>
             <select
               value={form.cuentaBancariaId}
               onChange={(e) =>
@@ -1461,30 +1474,28 @@ function ModalCobro({
               }
               className="w-full rounded-xl border p-2.5"
             >
-              <option value="">Seleccionar</option>
+              <option value="">{t("Seleccionar")}</option>
               {cuentasCompatibles.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.nombre} · {item.tipo}
+                  {t(item.nombre)} · {item.tipo}
                 </option>
               ))}
             </select>
           </Campo>
           {cuentasCompatibles.length === 0 && (
             <div className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
-              No hay una cuenta activa de tipo {tipoCuentaEsperado ?? "financiera"}.
-              {tipoCuentaEsperado === "CAJA"
-                ? " Configura una caja y abre un turno antes de recibir efectivo."
-                : " Configúrala en Crédito y cobranza antes de registrar el cobro."}
-            </div>
+              {t("No hay una cuenta activa de tipo {n0}. {n1}", { n0: tipoCuentaEsperado ?? "financiera", n1: tipoCuentaEsperado === "CAJA"
+                ? t("Configura una caja y abre un turno antes de recibir efectivo.")
+                : t("Configúrala en Crédito y cobranza antes de registrar el cobro.") })}</div>
           )}
-          <Campo label={requiereReferencia ? "Referencia obligatoria" : "Referencia (opcional)"}>
+          <Campo label={requiereReferencia ? t("Referencia obligatoria") : t("Referencia (opcional)")}>
             <input
               value={form.referencia}
               onChange={(e) => setForm({ ...form, referencia: e.target.value })}
               className="w-full rounded-xl border p-2.5"
             />
           </Campo>
-          <Campo label="Fecha de cobro">
+          <Campo label={t("Fecha de cobro")}>
             <input
               type="date"
               value={form.fechaPago}
@@ -1493,14 +1504,14 @@ function ModalCobro({
             />
           </Campo>
           <div className="rounded-xl bg-indigo-50 p-3 text-xs text-indigo-700">
-            El sistema registrará Tesorería, abonará Clientes CxC y
-            reclasificará sólo el IVA proporcional efectivamente cobrado. Los
-            cobros en efectivo también entran al turno de Caja abierto.
+            
+            {t("El sistema registrará Tesorería, abonará Clientes CxC y reclasificará sólo el IVA proporcional efectivamente cobrado. Los cobros en efectivo también entran al turno de Caja abierto.")}
           </div>
         </div>
         <div className="flex justify-end gap-2 border-t bg-slate-50 p-4">
           <button onClick={onClose} className="rounded-xl px-4 py-2">
-            Cancelar
+            
+            {t("Cancelar")}
           </button>
           <button
             disabled={
@@ -1512,7 +1523,7 @@ function ModalCobro({
             onClick={() => void guardar()}
             className="rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white disabled:opacity-50"
           >
-            {guardando ? "Aplicando…" : "Aplicar cobro"}
+            {guardando ? t("Aplicando…") : t("Aplicar cobro")}
           </button>
         </div>
       </div>
@@ -1527,10 +1538,11 @@ function Campo({
   label: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-bold text-slate-600">
-        {label}
+        {t(label)}
       </span>
       {children}
     </label>

@@ -9,6 +9,7 @@ import { Boton, Cargando, Distintivo, EncabezadoPantalla, ErrorPantalla, Panel, 
 import { usePermiso } from '@/hooks/use-permisos';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 type Estado = "PENDIENTE_GERENCIA" | "PENDIENTE_FINANZAS" | "APROBADA" | "RECHAZADA" | "CANCELADA";
 type Solicitud = {
   id: string;
@@ -30,6 +31,7 @@ const textoEstado: Record<Estado, string> = {
 };
 
 export default function AprobacionesEstructuraPage() {
+  const t = useT();
   /*
    * Cada etapa tiene su propia acción, y no son de quien mira la pantalla.
    * RRHH levanta la solicitud y la sigue aquí, pero firmarla es de Gerencia
@@ -54,10 +56,10 @@ export default function AprobacionesEstructuraPage() {
   async function resolver(s: Solicitud, decision: "APROBAR" | "RECHAZAR") {
     let comentario = "";
     if (decision === "RECHAZAR") {
-      comentario = (await solicitarTexto("Motivo obligatorio del rechazo:", { titulo: "Rechazar solicitud", obligatorio: true }))?.trim() ?? "";
+      comentario = (await solicitarTexto(t("Motivo obligatorio del rechazo:"), { titulo: "Rechazar solicitud", obligatorio: true }))?.trim() ?? "";
       if (!comentario) return;
     } else {
-      comentario = (await solicitarTexto("Comentario de aprobación (opcional):", { titulo: "Aprobar solicitud" }))?.trim() ?? "";
+      comentario = (await solicitarTexto(t("Comentario de aprobación (opcional):"), { titulo: "Aprobar solicitud" }))?.trim() ?? "";
     }
     const etapa = s.estado === "PENDIENTE_GERENCIA" ? "gerencia" : "finanzas";
     setProcesando(s.id);
@@ -66,7 +68,7 @@ export default function AprobacionesEstructuraPage() {
       avisar(decision === "APROBAR" ? `Aprobación de ${etapa} registrada.` : "Solicitud rechazada.", "exito");
       await solicitudes.recargar();
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : "No fue posible resolver la solicitud.", "error");
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No fue posible resolver la solicitud."), "error");
     } finally {
       setProcesando(null);
     }
@@ -74,38 +76,39 @@ export default function AprobacionesEstructuraPage() {
 
   return <div className="mx-auto max-w-[1350px] p-6">
     <EncabezadoPantalla
-      titulo="Aprobaciones de estructura"
-      descripcion="Control de nuevas áreas, puestos, plazas y rangos salariales"
-      acciones={<Boton variante="neutro" icono={<RefreshCw className="h-4 w-4" />} onClick={() => void solicitudes.recargar()}>Actualizar</Boton>}
+      titulo={t("Aprobaciones de estructura")}
+      descripcion={t("Control de nuevas áreas, puestos, plazas y rangos salariales")}
+      acciones={<Boton variante="neutro" icono={<RefreshCw className="h-4 w-4" />} onClick={() => void solicitudes.recargar()}>{t("Actualizar")}</Boton>}
     />
     <div className="mb-5 grid gap-3 md:grid-cols-3">
-      <Resumen titulo="Pendientes" valor={pendientes.length} icono={<ShieldCheck />} color="amber" />
-      <Resumen titulo="Áreas solicitadas" valor={(solicitudes.datos ?? []).filter((s) => s.tipo === "AREA").length} icono={<Building2 />} color="indigo" />
-      <Resumen titulo="Aprobadas" valor={(solicitudes.datos ?? []).filter((s) => s.estado === "APROBADA").length} icono={<BadgeCheck />} color="emerald" />
+      <Resumen titulo={t("Pendientes")} valor={pendientes.length} icono={<ShieldCheck />} color="amber" />
+      <Resumen titulo={t("Áreas solicitadas")} valor={(solicitudes.datos ?? []).filter((s) => s.tipo === "AREA").length} icono={<Building2 />} color="indigo" />
+      <Resumen titulo={t("Aprobadas")} valor={(solicitudes.datos ?? []).filter((s) => s.estado === "APROBADA").length} icono={<BadgeCheck />} color="emerald" />
     </div>
     <Panel sinRelleno>
-      {solicitudes.cargando ? <Cargando /> : solicitudes.error ? <ErrorPantalla mensaje={solicitudes.error} onReintentar={solicitudes.recargar} /> : (solicitudes.datos?.length ?? 0) === 0 ?
-        <SinDatos titulo="No hay solicitudes" descripcion="Las nuevas áreas y puestos aparecerán aquí para la doble aprobación." icono={<ShieldCheck className="h-5 w-5" />} /> :
-        <div className="overflow-x-auto"><table className="tabla"><thead><tr><th>Solicitud</th><th>Justificación</th><th>Detalle</th><th>Etapa</th><th>Fecha</th><th className="text-right">Decisión</th></tr></thead><tbody>
+      {solicitudes.cargando ? <Cargando /> : solicitudes.error ? <ErrorPantalla mensaje={t(solicitudes.error)} onReintentar={solicitudes.recargar} /> : (solicitudes.datos?.length ?? 0) === 0 ?
+        <SinDatos titulo={t("No hay solicitudes")} descripcion={t("Las nuevas áreas y puestos aparecerán aquí para la doble aprobación.")} icono={<ShieldCheck className="h-5 w-5" />} /> :
+        <div className="overflow-x-auto"><table className="tabla"><thead><tr><th>{t("Solicitud")}</th><th>{t("Justificación")}</th><th>{t("Detalle")}</th><th>{t("Etapa")}</th><th>{t("Fecha")}</th><th className="text-right">{t("Decisión")}</th></tr></thead><tbody>
           {solicitudes.datos!.map((s) => {
             let datos: Record<string, unknown> = {}; try { datos = JSON.parse(s.datosJson); } catch {}
             const pendiente = s.estado === "PENDIENTE_GERENCIA" || s.estado === "PENDIENTE_FINANZAS";
             return <tr key={s.id}>
-              <td><p className="font-bold text-slate-900">{s.nombreSolicitado}</p><p className="text-[11px] text-slate-500">{s.tipo === "AREA" ? "Área organizacional" : `Puesto · ${String(datos.clave ?? "")}`}</p></td>
-              <td className="max-w-xs whitespace-normal text-xs text-slate-600">{s.motivo}</td>
-              <td className="text-xs text-slate-500">{s.tipo === "PUESTO" ? `${plural(Number(datos.plazasAutorizadas ?? 0), 'plaza', 'plazas')} · $${Number(datos.salarioMinimo ?? 0).toFixed(2)}–$${Number(datos.salarioMaximo ?? 0).toFixed(2)}` : "Nueva unidad organizacional"}</td>
+              <td><p className="font-bold text-slate-900">{s.nombreSolicitado}</p><p className="text-[11px] text-slate-500">{s.tipo === "AREA" ? t("Área organizacional") : `Puesto · ${String(datos.clave ?? "")}`}</p></td>
+              <td className="max-w-xs whitespace-normal text-xs text-slate-600">{t(s.motivo)}</td>
+              <td className="text-xs text-slate-500">{s.tipo === "PUESTO" ? `${plural(Number(datos.plazasAutorizadas ?? 0), 'plaza', 'plazas')} · $${Number(datos.salarioMinimo ?? 0).toFixed(2)}–$${Number(datos.salarioMaximo ?? 0).toFixed(2)}` : t("Nueva unidad organizacional")}</td>
               <td><Distintivo tono={s.estado === "APROBADA" ? "exito" : s.estado === "RECHAZADA" ? "peligro" : "alerta"}>{textoEstado[s.estado]}</Distintivo>{s.comentarioResolucion && <p className="mt-1 max-w-xs whitespace-normal text-[10px] text-slate-500">{s.comentarioResolucion}</p>}</td>
               <td className="text-xs text-slate-500">{new Date(s.fechaCreacion).toLocaleDateString("es-MX")}</td>
-              <td className="text-right">{pendiente && puedeFirmar(s.estado) ? <div className="flex justify-end gap-2"><Boton variante="neutro" icono={<CircleX className="h-3.5 w-3.5" />} onClick={() => void resolver(s, "RECHAZAR")} disabled={procesando === s.id}>Rechazar</Boton><Boton variante="primario" icono={<BadgeCheck className="h-3.5 w-3.5" />} onClick={() => void resolver(s, "APROBAR")} cargando={procesando === s.id}>Aprobar</Boton></div> : pendiente ? <span className="text-xs text-slate-500">Espera a {s.estado === "PENDIENTE_GERENCIA" ? "Gerencia" : "Finanzas"}</span> : "—"}</td>
+              <td className="text-right">{pendiente && puedeFirmar(s.estado) ? <div className="flex justify-end gap-2"><Boton variante="neutro" icono={<CircleX className="h-3.5 w-3.5" />} onClick={() => void resolver(s, "RECHAZAR")} disabled={procesando === s.id}>{t("Rechazar")}</Boton><Boton variante="primario" icono={<BadgeCheck className="h-3.5 w-3.5" />} onClick={() => void resolver(s, "APROBAR")} cargando={procesando === s.id}>{t("Aprobar")}</Boton></div> : pendiente ? <span className="text-xs text-slate-500">{t("Espera a {n0}", { n0: s.estado === "PENDIENTE_GERENCIA" ? t("Gerencia") : t("Finanzas") })}</span> : "—"}</td>
             </tr>;
           })}
         </tbody></table></div>}
     </Panel>
-    <p className="mt-4 text-xs text-slate-500">Control interno: Gerencia valida necesidad y estructura; Finanzas valida presupuesto, plazas y tabulador. Una persona no puede cubrir ambas etapas salvo el administrador durante la puesta en marcha.</p>
+    <p className="mt-4 text-xs text-slate-500">{t("Control interno: Gerencia valida necesidad y estructura; Finanzas valida presupuesto, plazas y tabulador. Una persona no puede cubrir ambas etapas salvo el administrador durante la puesta en marcha.")}</p>
   </div>;
 }
 
 function Resumen({ titulo, valor, icono, color }: { titulo: string; valor: number; icono: React.ReactNode; color: "amber" | "indigo" | "emerald" }) {
+  const t = useT();
   const clases = { amber: "bg-amber-50 text-amber-700 border-amber-200", indigo: "bg-indigo-50 text-indigo-700 border-indigo-200", emerald: "bg-emerald-50 text-emerald-700 border-emerald-200" };
-  return <div className={`flex items-center gap-3 rounded-2xl border p-4 ${clases[color]}`}><div className="h-5 w-5">{icono}</div><div><p className="text-xs font-semibold">{titulo}</p><p className="text-2xl font-black">{valor}</p></div></div>;
+  return <div className={`flex items-center gap-3 rounded-2xl border p-4 ${clases[color]}`}><div className="h-5 w-5">{icono}</div><div><p className="text-xs font-semibold">{t(titulo)}</p><p className="text-2xl font-black">{valor}</p></div></div>;
 }

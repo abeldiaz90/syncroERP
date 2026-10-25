@@ -2,6 +2,7 @@
 "use client";
 import { AlertTriangle, X, Loader2 } from 'lucide-react';
 import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
+import { useT } from '@/components/I18nProvider';
 
 export interface ConfirmDialogProps {
   abierto: boolean;
@@ -45,6 +46,7 @@ export default function ConfirmDialog({
   onConfirmar,
   onCancelar,
 }: ConfirmDialogProps) {
+  const t = useT();
   /*
    * Antes del `return null`: un gancho no se puede llamar condicionalmente.
    * Y con `!procesando`, porque mientras se está confirmando cerrar dejaría la
@@ -69,10 +71,10 @@ export default function ConfirmDialog({
               <AlertTriangle className="w-6 h-6" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-bold text-slate-900">{titulo}</h3>
-              <p className="text-sm text-slate-500 mt-1 leading-relaxed">{mensaje}</p>
+              <h3 className="text-lg font-bold text-slate-900">{t(titulo)}</h3>
+              <p className="text-sm text-slate-500 mt-1 leading-relaxed">{t(mensaje)}</p>
             </div>
-            <button aria-label="Cerrar" title="Cerrar"
+            <button aria-label={t("Cerrar")} title={t("Cerrar")}
               onClick={() => !procesando && onCancelar()}
               className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"
             >
@@ -95,7 +97,7 @@ export default function ConfirmDialog({
             className={`px-5 py-2 text-white font-semibold rounded-lg transition-colors shadow-sm flex items-center gap-2 disabled:opacity-60 ${v.btn}`}
           >
             {procesando && <Loader2 className="w-4 h-4 animate-spin" />}
-            {procesando ? 'Procesando…' : textoConfirmar}
+            {procesando ? t("Procesando…") : textoConfirmar}
           </button>
         </div>
       </div>

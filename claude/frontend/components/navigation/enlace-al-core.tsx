@@ -31,6 +31,7 @@
 
 import { ExternalLink, Landmark } from 'lucide-react';
 import { usePermiso } from '@/hooks/use-permisos';
+import { useT } from '@/components/I18nProvider';
 
 export function EnlaceAlCore({
   url,
@@ -45,6 +46,7 @@ export function EnlaceAlCore({
   /** Ya traducida por el layout, para no montar aquí otro diccionario. */
   etiqueta: string;
 }) {
+  const t = useT();
   const { tienePermiso } = usePermiso();
 
   /*
@@ -68,13 +70,13 @@ export function EnlaceAlCore({
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        title={etiqueta}
+        title={t(etiqueta)}
         className="flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[12.5px] text-slate-400 hover:text-white hover:bg-white/[0.05] transition-colors"
       >
         <Landmark className="w-4 h-4 shrink-0 text-emerald-400" />
         {!colapsado && (
           <>
-            <span className="truncate">{etiqueta}</span>
+            <span className="truncate">{t(etiqueta)}</span>
             <ExternalLink className="ml-auto w-3 h-3 shrink-0 text-slate-500" />
           </>
         )}

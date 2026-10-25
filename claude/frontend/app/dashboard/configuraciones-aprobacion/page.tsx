@@ -23,6 +23,7 @@ import {
   useAvisos,
 } from "@/components/ui";
 
+import { useT } from '@/components/I18nProvider';
 type Proceso = {
   clave: string;
   nombre: string;
@@ -99,6 +100,7 @@ const nuevoNivel = (orden: number): Nivel => ({
 });
 
 export default function ConfiguracionAprobacionesPage() {
+  const t = useT();
   /*
    * Esta pantalla la ven ahora dos públicos distintos.
    *
@@ -212,7 +214,7 @@ export default function ConfiguracionAprobacionesPage() {
       avisar(
         error instanceof ApiError
           ? error.mensajeParaPantalla()
-          : "No se pudo cargar la matriz.",
+          : t("No se pudo cargar la matriz."),
         "error",
       );
     } finally {
@@ -301,7 +303,7 @@ export default function ConfiguracionAprobacionesPage() {
       const nivel = niveles[indice];
       const ultimo = indice === niveles.length - 1;
       if (ultimo && nivel.montoHasta !== "") {
-        return "El último nivel debe quedar sin tope para cubrir cualquier importe.";
+        return t("El último nivel debe quedar sin tope para cubrir cualquier importe.");
       }
       if (!ultimo && nivel.montoHasta === "") {
         return `Define el tope de autoridad del nivel ${indice + 1}.`;
@@ -323,12 +325,12 @@ export default function ConfiguracionAprobacionesPage() {
   async function guardar() {
     if (!procesoOperativo) {
       return avisar(
-        "Este proceso todavía no está conectado a una operación real y no puede marcarse como configurado.",
+        t("Este proceso todavía no está conectado a una operación real y no puede marcarse como configurado."),
         "error",
       );
     }
     if (requiereArea && !departamentoId) {
-      return avisar("Selecciona el área solicitante.", "error");
+      return avisar(t("Selecciona el área solicitante."), "error");
     }
     if (
       niveles.some(
@@ -336,12 +338,12 @@ export default function ConfiguracionAprobacionesPage() {
       )
     ) {
       return avisar(
-        "Cada nivel debe tener un usuario o un rol, no ambos.",
+        t("Cada nivel debe tener un usuario o un rol, no ambos."),
         "error",
       );
     }
     if (["ALTA_AREA", "ALTA_PUESTO"].includes(proceso) && niveles.length !== 2) {
-      return avisar("Este proceso requiere exactamente dos niveles.", "error");
+      return avisar(t("Este proceso requiere exactamente dos niveles."), "error");
     }
     if (esFinancieroCentral) {
       const errorEscala = validarEscalaFinanciera();
@@ -381,13 +383,13 @@ export default function ConfiguracionAprobacionesPage() {
         departamentoId: requiereArea ? departamentoId : undefined,
         aprobadores,
       });
-      avisar("Matriz de aprobación guardada.", "exito");
+      avisar(t("Matriz de aprobación guardada."), "exito");
       await cargar();
     } catch (error) {
       avisar(
         error instanceof ApiError
           ? error.mensajeParaPantalla()
-          : "No se pudo guardar.",
+          : t("No se pudo guardar."),
         "error",
       );
     } finally {
@@ -401,23 +403,25 @@ export default function ConfiguracionAprobacionesPage() {
     return (
       <div className="mx-auto max-w-[1450px] p-6">
         <EncabezadoPantalla
-          titulo="Gobierno de aprobaciones"
-          descripcion="Define quién autoriza cada proceso y en qué orden."
+          titulo={t("Gobierno de aprobaciones")}
+          descripcion={t("Define quién autoriza cada proceso y en qué orden.")}
         />
         <Panel>
           <div className="py-10 text-center">
             <p className="text-base font-semibold text-slate-700">
-              Tu perfil no alcanza la matriz de aprobaciones
+              
+              {t("Tu perfil no alcanza la matriz de aprobaciones")}
             </p>
             <p className="mt-2 text-sm text-slate-500">
-              Ni para leerla. Pide a un administrador que te la otorgue, o
-              revisa tus pendientes en la bandeja de aprobaciones.
+              
+              {t("Ni para leerla. Pide a un administrador que te la otorgue, o revisa tus pendientes en la bandeja de aprobaciones.")}
             </p>
             <Link
               href="/dashboard/aprobaciones"
               className="mt-4 inline-block text-sm font-semibold text-indigo-600 underline"
             >
-              Ir a la bandeja de aprobaciones
+              
+              {t("Ir a la bandeja de aprobaciones")}
             </Link>
           </div>
         </Panel>
@@ -428,8 +432,8 @@ export default function ConfiguracionAprobacionesPage() {
   return (
     <div className="mx-auto max-w-[1450px] p-6">
       <EncabezadoPantalla
-        titulo="Gobierno de aprobaciones"
-        descripcion="Crédito de clientes y convenios hoteleros utilizan una bandeja central y una escala acumulativa de autoridad. Los procesos preparados no se presentan como operativos."
+        titulo={t("Gobierno de aprobaciones")}
+        descripcion={t("Crédito de clientes y convenios hoteleros utilizan una bandeja central y una escala acumulativa de autoridad. Los procesos preparados no se presentan como operativos.")}
         acciones={
           <Boton
             variante="primario"
@@ -438,7 +442,8 @@ export default function ConfiguracionAprobacionesPage() {
             disabled={!procesoOperativo || !puedeGobernar}
             onClick={() => void guardar()}
           >
-            Guardar flujo
+            
+            {t("Guardar flujo")}
           </Boton>
         }
       />
@@ -447,7 +452,7 @@ export default function ConfiguracionAprobacionesPage() {
         <div className="mb-5 flex gap-3 rounded-2xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-700">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
           <p>
-            <strong className="font-bold">Esta pantalla es de consulta para tu rol.</strong>{" "}
+            <strong className="font-bold">{t("Esta pantalla es de consulta para tu rol.")}</strong>{" "}
             Puedes ver por qué un documento llega a tu bandeja y con qué plazo,
             pero la matriz la gobierna el rol «Gobierno de aprobaciones», que no
             firma ninguno de los documentos que enruta. Quien aprueba no escribe
@@ -465,7 +470,7 @@ export default function ConfiguracionAprobacionesPage() {
 
       <div className="grid gap-5 xl:grid-cols-[330px_1fr]">
         <Panel>
-          <p className="eyebrow mb-3">Procesos controlados</p>
+          <p className="eyebrow mb-3">{t("Procesos controlados")}</p>
           <div className="space-y-2">
             {procesos.map((item) => (
               <button
@@ -482,18 +487,18 @@ export default function ConfiguracionAprobacionesPage() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold text-slate-900">
-                    {item.nombre}
+                    {t(item.nombre)}
                   </span>
                   {item.estadoIntegracion === "PREPARADO" ? (
-                    <Distintivo tono="neutro">No conectado</Distintivo>
+                    <Distintivo tono="neutro">{t("No conectado")}</Distintivo>
                   ) : configurados.has(item.clave) ? (
-                    <Distintivo tono="exito">Operativo</Distintivo>
+                    <Distintivo tono="exito">{t("Operativo")}</Distintivo>
                   ) : (
-                    <Distintivo tono="alerta">Falta configurar</Distintivo>
+                    <Distintivo tono="alerta">{t("Falta configurar")}</Distintivo>
                   )}
                 </div>
                 <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                  {item.modulo}
+                  {t(item.modulo)}
                 </p>
               </button>
             ))}
@@ -508,39 +513,36 @@ export default function ConfiguracionAprobacionesPage() {
               </div>
               <div className="flex-1">
                 <h2 className="font-black text-slate-950">
-                  {procesoActual?.nombre}
+                  {t(procesoActual?.nombre)}
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Cada decisión conserva solicitante, aprobador, versión del
-                  documento, fecha, comentario y ciclo.
+                  
+                  {t("Cada decisión conserva solicitante, aprobador, versión del documento, fecha, comentario y ciclo.")}
                 </p>
                 {esFinancieroCentral && (
                   <p className="mt-2 rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800">
-                    Escala acumulativa: un importe debe pasar por todos los
-                    niveles anteriores hasta llegar al responsable con autoridad
-                    suficiente. Todos los niveles son obligatorios y nadie puede
-                    autoaprobarse.
+                    
+                    {t("Escala acumulativa: un importe debe pasar por todos los niveles anteriores hasta llegar al responsable con autoridad suficiente. Todos los niveles son obligatorios y nadie puede autoaprobarse.")}
                   </p>
                 )}
                 {!procesoOperativo && (
                   <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-                    El proceso aún no bloquea ni dirige operaciones reales. Se
-                    muestra para planeación, pero el sistema impedirá guardar una
-                    matriz que produzca una falsa sensación de control.
+                    
+                    {t("El proceso aún no bloquea ni dirige operaciones reales. Se muestra para planeación, pero el sistema impedirá guardar una matriz que produzca una falsa sensación de control.")}
                   </p>
                 )}
               </div>
               {requiereArea && (
                 <div className="w-72">
-                  <Campo etiqueta="Área solicitante" requerido>
+                  <Campo etiqueta={t("Área solicitante")} requerido>
                     <Seleccion
                       value={departamentoId}
                       onChange={(event) => setDepartamentoId(event.target.value)}
                     >
-                      <option value="">Seleccionar…</option>
+                      <option value="">{t("Seleccionar…")}</option>
                       {departamentos.map((item) => (
                         <option key={item.id} value={item.id}>
-                          {item.nombre}
+                          {t(item.nombre)}
                         </option>
                       ))}
                     </Seleccion>
@@ -556,7 +558,8 @@ export default function ConfiguracionAprobacionesPage() {
                     <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                       No hay áreas organizacionales dadas de alta. Se solicitan en{' '}
                       <Link href="/dashboard/departamentos" className="font-semibold underline">
-                        Departamentos
+                        
+                        {t("Departamentos")}
                       </Link>{' '}
                       y las autorizan Gerencia y Finanzas. Sin un área, este proceso no se puede configurar.
                     </p>
@@ -577,14 +580,13 @@ export default function ConfiguracionAprobacionesPage() {
                     </span>
                     <div>
                       <p className="font-bold text-slate-900">
-                        Nivel {indice + 1}
-                      </p>
+                        {t("Nivel {n0}", { n0: indice + 1 })}</p>
                       <p className="text-[11px] text-slate-500">
                         {esFinancieroCentral
                           ? ultimo
-                            ? "Autoridad final sin tope"
-                            : "Aprobación acumulativa hasta el importe indicado"
-                          : "Responsable, rango y plazo de atención"}
+                            ? t("Autoridad final sin tope")
+                            : t("Aprobación acumulativa hasta el importe indicado")
+                          : t("Responsable, rango y plazo de atención")}
                       </p>
                     </div>
                     <div className="ml-auto flex gap-1">
@@ -592,7 +594,7 @@ export default function ConfiguracionAprobacionesPage() {
                         disabled={!puedeGobernar}
                         onClick={() => mover(indice, -1)}
                         className="rounded-lg p-2 hover:bg-slate-100 disabled:opacity-30"
-                        aria-label="Subir nivel" title="Subir nivel"
+                        aria-label={t("Subir nivel")} title={t("Subir nivel")}
                       >
                         <ArrowUp className="h-4 w-4" />
                       </button>
@@ -600,7 +602,7 @@ export default function ConfiguracionAprobacionesPage() {
                         disabled={!puedeGobernar}
                         onClick={() => mover(indice, 1)}
                         className="rounded-lg p-2 hover:bg-slate-100 disabled:opacity-30"
-                        aria-label="Bajar nivel" title="Bajar nivel"
+                        aria-label={t("Bajar nivel")} title={t("Bajar nivel")}
                       >
                         <ArrowDown className="h-4 w-4" />
                       </button>
@@ -614,7 +616,7 @@ export default function ConfiguracionAprobacionesPage() {
                           )
                         }
                         className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-30"
-                        aria-label="Eliminar nivel" title="Eliminar nivel"
+                        aria-label={t("Eliminar nivel")} title={t("Eliminar nivel")}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -632,15 +634,15 @@ export default function ConfiguracionAprobacionesPage() {
                     >
                       <span className="font-bold">
                         {nivel.salud.estado === "SIN_FIRMANTE"
-                          ? "Este nivel no tiene quien lo firme. "
-                          : "Este nivel tiene un solo firmante. "}
+                          ? t("Este nivel no tiene quien lo firme.")
+                          : t("Este nivel tiene un solo firmante.")}
                       </span>
-                      {nivel.salud.mensaje}
+                      {t(nivel.salud.mensaje)}
                     </div>
                   )}
 
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <Campo etiqueta="Usuario específico">
+                    <Campo etiqueta={t("Usuario específico")}>
                       <Seleccion
                         value={nivel.usuarioId || ""}
                         onChange={(event) =>
@@ -650,7 +652,7 @@ export default function ConfiguracionAprobacionesPage() {
                           })
                         }
                       >
-                        <option value="">No asignar por usuario</option>
+                        <option value="">{t("No asignar por usuario")}</option>
                         {usuarios.map((usuario) => (
                           <option key={usuario.id} value={usuario.id}>
                             {usuario.nombreCompleto} · {usuario.rol}
@@ -659,7 +661,7 @@ export default function ConfiguracionAprobacionesPage() {
                       </Seleccion>
                     </Campo>
 
-                    <Campo etiqueta="O asignar por rol">
+                    <Campo etiqueta={t("O asignar por rol")}>
                       <Seleccion
                         value={nivel.rolAprobador || ""}
                         onChange={(event) =>
@@ -669,10 +671,10 @@ export default function ConfiguracionAprobacionesPage() {
                           })
                         }
                       >
-                        <option value="">No asignar por rol</option>
+                        <option value="">{t("No asignar por rol")}</option>
                         {roles.map(([valor, etiqueta]) => (
                           <option key={valor} value={valor}>
-                            {etiqueta}
+                            {t(etiqueta)}
                           </option>
                         ))}
                       </Seleccion>
@@ -680,8 +682,8 @@ export default function ConfiguracionAprobacionesPage() {
 
                     {esFinancieroCentral ? (
                       <Campo
-                        etiqueta="Autoridad hasta"
-                        ayuda={ultimo ? "Último nivel: sin límite" : undefined}
+                        etiqueta={t("Autoridad hasta")}
+                        ayuda={ultimo ? t("Último nivel: sin límite") : undefined}
                       >
                         <input
                           className="campo"
@@ -690,7 +692,7 @@ export default function ConfiguracionAprobacionesPage() {
                           step="0.01"
                           disabled={ultimo}
                           value={ultimo ? "" : nivel.montoHasta}
-                          placeholder={ultimo ? "Sin límite" : "Ej. 50000"}
+                          placeholder={ultimo ? t("Sin límite") : t("Ej. 50000")}
                           onChange={(event) =>
                             cambiar(nivel.id, {
                               montoHasta: event.target.value,
@@ -710,13 +712,13 @@ export default function ConfiguracionAprobacionesPage() {
                         */}
                         {requiereArea && (
                           <p className="col-span-full text-[11px] leading-snug text-slate-500">
-                            La requisición se valúa con el <strong>costo de reposición</strong> de
+                            La requisición se valúa con el <strong>{t("costo de reposición")}</strong> de
                             cada producto por la cantidad pedida. Un producto sin costo conocido
                             cuenta como cero, así que lo desconocido nunca escala solo.
                             Deja ambos campos vacíos para que el nivel aplique siempre.
                           </p>
                         )}
-                        <Campo etiqueta="Aplica desde">
+                        <Campo etiqueta={t("Aplica desde")}>
                           <input
                             className="campo"
                             type="number"
@@ -729,7 +731,7 @@ export default function ConfiguracionAprobacionesPage() {
                             }
                           />
                         </Campo>
-                        <Campo etiqueta="Aplica hasta">
+                        <Campo etiqueta={t("Aplica hasta")}>
                           <input
                             className="campo"
                             type="number"
@@ -745,7 +747,7 @@ export default function ConfiguracionAprobacionesPage() {
                       </>
                     )}
 
-                    <Campo etiqueta="SLA de atención (horas)">
+                    <Campo etiqueta={t("SLA de atención (horas)")}>
                       <input
                         className="campo"
                         type="number"
@@ -773,7 +775,8 @@ export default function ConfiguracionAprobacionesPage() {
                           })
                         }
                       />
-                      Nivel obligatorio
+                      
+                      {t("Nivel obligatorio")}
                     </label>
                     <label className="flex items-center gap-2">
                       <input
@@ -790,7 +793,8 @@ export default function ConfiguracionAprobacionesPage() {
                           })
                         }
                       />
-                      Permitir autoaprobación
+                      
+                      {t("Permitir autoaprobación")}
                     </label>
                   </div>
                 </Panel>
@@ -808,7 +812,8 @@ export default function ConfiguracionAprobacionesPage() {
               ])
             }
           >
-            Agregar nivel
+            
+            {t("Agregar nivel")}
           </Boton>
         </div>
       </div>

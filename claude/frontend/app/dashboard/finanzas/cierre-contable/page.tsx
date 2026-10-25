@@ -24,6 +24,7 @@ import {
 import { api, ApiError } from "@/lib/api";
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface Periodo {
   mes: number;
   anio: number;
@@ -131,6 +132,7 @@ function errorLegible(error: unknown) {
 }
 
 export default function CierreContablePage() {
+  const t = useT();
   const [periodos, setPeriodos] = useState<Periodo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [anioFiltro, setAnioFiltro] = useState(new Date().getFullYear());
@@ -289,7 +291,7 @@ export default function CierreContablePage() {
   async function reabrir() {
     if (!seleccionado) return;
     if (justificacion.trim().length < 10) {
-      setError("La justificación debe tener al menos 10 caracteres.");
+      setError(t("La justificación debe tener al menos 10 caracteres."));
       return;
     }
     setProcesando(true);
@@ -329,15 +331,17 @@ export default function CierreContablePage() {
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-violet-600 mb-1">
-            Finanzas · asistente guiado
+            
+            {t("Finanzas · asistente guiado")}
           </p>
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 flex items-center gap-3">
             <Lock className="w-7 h-7 text-violet-600" />
-            Cierre mensual
+            
+            {t("Cierre mensual")}
           </h1>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Revisa la contabilidad, operaciones pendientes, bancos e IVA antes
-            de proteger definitivamente el mes.
+            
+            {t("Revisa la contabilidad, operaciones pendientes, bancos e IVA antes de proteger definitivamente el mes.")}
           </p>
         </div>
         <div className="flex gap-2">
@@ -357,7 +361,7 @@ export default function CierreContablePage() {
           <button
             onClick={() => void cargarPeriodos()}
             className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500"
-            aria-label="Actualizar" title="Actualizar"
+            aria-label={t("Actualizar")} title={t("Actualizar")}
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -367,10 +371,10 @@ export default function CierreContablePage() {
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6 text-sm text-blue-900">
         <Info className="w-5 h-5 shrink-0 text-blue-600" />
         <div>
-          <p className="font-bold">Cerrar no significa borrar.</p>
+          <p className="font-bold">{t("Cerrar no significa borrar.")}</p>
           <p className="text-blue-700 mt-0.5">
-            El sistema bloquea nuevas pólizas para ese mes y guarda la evidencia
-            de la revisión. Sólo pueden cerrarse meses completamente terminados.
+            
+            {t("El sistema bloquea nuevas pólizas para ese mes y guarda la evidencia de la revisión. Sólo pueden cerrarse meses completamente terminados.")}
           </p>
         </div>
       </div>
@@ -378,19 +382,19 @@ export default function CierreContablePage() {
       {mensaje && (
         <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-3 mb-5 text-sm">
           <CheckCircle2 className="w-4 h-4" />
-          {mensaje}
+          {t(mensaje)}
         </div>
       )}
       {error && !seleccionado && (
         <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl p-3 mb-5 text-sm">
-          {error}
+          {t(error)}
         </div>
       )}
 
       {cargando ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center">
           <RefreshCw className="w-7 h-7 animate-spin text-violet-600 mx-auto mb-3" />
-          <p className="text-sm text-slate-500">Cargando períodos…</p>
+          <p className="text-sm text-slate-500">{t("Cargando períodos…")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -428,7 +432,7 @@ export default function CierreContablePage() {
               </div>
               <div className="flex items-center gap-2 mt-4 mb-4 text-xs text-slate-500">
                 <FileText className="w-3.5 h-3.5" />
-                {plural(periodo.totalPolizas, "póliza")}
+                {plural(periodo.totalPolizas, t("póliza"))}
               </div>
               <button
                 disabled={!periodo.cerrado && !periodo.cerrable}
@@ -451,10 +455,10 @@ export default function CierreContablePage() {
                 }`}
               >
                 {periodo.cerrado
-                  ? "Ver / reabrir"
+                  ? t("Ver / reabrir")
                   : periodo.cerrable
-                    ? "Revisar para cerrar"
-                    : "Mes todavía abierto"}
+                    ? t("Revisar para cerrar")
+                    : t("Mes todavía abierto")}
               </button>
             </article>
           ))}
@@ -467,7 +471,7 @@ export default function CierreContablePage() {
             <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-violet-600">
-                  {seleccionado.cerrado ? "Período protegido" : "Revisión de cierre"}
+                  {seleccionado.cerrado ? t("Período protegido") : t("Revisión de cierre")}
                 </p>
                 <h2 className="text-xl font-black text-slate-900 mt-1">
                   {seleccionado.nombreMes} {seleccionado.anio}
@@ -480,7 +484,7 @@ export default function CierreContablePage() {
                   setError(null);
                 }}
                 className="w-9 h-9 rounded-full bg-slate-100 text-slate-500 text-xl"
-                aria-label="Cerrar"
+                aria-label={t("Cerrar")}
               >
                 ×
               </button>
@@ -489,7 +493,7 @@ export default function CierreContablePage() {
             <div className="p-5 md:p-6">
               {error && (
                 <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl p-3 mb-4 text-sm">
-                  {error}
+                  {t(error)}
                 </div>
               )}
 
@@ -505,7 +509,8 @@ export default function CierreContablePage() {
                 <div className="py-16 text-center">
                   <RefreshCw className="w-7 h-7 animate-spin text-violet-600 mx-auto mb-3" />
                   <p className="text-sm text-slate-500">
-                    Analizando el período…
+                    
+                    {t("Analizando el período…")}
                   </p>
                 </div>
               ) : revision ? (
@@ -525,7 +530,8 @@ export default function CierreContablePage() {
                 <div className="py-12 text-center">
                   <XCircle className="w-8 h-8 text-rose-500 mx-auto mb-2" />
                   <p className="text-sm text-slate-600">
-                    No fue posible preparar el diagnóstico.
+                    
+                    {t("No fue posible preparar el diagnóstico.")}
                   </p>
                 </div>
               )}
@@ -560,6 +566,7 @@ function Wizard({
   onPreparar: () => void;
   onCerrar: () => void;
 }) {
+  const t = useT();
   const diagnostico = revision.snapshot;
   const listo = revision.estado === "LISTO";
 
@@ -567,11 +574,9 @@ function Wizard({
     <>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
         <div>
-          <p className="font-bold text-slate-900">1. Controles automáticos</p>
+          <p className="font-bold text-slate-900">{t("1. Controles automáticos")}</p>
           <p className="text-xs text-slate-500">
-            Fotografía tomada el{" "}
-            {new Date(diagnostico.generadoEn).toLocaleString("es-MX")}
-          </p>
+            {t("Fotografía tomada el{n0} {n1}", { n0: " ", n1: new Date(diagnostico.generadoEn).toLocaleString("es-MX") })}</p>
         </div>
         {!listo && (
           <button
@@ -580,7 +585,8 @@ function Wizard({
             className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 disabled:opacity-50"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            Volver a calcular
+            
+            {t("Volver a calcular")}
           </button>
         )}
       </div>
@@ -593,7 +599,7 @@ function Wizard({
 
       {diagnostico.asientosPendientes.total > 0 && (
         <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-5">
-          <p className="font-bold text-rose-900">Operaciones sin póliza</p>
+          <p className="font-bold text-rose-900">{t("Operaciones sin póliza")}</p>
           <div className="mt-2 space-y-2">
             {diagnostico.asientosPendientes.detalle.slice(0, 5).map((item) => (
               <div key={item.id} className="text-xs text-rose-700">
@@ -605,26 +611,27 @@ function Wizard({
             href="/dashboard/finanzas/asientos-pendientes"
             className="inline-flex items-center gap-1 mt-3 text-xs font-bold text-rose-800 underline"
           >
-            Abrir Asientos pendientes <ArrowRight className="w-3 h-3" />
+            
+            {t("Abrir Asientos pendientes")} <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Dato
-          titulo="Pólizas"
+          titulo={t("Pólizas")}
           valor={String(diagnostico.contabilidad.totalPolizas)}
         />
         <Dato
-          titulo="Debe"
+          titulo={t("Debe")}
           valor={moneda.format(diagnostico.contabilidad.totalDebe)}
         />
         <Dato
-          titulo="Haber"
+          titulo={t("Haber")}
           valor={moneda.format(diagnostico.contabilidad.totalHaber)}
         />
         <Dato
-          titulo="Diferencia"
+          titulo={t("Diferencia")}
           valor={moneda.format(diagnostico.contabilidad.diferencia)}
           alerta={Math.abs(diagnostico.contabilidad.diferencia) >= 0.01}
         />
@@ -634,36 +641,38 @@ function Wizard({
         <div className="flex items-center gap-2 mb-4">
           <Calculator className="w-5 h-5 text-violet-600" />
           <div>
-            <p className="font-bold text-slate-900">IVA del período</p>
+            <p className="font-bold text-slate-900">{t("IVA del período")}</p>
             <p className="text-xs text-slate-500">
-              Estimación contable; revísala contra CFDI y declaraciones.
+              
+              {t("Estimación contable; revísala contra CFDI y declaraciones.")}
             </p>
           </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Dato titulo="Trasladado" valor={moneda.format(diagnostico.iva.trasladado)} />
-          <Dato titulo="Acreditable" valor={moneda.format(diagnostico.iva.acreditable)} />
-          <Dato titulo="A pagar" valor={moneda.format(diagnostico.iva.ivaAPagar)} />
-          <Dato titulo="A favor" valor={moneda.format(diagnostico.iva.saldoAFavor)} />
+          <Dato titulo={t("Trasladado")} valor={moneda.format(diagnostico.iva.trasladado)} />
+          <Dato titulo={t("Acreditable")} valor={moneda.format(diagnostico.iva.acreditable)} />
+          <Dato titulo={t("A pagar")} valor={moneda.format(diagnostico.iva.ivaAPagar)} />
+          <Dato titulo={t("A favor")} valor={moneda.format(diagnostico.iva.saldoAFavor)} />
         </div>
         <Link
           href={`/dashboard/finanzas/declaracion-iva`}
           className="inline-flex items-center gap-1 mt-3 text-xs font-bold text-violet-700 underline"
         >
-          Revisar detalle de IVA <ArrowRight className="w-3 h-3" />
+          
+          {t("Revisar detalle de IVA")} <ArrowRight className="w-3 h-3" />
         </Link>
       </div>
 
       <div className="border border-slate-200 rounded-2xl p-5 mb-5">
-        <p className="font-bold text-slate-900">2. Confirmaciones humanas</p>
+        <p className="font-bold text-slate-900">{t("2. Confirmaciones humanas")}</p>
         <p className="text-xs text-slate-500 mt-1 mb-4">
-          El sistema puede sumar y detectar faltantes, pero estas tres
-          comprobaciones requieren una persona.
+          
+          {t("El sistema puede sumar y detectar faltantes, pero estas tres comprobaciones requieren una persona.")}
         </p>
         <div className="space-y-3">
           <Confirmacion
             icono={<Building2 className="w-4 h-4" />}
-            texto="Revisé bancos, cajas y partidas en tránsito."
+            texto={t("Revisé bancos, cajas y partidas en tránsito.")}
             checked={confirmaciones.bancosRevisados}
             disabled={listo}
             onChange={(valor) =>
@@ -672,7 +681,7 @@ function Wizard({
           />
           <Confirmacion
             icono={<Calculator className="w-4 h-4" />}
-            texto="Revisé el IVA contra los comprobantes disponibles."
+            texto={t("Revisé el IVA contra los comprobantes disponibles.")}
             checked={confirmaciones.ivaRevisado}
             disabled={listo}
             onChange={(valor) =>
@@ -681,7 +690,7 @@ function Wizard({
           />
           <Confirmacion
             icono={<ClipboardCheck className="w-4 h-4" />}
-            texto="No faltan ventas, compras, nómina ni documentos del mes."
+            texto={t("No faltan ventas, compras, nómina ni documentos del mes.")}
             checked={confirmaciones.documentosCompletos}
             disabled={listo}
             onChange={(valor) =>
@@ -703,15 +712,16 @@ function Wizard({
           <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
             <ShieldCheck className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
             <p className="text-[12.5px] text-emerald-900 leading-relaxed">
-              <strong>El respaldo lo toma el sistema.</strong> Al cerrar se
+              <strong>{t("El respaldo lo toma el sistema.")}</strong> Al cerrar se
               genera una copia completa de la base, se verifica que no haya
               quedado a medias y se guarda su huella en la evidencia del cierre.
-              Si el respaldo falla, el período <strong>no</strong> se cierra.
+              Si el respaldo falla, el período <strong>{t("no")}</strong> se cierra.
             </p>
           </div>
         </div>
         <label className="block text-xs font-bold uppercase text-slate-500 mt-5 mb-1.5">
-          Notas de la revisión
+          
+          {t("Notas de la revisión")}
         </label>
         <textarea
           rows={3}
@@ -719,7 +729,7 @@ function Wizard({
           disabled={listo}
           value={notas}
           onChange={(e) => setNotas(e.target.value)}
-          placeholder="Ejemplo: revisado con estados de cuenta y CFDI del mes…"
+          placeholder={t("Ejemplo: revisado con estados de cuenta y CFDI del mes…")}
           className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm disabled:bg-slate-50"
         />
       </div>
@@ -727,20 +737,19 @@ function Wizard({
       {diagnostico.bloqueos > 0 ? (
         <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-sm text-rose-800">
           <p className="font-bold">
-            No puede cerrarse: hay {plural(diagnostico.bloqueos, "bloqueo")}.
-          </p>
+            {t("No puede cerrarse: hay {n0}.", { n0: plural(diagnostico.bloqueos, "bloqueo") })}</p>
           <p className="mt-1">
-            Corrige los puntos rojos y usa “Volver a calcular”. No se generará
-            ningún ajuste automático.
+            
+            {t("Corrige los puntos rojos y usa “Volver a calcular”. No se generará ningún ajuste automático.")}
           </p>
         </div>
       ) : listo ? (
         <div className="bg-slate-900 text-white rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <p className="font-bold">3. Revisión lista para cerrar</p>
+            <p className="font-bold">{t("3. Revisión lista para cerrar")}</p>
             <p className="text-sm text-slate-300 mt-0.5">
-              Antes de cerrar se volverán a ejecutar todos los controles dentro
-              de la misma transacción.
+              
+              {t("Antes de cerrar se volverán a ejecutar todos los controles dentro de la misma transacción.")}
             </p>
           </div>
           <button
@@ -748,7 +757,7 @@ function Wizard({
             onClick={onCerrar}
             className="px-5 py-3 rounded-xl bg-emerald-400 text-slate-950 font-black text-sm disabled:opacity-50"
           >
-            {procesando ? "Cerrando…" : "Cerrar período"}
+            {procesando ? t("Cerrando…") : t("Cerrar período")}
           </button>
         </div>
       ) : (
@@ -757,7 +766,7 @@ function Wizard({
           onClick={onPreparar}
           className="w-full py-3 rounded-xl bg-violet-600 text-white font-bold text-sm disabled:bg-slate-200 disabled:text-slate-400"
         >
-          {procesando ? "Verificando nuevamente…" : "Confirmar revisión"}
+          {procesando ? t("Verificando nuevamente…") : t("Confirmar revisión")}
         </button>
       )}
     </>
@@ -765,6 +774,7 @@ function Wizard({
 }
 
 function ControlCard({ control }: { control: Control }) {
+  const t = useT();
   const estilo =
     control.estado === "CORRECTO"
       ? "bg-emerald-50 border-emerald-200 text-emerald-800"
@@ -781,8 +791,8 @@ function ControlCard({ control }: { control: Control }) {
     <div className={`border rounded-xl p-4 flex gap-3 ${estilo}`}>
       <Icono className="w-5 h-5 shrink-0" />
       <div>
-        <p className="text-sm font-bold">{control.titulo}</p>
-        <p className="text-xs opacity-80 mt-1">{control.descripcion}</p>
+        <p className="text-sm font-bold">{t(control.titulo)}</p>
+        <p className="text-xs opacity-80 mt-1">{t(control.descripcion)}</p>
       </div>
     </div>
   );
@@ -797,9 +807,10 @@ function Dato({
   valor: string;
   alerta?: boolean;
 }) {
+  const t = useT();
   return (
     <div className="bg-slate-50 rounded-xl p-3">
-      <p className="text-[10px] font-bold uppercase text-slate-400">{titulo}</p>
+      <p className="text-[10px] font-bold uppercase text-slate-400">{t(titulo)}</p>
       <p
         className={`text-sm md:text-base font-black mt-1 tabular-nums ${
           alerta ? "text-rose-600" : "text-slate-800"
@@ -824,6 +835,7 @@ function Confirmacion({
   disabled: boolean;
   onChange: (valor: boolean) => void;
 }) {
+  const t = useT();
   return (
     <label className="flex items-start gap-3 cursor-pointer">
       <input
@@ -834,7 +846,7 @@ function Confirmacion({
         className="mt-0.5 w-4 h-4 accent-violet-600"
       />
       <span className="text-violet-600 mt-0.5">{icono}</span>
-      <span className="text-sm text-slate-700">{texto}</span>
+      <span className="text-sm text-slate-700">{t(texto)}</span>
     </label>
   );
 }
@@ -852,20 +864,20 @@ function Reapertura({
   procesando: boolean;
   onReabrir: () => void;
 }) {
+  const t = useT();
   return (
     <div>
       <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 mb-5">
         <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
         <div>
-          <p className="font-bold text-emerald-900">Período cerrado</p>
+          <p className="font-bold text-emerald-900">{t("Período cerrado")}</p>
           <p className="text-sm text-emerald-700 mt-1">
-            Sus pólizas están protegidas contra altas o modificaciones
-            posteriores.
+            
+            {t("Sus pólizas están protegidas contra altas o modificaciones posteriores.")}
           </p>
           {periodo.fechaCierre && (
             <p className="text-xs text-emerald-600 mt-2">
-              Cerrado el {new Date(periodo.fechaCierre).toLocaleString("es-MX")}
-            </p>
+              {t("Cerrado el {n0}", { n0: new Date(periodo.fechaCierre).toLocaleString("es-MX") })}</p>
           )}
         </div>
       </div>
@@ -873,21 +885,22 @@ function Reapertura({
       <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
         <div className="flex items-center gap-2 text-amber-900">
           <History className="w-5 h-5" />
-          <p className="font-bold">Reapertura excepcional</p>
+          <p className="font-bold">{t("Reapertura excepcional")}</p>
         </div>
         <p className="text-sm text-amber-800 mt-2">
-          Reabrir permite nuevas pólizas en un mes ya cerrado. La acción no
-          elimina el cierre anterior: queda registrada en la bitácora.
+          
+          {t("Reabrir permite nuevas pólizas en un mes ya cerrado. La acción no elimina el cierre anterior: queda registrada en la bitácora.")}
         </p>
         <label className="block text-xs font-bold uppercase text-amber-800 mt-4 mb-1.5">
-          Motivo obligatorio
+          
+          {t("Motivo obligatorio")}
         </label>
         <textarea
           rows={3}
           maxLength={500}
           value={justificacion}
           onChange={(e) => setJustificacion(e.target.value)}
-          placeholder="Explica por qué debe modificarse este período…"
+          placeholder={t("Explica por qué debe modificarse este período…")}
           className="w-full px-3 py-2.5 bg-white border border-amber-200 rounded-xl text-sm"
         />
         <button
@@ -895,7 +908,7 @@ function Reapertura({
           onClick={onReabrir}
           className="mt-3 px-4 py-2.5 rounded-xl bg-amber-500 text-white font-bold text-sm disabled:opacity-50"
         >
-          {procesando ? "Reabriendo…" : "Reabrir con bitácora"}
+          {procesando ? t("Reabriendo…") : t("Reabrir con bitácora")}
         </button>
       </div>
     </div>

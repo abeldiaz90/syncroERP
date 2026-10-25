@@ -9,6 +9,7 @@ import {
   AlertCircle, Loader2, ChevronRight, Building2, Calendar
 } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 // ==========================================
 // INTERFACES
 // ==========================================
@@ -48,6 +49,7 @@ const RECEPCION_COMPLETA = (oc: IOrdenCompra) =>
 const ESTADOS_LOGISTICOS = ['ENVIADA', 'RECIBIDA', 'CON_INCIDENCIAS', 'PARCIALMENTE_PAGADA', 'PAGADA'];
 
 export default function ListaRecepcionesPage() {
+  const t = useT();
   const [recepciones, setRecepciones] = useState<IOrdenCompra[]>([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
@@ -101,13 +103,13 @@ export default function ListaRecepcionesPage() {
           setErrorCarga('');
         } else {
           setErrorCarga(res.status === 403
-            ? 'Tu perfil no incluye la consulta de órdenes de compra.'
-            : 'No se pudieron consultar las órdenes de compra.');
-          setToast({ mensaje: 'Error al cargar los documentos de tránsito', tipo: 'error' });
+            ? t("Tu perfil no incluye la consulta de órdenes de compra.")
+            : t("No se pudieron consultar las órdenes de compra."));
+          setToast({ mensaje: t("Error al cargar los documentos de tránsito"), tipo: 'error' });
         }
       } catch (error) {
-        setErrorCarga('No hay conexión con el servidor.');
-        setToast({ mensaje: 'Error de conexión con el servidor', tipo: 'error' });
+        setErrorCarga(t("No hay conexión con el servidor."));
+        setToast({ mensaje: t("Error de conexión con el servidor"), tipo: 'error' });
       } finally {
         setCargando(false);
       }
@@ -136,7 +138,7 @@ export default function ListaRecepcionesPage() {
       {/* Toast Notificaciones */}
       {toast && (
         <div className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-6 py-4 rounded-xl shadow-2xl font-bold text-white transition-all ${toast.tipo === 'error' ? 'bg-rose-600' : 'bg-blue-600'}`}>
-          <AlertCircle className="w-5 h-5" /> {toast.mensaje}
+          <AlertCircle className="w-5 h-5" /> {t(toast.mensaje)}
         </div>
       )}
 
@@ -145,9 +147,10 @@ export default function ListaRecepcionesPage() {
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
             <div className="p-3 bg-emerald-100 text-emerald-600 rounded-2xl"><Truck className="w-6 h-6" /></div>
-            Recepción de Mercancía
+            
+            {t("Recepción de Mercancía")}
           </h1>
-          <p className="text-slate-500 mt-2 font-medium">Control logístico de entradas al inventario físico.</p>
+          <p className="text-slate-500 mt-2 font-medium">{t("Control logístico de entradas al inventario físico.")}</p>
         </div>
         
         {/* Estadísticas Rápidas */}
@@ -155,14 +158,14 @@ export default function ListaRecepcionesPage() {
           <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
             <div className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Clock className="w-5 h-5" /></div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">En Tránsito</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t("En Tránsito")}</p>
               <p className="text-xl font-black text-slate-800">{conteoEnTransito}</p>
             </div>
           </div>
           <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><CheckCircle2 className="w-5 h-5" /></div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Recibidas</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t("Recibidas")}</p>
               <p className="text-xl font-black text-slate-800">{conteoRecibidas}</p>
             </div>
           </div>
@@ -178,13 +181,13 @@ export default function ListaRecepcionesPage() {
             onClick={() => setFiltroEstado('ENVIADA')}
             className={`flex-1 md:w-48 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${filtroEstado === 'ENVIADA' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            <Clock className="w-4 h-4" /> Por Recibir
+            <Clock className="w-4 h-4" />  {t("Por Recibir")}
           </button>
           <button 
             onClick={() => setFiltroEstado('RECIBIDA')}
             className={`flex-1 md:w-48 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${filtroEstado === 'RECIBIDA' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            <CheckCircle2 className="w-4 h-4" /> Historial Completo
+            <CheckCircle2 className="w-4 h-4" />  {t("Historial Completo")}
           </button>
         </div>
 
@@ -193,7 +196,7 @@ export default function ListaRecepcionesPage() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Buscar folio o proveedor..."
+            placeholder={t("Buscar folio o proveedor...")}
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium transition-all"
@@ -206,13 +209,14 @@ export default function ListaRecepcionesPage() {
         {cargando ? (
           <div className="p-16 text-center text-slate-400">
             <Loader2 className="w-10 h-10 animate-spin text-emerald-500 mx-auto mb-4" />
-            <p className="font-bold">Buscando manifiestos de carga...</p>
+            <p className="font-bold">{t("Buscando manifiestos de carga...")}</p>
           </div>
         ) : errorCarga ? (
           <div className="p-16 text-center">
             <p className="text-xl font-bold text-rose-700">{errorCarga}</p>
             <p className="mt-1 text-slate-500">
-              La bandeja no está vacía: no se pudo consultar.
+              
+              {t("La bandeja no está vacía: no se pudo consultar.")}
             </p>
           </div>
         ) : recepcionesFiltradas.length === 0 ? (
@@ -220,22 +224,22 @@ export default function ListaRecepcionesPage() {
             <PackageCheck className="w-16 h-16 text-slate-300 mx-auto mb-4" />
             <p className="text-xl font-bold text-slate-700">
               {busqueda
-                ? 'Ninguna coincide con tu búsqueda'
+                ? t("Ninguna coincide con tu búsqueda")
                 : filtroEstado === 'ENVIADA'
-                  ? 'Ninguna orden viene en camino'
-                  : 'Ninguna orden se ha recibido completa'}
+                  ? t("Ninguna orden viene en camino")
+                  : t("Ninguna orden se ha recibido completa")}
             </p>
             <p className="mt-1">
               {busqueda
                 ? `Ninguna de las ${recepciones.length} órdenes de esta bandeja dice «${busqueda}».`
                 : sinDespachar > 0
                   ? sinDespachar === 1
-                    ? '1 orden de compra todavía no la despacha Compras; aparecerá aquí cuando la envíen.'
+                    ? t("1 orden de compra todavía no la despacha Compras; aparecerá aquí cuando la envíen.")
                     : `${sinDespachar} órdenes de compra todavía no las despacha Compras; aparecerán aquí cuando las envíen.`
                   : totalOrdenes === 0
-                    ? 'No hay ninguna orden de compra registrada.'
+                    ? t("No hay ninguna orden de compra registrada.")
                     : totalOrdenes === 1
-                      ? 'La única orden registrada está fuera de esta bandeja.'
+                      ? t("La única orden registrada está fuera de esta bandeja.")
                       : `Las ${totalOrdenes} órdenes registradas están fuera de esta bandeja.`}
             </p>
           </div>
@@ -244,11 +248,11 @@ export default function ListaRecepcionesPage() {
             <table className="w-full text-left whitespace-nowrap">
               <thead className="bg-slate-900 text-white text-[11px] uppercase tracking-widest font-black">
                 <tr>
-                  <th className="px-6 py-5">Folio / Fecha</th>
-                  <th className="px-6 py-5">Proveedor Origen</th>
-                  <th className="px-6 py-5 text-center">Volumen Esperado</th>
-                  <th className="px-6 py-5 text-center">Estado</th>
-                  <th className="px-6 py-5 text-right">Acción</th>
+                  <th className="px-6 py-5">{t("Folio / Fecha")}</th>
+                  <th className="px-6 py-5">{t("Proveedor Origen")}</th>
+                  <th className="px-6 py-5 text-center">{t("Volumen Esperado")}</th>
+                  <th className="px-6 py-5 text-center">{t("Estado")}</th>
+                  <th className="px-6 py-5 text-right">{t("Acción")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
@@ -274,7 +278,7 @@ export default function ListaRecepcionesPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <Building2 className="w-4 h-4 text-slate-400" />
-                          <span className="font-bold text-slate-700">{oc.proveedor?.nombre || 'Proveedor Desconocido'}</span>
+                          <span className="font-bold text-slate-700">{oc.proveedor?.nombre || t("Proveedor Desconocido")}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
@@ -287,10 +291,10 @@ export default function ListaRecepcionesPage() {
                           !RECEPCION_COMPLETA(oc) ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
                         }`}>
                           {RECEPCION_COMPLETA(oc)
-                            ? 'Recibida'
+                            ? t("Recibida")
                             : oc.estadoRecepcion === 'PARCIAL'
-                            ? 'Entrega incompleta'
-                            : 'En Tránsito'}
+                            ? t("Entrega incompleta")
+                            : t("En Tránsito")}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -303,10 +307,10 @@ export default function ListaRecepcionesPage() {
                           }`}
                         >
                           {RECEPCION_COMPLETA(oc)
-                            ? 'Ver Detalle'
+                            ? t("Ver Detalle")
                             : oc.estadoRecepcion === 'PARCIAL'
-                            ? 'Recibir pendiente'
-                            : 'Procesar Entrada'}
+                            ? t("Recibir pendiente")
+                            : t("Procesar Entrada")}
                           <ChevronRight className="w-4 h-4" />
                         </Link>
                       </td>

@@ -7,6 +7,7 @@ import { api, intentar } from '@/lib/api';
 import { usePermiso } from '@/hooks/use-permisos';
 import { useRutasPermitidas } from '@/hooks/use-rutas-permitidas';
 
+import { useT } from '@/components/I18nProvider';
 interface Integridad { total?: number; diferencias?: unknown[]; data?: unknown[] }
 interface Pendiente { total?: number }
 
@@ -45,6 +46,7 @@ const accesos: Array<{
 ];
 
 export default function CentroAlmacenes() {
+  const t = useT();
   const [diferencias, setDiferencias] = useState<number | null>(null);
   const [transferencias, setTransferencias] = useState<number | null>(null);
   const { tienePermiso } = usePermiso();
@@ -98,29 +100,29 @@ export default function CentroAlmacenes() {
     <div className="p-5 lg:p-8 max-w-[1380px] mx-auto space-y-6">
       <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-600">WMS · Centro operativo</p>
-          <h1 className="text-2xl font-bold text-slate-900 mt-1">Almacenes</h1>
-          <p className="text-[13px] text-slate-500 mt-1">Todo lo necesario para recibir, localizar, mover, contar y surtir mercancía.</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-600">{t("WMS · Centro operativo")}</p>
+          <h1 className="text-2xl font-bold text-slate-900 mt-1">{t("Almacenes")}</h1>
+          <p className="text-[13px] text-slate-500 mt-1">{t("Todo lo necesario para recibir, localizar, mover, contar y surtir mercancía.")}</p>
         </div>
         {puedeAbrir('/dashboard/almacenes/existencias') && (
-          <Link href="/dashboard/almacenes/existencias" className="btn btn-primario">Ver existencias <ArrowRight className="w-3.5 h-3.5" /></Link>
+          <Link href="/dashboard/almacenes/existencias" className="btn btn-primario">{t("Ver existencias")} <ArrowRight className="w-3.5 h-3.5" /></Link>
         )}
       </header>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi label="Integridad física" value={diferencias === null ? '—' : diferencias === 0 ? 'Sin diferencias' : `${diferencias} diferencias`} Icono={diferencias ? AlertTriangle : Warehouse} alerta={Boolean(diferencias)} />
-        <Kpi label="Pendientes operativos" value={transferencias === null ? '—' : String(transferencias)} Icono={Repeat2} />
-        <Kpi label="Control principal" value="Ubicación + lote" Icono={MapPin} />
-        <Kpi label="Método de salida" value="FEFO localizado" Icono={Boxes} />
+        <Kpi label={t("Integridad física")} value={diferencias === null ? '—' : diferencias === 0 ? 'Sin diferencias' : `${diferencias} diferencias`} Icono={diferencias ? AlertTriangle : Warehouse} alerta={Boolean(diferencias)} />
+        <Kpi label={t("Pendientes operativos")} value={transferencias === null ? '—' : String(transferencias)} Icono={Repeat2} />
+        <Kpi label={t("Control principal")} value="Ubicación + lote" Icono={MapPin} />
+        <Kpi label={t("Método de salida")} value="FEFO localizado" Icono={Boxes} />
       </div>
 
       <section>
-        <h2 className="text-[14px] font-bold text-slate-900 mb-3">Operaciones frecuentes</h2>
+        <h2 className="text-[14px] font-bold text-slate-900 mb-3">{t("Operaciones frecuentes")}</h2>
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {accesosVisibles.map(({ label, detalle, href, Icono }) => (
             <Link key={href} href={href} className="panel p-4 flex items-center gap-3 group hover:shadow-md transition-shadow">
               <span className="w-10 h-10 rounded-xl bg-emerald-50 grid place-items-center"><Icono className="w-5 h-5 text-emerald-600" /></span>
-              <span className="min-w-0"><span className="block text-[13px] font-bold text-slate-900">{label}</span><span className="block text-[11.5px] text-slate-500 mt-0.5">{detalle}</span></span>
+              <span className="min-w-0"><span className="block text-[13px] font-bold text-slate-900">{t(label)}</span><span className="block text-[11.5px] text-slate-500 mt-0.5">{t(detalle)}</span></span>
               <ArrowRight className="w-4 h-4 text-slate-300 ml-auto group-hover:text-emerald-600" />
             </Link>
           ))}
@@ -128,20 +130,20 @@ export default function CentroAlmacenes() {
       </section>
 
       <section className="grid lg:grid-cols-3 gap-3">
-        <Bloque titulo="Entradas" puedeAbrir={puedeAbrir} links={[
-          ['Recepciones de compra', '/dashboard/inventario/recepciones'],
-          ['Transferencias por recibir', '/dashboard/inventario/transferencias'],
-          ['Stock inicial', '/dashboard/inventario/stock-inicial'],
+        <Bloque titulo={t("Entradas")} puedeAbrir={puedeAbrir} links={[
+          [t("Recepciones de compra"), '/dashboard/inventario/recepciones'],
+          [t("Transferencias por recibir"), '/dashboard/inventario/transferencias'],
+          [t("Stock inicial"), '/dashboard/inventario/stock-inicial'],
         ]} />
-        <Bloque titulo="Control físico" puedeAbrir={puedeAbrir} links={[
-          ['Existencias por posición', '/dashboard/almacenes/existencias'],
-          ['Conteos físicos', '/dashboard/inventario/conteos'],
-          ['Ubicaciones', '/dashboard/inventario/ubicaciones'],
+        <Bloque titulo={t("Control físico")} puedeAbrir={puedeAbrir} links={[
+          [t("Existencias por posición"), '/dashboard/almacenes/existencias'],
+          [t("Conteos físicos"), '/dashboard/inventario/conteos'],
+          [t("Ubicaciones"), '/dashboard/inventario/ubicaciones'],
         ]} />
-        <Bloque titulo="Salidas y movimientos" puedeAbrir={puedeAbrir} links={[
-          ['Transferencias', '/dashboard/inventario/transferencias'],
-          ['Reubicaciones', '/dashboard/inventario/reubicaciones'],
-          ['Ajustes y mermas', '/dashboard/inventario/ajustes'],
+        <Bloque titulo={t("Salidas y movimientos")} puedeAbrir={puedeAbrir} links={[
+          [t("Transferencias"), '/dashboard/inventario/transferencias'],
+          [t("Reubicaciones"), '/dashboard/inventario/reubicaciones'],
+          [t("Ajustes y mermas"), '/dashboard/inventario/ajustes'],
         ]} />
       </section>
     </div>
@@ -149,7 +151,8 @@ export default function CentroAlmacenes() {
 }
 
 function Kpi({ label, value, Icono, alerta = false }: { label: string; value: string; Icono: typeof Warehouse; alerta?: boolean }) {
-  return <div className="panel p-4"><div className="flex items-center gap-2 text-[11.5px] text-slate-500"><Icono className={`w-4 h-4 ${alerta ? 'text-amber-500' : 'text-emerald-600'}`} />{label}</div><p className="text-[16px] font-bold text-slate-900 mt-2">{value}</p></div>;
+  const t = useT();
+  return <div className="panel p-4"><div className="flex items-center gap-2 text-[11.5px] text-slate-500"><Icono className={`w-4 h-4 ${alerta ? 'text-amber-500' : 'text-emerald-600'}`} />{t(label)}</div><p className="text-[16px] font-bold text-slate-900 mt-2">{value}</p></div>;
 }
 /**
  * Un bloque de enlaces que sólo lista lo que esta persona puede abrir, y que
@@ -165,7 +168,8 @@ function Bloque({
   links: [string, string][];
   puedeAbrir: (href: string) => boolean;
 }) {
+  const t = useT();
   const visibles = links.filter(([, h]) => puedeAbrir(h));
   if (!visibles.length) return null;
-  return <div className="panel p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-2">{titulo}</p>{visibles.map(([l,h]) => <Link key={h} href={h} className="flex items-center justify-between py-2.5 text-[12.5px] text-slate-700 hover:text-emerald-700 border-b border-slate-100 last:border-0">{l}<ArrowRight className="w-3.5 h-3.5" /></Link>)}</div>;
+  return <div className="panel p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-2">{t(titulo)}</p>{visibles.map(([l,h]) => <Link key={h} href={h} className="flex items-center justify-between py-2.5 text-[12.5px] text-slate-700 hover:text-emerald-700 border-b border-slate-100 last:border-0">{l}<ArrowRight className="w-3.5 h-3.5" /></Link>)}</div>;
 }

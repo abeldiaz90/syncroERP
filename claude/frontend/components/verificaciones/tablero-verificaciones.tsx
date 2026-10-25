@@ -58,6 +58,7 @@ import {
 } from '@/components/clientes/expediente-cliente';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface IControl {
   tipo: TipoPaso;
   corridasReales: number;
@@ -100,6 +101,7 @@ const BARRA: Record<Resultado, string> = {
 };
 
 export function TableroVerificaciones({ compacto = false }: { compacto?: boolean }) {
+  const t = useT();
   const [dias, setDias] = useState(90);
   const [datos, setDatos] = useState<ITablero | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -137,12 +139,12 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
       <section className="panel p-5">
         <h2 className="text-[17px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
           <ShieldCheck className="w-[18px] h-[18px] text-slate-400" />
-          Control de verificaciones
+          
+          {t("Control de verificaciones")}
         </h2>
         <p className="text-[12.5px] text-slate-500 mt-1">
-          El control de verificaciones de la cartera no está en tu perfil, así
-          que esta pantalla no puede decirte cuánto se ha verificado ni cuánto
-          falta. No es que no haya nada: es que no se consultó.
+          
+          {t("El control de verificaciones de la cartera no está en tu perfil, así que esta pantalla no puede decirte cuánto se ha verificado ni cuánto falta. No es que no haya nada: es que no se consultó.")}
         </p>
       </section>
     );
@@ -152,17 +154,19 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
       <section className="panel p-5 border-rose-200">
         <h2 className="text-[17px] font-bold text-rose-800 tracking-tight flex items-center gap-2">
           <ShieldCheck className="w-[18px] h-[18px] text-rose-500" />
-          Control de verificaciones
+          
+          {t("Control de verificaciones")}
         </h2>
         <p className="text-[12.5px] text-slate-600 mt-1">
-          No se pudo leer el tablero. Las cifras no se muestran porque serían
-          ceros que nadie comprobó; vuelve a intentarlo.
+          
+          {t("No se pudo leer el tablero. Las cifras no se muestran porque serían ceros que nadie comprobó; vuelve a intentarlo.")}
         </p>
         <button
           onClick={() => void cargar()}
           className="mt-3 text-[12.5px] font-semibold text-indigo-600 hover:text-indigo-700"
         >
-          Volver a intentar
+          
+          {t("Volver a intentar")}
         </button>
       </section>
     );
@@ -182,18 +186,20 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
         <div>
           <h2 className="text-[17px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <ShieldCheck className="w-[18px] h-[18px] text-emerald-600" />
-            Control de verificaciones
+            
+            {t("Control de verificaciones")}
           </h2>
           <p className="text-[12.5px] text-slate-500 mt-0.5">
-            Qué se ha comprobado en toda la cartera, control por control. Las simulaciones
-            se cuentan aparte: se hicieron, pero no habilitan ninguna autorización.
+            
+            {t("Qué se ha comprobado en toda la cartera, control por control. Las simulaciones se cuentan aparte: se hicieron, pero no habilitan ninguna autorización.")}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {compacto ? (
             <Link href="/dashboard/creditos/verificacion"
               className="flex items-center gap-1.5 text-[12.5px] font-semibold text-indigo-600 hover:text-indigo-700">
-              Ver el tablero completo <ChevronRight className="w-4 h-4" />
+              
+              {t("Ver el tablero completo")} <ChevronRight className="w-4 h-4" />
             </Link>
           ) : (
             <>
@@ -202,13 +208,13 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
                   <button key={v.dias} onClick={() => setDias(v.dias)}
                     className={`px-2.5 py-1 text-[12px] font-semibold rounded-md transition-colors ${
                       dias === v.dias ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'}`}>
-                    {v.etiqueta}
+                    {t(v.etiqueta)}
                   </button>
                 ))}
               </div>
               <Link href="/dashboard/creditos/verificacion/ejecutar"
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-[13px] font-semibold shadow-sm transition-all active:scale-95">
-                <Play className="w-4 h-4" /> Verificar a un cliente
+                <Play className="w-4 h-4" />  {t("Verificar a un cliente")}
               </Link>
             </>
           )}
@@ -219,19 +225,19 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
           En la cartera de clientes no se repiten: esa pantalla ya tiene los
           suyos arriba y dos filas de cifras seguidas se anulan entre sí. */}
       <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 ${compacto ? 'hidden' : ''}`}>
-        <Indicador etiqueta="Verificaciones reales" valor={totalReales} cargando={cargando}
+        <Indicador etiqueta={t("Verificaciones reales")} valor={totalReales} cargando={cargando}
           detalle={`en los últimos ${datos?.ventanaDias ?? dias} días`} color="#4f46e5" />
-        <Indicador etiqueta="Ensayos simulados" valor={datos?.corridas.simulaciones ?? 0} cargando={cargando}
-          detalle="no autorizan líneas" color="#64748b" icono={<FlaskConical className="w-4 h-4" />} />
-        <Indicador etiqueta="Clientes verificados" valor={cobertura?.conVerificacionReal ?? 0} cargando={cargando}
+        <Indicador etiqueta={t("Ensayos simulados")} valor={datos?.corridas.simulaciones ?? 0} cargando={cargando}
+          detalle={t("no autorizan líneas")} color="#64748b" icono={<FlaskConical className="w-4 h-4" />} />
+        <Indicador etiqueta={t("Clientes verificados")} valor={cobertura?.conVerificacionReal ?? 0} cargando={cargando}
           detalle={`${porcentaje}% de la cartera activa`} color="#059669" />
-        <Indicador etiqueta="Sin verificar" valor={cobertura?.sinVerificacion ?? 0} cargando={cargando}
-          detalle="nunca pasaron por el flujo" color={cobertura?.sinVerificacion ? '#d97706' : '#64748b'} />
+        <Indicador etiqueta={t("Sin verificar")} valor={cobertura?.sinVerificacion ?? 0} cargando={cargando}
+          detalle={t("nunca pasaron por el flujo")} color={cobertura?.sinVerificacion ? '#d97706' : '#64748b'} />
       </div>
 
       {/* ── Control por control ───────────────────────────────────────── */}
       <div>
-        <h3 className="text-[13px] font-bold text-slate-700 mb-2">Control por control</h3>
+        <h3 className="text-[13px] font-bold text-slate-700 mb-2">{t("Control por control")}</h3>
         <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {CONTROLES.map(({ tipo, nombre, que, Icono }) => {
             const c = porTipo.get(tipo);
@@ -244,10 +250,10 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <Icono className="w-4 h-4 text-slate-400 shrink-0" />
-                    <p className="text-[13px] font-semibold text-slate-800 truncate">{nombre}</p>
+                    <p className="text-[13px] font-semibold text-slate-800 truncate">{t(nombre)}</p>
                   </div>
                   {c?.simulaciones ? (
-                    <span title={`${plural(c.simulaciones, 'ensayo simulado', 'ensayos simulados')}`}
+                    <span title={`${plural(c.simulaciones, t("ensayo simulado"), t("ensayos simulados"))}`}
                       className="shrink-0 inline-flex items-center gap-1 text-[10.5px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-1.5 py-0.5">
                       <FlaskConical className="w-3 h-3" /> {c.simulaciones}
                     </span>
@@ -259,7 +265,7 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
                 {reales === 0 ? (
                   /* «0 aprobados» y «nunca corrió» se confunden a la vista. */
                   <p className="text-[11.5px] text-slate-400">
-                    Nunca se ha ejecutado sobre un cliente real. <span className="text-slate-300">{que}</span>
+                    Nunca se ha ejecutado sobre un cliente real. <span className="text-slate-300">{t(que)}</span>
                   </p>
                 ) : (
                   <>
@@ -274,14 +280,12 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
                         <span key={r}
                           className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px] font-semibold ${RES[r].clase}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${RES[r].punto}`} />
-                          {RES[r].nombre} {n}
+                          {t(RES[r].nombre)} {n}
                         </span>
                       ))}
                     </div>
                     <p className="text-[11px] text-slate-400">
-                      Última: {fechaLarga(c?.ultima ?? undefined)}
-                      {c?.proveedores?.length ? ` · ${c.proveedores.join(', ')}` : ''}
-                    </p>
+                      {t("Última: {n0} {n1}", { n0: fechaLarga(c?.ultima ?? undefined), n1: c?.proveedores?.length ? ` · ${c.proveedores.join(', ')}` : '' })}</p>
                   </>
                 )}
               </article>
@@ -308,11 +312,10 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
               <IdCard className="w-4 h-4 text-slate-400 shrink-0" />
               <p className="text-[13px] font-semibold text-slate-800">CURP</p>
             </div>
-            <p className="text-[26px] font-bold leading-none cifra text-slate-400">Captura</p>
+            <p className="text-[26px] font-bold leading-none cifra text-slate-400">{t("Captura")}</p>
             <p className="text-[11.5px] text-slate-400">
-              Se captura en el expediente del cliente y en el alta del empleado, y se
-              valida su estructura de 18 caracteres. No hay consulta automatizada al
-              registro nacional.
+              
+              {t("Se captura en el expediente del cliente y en el alta del empleado, y se valida su estructura de 18 caracteres. No hay consulta automatizada al registro nacional.")}
             </p>
           </article>
         </div>
@@ -323,9 +326,10 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
         <div className="panel overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
             <div>
-              <h3 className="text-[13px] font-bold text-slate-700">Últimas corridas</h3>
+              <h3 className="text-[13px] font-bold text-slate-700">{t("Últimas corridas")}</h3>
               <p className="text-[11.5px] text-slate-500">
-                De la más reciente a la más antigua, con el veredicto que produjo cada una.
+                
+                {t("De la más reciente a la más antigua, con el veredicto que produjo cada una.")}
               </p>
             </div>
             {cargando && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
@@ -333,7 +337,8 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
 
           {(datos?.recientes?.length ?? 0) === 0 ? (
             <div className="p-6 text-center text-[13px] text-slate-500">
-              Todavía no se ha corrido ninguna verificación en esta empresa.
+              
+              {t("Todavía no se ha corrido ninguna verificación en esta empresa.")}
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -347,19 +352,17 @@ export function TableroVerificaciones({ compacto = false }: { compacto?: boolean
                         {r.cliente}
                         {r.simulacion && (
                           <span className="ml-2 inline-flex items-center gap-1 text-[10.5px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-1.5 py-0.5 align-middle">
-                            <FlaskConical className="w-3 h-3" /> ensayo
+                            <FlaskConical className="w-3 h-3" />  {t("ensayo")}
                           </span>
                         )}
                       </p>
                       <p className="text-[11px] text-slate-400 truncate">
-                        {fechaLarga(r.fecha)} · {r.flujoNombre} · solicitó {dinero(r.limiteSolicitado)}
-                      </p>
+                        {t("{n0} · {n1} · solicitó {n2}", { n0: fechaLarga(r.fecha), n1: r.flujoNombre, n2: dinero(r.limiteSolicitado) })}</p>
                     </div>
                     <span className="text-[11px] text-slate-400 shrink-0 hidden sm:block">
-                      puntaje {r.puntaje}
-                    </span>
+                      {t("puntaje {n0}", { n0: r.puntaje })}</span>
                     <span className={`shrink-0 text-[11px] font-semibold rounded-md border px-2 py-0.5 ${est.clase}`}>
-                      {est.nombre}
+                      {t(est.nombre)}
                     </span>
                     <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 group-hover:text-slate-500" />
                   </Link>

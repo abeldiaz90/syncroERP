@@ -10,6 +10,7 @@ import { ProtectedElement } from "@/app/components/ProtectedElement"; // ← NUE
 import { solicitarTexto } from '@/components/ui/dialogos';
 import { api, ApiError } from '@/lib/api';
 
+import { useT } from '@/components/I18nProvider';
 export interface IClienteVenta { id: string; nombre: string; email: string; }
 export interface IVenta {
   id: string; fechaVenta: string; total: number; totalDevuelto?: number;
@@ -20,6 +21,7 @@ export interface IVenta {
 }
 
 export default function HistorialVentasPage() {
+  const t = useT();
   const [ventas, setVentas] = useState<IVenta[]>([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
@@ -40,7 +42,7 @@ export default function HistorialVentasPage() {
       mostrarToast(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : 'Error al cargar historial de ventas',
+          : t("Error al cargar historial de ventas"),
         'error',
       );
     } finally {
@@ -52,7 +54,7 @@ export default function HistorialVentasPage() {
 
   const handleAnular = async (id: string) => {
     const motivo = await solicitarTexto(
-      'La venta se cancelará y los productos se reintegrarán al inventario. Describe el motivo.',
+      t("La venta se cancelará y los productos se reintegrarán al inventario. Describe el motivo."),
       { titulo: 'Anular venta', obligatorio: true },
     );
     if (!motivo?.trim()) return;
@@ -66,7 +68,7 @@ export default function HistorialVentasPage() {
       const advertencia = resultado.advertencias?.[0];
       mostrarToast(
         advertencia ||
-          'Venta anulada; inventario, contabilidad y CFDI fueron procesados.',
+          t("Venta anulada; inventario, contabilidad y CFDI fueron procesados."),
         advertencia ? 'info' : 'exito',
       );
       await fetchVentas();
@@ -74,7 +76,7 @@ export default function HistorialVentasPage() {
       mostrarToast(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : 'No se pudo procesar la anulación',
+          : t("No se pudo procesar la anulación"),
         'error',
       );
     } finally {
@@ -95,8 +97,8 @@ export default function HistorialVentasPage() {
   };
 
   const renderMetodoPago = (metodo: string) => {
-    if (metodo === 'EFECTIVO') return <span className="flex items-center gap-1.5 text-emerald-600 font-bold"><Banknote className="w-4 h-4" /> Efectivo</span>;
-    if (metodo === 'TARJETA') return <span className="flex items-center gap-1.5 text-blue-600 font-bold"><CreditCard className="w-4 h-4" /> Tarjeta</span>;
+    if (metodo === 'EFECTIVO') return <span className="flex items-center gap-1.5 text-emerald-600 font-bold"><Banknote className="w-4 h-4" />  {t("Efectivo")}</span>;
+    if (metodo === 'TARJETA') return <span className="flex items-center gap-1.5 text-blue-600 font-bold"><CreditCard className="w-4 h-4" />  {t("Tarjeta")}</span>;
     return <span className="font-bold text-slate-600">{metodo}</span>;
   };
 
@@ -105,7 +107,7 @@ export default function HistorialVentasPage() {
       {toast && (
         <div className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-6 py-4 rounded-xl shadow-2xl font-medium text-white animate-in slide-in-from-top-5 ${toast.tipo === 'exito' ? 'bg-emerald-600' : toast.tipo === 'error' ? 'bg-rose-600' : 'bg-blue-600'}`}>
           {toast.tipo === 'exito' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-          {toast.mensaje}
+          {t(toast.mensaje)}
         </div>
       )}
 
@@ -113,16 +115,16 @@ export default function HistorialVentasPage() {
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight flex items-center gap-3">
             <div className="p-2.5 bg-indigo-100 rounded-xl"><History className="w-7 h-7 text-indigo-600" /></div>
-            <span className="bg-gradient-to-r from-slate-900 to-slate-700 text-transparent bg-clip-text">Historial de Ventas</span>
+            <span className="bg-gradient-to-r from-slate-900 to-slate-700 text-transparent bg-clip-text">{t("Historial de Ventas")}</span>
           </h1>
-          <p className="text-slate-500 mt-2 font-medium">Audita las transacciones del Punto de Venta y genera tickets.</p>
+          <p className="text-slate-500 mt-2 font-medium">{t("Audita las transacciones del Punto de Venta y genera tickets.")}</p>
         </div>
       </div>
 
       <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 mb-6 flex items-center focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
         <div className="relative w-full md:w-1/2 lg:w-1/3">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <input type="text" placeholder="Buscar por ID, nombre o correo del cliente..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-transparent text-slate-700 focus:outline-none placeholder:text-slate-400 font-medium" />
+          <input type="text" placeholder={t("Buscar por ID, nombre o correo del cliente...")} value={busqueda} onChange={(e) => setBusqueda(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-transparent text-slate-700 focus:outline-none placeholder:text-slate-400 font-medium" />
         </div>
       </div>
 
@@ -130,25 +132,25 @@ export default function HistorialVentasPage() {
         {cargando ? (
           <div className="p-16 text-center flex flex-col items-center text-slate-400">
             <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
-            <p className="font-medium">Cargando transacciones...</p>
+            <p className="font-medium">{t("Cargando transacciones...")}</p>
           </div>
         ) : ventasFiltradas.length === 0 ? (
           <div className="p-16 text-center text-slate-500 flex flex-col items-center">
             <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100"><Receipt className="w-10 h-10 text-slate-300" /></div>
-            <p className="text-lg font-bold text-slate-700">No se encontraron ventas</p>
-            <p className="text-sm mt-1">Realiza búsquedas diferentes o procesa una nueva venta en el POS.</p>
+            <p className="text-lg font-bold text-slate-700">{t("No se encontraron ventas")}</p>
+            <p className="text-sm mt-1">{t("Realiza búsquedas diferentes o procesa una nueva venta en el POS.")}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left whitespace-nowrap">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-widest font-bold">
                 <tr>
-                  <th className="px-6 py-4">ID Venta / Fecha</th>
-                  <th className="px-6 py-4">Cliente</th>
-                  <th className="px-6 py-4">Método de Pago</th>
-                  <th className="px-6 py-4 text-center">Estado</th>
-                  <th className="px-6 py-4 text-right">Total Cobrado</th>
-                  <th className="px-6 py-4 text-center">Acciones</th>
+                  <th className="px-6 py-4">{t("ID Venta / Fecha")}</th>
+                  <th className="px-6 py-4">{t("Cliente")}</th>
+                  <th className="px-6 py-4">{t("Método de Pago")}</th>
+                  <th className="px-6 py-4 text-center">{t("Estado")}</th>
+                  <th className="px-6 py-4 text-right">{t("Total Cobrado")}</th>
+                  <th className="px-6 py-4 text-center">{t("Acciones")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -164,11 +166,11 @@ export default function HistorialVentasPage() {
                         {venta.cliente ? (
                           <div className={`flex items-center gap-3 ${isAnulada ? 'opacity-60' : ''}`}>
                             <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs uppercase">{venta.cliente.nombre.charAt(0)}</div>
-                            <div><span className="font-semibold text-slate-800 block">{venta.cliente.nombre}</span><span className="text-xs text-slate-500">{venta.cliente.email}</span></div>
+                            <div><span className="font-semibold text-slate-800 block">{t(venta.cliente.nombre)}</span><span className="text-xs text-slate-500">{venta.cliente.email}</span></div>
                           </div>
                         ) : (
                           <div className={`flex items-center gap-2 text-slate-500 font-medium ${isAnulada ? 'opacity-60' : ''}`}>
-                            <Store className="w-4 h-4" /> Público General
+                            <Store className="w-4 h-4" />  {t("Público General")}
                           </div>
                         )}
                       </td>
@@ -182,26 +184,25 @@ export default function HistorialVentasPage() {
                         </span>
                         {Number(venta.totalDevuelto ?? 0) > 0 && (
                           <span className="block text-xs text-amber-600">
-                            Devuelto: ${Number(venta.totalDevuelto).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                          </span>
+                            {t("Devuelto: ${n0}", { n0: Number(venta.totalDevuelto).toLocaleString('es-MX', { minimumFractionDigits: 2 }) })}</span>
                         )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-center items-center gap-2">
                           {/* Ticket — GET, siempre visible */}
-                          <Link href={`/dashboard/ventas/${venta.id}/ticket`} target="_blank" className="flex items-center justify-center w-10 h-10 bg-white text-slate-600 border border-slate-200 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 rounded-xl transition-all shadow-sm active:scale-95" title="Imprimir Ticket">
+                          <Link href={`/dashboard/ventas/${venta.id}/ticket`} target="_blank" className="flex items-center justify-center w-10 h-10 bg-white text-slate-600 border border-slate-200 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 rounded-xl transition-all shadow-sm active:scale-95" title={t("Imprimir Ticket")}>
                             <Receipt className="w-4 h-4" />
                           </Link>
                           {!isAnulada && (
                             <ProtectedElement metodo="POST" ruta="/api/cfdi/ventas/:ventaId/timbrar">
-                              <Link href={`/dashboard/ventas/${venta.id}/facturar`} className="flex items-center justify-center w-10 h-10 bg-white text-indigo-600 border border-indigo-100 hover:bg-indigo-50 hover:border-indigo-200 rounded-xl transition-all shadow-sm active:scale-95" title="Timbrar CFDI">
+                              <Link href={`/dashboard/ventas/${venta.id}/facturar`} className="flex items-center justify-center w-10 h-10 bg-white text-indigo-600 border border-indigo-100 hover:bg-indigo-50 hover:border-indigo-200 rounded-xl transition-all shadow-sm active:scale-95" title={t("Timbrar CFDI")}>
                                 <FileSignature className="w-4 h-4" />
                               </Link>
                             </ProtectedElement>
                           )}
                           {!['ANULADA', 'DEVUELTA'].includes(venta.estado) && (
                             <ProtectedElement metodo="POST" ruta="/api/ventas/:id/devoluciones">
-                              <Link href={`/dashboard/ventas/devoluciones/nueva?ventaId=${venta.id}`} className="flex items-center justify-center w-10 h-10 bg-white text-amber-600 border border-amber-100 hover:bg-amber-50 hover:border-amber-200 rounded-xl transition-all shadow-sm active:scale-95" title="Registrar devolución">
+                              <Link href={`/dashboard/ventas/devoluciones/nueva?ventaId=${venta.id}`} className="flex items-center justify-center w-10 h-10 bg-white text-amber-600 border border-amber-100 hover:bg-amber-50 hover:border-amber-200 rounded-xl transition-all shadow-sm active:scale-95" title={t("Registrar devolución")}>
                                 <RotateCcw className="w-4 h-4" />
                               </Link>
                             </ProtectedElement>
@@ -209,7 +210,7 @@ export default function HistorialVentasPage() {
                           {/* ✅ Anular — solo aparece si tiene PATCH /api/ventas/:id/anular */}
                           {!isAnulada && (
                             <ProtectedElement metodo="PATCH" ruta="/api/ventas/:id/anular">
-                              <button onClick={() => handleAnular(venta.id)} disabled={anulando === venta.id} className="flex items-center justify-center w-10 h-10 bg-white text-rose-600 border border-rose-100 hover:bg-rose-50 hover:border-rose-200 rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-50" title="Anular Venta">
+                              <button onClick={() => handleAnular(venta.id)} disabled={anulando === venta.id} className="flex items-center justify-center w-10 h-10 bg-white text-rose-600 border border-rose-100 hover:bg-rose-50 hover:border-rose-200 rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-50" title={t("Anular Venta")}>
                                 {anulando === venta.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
                               </button>
                             </ProtectedElement>

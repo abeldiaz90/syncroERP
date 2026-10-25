@@ -4,6 +4,7 @@ import { peticion } from '@/lib/api';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import { ExportBar } from '../../../components/export-bar';
 
+import { useT } from '@/components/I18nProvider';
 const fmt$ = (n: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
 
 const COLUMNAS_TOP = [
@@ -14,6 +15,7 @@ const COLUMNAS_TOP = [
 ];
 
 export default function TopProductosPage() {
+  const t = useT();
   const [productos, setProductos] = useState<any[]>([]);
   const [cargando, setCargando]   = useState(false);
   /*
@@ -36,12 +38,12 @@ export default function TopProductosPage() {
       else {
         setProductos([]);
         setError(r.status === 403
-          ? 'Tu perfil no incluye este reporte.'
-          : 'No se pudo consultar el reporte de productos más vendidos.');
+          ? t("Tu perfil no incluye este reporte.")
+          : t("No se pudo consultar el reporte de productos más vendidos."));
       }
     } catch {
       setProductos([]);
-      setError('No hay conexión con el servidor.');
+      setError(t("No hay conexión con el servidor."));
     }
     setCargando(false);
   }, []);
@@ -59,25 +61,25 @@ export default function TopProductosPage() {
 
       {error && (
         <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          {error}
+          {t(error)}
         </div>
       )}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Reportes</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Reportes")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <TrendingUp className="w-8 h-8 text-indigo-500"/> Top Productos
+            <TrendingUp className="w-8 h-8 text-indigo-500"/>  {t("Top Productos")}
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Productos más vendidos por cantidad e importe.</p>
+          <p className="text-slate-500 text-sm mt-1">{t("Productos más vendidos por cantidad e importe.")}</p>
         </div>
         <div className="flex gap-2">
           <ExportBar
-            titulo="Top_Productos"
-            subtitulo="Últimos 30 días"
+            titulo={"Top_Productos"}
+            subtitulo={t("Últimos 30 días")}
             datos={ordenados}
             columnas={COLUMNAS_TOP}
           />
-          <button aria-label="Volver a cargar" title="Volver a cargar" onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 print:hidden">
+          <button aria-label={t("Volver a cargar")} title={t("Volver a cargar")} onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 print:hidden">
             <RefreshCw className="w-4 h-4"/>
           </button>
         </div>
@@ -88,11 +90,13 @@ export default function TopProductosPage() {
         <div className="flex gap-2">
           <button onClick={() => setOrden('importe')}
             className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${orden === 'importe' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 text-slate-600'}`}>
-            Por importe
+            
+            {t("Por importe")}
           </button>
           <button onClick={() => setOrden('cantidad')}
             className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${orden === 'cantidad' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 text-slate-600'}`}>
-            Por cantidad
+            
+            {t("Por cantidad")}
           </button>
         </div>
       </div>
@@ -100,7 +104,7 @@ export default function TopProductosPage() {
       {/* Lista de productos */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-900 text-white px-5 py-3">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Top 10 productos — últimos 30 días</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{t("Top 10 productos — últimos 30 días")}</p>
         </div>
         {cargando ? (
           <div className="p-12 text-center">
@@ -120,7 +124,7 @@ export default function TopProductosPage() {
                         {i + 1}
                       </span>
                       <div>
-                        <p className="font-bold text-slate-800 text-sm">{p.nombre}</p>
+                        <p className="font-bold text-slate-800 text-sm">{t(p.nombre)}</p>
                         <p className="text-xs font-mono text-slate-400">{p.sku}</p>
                       </div>
                     </div>
@@ -136,7 +140,7 @@ export default function TopProductosPage() {
               );
             })}
             {ordenados.length === 0 && (
-              <p className="text-center text-slate-400 py-8">Sin datos en el período</p>
+              <p className="text-center text-slate-400 py-8">{t("Sin datos en el período")}</p>
             )}
           </div>
         )}

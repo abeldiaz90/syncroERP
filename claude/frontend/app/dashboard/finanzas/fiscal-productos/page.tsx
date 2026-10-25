@@ -26,6 +26,7 @@ import { AlertTriangle, CheckCircle2, Receipt, RefreshCw } from "lucide-react";
 
 import { api, ApiError } from "@/lib/api";
 
+import { useT } from '@/components/I18nProvider';
 type Fila = {
   id: string;
   sku: string | null;
@@ -55,6 +56,7 @@ const ETIQUETA_FACTOR: Record<string, string> = {
 };
 
 export default function FiscalProductosPage() {
+  const t = useT();
   const [filas, setFilas] = useState<Fila[]>([]);
   const [impuestos, setImpuestos] = useState<Impuesto[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -133,7 +135,7 @@ export default function FiscalProductosPage() {
         texto:
           e instanceof ApiError
             ? e.mensajeParaPantalla()
-            : "No se pudo guardar el impuesto.",
+            : t("No se pudo guardar el impuesto."),
         ok: false,
       });
     } finally {
@@ -156,21 +158,21 @@ export default function FiscalProductosPage() {
       <div className="flex items-start justify-between mb-6 gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">
-            Finanzas
+            
+            {t("Finanzas")}
           </p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <Receipt className="w-8 h-8 text-indigo-500" /> Impuestos del catálogo
+            <Receipt className="w-8 h-8 text-indigo-500" />  {t("Impuestos del catálogo")}
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Qué impuesto lleva cada producto y si puede facturarse. Un producto
-            sin impuesto asignado se vende con IVA cero sin que nadie lo haya
-            decidido.
+            
+            {t("Qué impuesto lleva cada producto y si puede facturarse. Un producto sin impuesto asignado se vende con IVA cero sin que nadie lo haya decidido.")}
           </p>
         </div>
         <button
           onClick={() => void cargar()}
           className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm"
-          aria-label="Actualizar" title="Actualizar"
+          aria-label={t("Actualizar")} title={t("Actualizar")}
         >
           <RefreshCw className={`w-4 h-4 ${cargando ? "animate-spin" : ""}`} />
         </button>
@@ -178,7 +180,7 @@ export default function FiscalProductosPage() {
 
       {error && (
         <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          {error}
+          {t(error)}
         </div>
       )}
 
@@ -190,16 +192,16 @@ export default function FiscalProductosPage() {
               : "border-amber-200 bg-amber-50 text-amber-900"
           }`}
         >
-          {aviso.texto}
+          {t(aviso.texto)}
         </div>
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
-          { t: "Productos activos", v: resumen.total, c: "text-slate-900" },
-          { t: "Listos para facturar", v: resumen.listos, c: "text-emerald-600" },
-          { t: "Sin impuesto asignado", v: resumen.sinImpuesto, c: "text-rose-600" },
-          { t: "Sin claves del SAT", v: resumen.sinClaves, c: "text-amber-600" },
+          { t: t("Productos activos"), v: resumen.total, c: "text-slate-900" },
+          { t: t("Listos para facturar"), v: resumen.listos, c: "text-emerald-600" },
+          { t: t("Sin impuesto asignado"), v: resumen.sinImpuesto, c: "text-rose-600" },
+          { t: t("Sin claves del SAT"), v: resumen.sinClaves, c: "text-amber-600" },
         ].map((k) => (
           <div
             key={k.t}
@@ -217,35 +219,37 @@ export default function FiscalProductosPage() {
         {cargando ? (
           <div className="p-16 text-center">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-slate-400 text-sm">Cargando catálogo…</p>
+            <p className="text-slate-400 text-sm">{t("Cargando catálogo…")}</p>
           </div>
         ) : error && filas.length === 0 ? (
           <div className="p-16 text-center text-rose-700 font-semibold">
-            El catálogo no está vacío: no se pudo consultar.
+            
+            {t("El catálogo no está vacío: no se pudo consultar.")}
           </div>
         ) : filas.length === 0 ? (
           <div className="p-16 text-center text-slate-500">
-            No hay productos en el catálogo.
+            
+            {t("No hay productos en el catálogo.")}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-500">
-                  <th className="px-4 py-3">Producto</th>
-                  <th className="px-4 py-3">Impuesto</th>
-                  <th className="px-4 py-3">Claves SAT</th>
-                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">{t("Producto")}</th>
+                  <th className="px-4 py-3">{t("Impuesto")}</th>
+                  <th className="px-4 py-3">{t("Claves SAT")}</th>
+                  <th className="px-4 py-3">{t("Estado")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filas.map((f) => (
                   <tr key={f.id} className={f.activo ? "" : "opacity-50"}>
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-800">{f.nombre}</p>
+                      <p className="font-semibold text-slate-800">{t(f.nombre)}</p>
                       <p className="text-xs text-slate-400 font-mono">
-                        {f.sku || "sin SKU"}
-                        {!f.activo && " · dado de baja"}
+                        {f.sku || t("sin SKU")}
+                        {!f.activo && t("· dado de baja")}
                       </p>
                     </td>
                     <td className="px-4 py-3">
@@ -259,16 +263,17 @@ export default function FiscalProductosPage() {
                             : "border-rose-300 bg-rose-50"
                         }`}
                       >
-                        <option value="">Sin impuesto asignado</option>
+                        <option value="">{t("Sin impuesto asignado")}</option>
                         {impuestos.map((i) => (
                           <option key={i.id} value={i.id}>
-                            {i.nombre} · {ETIQUETA_FACTOR[i.tipoFactor] ?? i.tipoFactor}
+                            {t(i.nombre)} · {ETIQUETA_FACTOR[i.tipoFactor] ?? i.tipoFactor}
                           </option>
                         ))}
                       </select>
                       {impuestos.length === 0 && (
                         <p className="text-xs text-slate-400 mt-1">
-                          Sin catálogo de impuestos no se puede cambiar.
+                          
+                          {t("Sin catálogo de impuestos no se puede cambiar.")}
                         </p>
                       )}
                     </td>
@@ -280,8 +285,8 @@ export default function FiscalProductosPage() {
                       ) : (
                         <span className="text-amber-700">
                           {[
-                            !f.claveSAT ? "falta clave de producto" : null,
-                            !f.claveUnidadSAT ? "falta clave de unidad" : null,
+                            !f.claveSAT ? t("falta clave de producto") : null,
+                            !f.claveUnidadSAT ? t("falta clave de unidad") : null,
                           ]
                             .filter(Boolean)
                             .join(" · ")}
@@ -291,11 +296,11 @@ export default function FiscalProductosPage() {
                     <td className="px-4 py-3">
                       {f.facturable ? (
                         <span className="inline-flex items-center gap-1.5 text-emerald-700 text-xs font-bold">
-                          <CheckCircle2 className="w-4 h-4" /> Facturable
+                          <CheckCircle2 className="w-4 h-4" />  {t("Facturable")}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 text-rose-700 text-xs font-bold">
-                          <AlertTriangle className="w-4 h-4" /> No facturable
+                          <AlertTriangle className="w-4 h-4" />  {t("No facturable")}
                         </span>
                       )}
                     </td>
@@ -308,10 +313,8 @@ export default function FiscalProductosPage() {
       </div>
 
       <p className="mt-4 text-xs text-slate-500">
-        Las claves del SAT se capturan en la ficha del producto, en Datos
-        generales; ahí las llena quien mantiene el catálogo. El impuesto se
-        decide aquí, y es lo que distingue una venta gravada de una a tasa 0 %,
-        de una exenta y de una que no es objeto del impuesto.
+        
+        {t("Las claves del SAT se capturan en la ficha del producto, en Datos generales; ahí las llena quien mantiene el catálogo. El impuesto se decide aquí, y es lo que distingue una venta gravada de una a tasa 0 %, de una exenta y de una que no es objeto del impuesto.")}
       </p>
     </div>
   );

@@ -10,6 +10,7 @@ import {
   Building2, Clock, AlertCircle
 } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 interface IDetalleVenta {
   id: string;
@@ -85,6 +86,7 @@ const diasCredito: Record<string, number> = {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function TicketVentaPage() {
+  const t = useT();
   const params  = useParams();
   const id      = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const [venta, setVenta]     = useState<IVenta | null>(null);
@@ -119,18 +121,18 @@ export default function TicketVentaPage() {
           if (rC.ok) {
             const lista = await rC.json();
             if (lista.length > 0) setCredito(lista[0]);
-            else setCreditoNoDisponible('No se encontró el crédito vinculado a esta venta.');
+            else setCreditoNoDisponible(t("No se encontró el crédito vinculado a esta venta."));
           } else {
             setCreditoNoDisponible(
               rC.status === 403
-                ? 'Tu rol no tiene acceso a la cartera de crédito.'
-                : 'No se pudo consultar el crédito vinculado.',
+                ? t("Tu rol no tiene acceso a la cartera de crédito.")
+                : t("No se pudo consultar el crédito vinculado."),
             );
           }
         }
       } catch (err) {
         console.error('Error ticket:', err);
-        setCreditoNoDisponible('No se pudo consultar el crédito vinculado.');
+        setCreditoNoDisponible(t("No se pudo consultar el crédito vinculado."));
       } finally {
         setCargando(false);
       }
@@ -140,14 +142,14 @@ export default function TicketVentaPage() {
   if (cargando) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
       <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4"/>
-      <p className="text-slate-500 font-medium">Generando ticket...</p>
+      <p className="text-slate-500 font-medium">{t("Generando ticket...")}</p>
     </div>
   );
 
   if (!venta) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
       <FileWarning className="w-12 h-12 text-rose-400 mb-4"/>
-      <p className="text-xl font-bold text-slate-800">Venta no encontrada</p>
+      <p className="text-xl font-bold text-slate-800">{t("Venta no encontrada")}</p>
     </div>
   );
 
@@ -179,11 +181,12 @@ export default function TicketVentaPage() {
       <div className="flex gap-3 mb-6 print:hidden">
         <button onClick={() => window.print()}
           className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 font-bold shadow-lg">
-          <Printer className="w-5 h-5"/> Imprimir
+          <Printer className="w-5 h-5"/>  {t("Imprimir")}
         </button>
         <button onClick={() => window.close()}
           className="flex items-center gap-2 px-6 py-3 bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 font-bold">
-          Cerrar
+          
+          {t("Cerrar")}
         </button>
       </div>
 
@@ -194,15 +197,16 @@ export default function TicketVentaPage() {
         {isAnulada && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
             <span className="text-5xl font-black text-red-600 -rotate-45 opacity-20 border-4 border-red-600 px-3 py-1 uppercase">
-              Anulada
+              
+              {t("Anulada")}
             </span>
           </div>
         )}
 
         {/* ── CABECERA ── */}
         <div className="bg-slate-900 text-white p-5 text-center">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Comprobante de venta</p>
-          <h1 className="text-2xl font-black tracking-tight uppercase">Syncro ERP</h1>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t("Comprobante de venta")}</p>
+          <h1 className="text-2xl font-black tracking-tight uppercase">{t("Syncro ERP")}</h1>
           <div className="flex items-center justify-center gap-2 mt-2">
             <span className="text-lg font-black tracking-widest">
               #{String(venta.folio).padStart(5, '0')}
@@ -224,7 +228,7 @@ export default function TicketVentaPage() {
         <div className="px-5 py-2.5 flex items-center gap-2" style={{ backgroundColor: metodoInfo.color + '15', borderBottom: `2px solid ${metodoInfo.color}` }}>
           <MetodoIcon className="w-4 h-4" style={{ color: metodoInfo.color }}/>
           <span className="text-xs font-black uppercase" style={{ color: metodoInfo.color }}>
-            {metodoInfo.label}
+            {t(metodoInfo.label)}
           </span>
           {esCredito && credito && (
             <span className="ml-auto text-[10px] font-bold" style={{ color: metodoInfo.color }}>
@@ -238,8 +242,8 @@ export default function TicketVentaPage() {
           {/* ── CLIENTE ── */}
           {venta.cliente && (
             <div className="mb-4 pb-4 border-b border-dashed border-slate-200">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Cliente</p>
-              <p className="font-bold text-slate-900 text-sm">{venta.cliente.nombre}</p>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t("Cliente")}</p>
+              <p className="font-bold text-slate-900 text-sm">{t(venta.cliente.nombre)}</p>
               {venta.cliente.rfc && <p className="text-[11px] text-slate-500 font-mono">{venta.cliente.rfc}</p>}
               {venta.cliente.email && <p className="text-[11px] text-slate-400">{venta.cliente.email}</p>}
             </div>
@@ -247,13 +251,13 @@ export default function TicketVentaPage() {
 
           {/* ── PRODUCTOS ── */}
           <div className="mb-4 pb-4 border-b border-dashed border-slate-200">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Artículos</p>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">{t("Artículos")}</p>
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-slate-200 text-[9px] uppercase text-slate-500">
-                  <th className="pb-1 text-left font-bold">Cant</th>
-                  <th className="pb-1 text-left font-bold px-1">Descripción</th>
-                  <th className="pb-1 text-right font-bold">Importe</th>
+                  <th className="pb-1 text-left font-bold">{t("Cant")}</th>
+                  <th className="pb-1 text-left font-bold px-1">{t("Descripción")}</th>
+                  <th className="pb-1 text-right font-bold">{t("Importe")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -268,11 +272,9 @@ export default function TicketVentaPage() {
                         <p className="text-[9px] font-mono text-slate-400">{det.producto.sku}</p>
                       )}
                       <p className="text-[9px] text-slate-400">
-                        {fmt$(det.precioUnitario)} c/u
-                        {(det.impuestoPorcentaje ?? 0) > 0 && ` + IVA ${det.impuestoPorcentaje}%`}
-                      </p>
+                        {t("{n0} c/u {n1}", { n0: fmt$(det.precioUnitario), n1: (det.impuestoPorcentaje ?? 0) > 0 && ` + IVA ${det.impuestoPorcentaje}%` })}</p>
                       {det.descuento > 0 && (
-                        <p className="text-[9px] text-rose-500">Desc: -{fmt$(det.descuento)}</p>
+                        <p className="text-[9px] text-rose-500">{t("Desc: -{n0}", { n0: fmt$(det.descuento) })}</p>
                       )}
                     </td>
                     <td className="py-1.5 text-right font-bold text-slate-900 font-mono align-top">
@@ -287,27 +289,27 @@ export default function TicketVentaPage() {
           {/* ── TOTALES ── */}
           <div className="mb-4 pb-4 border-b border-dashed border-slate-200 space-y-1">
             <div className="flex justify-between text-xs text-slate-500">
-              <span>Subtotal</span>
+              <span>{t("Subtotal")}</span>
               <span className="font-mono">{fmt$(venta.subtotal)}</span>
             </div>
             {venta.descuento > 0 && (
               <div className="flex justify-between text-xs text-rose-500">
-                <span>Descuento</span>
+                <span>{t("Descuento")}</span>
                 <span className="font-mono">-{fmt$(venta.descuento)}</span>
               </div>
             )}
             <div className="flex justify-between text-xs text-slate-500">
-              <span>IVA</span>
+              <span>{t("IVA")}</span>
               <span className="font-mono">{fmt$(venta.impuestoTotal)}</span>
             </div>
             {Number(venta.saldoFavorAplicado||0)>0&&(
               <div className="flex justify-between text-xs font-bold text-cyan-700">
-                <span>Saldo a favor aplicado</span>
+                <span>{t("Saldo a favor aplicado")}</span>
                 <span>-{fmt$(Number(venta.saldoFavorAplicado))}</span>
               </div>
             )}
             <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-800 mt-1">
-              <span className="font-black text-slate-900 uppercase text-sm">Total</span>
+              <span className="font-black text-slate-900 uppercase text-sm">{t("Total")}</span>
               <span className="font-black text-xl text-slate-900 font-mono">{fmt$(venta.total)}</span>
             </div>
           </div>
@@ -318,11 +320,11 @@ export default function TicketVentaPage() {
           {esEfectivo && venta.montoRecibido && (
             <div className="mb-4 pb-4 border-b border-dashed border-slate-200">
               <div className="flex justify-between text-xs text-slate-500 mb-1">
-                <span>Recibido</span>
+                <span>{t("Recibido")}</span>
                 <span className="font-mono">{fmt$(venta.montoRecibido)}</span>
               </div>
               <div className="flex justify-between items-baseline">
-                <span className="font-black text-emerald-700 text-sm">Cambio</span>
+                <span className="font-black text-emerald-700 text-sm">{t("Cambio")}</span>
                 <span className="font-black text-emerald-700 text-lg font-mono">{fmt$(cambio ?? 0)}</span>
               </div>
             </div>
@@ -333,16 +335,16 @@ export default function TicketVentaPage() {
             <div className="mb-4 pb-4 border-b border-dashed border-slate-200 bg-amber-50 rounded-lg p-3">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="w-4 h-4 text-amber-600"/>
-                <p className="text-xs font-black text-amber-800 uppercase">Crédito a {diasCredito[venta.metodoPago]} días</p>
+                <p className="text-xs font-black text-amber-800 uppercase">{t("Crédito a {n0} días", { n0: diasCredito[venta.metodoPago] })}</p>
               </div>
               <div className="flex justify-between text-xs text-amber-700">
-                <span>Fecha límite de pago:</span>
+                <span>{t("Fecha límite de pago:")}</span>
                 <span className="font-bold font-mono">
                   {fmtFecha(fechaVenc)}
                 </span>
               </div>
               <div className="flex justify-between text-xs text-amber-700 mt-1">
-                <span>Monto total a pagar:</span>
+                <span>{t("Monto total a pagar:")}</span>
                 <span className="font-black">{fmt$(credito?.montoTotal ?? venta.total)}</span>
               </div>
               {/*
@@ -353,18 +355,18 @@ export default function TicketVentaPage() {
                 */}
               {credito && credito.estado === 'LIQUIDADO' && (
                 <div className="flex justify-between text-xs text-emerald-700 mt-1">
-                  <span>Saldo:</span>
+                  <span>{t("Saldo:")}</span>
                   <span className="font-black">PAGADO</span>
                 </div>
               )}
               {credito && credito.estado !== 'LIQUIDADO' && credito.saldoPendiente !== credito.montoTotal && (
                 <div className="flex justify-between text-xs text-amber-700 mt-1">
-                  <span>Saldo pendiente:</span>
+                  <span>{t("Saldo pendiente:")}</span>
                   <span className="font-black">{fmt$(credito.saldoPendiente)}</span>
                 </div>
               )}
               {credito && (
-                <p className="text-[9px] text-amber-600 mt-2 font-mono">Ref. crédito: {credito.folio}</p>
+                <p className="text-[9px] text-amber-600 mt-2 font-mono">{t("Ref. crédito: {n0}", { n0: credito.folio })}</p>
               )}
             </div>
           )}
@@ -374,38 +376,38 @@ export default function TicketVentaPage() {
             <div className="mb-4 pb-4 border-b border-dashed border-slate-200">
               <div className="flex items-center gap-2 mb-2">
                 <Calculator className="w-4 h-4 text-pink-600"/>
-                <p className="text-xs font-black text-pink-800 uppercase">Plan de pagos</p>
+                <p className="text-xs font-black text-pink-800 uppercase">{t("Plan de pagos")}</p>
               </div>
               <div className="bg-pink-50 rounded-lg p-3 space-y-1 text-xs text-pink-800">
                 {credito.enganche > 0 && (
                   <div className="flex justify-between">
-                    <span>Enganche:</span>
+                    <span>{t("Enganche:")}</span>
                     <span className="font-bold">{fmt$(credito.enganche)}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span>Capital financiado:</span>
+                  <span>{t("Capital financiado:")}</span>
                   <span className="font-bold">{fmt$(credito.montoTotal - credito.enganche)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Número de pagos:</span>
-                  <span className="font-bold">{credito.numeroCuotas} meses</span>
+                  <span>{t("Número de pagos:")}</span>
+                  <span className="font-bold">{t("{n0} meses", { n0: credito.numeroCuotas })}</span>
                 </div>
                 {!credito.sinInteres && (
                   <div className="flex justify-between">
-                    <span>Tasa mensual:</span>
+                    <span>{t("Tasa mensual:")}</span>
                     <span className="font-bold">{credito.tasaInteresMensual}%</span>
                   </div>
                 )}
                 {credito.sinInteres && (
                   <div className="flex justify-between text-emerald-700">
-                    <span>Interés:</span>
-                    <span className="font-bold">Sin interés</span>
+                    <span>{t("Interés:")}</span>
+                    <span className="font-bold">{t("Sin interés")}</span>
                   </div>
                 )}
                 {credito.cuotas?.length > 0 && (
                   <div className="flex justify-between border-t border-pink-200 pt-1 mt-1">
-                    <span className="font-black">Pago mensual:</span>
+                    <span className="font-black">{t("Pago mensual:")}</span>
                     <span className="font-black text-base">{fmt$(credito.cuotas[0].montoCuota)}</span>
                   </div>
                 )}
@@ -418,8 +420,8 @@ export default function TicketVentaPage() {
                     <thead className="bg-pink-100">
                       <tr>
                         <th className="px-2 py-1 text-left text-pink-700 font-bold">#</th>
-                        <th className="px-2 py-1 text-center text-pink-700 font-bold">Vence</th>
-                        <th className="px-2 py-1 text-right text-pink-700 font-bold">Monto</th>
+                        <th className="px-2 py-1 text-center text-pink-700 font-bold">{t("Vence")}</th>
+                        <th className="px-2 py-1 text-right text-pink-700 font-bold">{t("Monto")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-pink-50">
@@ -437,15 +439,14 @@ export default function TicketVentaPage() {
                       {credito.cuotas.length > 6 && (
                         <tr className="bg-pink-50">
                           <td colSpan={3} className="px-2 py-1 text-center text-pink-600 font-bold">
-                            + {credito.cuotas.length - 6} pagos más
-                          </td>
+                            {t("+ {n0} pagos más", { n0: credito.cuotas.length - 6 })}</td>
                         </tr>
                       )}
                     </tbody>
                   </table>
                 </div>
               )}
-              <p className="text-[9px] text-pink-500 mt-1 font-mono text-center">Ref: {credito.folio}</p>
+              <p className="text-[9px] text-pink-500 mt-1 font-mono text-center">{t("Ref: {n0}", { n0: credito.folio })}</p>
             </div>
           )}
 
@@ -455,11 +456,12 @@ export default function TicketVentaPage() {
               <div className="flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-blue-500"/>
                 <p className="text-xs font-bold text-blue-700">
-                  {venta.metodoPago === 'MSI_BANCO' ? 'Cargo diferido a tarjeta' : 'Pago con tarjeta'}
+                  {venta.metodoPago === 'MSI_BANCO' ? t("Cargo diferido a tarjeta") : t("Pago con tarjeta")}
                 </p>
               </div>
               <p className="text-[10px] text-slate-400 mt-1">
-                Conserve su estado de cuenta como comprobante adicional
+                
+                {t("Conserve su estado de cuenta como comprobante adicional")}
               </p>
             </div>
           )}
@@ -469,10 +471,11 @@ export default function TicketVentaPage() {
             <div className="mb-4 pb-4 border-b border-dashed border-slate-200">
               <div className="flex items-center gap-2">
                 <ArrowLeftRight className="w-4 h-4 text-purple-500"/>
-                <p className="text-xs font-bold text-purple-700">Transferencia SPEI</p>
+                <p className="text-xs font-bold text-purple-700">{t("Transferencia SPEI")}</p>
               </div>
               <p className="text-[10px] text-slate-400 mt-1">
-                Pago verificado por transferencia electrónica
+                
+                {t("Pago verificado por transferencia electrónica")}
               </p>
             </div>
           )}
@@ -480,29 +483,28 @@ export default function TicketVentaPage() {
           {/* Notas */}
           {venta.notas && (
             <div className="mb-4 pb-4 border-b border-dashed border-slate-200">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Notas</p>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t("Notas")}</p>
               <p className="text-xs text-slate-600 italic">{venta.notas}</p>
             </div>
           )}
 
           {/* ── FOOTER ── */}
           <div className="text-center">
-            <p className="text-xs font-bold text-slate-700 mb-1">¡Gracias por su compra!</p>
+            <p className="text-xs font-bold text-slate-700 mb-1">{t("¡Gracias por su compra!")}</p>
             <p className="text-[9px] text-slate-400">
-              Este documento es comprobante de su transacción.
+              
+              {t("Este documento es comprobante de su transacción.")}
             </p>
             {esCredito && (
               <div className="mt-2 flex items-center justify-center gap-1 text-[9px] text-amber-600 font-bold">
                 <AlertCircle className="w-3 h-3"/>
-                Sujeto a crédito — conserve este comprobante
+                
+                {t("Sujeto a crédito — conserve este comprobante")}
               </div>
             )}
             {esCredito && !credito && (
               <div className="mt-2 rounded border border-dashed border-amber-300 bg-amber-50 px-2 py-1.5 text-[9px] font-bold text-amber-700">
-                Plan de pagos no incluido en este ticket.
-                {creditoNoDisponible ? ` ${creditoNoDisponible}` : ''}
-                {' '}Consúltalo en el estado de cuenta del cliente.
-              </div>
+                {t("Plan de pagos no incluido en este ticket. {n0} {n1}Consúltalo en el estado de cuenta del cliente.", { n0: creditoNoDisponible ? ` ${creditoNoDisponible}` : '', n1: ' ' })}</div>
             )}
             <div className="font-mono tracking-[0.25em] text-slate-800 text-base opacity-60 mt-3">
               ||| |||| | ||||| |||| |||
@@ -510,7 +512,7 @@ export default function TicketVentaPage() {
             <p className="text-[9px] font-mono text-slate-400 mt-1">
               {venta.id.replace(/-/g,'').substring(0,16).toUpperCase()}
             </p>
-            <p className="text-[9px] text-slate-300 mt-2">Syncro ERP v1.0</p>
+            <p className="text-[9px] text-slate-300 mt-2">{t("Syncro ERP v1.0")}</p>
           </div>
 
         </div>

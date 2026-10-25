@@ -46,6 +46,7 @@ import {
 import { api, ApiError, intentar } from '@/lib/api';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 type TipoPaso =
   | 'IDENTIDAD_INE' | 'BURO_CREDITO' | 'CIRCULO_CREDITO' | 'HISTORIAL_INTERNO'
   | 'LISTA_BLOQUEO' | 'POLITICA_INTERNA' | 'REVISION_MANUAL';
@@ -151,6 +152,7 @@ const dinero = (n: unknown) =>
   `$${Number(n ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function EjecutarVerificacionPage() {
+  const t = useT();
   const parametros = useSearchParams();
   const [flujo, setFlujo] = useState<IFlujo | null>(null);
   const [clientes, setClientes] = useState<ICliente[]>([]);
@@ -243,7 +245,7 @@ export default function EjecutarVerificacionPage() {
       setResultado(r);
       await cargarHistorial(cliente.id);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'No se pudo correr la verificación.');
+      setError(e instanceof ApiError ? e.message : t("No se pudo correr la verificación."));
     } finally {
       setCorriendo(null);
     }
@@ -257,23 +259,24 @@ export default function EjecutarVerificacionPage() {
     <div className="p-6 max-w-6xl mx-auto">
       <Link href="/dashboard/creditos/verificacion"
         className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
-        <ArrowLeft className="w-4 h-4" /> Volver al diseño del flujo
+        <ArrowLeft className="w-4 h-4" />  {t("Volver al diseño del flujo")}
       </Link>
 
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
           <ShieldCheck className="w-6 h-6 text-emerald-600" />
-          Verificar a un cliente
+          
+          {t("Verificar a un cliente")}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Corre el flujo activo sobre una persona y produce su expediente. El veredicto es una
-          recomendación: la línea la sigue otorgando el flujo de aprobaciones.
+          
+          {t("Corre el flujo activo sobre una persona y produce su expediente. El veredicto es una recomendación: la línea la sigue otorgando el flujo de aprobaciones.")}
         </p>
       </div>
 
       {cargando && (
         <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Loader2 className="w-4 h-4 animate-spin" /> Cargando el flujo activo…
+          <Loader2 className="w-4 h-4 animate-spin" />  {t("Cargando el flujo activo…")}
         </div>
       )}
 
@@ -281,14 +284,15 @@ export default function EjecutarVerificacionPage() {
         <div className="p-4 rounded-lg border bg-amber-50 border-amber-200 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <p className="font-medium text-gray-900">No hay ningún flujo activo</p>
+            <p className="font-medium text-gray-900">{t("No hay ningún flujo activo")}</p>
             <p className="text-sm text-gray-600">
-              Sin flujo no hay nada que correr, y la línea de crédito se autoriza sólo con la
-              política general. Diséñalo y actívalo primero.
+              
+              {t("Sin flujo no hay nada que correr, y la línea de crédito se autoriza sólo con la política general. Diséñalo y actívalo primero.")}
             </p>
             <Link href="/dashboard/creditos/verificacion"
               className="inline-block mt-2 text-sm text-emerald-700 hover:underline">
-              Ir al diseño del flujo →
+              
+              {t("Ir al diseño del flujo →")}
             </Link>
           </div>
         </div>
@@ -297,38 +301,38 @@ export default function EjecutarVerificacionPage() {
       {!cargando && flujo && (
         <>
           <div className="mb-6 p-4 rounded-lg border bg-gray-50 border-gray-200">
-            <p className="font-medium text-gray-900">{flujo.nombre}</p>
+            <p className="font-medium text-gray-900">{t(flujo.nombre)}</p>
             <p className="text-sm text-gray-600 mt-0.5">
               {plural(pasosDelFlujo.length, 'paso', 'pasos')} · puntaje mínimo {minimo} ·{' '}
               {tope > 0
                 ? <>aprobación automática hasta {dinero(tope)}</>
-                : <><strong>sin aprobación automática</strong>: todo pasa por revisión humana, saque el puntaje que saque</>}
+                : <><strong>{t("sin aprobación automática")}</strong>: todo pasa por revisión humana, saque el puntaje que saque</>}
             </p>
           </div>
 
           {/* ── Cliente ─────────────────────────────────────────────── */}
           <div className="bg-white border rounded-lg p-5 mb-4">
-            <label className="block text-sm text-gray-700 mb-1">Cliente o prospecto</label>
+            <label className="block text-sm text-gray-700 mb-1">{t("Cliente o prospecto")}</label>
             {cliente ? (
               <div className="flex items-center justify-between gap-3 p-3 border rounded-lg bg-gray-50">
                 <div>
-                  <p className="font-medium text-gray-900">{cliente.nombre}</p>
+                  <p className="font-medium text-gray-900">{t(cliente.nombre)}</p>
                   <p className="text-xs text-gray-500">
-                    {cliente.rfc || 'sin RFC'} ·{' '}
+                    {cliente.rfc || t("sin RFC")} ·{' '}
                     {Number(cliente.limiteCredito ?? 0) > 0
                       ? `línea vigente ${dinero(cliente.limiteCredito)}`
-                      : 'sin línea vigente'}
+                      : t("sin línea vigente")}
                   </p>
                 </div>
                 <button onClick={() => { setCliente(null); setResultado(null); setHistorial([]); }}
-                  className="text-sm text-gray-500 hover:text-gray-700">Cambiar</button>
+                  className="text-sm text-gray-500 hover:text-gray-700">{t("Cambiar")}</button>
               </div>
             ) : (
               <>
                 <div className="relative">
                   <UserSearch className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
                   <input autoFocus value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
-                    placeholder="Busca por nombre o RFC…"
+                    placeholder={t("Busca por nombre o RFC…")}
                     className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm" />
                 </div>
                 {clientes.length > 0 && (
@@ -336,12 +340,12 @@ export default function EjecutarVerificacionPage() {
                     {clientes.map((c) => (
                       <button key={c.id} onClick={() => elegir(c)}
                         className="w-full text-left px-3 py-2 hover:bg-gray-50">
-                        <p className="text-sm font-medium text-gray-900">{c.nombre}</p>
+                        <p className="text-sm font-medium text-gray-900">{t(c.nombre)}</p>
                         <p className="text-xs text-gray-500">
-                          {c.rfc || 'sin RFC'} ·{' '}
+                          {c.rfc || t("sin RFC")} ·{' '}
                           {Number(c.limiteCredito ?? 0) > 0
                             ? `línea ${dinero(c.limiteCredito)}`
-                            : 'sin línea'}
+                            : t("sin línea")}
                         </p>
                       </button>
                     ))}
@@ -355,25 +359,25 @@ export default function EjecutarVerificacionPage() {
             <div className="bg-white border rounded-lg p-5 mb-4">
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-gray-700 mb-1">Límite solicitado</label>
+                  <label className="block text-sm text-gray-700 mb-1">{t("Límite solicitado")}</label>
                   <input type="number" min="0" step="0.01" value={limite}
                     onChange={(e) => setLimite(e.target.value)}
                     className="w-full border rounded-lg px-3 py-2 text-sm" />
                   <p className="text-xs text-gray-500 mt-1">
-                    El expediente queda atado a este importe. Autorizar más que esto obliga a
-                    verificar de nuevo, para que nadie valide barato una vez y autorice caro después.
+                    
+                    {t("El expediente queda atado a este importe. Autorizar más que esto obliga a verificar de nuevo, para que nadie valide barato una vez y autorice caro después.")}
                   </p>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">
-                    Folio de autorización de buró <span className="text-gray-400">(si aplica)</span>
+                    Folio de autorización de buró <span className="text-gray-400">{t("(si aplica)")}</span>
                   </label>
                   <input value={folio} onChange={(e) => setFolio(e.target.value)}
-                    placeholder="Folio del consentimiento firmado"
+                    placeholder={t("Folio del consentimiento firmado")}
                     className="w-full border rounded-lg px-3 py-2 text-sm" />
                   <p className="text-xs text-gray-500 mt-1">
-                    Consultar un buró sin consentimiento del titular no es una falla técnica:
-                    es una infracción. Sin folio, esos pasos no consultan.
+                    
+                    {t("Consultar un buró sin consentimiento del titular no es una falla técnica: es una infracción. Sin folio, esos pasos no consultan.")}
                   </p>
                 </div>
               </div>
@@ -382,17 +386,16 @@ export default function EjecutarVerificacionPage() {
               <div className="mt-5 pt-5 border-t">
                 <div className="flex items-center gap-2 mb-1">
                   <FlaskConical className="w-4 h-4 text-indigo-600" />
-                  <p className="text-sm font-medium text-gray-900">Forzar respuestas (simulación)</p>
+                  <p className="text-sm font-medium text-gray-900">{t("Forzar respuestas (simulación)")}</p>
                 </div>
                 <p className="text-xs text-gray-500 mb-3">
                   Para ver cómo se comporta el flujo ante un buró bajo o una identidad rechazada sin
-                  provocarlo de verdad. <strong>Un expediente simulado no habilita la autorización
-                  de la línea</strong>: el candado los ignora a propósito.
+                  provocarlo de verdad. <strong>{t("Un expediente simulado no habilita la autorización de la línea")}</strong>: el candado los ignora a propósito.
                 </p>
                 <div className="space-y-2">
                   {pasosDelFlujo.map((p) => (
                     <div key={p.tipo} className="flex items-center gap-3 flex-wrap">
-                      <span className="text-sm text-gray-700 w-56 shrink-0">{p.etiqueta}</span>
+                      <span className="text-sm text-gray-700 w-56 shrink-0">{t(p.etiqueta)}</span>
                       <div className="flex gap-1 flex-wrap">
                         <button
                           onClick={() => setForzados(({ [p.tipo]: _, ...resto }) => resto)}
@@ -400,7 +403,8 @@ export default function EjecutarVerificacionPage() {
                             forzados[p.tipo] === undefined
                               ? 'bg-gray-800 text-white border-gray-800'
                               : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                          real
+                          
+                          {t("real")}
                         </button>
                         {RESULTADOS_FORZABLES.map((r) => (
                           <button key={r}
@@ -409,7 +413,7 @@ export default function EjecutarVerificacionPage() {
                               forzados[p.tipo] === r
                                 ? 'bg-indigo-600 text-white border-indigo-600'
                                 : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                            {RESULTADOS[r].nombre}
+                            {t(RESULTADOS[r].nombre)}
                           </button>
                         ))}
                       </div>
@@ -439,7 +443,7 @@ export default function EjecutarVerificacionPage() {
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {t(error)}
             </div>
           )}
 
@@ -455,28 +459,29 @@ export default function EjecutarVerificacionPage() {
                     <Icono className="w-6 h-6 shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-lg font-semibold">{meta.nombre}</p>
+                        <p className="text-lg font-semibold">{t(meta.nombre)}</p>
                         {e.simulacion && (
                           <span className="px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
-                            simulación
+                            
+                            {t("simulación")}
                           </span>
                         )}
                       </div>
-                      <p className="text-sm mt-0.5">{meta.que}</p>
+                      <p className="text-sm mt-0.5">{t(meta.que)}</p>
 
                       <div className="grid sm:grid-cols-3 gap-3 mt-3 text-sm">
                         <div>
-                          <p className="text-xs opacity-70">Puntaje</p>
+                          <p className="text-xs opacity-70">{t("Puntaje")}</p>
                           <p className="font-semibold">
-                            {e.puntaje} <span className="font-normal opacity-70">de mínimo {minimo}</span>
+                            {e.puntaje} <span className="font-normal opacity-70">{t("de mínimo {n0}", { n0: minimo })}</span>
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs opacity-70">Solicitado</p>
+                          <p className="text-xs opacity-70">{t("Solicitado")}</p>
                           <p className="font-semibold">{dinero(e.limiteSolicitado)}</p>
                         </div>
                         <div>
-                          <p className="text-xs opacity-70">Sugerido por el flujo</p>
+                          <p className="text-xs opacity-70">{t("Sugerido por el flujo")}</p>
                           <p className="font-semibold">{dinero(e.limiteSugerido)}</p>
                         </div>
                       </div>
@@ -485,7 +490,7 @@ export default function EjecutarVerificacionPage() {
                         <p className="text-xs mt-3 flex items-start gap-1.5 opacity-90">
                           <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                           Este expediente está marcado como simulación, así que
-                          <strong className="mx-1">no habilita la autorización de la línea</strong>.
+                          <strong className="mx-1">{t("no habilita la autorización de la línea")}</strong>.
                           Para eso hay que correr «Verificar de verdad».
                         </p>
                       )}
@@ -507,10 +512,10 @@ export default function EjecutarVerificacionPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-gray-600">
                       <tr>
-                        <th className="text-left px-3 py-2 font-medium">Paso</th>
-                        <th className="text-left px-3 py-2 font-medium">Si no aprueba</th>
-                        <th className="text-left px-3 py-2 font-medium">Resultado</th>
-                        <th className="text-right px-3 py-2 font-medium">Puntos</th>
+                        <th className="text-left px-3 py-2 font-medium">{t("Paso")}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t("Si no aprueba")}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t("Resultado")}</th>
+                        <th className="text-right px-3 py-2 font-medium">{t("Puntos")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -520,17 +525,17 @@ export default function EjecutarVerificacionPage() {
                         return (
                           <tr key={`${p.orden}-${p.tipo}`}>
                             <td className="px-3 py-2">
-                              <p className="text-gray-900">{p.orden}. {p.etiqueta}</p>
-                              {p.detalle && <p className="text-xs text-gray-500">{p.detalle}</p>}
+                              <p className="text-gray-900">{p.orden}. {t(p.etiqueta)}</p>
+                              {p.detalle && <p className="text-xs text-gray-500">{t(p.detalle)}</p>}
                             </td>
                             <td className="px-3 py-2 text-xs text-gray-600">
-                              {p.politica === 'BLOQUEANTE' && 'se rechaza'}
-                              {p.politica === 'DERIVA_A_REVISION' && 'lo ve una persona'}
-                              {p.politica === 'INFORMATIVO' && 'sólo resta puntos'}
+                              {p.politica === 'BLOQUEANTE' && t("se rechaza")}
+                              {p.politica === 'DERIVA_A_REVISION' && t("lo ve una persona")}
+                              {p.politica === 'INFORMATIVO' && t("sólo resta puntos")}
                             </td>
                             <td className="px-3 py-2">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs ${r.clase}`}>
-                                <Ir className="w-3 h-3" /> {r.nombre}
+                                <Ir className="w-3 h-3" /> {t(r.nombre)}
                               </span>
                             </td>
                             <td className="px-3 py-2 text-right tabular-nums text-gray-700">
@@ -543,9 +548,7 @@ export default function EjecutarVerificacionPage() {
                   </table>
                   {resultado.pasos.length < pasosDelFlujo.length && (
                     <p className="px-3 py-2 text-xs text-gray-500 bg-gray-50 border-t">
-                      El flujo se detuvo en el paso {resultado.pasos.length}: un paso bloqueante que
-                      no aprueba no deja seguir, así que los siguientes no se consultaron.
-                    </p>
+                      {t("El flujo se detuvo en el paso {n0}: un paso bloqueante que no aprueba no deja seguir, así que los siguientes no se consultaron.", { n0: resultado.pasos.length })}</p>
                   )}
                 </div>
               </div>
@@ -557,7 +560,8 @@ export default function EjecutarVerificacionPage() {
             <div className="bg-white border rounded-lg p-5">
               <p className="font-medium text-gray-900 flex items-center gap-2 mb-3">
                 <FileText className="w-4 h-4 text-gray-400" />
-                Expedientes de este cliente
+                
+                {t("Expedientes de este cliente")}
               </p>
               <div className="divide-y">
                 {historial.map((h) => {
@@ -566,21 +570,18 @@ export default function EjecutarVerificacionPage() {
                     <div key={h.id} className="py-2 flex items-center justify-between gap-3 flex-wrap">
                       <div>
                         <p className="text-sm text-gray-900">
-                          {meta.nombre}
-                          {h.simulacion && <span className="ml-2 text-xs text-indigo-700">(simulación)</span>}
+                          {t(meta.nombre)}
+                          {h.simulacion && <span className="ml-2 text-xs text-indigo-700">{t("(simulación)")}</span>}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {h.flujoNombre} v{h.flujoVersion} · solicitado {dinero(h.limiteSolicitado)} ·
-                          puntaje {h.puntaje}
-                          {h.fechaCreacion && ` · ${new Date(h.fechaCreacion).toLocaleString('es-MX')}`}
-                        </p>
+                          {t("{n0} v{n1} · solicitado {n2} · puntaje {n3} {n4}", { n0: h.flujoNombre, n1: h.flujoVersion, n2: dinero(h.limiteSolicitado), n3: h.puntaje, n4: h.fechaCreacion && ` · ${new Date(h.fechaCreacion).toLocaleString('es-MX')}` })}</p>
                       </div>
                     </div>
                   );
                 })}
               </div>
               <p className="text-xs text-gray-500 mt-3">
-                El candado de aprobación busca el expediente más reciente <strong>no simulado</strong>.
+                El candado de aprobación busca el expediente más reciente <strong>{t("no simulado")}</strong>.
                 Si está RECHAZADA, o se hizo por menos de lo que se quiere autorizar, la autorización
                 se niega y dice por qué.
               </p>

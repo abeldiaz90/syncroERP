@@ -16,6 +16,7 @@ import {
 import { fechaCorta } from "@/lib/fechas";
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface IHotel {
   id: string;
   nombre: string;
@@ -38,6 +39,7 @@ interface IResultado {
 }
 
 export default function AuditoriaPage() {
+  const t = useT();
   const api =
     process.env.NEXT_PUBLIC_API_URL ||
     (process.env.NODE_ENV === "production"
@@ -131,7 +133,7 @@ export default function AuditoriaPage() {
         Ahora el aviso dice lo que pasó y el bloque de abajo, también.
       */
       if (d.ejecutada === false) {
-        mostrar(d.motivo || "La auditoría no se ejecutó.", false);
+        mostrar(d.motivo || t("La auditoría no se ejecutó."), false);
       } else {
         mostrar(
           `Auditoría completada: ${plural(d.nochesPosteadas, 'noche posteada', 'noches posteadas')}`,
@@ -143,7 +145,7 @@ export default function AuditoriaPage() {
       mostrar(
         Array.isArray(d?.message)
           ? d.message.join(", ")
-          : d?.message || "No se pudo ejecutar la auditoría",
+          : d?.message || t("No se pudo ejecutar la auditoría"),
         false,
       );
     }
@@ -167,7 +169,8 @@ export default function AuditoriaPage() {
   if (hoteles.length === 0)
     return (
       <div className="p-8 text-center text-slate-500">
-        Primero crea un hotel en Configuración.
+        
+        {t("Primero crea un hotel en Configuración.")}
       </div>
     );
 
@@ -189,14 +192,15 @@ export default function AuditoriaPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-[0.15em] mb-1">
-            Cierre del día
+            
+            {t("Cierre del día")}
           </p>
           <h1 className="text-3xl font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-            <Moon className="w-7 h-7 text-slate-700" /> Auditoría Nocturna
+            <Moon className="w-7 h-7 text-slate-700" />  {t("Auditoría Nocturna")}
           </h1>
           <p className="text-slate-500 mt-1">
-            Postea la renta de la noche a los huéspedes hospedados y cierra el
-            día operativo.
+            
+            {t("Postea la renta de la noche a los huéspedes hospedados y cierra el día operativo.")}
           </p>
         </div>
         {hoteles.length > 1 && (
@@ -207,7 +211,7 @@ export default function AuditoriaPage() {
           >
             {hoteles.map((ho) => (
               <option key={ho.id} value={ho.id}>
-                {ho.nombre}
+                {t(ho.nombre)}
               </option>
             ))}
           </select>
@@ -219,7 +223,7 @@ export default function AuditoriaPage() {
         <div className="grid sm:grid-cols-4 gap-3 mb-6">
           <div className="bg-white border border-slate-200 rounded-2xl p-5">
             <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold uppercase tracking-wide mb-2">
-              <Calendar className="w-3.5 h-3.5" /> Fecha operativa
+              <Calendar className="w-3.5 h-3.5" />  {t("Fecha operativa")}
             </div>
             <p className="text-xl font-semibold text-slate-900">
               {fechaCorta(estado.fechaOperativa)}
@@ -229,7 +233,8 @@ export default function AuditoriaPage() {
             className={`bg-white border rounded-2xl p-5 ${estado.foliosContablesPendientes ? "border-amber-300" : "border-slate-200"}`}
           >
             <div className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-2">
-              Folios por contabilizar
+              
+              {t("Folios por contabilizar")}
             </div>
             <p
               className={`text-xl font-semibold ${estado.foliosContablesPendientes ? "text-amber-700" : "text-slate-900"}`}
@@ -239,7 +244,7 @@ export default function AuditoriaPage() {
           </div>
           <div className="bg-white border border-slate-200 rounded-2xl p-5">
             <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold uppercase tracking-wide mb-2">
-              <Users className="w-3.5 h-3.5" /> Huéspedes hospedados
+              <Users className="w-3.5 h-3.5" />  {t("Huéspedes hospedados")}
             </div>
             <p className="text-xl font-semibold text-slate-900 tabular-nums">
               {estado.huespedesHospedados}
@@ -247,12 +252,12 @@ export default function AuditoriaPage() {
           </div>
           <div className="bg-white border border-slate-200 rounded-2xl p-5">
             <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold uppercase tracking-wide mb-2">
-              <Moon className="w-3.5 h-3.5" /> Última auditoría
+              <Moon className="w-3.5 h-3.5" />  {t("Última auditoría")}
             </div>
             <p className="text-sm font-medium text-slate-600">
               {estado.ultimaAuditoria
                 ? new Date(estado.ultimaAuditoria).toLocaleString("es-MX")
-                : "Nunca"}
+                : t("Nunca")}
             </p>
           </div>
         </div>
@@ -262,10 +267,10 @@ export default function AuditoriaPage() {
       <div className="bg-slate-900 rounded-2xl p-6 mb-6 text-white">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h3 className="font-semibold text-lg">Ejecutar cierre del día</h3>
+            <h3 className="font-semibold text-lg">{t("Ejecutar cierre del día")}</h3>
             <p className="text-white/60 text-sm mt-1">
-              Se posteará una noche de renta a cada huésped hospedado y se
-              avanzará la fecha operativa.
+              
+              {t("Se posteará una noche de renta a cada huésped hospedado y se avanzará la fecha operativa.")}
             </p>
           </div>
           <button
@@ -278,13 +283,13 @@ export default function AuditoriaPage() {
             ) : (
               <Play className="w-4 h-4" />
             )}
-            {corriendo ? "Procesando…" : "Correr auditoría"}
+            {corriendo ? t("Procesando…") : t("Correr auditoría")}
           </button>
         </div>
         {(estado?.huespedesHospedados ?? 0) === 0 && (
           <p className="text-white/40 text-xs mt-3">
-            No hay huéspedes hospedados; el cierre aún puede ejecutarse para
-            avanzar la fecha operativa.
+            
+            {t("No hay huéspedes hospedados; el cierre aún puede ejecutarse para avanzar la fecha operativa.")}
           </p>
         )}
       </div>
@@ -298,21 +303,22 @@ export default function AuditoriaPage() {
           {resultado.ejecutada === false ? (
             <div className="p-5 border-b border-slate-100 bg-amber-50">
               <div className="flex items-center gap-2 font-semibold text-amber-800">
-                <AlertTriangle className="w-5 h-5" /> La auditoría no se ejecutó
+                <AlertTriangle className="w-5 h-5" />  {t("La auditoría no se ejecutó")}
               </div>
-              <p className="mt-1 text-sm text-amber-800">{resultado.motivo}</p>
+              <p className="mt-1 text-sm text-amber-800">{t(resultado.motivo)}</p>
             </div>
           ) : (
             <div className="p-5 border-b border-slate-100 bg-emerald-50">
               <div className="flex items-center gap-2 text-emerald-700 font-semibold">
-                <CheckCircle2 className="w-5 h-5" /> Auditoría completada
+                <CheckCircle2 className="w-5 h-5" />  {t("Auditoría completada")}
               </div>
             </div>
           )}
           <div className="grid sm:grid-cols-3 gap-4 p-5">
             <div>
               <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
-                Noches posteadas
+                
+                {t("Noches posteadas")}
               </p>
               <p className="text-2xl font-semibold text-slate-900 tabular-nums">
                 {resultado.nochesPosteadas}
@@ -320,7 +326,8 @@ export default function AuditoriaPage() {
             </div>
             <div>
               <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
-                Monto generado
+                
+                {t("Monto generado")}
               </p>
               <p className="text-2xl font-semibold text-emerald-600 tabular-nums">
                 {fmt$(resultado.montoTotal)}
@@ -329,8 +336,8 @@ export default function AuditoriaPage() {
             <div>
               <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
                 {resultado.ejecutada === false
-                  ? "Fecha operativa (sin cambio)"
-                  : "Nueva fecha operativa"}
+                  ? t("Fecha operativa (sin cambio)")
+                  : t("Nueva fecha operativa")}
               </p>
               <p className="text-lg font-semibold text-slate-900">
                 {fechaCorta(resultado.fechaOperativa)}
@@ -340,7 +347,8 @@ export default function AuditoriaPage() {
           {resultado.detalle.length > 0 && (
             <div className="border-t border-slate-100 p-5">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
-                Cargos posteados
+                
+                {t("Cargos posteados")}
               </p>
               <div className="space-y-2">
                 {resultado.detalle.map((d, i) => (

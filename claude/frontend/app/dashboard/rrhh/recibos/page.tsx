@@ -21,6 +21,7 @@ import {
   Modal, Panel, Seleccion, SinDatos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Partida {
   id: string;
   clave: string;
@@ -61,6 +62,7 @@ export default function RecibosPage() {
 }
 
 function ContenidoRecibos() {
+  const t = useT();
   const parametros = useSearchParams();
   const [periodoId, setPeriodoId] = useState(parametros.get('periodoId') ?? '');
   const [abierto, setAbierto] = useState<string | null>(null);
@@ -87,8 +89,8 @@ function ContenidoRecibos() {
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
       <EncabezadoPantalla
-        titulo="Recibos de nómina"
-        descripcion="Detalle por empleado del periodo seleccionado"
+        titulo={t("Recibos de nómina")}
+        descripcion={t("Detalle por empleado del periodo seleccionado")}
         acciones={
           (recibos.datos?.length ?? 0) > 0 ? (
             <Boton
@@ -96,7 +98,8 @@ function ContenidoRecibos() {
               icono={<Printer className="w-3.5 h-3.5" />}
               onClick={() => window.print()}
             >
-              Imprimir lista
+              
+              {t("Imprimir lista")}
             </Boton>
           ) : undefined
         }
@@ -105,13 +108,13 @@ function ContenidoRecibos() {
       <Panel sinRelleno>
         <div className="panel-cabecera no-imprimir">
           <div className="flex items-center gap-2">
-            <span className="text-[12px] text-slate-500">Periodo</span>
+            <span className="text-[12px] text-slate-500">{t("Periodo")}</span>
             <Seleccion
               value={periodoId}
               onChange={(e) => setPeriodoId(e.target.value)}
               className="w-64"
             >
-              <option value="">Elige un periodo…</option>
+              <option value="">{t("Elige un periodo…")}</option>
               {(periodos.datos ?? []).map((p) => (
                 <option key={p.id} value={p.id}>
                   #{p.numero} · {p.ejercicio} · {p.estado.toLowerCase()}
@@ -129,18 +132,18 @@ function ContenidoRecibos() {
 
         {!periodoId ? (
           <SinDatos
-            titulo="Elige un periodo"
-            descripcion="Los recibos aparecen una vez que el periodo se ha calculado."
+            titulo={t("Elige un periodo")}
+            descripcion={t("Los recibos aparecen una vez que el periodo se ha calculado.")}
             icono={<Receipt className="w-5 h-5" />}
           />
         ) : recibos.cargando ? (
           <Cargando />
         ) : recibos.error ? (
-          <ErrorPantalla mensaje={recibos.error} onReintentar={recibos.recargar} />
+          <ErrorPantalla mensaje={t(recibos.error)} onReintentar={recibos.recargar} />
         ) : (recibos.datos?.length ?? 0) === 0 ? (
           <SinDatos
-            titulo="Este periodo aún no tiene recibos"
-            descripcion="Vuelve a Periodos de nómina y ejecuta el cálculo."
+            titulo={t("Este periodo aún no tiene recibos")}
+            descripcion={t("Vuelve a Periodos de nómina y ejecuta el cálculo.")}
             icono={<Receipt className="w-5 h-5" />}
           />
         ) : (
@@ -148,13 +151,13 @@ function ContenidoRecibos() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Empleado</th>
-                  <th className="text-right">Días</th>
-                  <th className="text-right">Salario diario</th>
-                  <th className="text-right">Percepciones</th>
-                  <th className="text-right">ISR</th>
+                  <th>{t("Empleado")}</th>
+                  <th className="text-right">{t("Días")}</th>
+                  <th className="text-right">{t("Salario diario")}</th>
+                  <th className="text-right">{t("Percepciones")}</th>
+                  <th className="text-right">{t("ISR")}</th>
                   <th className="text-right">IMSS</th>
-                  <th className="text-right">Neto</th>
+                  <th className="text-right">{t("Neto")}</th>
                   <th className="no-imprimir" />
                 </tr>
               </thead>
@@ -172,7 +175,7 @@ function ContenidoRecibos() {
                       <button
                         onClick={() => setAbierto(r.id)}
                         className="btn btn-fantasma btn-sm btn-icono"
-                        title="Ver recibo"
+                        title={t("Ver recibo")}
                       >
                         <FileText className="w-3.5 h-3.5" />
                       </button>
@@ -182,7 +185,7 @@ function ContenidoRecibos() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={3}>Totales del periodo</td>
+                  <td colSpan={3}>{t("Totales del periodo")}</td>
                   <td className="text-right cifra">{dinero(totales.percepciones)}</td>
                   <td className="text-right cifra">{dinero(totales.isr)}</td>
                   <td className="text-right cifra">{dinero(totales.imss)}</td>
@@ -205,6 +208,7 @@ function ContenidoRecibos() {
 /* ── Detalle ──────────────────────────────────────────────────────────────── */
 
 function DetalleRecibo({ reciboId, onCerrar }: { reciboId: string; onCerrar: () => void }) {
+  const t = useT();
   const recibo = useDatos<Recibo>(() => api.get(`/rrhh/nomina/recibos/${reciboId}`), [reciboId]);
 
   const percepciones = (recibo.datos?.partidas ?? []).filter((p) => p.naturaleza === 'PERCEPCION');
@@ -215,7 +219,7 @@ function DetalleRecibo({ reciboId, onCerrar }: { reciboId: string; onCerrar: () 
     <Modal
       abierto
       onCerrar={onCerrar}
-      titulo={recibo.datos?.nombreEmpleado ?? 'Recibo'}
+      titulo={recibo.datos?.nombreEmpleado ?? t("Recibo")}
       descripcion={
         recibo.datos?.periodo
           ? `Periodo ${recibo.datos.periodo.numero} · ${fecha(recibo.datos.periodo.fechaInicio)} al ${fecha(recibo.datos.periodo.fechaFin)}`
@@ -229,39 +233,39 @@ function DetalleRecibo({ reciboId, onCerrar }: { reciboId: string; onCerrar: () 
             icono={<Printer className="w-3.5 h-3.5" />}
             onClick={() => window.print()}
           >
-            Imprimir
+            
+            {t("Imprimir")}
           </Boton>
-          <Boton variante="primario" onClick={onCerrar}>Cerrar</Boton>
+          <Boton variante="primario" onClick={onCerrar}>{t("Cerrar")}</Boton>
         </>
       }
     >
       {recibo.cargando ? (
         <Cargando filas={5} />
       ) : recibo.error ? (
-        <ErrorPantalla mensaje={recibo.error} onReintentar={recibo.recargar} />
+        <ErrorPantalla mensaje={t(recibo.error)} onReintentar={recibo.recargar} />
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between text-[12px] text-slate-500">
             <span>
-              {Number(recibo.datos!.diasPagados)} días · {dinero(recibo.datos!.salarioDiario)} diarios
-            </span>
+              {t("{n0} días · {n1} diarios", { n0: Number(recibo.datos!.diasPagados), n1: dinero(recibo.datos!.salarioDiario) })}</span>
             <Distintivo tono={recibo.datos!.timbrado ? 'exito' : 'neutro'}>
-              {recibo.datos!.timbrado ? 'Timbrado' : 'Sin timbrar'}
+              {recibo.datos!.timbrado ? t("Timbrado") : t("Sin timbrar")}
             </Distintivo>
           </div>
 
-          <BloquePartidas titulo="Percepciones" partidas={percepciones} tono="#059669" />
+          <BloquePartidas titulo={t("Percepciones")} partidas={percepciones} tono="#059669" />
           {otros.length > 0 && (
-            <BloquePartidas titulo="Otros pagos" partidas={otros} tono="#0284c7" />
+            <BloquePartidas titulo={t("Otros pagos")} partidas={otros} tono="#0284c7" />
           )}
-          <BloquePartidas titulo="Deducciones" partidas={deducciones} tono="#e11d48" />
+          <BloquePartidas titulo={t("Deducciones")} partidas={deducciones} tono="#e11d48" />
 
           <div className="border-t border-slate-200 pt-3 space-y-1.5">
-            <Renglon etiqueta="Total de percepciones" valor={recibo.datos!.totalPercepciones} />
-            <Renglon etiqueta="Total de deducciones" valor={recibo.datos!.totalDeducciones} />
-            <Renglon etiqueta="Base gravable" valor={recibo.datos!.baseGravable} tenue />
+            <Renglon etiqueta={t("Total de percepciones")} valor={recibo.datos!.totalPercepciones} />
+            <Renglon etiqueta={t("Total de deducciones")} valor={recibo.datos!.totalDeducciones} />
+            <Renglon etiqueta={t("Base gravable")} valor={recibo.datos!.baseGravable} tenue />
             <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-              <span className="text-[13px] font-bold text-slate-900">Neto a pagar</span>
+              <span className="text-[13px] font-bold text-slate-900">{t("Neto a pagar")}</span>
               <span className="text-[18px] font-bold text-slate-900 cifra">
                 {dinero(recibo.datos!.neto)}
               </span>
@@ -278,11 +282,12 @@ function BloquePartidas({
 }: {
   titulo: string; partidas: Partida[]; tono: string;
 }) {
+  const t = useT();
   if (!partidas.length) return null;
 
   return (
     <div>
-      <p className="eyebrow mb-1.5" style={{ color: tono }}>{titulo}</p>
+      <p className="eyebrow mb-1.5" style={{ color: tono }}>{t(titulo)}</p>
       <table className="w-full">
         <tbody>
           {partidas.map((p) => (
@@ -306,9 +311,10 @@ function BloquePartidas({
 }
 
 function Renglon({ etiqueta, valor, tenue }: { etiqueta: string; valor: number; tenue?: boolean }) {
+  const t = useT();
   return (
     <div className="flex items-center justify-between">
-      <span className={`text-[12.5px] ${tenue ? 'text-slate-400' : 'text-slate-600'}`}>{etiqueta}</span>
+      <span className={`text-[12.5px] ${tenue ? 'text-slate-400' : 'text-slate-600'}`}>{t(etiqueta)}</span>
       <span className={`text-[12.5px] cifra ${tenue ? 'text-slate-400' : 'text-slate-800 font-medium'}`}>
         {dinero(valor)}
       </span>

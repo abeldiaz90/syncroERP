@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { api, intentar, conPermiso } from '@/lib/api';
 
+import { useT } from '@/components/I18nProvider';
 interface IPolitica {
   limite: number; utilizado: number; disponible: number;
   vencido: number; diasCredito: number;
@@ -60,6 +61,7 @@ const fecha = (f?: string) =>
 
 /** Una barra que se lee sin leer los números. */
 function BarraLinea({ limite, utilizado, vencido }: { limite: number; utilizado: number; vencido: number }) {
+  const t = useT();
   if (limite <= 0) return null;
   const usado = Math.min(100, (utilizado / limite) * 100);
   const enMora = Math.min(usado, (vencido / limite) * 100);
@@ -70,8 +72,8 @@ function BarraLinea({ limite, utilizado, vencido }: { limite: number; utilizado:
         <div className="h-full bg-indigo-500" style={{ width: `${usado - enMora}%` }} />
       </div>
       <div className="flex justify-between text-[10.5px] text-slate-400 mt-1 tabular-nums">
-        <span>{Math.round(usado)}% usado</span>
-        <span>límite {dinero(limite)}</span>
+        <span>{t("{n0}% usado", { n0: Math.round(usado) })}</span>
+        <span>{t("límite {n0}", { n0: dinero(limite) })}</span>
       </div>
     </div>
   );
@@ -80,17 +82,19 @@ function BarraLinea({ limite, utilizado, vencido }: { limite: number; utilizado:
 function Dato({ etiqueta, valor, tono = 'normal', pie }: {
   etiqueta: string; valor: string; tono?: 'normal' | 'bien' | 'mal'; pie?: string;
 }) {
+  const t = useT();
   const color = tono === 'mal' ? 'text-rose-600' : tono === 'bien' ? 'text-emerald-600' : 'text-slate-900';
   return (
     <div>
-      <p className="text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">{etiqueta}</p>
+      <p className="text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">{t(etiqueta)}</p>
       <p className={`text-[15px] font-bold tabular-nums mt-0.5 ${color}`}>{valor}</p>
-      {pie && <p className="text-[10.5px] text-slate-400">{pie}</p>}
+      {pie && <p className="text-[10.5px] text-slate-400">{t(pie)}</p>}
     </div>
   );
 }
 
 export function ActividadCliente({ clienteId }: { clienteId: string }) {
+  const t = useT();
   const [politica, setPolitica] = useState<IPolitica | null | undefined>(undefined);
   const [creditos, setCreditos] = useState<ICreditoVigente[]>([]);
   const [ventas, setVentas] = useState<IVenta[]>([]);
@@ -155,42 +159,44 @@ export function ActividadCliente({ clienteId }: { clienteId: string }) {
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex items-center gap-2 mb-3">
           <CreditCard className="w-4 h-4 text-indigo-600" />
-          <h3 className="text-[13px] font-bold text-slate-900">Su crédito hoy</h3>
+          <h3 className="text-[13px] font-bold text-slate-900">{t("Su crédito hoy")}</h3>
           {politica && !politica.puedeComprarCredito && conLinea && (
             <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-full px-2 py-0.5">
-              <AlertTriangle className="w-3 h-3" /> no puede comprar
+              <AlertTriangle className="w-3 h-3" />  {t("no puede comprar")}
             </span>
           )}
           {politica?.puedeComprarCredito && conLinea && (
             <span className="ml-auto text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
-              puede comprar
+              
+              {t("puede comprar")}
             </span>
           )}
         </div>
 
         {creditoVedado ? (
           <p className="text-[12.5px] text-slate-400">
-            La cartera de este cliente no está en tu perfil: desde aquí no se
-            puede saber cuánto debe ni cuánta línea le queda.
+            
+            {t("La cartera de este cliente no está en tu perfil: desde aquí no se puede saber cuánto debe ni cuánta línea le queda.")}
           </p>
         ) : politica === null ? (
           <p className="text-[12.5px] text-slate-400">
-            No se pudo consultar su política de crédito ahora mismo.
+            
+            {t("No se pudo consultar su política de crédito ahora mismo.")}
           </p>
         ) : !conLinea ? (
           <div className="text-[12.5px] text-slate-500 leading-relaxed">
-            Compra de contado. No todo cliente necesita línea; la de crédito se abre cuando
-            la solicita y su verificación sale favorable.
+            
+            {t("Compra de contado. No todo cliente necesita línea; la de crédito se abre cuando la solicita y su verificación sale favorable.")}
           </div>
         ) : (
           <>
             <div className="grid grid-cols-3 gap-3">
-              <Dato etiqueta="Disponible" valor={dinero(politica!.disponible)} tono="bien"
+              <Dato etiqueta={t("Disponible")} valor={dinero(politica!.disponible)} tono="bien"
                 pie={`${politica!.diasCredito} días de plazo`} />
-              <Dato etiqueta="Utilizado" valor={dinero(politica!.utilizado)} />
-              <Dato etiqueta="Vencido" valor={dinero(politica!.vencido)}
+              <Dato etiqueta={t("Utilizado")} valor={dinero(politica!.utilizado)} />
+              <Dato etiqueta={t("Vencido")} valor={dinero(politica!.vencido)}
                 tono={Number(politica!.vencido) > 0 ? 'mal' : 'normal'}
-                pie={Number(politica!.vencido) > 0 ? 'en mora' : 'al corriente'} />
+                pie={Number(politica!.vencido) > 0 ? t("en mora") : t("al corriente")} />
             </div>
 
             <BarraLinea limite={Number(politica!.limite)} utilizado={Number(politica!.utilizado)}
@@ -205,7 +211,7 @@ export function ActividadCliente({ clienteId }: { clienteId: string }) {
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-4 text-[11.5px] text-slate-500">
               <span className="inline-flex items-center gap-1.5">
                 <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
-                {vigentes.length} {vigentes.length === 1 ? 'crédito vigente' : 'créditos vigentes'}
+                {vigentes.length} {vigentes.length === 1 ? t("crédito vigente") : t("créditos vigentes")}
               </span>
               {proximo && (
                 <span className="inline-flex items-center gap-1.5">
@@ -215,7 +221,8 @@ export function ActividadCliente({ clienteId }: { clienteId: string }) {
               )}
               <Link href={`/dashboard/creditos/creditos?clienteId=${clienteId}`}
                 className="ml-auto text-indigo-600 font-semibold inline-flex items-center gap-1">
-                Ver cartera <ArrowUpRight className="w-3 h-3" />
+                
+                {t("Ver cartera")} <ArrowUpRight className="w-3 h-3" />
               </Link>
             </div>
           </>
@@ -226,7 +233,7 @@ export function ActividadCliente({ clienteId }: { clienteId: string }) {
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex items-center gap-2 mb-3">
           <ShoppingBag className="w-4 h-4 text-slate-500" />
-          <h3 className="text-[13px] font-bold text-slate-900">Lo que ha comprado</h3>
+          <h3 className="text-[13px] font-bold text-slate-900">{t("Lo que ha comprado")}</h3>
           {saldoFavor > 0 && (
             <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-full px-2 py-0.5">
               <Wallet className="w-3 h-3" /> saldo a favor {dinero(saldoFavor)}
@@ -236,7 +243,8 @@ export function ActividadCliente({ clienteId }: { clienteId: string }) {
 
         {ventas.length === 0 ? (
           <p className="text-[12.5px] text-slate-400">
-            Todavía no tiene compras registradas.
+            
+            {t("Todavía no tiene compras registradas.")}
           </p>
         ) : (
           <div className="divide-y divide-slate-100 -mx-1">
@@ -270,7 +278,8 @@ export function ActividadCliente({ clienteId }: { clienteId: string }) {
         <div className="mt-3 pt-3 border-t border-slate-100">
           <Link href={`/dashboard/ventas/historial?clienteId=${clienteId}`}
             className="text-[11.5px] text-indigo-600 font-semibold inline-flex items-center gap-1">
-            Todo su historial <ArrowUpRight className="w-3 h-3" />
+            
+            {t("Todo su historial")} <ArrowUpRight className="w-3 h-3" />
           </Link>
         </div>
       </section>

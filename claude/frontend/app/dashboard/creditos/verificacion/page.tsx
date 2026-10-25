@@ -36,6 +36,7 @@ import { TableroVerificaciones } from '@/components/verificaciones/tablero-verif
 import { PuedeCrear } from '@/app/components/ProtectedElement';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 type TipoPaso =
   | 'IDENTIDAD_INE' | 'BURO_CREDITO' | 'CIRCULO_CREDITO' | 'HISTORIAL_INTERNO'
   | 'LISTA_BLOQUEO' | 'POLITICA_INTERNA' | 'REVISION_MANUAL';
@@ -129,6 +130,7 @@ const PASO_VACIO: IPaso = {
 };
 
 export default function FlujoVerificacionPage() {
+  const t = useT();
   const [flujos, setFlujos] = useState<IFlujo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -212,7 +214,7 @@ export default function FlujoVerificacionPage() {
           ? null
           : e instanceof ApiError
             ? e.message
-            : 'No fue posible leer los flujos.',
+            : t("No fue posible leer los flujos."),
       );
     } finally {
       setCargando(false);
@@ -235,14 +237,14 @@ export default function FlujoVerificacionPage() {
         pasos: p.pasos ?? [],
       });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'No se pudo leer la plantilla.');
+      setError(e instanceof ApiError ? e.message : t("No se pudo leer la plantilla."));
     }
   };
 
   const guardar = async () => {
     if (!editor) return;
-    if (!editor.pasos.length) { setError('Un flujo sin pasos no verifica nada.'); return; }
-    if (editor.pasos.some((p) => !p.etiqueta.trim())) { setError('Cada paso necesita un nombre visible.'); return; }
+    if (!editor.pasos.length) { setError(t("Un flujo sin pasos no verifica nada.")); return; }
+    if (editor.pasos.some((p) => !p.etiqueta.trim())) { setError(t("Cada paso necesita un nombre visible.")); return; }
 
     setGuardando(true);
     setError(null);
@@ -265,7 +267,7 @@ export default function FlujoVerificacionPage() {
       setEditor(null);
       await cargar();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'No se pudo guardar el flujo.');
+      setError(e instanceof ApiError ? e.message : t("No se pudo guardar el flujo."));
     } finally {
       setGuardando(false);
     }
@@ -275,7 +277,7 @@ export default function FlujoVerificacionPage() {
     if (!edicion) return;
     const nombre = edicion.nombre.trim();
     if (!nombre) {
-      setError('El nombre del flujo no puede quedar vacío.');
+      setError(t("El nombre del flujo no puede quedar vacío."));
       return;
     }
     setGuardando(true);
@@ -290,7 +292,7 @@ export default function FlujoVerificacionPage() {
       setEdicion(null);
       await cargar();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'No se pudo guardar el cambio.');
+      setError(e instanceof ApiError ? e.message : t("No se pudo guardar el cambio."));
     } finally {
       setGuardando(false);
     }
@@ -306,7 +308,7 @@ export default function FlujoVerificacionPage() {
       await api.patch(`/integracion/validacion/flujos/${f.id}/${activar ? 'activar' : 'desactivar'}`);
       await cargar();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'No se pudo cambiar el estado.');
+      setError(e instanceof ApiError ? e.message : t("No se pudo cambiar el estado."));
     }
   };
 
@@ -318,11 +320,12 @@ export default function FlujoVerificacionPage() {
         <div>
           <h1 className="text-[22px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <ShieldCheck className="w-[20px] h-[20px] text-emerald-600" />
-            Verificación de clientes
+            
+            {t("Verificación de clientes")}
           </h1>
           <p className="text-[12.5px] text-slate-500 mt-0.5">
-            Qué se comprueba antes de otorgar un crédito, cuánto se ha comprobado y qué pasa
-            cuando algo no sale bien.
+            
+            {t("Qué se comprueba antes de otorgar un crédito, cuánto se ha comprobado y qué pasa cuando algo no sale bien.")}
           </p>
         </div>
         {!editor && (
@@ -331,7 +334,7 @@ export default function FlujoVerificacionPage() {
                 disena lo hace una vez, quien lo corre lo hace cada dia. */}
             <Link href="/dashboard/creditos/verificacion/ejecutar"
               className="px-3 py-2 text-sm rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center gap-2">
-              <Play className="w-4 h-4" /> Verificar a un cliente
+              <Play className="w-4 h-4" />  {t("Verificar a un cliente")}
             </Link>
             {/*
               Diseñar el flujo es administración; correrlo es de crédito. La
@@ -344,7 +347,7 @@ export default function FlujoVerificacionPage() {
             <PuedeCrear ruta="/integracion/validacion/flujos">
               <button onClick={() => void nuevoDesdePlantilla()}
                 className="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-2">
-                <Plus className="w-4 h-4" /> Nuevo flujo
+                <Plus className="w-4 h-4" />  {t("Nuevo flujo")}
               </button>
             </PuedeCrear>
           </div>
@@ -353,7 +356,7 @@ export default function FlujoVerificacionPage() {
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {t(error)}
         </div>
       )}
 
@@ -380,7 +383,7 @@ export default function FlujoVerificacionPage() {
       */}
       {soloTablero && !cargando && (
         <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-          El <strong>diseño</strong> del flujo de verificación —qué se exige, con
+          El <strong>{t("diseño")}</strong> del flujo de verificación —qué se exige, con
           qué política y hasta qué importe se aprueba solo— es de
           Administración. Tu perfil corre las verificaciones y consulta su
           control, que es lo de arriba.
@@ -394,12 +397,12 @@ export default function FlujoVerificacionPage() {
                     : <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />}
             <div>
               <p className="font-medium text-gray-900">
-                {activo ? `Flujo activo: ${activo.nombre}` : 'Ningún flujo activo'}
+                {activo ? `Flujo activo: ${activo.nombre}` : t("Ningún flujo activo")}
               </p>
               <p className="text-sm text-gray-600">
                 {activo
-                  ? 'Toda solicitud de crédito nueva pasa por estos pasos.'
-                  : 'Las solicitudes se otorgan sólo con la política de crédito general: no se verifica identidad, ni burós, ni listas.'}
+                  ? t("Toda solicitud de crédito nueva pasa por estos pasos.")
+                  : t("Las solicitudes se otorgan sólo con la política de crédito general: no se verifica identidad, ni burós, ni listas.")}
               </p>
             </div>
           </div>
@@ -410,36 +413,36 @@ export default function FlujoVerificacionPage() {
       {editor && (
         <div className="bg-white border rounded-lg p-5 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Nuevo flujo</h2>
-            <button aria-label="Cerrar" title="Cerrar" onClick={() => setEditor(null)} className="text-gray-400 hover:text-gray-600">
+            <h2 className="font-semibold text-gray-900">{t("Nuevo flujo")}</h2>
+            <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setEditor(null)} className="text-gray-400 hover:text-gray-600">
               <X className="w-5 h-5" />
             </button>
           </div>
 
           <div className="grid md:grid-cols-2 gap-4 mb-5">
             <div>
-              <label className="block text-sm text-gray-700 mb-1">Nombre</label>
+              <label className="block text-sm text-gray-700 mb-1">{t("Nombre")}</label>
               <input className="w-full border rounded-lg px-3 py-2 text-sm"
                 value={editor.nombre} onChange={(e) => setEditor({ ...editor, nombre: e.target.value })} />
             </div>
             <div>
-              <label className="block text-sm text-gray-700 mb-1">Descripción</label>
+              <label className="block text-sm text-gray-700 mb-1">{t("Descripción")}</label>
               <input className="w-full border rounded-lg px-3 py-2 text-sm"
                 value={editor.descripcion} onChange={(e) => setEditor({ ...editor, descripcion: e.target.value })} />
             </div>
             <div>
-              <label className="block text-sm text-gray-700 mb-1">Aprobación automática hasta</label>
+              <label className="block text-sm text-gray-700 mb-1">{t("Aprobación automática hasta")}</label>
               <input type="number" min="0" className="w-full border rounded-lg px-3 py-2 text-sm"
                 value={editor.topeAutomatico} onChange={(e) => setEditor({ ...editor, topeAutomatico: e.target.value })} />
               <p className="text-xs text-gray-500 mt-1">
-                Cero significa que <strong>todo</strong> pasa por autorización humana, sin importar el puntaje.
+                Cero significa que <strong>{t("todo")}</strong> pasa por autorización humana, sin importar el puntaje.
               </p>
             </div>
             <div>
-              <label className="block text-sm text-gray-700 mb-1">Puntaje mínimo para aprobar</label>
+              <label className="block text-sm text-gray-700 mb-1">{t("Puntaje mínimo para aprobar")}</label>
               <input type="number" min="0" max="100" className="w-full border rounded-lg px-3 py-2 text-sm"
                 value={editor.puntajeMinimo} onChange={(e) => setEditor({ ...editor, puntajeMinimo: e.target.value })} />
-              <p className="text-xs text-gray-500 mt-1">Sobre 100. Cada paso aporta su peso si aprueba.</p>
+              <p className="text-xs text-gray-500 mt-1">{t("Sobre 100. Cada paso aporta su peso si aprueba.")}</p>
             </div>
           </div>
 
@@ -452,7 +455,7 @@ export default function FlujoVerificacionPage() {
                     <GripVertical className="w-4 h-4 text-gray-300 mt-2 shrink-0" />
                     <div className="flex-1 grid md:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Paso {i + 1}</label>
+                        <label className="block text-xs text-gray-600 mb-1">{t("Paso {n0}", { n0: i + 1 })}</label>
                         <select className="w-full border rounded-lg px-2 py-1.5 text-sm bg-white"
                           value={paso.tipo}
                           onChange={(e) => {
@@ -461,14 +464,14 @@ export default function FlujoVerificacionPage() {
                             copia[i] = { ...paso, tipo, etiqueta: paso.etiqueta || CATALOGO[tipo].nombre };
                             setEditor({ ...editor, pasos: copia });
                           }}>
-                          {(Object.keys(CATALOGO) as TipoPaso[]).map((t) => (
-                            <option key={t} value={t}>
-                              {CATALOGO[t].nombre}
-                              {contratada(t) ? '' : ' — no contratado'}
+                          {(Object.keys(CATALOGO) as TipoPaso[]).map((clave) => (
+                            <option key={clave} value={clave}>
+                              {t(CATALOGO[clave].nombre)}
+                              {contratada(clave) ? '' : t("— no contratado")}
                             </option>
                           ))}
                         </select>
-                        <p className="text-xs text-gray-500 mt-1">{meta.que}</p>
+                        <p className="text-xs text-gray-500 mt-1">{t(meta.que)}</p>
                         {!contratada(paso.tipo) && (
                           /*
                            * Se dice aquí, al elegir el paso, y no al activar.
@@ -478,21 +481,21 @@ export default function FlujoVerificacionPage() {
                            * saberlo antes de armarlo entero.
                            */
                           <p className="text-xs text-amber-700 mt-1">
-                            Esta empresa no tiene contratado este paso. El flujo
-                            no podrá activarse mientras lo incluya: quítalo o
-                            pide a SUMA que lo contrate.
+                            
+                            {t("Esta empresa no tiene contratado este paso. El flujo no podrá activarse mientras lo incluya: quítalo o pide a SUMA que lo contrate.")}
                           </p>
                         )}
                         {meta.exigeAutorizacion && (
                           <p className="text-xs text-amber-700 mt-1">
-                            Requiere autorización firmada del titular. Sin folio, el paso no consulta.
+                            
+                            {t("Requiere autorización firmada del titular. Sin folio, el paso no consulta.")}
                           </p>
                         )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
                         <div className="col-span-2">
-                          <label className="block text-xs text-gray-600 mb-1">Si no aprueba…</label>
+                          <label className="block text-xs text-gray-600 mb-1">{t("Si no aprueba…")}</label>
                           <select className="w-full border rounded-lg px-2 py-1.5 text-sm bg-white"
                             value={paso.politica ?? 'BLOQUEANTE'}
                             onChange={(e) => {
@@ -500,14 +503,14 @@ export default function FlujoVerificacionPage() {
                               copia[i] = { ...paso, politica: e.target.value as Politica };
                               setEditor({ ...editor, pasos: copia });
                             }}>
-                            {POLITICAS.map((p) => <option key={p.valor} value={p.valor}>{p.nombre}</option>)}
+                            {POLITICAS.map((p) => <option key={p.valor} value={p.valor}>{t(p.nombre)}</option>)}
                           </select>
                           <p className="text-xs text-gray-500 mt-1">
-                            {POLITICAS.find((p) => p.valor === (paso.politica ?? 'BLOQUEANTE'))?.que}
+                            {t(POLITICAS.find((p) => p.valor === (paso.politica ?? 'BLOQUEANTE'))?.que)}
                           </p>
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-600 mb-1">Peso</label>
+                          <label className="block text-xs text-gray-600 mb-1">{t("Peso")}</label>
                           <input type="number" min="-100" max="100" className="w-full border rounded-lg px-2 py-1.5 text-sm"
                             value={paso.peso ?? 0}
                             onChange={(e) => {
@@ -517,7 +520,7 @@ export default function FlujoVerificacionPage() {
                             }} />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-600 mb-1">Umbral mínimo</label>
+                          <label className="block text-xs text-gray-600 mb-1">{t("Umbral mínimo")}</label>
                           <input type="number" className="w-full border rounded-lg px-2 py-1.5 text-sm"
                             placeholder="—"
                             value={paso.umbralMinimo ?? ''}
@@ -531,7 +534,7 @@ export default function FlujoVerificacionPage() {
                     </div>
                     <button
                       onClick={() => setEditor({ ...editor, pasos: editor.pasos.filter((_, j) => j !== i) })}
-                      className="text-gray-400 hover:text-red-600 mt-2" aria-label="Quitar el paso" title="Quitar el paso">
+                      className="text-gray-400 hover:text-red-600 mt-2" aria-label={t("Quitar el paso")} title={t("Quitar el paso")}>
                       <X className="w-4 h-4" />
                     </button>
                   </div>
@@ -543,11 +546,12 @@ export default function FlujoVerificacionPage() {
           <div className="flex flex-wrap gap-2 mt-4">
             <button onClick={() => setEditor({ ...editor, pasos: [...editor.pasos, { ...PASO_VACIO }] })}
               className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 flex items-center gap-1.5">
-              <Plus className="w-3.5 h-3.5" /> Agregar paso
+              <Plus className="w-3.5 h-3.5" />  {t("Agregar paso")}
             </button>
             <div className="flex-1" />
             <button onClick={() => setEditor(null)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">
-              Cancelar
+              
+              {t("Cancelar")}
             </button>
             <button onClick={() => void guardar()} disabled={guardando}
               className="px-4 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5">
@@ -556,7 +560,7 @@ export default function FlujoVerificacionPage() {
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Se guarda <strong>inactivo</strong>. Activarlo cambia a quién se le presta, y eso es un paso aparte.
+            Se guarda <strong>{t("inactivo")}</strong>. Activarlo cambia a quién se le presta, y eso es un paso aparte.
           </p>
         </div>
       )}
@@ -566,15 +570,16 @@ export default function FlujoVerificacionPage() {
       <div className="bg-white border rounded-lg divide-y">
         {cargando && (
           <div className="p-8 text-center text-gray-500 flex items-center justify-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
+            <Loader2 className="w-4 h-4 animate-spin" />  {t("Cargando…")}
           </div>
         )}
 
         {!cargando && flujos.length === 0 && !editor && (
           <div className="p-8 text-center text-gray-500">
-            <p>No hay ningún flujo definido.</p>
+            <p>{t("No hay ningún flujo definido.")}</p>
             <p className="text-sm mt-1">
-              El motor existe —identidad, burós, listas, historial— pero sin flujo no se ejecuta nada.
+              
+              {t("El motor existe —identidad, burós, listas, historial— pero sin flujo no se ejecuta nada.")}
             </p>
           </div>
         )}
@@ -586,22 +591,20 @@ export default function FlujoVerificacionPage() {
               <div className="flex items-start gap-3">
                 <button onClick={() => setAbierto(expandido ? null : f.id)}
                   className="mt-0.5 text-gray-400 hover:text-gray-600 shrink-0"
-                  aria-label={expandido ? 'Ocultar los pasos' : 'Ver los pasos'}>
+                  aria-label={expandido ? t("Ocultar los pasos") : t("Ver los pasos")}>
                   {expandido ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                 </button>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-gray-900">{f.nombre}</span>
+                    <span className="font-medium text-gray-900">{t(f.nombre)}</span>
                     {f.activo
-                      ? <span className="px-2 py-0.5 text-xs rounded-full bg-green-50 text-green-700 border border-green-300">activo</span>
-                      : <span className="px-2 py-0.5 text-xs rounded-full bg-gray-50 text-gray-600 border">borrador</span>}
+                      ? <span className="px-2 py-0.5 text-xs rounded-full bg-green-50 text-green-700 border border-green-300">{t("activo")}</span>
+                      : <span className="px-2 py-0.5 text-xs rounded-full bg-gray-50 text-gray-600 border">{t("borrador")}</span>}
                     <span className="text-xs text-gray-500">{plural(f.pasos?.length ?? 0, 'paso', 'pasos')}</span>
                   </div>
-                  {f.descripcion && <p className="text-sm text-gray-600 mt-1">{f.descripcion}</p>}
+                  {f.descripcion && <p className="text-sm text-gray-600 mt-1">{t(f.descripcion)}</p>}
                   <p className="text-xs text-gray-500 mt-1">
-                    Aprobación automática hasta {Number(f.topeAutomatico ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
-                    {' · '}puntaje mínimo {f.puntajeMinimo ?? 0}
-                  </p>
+                    {t("Aprobación automática hasta {n0} {n1}puntaje mínimo {n2}", { n0: Number(f.topeAutomatico ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }), n1: ' · ', n2: f.puntajeMinimo ?? 0 })}</p>
 
                   {expandido && (
                     <ol className="mt-3 space-y-1.5">
@@ -610,12 +613,12 @@ export default function FlujoVerificacionPage() {
                         return (
                           <li key={i} className="text-sm flex flex-wrap items-center gap-2">
                             <span className="text-gray-400">{i + 1}.</span>
-                            <span className="text-gray-900">{p.etiqueta}</span>
+                            <span className="text-gray-900">{t(p.etiqueta)}</span>
                             <span className="text-xs px-1.5 py-0.5 rounded border"
-                              style={{ color: pol?.color, borderColor: pol?.color }}>{pol?.nombre}</span>
-                            <span className="text-xs text-gray-500">peso {p.peso ?? 0}</span>
+                              style={{ color: pol?.color, borderColor: pol?.color }}>{t(pol?.nombre)}</span>
+                            <span className="text-xs text-gray-500">{t("peso {n0}", { n0: p.peso ?? 0 })}</span>
                             {p.umbralMinimo != null && (
-                              <span className="text-xs text-gray-500">umbral {p.umbralMinimo}</span>
+                              <span className="text-xs text-gray-500">{t("umbral {n0}", { n0: p.umbralMinimo })}</span>
                             )}
                           </li>
                         );
@@ -626,31 +629,32 @@ export default function FlujoVerificacionPage() {
                   {edicion?.id === f.id ? (
                     <div className="mt-3 rounded-lg border bg-gray-50 p-3 space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">{t("Nombre")}</label>
                         <input
                           value={edicion.nombre}
                           onChange={(e) => setEdicion({ ...edicion, nombre: e.target.value })}
                           maxLength={120}
                           className="w-full px-2.5 py-1.5 text-sm border rounded-lg"
-                          placeholder="Originación de crédito"
+                          placeholder={t("Originación de crédito")}
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Descripción <span className="font-normal text-gray-400">(opcional)</span>
+                          Descripción <span className="font-normal text-gray-400">{t("(opcional)")}</span>
                         </label>
                         <input
                           value={edicion.descripcion}
                           onChange={(e) => setEdicion({ ...edicion, descripcion: e.target.value })}
                           maxLength={500}
                           className="w-full px-2.5 py-1.5 text-sm border rounded-lg"
-                          placeholder="Qué comprueba este flujo y para quién"
+                          placeholder={t("Qué comprueba este flujo y para quién")}
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Aprobación automática hasta
+                            
+                            {t("Aprobación automática hasta")}
                           </label>
                           <input
                             type="number" min={0} step="0.01"
@@ -659,11 +663,12 @@ export default function FlujoVerificacionPage() {
                             className="w-full px-2.5 py-1.5 text-sm border rounded-lg text-right"
                           />
                           <p className="text-[11px] text-gray-500 mt-1">
-                            El techo de la instalación manda: si aquí se pone más, se recorta.
+                            
+                            {t("El techo de la instalación manda: si aquí se pone más, se recorta.")}
                           </p>
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Puntaje mínimo</label>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">{t("Puntaje mínimo")}</label>
                           <input
                             type="number" min={0} max={100}
                             value={edicion.puntajeMinimo}
@@ -673,8 +678,8 @@ export default function FlujoVerificacionPage() {
                         </div>
                       </div>
                       <p className="text-[11px] text-gray-500">
-                        Los pasos no se editan aquí: los expedientes ya ejecutados apuntan a ellos.
-                        Para cambiarlos, crea un flujo nuevo y actívalo.
+                        
+                        {t("Los pasos no se editan aquí: los expedientes ya ejecutados apuntan a ellos. Para cambiarlos, crea un flujo nuevo y actívalo.")}
                       </p>
                       <div className="flex gap-2">
                         <button
@@ -690,7 +695,8 @@ export default function FlujoVerificacionPage() {
                           className="px-3 py-1.5 text-sm rounded-lg border hover:bg-white flex items-center gap-1.5"
                         >
                           <X className="w-3.5 h-3.5" />
-                          Cancelar
+                          
+                          {t("Cancelar")}
                         </button>
                       </div>
                     </div>
@@ -700,7 +706,7 @@ export default function FlujoVerificacionPage() {
                         className={`px-3 py-1.5 text-sm rounded-lg flex items-center gap-1.5 ${
                           f.activo ? 'border hover:bg-gray-50' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}>
                         {f.activo ? <PauseCircle className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
-                        {f.activo ? 'Desactivar' : 'Activar'}
+                        {f.activo ? t("Desactivar") : t("Activar")}
                       </button>
                       <button
                         onClick={() => setEdicion({
@@ -713,7 +719,8 @@ export default function FlujoVerificacionPage() {
                         className="px-3 py-1.5 text-sm rounded-lg border hover:bg-gray-50 flex items-center gap-1.5"
                       >
                         <Pencil className="w-3.5 h-3.5" />
-                        Editar
+                        
+                        {t("Editar")}
                       </button>
                     </div>
                   )}
@@ -725,8 +732,8 @@ export default function FlujoVerificacionPage() {
       </div>
       )}
       <p className="text-xs text-gray-500 mt-4">
-        Este flujo produce un veredicto y un expediente; no otorga el crédito. La autorización sigue
-        pasando por el flujo de aprobaciones de siempre.
+        
+        {t("Este flujo produce un veredicto y un expediente; no otorga el crédito. La autorización sigue pasando por el flujo de aprobaciones de siempre.")}
       </p>
     </div>
   );

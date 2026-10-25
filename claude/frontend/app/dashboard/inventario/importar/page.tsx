@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { PuedeCrear } from "@/app/components/ProtectedElement";
 
+import { useT } from '@/components/I18nProvider';
 // ── Tipos (espejo del backend: ResultadoImportacion / ErrorFila) ──
 interface ErrorFila {
   fila: number;
@@ -33,6 +34,7 @@ interface ResultadoImportacion {
 }
 
 export default function ImportarInventarioPage() {
+  const t = useT();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
 
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -65,7 +67,7 @@ export default function ImportarInventarioPage() {
       const res = await peticion(`/catalogo/importacion/plantilla`, {
         headers: { Authorization: `Bearer ${token()}` },
       });
-      if (!res.ok) return mostrarToast("No se pudo descargar la plantilla", "error");
+      if (!res.ok) return mostrarToast(t("No se pudo descargar la plantilla"), "error");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -74,7 +76,7 @@ export default function ImportarInventarioPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      mostrarToast("Error de conexión al descargar la plantilla", "error");
+      mostrarToast(t("Error de conexión al descargar la plantilla"), "error");
     }
   };
 
@@ -82,7 +84,7 @@ export default function ImportarInventarioPage() {
   const seleccionar = (f: File | null) => {
     if (!f) return;
     if (!/\.(xlsx|xls)$/i.test(f.name)) {
-      mostrarToast("El archivo debe ser .xlsx o .xls", "error");
+      mostrarToast(t("El archivo debe ser .xlsx o .xls"), "error");
       return;
     }
     setArchivo(f);
@@ -132,7 +134,7 @@ export default function ImportarInventarioPage() {
         );
       }
     } catch {
-      mostrarToast("Error de conexión con el servidor", "error");
+      mostrarToast(t("Error de conexión con el servidor"), "error");
     } finally {
       setProcesando(false);
     }
@@ -145,11 +147,11 @@ export default function ImportarInventarioPage() {
       {/* Encabezado */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <FileSpreadsheet className="text-blue-600" /> Carga masiva de inventario
+          <FileSpreadsheet className="text-blue-600" />  {t("Carga masiva de inventario")}
         </h1>
         <p className="text-gray-500 mt-1">
-          Sube tus productos de golpe desde un archivo de Excel. Carga el
-          catálogo (datos del producto); las existencias se cargan aparte.
+          
+          {t("Sube tus productos de golpe desde un archivo de Excel. Carga el catálogo (datos del producto); las existencias se cargan aparte.")}
         </p>
       </div>
 
@@ -160,9 +162,10 @@ export default function ImportarInventarioPage() {
             1
           </div>
           <div>
-            <p className="font-semibold text-gray-800">Descarga la plantilla</p>
+            <p className="font-semibold text-gray-800">{t("Descarga la plantilla")}</p>
             <p className="text-sm text-gray-500">
-              Llénala en Excel. No borres los encabezados; borra solo la fila de ejemplo.
+              
+              {t("Llénala en Excel. No borres los encabezados; borra solo la fila de ejemplo.")}
             </p>
           </div>
         </div>
@@ -170,7 +173,7 @@ export default function ImportarInventarioPage() {
           onClick={descargarPlantilla}
           className="flex items-center gap-2 bg-white border border-blue-300 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 transition"
         >
-          <Download size={18} /> Plantilla
+          <Download size={18} />  {t("Plantilla")}
         </button>
       </div>
 
@@ -181,7 +184,7 @@ export default function ImportarInventarioPage() {
             <div className="bg-blue-600 text-white w-8 h-8 rounded-lg flex items-center justify-center font-bold">
               2
             </div>
-            <p className="font-semibold text-gray-800">Sube tu archivo lleno</p>
+            <p className="font-semibold text-gray-800">{t("Sube tu archivo lleno")}</p>
           </div>
 
           <div
@@ -214,7 +217,7 @@ export default function ImportarInventarioPage() {
             ) : (
               <p className="text-gray-500">
                 Arrastra tu Excel aquí o{" "}
-                <span className="text-blue-600 font-medium">haz clic para elegir</span>
+                <span className="text-blue-600 font-medium">{t("haz clic para elegir")}</span>
               </p>
             )}
           </div>
@@ -240,7 +243,7 @@ export default function ImportarInventarioPage() {
                 disabled={procesando || (yaValidado && hayErrores)}
                 title={
                   yaValidado && hayErrores
-                    ? "Corrige los errores antes de aplicar"
+                    ? t("Corrige los errores antes de aplicar")
                     : ""
                 }
                 className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
@@ -253,7 +256,7 @@ export default function ImportarInventarioPage() {
                 Aplicar carga
               </button>
 
-              <button aria-label="Cerrar" title="Cerrar"
+              <button aria-label={t("Cerrar")} title={t("Cerrar")}
                 onClick={() => {
                   setArchivo(null);
                   setResultado(null);
@@ -276,25 +279,24 @@ export default function ImportarInventarioPage() {
               3
             </div>
             <p className="font-semibold text-gray-800">
-              Resultado ({resultado.modo === "validar" ? "validación" : "carga aplicada"})
-            </p>
+              {t("Resultado ({n0})", { n0: resultado.modo === "validar" ? t("validación") : t("carga aplicada") })}</p>
           </div>
 
           {/* Contadores */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             <Contador
-              label="Total filas"
+              label={t("Total filas")}
               valor={resultado.totalFilas}
               color="gray"
             />
-            <Contador label="Creados" valor={resultado.creados} color="green" />
+            <Contador label={t("Creados")} valor={resultado.creados} color="green" />
             <Contador
-              label="Actualizados"
+              label={t("Actualizados")}
               valor={resultado.actualizados}
               color="blue"
             />
             <Contador
-              label="Con error"
+              label={t("Con error")}
               valor={resultado.conError}
               color={resultado.conError ? "red" : "gray"}
             />
@@ -303,7 +305,7 @@ export default function ImportarInventarioPage() {
           {/* Errores */}
           {resultado.errores.length > 0 && (
             <TablaMensajes
-              titulo="Errores (estas filas no se cargan)"
+              titulo={t("Errores (estas filas no se cargan)")}
               icono={<AlertCircle size={16} className="text-red-500" />}
               filas={resultado.errores}
               color="red"
@@ -313,7 +315,7 @@ export default function ImportarInventarioPage() {
           {/* Advertencias */}
           {resultado.advertencias.length > 0 && (
             <TablaMensajes
-              titulo="Advertencias"
+              titulo={t("Advertencias")}
               icono={<AlertTriangle size={16} className="text-amber-500" />}
               filas={resultado.advertencias}
               color="amber"
@@ -322,7 +324,7 @@ export default function ImportarInventarioPage() {
 
           {resultado.errores.length === 0 && resultado.modo === "validar" && (
             <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
-              <CheckCircle2 size={18} /> Todo en orden. Ya puedes aplicar la carga.
+              <CheckCircle2 size={18} />  {t("Todo en orden. Ya puedes aplicar la carga.")}
             </div>
           )}
         </div>
@@ -344,7 +346,7 @@ export default function ImportarInventarioPage() {
           ) : (
             <AlertCircle size={18} />
           )}
-          {toast.mensaje}
+          {t(toast.mensaje)}
         </div>
       )}
     </div>
@@ -361,6 +363,7 @@ function Contador({
   valor: number;
   color: "gray" | "green" | "blue" | "red";
 }) {
+  const t = useT();
   const colores: Record<string, string> = {
     gray: "bg-gray-50 text-gray-700 border-gray-200",
     green: "bg-green-50 text-green-700 border-green-200",
@@ -370,7 +373,7 @@ function Contador({
   return (
     <div className={`border rounded-lg p-3 text-center ${colores[color]}`}>
       <div className="text-2xl font-bold">{valor}</div>
-      <div className="text-xs mt-1">{label}</div>
+      <div className="text-xs mt-1">{t(label)}</div>
     </div>
   );
 }
@@ -386,21 +389,22 @@ function TablaMensajes({
   filas: ErrorFila[];
   color: "red" | "amber";
 }) {
+  const t = useT();
   const head =
     color === "red" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-800";
   return (
     <div className="mb-4">
       <p className="font-medium text-gray-700 flex items-center gap-2 mb-2">
-        {icono} {titulo} ({filas.length})
+        {icono} {t(titulo)} ({filas.length})
       </p>
       <div className="border border-gray-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
         <table className="w-full text-sm">
           <thead className={head}>
             <tr>
-              <th className="text-left px-3 py-2 w-16">Fila</th>
-              <th className="text-left px-3 py-2 w-32">SKU</th>
-              <th className="text-left px-3 py-2 w-32">Campo</th>
-              <th className="text-left px-3 py-2">Mensaje</th>
+              <th className="text-left px-3 py-2 w-16">{t("Fila")}</th>
+              <th className="text-left px-3 py-2 w-32">{t("SKU")}</th>
+              <th className="text-left px-3 py-2 w-32">{t("Campo")}</th>
+              <th className="text-left px-3 py-2">{t("Mensaje")}</th>
             </tr>
           </thead>
           <tbody>
@@ -409,7 +413,7 @@ function TablaMensajes({
                 <td className="px-3 py-2 text-gray-500">{f.fila}</td>
                 <td className="px-3 py-2 font-mono text-xs">{f.sku ?? "—"}</td>
                 <td className="px-3 py-2 text-gray-600">{f.campo ?? "—"}</td>
-                <td className="px-3 py-2 text-gray-800">{f.mensaje}</td>
+                <td className="px-3 py-2 text-gray-800">{t(f.mensaje)}</td>
               </tr>
             ))}
           </tbody>

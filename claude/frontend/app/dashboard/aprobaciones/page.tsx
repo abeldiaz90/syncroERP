@@ -18,6 +18,7 @@ import { api, ApiError } from "@/lib/api";
 import { confirmarElegante, solicitarTexto } from "@/components/ui/dialogos";
 import { useAvisos } from "@/components/ui";
 
+import { useT } from '@/components/I18nProvider';
 type DatosSolicitud = {
   clienteId?: string;
   limiteCredito?: number;
@@ -111,6 +112,7 @@ const fecha = (valor?: string | null) =>
     : "Sin límite";
 
 export default function BandejaAprobacionesPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [pendientes, setPendientes] = useState<AprobacionPendiente[]>([]);
   const [historial, setHistorial] = useState<AprobacionHistorial[]>([]);
@@ -145,14 +147,14 @@ export default function BandejaAprobacionesPage() {
         setErrorHistorial(
           error instanceof ApiError
             ? error.mensajeParaPantalla()
-            : "No se pudo consultar la trazabilidad histórica.",
+            : t("No se pudo consultar la trazabilidad histórica."),
         );
       }
     } catch (error) {
       const texto =
         error instanceof ApiError
           ? error.mensajeParaPantalla()
-          : "No se pudo consultar la bandeja de aprobaciones.";
+          : t("No se pudo consultar la bandeja de aprobaciones.");
       setPendientes([]);
       setErrorPendientes(texto);
       avisar(texto, "error");
@@ -183,7 +185,7 @@ export default function BandejaAprobacionesPage() {
         { titulo: "Aprobar solicitud" },
       );
       if (!confirmado) return;
-      comentario = "Condiciones revisadas y autorizadas desde la bandeja central.";
+      comentario = t("Condiciones revisadas y autorizadas desde la bandeja central.");
     }
 
     setProcesando(aprobacion.id);
@@ -198,7 +200,7 @@ export default function BandejaAprobacionesPage() {
       avisar(
         resultado.procesoCompletado
           ? `Proceso ${resultado.resultado.toLowerCase()} correctamente.`
-          : "Nivel resuelto; el documento avanzó al siguiente aprobador.",
+          : t("Nivel resuelto; el documento avanzó al siguiente aprobador."),
         "exito",
       );
       await cargar();
@@ -206,7 +208,7 @@ export default function BandejaAprobacionesPage() {
       avisar(
         error instanceof ApiError
           ? error.mensajeParaPantalla()
-          : "No fue posible resolver la aprobación.",
+          : t("No fue posible resolver la aprobación."),
         "error",
       );
     } finally {
@@ -219,17 +221,15 @@ export default function BandejaAprobacionesPage() {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-indigo-700">
-            <ShieldCheck className="h-4 w-4" /> Gobierno y segregación de
-            funciones
+            <ShieldCheck className="h-4 w-4" />  {t("Gobierno y segregación de funciones")}
           </div>
           <h1 className="text-3xl font-black text-slate-950">
-            Bandeja central de aprobaciones
+            
+            {t("Bandeja central de aprobaciones")}
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-500">
-            Crédito de clientes y convenios hoteleros usan niveles secuenciales,
-            snapshot de condiciones y versión del documento. Todos los niveles
-            son obligatorios y el solicitante no puede resolver su propia
-            solicitud.
+            
+            {t("Crédito de clientes y convenios hoteleros usan niveles secuenciales, snapshot de condiciones y versión del documento. Todos los niveles son obligatorios y el solicitante no puede resolver su propia solicitud.")}
           </p>
         </div>
         <button
@@ -237,7 +237,8 @@ export default function BandejaAprobacionesPage() {
           className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
         >
           <RefreshCw className={`h-4 w-4 ${cargando ? "animate-spin" : ""}`} />
-          Actualizar
+          
+          {t("Actualizar")}
         </button>
       </header>
 
@@ -249,22 +250,25 @@ export default function BandejaAprobacionesPage() {
         <div className="rounded-3xl border border-rose-200 bg-rose-50 p-12 text-center">
           <AlertTriangle className="mx-auto h-12 w-12 text-rose-600" />
           <h2 className="mt-4 text-xl font-black text-rose-950">
-            No se pudo leer la bandeja
+            
+            {t("No se pudo leer la bandeja")}
           </h2>
           <p className="mt-2 text-sm text-rose-800">{errorPendientes}</p>
           <p className="mt-1 text-sm text-rose-700">
-            Puede haber documentos esperando tu firma.
+            
+            {t("Puede haber documentos esperando tu firma.")}
           </p>
         </div>
       ) : pendientes.length === 0 ? (
         <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-12 text-center">
           <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
           <h2 className="mt-4 text-xl font-black text-emerald-950">
-            No tienes aprobaciones pendientes
+            
+            {t("No tienes aprobaciones pendientes")}
           </h2>
           <p className="mt-2 text-sm text-emerald-700">
-            La bandeja muestra únicamente el siguiente nivel asignado a tu
-            usuario o rol.
+            
+            {t("La bandeja muestra únicamente el siguiente nivel asignado a tu usuario o rol.")}
           </p>
         </div>
       ) : (
@@ -295,18 +299,17 @@ export default function BandejaAprobacionesPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-600">
                         {item.proceso === "HOTEL_CONVENIO"
-                          ? "CONVENIO HOTELERO"
-                          : "CRÉDITO DE CLIENTE"}
+                          ? t("CONVENIO HOTELERO")
+                          : t("CRÉDITO DE CLIENTE")}
                       </span>
                       <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-black text-indigo-700">
-                        Ciclo {item.ciclo} · Nivel {item.nivel}
-                      </span>
+                        {t("Ciclo {n0} · Nivel {n1}", { n0: item.ciclo, n1: item.nivel })}</span>
                     </div>
                     <h2 className="mt-3 truncate text-lg font-black text-slate-950">
-                      {item.titulo}
+                      {t(item.titulo)}
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      {item.subtitulo}
+                      {t(item.subtitulo)}
                     </p>
                   </div>
                 </div>
@@ -337,11 +340,8 @@ export default function BandejaAprobacionesPage() {
                   <div className="mt-4 flex gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>
-                      Las condiciones del cliente cambiaron después de pedir esta
-                      autorización, así que lo que aquí se muestra ya no es lo que
-                      se aprobaría. No se puede resolver —ni aprobar ni
-                      rechazar—: hay que volver a solicitarla con las condiciones
-                      vigentes.
+                      
+                      {t("Las condiciones del cliente cambiaron después de pedir esta autorización, así que lo que aquí se muestra ya no es lo que se aprobaría. No se puede resolver —ni aprobar ni rechazar—: hay que volver a solicitarla con las condiciones vigentes.")}
                     </span>
                   </div>
                 )}
@@ -349,7 +349,8 @@ export default function BandejaAprobacionesPage() {
                 <div className="mt-5 grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 text-sm">
                   <div>
                     <p className="text-xs font-semibold text-slate-500">
-                      Línea maestra evaluada
+                      
+                      {t("Línea maestra evaluada")}
                     </p>
                     <p className="mt-1 font-black text-slate-900">
                       {dinero(item.importe)}
@@ -357,15 +358,16 @@ export default function BandejaAprobacionesPage() {
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-slate-500">
-                      Plazo propuesto
+                      
+                      {t("Plazo propuesto")}
                     </p>
                     <p className="mt-1 font-black text-slate-900">
-                      {Number(item.datos?.diasCredito ?? 0)} días
-                    </p>
+                      {t("{n0} días", { n0: Number(item.datos?.diasCredito ?? 0) })}</p>
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-slate-500">
-                      Estado del documento
+                      
+                      {t("Estado del documento")}
                     </p>
                     <p className="mt-1 font-black text-slate-900">
                       {item.estadoDocumento.replaceAll("_", " ")}
@@ -373,7 +375,8 @@ export default function BandejaAprobacionesPage() {
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-slate-500">
-                      Versión sometida
+                      
+                      {t("Versión sometida")}
                     </p>
                     <p className="mt-1 font-black text-slate-900">
                       {item.proceso === "HOTEL_CONVENIO"
@@ -387,7 +390,8 @@ export default function BandejaAprobacionesPage() {
                   <div className="mt-3 grid grid-cols-2 gap-3 rounded-2xl border border-slate-100 p-4 text-sm sm:grid-cols-4">
                     <div>
                       <p className="text-xs font-semibold text-slate-500">
-                        Ventas a crédito
+                        
+                        {t("Ventas a crédito")}
                       </p>
                       <p className="mt-1 font-black text-slate-900">
                         {dinero(exposicion.saldoVentas)}
@@ -395,7 +399,8 @@ export default function BandejaAprobacionesPage() {
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-slate-500">
-                        City Ledger
+                        
+                        {t("City Ledger")}
                       </p>
                       <p className="mt-1 font-black text-slate-900">
                         {dinero(exposicion.saldoHotel)}
@@ -403,7 +408,8 @@ export default function BandejaAprobacionesPage() {
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-slate-500">
-                        Exposición global
+                        
+                        {t("Exposición global")}
                       </p>
                       <p className="mt-1 font-black text-slate-900">
                         {dinero(exposicion.utilizado)}
@@ -411,7 +417,8 @@ export default function BandejaAprobacionesPage() {
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-slate-500">
-                        Saldo vencido
+                        
+                        {t("Saldo vencido")}
                       </p>
                       <p className={`mt-1 font-black ${exposicion.vencido > 0 ? "text-rose-700" : "text-emerald-700"}`}>
                         {dinero(exposicion.vencido)}
@@ -429,10 +436,10 @@ export default function BandejaAprobacionesPage() {
 
                 {item.proceso === "CREDITO_CLIENTE" ? (
                   <div className="mt-3 rounded-xl border border-slate-100 p-3 text-xs text-slate-600">
-                    RFC: <strong>{item.datos?.rfc || "No registrado"}</strong> ·
+                    RFC: <strong>{item.datos?.rfc || t("No registrado")}</strong> ·
                     Riesgo: <strong>{item.datos?.nivelRiesgo || "MEDIO"}</strong> ·
-                    Hotelería: <strong>{item.datos?.clasificacionHotelera || "NO APLICA"}</strong> ·
-                    Vencidos: <strong>{item.datos?.bloquearCreditoConSaldoVencido === false ? "EXCEPCIÓN AUTORIZADA" : "BLOQUEAR"}</strong>
+                    Hotelería: <strong>{item.datos?.clasificacionHotelera || t("NO APLICA")}</strong> ·
+                    Vencidos: <strong>{item.datos?.bloquearCreditoConSaldoVencido === false ? t("EXCEPCIÓN AUTORIZADA") : "BLOQUEAR"}</strong>
                   </div>
                 ) : (
                   <div className="mt-3 rounded-xl border border-slate-100 p-3 text-xs text-slate-600">
@@ -440,7 +447,7 @@ export default function BandejaAprobacionesPage() {
                     <strong>{fecha(item.datos?.vigenciaHasta)}</strong> · Bloqueo
                     por vencido:{" "}
                     <strong>
-                      {item.datos?.bloquearConSaldoVencido ? "Sí" : "No"}
+                      {item.datos?.bloquearConSaldoVencido ? t("Sí") : t("No")}
                     </strong>
                   </div>
                 )}
@@ -460,12 +467,12 @@ export default function BandejaAprobacionesPage() {
                       */}
                       <p className="flex gap-2">
                         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                        <span>{validacion?.mensaje}</span>
+                        <span>{t(validacion?.mensaje)}</span>
                       </p>
                       {(validacion?.motivos?.length ?? 0) > 0 && (
                         <ul className="mt-2 list-disc space-y-1 pl-10 font-normal">
                           {validacion?.motivos.map((motivo, i) => (
-                            <li key={i}>{motivo}</li>
+                            <li key={i}>{t(motivo)}</li>
                           ))}
                         </ul>
                       )}
@@ -476,7 +483,8 @@ export default function BandejaAprobacionesPage() {
                           }&limite=${validacion?.limiteSolicitado ?? item.importe}`}
                           className="font-bold underline"
                         >
-                          Volver a verificar a este cliente
+                          
+                          {t("Volver a verificar a este cliente")}
                         </Link>{" "}
                         antes de firmar, si prefieres no decidirlo con esto.
                       </p>
@@ -487,7 +495,7 @@ export default function BandejaAprobacionesPage() {
                   <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-900">
                     <p className="flex gap-2">
                       <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                      <span>{validacion?.mensaje}</span>
+                      <span>{t(validacion?.mensaje)}</span>
                     </p>
                     {validacion?.estado === "IMPORTE_INSUFICIENTE" && (
                       <p className="mt-2 pl-6 font-normal">
@@ -506,8 +514,7 @@ export default function BandejaAprobacionesPage() {
                         }&limite=${validacion?.limiteSolicitado ?? item.importe}`}
                         className="font-bold underline"
                       >
-                        Verificar a este cliente por {dinero(item.importe)}
-                      </Link>{" "}
+                        {t("Verificar a este cliente por {n0}", { n0: dinero(item.importe) })}</Link>{" "}
                       y vuelve aquí: el botón se enciende solo.
                     </p>
                   </div>
@@ -529,7 +536,7 @@ export default function BandejaAprobacionesPage() {
                     }`}
                   >
                     <Clock3 className="h-4 w-4" />
-                    {slaExcedido ? "SLA excedido desde " : "Atender antes de "}
+                    {slaExcedido ? t("SLA excedido desde") : t("Atender antes de")}
                     {new Date(item.fechaVencimiento).toLocaleString("es-MX")}
                   </div>
                 )}
@@ -540,7 +547,7 @@ export default function BandejaAprobacionesPage() {
                     onClick={() => void resolver(item, "RECHAZADA")}
                     className="flex items-center gap-2 rounded-xl border border-rose-200 px-4 py-2 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
                   >
-                    <XCircle className="h-4 w-4" /> Rechazar
+                    <XCircle className="h-4 w-4" />  {t("Rechazar")}
                   </button>
                   <button
                     disabled={
@@ -554,7 +561,7 @@ export default function BandejaAprobacionesPage() {
                     onClick={() => void resolver(item, "APROBADA")}
                     className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    <CheckCircle2 className="h-4 w-4" /> Aprobar
+                    <CheckCircle2 className="h-4 w-4" />  {t("Aprobar")}
                   </button>
                 </div>
               </article>
@@ -567,29 +574,28 @@ export default function BandejaAprobacionesPage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <History className="h-4 w-4" /> Trazabilidad
+              <History className="h-4 w-4" />  {t("Trazabilidad")}
             </div>
             <h2 className="mt-1 text-xl font-black text-slate-950">
-              Historial de decisiones
+              
+              {t("Historial de decisiones")}
             </h2>
             <p className="mt-1 text-xs text-slate-500">
-              Conserva cada ciclo y nivel, incluyendo cancelaciones automáticas
-              por cambios de condiciones o vigencia.
+              
+              {t("Conserva cada ciclo y nivel, incluyendo cancelaciones automáticas por cambios de condiciones o vigencia.")}
             </p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-            Últimos {historial.length} movimientos
-          </span>
+            {t("Últimos {n0} movimientos", { n0: historial.length })}</span>
         </div>
 
         {errorHistorial ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-            {errorHistorial} Guarda nuevamente las matrices financieras para
-            sincronizar el permiso del historial con los roles aprobadores.
-          </div>
+            {t("{n0} Guarda nuevamente las matrices financieras para sincronizar el permiso del historial con los roles aprobadores.", { n0: errorHistorial })}</div>
         ) : historial.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
-            Todavía no existen decisiones registradas en los flujos centrales.
+            
+            {t("Todavía no existen decisiones registradas en los flujos centrales.")}
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -597,29 +603,28 @@ export default function BandejaAprobacionesPage() {
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs font-black uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-4 py-3">Documento</th>
-                    <th className="px-4 py-3">Ciclo / nivel</th>
-                    <th className="px-4 py-3">Responsables</th>
-                    <th className="px-4 py-3">Estado</th>
-                    <th className="px-4 py-3">Fecha</th>
-                    <th className="px-4 py-3">Comentario</th>
+                    <th className="px-4 py-3">{t("Documento")}</th>
+                    <th className="px-4 py-3">{t("Ciclo / nivel")}</th>
+                    <th className="px-4 py-3">{t("Responsables")}</th>
+                    <th className="px-4 py-3">{t("Estado")}</th>
+                    <th className="px-4 py-3">{t("Fecha")}</th>
+                    <th className="px-4 py-3">{t("Comentario")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {historial.map((item) => (
                     <tr key={item.id} className="align-top">
                       <td className="px-4 py-3">
-                        <p className="font-bold text-slate-900">{item.titulo}</p>
+                        <p className="font-bold text-slate-900">{t(item.titulo)}</p>
                         <p className="mt-0.5 text-xs text-slate-500">
-                          {item.subtitulo}
+                          {t(item.subtitulo)}
                         </p>
                         <p className="mt-1 text-xs font-semibold text-indigo-700">
                           {dinero(item.importeSolicitado)}
                         </p>
                       </td>
                       <td className="px-4 py-3 font-semibold text-slate-700">
-                        Ciclo {item.ciclo} · Nivel {item.nivel}
-                      </td>
+                        {t("Ciclo {n0} · Nivel {n1}", { n0: item.ciclo, n1: item.nivel })}</td>
                       <td className="px-4 py-3 text-xs text-slate-600">
                         <p>
                           Solicitó: <strong>{item.solicitadoPor}</strong>
@@ -650,16 +655,14 @@ export default function BandejaAprobacionesPage() {
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-600">
                         <p>
-                          Creada: {new Date(item.fechaCreacion).toLocaleString("es-MX")}
-                        </p>
+                          {t("Creada: {n0}", { n0: new Date(item.fechaCreacion).toLocaleString("es-MX") })}</p>
                         {item.fechaResolucion && (
                           <p className="mt-1">
-                            Resuelta: {new Date(item.fechaResolucion).toLocaleString("es-MX")}
-                          </p>
+                            {t("Resuelta: {n0}", { n0: new Date(item.fechaResolucion).toLocaleString("es-MX") })}</p>
                         )}
                       </td>
                       <td className="max-w-xs px-4 py-3 text-xs text-slate-600">
-                        {item.comentario || "Sin comentario"}
+                        {item.comentario || t("Sin comentario")}
                       </td>
                     </tr>
                   ))}

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { AlertCircle } from "lucide-react";
 
+import { useT } from '@/components/I18nProvider';
 interface Props {
   formId: string;
   labels?: Record<string, string>;
@@ -60,6 +61,7 @@ function showFieldError(field: HTMLInputElement | HTMLSelectElement | HTMLTextAr
 }
 
 export default function FormValidationGuard({ formId, labels = {} }: Props) {
+  const t = useT();
   useEffect(() => {
     const form = document.getElementById(formId) as HTMLFormElement | null;
     if (!form) return;
@@ -115,5 +117,5 @@ export default function FormValidationGuard({ formId, labels = {} }: Props) {
     };
   }, [formId, labels]);
 
-  return <span className="sr-only"><AlertCircle aria-hidden="true" />Validación profesional activa</span>;
+  return <span className="sr-only"><AlertCircle aria-hidden="true" />{t("Validación profesional activa")}</span>;
 }

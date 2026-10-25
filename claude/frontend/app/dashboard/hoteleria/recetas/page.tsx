@@ -8,11 +8,13 @@ import {
 import WizardRecetas from './WizardRecetas';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface IProducto { id: string; nombre: string; unidadMedida?: string; precioCompra?: number; tipo?: string; }
 interface IInsumo { insumoId: string; insumoNombre: string; cantidad: number; unidad: string; mermaPorcentaje: number; }
 interface IReceta { id: string; productoId: string; productoNombre: string; costoTeorico: number; rendimiento: number; }
 
 export default function RecetasPage() {
+  const t = useT();
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const tok = () => (typeof window !== 'undefined' ? localStorage.getItem('syncro_token') ?? '' : '');
   const h = () => ({ Authorization: `Bearer ${tok()}`, 'Content-Type': 'application/json' });
@@ -50,22 +52,22 @@ export default function RecetasPage() {
 
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-[0.15em] mb-1">Producción</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-[0.15em] mb-1">{t("Producción")}</p>
           <h1 className="text-3xl font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-            <ChefHat className="w-7 h-7 text-slate-700" /> Recetas y Escandallos
+            <ChefHat className="w-7 h-7 text-slate-700" />  {t("Recetas y Escandallos")}
           </h1>
-          <p className="text-slate-500 mt-1">Define de qué insumos se compone cada platillo o bebida. Al venderse, se descuentan del inventario.</p>
+          <p className="text-slate-500 mt-1">{t("Define de qué insumos se compone cada platillo o bebida. Al venderse, se descuentan del inventario.")}</p>
         </div>
         <button onClick={() => setWizard(true)} className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-800">
-          <Plus className="w-4 h-4" /> Nueva receta
+          <Plus className="w-4 h-4" />  {t("Nueva receta")}
         </button>
       </div>
 
       {recetas.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center">
           <FlaskConical className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-          <p className="font-semibold text-slate-700">Aún no hay recetas</p>
-          <p className="text-sm text-slate-400 mt-1">Crea la receta de una margarita o hamburguesa para empezar el control de insumos.</p>
+          <p className="font-semibold text-slate-700">{t("Aún no hay recetas")}</p>
+          <p className="text-sm text-slate-400 mt-1">{t("Crea la receta de una margarita o hamburguesa para empezar el control de insumos.")}</p>
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -97,7 +99,7 @@ export default function RecetasPage() {
                 */}
               <button onClick={() => setAProducir(r)}
                 className="mt-4 w-full flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                <Factory className="w-4 h-4" /> Producir
+                <Factory className="w-4 h-4" />  {t("Producir")}
               </button>
             </div>
           ))}
@@ -115,13 +117,14 @@ export default function RecetasPage() {
 
       {editor && <EditorReceta api={api} h={h} onClose={() => { setEditor(false); setEditProductoId(null); }}
         productoIdInicial={editProductoId}
-        onOk={() => { setEditor(false); setEditProductoId(null); cargar(); mostrar('Receta guardada'); }} />}
+        onOk={() => { setEditor(false); setEditProductoId(null); cargar(); mostrar(t("Receta guardada")); }} />}
     </div>
   );
 }
 
 // ═══════════════ EDITOR DE RECETA ═══════════════
 function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
+  const t = useT();
   const [producto, setProducto] = useState<IProducto | null>(null);
   const [buscaProd, setBuscaProd] = useState('');
   const [resultadosProd, setResultadosProd] = useState<IProducto[]>([]);
@@ -172,7 +175,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
   }, [buscaIns]);
 
   const agregarInsumo = (p: IProducto) => {
-    if (insumos.some(i => i.insumoId === p.id)) { setErr('Ese insumo ya está en la receta'); return; }
+    if (insumos.some(i => i.insumoId === p.id)) { setErr(t("Ese insumo ya está en la receta")); return; }
     setErr('');
     setInsumos(prev => [...prev, { insumoId: p.id, insumoNombre: p.nombre, cantidad: 1, unidad: p.unidadMedida ?? 'PIEZA', mermaPorcentaje: 0 }]);
     setBuscaIns(''); setResultadosIns([]);
@@ -184,8 +187,8 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
 
   const guardar = async () => {
     setErr('');
-    if (!producto) { setErr('Selecciona el producto vendible'); return; }
-    if (insumos.length === 0) { setErr('Agrega al menos un insumo'); return; }
+    if (!producto) { setErr(t("Selecciona el producto vendible")); return; }
+    if (insumos.length === 0) { setErr(t("Agrega al menos un insumo")); return; }
     setGuardando(true);
     const r = await peticion(`/recetas/guardar`, {
       method: 'POST', headers: h(),
@@ -194,7 +197,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
         insumos: insumos.map(i => ({ insumoId: i.insumoId, insumoNombre: i.insumoNombre, cantidad: i.cantidad, unidad: i.unidad, mermaPorcentaje: i.mermaPorcentaje })),
       }),
     });
-    if (r.ok) onOk(); else { const d = await r.json().catch(() => null); setErr(d?.message || 'Error al guardar'); }
+    if (r.ok) onOk(); else { const d = await r.json().catch(() => null); setErr(d?.message || t("Error al guardar")); }
     setGuardando(false);
   };
 
@@ -204,8 +207,8 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white z-10">
-          <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2"><ChefHat className="w-5 h-5 text-slate-400" /> {producto ? `Receta: ${producto.nombre}` : 'Nueva receta'}</h3>
-          <button aria-label="Cerrar" title="Cerrar" onClick={onClose} className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-50 rounded-full"><X className="w-5 h-5" /></button>
+          <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2"><ChefHat className="w-5 h-5 text-slate-400" /> {producto ? `Receta: ${producto.nombre}` : t("Nueva receta")}</h3>
+          <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={onClose} className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-50 rounded-full"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="p-5 space-y-5">
@@ -213,22 +216,22 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
 
           {/* Producto vendible */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Producto vendible (platillo / bebida)</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t("Producto vendible (platillo / bebida)")}</label>
             {producto ? (
               <div className="flex items-center justify-between bg-slate-900 text-white rounded-lg px-3 py-2.5">
-                <span className="text-sm font-medium flex items-center gap-2"><ChefHat className="w-4 h-4" /> {producto.nombre}</span>
-                {!productoIdInicial && <button aria-label="Cerrar" title="Cerrar" onClick={() => setProducto(null)} className="text-white/60 hover:text-white"><X className="w-4 h-4" /></button>}
+                <span className="text-sm font-medium flex items-center gap-2"><ChefHat className="w-4 h-4" /> {t(producto.nombre)}</span>
+                {!productoIdInicial && <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setProducto(null)} className="text-white/60 hover:text-white"><X className="w-4 h-4" /></button>}
               </div>
             ) : (
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input value={buscaProd} onChange={e => setBuscaProd(e.target.value)} placeholder="Buscar el platillo o bebida…" className={`${inp} pl-9`} />
+                <input value={buscaProd} onChange={e => setBuscaProd(e.target.value)} placeholder={t("Buscar el platillo o bebida…")} className={`${inp} pl-9`} />
                 {resultadosProd.length > 0 && (
                   <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-auto">
                     {resultadosProd.map(p => (
                       <button key={p.id} onClick={() => { setProducto(p); setBuscaProd(''); setResultadosProd([]); }}
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50">
-                        <Package className="w-4 h-4 text-slate-300" /> {p.nombre}
+                        <Package className="w-4 h-4 text-slate-300" /> {t(p.nombre)}
                       </button>
                     ))}
                   </div>
@@ -239,22 +242,22 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
 
           {/* Rendimiento */}
           <div className="flex items-center gap-3">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Rendimiento</label>
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{t("Rendimiento")}</label>
             <input type="number" min={1} value={rendimiento} onChange={e => setRendimiento(Number(e.target.value))} className="w-20 px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-center" />
-            <span className="text-xs text-slate-400">porciones que produce esta receta</span>
+            <span className="text-xs text-slate-400">{t("porciones que produce esta receta")}</span>
           </div>
 
           {/* Insumos */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Insumos (ingredientes)</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t("Insumos (ingredientes)")}</label>
             <div className="relative mb-3">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input value={buscaIns} onChange={e => setBuscaIns(e.target.value)} placeholder="Buscar insumo (tequila, queso, pan…)" className={`${inp} pl-9`} />
+              <input value={buscaIns} onChange={e => setBuscaIns(e.target.value)} placeholder={t("Buscar insumo (tequila, queso, pan…)")} className={`${inp} pl-9`} />
               {resultadosIns.length > 0 && (
                 <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-auto">
                   {resultadosIns.map(p => (
                     <button key={p.id} onClick={() => agregarInsumo(p)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50">
-                      <Package className="w-4 h-4 text-slate-300" /> {p.nombre}
+                      <Package className="w-4 h-4 text-slate-300" /> {t(p.nombre)}
                     </button>
                   ))}
                 </div>
@@ -262,14 +265,14 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
             </div>
 
             {insumos.length === 0 ? (
-              <div className="border border-dashed border-slate-200 rounded-xl p-6 text-center text-sm text-slate-400">Busca y agrega los ingredientes.</div>
+              <div className="border border-dashed border-slate-200 rounded-xl p-6 text-center text-sm text-slate-400">{t("Busca y agrega los ingredientes.")}</div>
             ) : (
               <div className="space-y-2">
                 <div className="grid grid-cols-12 gap-2 text-[10px] font-semibold text-slate-400 uppercase px-2">
-                  <span className="col-span-5">Insumo</span>
-                  <span className="col-span-3 text-center">Cantidad</span>
-                  <span className="col-span-2 text-center">Unidad</span>
-                  <span className="col-span-1 text-center">Merma%</span>
+                  <span className="col-span-5">{t("Insumo")}</span>
+                  <span className="col-span-3 text-center">{t("Cantidad")}</span>
+                  <span className="col-span-2 text-center">{t("Unidad")}</span>
+                  <span className="col-span-1 text-center">{t("Merma%")}</span>
                   <span className="col-span-1"></span>
                 </div>
                 {insumos.map(i => (
@@ -278,7 +281,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
                     <input type="number" min={0} step="0.01" value={i.cantidad} onChange={e => actualizar(i.insumoId, 'cantidad', Number(e.target.value))} className="col-span-3 px-2 py-1 border border-slate-200 rounded text-sm text-center tabular-nums" />
                     <input value={i.unidad} onChange={e => actualizar(i.insumoId, 'unidad', e.target.value)} className="col-span-2 px-2 py-1 border border-slate-200 rounded text-sm text-center" />
                     <input type="number" min={0} value={i.mermaPorcentaje} onChange={e => actualizar(i.insumoId, 'mermaPorcentaje', Number(e.target.value))} className="col-span-1 px-1 py-1 border border-slate-200 rounded text-sm text-center" />
-                    <button aria-label="Eliminar" title="Eliminar" onClick={() => quitar(i.insumoId)} className="col-span-1 text-slate-300 hover:text-rose-500 flex justify-center"><Trash2 className="w-4 h-4" /></button>
+                    <button aria-label={t("Eliminar")} title={t("Eliminar")} onClick={() => quitar(i.insumoId)} className="col-span-1 text-slate-300 hover:text-rose-500 flex justify-center"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 ))}
               </div>
@@ -287,7 +290,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
         </div>
 
         <div className="flex justify-end gap-2 p-5 border-t border-slate-100 bg-slate-50 sticky bottom-0">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-200 rounded-lg">Cancelar</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-200 rounded-lg">{t("Cancelar")}</button>
           <button onClick={guardar} disabled={guardando} className="px-5 py-2 text-sm bg-slate-900 text-white font-medium rounded-lg hover:bg-slate-800 flex items-center gap-2 disabled:opacity-60">
             {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Guardar receta
           </button>
@@ -320,6 +323,7 @@ function EditorReceta({ api, h, onClose, onOk, productoIdInicial }: any) {
  * ============================================================================
  */
 function ModalProducir({ api, h, receta, onClose, onOk, onError }: any) {
+  const t = useT();
   const [cantidad, setCantidad] = useState('1');
   const [almacenId, setAlmacenId] = useState('');
   const [almacenes, setAlmacenes] = useState<Array<{ id: string; nombre: string }>>([]);
@@ -369,8 +373,8 @@ function ModalProducir({ api, h, receta, onClose, onOk, onError }: any) {
 
   const producir = async () => {
     const n = parseFloat(cantidad);
-    if (!n || n <= 0) { setErr('La cantidad debe ser mayor que cero.'); return; }
-    if (!almacenId) { setErr('Elige de qué almacén salen los insumos.'); return; }
+    if (!n || n <= 0) { setErr(t("La cantidad debe ser mayor que cero.")); return; }
+    if (!almacenId) { setErr(t("Elige de qué almacén salen los insumos.")); return; }
     setErr('');
     setProduciendo(true);
     const r = await peticion(`/recetas/producir`, {
@@ -391,7 +395,7 @@ function ModalProducir({ api, h, receta, onClose, onOk, onError }: any) {
        * y un genérico lo escondería.
        */
       const d = await r.json().catch(() => null);
-      onError(d?.message ?? 'No se pudo producir.');
+      onError(d?.message ?? t("No se pudo producir."));
       return;
     }
     const d = await r.json().catch(() => null);
@@ -414,47 +418,50 @@ function ModalProducir({ api, h, receta, onClose, onOk, onError }: any) {
             <Factory className="w-5 h-5 text-slate-700" /> Producir {receta.productoNombre}
           </h2>
           {/* Con `title`: un botón que sólo lleva un icono tiene que decir qué hace. */}
-          <button onClick={onClose} title="Cerrar" aria-label="Cerrar"
+          <button onClick={onClose} title={t("Cerrar")} aria-label={t("Cerrar")}
             className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
         </div>
         <p className="text-sm text-slate-500 mb-5">
-          Los insumos salen del almacén al costo real de sus lotes y lo producido entra en ese mismo almacén.
+          
+          {t("Los insumos salen del almacén al costo real de sus lotes y lo producido entra en ese mismo almacén.")}
         </p>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="text-xs font-medium text-slate-600">Cantidad a producir</span>
+            <span className="text-xs font-medium text-slate-600">{t("Cantidad a producir")}</span>
             <input type="number" min="0.01" step="0.01" value={cantidad}
               onChange={(e) => { setCantidad(e.target.value); setErr(''); }}
               className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
           </label>
           <label className="block">
-            <span className="text-xs font-medium text-slate-600">Almacén</span>
+            <span className="text-xs font-medium text-slate-600">{t("Almacén")}</span>
             <select value={almacenId} onChange={(e) => { setAlmacenId(e.target.value); setErr(''); }}
               className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
-              <option value="">Elige uno…</option>
-              {almacenes.map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+              <option value="">{t("Elige uno…")}</option>
+              {almacenes.map((a) => <option key={a.id} value={a.id}>{t(a.nombre)}</option>)}
             </select>
           </label>
           <label className="block col-span-2">
-            <span className="text-xs font-medium text-slate-600">Motivo <span className="text-slate-400">(opcional)</span></span>
+            <span className="text-xs font-medium text-slate-600">Motivo <span className="text-slate-400">{t("(opcional)")}</span></span>
             <input value={motivo} onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Producción del turno de la mañana"
+              placeholder={t("Producción del turno de la mañana")}
               className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
           </label>
         </div>
 
         <div className="mt-5">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-            Lo que va a salir del almacén
+            
+            {t("Lo que va a salir del almacén")}
           </p>
           {cargandoExplosion ? (
             <div className="flex items-center gap-2 text-sm text-slate-400 py-3">
-              <Loader2 className="w-4 h-4 animate-spin" /> Calculando…
+              <Loader2 className="w-4 h-4 animate-spin" />  {t("Calculando…")}
             </div>
           ) : !explosion?.length ? (
             <p className="text-sm text-slate-400 py-3">
-              Escribe una cantidad para ver qué insumos se descuentan.
+              
+              {t("Escribe una cantidad para ver qué insumos se descuentan.")}
             </p>
           ) : (
             <ul className="border border-slate-200 rounded-xl divide-y divide-slate-100">
@@ -470,7 +477,8 @@ function ModalProducir({ api, h, receta, onClose, onOk, onError }: any) {
           )}
           {!!explosion?.length && (
             <p className="text-[11px] text-slate-400 mt-1.5">
-              La merma de cada insumo ya está incluida.
+              
+              {t("La merma de cada insumo ya está incluida.")}
             </p>
           )}
         </div>
@@ -479,7 +487,8 @@ function ModalProducir({ api, h, receta, onClose, onOk, onError }: any) {
 
         <div className="flex justify-end gap-2 mt-6">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
-            Cancelar
+            
+            {t("Cancelar")}
           </button>
           <button onClick={producir} disabled={produciendo}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 flex items-center gap-2">

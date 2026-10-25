@@ -14,6 +14,7 @@ import { PuedeCrear, ProtectedElement } from "@/app/components/ProtectedElement"
 import { confirmarElegante, solicitarTexto } from '@/components/ui/dialogos';
 import { FOLIO, folioDe } from '@/lib/folios';
 
+import { useT } from '@/components/I18nProvider';
 export interface ICotizacion {
   id: string; fechaCotizacion: string;
   proveedor?: { nombre: string }; notas: string;
@@ -35,6 +36,7 @@ export interface IRequisicion {
 }
 
 export default function CotizacionesRequisicionPage() {
+  const t = useT();
   const params = useParams();
   const id = params?.id;
 
@@ -111,15 +113,15 @@ export default function CotizacionesRequisicionPage() {
       const body = accion === 'solicitar-aprobacion' ? { motivoSeleccion: comentario } : { comentario };
       const res = await peticion(`/compras/cotizaciones/${cot.id}/${accion}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(Array.isArray(data?.message) ? data.message.join(', ') : (data?.message || 'No fue posible completar la acción'));
-      mostrarToast(accion === 'solicitar-aprobacion' ? 'Adjudicación enviada a aprobación' : accion === 'aprobar' ? 'Adjudicación aprobada' : 'Adjudicación rechazada', 'exito');
+      if (!res.ok) throw new Error(Array.isArray(data?.message) ? data.message.join(', ') : (data?.message || t("No fue posible completar la acción")));
+      mostrarToast(accion === 'solicitar-aprobacion' ? t("Adjudicación enviada a aprobación") : accion === 'aprobar' ? t("Adjudicación aprobada") : t("Adjudicación rechazada"), 'exito');
       await recargarCotizaciones(token);
-    } catch (e: any) { mostrarToast(e?.message || 'Error de conexión', 'error'); }
+    } catch (e: any) { mostrarToast(e?.message || t("Error de conexión"), 'error'); }
     finally { setProcesandoId(null); }
   };
 
   const handleGenerarOrden = async (cot: ICotizacion) => {
-    if (!await confirmarElegante(`Elegirás a ${cot.proveedor?.nombre} por $${cot.total?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}. Esta acción es definitiva.`, { titulo: 'Generar orden de compra' })) return;
+    if (!await confirmarElegante(`Elegirás a ${cot.proveedor?.nombre} por $${cot.total?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}. Esta acción es definitiva.`, { titulo: t("Generar orden de compra") })) return;
 
     setProcesandoId(cot.id);
     const token = localStorage.getItem('syncro_token');
@@ -130,13 +132,13 @@ export default function CotizacionesRequisicionPage() {
         body: JSON.stringify({ cotizacionId: cot.id }),
       });
       if (res.ok) {
-        mostrarToast('La orden de compra se creó correctamente.', 'exito');
+        mostrarToast(t("La orden de compra se creó correctamente."), 'exito');
         await recargarCotizaciones(token);
       } else {
         const data = await res.json().catch(() => null);
-        mostrarToast(`Error: ${data?.message || 'No se pudo generar la Orden de Compra'}`, 'error');
+        mostrarToast(`Error: ${data?.message || t("No se pudo generar la Orden de Compra")}`, 'error');
       }
-    } catch { mostrarToast('Error de conexión con el servidor', 'error'); }
+    } catch { mostrarToast(t("Error de conexión con el servidor"), 'error'); }
     finally { setProcesandoId(null); }
   };
 
@@ -156,8 +158,8 @@ export default function CotizacionesRequisicionPage() {
     return (
       <div className="p-12 text-center text-rose-500 bg-rose-50 m-8 rounded-2xl border border-rose-100 max-w-2xl mx-auto">
         <AlertCircle className="w-12 h-12 mx-auto mb-4 text-rose-400" />
-        <p className="text-xl font-bold">No se encontró la requisición</p>
-        <Link href="/dashboard/compras/cotizaciones" className="text-indigo-600 font-medium hover:underline mt-4 inline-block">&larr; Volver</Link>
+        <p className="text-xl font-bold">{t("No se encontró la requisición")}</p>
+        <Link href="/dashboard/compras/cotizaciones" className="text-indigo-600 font-medium hover:underline mt-4 inline-block">{t("&larr; Volver")}</Link>
       </div>
     );
   }
@@ -167,14 +169,14 @@ export default function CotizacionesRequisicionPage() {
       {toast && (
         <div className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-6 py-4 rounded-2xl shadow-2xl font-semibold text-white animate-in slide-in-from-top-2 duration-300 ${toast.tipo === 'exito' ? 'bg-emerald-600' : toast.tipo === 'error' ? 'bg-rose-600' : 'bg-blue-600'}`}>
           {toast.tipo === 'exito' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-          {toast.mensaje}
+          {t(toast.mensaje)}
         </div>
       )}
 
       {/* Navegación */}
       <div className="mb-6">
         <Link href="/dashboard/compras/cotizaciones" className="inline-flex items-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-indigo-600 rounded-xl font-medium transition-colors shadow-sm">
-          <ChevronLeft className="w-4 h-4" /> Volver a Requisiciones
+          <ChevronLeft className="w-4 h-4" />  {t("Volver a Requisiciones")}
         </Link>
       </div>
 
@@ -187,7 +189,7 @@ export default function CotizacionesRequisicionPage() {
                 <Receipt className="w-7 h-7 text-indigo-600" />
               </div>
               <div>
-                <h1 className="text-3xl font-black text-slate-900 tracking-tight">Propuestas Recibidas</h1>
+                <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t("Propuestas Recibidas")}</h1>
                 <p className="text-slate-500 font-medium mt-0.5">
                   Referencia: <span className="font-mono text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-lg">{folioDe(requisicion ?? { id: requisicionId }, FOLIO.REQUISICION)}</span>
                 </p>
@@ -198,13 +200,13 @@ export default function CotizacionesRequisicionPage() {
           {requisicion && (
             <div className="flex flex-wrap gap-4">
               {[
-                { label: 'Solicitante', value: requisicion.usuarioSolicitante?.nombreCompleto || 'N/A', icon: null },
-                { label: 'Fecha Emisión', value: new Date(requisicion.fechaSolicitud).toLocaleDateString('es-MX'), icon: <Calendar className="w-3.5 h-3.5" /> },
-                { label: 'Partidas', value: `${requisicion.detalles?.length || 0} productos`, icon: <Package className="w-3.5 h-3.5" /> },
-                { label: 'Propuestas', value: `${cotizaciones.length} recibidas`, icon: <Receipt className="w-3.5 h-3.5" /> },
+                { label: t("Solicitante"), value: requisicion.usuarioSolicitante?.nombreCompleto || 'N/A', icon: null },
+                { label: t("Fecha Emisión"), value: new Date(requisicion.fechaSolicitud).toLocaleDateString('es-MX'), icon: <Calendar className="w-3.5 h-3.5" /> },
+                { label: t("Partidas"), value: `${requisicion.detalles?.length || 0} productos`, icon: <Package className="w-3.5 h-3.5" /> },
+                { label: t("Propuestas"), value: `${cotizaciones.length} recibidas`, icon: <Receipt className="w-3.5 h-3.5" /> },
               ].map(({ label, value, icon }) => (
                 <div key={label} className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">{label}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">{t(label)}</p>
                   <p className="font-bold text-slate-800 flex items-center gap-1.5">{icon}{value}</p>
                 </div>
               ))}
@@ -217,26 +219,26 @@ export default function CotizacionesRequisicionPage() {
       {cargando ? (
         <div className="p-20 text-center flex flex-col items-center text-slate-400 bg-white rounded-3xl border border-slate-200">
           <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
-          <p className="font-medium">Cargando propuestas comerciales...</p>
+          <p className="font-medium">{t("Cargando propuestas comerciales...")}</p>
         </div>
       ) : cotizaciones.length === 0 ? (
         <div className="bg-white rounded-3xl border border-slate-200 p-20 text-center flex flex-col items-center">
           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
             <FileText className="w-10 h-10 text-slate-300" />
           </div>
-          <p className="text-xl font-bold text-slate-700">Aún no hay cotizaciones capturadas</p>
+          <p className="text-xl font-bold text-slate-700">{t("Aún no hay cotizaciones capturadas")}</p>
           {/*
             * Antes esto sólo decía «regresa a la pantalla anterior». Una
             * pantalla vacía que manda a otra sin llevar a ella deja al
             * comprador buscando dónde estaba el botón: la captura vive en
             * Cotizaciones, detrás de «Capturar». Se ofrece el camino.
             */}
-          <p className="mt-2 text-slate-500 text-sm">Captura la primera propuesta desde la pantalla de cotizaciones.</p>
+          <p className="mt-2 text-slate-500 text-sm">{t("Captura la primera propuesta desde la pantalla de cotizaciones.")}</p>
           <Link
             href="/dashboard/compras/cotizaciones"
             className="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 active:scale-95"
           >
-            <Calculator className="h-4 w-4" /> Capturar cotizaciones
+            <Calculator className="h-4 w-4" />  {t("Capturar cotizaciones")}
           </Link>
         </div>
       ) : (
@@ -271,7 +273,7 @@ export default function CotizacionesRequisicionPage() {
                       {(cot.proveedor?.nombre || 'P').charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="text-2xl font-black text-slate-900">{cot.proveedor?.nombre || 'Proveedor no especificado'}</h3>
+                      <h3 className="text-2xl font-black text-slate-900">{cot.proveedor?.nombre || t("Proveedor no especificado")}</h3>
                       <p className="text-sm text-slate-500 font-medium mt-1 flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5" />
                         Recibida el {new Date(cot.fechaCotizacion).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -286,13 +288,13 @@ export default function CotizacionesRequisicionPage() {
 
                   {/* Resumen financiero */}
                   <div className={`text-right flex-shrink-0 p-5 rounded-2xl ${isSeleccionada ? 'bg-emerald-100/60' : 'bg-slate-50 border border-slate-100'}`}>
-                    <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Total Ofertado</p>
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">{t("Total Ofertado")}</p>
                     <p className={`text-4xl font-black tracking-tighter ${isSeleccionada ? 'text-emerald-700' : 'text-slate-900'}`}>
                       ${cot.total?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                     </p>
                     <div className="flex justify-end gap-4 text-xs font-medium text-slate-400 mt-2">
-                      <span>Subtotal: ${cot.subtotal?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
-                      <span>IVA: ${cot.impuestoTotal?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                      <span>{t("Subtotal: ${n0}", { n0: cot.subtotal?.toLocaleString('es-MX', { minimumFractionDigits: 2 }) })}</span>
+                      <span>{t("IVA: ${n0}", { n0: cot.impuestoTotal?.toLocaleString('es-MX', { minimumFractionDigits: 2 }) })}</span>
                     </div>
                   </div>
                 </div>
@@ -302,10 +304,10 @@ export default function CotizacionesRequisicionPage() {
                   <table className="w-full text-left">
                     <thead className="bg-slate-900 text-white">
                       <tr>
-                        <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider">Producto</th>
-                        <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-center w-24">Cant.</th>
-                        <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-right w-40">Precio Unit.</th>
-                        <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-right w-40">Importe</th>
+                        <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider">{t("Producto")}</th>
+                        <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-center w-24">{t("Cant.")}</th>
+                        <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-right w-40">{t("Precio Unit.")}</th>
+                        <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-right w-40">{t("Importe")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -328,24 +330,25 @@ export default function CotizacionesRequisicionPage() {
                     target="_blank"
                     className="flex items-center gap-2 px-4 py-2.5 text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 hover:text-indigo-600 rounded-xl font-semibold transition-all shadow-sm text-sm"
                   >
-                    <Eye className="w-4 h-4" /> Ver Propuesta PDF
+                    <Eye className="w-4 h-4" />  {t("Ver Propuesta PDF")}
                   </Link>
 
                   {isSeleccionada || (cot.ordenesCompra?.length ?? 0) > 0 ? (
                     <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-100 text-emerald-700 rounded-xl font-bold text-sm border border-emerald-200">
-                      <CheckCircle className="w-4 h-4" /> Orden de Compra Generada
+                      <CheckCircle className="w-4 h-4" />  {t("Orden de Compra Generada")}
                     </span>
                   ) : cot.estado === 'PENDIENTE' || cot.estado === 'RECHAZADA' ? (
                     <div className="flex items-center gap-3">
                       {cot.estado === 'RECHAZADA' && (
                         <span className="inline-flex items-center gap-2 px-4 py-2.5 bg-rose-50 text-rose-700 rounded-xl font-bold text-sm border border-rose-200">
-                          Adjudicación rechazada
+                          
+                          {t("Adjudicación rechazada")}
                         </span>
                       )}
                       <ProtectedElement metodo="PATCH" ruta="/api/compras/cotizaciones/:id/solicitar-aprobacion">
-                        <button onClick={() => ejecutarDecision(cot, 'solicitar-aprobacion', 'Solicitar aprobación de adjudicación', '¿Por qué debe elegirse esta propuesta?')} disabled={procesandoId === cot.id}
+                        <button onClick={() => ejecutarDecision(cot, 'solicitar-aprobacion', t("Solicitar aprobación de adjudicación"), t("¿Por qué debe elegirse esta propuesta?"))} disabled={procesandoId === cot.id}
                           className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 font-bold shadow-lg text-sm">
-                          <Award className="w-4 h-4" /> {cot.estado === 'RECHAZADA' ? 'Reenviar a aprobación' : 'Enviar a aprobación'}
+                          <Award className="w-4 h-4" /> {cot.estado === 'RECHAZADA' ? t("Reenviar a aprobación") : t("Enviar a aprobación")}
                         </button>
                       </ProtectedElement>
                     </div>
@@ -354,27 +357,27 @@ export default function CotizacionesRequisicionPage() {
                     cot.solicitadoAprobacionPorId === usuarioActualId ? (
                     <div className="flex items-center gap-3">
                       <span className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-700 rounded-xl font-bold text-sm border border-amber-200">
-                        <Award className="w-4 h-4" /> En espera de aprobación — no puedes aprobar lo que tú solicitaste
+                        <Award className="w-4 h-4" />  {t("En espera de aprobación — no puedes aprobar lo que tú solicitaste")}
                       </span>
                       {/* Aprobar no; retirar la propia solicitud sí. */}
                       <ProtectedElement metodo="PATCH" ruta="/api/compras/cotizaciones/:id/rechazar">
-                        <button onClick={() => ejecutarDecision(cot, 'rechazar', 'Retirar la adjudicación', 'Motivo por el que la retiras')} disabled={procesandoId === cot.id}
-                          className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200">Retirar solicitud</button>
+                        <button onClick={() => ejecutarDecision(cot, 'rechazar', t("Retirar la adjudicación"), t("Motivo por el que la retiras"))} disabled={procesandoId === cot.id}
+                          className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200">{t("Retirar solicitud")}</button>
                       </ProtectedElement>
                     </div>
                   ) : cot.estado === 'PENDIENTE_APROBACION' && !meToca(cot) ? (
                     <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm border border-slate-200">
-                      <Award className="w-4 h-4" /> En espera de aprobación — este nivel no te corresponde
+                      <Award className="w-4 h-4" />  {t("En espera de aprobación — este nivel no te corresponde")}
                     </span>
                   ) : cot.estado === 'PENDIENTE_APROBACION' ? (
                     <div className="flex gap-2">
                       <ProtectedElement metodo="PATCH" ruta="/api/compras/cotizaciones/:id/rechazar">
-                        <button onClick={() => ejecutarDecision(cot, 'rechazar', 'Rechazar adjudicación', 'Comentario de rechazo')} disabled={procesandoId === cot.id}
-                          className="px-5 py-2.5 bg-rose-100 text-rose-700 rounded-xl font-bold text-sm">Rechazar</button>
+                        <button onClick={() => ejecutarDecision(cot, 'rechazar', t("Rechazar adjudicación"), t("Comentario de rechazo"))} disabled={procesandoId === cot.id}
+                          className="px-5 py-2.5 bg-rose-100 text-rose-700 rounded-xl font-bold text-sm">{t("Rechazar")}</button>
                       </ProtectedElement>
                       <ProtectedElement metodo="PATCH" ruta="/api/compras/cotizaciones/:id/aprobar">
-                        <button onClick={() => ejecutarDecision(cot, 'aprobar', 'Aprobar adjudicación', 'Comentario de aprobación')} disabled={procesandoId === cot.id}
-                          className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm">Aprobar</button>
+                        <button onClick={() => ejecutarDecision(cot, 'aprobar', t("Aprobar adjudicación"), t("Comentario de aprobación"))} disabled={procesandoId === cot.id}
+                          className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm">{t("Aprobar")}</button>
                       </ProtectedElement>
                     </div>
                   ) : cot.estado === 'APROBADA' ? (
@@ -398,7 +401,7 @@ export default function CotizacionesRequisicionPage() {
                       ruta="/api/compras/ordenes"
                       alternativa={
                         <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm border border-emerald-200">
-                          <CheckCircle className="w-4 h-4" /> Adjudicada · la orden de compra la genera compras
+                          <CheckCircle className="w-4 h-4" />  {t("Adjudicada · la orden de compra la genera compras")}
                         </span>
                       }
                     >

@@ -17,6 +17,7 @@ import { PuedeCrear, PuedeEditar, ProtectedElement } from "@/app/components/Prot
 import AsistenteConfiguracion from "@/app/components/AsistenteConfiguracion";
 import { usePermiso } from '@/hooks/use-permisos';
 
+import { useT } from '@/components/I18nProvider';
 // ─── Formulario vacío con TODOS los campos tipados ───────────────
 const FORM_VACIO: IFormData = {
   // Identificación
@@ -45,6 +46,7 @@ const FORM_VACIO: IFormData = {
 };
 
 export default function ProductosPage() {
+  const t = useT();
   const { tienePermiso } = usePermiso();
   /** ¿Este perfil lleva precios de venta? De eso depende qué avisos ve. */
   const llevaPrecios = tienePermiso('GET', '/api/catalogo/listas-precio');
@@ -220,17 +222,17 @@ export default function ProductosPage() {
           caidos.push(nombre);
         };
 
-        await leer(rCat, 'las categorías', setCategorias);
-        await leer(rAlm, 'los almacenes', setAlmacenes);
-        await leer(rMar, 'las marcas', setMarcas);
-        await leer(rImp, 'los impuestos', setImpuestos);
-        await leer(rListas, 'las listas de precio', setListasPrecio);
-        await leer(rUnids, 'las unidades de medida', setUnidades);
+        await leer(rCat, t("las categorías"), setCategorias);
+        await leer(rAlm, t("los almacenes"), setAlmacenes);
+        await leer(rMar, t("las marcas"), setMarcas);
+        await leer(rImp, t("los impuestos"), setImpuestos);
+        await leer(rListas, t("las listas de precio"), setListasPrecio);
+        await leer(rUnids, t("las unidades de medida"), setUnidades);
 
         setCatalogosCaidos(caidos);
       } catch (e) {
         console.error('Error cargando catálogos:', e);
-        setCatalogosCaidos(['los catálogos']);
+        setCatalogosCaidos([t("los catálogos")]);
       }
     };
     fetchCatalogos();
@@ -290,7 +292,7 @@ export default function ProductosPage() {
         setProductos(append ? prev => [...prev, ...nuevos] : nuevos);
         setHayMas(data.totalPaginas ? pag < data.totalPaginas : nuevos.length === LIMITE);
       }
-    } catch { mostrarToast('Error al cargar productos', 'error'); }
+    } catch { mostrarToast(t("Error al cargar productos"), 'error'); }
     finally { setCargando(false); }
   };
 
@@ -560,14 +562,14 @@ export default function ProductosPage() {
         mostrarToast(`Error: ${msg}`, 'error');
       }
     } catch {
-      mostrarToast('Error de conexión con el servidor', 'error');
+      mostrarToast(t("Error de conexión con el servidor"), 'error');
     } finally {
       setGuardando(false);
     }
   };
 
   const handleCambiarEstado = async (id: string) => {
-    if (!await confirmarElegante('¿Deseas cambiar el estado de este producto?')) return;
+    if (!await confirmarElegante(t("¿Deseas cambiar el estado de este producto?"))) return;
     const token = localStorage.getItem('syncro_token');
     const res = await peticion(`/catalogo/productos/${id}/estado`, {
       method: 'PATCH', headers: { Authorization: `Bearer ${token}` },
@@ -576,7 +578,7 @@ export default function ProductosPage() {
   };
 
   const handleTransaccionInventario = async (data: any) => {
-    if (!data.almacenId || data.cantidad <= 0) return mostrarToast('Verifica almacén y cantidad.', 'info');
+    if (!data.almacenId || data.cantidad <= 0) return mostrarToast(t("Verifica almacén y cantidad."), 'info');
     const token = localStorage.getItem('syncro_token');
     const res = await peticion(`/catalogo/inventario/productos/${data.id}/${modalInventario.tipo}`, {
       method: 'POST',
@@ -590,10 +592,10 @@ export default function ProductosPage() {
     if (res.ok) {
       setModalInventario({ isOpen: false, tipo: 'compra', producto: null });
       fetchProductos(1, false, filtros, busquedaDebounced, mostrarCatalogoCompleto);
-      mostrarToast('Operación registrada', 'exito');
+      mostrarToast(t("Operación registrada"), 'exito');
     } else {
       const err = await res.json();
-      mostrarToast(err.message || 'Error en la operación', 'error');
+      mostrarToast(err.message || t("Error en la operación"), 'error');
     }
   };
 
@@ -626,7 +628,7 @@ export default function ProductosPage() {
     <div className="flex h-screen bg-slate-50 text-slate-800 overflow-hidden">
       {toast && (
         <div className={`fixed top-6 right-6 z-[999] px-6 py-4 rounded-xl shadow-2xl font-bold text-white ${toast.tipo === 'exito' ? 'bg-emerald-600' : toast.tipo === 'error' ? 'bg-rose-600' : 'bg-blue-600'}`}>
-          {toast.mensaje}
+          {t(toast.mensaje)}
         </div>
       )}
 
@@ -635,36 +637,34 @@ export default function ProductosPage() {
         <aside className="w-72 bg-white border-r border-slate-200 flex flex-col h-full shadow-sm z-10 shrink-0">
           <div className="p-5 border-b border-slate-100 flex items-center gap-2">
             <Filter className="w-4 h-4 text-blue-600" />
-            <h2 className="font-black text-slate-800">Filtros</h2>
+            <h2 className="font-black text-slate-800">{t("Filtros")}</h2>
           </div>
           <div className="flex-1 overflow-y-auto p-5 space-y-6">
             {catalogosCaidos.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
-                No se pudo consultar {catalogosCaidos.join(', ')}. Los filtros de
-                arriba pueden estar incompletos.
-              </div>
+                {t("No se pudo consultar {n0}. Los filtros de arriba pueden estar incompletos.", { n0: catalogosCaidos.join(', ') })}</div>
             )}
             <div>
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Categorías</h3>
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{t("Categorías")}</h3>
               <div className="space-y-2">
-                {[{ id: '', nombre: 'Todas' }, ...categorias].map(cat => (
+                {[{ id: '', nombre: t("Todas") }, ...categorias].map(cat => (
                   <label key={cat.id} className="flex items-center gap-3 cursor-pointer">
                     <input type="radio" name="cat" value={cat.id} checked={filtros.categoriaId === cat.id} onChange={() => setFiltros(f => ({ ...f, categoriaId: cat.id }))} className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm font-medium text-slate-600">{cat.nombre}</span>
+                    <span className="text-sm font-medium text-slate-600">{t(cat.nombre)}</span>
                   </label>
                 ))}
               </div>
             </div>
             <div>
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Marca</h3>
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{t("Marca")}</h3>
               <select value={filtros.marcaId} onChange={(e) => setFiltros(f => ({ ...f, marcaId: e.target.value }))} className="w-full text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Todas</option>
-                {marcas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                <option value="">{t("Todas")}</option>
+                {marcas.map(m => <option key={m.id} value={m.id}>{t(m.nombre)}</option>)}
               </select>
             </div>
             <label className="flex items-center gap-3 cursor-pointer p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-blue-50 transition-colors">
               <input type="checkbox" checked={filtros.soloConStock} onChange={(e) => setFiltros(f => ({ ...f, soloConStock: e.target.checked }))} className="w-4 h-4 text-blue-600 rounded" />
-              <span className="text-sm font-bold text-slate-700">Solo con stock</span>
+              <span className="text-sm font-bold text-slate-700">{t("Solo con stock")}</span>
             </label>
             {/*
               Limpiar filtros dejaba `mostrarCatalogoCompleto` en falso, o sea
@@ -673,7 +673,8 @@ export default function ProductosPage() {
               no ver menos.
             */}
             <button onClick={limpiarFiltros} className="w-full py-2.5 text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
-              Limpiar filtros
+              
+              {t("Limpiar filtros")}
             </button>
           </div>
         </aside>
@@ -682,13 +683,13 @@ export default function ProductosPage() {
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="bg-white px-6 py-4 border-b border-slate-200 flex justify-between items-center shadow-sm z-10 shrink-0">
           <div className="flex items-center gap-4 flex-1">
-            <button onClick={() => setSidebarOpen(s => !s)} aria-label="Mostrar u ocultar los filtros" title="Mostrar u ocultar los filtros" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+            <button onClick={() => setSidebarOpen(s => !s)} aria-label={t("Mostrar u ocultar los filtros")} title={t("Mostrar u ocultar los filtros")} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
               <Filter className="w-5 h-5" />
             </button>
             <div className="relative w-full max-w-2xl">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input
-                type="text" placeholder="Buscar SKU, código o nombre..." value={busqueda}
+                type="text" placeholder={t("Buscar SKU, código o nombre...")} value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && setBusquedaDebounced(busqueda)}
                 className="w-full pl-12 pr-4 py-2.5 bg-slate-100/70 border border-slate-200/50 rounded-xl text-slate-800 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 font-semibold"
@@ -697,12 +698,12 @@ export default function ProductosPage() {
           </div>
           <div className="flex items-center gap-3 ml-4">
             <div className="hidden sm:flex bg-slate-100 p-1 rounded-xl">
-              <button onClick={() => setViewMode('grid')} aria-label="Ver como tarjetas" title="Ver como tarjetas" className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}><LayoutGrid className="w-4 h-4" /></button>
-              <button onClick={() => setViewMode('list')} aria-label="Ver como tabla" title="Ver como tabla" className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}><List className="w-4 h-4" /></button>
+              <button onClick={() => setViewMode('grid')} aria-label={t("Ver como tarjetas")} title={t("Ver como tarjetas")} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}><LayoutGrid className="w-4 h-4" /></button>
+              <button onClick={() => setViewMode('list')} aria-label={t("Ver como tabla")} title={t("Ver como tabla")} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}><List className="w-4 h-4" /></button>
             </div>
             <PuedeCrear ruta="/api/catalogo/productos">
               <button onClick={abrirModalCrear} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-md transition-all">
-                <Plus className="w-4 h-4" /> Nuevo Artículo
+                <Plus className="w-4 h-4" />  {t("Nuevo Artículo")}
               </button>
             </PuedeCrear>
           </div>
@@ -715,16 +716,17 @@ export default function ProductosPage() {
               <div className="w-24 h-24 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-6">
                 <PackageSearch className="w-12 h-12" />
               </div>
-              <h2 className="text-3xl font-black text-slate-800 mb-3">Directorio de Materiales</h2>
-              <p className="text-slate-500 max-w-md mb-8 font-medium">Usa el buscador o los filtros para localizar un producto.</p>
+              <h2 className="text-3xl font-black text-slate-800 mb-3">{t("Directorio de Materiales")}</h2>
+              <p className="text-slate-500 max-w-md mb-8 font-medium">{t("Usa el buscador o los filtros para localizar un producto.")}</p>
               <button onClick={() => setMostrarCatalogoCompleto(true)} className="px-6 py-3 bg-white border border-slate-200 shadow-sm rounded-xl font-bold text-blue-600 hover:bg-blue-50 transition-colors">
-                Cargar todo el catálogo
+                
+                {t("Cargar todo el catálogo")}
               </button>
             </div>
           ) : cargando && productos.length === 0 ? (
             <div className="h-full flex flex-col justify-center items-center text-slate-400">
               <Loader2 className="animate-spin text-blue-500 w-10 h-10 mb-4" />
-              <span className="font-bold">Buscando...</span>
+              <span className="font-bold">{t("Buscando...")}</span>
             </div>
           ) : productos.length === 0 ? (
             /*
@@ -737,23 +739,25 @@ export default function ProductosPage() {
               <PackageMinus className="w-20 h-20 text-slate-200 mb-4" />
               {hayFiltroPuesto ? (
                 <>
-                  <p className="text-2xl font-black text-slate-800">Ningún producto coincide</p>
+                  <p className="text-2xl font-black text-slate-800">{t("Ningún producto coincide")}</p>
                   <p className="text-slate-500 mt-2 max-w-md">
-                    El catálogo tiene productos, pero ninguno pasa los filtros que pusiste.
+                    
+                    {t("El catálogo tiene productos, pero ninguno pasa los filtros que pusiste.")}
                   </p>
                   <button
                     onClick={limpiarFiltros}
                     className="mt-5 px-6 py-3 bg-white border border-slate-200 shadow-sm rounded-xl font-bold text-blue-600 hover:bg-blue-50 transition-colors"
                   >
-                    Quitar los filtros
+                    
+                    {t("Quitar los filtros")}
                   </button>
                 </>
               ) : (
                 <>
-                  <p className="text-2xl font-black text-slate-800">El catálogo está vacío</p>
+                  <p className="text-2xl font-black text-slate-800">{t("El catálogo está vacío")}</p>
                   <p className="text-slate-500 mt-2 max-w-md">
-                    Todavía no hay ningún producto dado de alta. Puedes crear uno o cargar
-                    varios de golpe desde un Excel.
+                    
+                    {t("Todavía no hay ningún producto dado de alta. Puedes crear uno o cargar varios de golpe desde un Excel.")}
                   </p>
                 </>
               )}
@@ -768,7 +772,7 @@ export default function ProductosPage() {
                       <div key={prod.id} className={`bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col group hover:shadow-md transition-all ${!prod.activo ? 'opacity-70 grayscale-[50%]' : ''}`}>
                         <div onClick={() => prod.imagenes?.length && setGallery({ open: true, imagenes: prod.imagenes!, currentIndex: 0 })} className="relative aspect-video bg-slate-100 cursor-pointer overflow-hidden border-b border-slate-100">
                           {imgPrincipal ? (
-                            <img src={`${BASE_URL}${imgPrincipal.url}`} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            <img src={`${BASE_URL}${imgPrincipal.url}`} alt={t(prod.nombre)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 text-slate-300" /></div>
                           )}
@@ -778,18 +782,20 @@ export default function ProductosPage() {
                         </div>
                         <div className="p-4 flex-1 flex flex-col">
                           <p className="text-xs font-bold text-slate-400 mb-1">{prod.sku}</p>
-                          <h3 className="font-bold text-slate-900 leading-tight mb-3 line-clamp-2">{prod.nombre}</h3>
+                          <h3 className="font-bold text-slate-900 leading-tight mb-3 line-clamp-2">{t(prod.nombre)}</h3>
                           {(noFacturable(prod) || sinPrecio(prod)) && (
                             <div className="mb-2 flex flex-wrap gap-1">
                               {sinPrecio(prod) && (
                                 <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                                  Sin precio
+                                  
+                                  {t("Sin precio")}
                                 </span>
                               )}
                               {noFacturable(prod) && (
                                 <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200"
-                                  title="Le faltan claves del catálogo SAT: no se puede timbrar.">
-                                  No facturable
+                                  title={t("Le faltan claves del catálogo SAT: no se puede timbrar.")}>
+                                  
+                                  {t("No facturable")}
                                 </span>
                               )}
                             </div>
@@ -801,12 +807,13 @@ export default function ProductosPage() {
                               </span>
                             ) : (
                               <span className="text-[10px] font-black uppercase px-2 py-1 rounded-md bg-slate-100 text-slate-500">
-                                Servicio
+                                
+                                {t("Servicio")}
                               </span>
                             )}
                             <div className="flex gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
                               <ProtectedElement metodo="PUT" ruta="/api/catalogo/productos/:id">
-                                <button onClick={() => abrirModalEditar(prod)} aria-label="Editar el producto" title="Editar el producto" className="p-1.5 hover:bg-slate-100 rounded text-slate-600"><Edit2 className="w-4 h-4" /></button>
+                                <button onClick={() => abrirModalEditar(prod)} aria-label={t("Editar el producto")} title={t("Editar el producto")} className="p-1.5 hover:bg-slate-100 rounded text-slate-600"><Edit2 className="w-4 h-4" /></button>
                               </ProtectedElement>
                               <Link href={`/dashboard/productos/${prod.id}`} className="p-1.5 hover:bg-slate-100 rounded text-slate-600"><History className="w-4 h-4" /></Link>
                             </div>
@@ -823,11 +830,11 @@ export default function ProductosPage() {
                   <table className="w-full text-left whitespace-nowrap">
                     <thead>
                       <tr className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black border-b border-slate-200">
-                        <th className="px-6 py-4">Producto</th>
-                        <th className="px-6 py-4">SKU</th>
-                        <th className="px-6 py-4 text-right">Precio Público</th>
-                        <th className="px-6 py-4 text-center">Stock</th>
-                        <th className="px-6 py-4 text-right">Acciones</th>
+                        <th className="px-6 py-4">{t("Producto")}</th>
+                        <th className="px-6 py-4">{t("SKU")}</th>
+                        <th className="px-6 py-4 text-right">{t("Precio Público")}</th>
+                        <th className="px-6 py-4 text-center">{t("Stock")}</th>
+                        <th className="px-6 py-4 text-right">{t("Acciones")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
@@ -839,7 +846,7 @@ export default function ProductosPage() {
                                 {prod.imagenes?.[0] ? <img src={`${BASE_URL}${prod.imagenes[0].url}`} className="w-full h-full object-cover" alt="" /> : <ImageIcon className="w-4 h-4 m-auto mt-3 text-slate-300" />}
                               </div>
                               <div>
-                                <span className="font-bold text-slate-900 text-sm block">{prod.nombre}</span>
+                                <span className="font-bold text-slate-900 text-sm block">{t(prod.nombre)}</span>
                                 {prod.nombreCorto && <span className="text-xs text-slate-400">{prod.nombreCorto}</span>}
                               </div>
                             </div>
@@ -855,32 +862,34 @@ export default function ProductosPage() {
                               </span>
                             ) : (
                               <span className="inline-flex px-2.5 py-1 rounded-lg text-[11px] font-bold border bg-slate-100 text-slate-500 border-slate-200">
-                                Servicio
+                                
+                                {t("Servicio")}
                               </span>
                             )}
                             {noFacturable(prod) && (
                               <span className="ml-1.5 inline-flex px-2 py-1 rounded-lg text-[10px] font-bold border bg-amber-50 text-amber-700 border-amber-200"
-                                title="Le faltan claves del catálogo SAT: no se puede timbrar.">
-                                No facturable
+                                title={t("Le faltan claves del catálogo SAT: no se puede timbrar.")}>
+                                
+                                {t("No facturable")}
                               </span>
                             )}
                           </td>
                           <td className="px-6 py-3 text-right">
                             <div className="flex justify-end gap-1">
                               <ProtectedElement metodo="PUT" ruta="/api/catalogo/productos/:id">
-                                <button onClick={() => abrirModalEditar(prod)} aria-label="Editar el producto" title="Editar el producto" className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors"><Edit2 className="w-4 h-4" /></button>
+                                <button onClick={() => abrirModalEditar(prod)} aria-label={t("Editar el producto")} title={t("Editar el producto")} className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors"><Edit2 className="w-4 h-4" /></button>
                               </ProtectedElement>
                               <Link href={`/dashboard/productos/${prod.id}`} className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-800 rounded transition-colors"><History className="w-4 h-4" /></Link>
                               <div className="w-px h-4 bg-slate-200 mx-1 self-center" />
                               <ProtectedElement metodo="POST" ruta="/api/catalogo/inventario/productos/:id/compra">
-                                <button onClick={() => setModalInventario({ isOpen: true, tipo: 'compra', producto: prod })} aria-label="Entrada sin documento" title="Entrada sin documento" className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded transition-colors"><PackagePlus className="w-4 h-4" /></button>
+                                <button onClick={() => setModalInventario({ isOpen: true, tipo: 'compra', producto: prod })} aria-label={t("Entrada sin documento")} title={t("Entrada sin documento")} className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded transition-colors"><PackagePlus className="w-4 h-4" /></button>
                               </ProtectedElement>
                               <ProtectedElement metodo="POST" ruta="/api/catalogo/inventario/productos/:id/salida">
-                                <button onClick={() => setModalInventario({ isOpen: true, tipo: 'salida', producto: prod })} aria-label="Salida sin documento" title="Salida sin documento" className="p-1.5 hover:bg-amber-50 text-slate-400 hover:text-amber-600 rounded transition-colors"><PackageMinus className="w-4 h-4" /></button>
+                                <button onClick={() => setModalInventario({ isOpen: true, tipo: 'salida', producto: prod })} aria-label={t("Salida sin documento")} title={t("Salida sin documento")} className="p-1.5 hover:bg-amber-50 text-slate-400 hover:text-amber-600 rounded transition-colors"><PackageMinus className="w-4 h-4" /></button>
                               </ProtectedElement>
                               <div className="w-px h-4 bg-slate-200 mx-1 self-center" />
                               <PuedeEditar ruta="/api/catalogo/productos/:id/estado">
-                                <button onClick={() => handleCambiarEstado(prod.id)} aria-label="Activar o desactivar el producto" title="Activar o desactivar el producto" className={`p-1.5 rounded transition-colors ${prod.activo ? 'text-slate-400 hover:bg-rose-50 hover:text-rose-600' : 'text-rose-500 hover:bg-emerald-50 hover:text-emerald-600'}`}><Power className="w-4 h-4" /></button>
+                                <button onClick={() => handleCambiarEstado(prod.id)} aria-label={t("Activar o desactivar el producto")} title={t("Activar o desactivar el producto")} className={`p-1.5 rounded transition-colors ${prod.activo ? 'text-slate-400 hover:bg-rose-50 hover:text-rose-600' : 'text-rose-500 hover:bg-emerald-50 hover:text-emerald-600'}`}><Power className="w-4 h-4" /></button>
                               </PuedeEditar>
                             </div>
                           </td>
@@ -906,7 +915,7 @@ export default function ProductosPage() {
 
       {gallery.open && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95">
-          <button onClick={() => setGallery(g => ({ ...g, open: false }))} aria-label="Cerrar la galería" title="Cerrar la galería" className="absolute top-6 right-6 text-white"><X className="w-8 h-8" /></button>
+          <button onClick={() => setGallery(g => ({ ...g, open: false }))} aria-label={t("Cerrar la galería")} title={t("Cerrar la galería")} className="absolute top-6 right-6 text-white"><X className="w-8 h-8" /></button>
           <img src={`${BASE_URL}${gallery.imagenes[gallery.currentIndex].url}`} className="max-h-[80vh] max-w-[80vw] object-contain" alt="" />
         </div>
       )}

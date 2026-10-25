@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement";
 
+import { useT } from '@/components/I18nProvider';
 interface ICuenta {
   id: string;
   numeroCuenta: string;
@@ -122,6 +123,7 @@ const FORM_VACIO = {
 };
 
 export default function CuentasContablesPage() {
+  const t = useT();
   const [cuentas, setCuentas] = useState<ICuenta[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState('');
@@ -154,12 +156,12 @@ export default function CuentasContablesPage() {
       else {
         setCuentas([]);
         setErrorCarga(r.status === 403
-          ? 'Tu perfil no incluye el catálogo de cuentas contables.'
-          : 'No se pudo consultar el catálogo de cuentas contables.');
+          ? t("Tu perfil no incluye el catálogo de cuentas contables.")
+          : t("No se pudo consultar el catálogo de cuentas contables."));
       }
     } catch {
       setCuentas([]);
-      setErrorCarga('No hay conexión con el servidor.');
+      setErrorCarga(t("No hay conexión con el servidor."));
     }
     setCargando(false);
   };
@@ -233,7 +235,7 @@ export default function CuentasContablesPage() {
     if (r.ok) {
       cargar();
       toast$(c.activo ? "Cuenta desactivada" : "Cuenta activada");
-    } else toast$("Error al cambiar el estado", false);
+    } else toast$(t("Error al cambiar el estado"), false);
   };
 
   const filtradas = cuentas.filter((c) => {
@@ -284,14 +286,15 @@ export default function CuentasContablesPage() {
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">
-            Contabilidad
+            
+            {t("Contabilidad")}
           </p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <BookOpen className="w-8 h-8 text-indigo-500" /> Catálogo de Cuentas
+            <BookOpen className="w-8 h-8 text-indigo-500" />  {t("Catálogo de Cuentas")}
           </h1>
           <p className="text-slate-500 mt-1 text-sm">
-            Plan contable de la empresa. Define los "cajones" donde se registran
-            todos los movimientos.
+            
+            {t("Plan contable de la empresa. Define los \"cajones\" donde se registran todos los movimientos.")}
           </p>
         </div>
         <div className="flex gap-3 shrink-0">
@@ -299,14 +302,14 @@ export default function CuentasContablesPage() {
             onClick={() => setGuia((g) => !g)}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50 shadow-sm"
           >
-            <Info className="w-4 h-4" /> Guía SAT
+            <Info className="w-4 h-4" />  {t("Guía SAT")}
           </button>
           <PuedeCrear ruta="/api/finanzas/cuentas-contables">
             <button
               onClick={abrirCrear}
               className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 shadow-md"
             >
-              <Plus className="w-4 h-4" /> Nueva Cuenta
+              <Plus className="w-4 h-4" />  {t("Nueva Cuenta")}
             </button>
           </PuedeCrear>
         </div>
@@ -316,7 +319,8 @@ export default function CuentasContablesPage() {
       {guia && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 mb-6">
           <p className="text-sm font-bold text-indigo-900 mb-3">
-            Numeración estándar SAT México — primer dígito define el tipo
+            
+            {t("Numeración estándar SAT México — primer dígito define el tipo")}
           </p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {GUIA.map((g) => (
@@ -325,7 +329,7 @@ export default function CuentasContablesPage() {
                 className="bg-white rounded-lg p-3 border border-indigo-100"
               >
                 <p className="font-mono font-bold text-indigo-700 text-sm">
-                  {g.num} — {g.label}
+                  {g.num} — {t(g.label)}
                 </p>
                 <p className="text-xs text-slate-500 mt-1">{g.ej}</p>
               </div>
@@ -361,7 +365,7 @@ export default function CuentasContablesPage() {
           type="text"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por número o nombre..."
+          placeholder={t("Buscar por número o nombre...")}
           className="flex-1 text-sm bg-transparent outline-none text-slate-800 placeholder-slate-400"
         />
         {filtroTipo && (
@@ -379,39 +383,43 @@ export default function CuentasContablesPage() {
         {/* Header oscuro estilo contable */}
         <div className="bg-slate-900 text-white px-6 py-3 flex justify-between items-center">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-            Plan de Cuentas
+            
+            {t("Plan de Cuentas")}
           </p>
-          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : plural(filtradas.length, 'cuenta')}</p>
+          <p className="text-xs text-slate-400">{cargando ? t("Consultando…") : plural(filtradas.length, 'cuenta')}</p>
         </div>
 
         {cargando ? (
           <div className="p-16 text-center">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-slate-400 text-sm">Cargando catálogo...</p>
+            <p className="text-slate-400 text-sm">{t("Cargando catálogo...")}</p>
           </div>
         ) : filtradas.length === 0 ? (
           <div className="p-16 text-center">
             <BookOpen className="w-12 h-12 mx-auto mb-3 text-slate-200" />
-            <p className="font-semibold text-slate-600">No hay cuentas</p>
+            <p className="font-semibold text-slate-600">{t("No hay cuentas")}</p>
             <p className="text-sm text-slate-400 mt-1">
-              Crea la primera con "Nueva Cuenta"
+              
+              {t("Crea la primera con \"Nueva Cuenta\"")}
             </p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
-                <th className="px-5 py-3 text-left">Núm.</th>
-                <th className="px-5 py-3 text-left">Nombre</th>
-                <th className="px-4 py-3 text-center">Tipo</th>
+                <th className="px-5 py-3 text-left">{t("Núm.")}</th>
+                <th className="px-5 py-3 text-left">{t("Nombre")}</th>
+                <th className="px-4 py-3 text-center">{t("Tipo")}</th>
                 <th className="px-4 py-3 text-center hidden md:table-cell">
-                  Naturaleza
+                  
+                  {t("Naturaleza")}
                 </th>
                 <th className="px-4 py-3 text-center hidden lg:table-cell">
-                  Nivel
+                  
+                  {t("Nivel")}
                 </th>
-                <th className="px-4 py-3 text-center">Estado</th>
-                <th className="px-4 py-3 text-center">Acciones</th>
+                <th className="px-4 py-3 text-center">{t("Estado")}</th>
+                <th className="px-4 py-3 text-center">{t("Acciones")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -424,19 +432,16 @@ export default function CuentasContablesPage() {
                     {c.numeroCuenta}
                   </td>
                   <td className="px-5 py-3">
-                    <p className="font-semibold text-slate-800">{c.nombre}</p>
+                    <p className="font-semibold text-slate-800">{t(c.nombre)}</p>
                     {c.codigoAgrupadorSAT && (
                       <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                        SAT: {c.codigoAgrupadorSAT}
-                      </p>
+                        {t("SAT: {n0}", { n0: c.codigoAgrupadorSAT })}</p>
                     )}
                     {c.rolSistema && (
                       <p className="text-[10px] text-indigo-600 font-semibold mt-0.5">
-                        Uso automático:{" "}
-                        {ROLES_SISTEMA.find(
+                        {t("Uso automático:{n0} {n1}", { n0: " ", n1: ROLES_SISTEMA.find(
                           ([rol]) => rol === c.rolSistema,
-                        )?.[1] ?? c.rolSistema}
-                      </p>
+                        )?.[1] ?? c.rolSistema })}</p>
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -456,11 +461,13 @@ export default function CuentasContablesPage() {
                   <td className="px-4 py-3 text-center hidden lg:table-cell">
                     {c.esAfectable ? (
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                        Detalle ✓
+                        
+                        {t("Detalle ✓")}
                       </span>
                     ) : (
                       <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
-                        Mayor
+                        
+                        {t("Mayor")}
                       </span>
                     )}
                   </td>
@@ -468,7 +475,7 @@ export default function CuentasContablesPage() {
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.activo ? "text-emerald-700 bg-emerald-50" : "text-slate-500 bg-slate-100"}`}
                     >
-                      {c.activo ? "Activa" : "Inactiva"}
+                      {c.activo ? t("Activa") : t("Inactiva")}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -476,7 +483,7 @@ export default function CuentasContablesPage() {
                       <PuedeEditar ruta="/api/finanzas/cuentas-contables/:id">
                         <button
                           onClick={() => abrirEditar(c)}
-                          title="Editar"
+                          title={t("Editar")}
                           className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
@@ -485,7 +492,7 @@ export default function CuentasContablesPage() {
                       <PuedeEditar ruta="/api/finanzas/cuentas-contables/:id/estado">
                         <button
                           onClick={() => toggleEstado(c)}
-                          title={c.activo ? "Desactivar" : "Activar"}
+                          title={c.activo ? t("Desactivar") : t("Activar")}
                           className={`p-1.5 rounded-lg transition-colors ${c.activo ? "text-slate-400 hover:bg-rose-50 hover:text-rose-500" : "text-emerald-500 hover:bg-emerald-50"}`}
                         >
                           <Power className="w-3.5 h-3.5" />
@@ -509,9 +516,9 @@ export default function CuentasContablesPage() {
                 <Hash className="w-5 h-5 text-indigo-400" />
                 {editando
                   ? `Editar — ${editando.numeroCuenta}`
-                  : "Nueva Cuenta Contable"}
+                  : t("Nueva Cuenta Contable")}
               </h2>
-              <button aria-label="Cerrar" title="Cerrar"
+              <button aria-label={t("Cerrar")} title={t("Cerrar")}
                 onClick={() => setModal(false)}
                 className="p-1.5 text-slate-400 hover:text-white rounded-lg"
               >
@@ -519,11 +526,12 @@ export default function CuentasContablesPage() {
               </button>
             </div>
             <form id="cuenta-contable-form" noValidate onSubmit={guardar} className="p-6 space-y-4">
-                <FormValidationGuard formId="cuenta-contable-form" labels={{"numeroCuenta": "Número de cuenta","nombre": "Nombre de la cuenta"}} />
+                <FormValidationGuard formId="cuenta-contable-form" labels={{"numeroCuenta": t("Número de cuenta"),"nombre": t("Nombre de la cuenta")}} />
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
-                    Número *
+                    
+                    {t("Número *")}
                   </label>
                   <input
                     required
@@ -537,7 +545,8 @@ export default function CuentasContablesPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
-                    Cód. SAT
+                    
+                    {t("Cód. SAT")}
                   </label>
                   <input
                     value={form.codigoAgrupadorSAT}
@@ -554,7 +563,8 @@ export default function CuentasContablesPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
-                  Nombre *
+                  
+                  {t("Nombre *")}
                 </label>
                 <input
                   required
@@ -562,13 +572,14 @@ export default function CuentasContablesPage() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, nombre: e.target.value }))
                   }
-                  placeholder="Ej. Caja General"
+                  placeholder={t("Ej. Caja General")}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
-                  Uso automático en el ERP
+                  
+                  {t("Uso automático en el ERP")}
                 </label>
                 <select
                   value={form.rolSistema}
@@ -577,22 +588,23 @@ export default function CuentasContablesPage() {
                   }
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                 >
-                  <option value="">Sin función global</option>
+                  <option value="">{t("Sin función global")}</option>
                   {ROLES_SISTEMA.map(([rol, etiqueta]) => (
                     <option key={rol} value={rol}>
-                      {etiqueta}
+                      {t(etiqueta)}
                     </option>
                   ))}
                 </select>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Cada función sólo puede asignarse a una cuenta activa de la
-                  empresa.
+                  
+                  {t("Cada función sólo puede asignarse a una cuenta activa de la empresa.")}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
-                    Tipo *
+                    
+                    {t("Tipo *")}
                   </label>
                   <select
                     value={form.tipo}
@@ -618,7 +630,8 @@ export default function CuentasContablesPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
-                    Naturaleza *
+                    
+                    {t("Naturaleza *")}
                   </label>
                   <select
                     value={form.naturaleza}
@@ -627,9 +640,10 @@ export default function CuentasContablesPage() {
                     }
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                   >
-                    <option value="DEUDORA">Deudora — se carga (débito)</option>
+                    <option value="DEUDORA">{t("Deudora — se carga (débito)")}</option>
                     <option value="ACREEDORA">
-                      Acreedora — se abona (crédito)
+                      
+                      {t("Acreedora — se abona (crédito)")}
                     </option>
                   </select>
                 </div>
@@ -645,11 +659,12 @@ export default function CuentasContablesPage() {
                 />
                 <div>
                   <p className="text-sm font-bold text-indigo-900">
-                    Cuenta de detalle (afectable)
+                    
+                    {t("Cuenta de detalle (afectable)")}
                   </p>
                   <p className="text-xs text-indigo-700 mt-0.5">
-                    Recibe movimientos directos. Desmarca si es una cuenta de
-                    mayor (agrupadora).
+                    
+                    {t("Recibe movimientos directos. Desmarca si es una cuenta de mayor (agrupadora).")}
                   </p>
                 </div>
               </label>
@@ -659,7 +674,8 @@ export default function CuentasContablesPage() {
                   onClick={() => setModal(false)}
                   className="flex-1 py-2.5 text-slate-700 font-medium hover:bg-slate-100 rounded-xl transition-colors"
                 >
-                  Cancelar
+                  
+                  {t("Cancelar")}
                 </button>
                 <button
                   type="submit"
@@ -672,10 +688,10 @@ export default function CuentasContablesPage() {
                     <Plus className="w-4 h-4" />
                   )}
                   {guardando
-                    ? "Guardando..."
+                    ? t("Guardando...")
                     : editando
-                      ? "Guardar cambios"
-                      : "Crear Cuenta"}
+                      ? t("Guardar cambios")
+                      : t("Crear Cuenta")}
                 </button>
               </div>
             </form>

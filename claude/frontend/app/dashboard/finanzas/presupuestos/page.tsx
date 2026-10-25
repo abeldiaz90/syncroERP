@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, Plus, Target } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 /*
  * ============================================================================
  * Presupuestos · y el comparativo contra el real
@@ -55,6 +56,7 @@ const MESES = [
 ];
 
 export default function PresupuestosPage() {
+  const t = useT();
   const [lista, setLista] = useState<IPresupuesto[]>([]);
   const [elegido, setElegido] = useState<string>('');
   const [comparativo, setComparativo] = useState<IComparativo | null>(null);
@@ -75,8 +77,8 @@ export default function PresupuestosPage() {
       setLista([]);
       setError(
         e instanceof ApiError && e.status === 403
-          ? 'Tu perfil no incluye los presupuestos.'
-          : 'No se pudo consultar la lista de presupuestos.',
+          ? t("Tu perfil no incluye los presupuestos.")
+          : t("No se pudo consultar la lista de presupuestos."),
       );
     } finally {
       setCargando(false);
@@ -96,7 +98,7 @@ export default function PresupuestosPage() {
       } catch (e) {
         /* Se vacía: una tabla vieja bajo un período nuevo se lee como la verdad. */
         setComparativo(null);
-        setError(e instanceof ApiError ? e.message : 'No se pudo consultar el comparativo.');
+        setError(e instanceof ApiError ? e.message : t("No se pudo consultar el comparativo."));
       }
     },
     [mesDesde, mesHasta],
@@ -118,7 +120,7 @@ export default function PresupuestosPage() {
       await consultarLista();
       setElegido(nuevo.id);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'No se pudo crear el presupuesto.');
+      setError(e instanceof ApiError ? e.message : t("No se pudo crear el presupuesto."));
     }
   };
 
@@ -127,7 +129,7 @@ export default function PresupuestosPage() {
       await api.post(`/finanzas/presupuestos/${id}/aprobar`);
       await consultarLista();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'No se pudo aprobar.');
+      setError(e instanceof ApiError ? e.message : t("No se pudo aprobar."));
     }
   };
 
@@ -138,10 +140,10 @@ export default function PresupuestosPage() {
       <header className="flex items-center gap-3">
         <Target className="h-6 w-6 text-slate-500" />
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Presupuestos</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{t("Presupuestos")}</h1>
           <p className="text-sm text-slate-500">
-            La segunda cifra. Un reporte por centro dice cuánto se gastó; esto dice
-            si estaba previsto.
+            
+            {t("La segunda cifra. Un reporte por centro dice cuánto se gastó; esto dice si estaba previsto.")}
           </p>
         </div>
       </header>
@@ -149,13 +151,14 @@ export default function PresupuestosPage() {
       {error && (
         <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
+          <span>{t(error)}</span>
         </div>
       )}
 
       <div className="flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-white p-4">
         <label className="text-sm text-slate-600">
-          Ejercicio
+          
+          {t("Ejercicio")}
           <input
             type="number"
             value={form.ejercicio}
@@ -166,7 +169,7 @@ export default function PresupuestosPage() {
         <input
           value={form.nombre}
           onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-          placeholder="Nombre — «Original 2027», «Revisión de junio»"
+          placeholder={t("Nombre — «Original 2027», «Revisión de junio»")}
           className="min-w-64 flex-1 rounded-md border border-slate-200 px-2 py-1.5 text-sm"
         />
         <button
@@ -174,7 +177,7 @@ export default function PresupuestosPage() {
           disabled={!form.nombre.trim()}
           className="flex items-center gap-1 rounded-md bg-slate-800 px-3 py-1.5 text-sm text-white disabled:opacity-40"
         >
-          <Plus className="h-4 w-4" /> Nuevo presupuesto
+          <Plus className="h-4 w-4" />  {t("Nuevo presupuesto")}
         </button>
       </div>
 
@@ -184,14 +187,14 @@ export default function PresupuestosPage() {
           onChange={(e) => setElegido(e.target.value)}
           className="rounded-md border border-slate-200 px-2 py-1.5 text-sm"
         >
-          <option value="">Elige un presupuesto</option>
+          <option value="">{t("Elige un presupuesto")}</option>
           {lista.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.ejercicio} · {p.nombre} ({p.estado})
+              {p.ejercicio} · {t(p.nombre)} ({p.estado})
             </option>
           ))}
         </select>
-        <span className="text-sm text-slate-500">de</span>
+        <span className="text-sm text-slate-500">{t("de")}</span>
         <select
           value={mesDesde}
           onChange={(e) => {
@@ -223,19 +226,17 @@ export default function PresupuestosPage() {
         {actual?.estado === 'BORRADOR' && (
           <button
             onClick={() => aprobar(actual.id)}
-            title="Aprobar lo congela: a partir de ahí no se edita, porque un presupuesto que se ajusta al real no tiene desviaciones nunca. Si las cifras cambian, se crea una revisión."
+            title={t("Aprobar lo congela: a partir de ahí no se edita, porque un presupuesto que se ajusta al real no tiene desviaciones nunca. Si las cifras cambian, se crea una revisión.")}
             className="ml-auto flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-800"
           >
-            <CheckCircle2 className="h-4 w-4" /> Aprobar — después ya no se edita
+            <CheckCircle2 className="h-4 w-4" />  {t("Aprobar — después ya no se edita")}
           </button>
         )}
       </div>
 
       {comparativo && comparativo.sinPresupuesto > 0 && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          {plural(comparativo.sinPresupuesto, "cuenta")} con gasto ejercido y sin presupuesto.
-          Eso no es una desviación: es que el plan no las contempló.
-        </div>
+          {t("{n0} con gasto ejercido y sin presupuesto. Eso no es una desviación: es que el plan no las contempló.", { n0: plural(comparativo.sinPresupuesto, "cuenta") })}</div>
       )}
 
       {comparativo && (
@@ -243,12 +244,12 @@ export default function PresupuestosPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 text-left text-slate-500">
               <tr>
-                <th className="px-4 py-2 font-medium">Cuenta</th>
-                <th className="px-4 py-2 font-medium">Centro</th>
-                <th className="px-4 py-2 text-right font-medium">Presupuesto</th>
-                <th className="px-4 py-2 text-right font-medium">Real</th>
-                <th className="px-4 py-2 text-right font-medium">Diferencia</th>
-                <th className="px-4 py-2 text-right font-medium">Ejercido</th>
+                <th className="px-4 py-2 font-medium">{t("Cuenta")}</th>
+                <th className="px-4 py-2 font-medium">{t("Centro")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("Presupuesto")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("Real")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("Diferencia")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("Ejercido")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -278,7 +279,8 @@ export default function PresupuestosPage() {
               {comparativo.renglones.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
-                    Sin movimientos ni presupuesto en el período elegido.
+                    
+                    {t("Sin movimientos ni presupuesto en el período elegido.")}
                   </td>
                 </tr>
               )}
@@ -289,8 +291,8 @@ export default function PresupuestosPage() {
 
       {!cargando && lista.length === 0 && !error && (
         <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
-          Todavía no hay presupuestos. Crea uno arriba, captura sus líneas por cuenta,
-          centro y mes, y apruébalo cuando esté listo.
+          
+          {t("Todavía no hay presupuestos. Crea uno arriba, captura sus líneas por cuenta, centro y mes, y apruébalo cuando esté listo.")}
         </div>
       )}
     </div>

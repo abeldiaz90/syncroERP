@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 
+import { useT } from '@/components/I18nProvider';
 interface IHabitacion {
   id: string;
   numero: string;
@@ -90,6 +91,7 @@ const EST: Record<
 };
 
 export default function RackPage() {
+  const t = useT();
   const api =
     process.env.NEXT_PUBLIC_API_URL ||
     (process.env.NODE_ENV === "production"
@@ -154,9 +156,9 @@ export default function RackPage() {
       headers: h(),
     });
     if (r.ok) {
-      mostrarToast("Propiedad de demostración creada");
+      mostrarToast(t("Propiedad de demostración creada"));
       await cargarHoteles();
-    } else mostrarToast("No se pudo crear la demostración", false);
+    } else mostrarToast(t("No se pudo crear la demostración"), false);
     setPrecargando(false);
   };
 
@@ -174,7 +176,7 @@ export default function RackPage() {
       cargarRack();
     } else {
       const d = await r.json().catch(() => null);
-      mostrarToast(d?.message || "No se pudo cambiar el estado", false);
+      mostrarToast(d?.message || t("No se pudo cambiar el estado"), false);
     }
   };
 
@@ -208,11 +210,12 @@ export default function RackPage() {
             <Hotel className="w-8 h-8 text-white" />
           </div>
           <h2 className="text-2xl font-semibold text-slate-900 tracking-tight mb-2">
-            Aún no hay propiedades
+            
+            {t("Aún no hay propiedades")}
           </h2>
           <p className="text-slate-500 mb-8 leading-relaxed">
-            Crea una propiedad de demostración con habitaciones listas, o da de
-            alta tu cadena desde Configuración.
+            
+            {t("Crea una propiedad de demostración con habitaciones listas, o da de alta tu cadena desde Configuración.")}
           </p>
           <button
             onClick={precargarDemo}
@@ -224,7 +227,7 @@ export default function RackPage() {
             ) : (
               <Sparkles className="w-4 h-4" />
             )}
-            {precargando ? "Creando…" : "Crear propiedad de demostración"}
+            {precargando ? t("Creando…") : t("Crear propiedad de demostración")}
           </button>
         </div>
       </div>
@@ -248,10 +251,11 @@ export default function RackPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-[0.15em] mb-1">
-            Panel de operación
+            
+            {t("Panel de operación")}
           </p>
           <h1 className="text-3xl font-semibold text-slate-900 tracking-tight">
-            {hotelActual?.nombre ?? "Rack de habitaciones"}
+            {hotelActual?.nombre ?? t("Rack de habitaciones")}
           </h1>
           {hotelActual?.ciudad && (
             <p className="text-slate-500 mt-0.5">{hotelActual.ciudad}</p>
@@ -266,7 +270,7 @@ export default function RackPage() {
             >
               {hoteles.map((ho) => (
                 <option key={ho.id} value={ho.id}>
-                  {ho.nombre}
+                  {t(ho.nombre)}
                 </option>
               ))}
             </select>
@@ -274,7 +278,7 @@ export default function RackPage() {
           <button
             onClick={cargarRack}
             className="p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
-            title="Actualizar"
+            title={t("Actualizar")}
           >
             <RefreshCw className="w-4 h-4 text-slate-500" />
           </button>
@@ -286,7 +290,8 @@ export default function RackPage() {
           <div className="flex flex-col md:flex-row md:items-center gap-6">
             <div className="md:border-r md:border-white/10 md:pr-8">
               <p className="text-xs font-medium text-white/50 uppercase tracking-wider mb-1">
-                Ocupación
+                
+                {t("Ocupación")}
               </p>
               <div className="flex items-end gap-2">
                 <span className="text-5xl font-semibold tracking-tight tabular-nums">
@@ -298,22 +303,22 @@ export default function RackPage() {
             <div className="grid grid-cols-4 gap-6 flex-1">
               {[
                 {
-                  label: "Disponibles",
+                  label: t("Disponibles"),
                   val: resumen.disponibles,
                   dot: "bg-emerald-400",
                 },
                 {
-                  label: "Ocupadas",
+                  label: t("Ocupadas"),
                   val: resumen.ocupadas,
                   dot: "bg-rose-400",
                 },
                 {
-                  label: "Limpieza",
+                  label: t("Limpieza"),
                   val: resumen.limpieza,
                   dot: "bg-amber-400",
                 },
                 {
-                  label: "Manten.",
+                  label: t("Manten."),
                   val: resumen.mantenimiento,
                   dot: "bg-slate-400",
                 },
@@ -321,7 +326,7 @@ export default function RackPage() {
                 <div key={c.label}>
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
-                    <span className="text-xs text-white/50">{c.label}</span>
+                    <span className="text-xs text-white/50">{t(c.label)}</span>
                   </div>
                   <p className="text-2xl font-semibold tabular-nums">{c.val}</p>
                 </div>
@@ -338,12 +343,10 @@ export default function RackPage() {
             <div key={piso}>
               <div className="flex items-center gap-3 mb-3">
                 <h3 className="text-sm font-semibold text-slate-900">
-                  Piso {piso}
-                </h3>
+                  {t("Piso {n0}", { n0: piso })}</h3>
                 <div className="h-px flex-1 bg-slate-100" />
                 <span className="text-xs text-slate-400">
-                  {porPiso[Number(piso)].length} habitaciones
-                </span>
+                  {t("{n0} habitaciones", { n0: porPiso[Number(piso)].length })}</span>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
                 {porPiso[Number(piso)].map((hab) => {
@@ -363,10 +366,10 @@ export default function RackPage() {
                         />
                       </div>
                       <p className="text-[11px] text-slate-400 mt-1 truncate">
-                        {hab.tipoHabitacion?.nombre}
+                        {t(hab.tipoHabitacion?.nombre)}
                       </p>
                       <p className={`text-[11px] font-medium ${c.text} mt-0.5`}>
-                        {c.label}
+                        {t(c.label)}
                       </p>
                     </button>
                   );
@@ -389,16 +392,17 @@ export default function RackPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-                    Habitación
+                    
+                    {t("Habitación")}
                   </p>
                   <h3 className="text-3xl font-semibold text-slate-900 tabular-nums tracking-tight">
                     {sel.numero}
                   </h3>
                   <p className="text-sm text-slate-500 mt-0.5">
-                    {sel.tipoHabitacion?.nombre} · Piso {sel.piso}
+                    {t(sel.tipoHabitacion?.nombre)} · Piso {sel.piso}
                   </p>
                 </div>
-                <button aria-label="Cerrar" title="Cerrar"
+                <button aria-label={t("Cerrar")} title={t("Cerrar")}
                   onClick={() => setSel(null)}
                   className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors"
                 >
@@ -407,32 +411,35 @@ export default function RackPage() {
               </div>
               {sel.tipoHabitacion && (
                 <div className="mt-4 flex items-center gap-2 text-sm">
-                  <span className="text-slate-400">Tarifa</span>
+                  <span className="text-slate-400">{t("Tarifa")}</span>
                   <span className="font-semibold text-slate-900 tabular-nums">
                     ${Number(sel.tipoHabitacion.tarifaBase).toLocaleString()}
                   </span>
-                  <span className="text-slate-400">/ noche</span>
+                  <span className="text-slate-400">{t("/ noche")}</span>
                 </div>
               )}
             </div>
             <div className="p-6">
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">
-                Cambiar estado
+                
+                {t("Cambiar estado")}
               </p>
               {sel.estado === "OCUPADA" ? (
                 <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
                   <p className="text-sm text-rose-700 font-medium">
-                    Habitación ocupada
+                    
+                    {t("Habitación ocupada")}
                   </p>
                   <p className="text-xs text-rose-600 mt-1">
-                    Para liberarla debes hacer el <b>check-out</b> desde
+                    Para liberarla debes hacer el <b>{t("check-out")}</b> desde
                     Reservaciones. Así se cierra el folio y se cobra la
                     estancia.
                   </p>
                 </div>
               ) : (TRANSICIONES[sel.estado] ?? []).length === 0 ? (
                 <p className="text-sm text-slate-400">
-                  No hay cambios de estado disponibles desde aquí.
+                  
+                  {t("No hay cambios de estado disponibles desde aquí.")}
                 </p>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
@@ -445,7 +452,7 @@ export default function RackPage() {
                         className="flex items-center gap-2 rounded-xl py-2.5 px-3 text-sm font-medium bg-slate-50 text-slate-600 hover:bg-slate-100 transition-all"
                       >
                         <span className={`w-2 h-2 rounded-full ${c.dot}`} />
-                        {c.label}
+                        {t(c.label)}
                       </button>
                     );
                   })}
@@ -454,7 +461,7 @@ export default function RackPage() {
               <p className="text-xs text-slate-400 mt-3">
                 Estado actual:{" "}
                 <span className="font-medium text-slate-600">
-                  {(EST[sel.estado] || EST.BLOQUEADA).label}
+                  {t((EST[sel.estado] || EST.BLOQUEADA).label)}
                 </span>
                 . Solo se muestran los cambios permitidos por el flujo
                 operativo.

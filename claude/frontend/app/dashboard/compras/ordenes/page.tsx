@@ -9,6 +9,7 @@ import {
   Eye, Printer, PackageSearch
 } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 // ==========================================
 // INTERFACES TYPESCRIPT
 // ==========================================
@@ -26,6 +27,7 @@ export interface IOrdenCompra {
 // COMPONENTE PRINCIPAL
 // ==========================================
 export default function OrdenesCompraPage() {
+  const t = useT();
   const [ordenes, setOrdenes] = useState<IOrdenCompra[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState('');
@@ -48,13 +50,13 @@ export default function OrdenesCompraPage() {
           /* Una lista vacía por un 403 no es «no hay órdenes de compra». */
           setOrdenes([]);
           setErrorCarga(res.status === 403
-            ? 'Tu perfil no incluye la consulta de órdenes de compra.'
-            : 'No se pudieron consultar las órdenes de compra.');
+            ? t("Tu perfil no incluye la consulta de órdenes de compra.")
+            : t("No se pudieron consultar las órdenes de compra."));
         }
       } catch (error) {
         console.error("Error al cargar las órdenes", error);
         setOrdenes([]);
-        setErrorCarga('No hay conexión con el servidor.');
+        setErrorCarga(t("No hay conexión con el servidor."));
       } finally {
         setCargando(false);
       }
@@ -96,11 +98,13 @@ export default function OrdenesCompraPage() {
               <ShoppingCart className="w-7 h-7 text-indigo-600" />
             </div>
             <span className="bg-gradient-to-r from-slate-900 to-slate-700 text-transparent bg-clip-text">
-              Órdenes de Compra
+              
+              {t("Órdenes de Compra")}
             </span>
           </h1>
           <p className="text-slate-500 mt-2 font-medium">
-            Historial de documentos oficiales enviados a proveedores.
+            
+            {t("Historial de documentos oficiales enviados a proveedores.")}
           </p>
         </div>
       </div>
@@ -111,7 +115,7 @@ export default function OrdenesCompraPage() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input
             type="text"
-            placeholder="Buscar por folio o proveedor..."
+            placeholder={t("Buscar por folio o proveedor...")}
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             className="w-full pl-12 pr-4 py-3 bg-transparent text-slate-700 focus:outline-none placeholder:text-slate-400 font-medium"
@@ -124,26 +128,26 @@ export default function OrdenesCompraPage() {
         {cargando ? (
           <div className="p-16 text-center flex flex-col items-center justify-center text-slate-400">
             <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
-            <p className="font-medium">Cargando directorio de órdenes...</p>
+            <p className="font-medium">{t("Cargando directorio de órdenes...")}</p>
           </div>
         ) : ordenesFiltradas.length === 0 ? (
           <div className="p-16 text-center text-slate-500 flex flex-col items-center">
             <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
               <PackageSearch className="w-10 h-10 text-slate-300" />
             </div>
-            <p className="text-lg font-bold text-slate-700">No se encontraron resultados</p>
-            <p className="text-sm mt-1">Intenta con otros términos de búsqueda o genera una nueva desde las cotizaciones.</p>
+            <p className="text-lg font-bold text-slate-700">{t("No se encontraron resultados")}</p>
+            <p className="text-sm mt-1">{t("Intenta con otros términos de búsqueda o genera una nueva desde las cotizaciones.")}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left whitespace-nowrap">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-widest font-bold">
                 <tr>
-                  <th className="px-6 py-4">Folio / Fecha</th>
-                  <th className="px-6 py-4">Proveedor</th>
-                  <th className="px-6 py-4 text-right">Importe Total</th>
-                  <th className="px-6 py-4 text-center">Estado</th>
-                  <th className="px-6 py-4 text-center">Acciones</th>
+                  <th className="px-6 py-4">{t("Folio / Fecha")}</th>
+                  <th className="px-6 py-4">{t("Proveedor")}</th>
+                  <th className="px-6 py-4 text-right">{t("Importe Total")}</th>
+                  <th className="px-6 py-4 text-center">{t("Estado")}</th>
+                  <th className="px-6 py-4 text-center">{t("Acciones")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -158,7 +162,7 @@ export default function OrdenesCompraPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 font-semibold text-slate-800">
-                      {oc.proveedor?.nombre || 'No especificado'}
+                      {oc.proveedor?.nombre || t("No especificado")}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="font-black text-slate-900">
@@ -175,7 +179,7 @@ export default function OrdenesCompraPage() {
                         <Link
                           href={`/dashboard/compras/ordenes/${oc.id}`}
                           className="flex items-center justify-center w-9 h-9 bg-white text-slate-600 border border-slate-200 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 rounded-lg transition-all shadow-sm"
-                          title="Ver Detalles y Gestionar"
+                          title={t("Ver Detalles y Gestionar")}
                         >
                           <Eye className="w-4 h-4" />
                         </Link>
@@ -183,7 +187,7 @@ export default function OrdenesCompraPage() {
                           href={`/dashboard/compras/ordenes/${oc.id}/pdf`}
                           target="_blank"
                           className="flex items-center justify-center w-9 h-9 bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 rounded-lg transition-all shadow-sm"
-                          title="Imprimir Documento PDF"
+                          title={t("Imprimir Documento PDF")}
                         >
                           <Printer className="w-4 h-4" />
                         </Link>

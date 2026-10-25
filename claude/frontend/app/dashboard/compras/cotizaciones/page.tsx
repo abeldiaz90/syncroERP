@@ -14,6 +14,7 @@ import { PuedeCrear, ProtectedElement } from "@/app/components/ProtectedElement"
 /** Dos decimales: lo que se cotiza es lo que se paga. */
 const redondear2 = (v: number) => Math.round(v * 100) / 100;
 
+import { useT } from '@/components/I18nProvider';
 export interface IProveedor {
   id: string;
   nombre: string;
@@ -38,6 +39,7 @@ export interface ICotizacionFormData {
 }
 
 export default function CotizacionesPage() {
+  const t = useT();
   const [requisiciones, setRequisiciones] = useState<IRequisicion[]>([]);
   /*
    * Cuantas requisiciones hay detenidas ANTES de llegar a cotizacion.
@@ -152,13 +154,13 @@ export default function CotizacionesPage() {
         /* Sin requisiciones no hay nada que cotizar; hay que saber por qué. */
         setRequisiciones([]);
         setErrorCarga(res.status === 403
-          ? 'Tu perfil no incluye la consulta de requisiciones.'
-          : 'No se pudieron consultar las requisiciones por cotizar.');
+          ? t("Tu perfil no incluye la consulta de requisiciones.")
+          : t("No se pudieron consultar las requisiciones por cotizar."));
       }
     } catch {
       setRequisiciones([]);
-      setErrorCarga('No hay conexión con el servidor.');
-      mostrarToast('Error al cargar requisiciones', 'error');
+      setErrorCarga(t("No hay conexión con el servidor."));
+      mostrarToast(t("Error al cargar requisiciones"), 'error');
     }
   };
 
@@ -171,12 +173,12 @@ export default function CotizacionesPage() {
         /* Sin proveedores no se puede cotizar, y el desplegable salía vacío. */
         setProveedores([]);
         setErrorProveedores(res.status === 403
-          ? 'Tu perfil no incluye el padrón de proveedores: no podrás capturar una cotización.'
-          : 'No se pudo consultar el padrón de proveedores.');
+          ? t("Tu perfil no incluye el padrón de proveedores: no podrás capturar una cotización.")
+          : t("No se pudo consultar el padrón de proveedores."));
       }
     } catch {
       setProveedores([]);
-      setErrorProveedores('No hay conexión con el servidor.');
+      setErrorProveedores(t("No hay conexión con el servidor."));
     }
   };
 
@@ -235,7 +237,7 @@ export default function CotizacionesPage() {
 
   const handleGuardarCotizacion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.proveedorId) { mostrarToast('Debes seleccionar un proveedor', 'error'); return; }
+    if (!formData.proveedorId) { mostrarToast(t("Debes seleccionar un proveedor"), 'error'); return; }
     setGuardando(true);
     const token = localStorage.getItem('syncro_token');
     try {
@@ -263,14 +265,14 @@ export default function CotizacionesPage() {
         }),
       });
       if (res.ok) {
-        mostrarToast('Cotización registrada exitosamente', 'exito');
+        mostrarToast(t("Cotización registrada exitosamente"), 'exito');
         setIsModalOpen(false);
         fetchRequisicionesCotizables();
       } else {
         const data = await res.json().catch(() => null);
-        mostrarToast(`Error: ${data?.message || 'Error al guardar'}`, 'error');
+        mostrarToast(`Error: ${data?.message || t("Error al guardar")}`, 'error');
       }
-    } catch { mostrarToast('Error de conexión con el servidor', 'error'); }
+    } catch { mostrarToast(t("Error de conexión con el servidor"), 'error'); }
     finally { setGuardando(false); }
   };
 
@@ -306,7 +308,7 @@ export default function CotizacionesPage() {
         <div className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-6 py-4 rounded-xl shadow-2xl font-medium text-white transition-all duration-300 ${toast.tipo === 'exito' ? 'bg-emerald-600' : toast.tipo === 'error' ? 'bg-rose-600' : 'bg-blue-600'}`}>
           {toast.tipo === 'exito' && <CheckCircle2 className="w-5 h-5" />}
           {toast.tipo === 'error' && <AlertCircle className="w-5 h-5" />}
-          {toast.mensaje}
+          {t(toast.mensaje)}
         </div>
       )}
 
@@ -314,29 +316,30 @@ export default function CotizacionesPage() {
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight flex items-center gap-3">
             <div className="p-2.5 bg-indigo-100 rounded-xl"><Receipt className="w-7 h-7 text-indigo-600" /></div>
-            <span className="bg-gradient-to-r from-slate-900 to-slate-700 text-transparent bg-clip-text">Gestión de Cotizaciones</span>
+            <span className="bg-gradient-to-r from-slate-900 to-slate-700 text-transparent bg-clip-text">{t("Gestión de Cotizaciones")}</span>
           </h1>
-          <p className="text-slate-500 mt-2 font-medium">Asigna costos y proveedores a las requisiciones en proceso.</p>
+          <p className="text-slate-500 mt-2 font-medium">{t("Asigna costos y proveedores a las requisiciones en proceso.")}</p>
         </div>
       </div>
 
       <div className="flex items-center gap-2 mb-4">
         {([
-          { id: 'cola' as const, etiqueta: 'Por cotizar', cuantas: requisiciones.length },
-          { id: 'historial' as const, etiqueta: 'Historial', cuantas: historial.length },
-        ]).map((t) => (
+          { id: 'cola' as const, etiqueta: t("Por cotizar"), cuantas: requisiciones.length },
+          { id: 'historial' as const, etiqueta: t("Historial"), cuantas: historial.length },
+        ]).map((pestanaDe) => (
           <button
-            key={t.id}
-            onClick={() => setPestana(t.id)}
+            key={pestanaDe.id}
+            onClick={() => setPestana(pestanaDe.id)}
             className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${
-              pestana === t.id
+              pestana === pestanaDe.id
                 ? 'bg-indigo-600 text-white border-indigo-600'
                 : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
             }`}
           >
-            {t.etiqueta}
-            <span className={`ml-2 text-xs ${pestana === t.id ? 'text-indigo-100' : 'text-slate-400'}`}>
-              {t.cuantas}
+            {/* no-se-traduce: la etiqueta ya viene de t("…") */}
+            {pestanaDe.etiqueta}
+            <span className={`ml-2 text-xs ${pestana === pestanaDe.id ? 'text-indigo-100' : 'text-slate-400'}`}>
+              {pestanaDe.cuantas}
             </span>
           </button>
         ))}
@@ -345,7 +348,7 @@ export default function CotizacionesPage() {
       <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 mb-6 flex items-center focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
         <div className="relative w-full md:w-1/2 lg:w-1/3">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <input type="text" placeholder="Buscar por folio o solicitante..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-transparent text-slate-700 focus:outline-none placeholder:text-slate-400 font-medium" />
+          <input type="text" placeholder={t("Buscar por folio o solicitante...")} value={busqueda} onChange={(e) => setBusqueda(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-transparent text-slate-700 focus:outline-none placeholder:text-slate-400 font-medium" />
         </div>
       </div>
 
@@ -353,7 +356,7 @@ export default function CotizacionesPage() {
         {cargando ? (
           <div className="p-16 text-center flex flex-col items-center text-slate-400">
             <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
-            <p className="font-medium">Cargando requisiciones pendientes...</p>
+            <p className="font-medium">{t("Cargando requisiciones pendientes...")}</p>
           </div>
         ) : requisicionesFiltradas.length === 0 ? (
           <div className="p-16 text-center text-slate-500 flex flex-col items-center">
@@ -362,27 +365,27 @@ export default function CotizacionesPage() {
             </div>
             <p className="text-lg font-bold text-slate-700">
               {busqueda
-                ? 'Ninguna coincide con tu búsqueda'
+                ? t("Ninguna coincide con tu búsqueda")
                 : pestana === 'historial'
-                ? 'Todavía no hay nada cotizado'
+                ? t("Todavía no hay nada cotizado")
                 : esperandoAutorizacion > 0
-                  ? 'Nada por cotizar todavía'
+                  ? t("Nada por cotizar todavía")
                   : alcance === 'propias-y-firmadas'
-                    ? 'No tienes requisiciones por cotizar'
-                    : 'No hay requisiciones por cotizar'}
+                    ? t("No tienes requisiciones por cotizar")
+                    : t("No hay requisiciones por cotizar")}
             </p>
             <p className="text-sm mt-1">
               {busqueda
                 ? `Hay ${pestana === 'cola' ? requisiciones.length : historial.length} en esta pestaña; ninguna dice «${busqueda}».`
                 : pestana === 'historial'
-                ? 'Aquí aparecerán las requisiciones que ya pasaron por cotización, con las ofertas que se compararon.'
+                ? t("Aquí aparecerán las requisiciones que ya pasaron por cotización, con las ofertas que se compararon.")
                 : esperandoAutorizacion > 0
                   ? esperandoAutorizacion === 1
-                    ? '1 requisición espera autorización. Baja aquí en cuanto se firme.'
+                    ? t("1 requisición espera autorización. Baja aquí en cuanto se firme.")
                     : `${esperandoAutorizacion} requisiciones esperan autorización. Bajan aquí en cuanto se firmen.`
                   : alcance === 'propias-y-firmadas'
-                    ? 'Esta pantalla te muestra las tuyas y las que firmaste. El estado del área de compras lo ve Compras.'
-                    : 'Ninguna requisición está esperando cotización.'}
+                    ? t("Esta pantalla te muestra las tuyas y las que firmaste. El estado del área de compras lo ve Compras.")
+                    : t("Ninguna requisición está esperando cotización.")}
             </p>
             {/*
               * Lo que faltaba decir. La cola vacía era cierta y por eso nadie
@@ -395,7 +398,7 @@ export default function CotizacionesPage() {
                 className="mt-4 text-sm font-semibold text-indigo-600 hover:text-indigo-700 underline underline-offset-4"
               >
                 {historial.length === 1
-                  ? 'Hay 1 requisición ya cotizada. Ver su historial'
+                  ? t("Hay 1 requisición ya cotizada. Ver su historial")
                   : `Hay ${historial.length} requisiciones ya cotizadas. Ver el historial`}
               </button>
             )}
@@ -405,13 +408,13 @@ export default function CotizacionesPage() {
             <table className="w-full text-left whitespace-nowrap">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-widest font-bold">
                 <tr>
-                  <th className="px-6 py-4">Folio / Fecha</th>
-                  <th className="px-6 py-4 hidden sm:table-cell">Solicitante</th>
-                  <th className="px-6 py-4 text-center">Partidas</th>
+                  <th className="px-6 py-4">{t("Folio / Fecha")}</th>
+                  <th className="px-6 py-4 hidden sm:table-cell">{t("Solicitante")}</th>
+                  <th className="px-6 py-4 text-center">{t("Partidas")}</th>
                   {pestana === 'historial' && (
-                    <th className="px-6 py-4 text-center">Estado</th>
+                    <th className="px-6 py-4 text-center">{t("Estado")}</th>
                   )}
-                  <th className="px-6 py-4 text-center">Acciones</th>
+                  <th className="px-6 py-4 text-center">{t("Acciones")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -428,11 +431,11 @@ export default function CotizacionesPage() {
                         <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs uppercase">
                           {(req.usuarioSolicitante?.nombreCompleto || req.usuarioSolicitante?.nombre || 'N').charAt(0)}
                         </div>
-                        <span className="font-semibold text-slate-700">{req.usuarioSolicitante?.nombreCompleto || req.usuarioSolicitante?.nombre || 'No definido'}</span>
+                        <span className="font-semibold text-slate-700">{req.usuarioSolicitante?.nombreCompleto || req.usuarioSolicitante?.nombre || t("No definido")}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className="inline-flex items-center justify-center bg-white text-slate-600 font-bold px-3 py-1 rounded-lg border border-slate-200 shadow-sm">{req.detalles?.length || 0} items</span>
+                      <span className="inline-flex items-center justify-center bg-white text-slate-600 font-bold px-3 py-1 rounded-lg border border-slate-200 shadow-sm">{t("{n0} items", { n0: req.detalles?.length || 0 })}</span>
                     </td>
                     {pestana === 'historial' && (
                       <td className="px-6 py-4 text-center">
@@ -451,13 +454,13 @@ export default function CotizacionesPage() {
                         {pestana === 'cola' && (
                         <PuedeCrear ruta="/api/compras/cotizaciones">
                           <button onClick={() => abrirModalCotizacion(req)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-semibold transition-all shadow-sm active:scale-95">
-                            <Calculator className="w-4 h-4" /> Capturar
+                            <Calculator className="w-4 h-4" />  {t("Capturar")}
                           </button>
                         </PuedeCrear>
                         )}
                         {/* Ver siempre visible — es GET */}
                         <Link href={`/dashboard/compras/cotizaciones/requisicion/${req.id}`} className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-indigo-600 rounded-xl font-semibold transition-all shadow-sm active:scale-95">
-                          <Eye className="w-4 h-4" /> Ver
+                          <Eye className="w-4 h-4" />  {t("Ver")}
                         </Link>
                       </div>
                     </td>
@@ -477,48 +480,45 @@ export default function CotizacionesPage() {
               <div>
                 <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
                   <div className="p-2 bg-indigo-50 rounded-lg"><Receipt className="w-6 h-6 text-indigo-600" /></div>
-                  Nueva Cotización
+                  
+                  {t("Nueva Cotización")}
                 </h2>
                 <p className="text-sm text-slate-500 font-medium mt-1 ml-12">
                   Referencia: <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">{folioDe(selectedReq, FOLIO.REQUISICION)}</span>
                 </p>
               </div>
-              <button aria-label="Cerrar" title="Cerrar" onClick={() => setIsModalOpen(false)} className="p-2 bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-full transition-colors">
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setIsModalOpen(false)} className="p-2 bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-full transition-colors">
                 <X className="w-6 h-6" />
               </button>
             </div>
 
             <div className="px-8 py-6 overflow-y-auto flex-1 bg-slate-50/30">
               <form id="cotizacion-form" noValidate onSubmit={handleGuardarCotizacion} className="space-y-8">
-                <FormValidationGuard formId="cotizacion-form" labels={{"proveedorId": "Proveedor"}} />
+                <FormValidationGuard formId="cotizacion-form" labels={{"proveedorId": t("Proveedor")}} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <label className="block text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                      <Building2 className="w-5 h-5 text-indigo-500" /> Seleccionar Proveedor *
+                      <Building2 className="w-5 h-5 text-indigo-500" />  {t("Seleccionar Proveedor *")}
                     </label>
                     <select required name="proveedorId" value={formData.proveedorId} onChange={handleChange} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all font-medium text-slate-700">
-                      <option value="">Buscar en el catálogo...</option>
-                      {proveedoresHabilitados.map(prov => <option key={prov.id} value={prov.id}>{prov.nombre}</option>)}
+                      <option value="">{t("Buscar en el catálogo...")}</option>
+                      {proveedoresHabilitados.map(prov => <option key={prov.id} value={prov.id}>{t(prov.nombre)}</option>)}
                     </select>
                     {proveedoresHabilitados.length === 0 ? (
                       <p className="mt-2 text-xs font-semibold text-amber-700">
-                        Ningún proveedor está habilitado para cotizar. Concluye la
-                        homologación en Catálogos → Proveedores.
+                        
+                        {t("Ningún proveedor está habilitado para cotizar. Concluye la homologación en Catálogos → Proveedores.")}
                       </p>
                     ) : proveedoresBloqueados > 0 ? (
                       <p className="mt-2 text-xs text-slate-500">
-                        {proveedoresBloqueados} proveedor
-                        {proveedoresBloqueados === 1 ? '' : 'es'} no aparece
-                        {proveedoresBloqueados === 1 ? '' : 'n'} por estar inactivo,
-                        bloqueado o sin homologación vigente.
-                      </p>
+                        {t("{n0} proveedor {n1} no aparece {n2} por estar inactivo, bloqueado o sin homologación vigente.", { n0: proveedoresBloqueados, n1: proveedoresBloqueados === 1 ? '' : 'es', n2: proveedoresBloqueados === 1 ? '' : 'n' })}</p>
                     ) : null}
                   </div>
                   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <label className="block text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-indigo-500" /> Condiciones Comerciales
+                      <FileText className="w-5 h-5 text-indigo-500" />  {t("Condiciones Comerciales")}
                     </label>
-                    <input name="notas" value={formData.notas} onChange={handleChange} placeholder="Tiempos de entrega, métodos de pago..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all font-medium text-slate-700" />
+                    <input name="notas" value={formData.notas} onChange={handleChange} placeholder={t("Tiempos de entrega, métodos de pago...")} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all font-medium text-slate-700" />
                   </div>
                 </div>
 
@@ -527,16 +527,16 @@ export default function CotizacionesPage() {
                     <table className="w-full text-left">
                       <thead className="bg-slate-900 text-white">
                         <tr>
-                          <th className="px-6 py-4 text-sm font-semibold tracking-wide">Producto Solicitado</th>
-                          <th className="px-6 py-4 text-sm font-semibold text-center w-24 tracking-wide">Cant.</th>
-                          <th className="px-6 py-4 text-sm font-semibold text-right w-48 tracking-wide">Costo Unit.</th>
-                          <th className="px-6 py-4 text-sm font-semibold text-right w-48 tracking-wide">Importe</th>
+                          <th className="px-6 py-4 text-sm font-semibold tracking-wide">{t("Producto Solicitado")}</th>
+                          <th className="px-6 py-4 text-sm font-semibold text-center w-24 tracking-wide">{t("Cant.")}</th>
+                          <th className="px-6 py-4 text-sm font-semibold text-right w-48 tracking-wide">{t("Costo Unit.")}</th>
+                          <th className="px-6 py-4 text-sm font-semibold text-right w-48 tracking-wide">{t("Importe")}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {formData.detalles.map((det, idx) => (
                           <tr key={idx} className="hover:bg-indigo-50/30 transition-colors">
-                            <td className="px-6 py-4 font-semibold text-slate-800">{det.nombre}</td>
+                            <td className="px-6 py-4 font-semibold text-slate-800">{t(det.nombre)}</td>
                             <td className="px-6 py-4 text-center font-bold text-slate-500">{det.cantidad}</td>
                             <td className="px-6 py-4">
                               <div className="relative flex items-center focus-within:ring-2 focus-within:ring-indigo-500 bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
@@ -556,25 +556,26 @@ export default function CotizacionesPage() {
                   <div className="w-full md:w-96 bg-slate-900 rounded-2xl shadow-xl p-6 text-white">
                     <div className="space-y-4">
                       <div className="flex justify-between items-center text-slate-300 font-medium">
-                        <span>Subtotal</span><span className="font-mono text-lg">${formData.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                        <span>{t("Subtotal")}</span><span className="font-mono text-lg">${formData.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex justify-between items-center text-slate-300 font-medium">
                         <span className="flex items-center gap-2">
-                          I.V.A.
+                          
+                          {t("I.V.A.")}
                           <select
                             value={formData.tasaIva}
                             onChange={(e) => cambiarTasaIva(Number(e.target.value))}
                             className="border border-slate-200 rounded-md px-1.5 py-0.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            title="Tasa de la compra. Hay productos exentos y tasa de frontera."
+                            title={t("Tasa de la compra. Hay productos exentos y tasa de frontera.")}
                           >
                             <option value={0.16}>16%</option>
                             <option value={0.08}>8%</option>
-                            <option value={0}>Exento (0%)</option>
+                            <option value={0}>{t("Exento (0%)")}</option>
                           </select>
                         </span><span className="font-mono text-lg">${formData.impuestoTotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </div>
                       <div className="pt-4 border-t border-slate-700/50 flex justify-between items-end mt-2">
-                        <span className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Total a Pagar</span>
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">{t("Total a Pagar")}</span>
                         <span className="text-4xl font-black text-emerald-400 tracking-tight">${formData.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
                       </div>
                     </div>
@@ -584,12 +585,12 @@ export default function CotizacionesPage() {
             </div>
 
             <div className="px-8 py-5 border-t border-slate-100 bg-white/90 backdrop-blur-md flex justify-end gap-4 sticky bottom-0 z-20">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-xl transition-colors" disabled={guardando}>Cancelar</button>
+              <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-xl transition-colors" disabled={guardando}>{t("Cancelar")}</button>
               {/* ✅ Botón guardar solo aparece si tiene POST /api/compras/cotizaciones */}
               <PuedeCrear ruta="/api/compras/cotizaciones">
                 <button type="submit" form="cotizacion-form" disabled={guardando || formData.total === 0} className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg shadow-indigo-200 flex items-center gap-2">
                   {guardando ? <Loader2 className="w-5 h-5 animate-spin" /> : <DollarSign className="w-5 h-5" />}
-                  {guardando ? 'Guardando...' : 'Guardar Cotización'}
+                  {guardando ? t("Guardando...") : t("Guardar Cotización")}
                 </button>
               </PuedeCrear>
             </div>

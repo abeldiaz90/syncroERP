@@ -25,6 +25,7 @@ import {
   ErrorPantalla, Modal, Panel, Seleccion, SinDatos, useAvisos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 type EstadoPeriodo = 'ABIERTO' | 'CALCULANDO' | 'CALCULADO' | 'CON_ALERTAS' | 'EN_REVISION' | 'APROBADO' | 'CFDI_PREPARADO' | 'TIMBRADO' | 'DISPERSION_GENERADA' | 'EN_DISPERSION' | 'PAGADO' | 'CONTABILIZADO' | 'CERRADO' | 'CANCELADO' | 'REVERTIDO';
 
 interface Periodo {
@@ -88,6 +89,7 @@ const ETIQUETA_ESTADO: Record<EstadoPeriodo, string> = {
 };
 
 export default function PeriodosNominaPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const anioActual = new Date().getFullYear();
 
@@ -140,11 +142,12 @@ export default function PeriodosNominaPage() {
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
       <EncabezadoPantalla
-        titulo="Periodos de nómina"
-        descripcion="Cálculo, revisión y cierre de cada periodo de pago"
+        titulo={t("Periodos de nómina")}
+        descripcion={t("Cálculo, revisión y cierre de cada periodo de pago")}
         acciones={
           <Boton variante="primario" icono={<Plus className="w-3.5 h-3.5" />} onClick={() => setModalAbierto(true)}>
-            Nuevo periodo
+            
+            {t("Nuevo periodo")}
           </Boton>
         }
       />
@@ -156,7 +159,8 @@ export default function PeriodosNominaPage() {
             <TriangleAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
             <div className="min-w-0">
               <p className="text-[13px] font-semibold text-slate-900">
-                Revisa esto antes de dispersar el pago
+                
+                {t("Revisa esto antes de dispersar el pago")}
               </p>
               <ul className="mt-2 space-y-1">
                 {resultado.advertencias.map((a, i) => (
@@ -170,7 +174,8 @@ export default function PeriodosNominaPage() {
               onClick={() => setResultado(null)}
               className="btn btn-fantasma btn-sm ml-auto shrink-0"
             >
-              Entendido
+              
+              {t("Entendido")}
             </button>
           </div>
         </div>
@@ -179,28 +184,28 @@ export default function PeriodosNominaPage() {
       <Panel sinRelleno>
         <div className="panel-cabecera">
           <div className="flex items-center gap-2">
-            <span className="text-[12px] text-slate-500">Ejercicio</span>
+            <span className="text-[12px] text-slate-500">{t("Ejercicio")}</span>
             <Seleccion value={ejercicio} onChange={(e) => setEjercicio(Number(e.target.value))} className="w-28">
               {anios.map((a) => <option key={a} value={a}>{a}</option>)}
             </Seleccion>
           </div>
           <p className="text-[12px] text-slate-500 cifra">
-            {periodos.datos?.length ?? 0} periodos
-          </p>
+            {t("{n0} periodos", { n0: periodos.datos?.length ?? 0 })}</p>
         </div>
 
         {periodos.cargando ? (
           <Cargando />
         ) : periodos.error ? (
-          <ErrorPantalla mensaje={periodos.error} onReintentar={periodos.recargar} />
+          <ErrorPantalla mensaje={t(periodos.error)} onReintentar={periodos.recargar} />
         ) : (periodos.datos?.length ?? 0) === 0 ? (
           <SinDatos
             titulo={`Sin periodos en ${ejercicio}`}
-            descripcion="Crea el primer periodo del ejercicio para empezar a calcular nómina."
+            descripcion={t("Crea el primer periodo del ejercicio para empezar a calcular nómina.")}
             icono={<CalendarRange className="w-5 h-5" />}
             accion={
               <Boton variante="primario" onClick={() => setModalAbierto(true)}>
-                Crear el primero
+                
+                {t("Crear el primero")}
               </Boton>
             }
           />
@@ -209,14 +214,14 @@ export default function PeriodosNominaPage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Periodo</th>
-                  <th>Del — al</th>
-                  <th>Pago</th>
-                  <th className="text-right">Empleados</th>
-                  <th className="text-right">Percepciones</th>
-                  <th className="text-right">Deducciones</th>
-                  <th className="text-right">Neto a pagar</th>
-                  <th>Estado</th>
+                  <th>{t("Periodo")}</th>
+                  <th>{t("Del — al")}</th>
+                  <th>{t("Pago")}</th>
+                  <th className="text-right">{t("Empleados")}</th>
+                  <th className="text-right">{t("Percepciones")}</th>
+                  <th className="text-right">{t("Deducciones")}</th>
+                  <th className="text-right">{t("Neto a pagar")}</th>
+                  <th>{t("Estado")}</th>
                   <th />
                 </tr>
               </thead>
@@ -254,10 +259,10 @@ export default function PeriodosNominaPage() {
                           <button
                             onClick={() => setACalcular(p)}
                             className="btn btn-fantasma btn-sm"
-                            title={yaTieneRecibos(p) ? 'Recalcular' : 'Calcular nómina'}
+                            title={yaTieneRecibos(p) ? t("Recalcular") : t("Calcular nómina")}
                           >
                             <Calculator className="w-3.5 h-3.5" />
-                            {yaTieneRecibos(p) ? 'Recalcular' : 'Calcular'}
+                            {yaTieneRecibos(p) ? t("Recalcular") : t("Calcular")}
                           </button>
                         )}
                         {p.empleadosCalculados > 0 && (
@@ -265,12 +270,14 @@ export default function PeriodosNominaPage() {
                             href={`/dashboard/rrhh/recibos?periodoId=${p.id}`}
                             className="btn btn-fantasma btn-sm"
                           >
-                            Recibos
+                            
+                            {t("Recibos")}
                           </Link>
                         )}
                         {p.empleadosCalculados > 0 && !['CERRADO', 'CANCELADO'].includes(p.estado) && (
                           <Link href={`/dashboard/rrhh/centro-nomina?periodoId=${p.id}`} className="btn btn-fantasma btn-sm">
-                            Continuar flujo <ArrowRight className="h-3.5 w-3.5" />
+                            
+                            {t("Continuar flujo")} <ArrowRight className="h-3.5 w-3.5" />
                           </Link>
                         )}
                       </div>
@@ -294,13 +301,13 @@ export default function PeriodosNominaPage() {
 
       <Confirmacion
         abierto={!!aCalcular}
-        titulo={yaTieneRecibos(aCalcular) ? 'Recalcular la nómina' : 'Calcular la nómina'}
+        titulo={yaTieneRecibos(aCalcular) ? t("Recalcular la nómina") : t("Calcular la nómina")}
         mensaje={
           yaTieneRecibos(aCalcular)
-            ? `${(aCalcular?.empleadosCalculados ?? 0) === 1 ? 'El recibo' : `Los ${aCalcular?.empleadosCalculados ?? 0} recibos`} del periodo ${aCalcular?.numero} se ${(aCalcular?.empleadosCalculados ?? 0) === 1 ? 'reemplaza' : 'reemplazan'} por completo, incluido cualquier ajuste hecho a mano. Es seguro: se hace dentro de una transacción, así que no quedan recibos a medias.`
+            ? `${(aCalcular?.empleadosCalculados ?? 0) === 1 ? t("El recibo") : `Los ${aCalcular?.empleadosCalculados ?? 0} recibos`} del periodo ${aCalcular?.numero} se ${(aCalcular?.empleadosCalculados ?? 0) === 1 ? 'reemplaza' : 'reemplazan'} por completo, incluido cualquier ajuste hecho a mano. Es seguro: se hace dentro de una transacción, así que no quedan recibos a medias.`
             : `Se calcularán las percepciones, el ISR y el IMSS de todos los empleados activos del periodo ${aCalcular?.numero}.`
         }
-        textoConfirmar={yaTieneRecibos(aCalcular) ? 'Recalcular' : 'Calcular'}
+        textoConfirmar={yaTieneRecibos(aCalcular) ? t("Recalcular") : t("Calcular")}
         procesando={calcular.ejecutando}
         onConfirmar={() => void calcular.ejecutar(aCalcular!.id)}
         onCancelar={() => setACalcular(null)}
@@ -326,6 +333,7 @@ function ModalNuevoPeriodo({
   onCerrar: () => void;
   onGuardar: (datos: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const [form, setForm] = useState({
     numero: String(siguienteNumero),
     regimen: 'QUINCENAL',
@@ -352,13 +360,13 @@ function ModalNuevoPeriodo({
 
   const enviar = () => {
     const e: Record<string, string> = {};
-    if (!form.numero || Number(form.numero) < 1) e.numero = 'Indica el número de periodo.';
-    if (!form.fechaInicio) e.fechaInicio = 'Indica cuándo empieza.';
-    if (!form.fechaFin) e.fechaFin = 'Indica cuándo termina.';
+    if (!form.numero || Number(form.numero) < 1) e.numero = t("Indica el número de periodo.");
+    if (!form.fechaInicio) e.fechaInicio = t("Indica cuándo empieza.");
+    if (!form.fechaFin) e.fechaFin = t("Indica cuándo termina.");
     if (form.fechaInicio && form.fechaFin && form.fechaFin < form.fechaInicio) {
-      e.fechaFin = 'La fecha final no puede ser anterior a la inicial.';
+      e.fechaFin = t("La fecha final no puede ser anterior a la inicial.");
     }
-    if (!form.fechaPago) e.fechaPago = 'Indica la fecha de pago.';
+    if (!form.fechaPago) e.fechaPago = t("Indica la fecha de pago.");
 
     setErrores(e);
     if (Object.keys(e).length) return;
@@ -371,17 +379,17 @@ function ModalNuevoPeriodo({
       abierto={abierto}
       onCerrar={onCerrar}
       titulo={`Nuevo periodo de ${ejercicio}`}
-      descripcion="El periodo nace abierto; el cálculo es un paso aparte."
+      descripcion={t("El periodo nace abierto; el cálculo es un paso aparte.")}
       ancho={520}
       pie={
         <>
-          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
-          <Boton variante="primario" onClick={enviar} cargando={guardando}>Crear periodo</Boton>
+          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>{t("Cancelar")}</Boton>
+          <Boton variante="primario" onClick={enviar} cargando={guardando}>{t("Crear periodo")}</Boton>
         </>
       }
     >
       <div className="grid grid-cols-2 gap-3.5">
-        <Campo etiqueta="Número de periodo" requerido error={errores.numero}>
+        <Campo etiqueta={t("Número de periodo")} requerido error={errores.numero}>
           <Entrada
             type="number" min="1"
             value={form.numero}
@@ -390,16 +398,16 @@ function ModalNuevoPeriodo({
           />
         </Campo>
 
-        <Campo etiqueta="Periodicidad" requerido>
+        <Campo etiqueta={t("Periodicidad")} requerido>
           <Seleccion value={form.regimen} onChange={(e) => cambiar('regimen', e.target.value)}>
-            <option value="SEMANAL">Semanal · 7 días</option>
-            <option value="CATORCENAL">Catorcenal · 14 días</option>
-            <option value="QUINCENAL">Quincenal · 15 días</option>
-            <option value="MENSUAL">Mensual · 30 días</option>
+            <option value="SEMANAL">{t("Semanal · 7 días")}</option>
+            <option value="CATORCENAL">{t("Catorcenal · 14 días")}</option>
+            <option value="QUINCENAL">{t("Quincenal · 15 días")}</option>
+            <option value="MENSUAL">{t("Mensual · 30 días")}</option>
           </Seleccion>
         </Campo>
 
-        <Campo etiqueta="Inicio del periodo" requerido error={errores.fechaInicio}>
+        <Campo etiqueta={t("Inicio del periodo")} requerido error={errores.fechaInicio}>
           <Entrada
             type="date"
             value={form.fechaInicio}
@@ -408,7 +416,7 @@ function ModalNuevoPeriodo({
           />
         </Campo>
 
-        <Campo etiqueta="Fin del periodo" requerido error={errores.fechaFin}>
+        <Campo etiqueta={t("Fin del periodo")} requerido error={errores.fechaFin}>
           <Entrada
             type="date"
             value={form.fechaFin}
@@ -419,8 +427,8 @@ function ModalNuevoPeriodo({
 
         <div className="col-span-2">
           <Campo
-            etiqueta="Fecha de pago" requerido error={errores.fechaPago}
-            ayuda="Cuándo se deposita, que puede ser distinto al fin del periodo"
+            etiqueta={t("Fecha de pago")} requerido error={errores.fechaPago}
+            ayuda={t("Cuándo se deposita, que puede ser distinto al fin del periodo")}
           >
             <Entrada
               type="date"

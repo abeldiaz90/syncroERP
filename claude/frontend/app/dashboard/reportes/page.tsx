@@ -5,6 +5,7 @@ import {
   TrendingUp, FileText, Users, Receipt
 } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 const REPORTES = [
   {
     href:    '/dashboard/reportes/ventas',
@@ -65,14 +66,15 @@ const REPORTES = [
 ];
 
 export default function ReportesHubPage() {
+  const t = useT();
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto">
       <div className="mb-8">
-        <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Sistema</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Sistema")}</p>
         <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-          <FileText className="w-8 h-8 text-indigo-500"/> Centro de Reportes
+          <FileText className="w-8 h-8 text-indigo-500"/>  {t("Centro de Reportes")}
         </h1>
-        <p className="text-slate-500 text-sm mt-1">Todos los reportes gerenciales y operativos en un solo lugar.</p>
+        <p className="text-slate-500 text-sm mt-1">{t("Todos los reportes gerenciales y operativos en un solo lugar.")}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -92,9 +94,9 @@ export default function ReportesHubPage() {
                 </span>
               </div>
               <h3 className="font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">
-                {r.titulo}
+                {t(r.titulo)}
               </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">{r.desc}</p>
+              <p className="text-xs text-slate-400 leading-relaxed">{t(r.desc)}</p>
             </Link>
           );
         })}

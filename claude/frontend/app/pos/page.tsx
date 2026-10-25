@@ -22,6 +22,7 @@ import {
 import { api, intentar } from '@/lib/api';
 import TerminalPos from './terminal';
 
+import { useT } from '@/components/I18nProvider';
 const TECLAS = [
   { tecla: 'F2', que: 'Buscar' },
   { tecla: 'F4', que: 'Cobrar' },
@@ -30,6 +31,7 @@ const TECLAS = [
 ];
 
 export default function PosPage() {
+  const t = useT();
   const router = useRouter();
   const [sesion, setSesion] = useState<Sesion | null>(null);
   const [empresa, setEmpresa] = useState('');
@@ -111,8 +113,8 @@ export default function PosPage() {
             <Store className="w-4 h-4" />
           </div>
           <div className="min-w-0 leading-tight">
-            <p className="text-[13px] font-bold tracking-tight">Caja</p>
-            <p className="text-[11px] text-white/50 truncate">{empresa || 'SyncroERP'}</p>
+            <p className="text-[13px] font-bold tracking-tight">{t("Caja")}</p>
+            <p className="text-[11px] text-white/50 truncate">{empresa || t("SyncroERP")}</p>
           </div>
         </div>
 
@@ -125,7 +127,7 @@ export default function PosPage() {
               <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono font-bold text-white/70">
                 {k.tecla}
               </kbd>
-              {k.que}
+              {t(k.que)}
             </span>
           ))}
         </div>
@@ -147,14 +149,14 @@ export default function PosPage() {
             }`}
           >
             <p className="text-[12.5px] font-semibold truncate max-w-[180px]">
-              {atiende.nombre}
+              {t(atiende.nombre)}
             </p>
             <p
               className={`text-[10.5px] ${
                 atiende.suplantado ? 'text-amber-300/80' : 'text-white/45'
               }`}
             >
-              {atiende.suplantado ? 'Atiende · estás viendo como él' : 'Atiende'}
+              {atiende.suplantado ? t("Atiende · estás viendo como él") : t("Atiende")}
             </p>
           </div>
 
@@ -164,13 +166,14 @@ export default function PosPage() {
               className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-400 text-slate-900 hover:bg-amber-300 transition-colors"
               title={`Cobrarías a nombre de ${atiende.nombre}`}
             >
-              Volver a ser yo
+              
+              {t("Volver a ser yo")}
             </button>
           )}
 
           <button
             onClick={alternarPantallaCompleta}
-            title={completa ? 'Salir de pantalla completa' : 'Pantalla completa'}
+            title={completa ? t("Salir de pantalla completa") : t("Pantalla completa")}
             className="w-9 h-9 rounded-lg grid place-items-center hover:bg-white/10 transition-colors"
           >
             {completa ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -178,7 +181,7 @@ export default function PosPage() {
 
           <button
             onClick={cerrar}
-            title="Cerrar la caja"
+            title={t("Cerrar la caja")}
             className="w-9 h-9 rounded-lg grid place-items-center hover:bg-rose-500/80 transition-colors"
           >
             <X className="w-4 h-4" />

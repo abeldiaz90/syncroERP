@@ -6,6 +6,7 @@ import { api, ApiError, conPermiso } from "@/lib/api";
 import { fechaCorta } from "@/lib/fechas";
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 type Reserva = {
   id: string;
   codigo: string | null;
@@ -88,6 +89,7 @@ const dinero = (v: number, moneda = "MXN") =>
   }).format(Number(v || 0));
 
 export default function FoliosHotelPage() {
+  const t = useT();
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
   const [convenios, setConvenios] = useState<Convenio[]>([]);
@@ -126,7 +128,7 @@ export default function FoliosHotelPage() {
           problemas.push(
             e instanceof ApiError
               ? e.mensajeParaPantalla()
-              : "No se pudo cargar la operación hotelera.",
+              : t("No se pudo cargar la operación hotelera."),
           );
           return null;
         }),
@@ -135,8 +137,8 @@ export default function FoliosHotelPage() {
         .catch((e: unknown) => {
           problemas.push(
             e instanceof ApiError && e.esSinPermisos
-              ? "Tu perfil no puede elegir caja: podrás ver los folios, no cobrarlos."
-              : "No se pudo cargar la lista de cajas.",
+              ? t("Tu perfil no puede elegir caja: podrás ver los folios, no cobrarlos.")
+              : t("No se pudo cargar la lista de cajas."),
           );
           return null;
         }),
@@ -197,7 +199,7 @@ export default function FoliosHotelPage() {
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : "No se pudo abrir el folio.",
+          : t("No se pudo abrir el folio."),
       );
     }
   };
@@ -287,7 +289,7 @@ export default function FoliosHotelPage() {
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : "No se pudo cerrar el folio.",
+          : t("No se pudo cerrar el folio."),
       );
     } finally {
       setGuardando(false);
@@ -298,12 +300,14 @@ export default function FoliosHotelPage() {
     <main className="mx-auto max-w-7xl p-6 space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-teal-700">Recepción y caja</p>
+          <p className="text-sm font-medium text-teal-700">{t("Recepción y caja")}</p>
           <h1 className="text-3xl font-bold text-slate-900">
-            Folios y check-out
+            
+            {t("Folios y check-out")}
           </h1>
           <p className="text-slate-600">
-            Cobros mixtos, impuestos, tesorería y estado contable del hospedaje.
+            
+            {t("Cobros mixtos, impuestos, tesorería y estado contable del hospedaje.")}
           </p>
         </div>
         <button
@@ -311,12 +315,13 @@ export default function FoliosHotelPage() {
           className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-white"
         >
           <RefreshCw size={17} className={cargando ? "animate-spin" : ""} />
-          Actualizar
+          
+          {t("Actualizar")}
         </button>
       </header>
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
-          {error}
+          {t(error)}
         </div>
       )}
       {resumenCierre && (
@@ -341,15 +346,15 @@ export default function FoliosHotelPage() {
               </p>
               <p className="mt-1 text-sm font-medium">
                 {resumenCierre.estadoContable === "GENERADO"
-                  ? "Póliza contable generada."
-                  : "Póliza contable PENDIENTE." +
+                  ? t("Póliza contable generada.")
+                  : t("Póliza contable PENDIENTE.") +
                     (resumenCierre.advertencia ? ` ${resumenCierre.advertencia}` : "")}
               </p>
             </div>
             <button
               onClick={() => setResumenCierre(null)}
               className="rounded-lg p-1 hover:bg-white/60"
-              aria-label="Cerrar aviso" title="Cerrar aviso"
+              aria-label={t("Cerrar aviso")} title={t("Cerrar aviso")}
             >
               <X size={18} />
             </button>
@@ -366,7 +371,8 @@ export default function FoliosHotelPage() {
             <div className="flex items-center justify-between">
               <BedDouble className="text-teal-700" />
               <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">
-                CHECK-IN
+                
+                {t("CHECK-IN")}
               </span>
             </div>
             {/*
@@ -377,12 +383,12 @@ export default function FoliosHotelPage() {
             <h2 className="mt-4 text-lg font-bold">
               {r.habitacionNumero
                 ? `Habitación ${r.habitacionNumero}`
-                : r.codigo || "Reservación"}
+                : r.codigo || t("Reservación")}
             </h2>
             {r.habitacionNumero && r.codigo && (
               <p className="text-xs text-slate-400">{r.codigo}</p>
             )}
-            <p className="text-slate-600">{r.clienteNombre || "Huésped"}</p>
+            <p className="text-slate-600">{r.clienteNombre || t("Huésped")}</p>
             <p className="mt-3 text-sm text-slate-500">
               {fechaCorta(r.fechaEntrada)} → {fechaCorta(r.fechaSalida)}
             </p>
@@ -396,7 +402,8 @@ export default function FoliosHotelPage() {
       */}
       {!cargando && reservas.length === 0 && !error && (
         <div className="rounded-2xl border border-dashed p-10 text-center text-slate-500">
-          No hay huéspedes con check-in pendiente de salida.
+          
+          {t("No hay huéspedes con check-in pendiente de salida.")}
         </div>
       )}
       {seleccion && folio && (
@@ -411,10 +418,9 @@ export default function FoliosHotelPage() {
                     : ""}
                 </p>
                 <h2 className="text-2xl font-bold">
-                  Folio de {seleccion.clienteNombre}
-                </h2>
+                  {t("Folio de {n0}", { n0: seleccion.clienteNombre })}</h2>
               </div>
-              <button aria-label="Cerrar" title="Cerrar"
+              <button aria-label={t("Cerrar")} title={t("Cerrar")}
                 onClick={() => {
                   setSeleccion(null);
                   setFolio(null);
@@ -431,21 +437,21 @@ export default function FoliosHotelPage() {
                   * siempre antepone la cifra.
                   */}
                 {Number(folio.nochesPendientes || 0) === 1
-                  ? "El cierre incluirá una noche aún no posteada. El total mostrado ya la considera."
+                  ? t("El cierre incluirá una noche aún no posteada. El total mostrado ya la considera.")
                   : `El cierre incluirá ${Number(folio.nochesPendientes || 0)} noches aún no posteadas. El total mostrado ya las considera.`}
               </div>
             )}
             <div className="mt-5 grid gap-3 sm:grid-cols-5">
               {[
-                ["Subtotal", folio.subtotalCierreEstimado ?? folio.subtotal],
+                [t("Subtotal"), folio.subtotalCierreEstimado ?? folio.subtotal],
                 ["IVA", folio.ivaCierreEstimado ?? folio.iva],
                 [
-                  "Imp. hospedaje",
+                  t("Imp. hospedaje"),
                   folio.impuestoHospedajeCierreEstimado ??
                     folio.impuestoHospedaje,
                 ],
-                ["Total", folio.totalCierreEstimado ?? folio.total],
-                ["Cobrado", folio.totalCobrado],
+                [t("Total"), folio.totalCierreEstimado ?? folio.total],
+                [t("Cobrado"), folio.totalCobrado],
               ].map(([l, v]) => (
                 <div key={String(l)} className="rounded-xl bg-slate-50 p-3">
                   <p className="text-xs text-slate-500">{l}</p>
@@ -454,13 +460,14 @@ export default function FoliosHotelPage() {
               ))}
             </div>
             <div className="mt-5 flex items-center justify-between">
-              <h3 className="font-bold">Aplicaciones de pago</h3>
+              <h3 className="font-bold">{t("Aplicaciones de pago")}</h3>
               <button
                 onClick={agregar}
                 className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm"
               >
                 <Plus size={15} />
-                Agregar medio
+                
+                {t("Agregar medio")}
               </button>
             </div>
             <div className="mt-3 space-y-3">
@@ -495,7 +502,7 @@ export default function FoliosHotelPage() {
                       onChange={(e) => cambiar(i, "convenioId", e.target.value)}
                       className="rounded-lg border border-indigo-200 bg-indigo-50 p-2"
                     >
-                      <option value="">Convenio aprobado</option>
+                      <option value="">{t("Convenio aprobado")}</option>
                       {convenios
                         .filter(
                           (convenio) =>
@@ -514,14 +521,13 @@ export default function FoliosHotelPage() {
                     </select>
                     {conveniosVedados ? (
                       <span className="text-xs text-amber-700">
-                        El City Ledger no está en tu perfil, así que aquí no
-                        hay convenios que elegir. No quiere decir que el hotel
-                        no tenga: pídelo a quien administre los accesos.
+                        
+                        {t("El City Ledger no está en tu perfil, así que aquí no hay convenios que elegir. No quiere decir que el hotel no tenga: pídelo a quien administre los accesos.")}
                       </span>
                     ) : convenios.length === 0 ? (
                       <span className="text-xs text-slate-500">
-                        Este hotel no tiene convenios aprobados con crédito
-                        disponible.
+                        
+                        {t("Este hotel no tiene convenios aprobados con crédito disponible.")}
                       </span>
                     ) : null}
                     </div>
@@ -533,7 +539,7 @@ export default function FoliosHotelPage() {
                       }
                       className="rounded-lg border p-2"
                     >
-                      <option value="">Cuenta/caja</option>
+                      <option value="">{t("Cuenta/caja")}</option>
                       {cuentas
                         .filter((c) =>
                           p.metodoPago === "EFECTIVO"
@@ -544,7 +550,7 @@ export default function FoliosHotelPage() {
                         )
                         .map((c) => (
                           <option key={c.id} value={c.id}>
-                            {c.nombre} · {c.tipo}
+                            {t(c.nombre)} · {c.tipo}
                           </option>
                         ))}
                     </select>
@@ -552,14 +558,14 @@ export default function FoliosHotelPage() {
                   <input
                     value={p.referencia || ""}
                     onChange={(e) => cambiar(i, "referencia", e.target.value)}
-                    placeholder="Referencia"
+                    placeholder={t("Referencia")}
                     className="rounded-lg border p-2"
                   />
                   <button
                     disabled={pagos.length === 1}
                     onClick={() => quitar(i)}
                     className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30"
-                    title="Quitar medio"
+                    title={t("Quitar medio")}
                   >
                     <X size={17} />
                   </button>
@@ -592,8 +598,8 @@ export default function FoliosHotelPage() {
                   >
                     <CreditCard size={18} />
                     {guardando
-                      ? "Procesando..."
-                      : "Cerrar folio y registrar pagos"}
+                      ? t("Procesando...")
+                      : t("Cerrar folio y registrar pagos")}
                   </button>
                 </>
               );

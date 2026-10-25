@@ -33,6 +33,7 @@ import {
   Printer, Loader2, CheckCircle2, AlertTriangle, Save, Plug, Info,
 } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 type Modo = 'RED' | 'NAVEGADOR' | 'NINGUNA';
 
 interface IImpresora {
@@ -68,6 +69,7 @@ const VACIA = {
 };
 
 export default function ImpresorasPage() {
+  const t = useT();
   const [impresoras, setImpresoras] = useState<IImpresora[] | null>(null);
   const [cuentas, setCuentas] = useState<ICuentaCaja[]>([]);
   const [form, setForm] = useState({ ...VACIA });
@@ -90,7 +92,7 @@ export default function ImpresorasPage() {
       const lista = await api.get<IImpresora[]>('/ventas/impresoras');
       setImpresoras(Array.isArray(lista) ? lista : []);
     } catch {
-      setError('No se pudo leer la configuración de impresoras.');
+      setError(t("No se pudo leer la configuración de impresoras."));
       setImpresoras(null);
     } finally {
       setCargando(false);
@@ -134,7 +136,7 @@ export default function ImpresorasPage() {
     } catch (e) {
       setAviso({
         bien: false,
-        texto: e instanceof Error ? e.message : 'No se pudo guardar.',
+        texto: e instanceof Error ? e.message : t("No se pudo guardar."),
       });
     } finally {
       setGuardando(false);
@@ -151,13 +153,13 @@ export default function ImpresorasPage() {
       );
       setAviso(
         r.impreso
-          ? { bien: true, texto: 'Salió la página de prueba. Comprueba que los acentos se lean bien.' }
-          : { bien: false, texto: r.motivo ?? 'No salió.' },
+          ? { bien: true, texto: t("Salió la página de prueba. Comprueba que los acentos se lean bien.") }
+          : { bien: false, texto: r.motivo ?? t("No salió.") },
       );
     } catch (e) {
       setAviso({
         bien: false,
-        texto: e instanceof Error ? e.message : 'No se pudo probar.',
+        texto: e instanceof Error ? e.message : t("No se pudo probar."),
       });
     } finally {
       setProbando(false);
@@ -179,34 +181,34 @@ export default function ImpresorasPage() {
     });
 
   const nombreDeCaja = (id: string | null) =>
-    id ? (cuentas.find((c) => c.id === id)?.nombre ?? 'Caja') : 'Toda la empresa';
+    id ? (cuentas.find((c) => c.id === id)?.nombre ?? 'Caja') : t("Toda la empresa");
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <header className="mb-6">
         <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
-          <Printer className="w-6 h-6" /> Impresoras de ticket
+          <Printer className="w-6 h-6" />  {t("Impresoras de ticket")}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Dónde sale el ticket de cada caja al cobrar.
+          
+          {t("Dónde sale el ticket de cada caja al cobrar.")}
         </p>
       </header>
 
       <section className="mb-8">
-        <h2 className="font-bold text-slate-700 mb-3">Configuradas</h2>
+        <h2 className="font-bold text-slate-700 mb-3">{t("Configuradas")}</h2>
         {cargando && (
           <p className="text-sm text-slate-500 flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" /> Consultando…
+            <Loader2 className="w-4 h-4 animate-spin" />  {t("Consultando…")}
           </p>
         )}
         {!cargando && error && (
-          <p className="text-sm text-rose-600">{error}</p>
+          <p className="text-sm text-rose-600">{t(error)}</p>
         )}
         {!cargando && !error && impresoras?.length === 0 && (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            Todavía no hay ninguna declarada. Mientras no la haya, el ticket se
-            manda desde el navegador, igual que antes: nadie se queda sin
-            comprobante por esto.
+            
+            {t("Todavía no hay ninguna declarada. Mientras no la haya, el ticket se manda desde el navegador, igual que antes: nadie se queda sin comprobante por esto.")}
           </div>
         )}
         <div className="space-y-2">
@@ -221,10 +223,10 @@ export default function ImpresorasPage() {
                   <p className="font-bold text-slate-800">{nombreDeCaja(i.cuentaCajaId)}</p>
                   <p className="text-xs text-slate-500">
                     {i.modo === 'RED'
-                      ? `Por red · ${i.host}:${i.puerto} · ${i.ancho === 32 ? '58 mm' : '80 mm'}`
+                      ? `Por red · ${i.host}:${i.puerto} · ${i.ancho === 32 ? t("58 mm") : t("80 mm")}`
                       : i.modo === 'NAVEGADOR'
-                        ? 'Desde el navegador de la caja'
-                        : 'No imprime'}
+                        ? t("Desde el navegador de la caja")
+                        : t("No imprime")}
                   </p>
                 </div>
                 {i.modo === 'RED' && i.ultimoIntento && (
@@ -251,39 +253,39 @@ export default function ImpresorasPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6">
-        <h2 className="font-bold text-slate-700 mb-4">Declarar o cambiar</h2>
+        <h2 className="font-bold text-slate-700 mb-4">{t("Declarar o cambiar")}</h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className="text-xs font-bold text-slate-600">Caja</span>
+            <span className="text-xs font-bold text-slate-600">{t("Caja")}</span>
             <select
               value={form.cuentaCajaId}
               onChange={(e) => setForm({ ...form, cuentaCajaId: e.target.value })}
               className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm"
             >
-              <option value="">Toda la empresa (impresora por omisión)</option>
+              <option value="">{t("Toda la empresa (impresora por omisión)")}</option>
               {cuentas.map((c) => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
+                <option key={c.id} value={c.id}>{t(c.nombre)}</option>
               ))}
             </select>
             {!cuentasLegibles && (
               <span className="text-xs text-amber-600 mt-1 block">
-                No se pudo leer el catálogo de cajas con tu perfil, así que aquí
-                sólo aparece la opción de empresa. No significa que no haya cajas.
+                
+                {t("No se pudo leer el catálogo de cajas con tu perfil, así que aquí sólo aparece la opción de empresa. No significa que no haya cajas.")}
               </span>
             )}
           </label>
 
           <label className="block">
-            <span className="text-xs font-bold text-slate-600">Cómo imprime</span>
+            <span className="text-xs font-bold text-slate-600">{t("Cómo imprime")}</span>
             <select
               value={form.modo}
               onChange={(e) => setForm({ ...form, modo: e.target.value as Modo })}
               className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm"
             >
-              <option value="RED">Por red (la impresora tiene su propia IP)</option>
-              <option value="NAVEGADOR">Desde el navegador (impresora USB en la caja)</option>
-              <option value="NINGUNA">No imprimir</option>
+              <option value="RED">{t("Por red (la impresora tiene su propia IP)")}</option>
+              <option value="NAVEGADOR">{t("Desde el navegador (impresora USB en la caja)")}</option>
+              <option value="NINGUNA">{t("No imprimir")}</option>
             </select>
           </label>
 
@@ -291,7 +293,8 @@ export default function ImpresorasPage() {
             <>
               <label className="block">
                 <span className="text-xs font-bold text-slate-600">
-                  Dirección IP de la impresora
+                  
+                  {t("Dirección IP de la impresora")}
                 </span>
                 <input
                   value={form.host}
@@ -300,12 +303,12 @@ export default function ImpresorasPage() {
                   className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm"
                 />
                 <span className="text-xs text-slate-500 mt-1 block">
-                  Suele imprimirse en una hoja de autoprueba al encender la
-                  impresora con el botón de avance pulsado.
+                  
+                  {t("Suele imprimirse en una hoja de autoprueba al encender la impresora con el botón de avance pulsado.")}
                 </span>
               </label>
               <label className="block">
-                <span className="text-xs font-bold text-slate-600">Puerto</span>
+                <span className="text-xs font-bold text-slate-600">{t("Puerto")}</span>
                 <input
                   type="number"
                   value={form.puerto}
@@ -313,29 +316,30 @@ export default function ImpresorasPage() {
                   className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm"
                 />
                 <span className="text-xs text-slate-500 mt-1 block">
-                  9100 salvo que alguien lo haya cambiado.
+                  
+                  {t("9100 salvo que alguien lo haya cambiado.")}
                 </span>
               </label>
               <label className="block">
-                <span className="text-xs font-bold text-slate-600">Ancho del papel</span>
+                <span className="text-xs font-bold text-slate-600">{t("Ancho del papel")}</span>
                 <select
                   value={form.ancho}
                   onChange={(e) => setForm({ ...form, ancho: Number(e.target.value) })}
                   className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm"
                 >
-                  <option value={48}>80 mm (lo habitual)</option>
-                  <option value={32}>58 mm (estrecho)</option>
+                  <option value={48}>{t("80 mm (lo habitual)")}</option>
+                  <option value={32}>{t("58 mm (estrecho)")}</option>
                 </select>
               </label>
               <label className="block">
-                <span className="text-xs font-bold text-slate-600">Copias</span>
+                <span className="text-xs font-bold text-slate-600">{t("Copias")}</span>
                 <select
                   value={form.copias}
                   onChange={(e) => setForm({ ...form, copias: Number(e.target.value) })}
                   className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm"
                 >
-                  <option value={1}>Una</option>
-                  <option value={2}>Dos (cliente y negocio)</option>
+                  <option value={1}>{t("Una")}</option>
+                  <option value={2}>{t("Dos (cliente y negocio)")}</option>
                 </select>
               </label>
               <label className="flex items-start gap-2 sm:col-span-2">
@@ -348,19 +352,20 @@ export default function ImpresorasPage() {
                 <span className="text-sm text-slate-700">
                   Abrir el cajón de dinero al cobrar en efectivo
                   <span className="block text-xs text-slate-500">
-                    Sólo con efectivo. Un cajón que se abre con cada tarjeta
-                    acaba quedándose abierto.
+                    
+                    {t("Sólo con efectivo. Un cajón que se abre con cada tarjeta acaba quedándose abierto.")}
                   </span>
                 </span>
               </label>
               <label className="block sm:col-span-2">
                 <span className="text-xs font-bold text-slate-600">
-                  Texto al pie del ticket
+                  
+                  {t("Texto al pie del ticket")}
                 </span>
                 <input
                   value={form.pie}
                   onChange={(e) => setForm({ ...form, pie: e.target.value })}
-                  placeholder="Gracias por su compra · Cambios dentro de 15 días con ticket"
+                  placeholder={t("Gracias por su compra · Cambios dentro de 15 días con ticket")}
                   className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm"
                 />
               </label>
@@ -371,15 +376,14 @@ export default function ImpresorasPage() {
         {form.modo === 'NAVEGADOR' && (
           <p className="mt-4 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-xl p-3 flex gap-2">
             <Info className="w-4 h-4 mt-0.5 shrink-0" />
-            El servidor no alcanza una impresora conectada por USB a la caja. El
-            punto de venta abrirá el ticket y lo mandará con el diálogo de
-            impresión del navegador, que es como funcionaba hasta ahora.
+            
+            {t("El servidor no alcanza una impresora conectada por USB a la caja. El punto de venta abrirá el ticket y lo mandará con el diálogo de impresión del navegador, que es como funcionaba hasta ahora.")}
           </p>
         )}
 
         {aviso && (
           <p className={`mt-4 text-sm font-medium ${aviso.bien ? 'text-emerald-600' : 'text-amber-700'}`}>
-            {aviso.texto}
+            {t(aviso.texto)}
           </p>
         )}
 
@@ -389,8 +393,8 @@ export default function ImpresorasPage() {
             disabled={guardando || (form.modo === 'RED' && !form.host.trim())}
             title={
               form.modo === 'RED' && !form.host.trim()
-                ? 'Una impresora de red necesita su dirección IP'
-                : 'Guardar la configuración de esta caja'
+                ? t("Una impresora de red necesita su dirección IP")
+                : t("Guardar la configuración de esta caja")
             }
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white font-bold disabled:opacity-50"
           >
@@ -401,7 +405,7 @@ export default function ImpresorasPage() {
             <button
               onClick={probar}
               disabled={probando || !form.host.trim()}
-              title="Manda una página de prueba a esta impresora"
+              title={t("Manda una página de prueba a esta impresora")}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-700 disabled:opacity-50"
             >
               {probando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
@@ -411,7 +415,7 @@ export default function ImpresorasPage() {
         </div>
         {form.modo === 'RED' && (
           <p className="text-xs text-slate-500 mt-2">
-            La prueba usa lo que está <strong>guardado</strong> para esta caja.
+            La prueba usa lo que está <strong>{t("guardado")}</strong> para esta caja.
             Si acabas de cambiar la dirección, guarda primero.
           </p>
         )}

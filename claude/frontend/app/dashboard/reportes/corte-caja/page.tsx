@@ -5,6 +5,7 @@ import { hoyISO } from '@/lib/fechas';
 import { Receipt, RefreshCw, DollarSign } from 'lucide-react';
 import { ExportBar } from '../../../components/export-bar';
 
+import { useT } from '@/components/I18nProvider';
 const fmt$ = (n: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
 /*
  * El día se resuelve AL ABRIR la pantalla, no al cargar el módulo: a nivel de
@@ -25,6 +26,7 @@ const COLUMNAS_CAJA = [
 ];
 
 export default function CorteCajaPage() {
+  const t = useT();
   const [ventas, setVentas]   = useState<any[]>([]);
   const [pagos, setPagos]     = useState<any[]>([]);
   const HOY = useMemo(() => hoyISO(), []);
@@ -77,10 +79,10 @@ export default function CorteCajaPage() {
       setVentas([]);
       setProblema(
         rv.status === 403
-          ? 'Tu perfil no incluye las ventas, así que este corte no se puede calcular. Pídeselo a quien lleva la caja.'
+          ? t("Tu perfil no incluye las ventas, así que este corte no se puede calcular. Pídeselo a quien lleva la caja.")
           : rv.status === 401
-            ? 'Tu sesión caducó. Vuelve a entrar para ver el corte.'
-            : 'No se pudieron leer las ventas del día. El corte no está completo; vuelve a intentarlo.',
+            ? t("Tu sesión caducó. Vuelve a entrar para ver el corte.")
+            : t("No se pudieron leer las ventas del día. El corte no está completo; vuelve a intentarlo."),
       );
     }
     if ((rp as any).ok) { setPagos(await (rp as Response).json()); setCobranzaVedada(false); }
@@ -107,9 +109,9 @@ export default function CorteCajaPage() {
     <div className="p-6 md:p-10 max-w-4xl mx-auto">
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Reportes</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Reportes")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <Receipt className="w-8 h-8 text-indigo-500"/> Corte de Caja
+            <Receipt className="w-8 h-8 text-indigo-500"/>  {t("Corte de Caja")}
           </h1>
         </div>
         <div className="flex gap-2">
@@ -119,7 +121,7 @@ export default function CorteCajaPage() {
             datos={ventas.filter(v => v.estado !== 'ANULADA')}
             columnas={COLUMNAS_CAJA}
           />
-          <button aria-label="Volver a cargar" title="Volver a cargar" onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 print:hidden">
+          <button aria-label={t("Volver a cargar")} title={t("Volver a cargar")} onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 print:hidden">
             <RefreshCw className="w-4 h-4"/>
           </button>
         </div>
@@ -128,13 +130,14 @@ export default function CorteCajaPage() {
       {/* Selector de fecha */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-5 flex gap-3 items-end print:hidden">
         <div>
-          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Fecha del corte</label>
+          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t("Fecha del corte")}</label>
           <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
             className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
         </div>
         <button onClick={() => setFecha(HOY)}
           className={`px-3 py-2.5 rounded-xl text-xs font-bold border ${fecha === HOY ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 text-slate-600'}`}>
-          Hoy
+          
+          {t("Hoy")}
         </button>
       </div>
 
@@ -145,23 +148,22 @@ export default function CorteCajaPage() {
       ) : problema ? (
         /* Ningún número: un corte incompleto no se muestra como corte. */
         <div className="bg-white rounded-2xl border border-amber-200 p-10 text-center">
-          <p className="text-sm font-bold text-amber-700 mb-1">No se puede mostrar el corte</p>
+          <p className="text-sm font-bold text-amber-700 mb-1">{t("No se puede mostrar el corte")}</p>
           <p className="text-sm text-slate-600 max-w-md mx-auto">{problema}</p>
         </div>
       ) : (
         <div className="space-y-4">
           {/* Header del corte */}
           <div className="bg-slate-900 text-white rounded-2xl p-6">
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Corte de Caja</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">{t("Corte de Caja")}</p>
             <p className="text-2xl font-black">
               {new Date(fecha + 'T00:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
             </p>
-            <p className="text-sm text-slate-400 mt-1">Generado: {new Date().toLocaleTimeString('es-MX')}</p>
+            <p className="text-sm text-slate-400 mt-1">{t("Generado: {n0}", { n0: new Date().toLocaleTimeString('es-MX') })}</p>
             {cobranzaVedada && (
               <p className="mt-3 rounded-lg bg-amber-400/20 px-3 py-2 text-xs font-bold text-amber-200">
-                CORTE INCOMPLETO: no se pudieron leer los abonos de cobranza del
-                día, así que el gran total no los incluye. No lo firmes como
-                corte cerrado.
+                
+                {t("CORTE INCOMPLETO: no se pudieron leer los abonos de cobranza del día, así que el gran total no los incluye. No lo firmes como corte cerrado.")}
               </p>
             )}
           </div>
@@ -169,20 +171,20 @@ export default function CorteCajaPage() {
           {/* Ingresos por método */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="bg-emerald-900 text-white px-5 py-3">
-              <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Ingresos del día</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">{t("Ingresos del día")}</p>
             </div>
             <table className="w-full text-sm">
               <tbody className="divide-y divide-slate-100">
                 {[
-                  { label: '💵 Efectivo', val: totalEfectivo, count: ventasContado.filter(v=>v.metodoPago==='EFECTIVO').length },
-                  { label: '💳 Tarjeta / MSI', val: totalTarjeta, count: ventasContado.filter(v=>['TARJETA','MSI_BANCO'].includes(v.metodoPago)).length },
-                  { label: '🏦 Transferencia SPEI', val: totalTransferencia, count: ventasContado.filter(v=>v.metodoPago==='TRANSFERENCIA').length },
-                  { label: '🏦 Cobranza (abonos)', val: totalCobranza, count: pagos.length, vedado: cobranzaVedada },
+                  { label: t("💵 Efectivo"), val: totalEfectivo, count: ventasContado.filter(v=>v.metodoPago==='EFECTIVO').length },
+                  { label: t("💳 Tarjeta / MSI"), val: totalTarjeta, count: ventasContado.filter(v=>['TARJETA','MSI_BANCO'].includes(v.metodoPago)).length },
+                  { label: t("🏦 Transferencia SPEI"), val: totalTransferencia, count: ventasContado.filter(v=>v.metodoPago==='TRANSFERENCIA').length },
+                  { label: t("🏦 Cobranza (abonos)"), val: totalCobranza, count: pagos.length, vedado: cobranzaVedada },
                 ].map(r => (
                   <tr key={r.label} className="hover:bg-slate-50">
-                    <td className="px-5 py-3.5 font-medium text-slate-800">{r.label}</td>
+                    <td className="px-5 py-3.5 font-medium text-slate-800">{t(r.label)}</td>
                     <td className="px-5 py-3.5 text-center text-slate-400 text-xs">
-                      {r.vedado ? 'sin dato' : `${r.count} movimientos`}
+                      {r.vedado ? t("sin dato") : `${r.count} movimientos`}
                     </td>
                     {/*
                       Un «$0.00» se lee como «no hubo cobranza hoy». Si no se
@@ -197,7 +199,7 @@ export default function CorteCajaPage() {
               </tbody>
               <tfoot className="border-t-2 border-emerald-300 bg-emerald-50">
                 <tr>
-                  <td colSpan={2} className="px-5 py-4 font-black uppercase text-emerald-800">TOTAL COBRADO</td>
+                  <td colSpan={2} className="px-5 py-4 font-black uppercase text-emerald-800">{t("TOTAL COBRADO")}</td>
                   <td className="px-5 py-4 text-right font-black font-mono text-emerald-800 text-xl">{fmt$(granTotal)}</td>
                 </tr>
               </tfoot>
@@ -208,13 +210,13 @@ export default function CorteCajaPage() {
           {totalCredito > 0 && (
             <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
               <div className="bg-amber-900 text-white px-5 py-3">
-                <p className="text-xs font-bold uppercase tracking-widest text-amber-300">Ventas a crédito (por cobrar)</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-amber-300">{t("Ventas a crédito (por cobrar)")}</p>
               </div>
               <table className="w-full text-sm">
                 <tbody>
                   <tr>
-                    <td className="px-5 py-3.5 font-medium text-slate-800">💳 Créditos otorgados hoy</td>
-                    <td className="px-5 py-3.5 text-center text-slate-400 text-xs">{ventasCredito.length} ventas</td>
+                    <td className="px-5 py-3.5 font-medium text-slate-800">{t("💳 Créditos otorgados hoy")}</td>
+                    <td className="px-5 py-3.5 text-center text-slate-400 text-xs">{t("{n0} ventas", { n0: ventasCredito.length })}</td>
                     <td className="px-5 py-3.5 text-right font-mono font-bold text-amber-700">{fmt$(totalCredito)}</td>
                   </tr>
                 </tbody>
@@ -225,8 +227,8 @@ export default function CorteCajaPage() {
           {/* Resumen total */}
           <div className="bg-slate-900 text-white rounded-2xl p-5 flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-400">Total ventas del día</p>
-              <p className="text-xs text-slate-500 mt-1">{ventas.filter(v=>v.estado!=='ANULADA').length} transacciones</p>
+              <p className="text-sm text-slate-400">{t("Total ventas del día")}</p>
+              <p className="text-xs text-slate-500 mt-1">{t("{n0} transacciones", { n0: ventas.filter(v=>v.estado!=='ANULADA').length })}</p>
             </div>
             <p className="text-3xl font-black text-white">{fmt$(granTotal + totalCredito)}</p>
           </div>
@@ -234,23 +236,23 @@ export default function CorteCajaPage() {
           {/* Detalle de ventas */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="bg-slate-900 text-white px-5 py-3">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Detalle de ventas</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{t("Detalle de ventas")}</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 border-b">
                   <tr className="text-xs uppercase text-slate-500 font-bold">
-                    <th className="px-4 py-3 text-left">Folio</th>
-                    <th className="px-4 py-3 text-left">Cliente</th>
-                    <th className="px-4 py-3 text-left">Método</th>
-                    <th className="px-4 py-3 text-right">Total</th>
+                    <th className="px-4 py-3 text-left">{t("Folio")}</th>
+                    <th className="px-4 py-3 text-left">{t("Cliente")}</th>
+                    <th className="px-4 py-3 text-left">{t("Método")}</th>
+                    <th className="px-4 py-3 text-right">{t("Total")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {ventas.filter(v=>v.estado!=='ANULADA').map(v => (
                     <tr key={v.id} className="hover:bg-slate-50">
                       <td className="px-4 py-2.5 font-mono font-bold text-indigo-600">#{String(v.folio).padStart(5,'0')}</td>
-                      <td className="px-4 py-2.5 text-slate-700">{v.cliente?.nombre ?? 'Mostrador'}</td>
+                      <td className="px-4 py-2.5 text-slate-700">{v.cliente?.nombre ?? t("Mostrador")}</td>
                       <td className="px-4 py-2.5"><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{v.metodoPago}</span></td>
                       <td className="px-4 py-2.5 text-right font-mono font-bold">{fmt$(neto(v))}</td>
                     </tr>

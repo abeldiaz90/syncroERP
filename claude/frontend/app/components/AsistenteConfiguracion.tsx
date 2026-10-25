@@ -9,6 +9,7 @@ import {
   ChevronUp, X, Loader2, Rocket, ArrowRight,
 } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 // ═══════════════════════════════════════════════════════════════════════
 // Cada paso: cómo se detecta si está completo, a dónde lleva, y su texto.
 //   endpoint  → se consulta para saber si ya hay datos
@@ -116,6 +117,7 @@ export default function AsistenteConfiguracion({
 }: {
   onCrearProducto?: () => void;
 }) {
+  const t = useT();
   const router = useRouter();
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const tok = () => (typeof window !== 'undefined' ? localStorage.getItem('syncro_token') ?? '' : '');
@@ -211,7 +213,7 @@ export default function AsistenteConfiguracion({
           <CheckCircle2 className="w-6 h-6 text-white" />
         </div>
         <div className="flex-1">
-          <p className="font-bold text-emerald-900">Tu parte ya está lista</p>
+          <p className="font-bold text-emerald-900">{t("Tu parte ya está lista")}</p>
           {/*
             * Antes decía «ya puedes vender», y la lista es ahora por perfil:
             * al almacenista le quedan sus pasos, no los de la empresa entera.
@@ -219,10 +221,11 @@ export default function AsistenteConfiguracion({
             * puede hacer.
             */}
           <p className="text-sm text-emerald-700">
-            Completaste los pasos que te corresponden en la puesta en marcha.
+            
+            {t("Completaste los pasos que te corresponden en la puesta en marcha.")}
           </p>
         </div>
-        <button aria-label="Cerrar" title="Cerrar" onClick={() => setOculto(true)} className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full">
+        <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setOculto(true)} className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -239,16 +242,17 @@ export default function AsistenteConfiguracion({
           </div>
           <div className="flex-1">
             <h3 className="font-bold text-white flex items-center gap-2">
-              Primeros pasos para vender
+              
+              {t("Primeros pasos para vender")}
             </h3>
             <p className="text-indigo-100 text-sm">
-              {cargando ? 'Revisando tu configuración…' : `${completos} de ${total} pasos completados`}
+              {cargando ? t("Revisando tu configuración…") : `${completos} de ${total} pasos completados`}
             </p>
           </div>
           <button
             onClick={() => setColapsado((c) => !c)}
             className="p-2 text-white/80 hover:bg-white/10 rounded-lg"
-            title={colapsado ? 'Expandir' : 'Colapsar'}
+            title={colapsado ? t("Expandir") : t("Colapsar")}
           >
             {colapsado ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
           </button>
@@ -273,7 +277,8 @@ export default function AsistenteConfiguracion({
           {cargando ? (
             <div className="py-8 text-center text-slate-400">
               <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-              Revisando qué tienes configurado…
+              
+              {t("Revisando qué tienes configurado…")}
             </div>
           ) : (
             <div className="space-y-2">
@@ -296,13 +301,13 @@ export default function AsistenteConfiguracion({
                   {/* Texto */}
                   <div className="flex-1 min-w-0">
                     <p className={`font-semibold text-sm ${paso.completo ? 'text-emerald-800 line-through' : 'text-slate-800'}`}>
-                      {paso.titulo}
+                      {t(paso.titulo)}
                       {paso.opcional && (
-                        <span className="ml-2 text-[10px] font-normal text-slate-400 uppercase">opcional</span>
+                        <span className="ml-2 text-[10px] font-normal text-slate-400 uppercase">{t("opcional")}</span>
                       )}
                     </p>
                     {!paso.completo && (
-                      <p className="text-xs text-slate-500 mt-0.5">{paso.descripcion}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{t(paso.descripcion)}</p>
                     )}
                   </div>
 
@@ -312,7 +317,7 @@ export default function AsistenteConfiguracion({
                       onClick={() => irA(paso)}
                       className="shrink-0 flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
                     >
-                      {paso.textoBoton} <ArrowRight className="w-3 h-3" />
+                      {t(paso.textoBoton)} <ArrowRight className="w-3 h-3" />
                     </button>
                   )}
                 </div>
@@ -327,13 +332,14 @@ export default function AsistenteConfiguracion({
                 onClick={revisarEstado}
                 className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1"
               >
-                <Loader2 className="w-3 h-3" /> Actualizar estado
+                <Loader2 className="w-3 h-3" />  {t("Actualizar estado")}
               </button>
               <button
                 onClick={() => setOculto(true)}
                 className="text-xs text-slate-400 hover:text-slate-600"
               >
-                Ocultar por ahora
+                
+                {t("Ocultar por ahora")}
               </button>
             </div>
           )}

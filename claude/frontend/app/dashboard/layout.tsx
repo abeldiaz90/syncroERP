@@ -45,7 +45,7 @@ import { esRolAdministrador } from '@/lib/roles';
 import { PermisosProvider } from '@/app/context/PermisosContext';
 import { EnlaceAlCore } from '@/components/navigation/enlace-al-core';
 import { BarraContextualModulo } from '@/components/navigation/BarraContextualModulo';
-import { useI18n } from '@/components/I18nProvider';
+import { useI18n, useT } from '@/components/I18nProvider';
 import { cerrarSesionKeycloak } from '@/lib/keycloak';
 import { useContratacion, contratado } from '@/lib/contratacion';
 
@@ -306,7 +306,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                      bg-amber-500 px-4 py-1.5 text-[12.5px] font-medium text-amber-950"
         >
           <span>
-            Estás viendo el ERP como <b>{verComo.nombre}</b> ({verComo.rol}).
+            Estás viendo el ERP como <b>{t(verComo.nombre)}</b> ({verComo.rol}).
             Lo que guardes queda registrado a tu nombre.
           </span>
           <button
@@ -316,7 +316,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             }}
             className="rounded border border-amber-900/30 bg-amber-400/60 px-2 py-0.5 font-semibold hover:bg-amber-400"
           >
-            Volver a ser yo
+            
+            {t("Volver a ser yo")}
           </button>
         </div>
       )}
@@ -343,7 +344,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <LayoutGrid className="w-3.5 h-3.5 text-white" />
               </span>
               {!colapsado && (
-                <span className="text-white font-bold text-[13.5px] tracking-tight truncate">SyncroERP</span>
+                <span className="text-white font-bold text-[13.5px] tracking-tight truncate">{t("SyncroERP")}</span>
               )}
             </Link>
           </div>
@@ -395,7 +396,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       {agruparItems(itemsVisibles).map(([grupo, items]) => (
                         <div key={grupo} className="pt-1.5 first:pt-0">
                           {grupo !== 'General' && (
-                            <p className="eyebrow px-2 pb-1 text-slate-500">{grupo}</p>
+                            <p className="eyebrow px-2 pb-1 text-slate-500">{t(grupo)}</p>
                           )}
                           {items.map((it) => {
                             const activo = itemActivo?.href === it.href;
@@ -412,7 +413,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                 <span className="truncate">{t(it.label)}</span>
                                 {it.etiqueta && (
                                   <span className="ml-auto text-[9px] font-bold px-1.5 py-px rounded-full bg-indigo-500/20 text-indigo-300 shrink-0">
-                                    {it.etiqueta}
+                                    {t(it.etiqueta)}
                                   </span>
                                 )}
                               </Link>
@@ -473,13 +474,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button
               onClick={() => setMenuAbierto(true)}
               className="lg:hidden btn btn-fantasma btn-icono btn-sm"
-              aria-label="Abrir menú" title="Abrir menú"
+              aria-label={t("Abrir menú")} title={t("Abrir menú")}
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
 
             {/* Migas de pan: siempre visibles, siempre navegables */}
-            <nav aria-label="Ruta" className="flex items-center gap-1.5 min-w-0 text-[12.5px]">
+            <nav aria-label={t("Ruta")} className="flex items-center gap-1.5 min-w-0 text-[12.5px]">
               <Link href="/dashboard" className="text-slate-400 hover:text-slate-700 shrink-0">{t('Panel')}</Link>
               {modulo && (
                 <>
@@ -508,7 +509,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <Search className="w-3.5 h-3.5" />
                 <span className="text-[12px]">{t('Buscar')}</span>
-                <kbd className="text-[10px] font-semibold bg-slate-100 rounded px-1.5 py-0.5 text-slate-500">⌘K</kbd>
+                <kbd className="text-[10px] font-semibold bg-slate-100 rounded px-1.5 py-0.5 text-slate-500">{t("⌘K")}</kbd>
               </button>
 
               {empresa && (
@@ -527,7 +528,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     {iniciales(nombre)}
                   </span>
                   <span className="hidden sm:inline text-[12.5px] text-slate-700 max-w-[130px] truncate">
-                    {nombre}
+                    {t(nombre)}
                   </span>
                 </button>
 
@@ -536,19 +537,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <div className="fixed inset-0 z-[190]" onClick={() => setMenuUsuario(false)} />
                     <div className="absolute right-0 top-full mt-1.5 z-[200] w-56 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
                       <div className="px-3.5 py-3 border-b border-slate-100">
-                        <p className="text-[13px] font-semibold text-slate-900 truncate">{nombre}</p>
+                        <p className="text-[13px] font-semibold text-slate-900 truncate">{t(nombre)}</p>
                         <p className="text-[11.5px] text-slate-500 truncate">{sesion?.email}</p>
                         <p className="text-[11px] text-slate-400 mt-1.5">
                           {sesion?.rol}
                           {permisos?.includes('*')
-                            ? ' · acceso total'
+                            ? t("· acceso total")
                             : ` · ${permisos?.length ?? 0} secciones`}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 border-b border-slate-100 px-3.5 py-2.5">
-                        <span className="text-[11.5px] text-slate-500">Language</span>
+                        <span className="text-[11.5px] text-slate-500">{t("Language")}</span>
                         <select value={idioma} onChange={(e) => void cambiarIdioma(e.target.value as 'es-MX' | 'en-US')} className="ml-auto rounded-md border border-slate-200 bg-white px-2 py-1 text-[11.5px]">
-                          <option value="es-MX">Español</option><option value="en-US">English</option>
+                          <option value="es-MX">{t("Español")}</option><option value="en-US">{t("English")}</option>
                         </select>
                       </div>
                       <button
@@ -592,19 +593,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
  * arregla solo en cuanto vuelva.
  */
 function PermisosNoConsultados({ onReintentar }: { onReintentar: () => void }) {
+  const t = useT();
   return (
     <div className="flex flex-col items-center justify-center text-center px-6" style={{ minHeight: '70vh' }}>
       <div className="w-14 h-14 rounded-2xl bg-amber-50 grid place-items-center mb-4">
         <ShieldOff className="w-6 h-6 text-amber-500" />
       </div>
-      <h1 className="text-[18px] font-bold text-slate-900">No pudimos consultar tu perfil</h1>
+      <h1 className="text-[18px] font-bold text-slate-900">{t("No pudimos consultar tu perfil")}</h1>
       <p className="text-[13px] text-slate-500 mt-1.5 max-w-sm leading-relaxed">
-        No es que te falten permisos: no se pudo preguntar al servidor cuáles
-        tienes. Suele ser momentáneo —el servicio reiniciándose o la red—.
-        Vuelve a intentarlo en unos segundos.
+        
+        {t("No es que te falten permisos: no se pudo preguntar al servidor cuáles tienes. Suele ser momentáneo —el servicio reiniciándose o la red—. Vuelve a intentarlo en unos segundos.")}
       </p>
       <button type="button" onClick={onReintentar} className="btn btn-primario mt-5">
-        Reintentar
+        
+        {t("Reintentar")}
       </button>
     </div>
   );
@@ -613,17 +615,18 @@ function PermisosNoConsultados({ onReintentar }: { onReintentar: () => void }) {
 /* ── Acceso denegado ──────────────────────────────────────────────────────── */
 
 function SinAcceso() {
+  const t = useT();
   return (
     <div className="flex flex-col items-center justify-center text-center px-6" style={{ minHeight: '70vh' }}>
       <div className="w-14 h-14 rounded-2xl bg-rose-50 grid place-items-center mb-4">
         <ShieldOff className="w-6 h-6 text-rose-500" />
       </div>
-      <h1 className="text-[18px] font-bold text-slate-900">Esta sección no está en tu perfil</h1>
+      <h1 className="text-[18px] font-bold text-slate-900">{t("Esta sección no está en tu perfil")}</h1>
       <p className="text-[13px] text-slate-500 mt-1.5 max-w-sm leading-relaxed">
-        Tu rol no incluye acceso a esta pantalla. Pide al administrador que la agregue
-        desde Administración → Roles y permisos.
+        
+        {t("Tu rol no incluye acceso a esta pantalla. Pide al administrador que la agregue desde Administración → Roles y permisos.")}
       </p>
-      <Link href="/dashboard" className="btn btn-primario mt-5">Volver al panel</Link>
+      <Link href="/dashboard" className="btn btn-primario mt-5">{t("Volver al panel")}</Link>
     </div>
   );
 }

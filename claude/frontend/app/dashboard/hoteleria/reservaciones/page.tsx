@@ -24,6 +24,7 @@ import { fechaCorta } from "@/lib/fechas";
 import { hoyISO } from '@/lib/fechas';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface IHotel {
   id: string;
   nombre: string;
@@ -67,6 +68,7 @@ const ESTADO_BADGE: Record<string, string> = {
 };
 
 export default function ReservacionesPage() {
+  const t = useT();
   const api =
     process.env.NEXT_PUBLIC_API_URL ||
     (process.env.NODE_ENV === "production"
@@ -154,8 +156,8 @@ export default function ReservacionesPage() {
     return (
       <div className="p-8 text-center text-slate-500">
         <p>
-          Primero crea un hotel en el Rack (botón "Crear hotel de
-          demostración").
+          
+          {t("Primero crea un hotel en el Rack (botón \"Crear hotel de demostración\").")}
         </p>
       </div>
     );
@@ -178,10 +180,11 @@ export default function ReservacionesPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <CalendarCheck className="w-8 h-8 text-indigo-500" /> Reservaciones
+            <CalendarCheck className="w-8 h-8 text-indigo-500" />  {t("Reservaciones")}
           </h1>
           <p className="text-slate-500 mt-1">
-            Crea reservas, haz check-in y check-out.
+            
+            {t("Crea reservas, haz check-in y check-out.")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -189,7 +192,7 @@ export default function ReservacionesPage() {
             href="/dashboard/hoteleria/panel"
             className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            <LayoutDashboard className="h-4 w-4" /> Panel
+            <LayoutDashboard className="h-4 w-4" />  {t("Panel")}
           </a>
           <select
             value={hotelId}
@@ -198,7 +201,7 @@ export default function ReservacionesPage() {
           >
             {hoteles.map((ho) => (
               <option key={ho.id} value={ho.id}>
-                {ho.nombre}
+                {t(ho.nombre)}
               </option>
             ))}
           </select>
@@ -217,7 +220,7 @@ export default function ReservacionesPage() {
             onClick={() => setModalNueva(true)}
             className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700"
           >
-            <Plus className="w-4 h-4" /> Nueva reserva
+            <Plus className="w-4 h-4" />  {t("Nueva reserva")}
           </button>
           </PuedeCrear>
         </div>
@@ -228,7 +231,7 @@ export default function ReservacionesPage() {
         {reservas.length === 0 ? (
           <div className="p-12 text-center text-slate-400">
             <CalendarCheck className="w-12 h-12 mx-auto mb-3 text-slate-200" />
-            <p className="font-semibold text-slate-600">Sin reservaciones</p>
+            <p className="font-semibold text-slate-600">{t("Sin reservaciones")}</p>
             {/*
               * El vacío tampoco manda a un botón que no está: a quien no puede
               * crear reservaciones se le dice quién las crea, no que pulse algo
@@ -237,25 +240,25 @@ export default function ReservacionesPage() {
             <PuedeCrear
               ruta="/hoteleria/operacion/reservaciones"
               alternativa={
-                <p className="text-sm">Las reservaciones las registra Recepción.</p>
+                <p className="text-sm">{t("Las reservaciones las registra Recepción.")}</p>
               }
             >
-              <p className="text-sm">Crea la primera con &quot;Nueva reserva&quot;.</p>
+              <p className="text-sm">{t("Crea la primera con &quot;Nueva reserva&quot;.")}</p>
             </PuedeCrear>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500 font-semibold">
-                <th className="px-4 py-3 text-left">Código</th>
-                <th className="px-4 py-3 text-left">Huésped</th>
-                <th className="px-4 py-3 text-left">Tipo</th>
+                <th className="px-4 py-3 text-left">{t("Código")}</th>
+                <th className="px-4 py-3 text-left">{t("Huésped")}</th>
+                <th className="px-4 py-3 text-left">{t("Tipo")}</th>
                 {/* Recepción busca por habitación, no por el código. */}
-                <th className="px-4 py-3 text-left">Habitación</th>
-                <th className="px-4 py-3 text-left">Entrada</th>
-                <th className="px-4 py-3 text-left">Salida</th>
-                <th className="px-4 py-3 text-center">Estado</th>
-                <th className="px-4 py-3 text-center">Acciones</th>
+                <th className="px-4 py-3 text-left">{t("Habitación")}</th>
+                <th className="px-4 py-3 text-left">{t("Entrada")}</th>
+                <th className="px-4 py-3 text-left">{t("Salida")}</th>
+                <th className="px-4 py-3 text-center">{t("Estado")}</th>
+                <th className="px-4 py-3 text-center">{t("Acciones")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -273,7 +276,8 @@ export default function ReservacionesPage() {
                   <td className="px-4 py-3 font-semibold text-slate-700">
                     {r.habitacionNumero ?? (
                       <span className="font-normal text-slate-400">
-                        sin asignar
+                        
+                        {t("sin asignar")}
                       </span>
                     )}
                   </td>
@@ -296,16 +300,16 @@ export default function ReservacionesPage() {
                         <>
                           <button
                             onClick={() => setModalCheckIn(r)}
-                            title="Check-in"
+                            title={t("Check-in")}
                             className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700"
                           >
-                            <LogIn className="w-3.5 h-3.5" /> Check-in
+                            <LogIn className="w-3.5 h-3.5" />  {t("Check-in")}
                           </button>
                           <button
                             onClick={() =>
                               setModalEstado({ reserva: r, accion: "CANCELAR" })
                             }
-                            title="Cancelar reservación"
+                            title={t("Cancelar reservación")}
                             className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50"
                           >
                             <Ban className="h-3.5 w-3.5" />
@@ -319,7 +323,7 @@ export default function ReservacionesPage() {
                                   accion: "NO_SHOW",
                                 })
                               }
-                              title="Marcar no-show"
+                              title={t("Marcar no-show")}
                               className="rounded-lg border border-amber-200 p-1.5 text-amber-700 hover:bg-amber-50"
                             >
                               <UserX className="h-3.5 w-3.5" />
@@ -331,17 +335,17 @@ export default function ReservacionesPage() {
                         <>
                           <button
                             onClick={() => setModalCambioHabitacion(r)}
-                            title="Cambiar habitación"
+                            title={t("Cambiar habitación")}
                             className="rounded-lg border border-cyan-200 p-1.5 text-cyan-700 hover:bg-cyan-50"
                           >
                             <ArrowRightLeft className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={() => setModalFolio(r)}
-                            title="Ver folio / Check-out"
+                            title={t("Ver folio / Check-out")}
                             className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700"
                           >
-                            <Receipt className="w-3.5 h-3.5" /> Folio
+                            <Receipt className="w-3.5 h-3.5" />  {t("Folio")}
                           </button>
                         </>
                       )}
@@ -364,7 +368,7 @@ export default function ReservacionesPage() {
           onOk={() => {
             setModalNueva(false);
             cargarReservas();
-            mostrarToast("Reservación creada");
+            mostrarToast(t("Reservación creada"));
           }}
         />
       )}
@@ -377,7 +381,7 @@ export default function ReservacionesPage() {
           onOk={() => {
             setModalCheckIn(null);
             cargarReservas();
-            mostrarToast("Check-in realizado");
+            mostrarToast(t("Check-in realizado"));
           }}
         />
       )}
@@ -398,8 +402,8 @@ export default function ReservacionesPage() {
           onOk={() => {
             const mensaje =
               modalEstado.accion === "CANCELAR"
-                ? "Reservación cancelada"
-                : "Reservación marcada como no-show";
+                ? t("Reservación cancelada")
+                : t("Reservación marcada como no-show");
             setModalEstado(null);
             void cargarReservas();
             mostrarToast(mensaje);
@@ -424,6 +428,7 @@ export default function ReservacionesPage() {
 }
 
 function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
+  const t = useT();
   const [habitaciones, setHabitaciones] = useState<IHabitacion[]>([]);
   const [habitacionId, setHabitacionId] = useState("");
   const [motivo, setMotivo] = useState("");
@@ -447,7 +452,7 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
         setHabitaciones(candidatas);
         if (candidatas.length) setHabitacionId(candidatas[0].id);
       } else {
-        setError("No se pudieron consultar las habitaciones disponibles.");
+        setError(t("No se pudieron consultar las habitaciones disponibles."));
       }
       setCargando(false);
     })();
@@ -455,11 +460,11 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
 
   const guardar = async () => {
     if (!habitacionId) {
-      setError("No hay una habitación compatible disponible.");
+      setError(t("No hay una habitación compatible disponible."));
       return;
     }
     if (motivo.trim().length < 3) {
-      setError("Describe brevemente el motivo del cambio.");
+      setError(t("Describe brevemente el motivo del cambio."));
       return;
     }
     setGuardando(true);
@@ -480,7 +485,7 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
       setError(
         Array.isArray(cuerpo?.message)
           ? cuerpo.message.join(", ")
-          : cuerpo?.message || "No se pudo cambiar la habitación.",
+          : cuerpo?.message || t("No se pudo cambiar la habitación."),
       );
       setGuardando(false);
     }
@@ -498,14 +503,13 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
         <div className="flex items-start justify-between border-b border-slate-100 p-5">
           <div>
             <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-              <ArrowRightLeft className="h-5 w-5 text-cyan-600" /> Cambiar
-              habitación
+              <ArrowRightLeft className="h-5 w-5 text-cyan-600" />  {t("Cambiar habitación")}
             </h3>
             <p className="mt-1 text-sm text-slate-500">
               {reserva.codigo} · {reserva.clienteNombre}
             </p>
           </div>
-          <button aria-label="Cerrar" title="Cerrar"
+          <button aria-label={t("Cerrar")} title={t("Cerrar")}
             onClick={onClose}
             className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"
           >
@@ -515,7 +519,7 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
         <div className="space-y-4 p-5">
           {error && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-              {error}
+              {t(error)}
             </div>
           )}
           {cargando ? (
@@ -526,7 +530,8 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
             <>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600">
-                  Nueva habitación disponible
+                  
+                  {t("Nueva habitación disponible")}
                 </label>
                 <select
                   value={habitacionId}
@@ -535,14 +540,14 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
                 >
                   {habitaciones.map((habitacion) => (
                     <option key={habitacion.id} value={habitacion.id}>
-                      Habitación {habitacion.numero}
-                    </option>
+                      {t("Habitación {n0}", { n0: habitacion.numero })}</option>
                   ))}
                 </select>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600">
-                  Motivo obligatorio
+                  
+                  {t("Motivo obligatorio")}
                 </label>
                 <textarea
                   autoFocus
@@ -550,18 +555,19 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
                   maxLength={500}
                   value={motivo}
                   onChange={(evento) => setMotivo(evento.target.value)}
-                  placeholder="Ej. Falla de aire acondicionado"
+                  placeholder={t("Ej. Falla de aire acondicionado")}
                   className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-100"
                 />
               </div>
               <p className="text-xs text-slate-500">
-                La habitación anterior pasará a limpieza y se generará una tarea
-                para housekeeping.
+                
+                {t("La habitación anterior pasará a limpieza y se generará una tarea para housekeeping.")}
               </p>
             </>
           ) : (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              No hay otra habitación disponible del mismo tipo.
+              
+              {t("No hay otra habitación disponible del mismo tipo.")}
             </div>
           )}
         </div>
@@ -570,14 +576,15 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
             onClick={onClose}
             className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200"
           >
-            Regresar
+            
+            {t("Regresar")}
           </button>
           <button
             disabled={cargando || guardando || !habitaciones.length}
             onClick={() => void guardar()}
             className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50"
           >
-            {guardando ? "Cambiando…" : "Confirmar cambio"}
+            {guardando ? t("Cambiando…") : t("Confirmar cambio")}
           </button>
         </div>
       </div>
@@ -586,6 +593,7 @@ function ModalCambioHabitacion({ api, h, reserva, onClose, onOk }: any) {
 }
 
 function ModalCambiarEstado({ api, h, datos, onClose, onOk }: any) {
+  const t = useT();
   const esCancelacion = datos.accion === "CANCELAR";
   const [motivo, setMotivo] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -593,7 +601,7 @@ function ModalCambiarEstado({ api, h, datos, onClose, onOk }: any) {
 
   const guardar = async () => {
     if (esCancelacion && motivo.trim().length < 3) {
-      setError("Describe brevemente el motivo de cancelación.");
+      setError(t("Describe brevemente el motivo de cancelación."));
       return;
     }
     setGuardando(true);
@@ -612,7 +620,7 @@ function ModalCambiarEstado({ api, h, datos, onClose, onOk }: any) {
       setError(
         Array.isArray(cuerpo?.message)
           ? cuerpo.message.join(", ")
-          : cuerpo?.message || "No se pudo actualizar la reservación.",
+          : cuerpo?.message || t("No se pudo actualizar la reservación."),
       );
     }
     setGuardando(false);
@@ -630,13 +638,13 @@ function ModalCambiarEstado({ api, h, datos, onClose, onOk }: any) {
         <div className="flex items-start justify-between border-b border-slate-100 p-5">
           <div>
             <h3 className="text-lg font-bold text-slate-900">
-              {esCancelacion ? "Cancelar reservación" : "Confirmar no-show"}
+              {esCancelacion ? t("Cancelar reservación") : t("Confirmar no-show")}
             </h3>
             <p className="mt-1 text-sm text-slate-500">
               {datos.reserva.codigo} · {datos.reserva.clienteNombre}
             </p>
           </div>
-          <button aria-label="Cerrar" title="Cerrar"
+          <button aria-label={t("Cerrar")} title={t("Cerrar")}
             onClick={onClose}
             className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"
           >
@@ -646,13 +654,14 @@ function ModalCambiarEstado({ api, h, datos, onClose, onOk }: any) {
         <div className="space-y-4 p-5">
           {error && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-              {error}
+              {t(error)}
             </div>
           )}
           {esCancelacion ? (
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600">
-                Motivo obligatorio
+                
+                {t("Motivo obligatorio")}
               </label>
               <textarea
                 autoFocus
@@ -661,13 +670,13 @@ function ModalCambiarEstado({ api, h, datos, onClose, onOk }: any) {
                 value={motivo}
                 onChange={(evento) => setMotivo(evento.target.value)}
                 className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
-                placeholder="Ej. El huésped cambió sus fechas de viaje"
+                placeholder={t("Ej. El huésped cambió sus fechas de viaje")}
               />
             </div>
           ) : (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              La reservación liberará su disponibilidad y quedará registrada
-              como huésped no presentado.
+              
+              {t("La reservación liberará su disponibilidad y quedará registrada como huésped no presentado.")}
             </div>
           )}
         </div>
@@ -676,7 +685,8 @@ function ModalCambiarEstado({ api, h, datos, onClose, onOk }: any) {
             onClick={onClose}
             className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200"
           >
-            Regresar
+            
+            {t("Regresar")}
           </button>
           <button
             disabled={guardando}
@@ -684,10 +694,10 @@ function ModalCambiarEstado({ api, h, datos, onClose, onOk }: any) {
             className={`rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${esCancelacion ? "bg-rose-600 hover:bg-rose-700" : "bg-amber-600 hover:bg-amber-700"}`}
           >
             {guardando
-              ? "Guardando…"
+              ? t("Guardando…")
               : esCancelacion
-                ? "Cancelar reserva"
-                : "Marcar no-show"}
+                ? t("Cancelar reserva")
+                : t("Marcar no-show")}
           </button>
         </div>
       </div>
@@ -697,6 +707,7 @@ function ModalCambiarEstado({ api, h, datos, onClose, onOk }: any) {
 
 // ═══════════════════ MODAL: NUEVA RESERVA ═══════════════════
 function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
+  const t = useT();
   const [clientes, setClientes] = useState<ICliente[]>([]);
   const [busca, setBusca] = useState("");
   const [nuevoHuesped, setNuevoHuesped] = useState(false);
@@ -768,7 +779,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
   const crearHuesped = async () => {
     setErrH("");
     if (!hForm.nombre.trim()) {
-      setErrH("El nombre es obligatorio");
+      setErrH(t("El nombre es obligatorio"));
       return;
     }
     setGuardandoH(true);
@@ -791,10 +802,10 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
         setHForm({ nombre: "", telefono: "", rfc: "", email: "" });
       } else {
         const m = Array.isArray(d?.message) ? d.message.join(", ") : d?.message;
-        setErrH(m || "No se pudo crear el huésped");
+        setErrH(m || t("No se pudo crear el huésped"));
       }
     } catch {
-      setErrH("Error de conexión");
+      setErrH(t("Error de conexión"));
     }
     setGuardandoH(false);
   };
@@ -811,15 +822,15 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
   const guardar = async () => {
     setErr("");
     if (!form.clienteId) {
-      setErr("Selecciona un huésped");
+      setErr(t("Selecciona un huésped"));
       return;
     }
     if (!form.tipoHabitacionId) {
-      setErr("Selecciona tipo de habitación");
+      setErr(t("Selecciona tipo de habitación"));
       return;
     }
     if (!form.fechaEntrada || !form.fechaSalida) {
-      setErr("Indica las fechas");
+      setErr(t("Indica las fechas"));
       return;
     }
     setGuardando(true);
@@ -834,7 +845,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
       setErr(
         Array.isArray(d?.message)
           ? d.message.join(", ")
-          : d?.message || "Error al crear",
+          : d?.message || t("Error al crear"),
       );
     }
     setGuardando(false);
@@ -851,9 +862,9 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
       >
         <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white">
           <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Plus className="w-5 h-5 text-indigo-500" /> Nueva reservación
+            <Plus className="w-5 h-5 text-indigo-500" />  {t("Nueva reservación")}
           </h3>
-          <button aria-label="Cerrar" title="Cerrar"
+          <button aria-label={t("Cerrar")} title={t("Cerrar")}
             onClick={onClose}
             className="p-2 text-slate-400 hover:bg-slate-100 rounded-full"
           >
@@ -870,14 +881,15 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
           {/* Huésped */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Huésped (cliente)
+              
+              {t("Huésped (cliente)")}
             </label>
             {form.clienteId ? (
               <div className="flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
                 <span className="text-sm font-medium text-indigo-800 flex items-center gap-2">
                   <User className="w-4 h-4" /> {form.clienteNombre}
                 </span>
-                <button aria-label="Cerrar" title="Cerrar"
+                <button aria-label={t("Cerrar")} title={t("Cerrar")}
                   onClick={() =>
                     setForm((f) => ({ ...f, clienteId: "", clienteNombre: "" }))
                   }
@@ -892,7 +904,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
                 <input
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
-                  placeholder="Buscar cliente…"
+                  placeholder={t("Buscar cliente…")}
                   className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm"
                 />
                 {(clientes.length > 0 || busca.trim()) && (
@@ -911,13 +923,12 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
                         }}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
                       >
-                        {c.nombre}
+                        {t(c.nombre)}
                       </button>
                     ))}
                     {busca.trim() && clientes.length === 0 && (
                       <p className="px-3 py-2 text-xs text-slate-400">
-                        Sin resultados para "{busca}"
-                      </p>
+                        {t("Sin resultados para \"{n0}\"", { n0: busca })}</p>
                     )}
                     <button
                       onClick={() => {
@@ -933,7 +944,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 border-t border-slate-100"
                     >
-                      <Plus className="w-4 h-4" /> Nuevo huésped
+                      <Plus className="w-4 h-4" />  {t("Nuevo huésped")}
                     </button>
                   </div>
                 )}
@@ -944,23 +955,25 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
           {/* Tipo */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Tipo de habitación
+              
+              {t("Tipo de habitación")}
             </label>
             <select
               value={form.tipoHabitacionId}
               onChange={(e) => elegirTipo(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
             >
-              <option value="">— Seleccionar —</option>
-              {tipos.map((t: ITipo) => (
+              <option value="">{t("— Seleccionar —")}</option>
+              {tipos.map((tipo: ITipo) => (
                 <option
-                  key={t.id}
-                  value={t.id}
-                  disabled={disponibilidad[t.id] === 0}
+                  key={tipo.id}
+                  value={tipo.id}
+                  disabled={disponibilidad[tipo.id] === 0}
                 >
-                  {t.nombre} · ${t.tarifaBase}/noche
-                  {disponibilidad[t.id] !== undefined
-                    ? ` · ${plural(disponibilidad[t.id], 'disponible', 'disponibles')}`
+                  {/* no-se-traduce: el nombre del tipo de habitación lo pone el hotel */}
+                  {tipo.nombre} · ${tipo.tarifaBase}/{t("noche")}
+                  {disponibilidad[tipo.id] !== undefined
+                    ? ` · ${plural(disponibilidad[tipo.id], t("disponible"), t("disponibles"))}`
                     : ""}
                 </option>
               ))}
@@ -971,7 +984,8 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Entrada
+                
+                {t("Entrada")}
               </label>
               <input
                 type="date"
@@ -984,7 +998,8 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Salida
+                
+                {t("Salida")}
               </label>
               <input
                 type="date"
@@ -1000,7 +1015,8 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Huéspedes
+                
+                {t("Huéspedes")}
               </label>
               <input
                 type="number"
@@ -1017,7 +1033,8 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Tarifa oficial/noche
+                
+                {t("Tarifa oficial/noche")}
               </label>
               <input
                 type="number"
@@ -1033,7 +1050,8 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
             onClick={onClose}
             className="px-4 py-2 text-sm text-slate-700 font-medium hover:bg-slate-200 rounded-lg"
           >
-            Cancelar
+            
+            {t("Cancelar")}
           </button>
           <button
             onClick={guardar}
@@ -1062,9 +1080,9 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
           >
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                <User className="w-5 h-5 text-indigo-500" /> Nuevo huésped
+                <User className="w-5 h-5 text-indigo-500" />  {t("Nuevo huésped")}
               </h3>
-              <button aria-label="Cerrar sin dar de alta al huésped" title="Cerrar sin dar de alta al huésped"
+              <button aria-label={t("Cerrar sin dar de alta al huésped")} title={t("Cerrar sin dar de alta al huésped")}
                 onClick={() => setNuevoHuesped(false)}
                 className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full"
               >
@@ -1079,7 +1097,8 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
               )}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Nombre *
+                  
+                  {t("Nombre *")}
                 </label>
                 <input
                   autoFocus
@@ -1090,27 +1109,29 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") crearHuesped();
                   }}
-                  placeholder="Nombre del huésped"
+                  placeholder={t("Nombre del huésped")}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Teléfono
+                    
+                    {t("Teléfono")}
                   </label>
                   <input
                     value={hForm.telefono}
                     onChange={(e) =>
                       setHForm((v) => ({ ...v, telefono: e.target.value }))
                     }
-                    placeholder="Opcional"
+                    placeholder={t("Opcional")}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    RFC
+                    
+                    {t("RFC")}
                   </label>
                   <input
                     value={hForm.rfc}
@@ -1120,7 +1141,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
                         rfc: e.target.value.toUpperCase(),
                       }))
                     }
-                    placeholder="Opcional"
+                    placeholder={t("Opcional")}
                     maxLength={13}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                   />
@@ -1128,7 +1149,8 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Correo
+                  
+                  {t("Correo")}
                 </label>
                 <input
                   value={hForm.email}
@@ -1136,7 +1158,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
                   onChange={(e) =>
                     setHForm((v) => ({ ...v, email: e.target.value }))
                   }
-                  placeholder="Opcional"
+                  placeholder={t("Opcional")}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -1147,7 +1169,8 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
                 disabled={guardandoH}
                 className="px-4 py-2 text-sm text-slate-700 font-medium hover:bg-slate-200 rounded-lg disabled:opacity-50"
               >
-                Cancelar
+                
+                {t("Cancelar")}
               </button>
               <button
                 onClick={crearHuesped}
@@ -1159,7 +1182,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
                 ) : (
                   <CheckCircle2 className="w-4 h-4" />
                 )}
-                {guardandoH ? "Creando…" : "Crear y usar"}
+                {guardandoH ? t("Creando…") : t("Crear y usar")}
               </button>
             </div>
           </div>
@@ -1171,6 +1194,7 @@ function ModalNuevaReserva({ api, h, hotelId, tipos, onClose, onOk }: any) {
 
 // ═══════════════════ MODAL: CHECK-IN ═══════════════════
 function ModalCheckIn({ api, h, reserva, onClose, onOk }: any) {
+  const t = useT();
   const [habitaciones, setHabitaciones] = useState<IHabitacion[]>([]);
   const [habitacionId, setHabitacionId] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -1195,7 +1219,7 @@ function ModalCheckIn({ api, h, reserva, onClose, onOk }: any) {
 
   const confirmar = async () => {
     if (!habitacionId) {
-      setErr("Selecciona una habitación");
+      setErr(t("Selecciona una habitación"));
       return;
     }
     setGuardando(true);
@@ -1225,9 +1249,9 @@ function ModalCheckIn({ api, h, reserva, onClose, onOk }: any) {
       >
         <div className="flex items-center justify-between p-5 border-b border-slate-100">
           <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <LogIn className="w-5 h-5 text-emerald-500" /> Check-in
+            <LogIn className="w-5 h-5 text-emerald-500" />  {t("Check-in")}
           </h3>
-          <button aria-label="Cerrar" title="Cerrar"
+          <button aria-label={t("Cerrar")} title={t("Cerrar")}
             onClick={onClose}
             className="p-2 text-slate-400 hover:bg-slate-100 rounded-full"
           >
@@ -1245,11 +1269,13 @@ function ModalCheckIn({ api, h, reserva, onClose, onOk }: any) {
           )}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Asignar habitación disponible
+              
+              {t("Asignar habitación disponible")}
             </label>
             {habitaciones.length === 0 ? (
               <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                No hay habitaciones disponibles de este tipo.
+                
+                {t("No hay habitaciones disponibles de este tipo.")}
               </p>
             ) : (
               <select
@@ -1257,18 +1283,17 @@ function ModalCheckIn({ api, h, reserva, onClose, onOk }: any) {
                 onChange={(e) => setHabitacionId(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               >
-                <option value="">— Seleccionar —</option>
+                <option value="">{t("— Seleccionar —")}</option>
                 {habitaciones.map((hb) => (
                   <option key={hb.id} value={hb.id}>
-                    Habitación {hb.numero}
-                  </option>
+                    {t("Habitación {n0}", { n0: hb.numero })}</option>
                 ))}
               </select>
             )}
           </div>
           <p className="text-xs text-slate-400">
-            Al confirmar se abre el folio y se carga la primera noche. Las
-            siguientes se postean por auditoría o al cierre.
+            
+            {t("Al confirmar se abre el folio y se carga la primera noche. Las siguientes se postean por auditoría o al cierre.")}
           </p>
         </div>
         <div className="flex justify-end gap-2 p-5 border-t border-slate-100 bg-slate-50">
@@ -1276,7 +1301,8 @@ function ModalCheckIn({ api, h, reserva, onClose, onOk }: any) {
             onClick={onClose}
             className="px-4 py-2 text-sm text-slate-700 font-medium hover:bg-slate-200 rounded-lg"
           >
-            Cancelar
+            
+            {t("Cancelar")}
           </button>
           <button
             onClick={confirmar}
@@ -1298,6 +1324,7 @@ function ModalCheckIn({ api, h, reserva, onClose, onOk }: any) {
 
 // ═══════════════════ MODAL: FOLIO + CHECK-OUT ═══════════════════
 function ModalFolio({ api, h, reserva, onClose }: any) {
+  const t = useT();
   const [folio, setFolio] = useState<any>(null);
   const [cargando, setCargando] = useState(true);
   const [addConsumo, setAddConsumo] = useState(false);
@@ -1339,7 +1366,7 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
 
   const agregar = async () => {
     if (!producto || cantidad <= 0) {
-      setError("Selecciona un producto y una cantidad válida.");
+      setError(t("Selecciona un producto y una cantidad válida."));
       return;
     }
     setError("");
@@ -1366,7 +1393,7 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
     setError(
       Array.isArray(d?.message)
         ? d.message.join(", ")
-        : d?.message || "No se pudo agregar el consumo.",
+        : d?.message || t("No se pudo agregar el consumo."),
     );
   };
 
@@ -1387,7 +1414,7 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
             </h3>
             <p className="text-sm text-slate-500">{reserva.clienteNombre}</p>
           </div>
-          <button aria-label="Cerrar" title="Cerrar"
+          <button aria-label={t("Cerrar")} title={t("Cerrar")}
             onClick={onClose}
             className="p-2 text-slate-400 hover:bg-slate-100 rounded-full"
           >
@@ -1425,11 +1452,11 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
                 <div className="bg-slate-50 rounded-xl p-3 mb-4 space-y-2">
                   {error && (
                     <div className="rounded-lg bg-rose-50 p-2 text-xs text-rose-700">
-                      {error}
+                      {t(error)}
                     </div>
                   )}
                   <input
-                    placeholder="Buscar producto por nombre, SKU o código"
+                    placeholder={t("Buscar producto por nombre, SKU o código")}
                     value={producto?.nombre ?? buscaProducto}
                     onChange={(e) => {
                       setProducto(null);
@@ -1448,7 +1475,7 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
                           }}
                           className="block w-full px-3 py-2 text-left text-sm hover:bg-indigo-50"
                         >
-                          <span className="font-medium">{p.nombre}</span>
+                          <span className="font-medium">{t(p.nombre)}</span>
                           {p.sku && (
                             <span className="ml-2 text-xs text-slate-400">
                               {p.sku}
@@ -1462,27 +1489,29 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
                     type="number"
                     min="0.0001"
                     step="0.01"
-                    placeholder="Cantidad"
+                    placeholder={t("Cantidad")}
                     value={cantidad}
                     onChange={(e) => setCantidad(Number(e.target.value))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                   />
                   <p className="text-xs text-slate-500">
-                    El precio se toma de la lista oficial y el inventario se
-                    descuenta del almacén configurado.
+                    
+                    {t("El precio se toma de la lista oficial y el inventario se descuenta del almacén configurado.")}
                   </p>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setAddConsumo(false)}
                       className="flex-1 py-1.5 text-sm text-slate-600 hover:bg-slate-200 rounded-lg"
                     >
-                      Cancelar
+                      
+                      {t("Cancelar")}
                     </button>
                     <button
                       onClick={agregar}
                       className="flex-1 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                     >
-                      Agregar
+                      
+                      {t("Agregar")}
                     </button>
                   </div>
                 </div>
@@ -1491,7 +1520,7 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
                   onClick={() => setAddConsumo(true)}
                   className="w-full mb-4 flex items-center justify-center gap-1 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 hover:border-indigo-300 hover:text-indigo-600"
                 >
-                  <Plus className="w-4 h-4" /> Agregar consumo
+                  <Plus className="w-4 h-4" />  {t("Agregar consumo")}
                 </button>
               )}
 
@@ -1515,7 +1544,8 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
                       <>
                         <div className="flex items-center justify-between text-sm">
                           <span className="font-semibold text-indigo-900">
-                            Cargado al folio
+                            
+                            {t("Cargado al folio")}
                           </span>
                           <span className="font-bold text-indigo-800">
                             ${cargado.toFixed(2)}
@@ -1523,8 +1553,7 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
                         </div>
                         <div className="flex items-center justify-between text-xs text-slate-600">
                           <span>
-                            + {noches} noche{noches === 1 ? "" : "s"} por postear
-                          </span>
+                            {t("+ {n0} noche{n1} por postear", { n0: noches, n1: noches === 1 ? "" : "s" })}</span>
                           <span>${porPostear.toFixed(2)}</span>
                         </div>
                       </>
@@ -1535,7 +1564,7 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
                       }`}
                     >
                       <span className="font-bold text-indigo-900">
-                        {noches > 0 ? "Estimado al check-out" : "Total"}
+                        {noches > 0 ? t("Estimado al check-out") : t("Total")}
                       </span>
                       <span className="text-2xl font-black text-indigo-700">
                         ${estimado.toFixed(2)}
@@ -1547,7 +1576,8 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
             </>
           ) : (
             <p className="text-sm text-slate-500">
-              No se pudo cargar el folio.
+              
+              {t("No se pudo cargar el folio.")}
             </p>
           )}
         </div>
@@ -1557,14 +1587,16 @@ function ModalFolio({ api, h, reserva, onClose }: any) {
             onClick={onClose}
             className="px-4 py-2 text-sm text-slate-700 font-medium hover:bg-slate-200 rounded-lg"
           >
-            Cerrar
+            
+            {t("Cerrar")}
           </button>
           <a
             href="/dashboard/hoteleria/folios"
             className="px-4 py-2 text-sm bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 flex items-center gap-2"
           >
             <Receipt className="w-4 h-4" />
-            Ir a caja y hacer check-out
+            
+            {t("Ir a caja y hacer check-out")}
           </a>
         </div>
       </div>

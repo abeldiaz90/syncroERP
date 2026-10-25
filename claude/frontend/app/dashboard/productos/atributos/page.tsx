@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { extraerLista } from '@/lib/normalizar-respuesta';
 
+import { useT } from '@/components/I18nProvider';
 interface IDefinicion {
   id: string; clave: string; etiqueta: string;
   tipoValor: "TEXT" | "NUMBER" | "BOOLEAN" | "DATE" | "SELECT";
@@ -37,6 +38,7 @@ const TIPOS = [
  * Ruta: app/dashboard/productos/atributos/page.tsx
  */
 export default function AtributosPersonalizadosPage() {
+  const t = useT();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const token = () => (typeof window !== "undefined" ? localStorage.getItem("syncro_token") ?? "" : "");
   const H = () => ({ Authorization: `Bearer ${token()}`, "Content-Type": "application/json" });
@@ -84,7 +86,7 @@ export default function AtributosPersonalizadosPage() {
     try {
       const res = await peticion(`/catalogo/atributos-personalizados/grupos?incluirDefiniciones=1`, { headers: H() });
       if (res.status === 403) { setVedada(true); setGrupos([]); return; }
-      if (!res.ok) throw new Error("No se pudieron cargar los grupos");
+      if (!res.ok) throw new Error(t("No se pudieron cargar los grupos"));
       const data = await res.json();
       setGrupos(extraerLista(data));
       if (data.length > 0 && !grupoActivo) setGrupoActivo(data[0].id);
@@ -149,17 +151,17 @@ export default function AtributosPersonalizadosPage() {
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto text-slate-800">
       <Link href="/dashboard/productos" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
-        <ArrowLeft className="w-4 h-4" /> Productos
+        <ArrowLeft className="w-4 h-4" />  {t("Productos")}
       </Link>
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <FlaskConical className="w-8 h-8 text-purple-600" /> Atributos personalizados
+            <FlaskConical className="w-8 h-8 text-purple-600" />  {t("Atributos personalizados")}
           </h1>
           <p className="text-slate-500 mt-1">
-            Crea tus propias plantillas de atributos y sus campos. La ficha del producto
-            dibujará el formulario automáticamente.
+            
+            {t("Crea tus propias plantillas de atributos y sus campos. La ficha del producto dibujará el formulario automáticamente.")}
           </p>
         </div>
         {/* Quien no puede leerlas tampoco puede sembrarlas: el servidor lo
@@ -167,18 +169,18 @@ export default function AtributosPersonalizadosPage() {
         {!vedada && (
           <button onClick={precargarEjemplos} disabled={guardando}
             className="inline-flex items-center gap-2 border border-purple-300 text-purple-700 px-4 py-2 rounded-lg font-medium hover:bg-purple-50 disabled:opacity-50">
-            <Sparkles className="w-4 h-4" /> Precargar plantillas de ejemplo
+            <Sparkles className="w-4 h-4" />  {t("Precargar plantillas de ejemplo")}
           </button>
         )}
       </div>
 
       {error && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 mb-4 text-sm">{error}</div>
+        <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 mb-4 text-sm">{t(error)}</div>
       )}
 
       {vedada && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          <strong className="block">Las plantillas de atributos no están en tu perfil</strong>
+          <strong className="block">{t("Las plantillas de atributos no están en tu perfil")}</strong>
           Esta pantalla no puede enseñarte lo que hay —ni decir si hay algo—, y tampoco
           crear nada: el servidor rechaza las dos cosas. Las administra quien lleva el
           catálogo de productos. Pídeselo a un administrador desde Administración →
@@ -192,7 +194,7 @@ export default function AtributosPersonalizadosPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* ── columna izquierda: grupos ── */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4">
-            <p className="font-semibold text-slate-800 mb-3">Plantillas</p>
+            <p className="font-semibold text-slate-800 mb-3">{t("Plantillas")}</p>
             <div className="space-y-1 mb-3">
               {grupos.map((g) => (
                 <div key={g.id}
@@ -204,18 +206,18 @@ export default function AtributosPersonalizadosPage() {
                       <input autoFocus value={nombreEditado} onChange={(e) => setNombreEditado(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && renombrarGrupo(g.id)}
                         className="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" />
-                      <button aria-label="Guardar el nuevo nombre del grupo" title="Guardar el nuevo nombre del grupo" onClick={(e) => { e.stopPropagation(); renombrarGrupo(g.id); }}><Check className="w-4 h-4 text-emerald-600" /></button>
-                      <button aria-label="Descartar el cambio de nombre" title="Descartar el cambio de nombre" onClick={(e) => { e.stopPropagation(); setEditandoGrupo(null); }}><X className="w-4 h-4 text-slate-400" /></button>
+                      <button aria-label={t("Guardar el nuevo nombre del grupo")} title={t("Guardar el nuevo nombre del grupo")} onClick={(e) => { e.stopPropagation(); renombrarGrupo(g.id); }}><Check className="w-4 h-4 text-emerald-600" /></button>
+                      <button aria-label={t("Descartar el cambio de nombre")} title={t("Descartar el cambio de nombre")} onClick={(e) => { e.stopPropagation(); setEditandoGrupo(null); }}><X className="w-4 h-4 text-slate-400" /></button>
                     </>
                   ) : (
                     <>
-                      <span className="flex-1 text-sm font-medium">{g.nombre}</span>
+                      <span className="flex-1 text-sm font-medium">{t(g.nombre)}</span>
                       <span className="text-xs text-slate-400">{g.definiciones.length}</span>
-                      <button aria-label="Renombrar el grupo" title="Renombrar el grupo" className="opacity-0 group-hover:opacity-100"
+                      <button aria-label={t("Renombrar el grupo")} title={t("Renombrar el grupo")} className="opacity-0 group-hover:opacity-100"
                         onClick={(e) => { e.stopPropagation(); setEditandoGrupo(g.id); setNombreEditado(g.nombre); }}>
                         <Pencil className="w-3.5 h-3.5 text-slate-400 hover:text-blue-600" />
                       </button>
-                      <button aria-label="Eliminar el grupo" title="Eliminar el grupo" className="opacity-0 group-hover:opacity-100"
+                      <button aria-label={t("Eliminar el grupo")} title={t("Eliminar el grupo")} className="opacity-0 group-hover:opacity-100"
                         onClick={(e) => { e.stopPropagation(); eliminarGrupo(g.id, g.nombre); }}>
                         <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-rose-600" />
                       </button>
@@ -231,10 +233,11 @@ export default function AtributosPersonalizadosPage() {
                  */
                 vedada ? (
                   <p className="text-sm text-slate-400 py-4 text-center">
-                    No se puede saber qué plantillas hay<br />con este perfil.
+                    
+                    {t("No se puede saber qué plantillas hay")}<br />{t("con este perfil.")}
                   </p>
                 ) : (
-                  <p className="text-sm text-slate-400 py-4 text-center">Aún no hay plantillas.<br />Crea la primera abajo. 👇</p>
+                  <p className="text-sm text-slate-400 py-4 text-center">{t("Aún no hay plantillas.")}<br />{t("Crea la primera abajo. 👇")}</p>
                 )
               )}
             </div>
@@ -242,9 +245,9 @@ export default function AtributosPersonalizadosPage() {
             <div className={`flex gap-2 ${vedada ? 'hidden' : ''}`}>
               <input value={nuevoGrupo} onChange={(e) => setNuevoGrupo(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && crearGrupo()}
-                placeholder="Nueva plantilla… (ej. Ferretería)"
+                placeholder={t("Nueva plantilla… (ej. Ferretería)")}
                 className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-              <button aria-label="Crear el grupo" title="Crear el grupo" onClick={crearGrupo} disabled={guardando || !nuevoGrupo.trim()}
+              <button aria-label={t("Crear el grupo")} title={t("Crear el grupo")} onClick={crearGrupo} disabled={guardando || !nuevoGrupo.trim()}
                 className="bg-purple-600 text-white rounded-lg px-3 hover:bg-purple-700 disabled:opacity-40">
                 <Plus className="w-4 h-4" />
               </button>
@@ -257,12 +260,12 @@ export default function AtributosPersonalizadosPage() {
               <div className="text-center py-16 text-slate-400">
                 <ListPlus className="w-12 h-12 mx-auto mb-2 text-slate-200" />
                 {vedada
-                  ? 'Los campos de una plantilla se definen desde el catálogo de productos.'
-                  : 'Selecciona o crea una plantilla para definir sus campos'}
+                  ? t("Los campos de una plantilla se definen desde el catálogo de productos.")
+                  : t("Selecciona o crea una plantilla para definir sus campos")}
               </div>
             ) : (
               <>
-                <p className="font-semibold text-slate-800 mb-3">Campos de «{activo.nombre}»</p>
+                <p className="font-semibold text-slate-800 mb-3">Campos de «{t(activo.nombre)}»</p>
 
                 {activo.definiciones.length > 0 && (
                   <div className="border border-slate-100 rounded-xl divide-y divide-slate-100 mb-4">
@@ -270,7 +273,7 @@ export default function AtributosPersonalizadosPage() {
                       <div key={d.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
                         <GripVertical className="w-4 h-4 text-slate-300" />
                         <div className="flex-1">
-                          <span className="font-medium">{d.etiqueta}</span>
+                          <span className="font-medium">{t(d.etiqueta)}</span>
                           {d.requerido && <span className="ml-1 text-rose-500">*</span>}
                           {d.unidad && <span className="ml-2 text-xs text-blue-500">({d.unidad})</span>}
                           {d.tipoValor === "SELECT" && d.opciones && (
@@ -278,11 +281,11 @@ export default function AtributosPersonalizadosPage() {
                           )}
                         </div>
                         <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                          {TIPOS.find((t) => t.value === d.tipoValor)?.label}
+                          {t(TIPOS.find((t) => t.value === d.tipoValor)?.label)}
                         </span>
                         <button onClick={() => moverCampo(d, -1)} className="text-slate-300 hover:text-slate-600">↑</button>
                         <button onClick={() => moverCampo(d, +1)} className="text-slate-300 hover:text-slate-600">↓</button>
-                        <button aria-label="Eliminar el campo" title="Eliminar el campo" onClick={() => eliminarCampo(d.id)}>
+                        <button aria-label={t("Eliminar el campo")} title={t("Eliminar el campo")} onClick={() => eliminarCampo(d.id)}>
                           <Trash2 className="w-4 h-4 text-slate-300 hover:text-rose-600" />
                         </button>
                       </div>
@@ -292,34 +295,35 @@ export default function AtributosPersonalizadosPage() {
 
                 {/* alta de campo */}
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Agregar campo</p>
+                  <p className="text-sm font-semibold text-slate-700 mb-3">{t("Agregar campo")}</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input value={nuevoCampo.etiqueta}
                       onChange={(e) => setNuevoCampo({ ...nuevoCampo, etiqueta: e.target.value })}
-                      placeholder="Nombre del campo (ej. Voltaje)"
+                      placeholder={t("Nombre del campo (ej. Voltaje)")}
                       className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
                     <select value={nuevoCampo.tipoValor}
                       onChange={(e) => setNuevoCampo({ ...nuevoCampo, tipoValor: e.target.value })}
                       className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                      {TIPOS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      {TIPOS.map((tipo) => <option key={tipo.value} value={tipo.value}>{t(tipo.label)}</option>)}
                     </select>
                     {nuevoCampo.tipoValor === "NUMBER" && (
                       <input value={nuevoCampo.unidad}
                         onChange={(e) => setNuevoCampo({ ...nuevoCampo, unidad: e.target.value })}
-                        placeholder="Unidad (ej. V, kg, °C) — opcional"
+                        placeholder={t("Unidad (ej. V, kg, °C) — opcional")}
                         className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
                     )}
                     {nuevoCampo.tipoValor === "SELECT" && (
                       <input value={nuevoCampo.opciones}
                         onChange={(e) => setNuevoCampo({ ...nuevoCampo, opciones: e.target.value })}
-                        placeholder="Opciones separadas por | (ej. 110V|220V|440V)"
+                        placeholder={t("Opciones separadas por | (ej. 110V|220V|440V)")}
                         className="border border-slate-300 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
                     )}
                     <label className="flex items-center gap-2 text-sm text-slate-600">
                       <input type="checkbox" checked={nuevoCampo.requerido}
                         onChange={(e) => setNuevoCampo({ ...nuevoCampo, requerido: e.target.checked })}
                         className="w-4 h-4 rounded border-slate-300 text-purple-600" />
-                      Obligatorio
+                      
+                      {t("Obligatorio")}
                     </label>
                   </div>
                   <button onClick={crearCampo} disabled={guardando || !nuevoCampo.etiqueta.trim()}

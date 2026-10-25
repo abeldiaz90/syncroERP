@@ -11,6 +11,7 @@ import {
 import { PuedeCrear, PuedeEditar } from '@/app/components/ProtectedElement';
 import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
 
+import { useT } from '@/components/I18nProvider';
 interface ICuentaContable { id: string; numeroCuenta: string; nombre: string; tipo?: string; }
 interface IBanco { id: string; clave: string | null; nombre: string; activo: boolean; }
 interface IAlmacen { id: string; nombre: string; }
@@ -56,6 +57,7 @@ const clabeEnmascarada = (clabe: string) =>
   `${clabe.slice(0, 3)} ••••••••••• ${clabe.slice(-4)}`;
 
 export default function CuentasBancariasPage() {
+  const t = useT();
   const [cuentas, setCuentas]       = useState<ICuentaBancaria[]>([]);
   const [ctasContables, setCtasContables] = useState<ICuentaContable[]>([]);
   const [bancos, setBancos]         = useState<IBanco[]>([]);
@@ -110,9 +112,9 @@ export default function CuentasBancariasPage() {
     if (rAlm.ok) { setAlmacenes(await rAlm.json()); } else { setAlmacenes([]); }
     if (rLP.ok)  { setListasPrecio(await rLP.json()); } else { setListasPrecio([]); }
     const caidas = [
-      !rCB.ok ? 'las cuentas bancarias' : '',
-      !rCC.ok ? 'el catálogo de cuentas contables' : '',
-      !rBancos.ok ? 'el catálogo de bancos' : '',
+      !rCB.ok ? t("las cuentas bancarias") : '',
+      !rCC.ok ? t("el catálogo de cuentas contables") : '',
+      !rBancos.ok ? t("el catálogo de bancos") : '',
     ].filter(Boolean);
     setErrorCarga(caidas.length ? `No se pudo consultar ${caidas.join(', ')}.` : '');
     setCargando(false);
@@ -132,12 +134,12 @@ export default function CuentasBancariasPage() {
   };
 
   const guardar = async () => {
-    if (!form.nombre.trim()) { toast$('El nombre es obligatorio', false); return; }
+    if (!form.nombre.trim()) { toast$(t("El nombre es obligatorio"), false); return; }
     if (form.tipo === 'BANCO' && !form.bancoId) {
-      toast$('Selecciona la institución bancaria', false); return;
+      toast$(t("Selecciona la institución bancaria"), false); return;
     }
     if (form.tipo === 'BANCO' && !esClabeValida(form.clabe)) {
-      toast$('La CLABE debe tener 18 dígitos y un dígito verificador válido', false); return;
+      toast$(t("La CLABE debe tener 18 dígitos y un dígito verificador válido"), false); return;
     }
     const institucion = bancos.find(b => b.id === form.bancoId);
     if (
@@ -149,7 +151,7 @@ export default function CuentasBancariasPage() {
       return;
     }
     if (!form.cuentaContableId) {
-      toast$('Elige la cuenta contable. Sin ella, las ventas, cobros y pagos con esta cuenta no podrán contabilizarse.', false);
+      toast$(t("Elige la cuenta contable. Sin ella, las ventas, cobros y pagos con esta cuenta no podrán contabilizarse."), false);
       return;
     }
     setGuardando(true);
@@ -178,7 +180,7 @@ export default function CuentasBancariasPage() {
     });
     setGuardando(false);
     if (res.ok) { setModal(false); cargar(); toast$(editando ? 'Cuenta actualizada' : 'Cuenta creada'); }
-    else { const e=await res.json().catch(()=>({})); toast$(e.message??'Error al guardar', false); }
+    else { const e=await res.json().catch(()=>({})); toast$(e.message??t("Error al guardar"), false); }
   };
 
   const toggleEstado = async (c: ICuentaBancaria) => {
@@ -213,18 +215,19 @@ export default function CuentasBancariasPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Crédito & Cobranza</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Crédito & Cobranza")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <Landmark className="w-8 h-8 text-indigo-500"/> Cuentas Bancarias
+            <Landmark className="w-8 h-8 text-indigo-500"/>  {t("Cuentas Bancarias")}
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Define dónde entra el dinero según el método de pago. Cada cuenta se vincula a su cuenta contable.
+            
+            {t("Define dónde entra el dinero según el método de pago. Cada cuenta se vincula a su cuenta contable.")}
           </p>
         </div>
         <PuedeCrear ruta="/credito/cuentas-bancarias">
           <button onClick={abrirCrear}
             className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-md">
-            <Plus className="w-4 h-4"/> Nueva Cuenta
+            <Plus className="w-4 h-4"/>  {t("Nueva Cuenta")}
           </button>
         </PuedeCrear>
       </div>
@@ -232,15 +235,15 @@ export default function CuentasBancariasPage() {
       {cargando ? (
         <div className="p-20 text-center">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
-          <p className="text-slate-400 text-sm">Cargando cuentas...</p>
+          <p className="text-slate-400 text-sm">{t("Cargando cuentas...")}</p>
         </div>
       ) : (
         <div className="space-y-6">
           {/* Tipos de cuenta */}
           {[
-            { tipo:'CAJA',  lista:caja,  icon:Banknote,  color:'emerald', titulo:'Caja', desc:'Pagos en efectivo' },
-            { tipo:'TPV',   lista:tpv,   icon:CreditCard, color:'blue',  titulo:'Terminal / TPV', desc:'Tarjeta débito y crédito' },
-            { tipo:'BANCO', lista:banco, icon:Building2,  color:'purple', titulo:'Banco / SPEI', desc:'Transferencias' },
+            { tipo:'CAJA',  lista:caja,  icon:Banknote,  color:'emerald', titulo:t("Caja"), desc:t("Pagos en efectivo") },
+            { tipo:'TPV',   lista:tpv,   icon:CreditCard, color:'blue',  titulo:t("Terminal / TPV"), desc:t("Tarjeta débito y crédito") },
+            { tipo:'BANCO', lista:banco, icon:Building2,  color:'purple', titulo:t("Banco / SPEI"), desc:t("Transferencias") },
           ].map(({ tipo, lista, icon: Icon, color, titulo, desc }) => (
             <div key={tipo} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className={`flex items-center gap-3 px-6 py-4 bg-${color}-50 border-b border-${color}-100`}>
@@ -248,18 +251,19 @@ export default function CuentasBancariasPage() {
                   <Icon className={`w-5 h-5 text-${color}-600`}/>
                 </div>
                 <div>
-                  <p className={`font-bold text-${color}-900`}>{titulo}</p>
-                  <p className={`text-xs text-${color}-700`}>{desc}</p>
+                  <p className={`font-bold text-${color}-900`}>{t(titulo)}</p>
+                  <p className={`text-xs text-${color}-700`}>{t(desc)}</p>
                 </div>
-                <span className={`ml-auto text-sm font-bold text-${color}-700`}>{cargando ? 'Consultando…' : plural(lista.length, 'cuenta')}</span>
+                <span className={`ml-auto text-sm font-bold text-${color}-700`}>{cargando ? t("Consultando…") : plural(lista.length, 'cuenta')}</span>
               </div>
 
               {lista.length === 0 ? (
                 <div className="px-6 py-8 text-center">
-                  <p className="text-slate-400 text-sm">No hay cuentas de este tipo.</p>
+                  <p className="text-slate-400 text-sm">{t("No hay cuentas de este tipo.")}</p>
                   <button onClick={abrirCrear}
                     className="mt-3 text-sm text-indigo-600 font-semibold hover:underline">
-                    + Agregar una
+                    
+                    {t("+ Agregar una")}
                   </button>
                 </div>
               ) : (
@@ -268,10 +272,11 @@ export default function CuentasBancariasPage() {
                     <div key={c.id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="font-semibold text-slate-800">{c.nombre}</p>
+                          <p className="font-semibold text-slate-800">{t(c.nombre)}</p>
                           {c.esPorDefecto && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
-                              Por defecto
+                              
+                              {t("Por defecto")}
                             </span>
                           )}
                         </div>
@@ -281,33 +286,32 @@ export default function CuentasBancariasPage() {
                           )}
                           {c.banco && (
                             <span className="text-xs text-slate-500">
-                              {c.banco.clave} · {c.banco.nombre}
+                              {c.banco.clave} · {t(c.banco.nombre)}
                             </span>
                           )}
                           {c.clabe && (
                             <span className="text-xs font-mono text-slate-500">
-                              CLABE {clabeEnmascarada(c.clabe)}
-                            </span>
+                              {t("CLABE {n0}", { n0: clabeEnmascarada(c.clabe) })}</span>
                           )}
                           {c.cuentaContable && (
                             <span className="text-xs text-slate-400">
-                              → {c.cuentaContable.numeroCuenta} {c.cuentaContable.nombre}
+                              → {c.cuentaContable.numeroCuenta} {t(c.cuentaContable.nombre)}
                             </span>
                           )}
                           {!c.cuentaContable && (
-                            <span className="text-xs text-amber-600 font-medium">⚠ Sin cuenta contable</span>
+                            <span className="text-xs text-amber-600 font-medium">{t("⚠ Sin cuenta contable")}</span>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
                         <PuedeEditar ruta="/credito/cuentas-bancarias/:id">
-                          <button aria-label="Editar" title="Editar" onClick={() => abrirEditar(c)}
+                          <button aria-label={t("Editar")} title={t("Editar")} onClick={() => abrirEditar(c)}
                             className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors">
                             <Edit2 className="w-4 h-4"/>
                           </button>
                         </PuedeEditar>
                         <PuedeEditar ruta="/credito/cuentas-bancarias/:id/estado">
-                          <button aria-label="Activar o desactivar" title="Activar o desactivar" onClick={() => toggleEstado(c)}
+                          <button aria-label={t("Activar o desactivar")} title={t("Activar o desactivar")} onClick={() => toggleEstado(c)}
                             className="p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded-lg transition-colors">
                             <Power className="w-4 h-4"/>
                           </button>
@@ -324,13 +328,13 @@ export default function CuentasBancariasPage() {
           {inactivas.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden opacity-60">
               <div className="flex items-center gap-3 px-6 py-3 bg-slate-50 border-b border-slate-200">
-                <p className="text-sm font-semibold text-slate-500">Desactivadas ({inactivas.length})</p>
+                <p className="text-sm font-semibold text-slate-500">{t("Desactivadas ({n0})", { n0: inactivas.length })}</p>
               </div>
               {inactivas.map(c => (
                 <div key={c.id} className="flex items-center gap-4 px-6 py-3 hover:bg-slate-50">
-                  <p className="flex-1 text-sm text-slate-500 line-through">{c.nombre}</p>
+                  <p className="flex-1 text-sm text-slate-500 line-through">{t(c.nombre)}</p>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${TIPO_STYLE[c.tipo]}`}>{c.tipo}</span>
-                  <button aria-label="Activar o desactivar" title="Activar o desactivar" onClick={() => toggleEstado(c)}
+                  <button aria-label={t("Activar o desactivar")} title={t("Activar o desactivar")} onClick={() => toggleEstado(c)}
                     className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg text-xs font-medium">
                     <Power className="w-4 h-4"/>
                   </button>
@@ -342,13 +346,14 @@ export default function CuentasBancariasPage() {
           {cuentas.length === 0 && (
             <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-16 text-center">
               <Landmark className="w-12 h-12 text-slate-200 mx-auto mb-4"/>
-              <p className="font-semibold text-slate-600">Sin cuentas configuradas</p>
+              <p className="font-semibold text-slate-600">{t("Sin cuentas configuradas")}</p>
               <p className="text-sm text-slate-400 mt-1 mb-4">
-                Crea al menos una caja y una cuenta para tarjetas antes de procesar pagos
+                
+                {t("Crea al menos una caja y una cuenta para tarjetas antes de procesar pagos")}
               </p>
               <button onClick={abrirCrear}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700">
-                <Plus className="w-4 h-4"/> Crear primera cuenta
+                <Plus className="w-4 h-4"/>  {t("Crear primera cuenta")}
               </button>
             </div>
           )}
@@ -362,9 +367,9 @@ export default function CuentasBancariasPage() {
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
               <h2 className="font-bold flex items-center gap-2">
                 <Landmark className="w-5 h-5 text-indigo-400"/>
-                {editando ? `Editar — ${editando.nombre}` : 'Nueva Cuenta Bancaria'}
+                {editando ? `Editar — ${editando.nombre}` : t("Nueva Cuenta Bancaria")}
               </h2>
-              <button aria-label="Cerrar" title="Cerrar" onClick={()=>setModal(false)} className="p-1.5 text-slate-400 hover:text-white">
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={()=>setModal(false)} className="p-1.5 text-slate-400 hover:text-white">
                 <X className="w-5 h-5"/>
               </button>
             </div>
@@ -372,17 +377,17 @@ export default function CuentasBancariasPage() {
 
               {/* Tipo */}
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Tipo de cuenta *</label>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-2">{t("Tipo de cuenta *")}</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {TIPOS.map(t => (
-                    <button key={t.value} onClick={()=>setForm(f=>({...f,tipo:t.value}))}
+                  {TIPOS.map(tipo => (
+                    <button key={tipo.value} onClick={()=>setForm(f=>({...f,tipo:tipo.value}))}
                       className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center ${
-                        form.tipo===t.value
-                          ? `border-${t.color}-500 bg-${t.color}-50`
+                        form.tipo===tipo.value
+                          ? `border-${tipo.color}-500 bg-${tipo.color}-50`
                           : 'border-slate-200 hover:border-slate-300'
                       }`}>
-                      <t.icon className={`w-5 h-5 ${form.tipo===t.value?`text-${t.color}-600`:'text-slate-400'}`}/>
-                      <span className="text-xs font-semibold">{t.label}</span>
+                      <tipo.icon className={`w-5 h-5 ${form.tipo===tipo.value?`text-${tipo.color}-600`:'text-slate-400'}`}/>
+                      <span className="text-xs font-semibold">{t(tipo.label)}</span>
                     </button>
                   ))}
                 </div>
@@ -390,9 +395,9 @@ export default function CuentasBancariasPage() {
 
               {/* Nombre */}
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Nombre *</label>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Nombre *")}</label>
                 <input value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))}
-                  placeholder={form.tipo==='CAJA'?'Ej. Caja General':form.tipo==='TPV'?'Ej. TPV BBVA':'Ej. Banco BBVA SPEI'}
+                  placeholder={form.tipo==='CAJA'?t("Ej. Caja General"):form.tipo==='TPV'?t("Ej. TPV BBVA"):t("Ej. Banco BBVA SPEI")}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
               </div>
 
@@ -401,21 +406,21 @@ export default function CuentasBancariasPage() {
                 <>
                   <div>
                     <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
-                      Institución bancaria {form.tipo === 'BANCO' ? '*' : '(opcional)'}
-                    </label>
-                    <BuscadorSeleccion valor={form.bancoId} onChange={(bancoId) => setForm((f) => ({ ...f, bancoId }))} opciones={bancos.map((b) => ({ valor: b.id, etiqueta: `${b.clave ?? '—'} · ${b.nombre}`, busqueda: b.clave ?? '' }))} placeholder="Buscar banco por clave o nombre…" />
+                      {t("Institución bancaria {n0}", { n0: form.tipo === 'BANCO' ? '*' : t("(opcional)") })}</label>
+                    <BuscadorSeleccion valor={form.bancoId} onChange={(bancoId) => setForm((f) => ({ ...f, bancoId }))} opciones={bancos.map((b) => ({ valor: b.id, etiqueta: `${b.clave ?? '—'} · ${b.nombre}`, busqueda: b.clave ?? '' }))} placeholder={t("Buscar banco por clave o nombre…")} />
                     <p className="text-xs text-slate-400 mt-1">
-                      Si no aparece, agrégalo primero en Catálogos → Bancos.
+                      
+                      {t("Si no aparece, agrégalo primero en Catálogos → Bancos.")}
                     </p>
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
-                      {form.tipo==='TPV' ? 'Número de afiliación (opcional)' : 'Número de cuenta (opcional)'}
+                      {form.tipo==='TPV' ? t("Número de afiliación (opcional)") : t("Número de cuenta (opcional)")}
                     </label>
                     <input value={form.numeroCuenta} onChange={e=>setForm(f=>({...f,numeroCuenta:e.target.value}))}
                       maxLength={50}
-                      placeholder={form.tipo==='TPV'?'123456':'Número interno de la cuenta'}
+                      placeholder={form.tipo==='TPV'?'123456':t("Número interno de la cuenta")}
                       className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
                   </div>
                 </>
@@ -424,7 +429,8 @@ export default function CuentasBancariasPage() {
               {form.tipo === 'BANCO' && (
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
-                    CLABE interbancaria *
+                    
+                    {t("CLABE interbancaria *")}
                   </label>
                   <input
                     value={form.clabe}
@@ -434,7 +440,7 @@ export default function CuentasBancariasPage() {
                     }))}
                     inputMode="numeric"
                     maxLength={18}
-                    placeholder="18 dígitos"
+                    placeholder={t("18 dígitos")}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <p className={`text-xs mt-1 ${
@@ -442,10 +448,10 @@ export default function CuentasBancariasPage() {
                     esClabeValida(form.clabe) ? 'text-emerald-600' : 'text-amber-600'
                   }`}>
                     {!form.clabe
-                      ? 'Se validarán longitud, banco y dígito verificador.'
+                      ? t("Se validarán longitud, banco y dígito verificador.")
                       : esClabeValida(form.clabe)
-                        ? 'CLABE válida.'
-                        : 'La CLABE todavía no es válida.'}
+                        ? t("CLABE válida.")
+                        : t("La CLABE todavía no es válida.")}
                   </p>
                 </div>
               )}
@@ -453,11 +459,12 @@ export default function CuentasBancariasPage() {
               {/* Cuenta contable */}
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
-                  Cuenta contable *
+                  
+                  {t("Cuenta contable *")}
                 </label>
                 <select value={form.cuentaContableId} onChange={e=>setForm(f=>({...f,cuentaContableId:e.target.value}))}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="">— Seleccionar cuenta —</option>
+                  <option value="">{t("— Seleccionar cuenta —")}</option>
                   {/*
                     * Antes filtraba con `numeroCuenta.startsWith('1')`. Si la
                     * empresa usa otra numeración, el desplegable salía vacío y
@@ -466,10 +473,10 @@ export default function CuentasBancariasPage() {
                     * se usa como respaldo cuando el backend no envía `tipo`.
                     */}
                   {ctasContables.filter(c=> c.tipo ? c.tipo === 'ACTIVO' : c.numeroCuenta.startsWith('1')).map(c=>(
-                    <option key={c.id} value={c.id}>{c.numeroCuenta} – {c.nombre}</option>
+                    <option key={c.id} value={c.id}>{c.numeroCuenta} – {t(c.nombre)}</option>
                   ))}
                 </select>
-                <p className="text-xs text-slate-400 mt-1">Solo cuentas de Activo. Es obligatoria: sin ella, ninguna operación con esta caja o banco podrá generar su póliza.</p>
+                <p className="text-xs text-slate-400 mt-1">{t("Solo cuentas de Activo. Es obligatoria: sin ella, ninguna operación con esta caja o banco podrá generar su póliza.")}</p>
               </div>
 
               {/*
@@ -490,35 +497,37 @@ export default function CuentasBancariasPage() {
                 */}
               {form.tipo === 'CAJA' && (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm font-bold text-slate-800">Desde dónde vende esta caja</p>
+                  <p className="text-sm font-bold text-slate-800">{t("Desde dónde vende esta caja")}</p>
                   <p className="text-xs text-slate-500 mt-0.5 mb-3">
-                    El punto de venta lo obedece: quien cobra por esta caja no
-                    elige almacén ni lista de precios.
+                    
+                    {t("El punto de venta lo obedece: quien cobra por esta caja no elige almacén ni lista de precios.")}
                   </p>
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
-                        Almacén
+                        
+                        {t("Almacén")}
                       </label>
                       <select value={form.almacenId} onChange={e=>setForm(f=>({...f,almacenId:e.target.value}))}
                         disabled={!almacenes.length}
                         className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100">
-                        <option value="">— Usar el predeterminado —</option>
-                        {almacenes.map(a=>(<option key={a.id} value={a.id}>{a.nombre}</option>))}
+                        <option value="">{t("— Usar el predeterminado —")}</option>
+                        {almacenes.map(a=>(<option key={a.id} value={a.id}>{t(a.nombre)}</option>))}
                       </select>
                     </div>
 
                     <div>
                       <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
-                        Lista de precios
+                        
+                        {t("Lista de precios")}
                       </label>
                       <select value={form.listaPrecioId} onChange={e=>setForm(f=>({...f,listaPrecioId:e.target.value}))}
                         disabled={!listasPrecio.length}
                         className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100">
-                        <option value="">— Usar la predeterminada —</option>
+                        <option value="">{t("— Usar la predeterminada —")}</option>
                         {listasPrecio.map(l=>(
-                          <option key={l.id} value={l.id}>{l.nombre}{l.esPorDefecto?' · Predeterminada':''}</option>
+                          <option key={l.id} value={l.id}>{t(l.nombre)}{l.esPorDefecto?t("· Predeterminada"):''}</option>
                         ))}
                       </select>
                     </div>
@@ -527,10 +536,10 @@ export default function CuentasBancariasPage() {
                   {(!almacenes.length || !listasPrecio.length) && (
                     <p className="text-xs text-amber-700 mt-2">
                       {!almacenes.length && !listasPrecio.length
-                        ? 'Ni el catálogo de almacenes ni el de listas de precio están en tu perfil, así que esta caja se guardará sin contexto de venta y el punto de venta usará el predeterminado.'
+                        ? t("Ni el catálogo de almacenes ni el de listas de precio están en tu perfil, así que esta caja se guardará sin contexto de venta y el punto de venta usará el predeterminado.")
                         : !almacenes.length
-                          ? 'El catálogo de almacenes no está en tu perfil: esta caja se guardará sin almacén y el punto de venta usará el predeterminado.'
-                          : 'El catálogo de listas de precio no está en tu perfil: esta caja se guardará sin lista y el punto de venta usará la predeterminada.'}
+                          ? t("El catálogo de almacenes no está en tu perfil: esta caja se guardará sin almacén y el punto de venta usará el predeterminado.")
+                          : t("El catálogo de listas de precio no está en tu perfil: esta caja se guardará sin lista y el punto de venta usará la predeterminada.")}
                     </p>
                   )}
                 </div>
@@ -541,17 +550,17 @@ export default function CuentasBancariasPage() {
                 <input type="checkbox" checked={form.esPorDefecto} onChange={e=>setForm(f=>({...f,esPorDefecto:e.target.checked}))}
                   className="w-4 h-4 text-indigo-600 rounded"/>
                 <div>
-                  <p className="text-sm font-bold text-indigo-900">Cuenta por defecto</p>
-                  <p className="text-xs text-indigo-700">El POS usará esta cuenta cuando no se seleccione otra</p>
+                  <p className="text-sm font-bold text-indigo-900">{t("Cuenta por defecto")}</p>
+                  <p className="text-xs text-indigo-700">{t("El POS usará esta cuenta cuando no se seleccione otra")}</p>
                 </div>
               </label>
 
               <div className="flex gap-3 pt-2">
-                <button onClick={()=>setModal(false)} className="flex-1 py-2.5 text-slate-700 font-medium hover:bg-slate-100 rounded-xl">Cancelar</button>
+                <button onClick={()=>setModal(false)} className="flex-1 py-2.5 text-slate-700 font-medium hover:bg-slate-100 rounded-xl">{t("Cancelar")}</button>
                 <button onClick={guardar} disabled={guardando}
                   className="flex-1 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">
                   {guardando ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <Save className="w-4 h-4"/>}
-                  {guardando ? 'Guardando...' : editando ? 'Guardar cambios' : 'Crear cuenta'}
+                  {guardando ? t("Guardando...") : editando ? t("Guardar cambios") : t("Crear cuenta")}
                 </button>
               </div>
             </div>

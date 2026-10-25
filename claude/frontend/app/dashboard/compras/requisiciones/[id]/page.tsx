@@ -13,6 +13,7 @@ import { confirmarElegante } from '@/components/ui/dialogos';
 import { useAvisos } from '@/components/ui';
 import { FOLIO, folioDe } from '@/lib/folios';
 
+import { useT } from '@/components/I18nProvider';
 // ==========================================
 // INTERFACES TYPESCRIPT
 // ==========================================
@@ -69,6 +70,7 @@ export interface IRequisicion {
 // COMPONENTE PRINCIPAL
 // ==========================================
 export default function DetalleRequisicionPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const { id } = useParams();
   const requisicionId = Array.isArray(id) ? id[0] : id;
@@ -107,15 +109,15 @@ export default function DetalleRequisicionPage() {
         const cuerpo = await r.json().catch(() => null);
         setMotivo(
           r.status === 403
-            ? 'Tu rol no tiene permiso para abrir esta requisición.'
+            ? t("Tu rol no tiene permiso para abrir esta requisición.")
             : r.status === 404
-              ? 'Es posible que el identificador sea incorrecto o que la requisición se haya eliminado.'
+              ? t("Es posible que el identificador sea incorrecto o que la requisición se haya eliminado.")
               : cuerpo?.message
                 ? String(cuerpo.message)
-                : 'No se pudo cargar la requisición.',
+                : t("No se pudo cargar la requisición."),
         );
       })
-      .catch(() => setMotivo('No se pudo contactar al servidor.'))
+      .catch(() => setMotivo(t("No se pudo contactar al servidor.")))
       .finally(() => setCargando(false));
   }, [requisicionId, apiUrl]);
 
@@ -127,11 +129,11 @@ export default function DetalleRequisicionPage() {
     if (!aprobacionPendiente) return;
 
     if (estado === 'RECHAZADO' && !comentario.trim()) {
-      avisar('Debes escribir un comentario explicando el motivo del rechazo.', 'alerta');
+      avisar(t("Debes escribir un comentario explicando el motivo del rechazo."), 'alerta');
       return;
     }
 
-    if (!await confirmarElegante(estado === 'APROBADO' ? 'La solicitud avanzará al siguiente aprobador o al área de compras.' : 'La solicitud será devuelta al creador y no se podrá procesar.', { titulo: estado === 'APROBADO' ? 'Aprobar requisición' : 'Rechazar requisición', peligroso: estado === 'RECHAZADO' })) return;
+    if (!await confirmarElegante(estado === 'APROBADO' ? t("La solicitud avanzará al siguiente aprobador o al área de compras.") : t("La solicitud será devuelta al creador y no se podrá procesar."), { titulo: estado === 'APROBADO' ? t("Aprobar requisición") : t("Rechazar requisición"), peligroso: estado === 'RECHAZADO' })) return;
 
     const token = localStorage.getItem('syncro_token');
     setAprobando(true);
@@ -157,14 +159,14 @@ export default function DetalleRequisicionPage() {
         avisar(
           (Array.isArray(d?.message) ? d.message.join(', ') : d?.message) ||
             (estado === 'APROBADO'
-              ? 'No se registró la aprobación.'
-              : 'No se registró el rechazo.'),
+              ? t("No se registró la aprobación.")
+              : t("No se registró el rechazo.")),
           'error',
         );
         return;
       }
 
-      avisar(estado === 'APROBADO' ? 'Nivel de requisición aprobado.' : 'Requisición rechazada.', 'exito');
+      avisar(estado === 'APROBADO' ? t("Nivel de requisición aprobado.") : t("Requisición rechazada."), 'exito');
 
       const nueva = await peticion(`/compras/requisiciones/${requisicionId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -173,7 +175,7 @@ export default function DetalleRequisicionPage() {
       setComentario('');
     } catch (error) { 
       console.error(error); 
-      avisar('No se pudo conectar con el servidor.', 'error');
+      avisar(t("No se pudo conectar con el servidor."), 'error');
     } finally { 
       setAprobando(false); 
     }
@@ -183,7 +185,7 @@ export default function DetalleRequisicionPage() {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-slate-400">
         <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
-        <p className="font-medium">Cargando expediente de la requisición...</p>
+        <p className="font-medium">{t("Cargando expediente de la requisición...")}</p>
       </div>
     );
   }
@@ -192,12 +194,13 @@ export default function DetalleRequisicionPage() {
     return (
       <div className="p-12 text-center text-rose-500 bg-rose-50 m-8 rounded-2xl border border-rose-100 max-w-2xl mx-auto">
         <AlertCircle className="w-12 h-12 mx-auto mb-4 text-rose-400" />
-        <p className="text-xl font-bold">No se pudo abrir la requisición</p>
+        <p className="text-xl font-bold">{t("No se pudo abrir la requisición")}</p>
         <p className="mt-2 text-rose-600">
-          {motivo || 'Es posible que el identificador sea incorrecto o que la requisición se haya eliminado.'}
+          {motivo || t("Es posible que el identificador sea incorrecto o que la requisición se haya eliminado.")}
         </p>
         <Link href="/dashboard/compras/requisiciones" className="text-indigo-600 font-medium hover:underline mt-6 inline-block">
-          &larr; Volver al listado principal
+          
+          {t("&larr; Volver al listado principal")}
         </Link>
       </div>
     );
@@ -220,7 +223,7 @@ export default function DetalleRequisicionPage() {
   const timelineEventos: any[] = [
     { 
       fecha: requisicion.fechaSolicitud, 
-      titulo: 'Requisición Creada', 
+      titulo: t("Requisición Creada"), 
       icono: <FileText className="w-4 h-4 text-indigo-600" />, 
       color: 'bg-indigo-100 border-indigo-200',
       detalle: `Generada por ${requisicion.usuarioSolicitante?.nombreCompleto || 'N/A'}` 
@@ -237,7 +240,7 @@ export default function DetalleRequisicionPage() {
       .filter(ap => ap.estado !== 'PENDIENTE')
       .map(ap => ({
         fecha: ap.fechaResolucion || requisicion.fechaSolicitud,
-        titulo: ap.estado === 'APROBADO' ? 'Revisión Aprobada' : 'Revisión Rechazada',
+        titulo: ap.estado === 'APROBADO' ? t("Revisión Aprobada") : t("Revisión Rechazada"),
         icono: ap.estado === 'APROBADO' ? <ThumbsUp className="w-4 h-4 text-emerald-600" /> : <ThumbsDown className="w-4 h-4 text-rose-600" />,
         color: ap.estado === 'APROBADO' ? 'bg-emerald-100 border-emerald-200' : 'bg-rose-100 border-rose-200',
         detalle: `${ap.usuario?.nombreCompleto || ap.usuarioId} ${ap.comentario ? `dejó un comentario: "${ap.comentario}"` : ''}`,
@@ -248,7 +251,7 @@ export default function DetalleRequisicionPage() {
   (requisicion.cotizaciones || []).forEach(cot => {
     timelineEventos.push({
       fecha: cot.fechaCotizacion,
-      titulo: 'Cotización Recibida',
+      titulo: t("Cotización Recibida"),
       icono: <Receipt className="w-4 h-4 text-blue-600" />,
       color: 'bg-blue-100 border-blue-200',
       detalle: `Propuesta de ${cot.proveedor?.nombre || 'Proveedor'}. Total Ofertado: $${cot.total?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
@@ -259,7 +262,7 @@ export default function DetalleRequisicionPage() {
       cot.ordenesCompra.forEach(oc => {
         timelineEventos.push({
           fecha: oc.fechaCreacion || cot.fechaCotizacion, // fallback
-          titulo: 'Orden de Compra Generada',
+          titulo: t("Orden de Compra Generada"),
           icono: <ShoppingCart className="w-4 h-4 text-purple-600" />,
           color: 'bg-purple-100 border-purple-200',
           detalle: `OC-${oc.id.substring(0,8).toUpperCase()} emitida al proveedor ${cot.proveedor?.nombre || ''}.`,
@@ -270,12 +273,12 @@ export default function DetalleRequisicionPage() {
           const esPerfecta = oc.estado === 'RECIBIDA';
           timelineEventos.push({
             fecha: oc.fechaActualizacion || new Date().toISOString(),
-            titulo: esPerfecta ? 'Recepción en Almacén' : 'Recepción con Incidencias',
+            titulo: esPerfecta ? t("Recepción en Almacén") : t("Recepción con Incidencias"),
             icono: <PackageSearch className={`w-4 h-4 ${esPerfecta ? 'text-emerald-600' : 'text-amber-600'}`} />,
             color: esPerfecta ? 'bg-emerald-100 border-emerald-200' : 'bg-amber-100 border-amber-200',
             detalle: esPerfecta 
-              ? 'La mercancía ingresó al inventario físico sin novedades.' 
-              : 'La mercancía ingresó, pero se reportaron faltantes o mermas.',
+              ? t("La mercancía ingresó al inventario físico sin novedades.") 
+              : t("La mercancía ingresó, pero se reportaron faltantes o mermas."),
           });
         }
       });
@@ -293,7 +296,7 @@ export default function DetalleRequisicionPage() {
       
       <div className="mb-6">
         <Link href="/dashboard/compras/requisiciones" className="inline-flex items-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-indigo-600 rounded-lg font-medium transition-colors shadow-sm w-max">
-          <ChevronLeft className="w-4 h-4" /> Volver a Requisiciones
+          <ChevronLeft className="w-4 h-4" />  {t("Volver a Requisiciones")}
         </Link>
       </div>
 
@@ -303,7 +306,8 @@ export default function DetalleRequisicionPage() {
             <div className="p-2.5 bg-indigo-100 rounded-xl">
               <FileBox className="w-7 h-7 text-indigo-600" />
             </div>
-            Expediente de Requisición
+            
+            {t("Expediente de Requisición")}
           </h1>
           <p className="text-slate-500 mt-2 font-medium flex items-center gap-2 text-lg">
             Folio Oficial: <span className="font-mono text-indigo-600 font-bold bg-indigo-50 px-3 py-0.5 rounded">{folioDe(requisicion, FOLIO.REQUISICION)}</span>
@@ -326,15 +330,15 @@ export default function DetalleRequisicionPage() {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="p-5 bg-slate-50 border-b border-slate-200 flex items-center gap-3">
               <User className="w-5 h-5 text-slate-400" />
-              <h2 className="text-lg font-bold text-slate-800">Información del Solicitante</h2>
+              <h2 className="text-lg font-bold text-slate-800">{t("Información del Solicitante")}</h2>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Elaborado por</p>
-                <p className="font-semibold text-slate-900 text-lg">{requisicion.usuarioSolicitante?.nombreCompleto || 'Usuario Desconocido'}</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{t("Elaborado por")}</p>
+                <p className="font-semibold text-slate-900 text-lg">{requisicion.usuarioSolicitante?.nombreCompleto || t("Usuario Desconocido")}</p>
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Fecha de Creación</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{t("Fecha de Creación")}</p>
                 <p className="font-semibold text-slate-900 text-lg flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-indigo-500" />
                   {new Date(requisicion.fechaSolicitud).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -342,7 +346,7 @@ export default function DetalleRequisicionPage() {
               </div>
               {requisicion.notas && (
                 <div className="md:col-span-2 mt-2">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Justificación / Notas Adicionales</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{t("Justificación / Notas Adicionales")}</p>
                   <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100 italic">
                     "{requisicion.notas}"
                   </p>
@@ -354,26 +358,25 @@ export default function DetalleRequisicionPage() {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-3">
-                <PackageSearch className="w-5 h-5 text-slate-400" /> Lista de Partidas Requeridas
+                <PackageSearch className="w-5 h-5 text-slate-400" />  {t("Lista de Partidas Requeridas")}
               </h2>
               <span className="bg-white text-slate-700 font-bold text-xs px-3 py-1 rounded-lg border border-slate-200 shadow-sm">
-                {requisicion.detalles.length} items
-              </span>
+                {t("{n0} items", { n0: requisicion.detalles.length })}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-slate-900 text-white">
                   <tr>
-                    <th className="px-6 py-4 text-sm font-semibold tracking-wide">Descripción del Producto</th>
-                    <th className="px-6 py-4 text-sm font-semibold tracking-wide text-center">Cantidad</th>
+                    <th className="px-6 py-4 text-sm font-semibold tracking-wide">{t("Descripción del Producto")}</th>
+                    <th className="px-6 py-4 text-sm font-semibold tracking-wide text-center">{t("Cantidad")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {requisicion.detalles.map((det) => (
                     <tr key={det.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
-                        <p className="font-semibold text-slate-800">{det.producto?.nombre}</p>
-                        {det.producto?.sku && <p className="text-xs font-mono text-slate-400 mt-1">SKU: {det.producto.sku}</p>}
+                        <p className="font-semibold text-slate-800">{t(det.producto?.nombre)}</p>
+                        {det.producto?.sku && <p className="text-xs font-mono text-slate-400 mt-1">{t("SKU: {n0}", { n0: det.producto.sku })}</p>}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span className="inline-flex items-center justify-center font-black text-indigo-700 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100">
@@ -398,18 +401,18 @@ export default function DetalleRequisicionPage() {
                   <ShieldCheck className="w-5 h-5 text-indigo-300" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold tracking-tight">Tu Autorización es Requerida</h2>
-                  <p className="text-indigo-300 text-sm">Paso {aprobacionPendiente.orden} del flujo.</p>
+                  <h2 className="text-lg font-bold tracking-tight">{t("Tu Autorización es Requerida")}</h2>
+                  <p className="text-indigo-300 text-sm">{t("Paso {n0} del flujo.", { n0: aprobacionPendiente.orden })}</p>
                 </div>
               </div>
               <div className="p-6 bg-white/5 backdrop-blur-sm">
                 <label className="block text-sm font-medium text-indigo-200 mb-2 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4" /> Comentario u Observación
+                  <MessageSquare className="w-4 h-4" />  {t("Comentario u Observación")}
                 </label>
                 <textarea
                   value={comentario}
                   onChange={(e) => setComentario(e.target.value)}
-                  placeholder="Escribe aquí si deseas agregar notas al aprobar o rechazar..."
+                  placeholder={t("Escribe aquí si deseas agregar notas al aprobar o rechazar...")}
                   className="w-full px-4 py-3 bg-slate-900/50 border border-indigo-500/30 rounded-xl text-white placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-400 focus:border-transparent outline-none transition-all resize-none mb-6"
                   rows={3}
                 />
@@ -419,7 +422,7 @@ export default function DetalleRequisicionPage() {
                     disabled={aprobando}
                     className="flex-1 py-3 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white border border-rose-500/50 rounded-xl font-bold transition-all disabled:opacity-50 active:scale-95 flex justify-center items-center gap-2"
                   >
-                    <ThumbsDown className="w-4 h-4" /> Rechazar
+                    <ThumbsDown className="w-4 h-4" />  {t("Rechazar")}
                   </button>
                   <button
                     onClick={() => handleResolver('APROBADO')}
@@ -436,7 +439,7 @@ export default function DetalleRequisicionPage() {
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
             <h2 className="text-lg font-bold text-slate-800 mb-8 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-indigo-500" /> Trazabilidad del Documento
+              <Clock className="w-5 h-5 text-indigo-500" />  {t("Trazabilidad del Documento")}
             </h2>
             
             <div className="relative border-l-2 border-slate-100 ml-4 space-y-8">
@@ -448,13 +451,13 @@ export default function DetalleRequisicionPage() {
                   
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex justify-between items-start mb-1">
-                      <p className="font-bold text-slate-900">{evento.titulo}</p>
+                      <p className="font-bold text-slate-900">{t(evento.titulo)}</p>
                       <span className="text-xs font-mono text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200">
                         {new Date(evento.fecha).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' })}
                       </span>
                     </div>
                     <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                      {evento.detalle}
+                      {t(evento.detalle)}
                     </p>
                   </div>
                 </div>
@@ -464,7 +467,7 @@ export default function DetalleRequisicionPage() {
               {!procesoTerminado && (
                 <div className="relative pl-8 opacity-50">
                   <div className="absolute -left-[13px] top-2 w-6 h-6 rounded-full border-4 border-white bg-slate-200 animate-pulse"></div>
-                  <p className="font-semibold text-slate-400 italic">Esperando siguiente acción...</p>
+                  <p className="font-semibold text-slate-400 italic">{t("Esperando siguiente acción...")}</p>
                 </div>
               )}
             </div>

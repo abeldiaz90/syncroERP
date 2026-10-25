@@ -39,6 +39,7 @@ import { TableroVerificaciones } from '@/components/verificaciones/tablero-verif
 import { hoyISO } from '@/lib/fechas';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 // ── Interfaces ────────────────────────────────────────────────────────────────
 export interface ICliente {
     id: string; nombre: string; curp?: string;
@@ -132,11 +133,12 @@ function Campo({
     label: string; name: string; error?: string;
     touched?: boolean; required?: boolean; children: React.ReactNode;
 }) {
+  const t = useT();
     const showError = touched && error;
     return (
         <div>
             <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
-                {label}
+                {t(label)}
                 {required && <span className="text-rose-500 ml-0.5">*</span>}
             </label>
             <div className={`rounded-lg transition-all ${showError ? 'ring-2 ring-rose-400' : ''}`}>
@@ -144,7 +146,7 @@ function Campo({
             </div>
             {showError && (
                 <p className="flex items-center gap-1 mt-1 text-xs text-rose-600 font-medium">
-                    <AlertCircle className="w-3 h-3 shrink-0"/> {error}
+                    <AlertCircle className="w-3 h-3 shrink-0"/> {t(error)}
                 </p>
             )}
         </div>
@@ -241,6 +243,7 @@ function estadoDeducidoDelCp(cp: string): string | null {
 }
 
 export default function ClientesPage() {
+  const t = useT();
     const [clientes, setClientes]       = useState<ICliente[]>([]);
     const [cargando, setCargando]       = useState(true);
     const [busqueda, setBusqueda]       = useState('');
@@ -304,7 +307,7 @@ export default function ClientesPage() {
         const p = new URLSearchParams({ activos: soloActivos?'true':'false' });
         if (busqDebounced) p.set('filtro', busqDebounced);
         const r = await peticion(`/clientes?${p}`, { headers: heads() }).catch(()=>null);
-        if (r?.ok) setClientes(await r.json()); else showToast('Error al cargar clientes','err');
+        if (r?.ok) setClientes(await r.json()); else showToast(t("Error al cargar clientes"),'err');
         setCargando(false);
     }, [busqDebounced, soloActivos]);
     useEffect(()=>{ fetchClientes(); },[fetchClientes]);
@@ -383,8 +386,8 @@ export default function ClientesPage() {
             if (r.ok) return r.json();
             showToast(
               r.status === 403
-                ? 'Tu perfil no incluye los prospectos: captura el alta a mano.'
-                : 'No se pudo traer el prospecto. Captura el alta a mano.',
+                ? t("Tu perfil no incluye los prospectos: captura el alta a mano.")
+                : t("No se pudo traer el prospecto. Captura el alta a mano."),
               'err',
             );
             return null;
@@ -393,7 +396,7 @@ export default function ClientesPage() {
             if (!vivo || lista === null) return;
             const p = Array.isArray(lista) ? lista.find((x) => x?.id === desde) : null;
             if (!p) {
-              showToast('Ese prospecto ya no está en la lista.', 'info');
+              showToast(t("Ese prospecto ya no está en la lista."), 'info');
               return;
             }
             const mx = paises.find(x => x.codigoIso2==='MX' || x.codigo==='MX');
@@ -418,7 +421,7 @@ export default function ClientesPage() {
             const esMoral = Boolean(p.empresa);
             setFormData({
               ...formVacio,
-              paisId: mx?.id || '', pais: mx?.nombre || 'México',
+              paisId: mx?.id || '', pais: mx?.nombre || t("México"),
               nombre: esMoral ? p.empresa : (p.nombre ?? ''),
               razonSocial: esMoral ? p.empresa : '',
               tipoPersona: esMoral ? 'MORAL' : 'FISICA',
@@ -502,7 +505,7 @@ export default function ClientesPage() {
 
     const abrirCrear = () => {
         const mx=paises.find(p=>p.codigoIso2==='MX'||p.codigo==='MX');
-        setEditId(null); setFormData({...formVacio,paisId:mx?.id||'',pais:mx?.nombre||'México'});
+        setEditId(null); setFormData({...formVacio,paisId:mx?.id||'',pais:mx?.nombre||t("México")});
         setExpediente(null);
         setErrors({}); setTouched({}); setSubmitTried(false); setPestana('identidad'); setCpSugiere(null); setCpCatalogo(null); setModal(true);
     };
@@ -515,7 +518,7 @@ export default function ClientesPage() {
             rfc:c.rfc||'', razonSocial:c.razonSocial||'', email:c.email||'', telefono:c.telefono||'',
             fechaNacimiento:(c.fechaNacimiento||'').slice(0,10), genero:c.genero||'',
             direccion:c.direccion||'', colonia:c.colonia||'', ciudad:c.ciudad||'', estado:c.estado||'',
-            estadoId:c.estadoId||'', codigoPostal:c.codigoPostal||'', pais:c.pais||'México', paisId:c.paisId||'',
+            estadoId:c.estadoId||'', codigoPostal:c.codigoPostal||'', pais:c.pais||t("México"), paisId:c.paisId||'',
             contactoNombre:c.contactoNombre||'', contactoTelefono:c.contactoTelefono||'',
             limiteCredito:tienePropuesta ? Number(c.limiteCreditoSolicitado) : Number(c.limiteCredito||0),
             diasCredito:tienePropuesta ? Number(c.diasCreditoSolicitados) : Number(c.diasCredito||0),
@@ -593,7 +596,7 @@ export default function ClientesPage() {
             showToast(editId ? 'Cliente actualizado correctamente' : 'Cliente registrado correctamente','ok');
         } else {
             const d = await r?.json().catch(()=>null);
-            showToast(`Error: ${Array.isArray(d?.message)?d.message.join(', '):d?.message||'Error al guardar'}`,'err');
+            showToast(`Error: ${Array.isArray(d?.message)?d.message.join(', '):d?.message||t("Error al guardar")}`,'err');
         }
         setGuardando(false);
     };
@@ -602,7 +605,7 @@ export default function ClientesPage() {
         if (!await confirmarElegante(`¿${activo?'Desactivar':'Activar'} este cliente?`, { peligroso: activo })) return;
         const r = await peticion(`/clientes/${id}/estado`,{method:'PATCH',headers:heads()}).catch(()=>null);
         if (r?.ok) { fetchClientes(); showToast(`Cliente ${activo?'desactivado':'activado'}`, 'ok'); }
-        else showToast('Error al cambiar estado','err');
+        else showToast(t("Error al cambiar estado"),'err');
     };
 
     const gestionarCredito = async (
@@ -613,14 +616,14 @@ export default function ClientesPage() {
         if (decision === 'REENVIAR') {
             const confirmado = await confirmarElegante(
                 `¿Enviar nuevamente a aprobación la propuesta de $${Number(cliente.limiteCreditoSolicitado ?? cliente.limiteCredito).toLocaleString('es-MX')} a ${Number(cliente.diasCreditoSolicitados ?? cliente.diasCredito)} días para ${cliente.nombre}?`,
-                { titulo: 'Reenviar crédito a aprobación' },
+                { titulo: t("Reenviar crédito a aprobación") },
             );
             if (!confirmado) return;
-            comentario = 'Línea reenviada para una nueva revisión.';
+            comentario = t("Línea reenviada para una nueva revisión.");
         } else {
             comentario = await solicitarTexto(
                 `Explica por qué se suspende la línea de ${cliente.nombre}. El motivo quedará en la trazabilidad y suspenderá sus convenios hoteleros.`,
-                { titulo: 'Suspender crédito', obligatorio: true },
+                { titulo: t("Suspender crédito"), obligatorio: true },
             );
             if (comentario === null) return;
         }
@@ -632,8 +635,8 @@ export default function ClientesPage() {
         if (r?.ok) {
             showToast(
                 decision === 'REENVIAR'
-                    ? 'Crédito enviado nuevamente a la bandeja de aprobaciones'
-                    : 'Crédito y convenios relacionados suspendidos correctamente',
+                    ? t("Crédito enviado nuevamente a la bandeja de aprobaciones")
+                    : t("Crédito y convenios relacionados suspendidos correctamente"),
                 'ok',
             );
             fetchClientes();
@@ -642,7 +645,7 @@ export default function ClientesPage() {
             showToast(
                 Array.isArray(d?.message)
                     ? d.message.join(', ')
-                    : d?.message ?? 'No fue posible actualizar el crédito',
+                    : d?.message ?? t("No fue posible actualizar el crédito"),
                 'err',
             );
         }
@@ -687,15 +690,17 @@ export default function ClientesPage() {
             <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-6">
                 <div>
                     <h1 className="text-[22px] font-bold text-slate-900 tracking-tight">
-                        Cartera de clientes
+                        
+                        {t("Cartera de clientes")}
                     </h1>
                     <p className="text-[12.5px] text-slate-500 mt-0.5">
-                        Expediente, crédito y verificaciones de cada cliente
+                        
+                        {t("Expediente, crédito y verificaciones de cada cliente")}
                     </p>
                 </div>
                 <button onClick={abrirCrear}
                     className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-[13px] font-semibold shadow-sm transition-all active:scale-95">
-                    <Plus className="w-4 h-4"/> Nuevo cliente
+                    <Plus className="w-4 h-4"/>  {t("Nuevo cliente")}
                 </button>
             </header>
 
@@ -705,10 +710,10 @@ export default function ClientesPage() {
                 una verificación. */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
                 {([
-                    { clave: 'TODOS' as const, etiqueta: 'Clientes', pie: soloActivos ? 'activos' : 'incluye inactivos', tono: '#4f46e5' },
-                    { clave: 'CON_LINEA' as const, etiqueta: 'Con línea vigente', pie: 'pueden comprar a crédito', tono: '#059669' },
-                    { clave: 'EN_APROBACION' as const, etiqueta: 'En aprobación', pie: 'esperan una segunda firma', tono: '#d97706' },
-                    { clave: 'SIN_CREDITO' as const, etiqueta: 'De contado', pie: 'no usan crédito', tono: '#64748b' },
+                    { clave: 'TODOS' as const, etiqueta: t("Clientes"), pie: soloActivos ? 'activos' : t("incluye inactivos"), tono: '#4f46e5' },
+                    { clave: 'CON_LINEA' as const, etiqueta: t("Con línea vigente"), pie: t("pueden comprar a crédito"), tono: '#059669' },
+                    { clave: 'EN_APROBACION' as const, etiqueta: t("En aprobación"), pie: t("esperan una segunda firma"), tono: '#d97706' },
+                    { clave: 'SIN_CREDITO' as const, etiqueta: t("De contado"), pie: t("no usan crédito"), tono: '#64748b' },
                 ]).map(k=>{
                     const valor = k.clave === 'TODOS'
                         ? clientes.length
@@ -727,7 +732,7 @@ export default function ClientesPage() {
                             className={`text-left rounded-xl transition-all ${
                                 activo ? 'ring-2 ring-indigo-400 ring-offset-1' : 'hover:opacity-90'}`}>
                             <Indicador
-                                etiqueta={k.etiqueta}
+                                etiqueta={t(k.etiqueta)}
                                 valor={valor}
                                 detalle={k.pie}
                                 color={k.tono}
@@ -755,13 +760,14 @@ export default function ClientesPage() {
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
                             <input value={busqueda} onChange={e=>setBusqueda(e.target.value)}
-                                placeholder="Buscar por nombre, RFC o correo…"
+                                placeholder={t("Buscar por nombre, RFC o correo…")}
                                 className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50"/>
                         </div>
                         {filtro !== 'TODOS' && (
                             <button onClick={()=>setFiltro('TODOS')}
                                 className="w-full text-[11px] text-indigo-600 font-semibold text-left hover:underline">
-                                ← quitar el filtro
+                                
+                                {t("← quitar el filtro")}
                             </button>
                         )}
                         <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer">
@@ -770,25 +776,26 @@ export default function ClientesPage() {
                                 <div className={`w-8 h-4 rounded-full transition-colors ${!soloActivos?'bg-indigo-500':'bg-slate-300'}`}/>
                                 <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${!soloActivos?'translate-x-4':''}`}/>
                             </div>
-                            Ver inactivos
+                            
+                            {t("Ver inactivos")}
                         </label>
                     </div>
 
                     {cargando ? (
                         <div className="py-12 flex flex-col items-center text-slate-400">
                             <Loader2 className="w-6 h-6 animate-spin mb-2"/>
-                            <p className="text-xs">Cargando…</p>
+                            <p className="text-xs">{t("Cargando…")}</p>
                         </div>
                     ) : clientesVisibles.length === 0 ? (
                         <div className="py-12 px-4 flex flex-col items-center text-center text-slate-400">
                             <Users className="w-10 h-10 mb-3 opacity-30"/>
                             <p className="font-medium text-slate-600 text-sm">
-                                {clientes.length === 0 ? 'Sin clientes' : 'Ninguno en esta situación'}
+                                {clientes.length === 0 ? t("Sin clientes") : t("Ninguno en esta situación")}
                             </p>
                             <p className="text-xs mt-1">
                                 {clientes.length === 0
-                                    ? 'Empieza con «Nuevo Cliente».'
-                                    : 'Prueba con otra de las cifras de arriba.'}
+                                    ? t("Empieza con «Nuevo Cliente».")
+                                    : t("Prueba con otra de las cifras de arriba.")}
                             </p>
                         </div>
                     ) : (
@@ -810,14 +817,14 @@ export default function ClientesPage() {
                                         <div className="flex items-start gap-2.5">
                                             <span className={`w-1 self-stretch rounded-full shrink-0 ${elegido?'bg-indigo-500':'bg-transparent'}`}/>
                                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${punto}`}
-                                                title={donde === 'CON_LINEA' ? 'Con línea vigente'
-                                                    : donde === 'EN_APROBACION' ? 'Esperando decisión' : 'Compra de contado'}/>
+                                                title={donde === 'CON_LINEA' ? t("Con línea vigente")
+                                                    : donde === 'EN_APROBACION' ? t("Esperando decisión") : t("Compra de contado")}/>
                                             <div className="min-w-0 flex-1">
                                                 <p className={`text-[13px] truncate ${elegido?'font-bold text-indigo-900':'font-semibold text-slate-800'}`}>
-                                                    {c.nombre}
+                                                    {t(c.nombre)}
                                                 </p>
                                                 <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                                                    {c.rfc || c.email || (c.tipoPersona==='MORAL'?'Persona moral':'Persona física')}
+                                                    {c.rfc || c.email || (c.tipoPersona==='MORAL'?t("Persona moral"):t("Persona física"))}
                                                 </p>
                                             </div>
                                             <span className={`shrink-0 text-[10.5px] font-bold tabular-nums ${
@@ -842,10 +849,10 @@ export default function ClientesPage() {
                     {!clienteActivo ? (
                         <div className="rounded-xl border border-dashed border-slate-300 bg-white py-20 flex flex-col items-center text-center px-6">
                             <Users className="w-12 h-12 text-slate-200 mb-4"/>
-                            <p className="font-semibold text-slate-700">Elige un cliente</p>
+                            <p className="font-semibold text-slate-700">{t("Elige un cliente")}</p>
                             <p className="text-sm text-slate-500 mt-1 max-w-sm">
-                                Aquí aparece su expediente: identidad, línea de crédito y todas las
-                                verificaciones que se le han hecho.
+                                
+                                {t("Aquí aparece su expediente: identidad, línea de crédito y todas las verificaciones que se le han hecho.")}
                             </p>
                         </div>
                     ) : (
@@ -855,33 +862,34 @@ export default function ClientesPage() {
                                 <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3 flex-wrap">
                                     <div className="min-w-0">
                                         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                                            Expediente del cliente
+                                            
+                                            {t("Expediente del cliente")}
                                         </p>
-                                        <h2 className="text-lg font-semibold text-slate-900 mt-0.5">{clienteActivo.nombre}</h2>
+                                        <h2 className="text-lg font-semibold text-slate-900 mt-0.5">{t(clienteActivo.nombre)}</h2>
                                         <p className="text-xs text-slate-500 mt-1">
-                                            <span className="font-mono">{[clienteActivo.rfc, clienteActivo.curp].filter(Boolean).join(' · ') || 'sin RFC ni CURP'}</span>
+                                            <span className="font-mono">{[clienteActivo.rfc, clienteActivo.curp].filter(Boolean).join(' · ') || t("sin RFC ni CURP")}</span>
                                             {clienteActivo.email && <> · {clienteActivo.email}</>}
                                             {clienteActivo.telefono && <> · {clienteActivo.telefono}</>}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-1.5 shrink-0">
                                         <Link href={`/dashboard/clientes/${clienteActivo.id}/expediente`}
-                                            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg" title="Abrir el expediente a pantalla completa">
+                                            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg" title={t("Abrir el expediente a pantalla completa")}>
                                             <FileText className="w-4 h-4"/>
                                         </Link>
                                         {clienteActivo.estadoCredito === 'AUTORIZADO' && (
                                             <button onClick={()=>gestionarCredito(clienteActivo,'SUSPENDER')}
-                                                className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg" title="Suspender crédito">
+                                                className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg" title={t("Suspender crédito")}>
                                                 <AlertTriangle className="w-4 h-4"/>
                                             </button>
                                         )}
                                         <button onClick={()=>abrirEditar(clienteActivo)}
                                             className="px-3 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                                            <Edit2 className="w-4 h-4"/> Editar
+                                            <Edit2 className="w-4 h-4"/>  {t("Editar")}
                                         </button>
                                         <button onClick={()=>toggleEstado(clienteActivo.id, clienteActivo.activo)}
                                             className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg"
-                                            title={clienteActivo.activo?'Desactivar':'Activar'}>
+                                            title={clienteActivo.activo?t("Desactivar"):t("Activar")}>
                                             <Power className="w-4 h-4"/>
                                         </button>
                                     </div>
@@ -889,34 +897,34 @@ export default function ClientesPage() {
 
                                 <div className="grid sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                                     <div className="px-5 py-3">
-                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Tipo</p>
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("Tipo")}</p>
                                         <p className="text-sm font-semibold text-slate-900 mt-0.5">
-                                            {clienteActivo.tipoPersona==='MORAL'?'Persona moral':'Persona física'}
+                                            {clienteActivo.tipoPersona==='MORAL'?t("Persona moral"):t("Persona física")}
                                         </p>
-                                        <p className="text-[11px] text-slate-400">{clienteActivo.activo?'Activo':'Inactivo'}</p>
+                                        <p className="text-[11px] text-slate-400">{clienteActivo.activo?t("Activo"):t("Inactivo")}</p>
                                     </div>
                                     <div className="px-5 py-3">
-                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Línea de crédito</p>
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("Línea de crédito")}</p>
                                         <p className="text-sm font-semibold text-slate-900 mt-0.5 tabular-nums">
                                             {Number(clienteActivo.limiteCredito ?? 0) > 0
                                                 ? `$${Number(clienteActivo.limiteCredito).toLocaleString('es-MX')}`
-                                                : 'Sin línea'}
+                                                : t("Sin línea")}
                                         </p>
                                         <p className="text-[11px] text-slate-400">
                                             {Number(clienteActivo.limiteCredito ?? 0) > 0
                                                 ? `${clienteActivo.diasCredito} días · v${clienteActivo.versionCredito ?? 1}`
-                                                : 'compra de contado'}
+                                                : t("compra de contado")}
                                         </p>
                                     </div>
                                     <div className="px-5 py-3">
-                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Estado</p>
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("Estado")}</p>
                                         <p className="text-sm font-semibold text-slate-900 mt-0.5">
                                             {(clienteActivo.estadoCredito ?? 'SIN_CREDITO').replace(/_/g,' ').toLowerCase()}
                                         </p>
-                                        <p className="text-[11px] text-slate-400">Riesgo {clienteActivo.nivelRiesgo ?? 'MEDIO'}</p>
+                                        <p className="text-[11px] text-slate-400">{t("Riesgo {n0}", { n0: clienteActivo.nivelRiesgo ?? 'MEDIO' })}</p>
                                     </div>
                                     <div className="px-5 py-3">
-                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Propuesta</p>
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("Propuesta")}</p>
                                         {Number(clienteActivo.limiteCreditoSolicitado ?? 0) > 0 ? (
                                             <>
                                                 <p className="text-sm font-semibold text-indigo-700 mt-0.5 tabular-nums">
@@ -927,7 +935,7 @@ export default function ClientesPage() {
                                                 </p>
                                             </>
                                         ) : (
-                                            <p className="text-sm text-slate-400 mt-0.5">Ninguna</p>
+                                            <p className="text-sm text-slate-400 mt-0.5">{t("Ninguna")}</p>
                                         )}
                                     </div>
                                 </div>
@@ -957,13 +965,13 @@ export default function ClientesPage() {
                                     <Users className="w-5 h-5 text-indigo-600"/>
                                 </div>
                                 <div>
-                                    <h2 className="font-bold text-slate-900">{editId?'Editar Cliente':'Nuevo Cliente'}</h2>
+                                    <h2 className="font-bold text-slate-900">{editId?t("Editar Cliente"):t("Nuevo Cliente")}</h2>
                                     <p className="text-xs text-slate-400">
                                         Los campos marcados con <span className="text-rose-500 font-bold">*</span> son obligatorios
                                     </p>
                                 </div>
                             </div>
-                            <button aria-label="Cerrar" title="Cerrar" onClick={()=>setModal(false)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                            <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={()=>setModal(false)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
                                 <X className="w-5 h-5 text-slate-400"/>
                             </button>
                         </div>
@@ -977,11 +985,11 @@ export default function ClientesPage() {
                             formulario largo se sienta corto. */}
                         <div className="px-6 pt-3 border-b border-slate-100 flex gap-1 overflow-x-auto">
                             {([
-                                { id: 'identidad' as const, txt: 'Identidad y contacto' },
-                                { id: 'direccion' as const, txt: 'Dirección' },
-                                { id: 'documentos' as const, txt: 'Documentos' },
-                                ...(editId ? [{ id: 'credito' as const, txt: 'Línea de crédito' }] : []),
-                                { id: 'notas' as const, txt: 'Notas' },
+                                { id: 'identidad' as const, txt: t("Identidad y contacto") },
+                                { id: 'direccion' as const, txt: t("Dirección") },
+                                { id: 'documentos' as const, txt: t("Documentos") },
+                                ...(editId ? [{ id: 'credito' as const, txt: t("Línea de crédito") }] : []),
+                                { id: 'notas' as const, txt: t("Notas") },
                             ]).map(t => (
                                 <button key={t.id} type="button" onClick={()=>setPestana(t.id)}
                                     className={`px-3.5 py-2 text-[13px] font-semibold rounded-t-lg border-b-2 -mb-px transition-colors whitespace-nowrap ${
@@ -998,8 +1006,8 @@ export default function ClientesPage() {
                             <div className="mx-6 mt-4 flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-lg px-4 py-3 text-sm text-rose-700">
                                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0"/>
                                 <div>
-                                    <p className="font-semibold">Hay {numErrores} campo{numErrores>1?'s':''} con error.</p>
-                                    <p className="text-xs mt-0.5 text-rose-500">Revisa los campos marcados en rojo antes de guardar.</p>
+                                    <p className="font-semibold">{t("Hay {n0} campo{n1} con error.", { n0: numErrores, n1: numErrores>1?'s':'' })}</p>
+                                    <p className="text-xs mt-0.5 text-rose-500">{t("Revisa los campos marcados en rojo antes de guardar.")}</p>
                                 </div>
                             </div>
                         )}
@@ -1013,7 +1021,7 @@ export default function ClientesPage() {
                                 <div className="mb-5">
                                     <div className="flex items-center gap-2 mb-4">
                                         <div className="flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">1</div>
-                                        <h3 className="text-sm font-bold text-slate-700">Identificación</h3>
+                                        <h3 className="text-sm font-bold text-slate-700">{t("Identificación")}</h3>
                                         <div className="flex-1 h-px bg-slate-200"/>
                                     </div>
 
@@ -1034,10 +1042,10 @@ export default function ClientesPage() {
                                                         className="accent-indigo-600"/>
                                                     <div>
                                                         <p className={`text-sm font-semibold ${formData.tipoPersona===tipo?'text-indigo-700':'text-slate-700'}`}>
-                                                            {tipo==='FISICA' ? 'Persona Física' : 'Persona Moral'}
+                                                            {tipo==='FISICA' ? t("Persona Física") : t("Persona Moral")}
                                                         </p>
                                                         <p className="text-xs text-slate-400">
-                                                            {tipo==='FISICA' ? 'RFC a 13 dígitos' : 'RFC a 12 dígitos'}
+                                                            {tipo==='FISICA' ? t("RFC a 13 dígitos") : t("RFC a 12 dígitos")}
                                                         </p>
                                                     </div>
                                                 </label>
@@ -1047,22 +1055,22 @@ export default function ClientesPage() {
 
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="col-span-2">
-                                            <Campo label="Nombre Comercial" name="nombre" error={errors.nombre} touched={touched.nombre} required>
+                                            <Campo label={t("Nombre Comercial")} name="nombre" error={errors.nombre} touched={touched.nombre} required>
                                                 <input name="nombre" value={formData.nombre} onChange={handleChange} onBlur={handleBlur}
-                                                    placeholder="Nombre con el que se conoce al cliente"
+                                                    placeholder={t("Nombre con el que se conoce al cliente")}
                                                     className={inputCls(errors.nombre, touched.nombre)}/>
                                             </Campo>
                                         </div>
                                         {formData.tipoPersona==='MORAL' && (
                                             <div className="col-span-2">
-                                                <Campo label="Razón Social" name="razonSocial" error={errors.razonSocial} touched={touched.razonSocial} required>
+                                                <Campo label={t("Razón Social")} name="razonSocial" error={errors.razonSocial} touched={touched.razonSocial} required>
                                                     <input name="razonSocial" value={formData.razonSocial} onChange={handleChange} onBlur={handleBlur}
-                                                        placeholder="Nombre legal registrado ante el SAT"
+                                                        placeholder={t("Nombre legal registrado ante el SAT")}
                                                         className={inputCls(errors.razonSocial, touched.razonSocial)}/>
                                                 </Campo>
                                             </div>
                                         )}
-                                        <Campo label={`RFC ${formData.tipoPersona==='FISICA'?'(13 caracteres)':'(12 caracteres)'}`}
+                                        <Campo label={`RFC ${formData.tipoPersona==='FISICA'?t("(13 caracteres)"):t("(12 caracteres)")}`}
                                             name="rfc" error={errors.rfc} touched={touched.rfc}>
                                             <input name="rfc" value={formData.rfc} onChange={handleChange} onBlur={handleBlur}
                                                 placeholder={formData.tipoPersona==='FISICA'?'ABCD000000AAA':'ABC000000AA0'}
@@ -1079,7 +1087,7 @@ export default function ClientesPage() {
                                                     verificación de crédito, que es donde corresponde. */}
                                                 <input name="curp" value={formData.curp ?? ''}
                                                     onChange={handleChange} onBlur={handleBlur}
-                                                    placeholder="18 caracteres" maxLength={18}
+                                                    placeholder={t("18 caracteres")} maxLength={18}
                                                     className={`${inputCls(errors.curp, touched.curp)} uppercase font-mono tracking-wider`}/>
                                             </Campo>
                                         )}
@@ -1090,52 +1098,52 @@ export default function ClientesPage() {
                                 <div className="mb-5">
                                     <div className="flex items-center gap-2 mb-4">
                                         <div className="flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">2</div>
-                                        <h3 className="text-sm font-bold text-slate-700">Contacto</h3>
+                                        <h3 className="text-sm font-bold text-slate-700">{t("Contacto")}</h3>
                                         <div className="flex-1 h-px bg-slate-200"/>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <Campo label="Correo Electrónico" name="email" error={errors.email} touched={touched.email} required>
+                                        <Campo label={t("Correo Electrónico")} name="email" error={errors.email} touched={touched.email} required>
                                             <div className="relative">
                                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
                                                 <input type="email" name="email" value={formData.email} onChange={handleChange} onBlur={handleBlur}
-                                                    placeholder="cliente@empresa.com"
+                                                    placeholder={t("cliente@empresa.com")}
                                                     className={`${inputCls(errors.email, touched.email)} pl-9`}/>
                                             </div>
                                         </Campo>
-                                        <Campo label="Teléfono" name="telefono" error={errors.telefono} touched={touched.telefono} required>
+                                        <Campo label={t("Teléfono")} name="telefono" error={errors.telefono} touched={touched.telefono} required>
                                             <div className="relative">
                                                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
                                                 <input name="telefono" value={formData.telefono} onChange={handleChange} onBlur={handleBlur}
-                                                    placeholder="10 dígitos"
+                                                    placeholder={t("10 dígitos")}
                                                     className={`${inputCls(errors.telefono, touched.telefono)} pl-9`}/>
                                             </div>
                                         </Campo>
                                         {/* Sólo para persona física: una sociedad no nace ni tiene género. */}
                                         {formData.tipoPersona === 'FISICA' && (<>
-                                            <Campo label="Fecha de nacimiento" name="fechaNacimiento" error={errors.fechaNacimiento} touched={touched.fechaNacimiento}>
+                                            <Campo label={t("Fecha de nacimiento")} name="fechaNacimiento" error={errors.fechaNacimiento} touched={touched.fechaNacimiento}>
                                                 <input type="date" name="fechaNacimiento" value={formData.fechaNacimiento || ''}
                                                     onChange={handleChange} onBlur={handleBlur}
                                                     max={hoyISO()}
                                                     className={inputCls(errors.fechaNacimiento, touched.fechaNacimiento)}/>
                                             </Campo>
-                                            <Campo label="Género" name="genero" error={errors.genero} touched={touched.genero}>
+                                            <Campo label={t("Género")} name="genero" error={errors.genero} touched={touched.genero}>
                                                 <select name="genero" value={formData.genero || ''} onChange={handleChange} onBlur={handleBlur}
                                                     className={inputCls(errors.genero, touched.genero)}>
-                                                    <option value="">— Sin especificar —</option>
-                                                    <option value="FEMENINO">Femenino</option>
-                                                    <option value="MASCULINO">Masculino</option>
-                                                    <option value="NO_ESPECIFICADO">Prefiere no decirlo</option>
+                                                    <option value="">{t("— Sin especificar —")}</option>
+                                                    <option value="FEMENINO">{t("Femenino")}</option>
+                                                    <option value="MASCULINO">{t("Masculino")}</option>
+                                                    <option value="NO_ESPECIFICADO">{t("Prefiere no decirlo")}</option>
                                                 </select>
                                             </Campo>
                                         </>)}
-                                        <Campo label="Nombre del Contacto" name="contactoNombre" error={errors.contactoNombre} touched={touched.contactoNombre}>
+                                        <Campo label={t("Nombre del Contacto")} name="contactoNombre" error={errors.contactoNombre} touched={touched.contactoNombre}>
                                             <input name="contactoNombre" value={formData.contactoNombre} onChange={handleChange} onBlur={handleBlur}
-                                                placeholder="Persona de contacto directo"
+                                                placeholder={t("Persona de contacto directo")}
                                                 className={inputCls(errors.contactoNombre, touched.contactoNombre)}/>
                                         </Campo>
-                                        <Campo label="Teléfono del Contacto" name="contactoTelefono" error={errors.contactoTelefono} touched={touched.contactoTelefono}>
+                                        <Campo label={t("Teléfono del Contacto")} name="contactoTelefono" error={errors.contactoTelefono} touched={touched.contactoTelefono}>
                                             <input name="contactoTelefono" value={formData.contactoTelefono} onChange={handleChange} onBlur={handleBlur}
-                                                placeholder="Teléfono directo / celular"
+                                                placeholder={t("Teléfono directo / celular")}
                                                 className={inputCls(errors.contactoTelefono, touched.contactoTelefono)}/>
                                         </Campo>
                                     </div>
@@ -1148,7 +1156,7 @@ export default function ClientesPage() {
                                 <div className="mb-5">
                                     <div className="flex items-center gap-2 mb-4">
                                         <div className="flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">3</div>
-                                        <h3 className="text-sm font-bold text-slate-700">Dirección</h3>
+                                        <h3 className="text-sm font-bold text-slate-700">{t("Dirección")}</h3>
                                         <div className="flex-1 h-px bg-slate-200"/>
                                     </div>
                                     {/* ── De lo general a lo particular ──────────────────────
@@ -1158,15 +1166,15 @@ export default function ClientesPage() {
                                         pedirla antes la deja vacía o, peor, con los estados del
                                         país equivocado. */}
                                     <div className="grid grid-cols-2 gap-4">
-                                        <Campo label="País" name="pais" error={errors.pais} touched={touched.pais}>
+                                        <Campo label={t("País")} name="pais" error={errors.pais} touched={touched.pais}>
                                             <select name="paisId" value={formData.paisId}
                                                 onChange={e=>{const p=paises.find(x=>x.id===e.target.value);setCpSugiere(null);setFormData(f=>({...f,paisId:e.target.value,pais:p?.nombre||'',estadoId:'',estado:''}));}}
                                                 className={inputCls(errors.pais, touched.pais)}>
-                                                <option value="">— País —</option>
-                                                {paises.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}
+                                                <option value="">{t("— País —")}</option>
+                                                {paises.map(p=><option key={p.id} value={p.id}>{t(p.nombre)}</option>)}
                                             </select>
                                         </Campo>
-                                        <Campo label="Código Postal" name="codigoPostal" error={errors.codigoPostal} touched={touched.codigoPostal}>
+                                        <Campo label={t("Código Postal")} name="codigoPostal" error={errors.codigoPostal} touched={touched.codigoPostal}>
                                             <input name="codigoPostal" value={formData.codigoPostal}
                                                 onChange={e=>{
                                                     handleChange(e);
@@ -1179,13 +1187,14 @@ export default function ClientesPage() {
                                                     setCpSugiere(nombre && formData.estado !== nombre ? nombre : null);
                                                 }}
                                                 onBlur={handleBlur}
-                                                placeholder="5 dígitos" maxLength={5} inputMode="numeric"
+                                                placeholder={t("5 dígitos")} maxLength={5} inputMode="numeric"
                                                 className={inputCls(errors.codigoPostal, touched.codigoPostal)}/>
                                         </Campo>
 
                                         {cpBuscando && (
                                             <div className="col-span-2 -mt-1 text-[12px] text-slate-500 px-1">
-                                                Buscando el código postal en el catálogo…
+                                                
+                                                {t("Buscando el código postal en el catálogo…")}
                                             </div>
                                         )}
 
@@ -1194,7 +1203,7 @@ export default function ClientesPage() {
                                                 <MapPin className="w-3.5 h-3.5 shrink-0"/>
                                                 <span className="flex-1">
                                                     <b>{cpCatalogo.estado}</b> · {cpCatalogo.municipio}
-                                                    <span className="text-emerald-600"> — {cpCatalogo.colonias.length} colonia{cpCatalogo.colonias.length===1?'':'s'} en este código postal.</span>
+                                                    <span className="text-emerald-600"> {t("— {n0} colonia{n1} en este código postal.", { n0: cpCatalogo.colonias.length, n1: cpCatalogo.colonias.length===1?'':'s' })}</span>
                                                 </span>
                                             </div>
                                         )}
@@ -1204,7 +1213,7 @@ export default function ClientesPage() {
                                                 <MapPin className="w-3.5 h-3.5 shrink-0"/>
                                                 <span className="flex-1">
                                                     Por el código postal, la entidad es <b>{cpSugiere}</b>.
-                                                    <span className="text-indigo-500"> Municipio y colonia se capturan a mano: todavía no hay catálogo de códigos postales instalado.</span>
+                                                    <span className="text-indigo-500">  {t("Municipio y colonia se capturan a mano: todavía no hay catálogo de códigos postales instalado.")}</span>
                                                 </span>
                                                 <button type="button"
                                                     onClick={()=>{
@@ -1213,10 +1222,11 @@ export default function ClientesPage() {
                                                         setCpSugiere(null);
                                                     }}
                                                     className="shrink-0 px-2.5 py-1 rounded-md bg-indigo-600 text-white text-[11.5px] font-semibold hover:bg-indigo-700">
-                                                    Usarla
+                                                    
+                                                    {t("Usarla")}
                                                 </button>
                                                 <button type="button" onClick={()=>setCpSugiere(null)}
-                                                    className="shrink-0 text-indigo-400 hover:text-indigo-600" title="Descartar">
+                                                    className="shrink-0 text-indigo-400 hover:text-indigo-600" title={t("Descartar")}>
                                                     <X className="w-3.5 h-3.5"/>
                                                 </button>
                                             </div>
@@ -1226,7 +1236,7 @@ export default function ClientesPage() {
                                             postal. Se deja visible y bloqueado en vez de ocultarlo,
                                             porque un campo que desaparece parece un campo que se
                                             perdió. Sin catálogo vuelve a ser la lista de siempre. */}
-                                        <Campo label="Estado" name="estado" error={errors.estado} touched={touched.estado}>
+                                        <Campo label={t("Estado")} name="estado" error={errors.estado} touched={touched.estado}>
                                             {cpCatalogo ? (
                                                 <input value={cpCatalogo.estado} readOnly tabIndex={-1}
                                                     className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 text-sm"/>
@@ -1235,15 +1245,15 @@ export default function ClientesPage() {
                                                 onChange={e=>{const x=estados.find(s=>s.id===e.target.value);setCpSugiere(null);setFormData(f=>({...f,estadoId:e.target.value,estado:x?.nombre||''}));}}
                                                 disabled={!formData.paisId}
                                                 className={inputCls(errors.estado, touched.estado)}>
-                                                <option value="">{formData.paisId ? '— Estado / provincia —' : '— Elige primero el país —'}</option>
-                                                {estados.map(e=><option key={e.id} value={e.id}>{e.nombre}</option>)}
+                                                <option value="">{formData.paisId ? t("— Estado / provincia —") : t("— Elige primero el país —")}</option>
+                                                {estados.map(e=><option key={e.id} value={e.id}>{t(e.nombre)}</option>)}
                                             </select>
                                             )}
                                         </Campo>
                                         {/* Un código postal puede tocar dos municipios en zona
                                             conurbada, así que se ofrece la lista aunque casi siempre
                                             traiga un solo elemento. */}
-                                        <Campo label="Ciudad / Municipio" name="ciudad" error={errors.ciudad} touched={touched.ciudad}>
+                                        <Campo label={t("Ciudad / Municipio")} name="ciudad" error={errors.ciudad} touched={touched.ciudad}>
                                             {cpCatalogo ? (
                                             <select name="ciudad" value={formData.ciudad} onChange={handleChange} onBlur={handleBlur}
                                                 className={inputCls(errors.ciudad, touched.ciudad)}>
@@ -1251,11 +1261,11 @@ export default function ClientesPage() {
                                             </select>
                                             ) : (
                                             <input name="ciudad" value={formData.ciudad} onChange={handleChange} onBlur={handleBlur}
-                                                placeholder="Ciudad o municipio"
+                                                placeholder={t("Ciudad o municipio")}
                                                 className={inputCls(errors.ciudad, touched.ciudad)}/>
                                             )}
                                         </Campo>
-                                        <Campo label="Colonia" name="colonia" error={errors.colonia} touched={touched.colonia}>
+                                        <Campo label={t("Colonia")} name="colonia" error={errors.colonia} touched={touched.colonia}>
                                             {cpCatalogo ? (
                                             <select name="colonia" value={formData.colonia || ''}
                                                 onChange={e=>{
@@ -1265,7 +1275,7 @@ export default function ClientesPage() {
                                                 }}
                                                 onBlur={handleBlur}
                                                 className={inputCls(errors.colonia, touched.colonia)}>
-                                                <option value="">— Elige la colonia —</option>
+                                                <option value="">{t("— Elige la colonia —")}</option>
                                                 {cpCatalogo.colonias.map(c=>(
                                                     <option key={c.colonia} value={c.colonia}>
                                                         {c.colonia}{c.tipo ? ` (${c.tipo})` : ''}
@@ -1274,16 +1284,16 @@ export default function ClientesPage() {
                                             </select>
                                             ) : (
                                             <input name="colonia" value={formData.colonia || ''} onChange={handleChange} onBlur={handleBlur}
-                                                placeholder="Colonia o fraccionamiento"
+                                                placeholder={t("Colonia o fraccionamiento")}
                                                 className={inputCls(errors.colonia, touched.colonia)}/>
                                             )}
                                         </Campo>
                                         <div className="col-span-2">
-                                            <Campo label="Calle y Número" name="direccion" error={errors.direccion} touched={touched.direccion}>
+                                            <Campo label={t("Calle y Número")} name="direccion" error={errors.direccion} touched={touched.direccion}>
                                                 <div className="relative">
                                                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
                                                     <input name="direccion" value={formData.direccion} onChange={handleChange} onBlur={handleBlur}
-                                                        placeholder="Calle, número exterior e interior"
+                                                        placeholder={t("Calle, número exterior e interior")}
                                                         className={`${inputCls(errors.direccion, touched.direccion)} pl-9`}/>
                                                 </div>
                                             </Campo>
@@ -1296,10 +1306,10 @@ export default function ClientesPage() {
                                 {pestana==='documentos' && (
                                     <div className="px-6 py-5">
                                         <div className="mb-3">
-                                            <h4 className="text-[13.5px] font-bold text-slate-800">Documentos del expediente</h4>
+                                            <h4 className="text-[13.5px] font-bold text-slate-800">{t("Documentos del expediente")}</h4>
                                             <p className="text-[12.5px] text-slate-500">
-                                                Identificaciones con folio y vigencia. El RFC y la CURP se capturan en
-                                                Identidad: son claves fiscales, no documentos.
+                                                
+                                                {t("Identificaciones con folio y vigencia. El RFC y la CURP se capturan en Identidad: son claves fiscales, no documentos.")}
                                             </p>
                                         </div>
                                         <IdentificacionesCliente
@@ -1329,15 +1339,17 @@ export default function ClientesPage() {
                                     <div className="flex items-center justify-between gap-3 bg-slate-50 border-b border-slate-200 px-4 py-3">
                                         <div className="flex items-center gap-2">
                                             <CreditCard className="w-4 h-4 text-slate-400"/>
-                                            <h3 className="text-sm font-bold text-slate-700">Línea de crédito</h3>
+                                            <h3 className="text-sm font-bold text-slate-700">{t("Línea de crédito")}</h3>
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <Link href={`/dashboard/clientes/${editId}/expediente`}
                                                 className="text-[11px] font-semibold text-indigo-600 hover:underline">
-                                                Ver expediente completo
+                                                
+                                                {t("Ver expediente completo")}
                                             </Link>
                                             <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                                                Opcional · sólo si la solicita
+                                                
+                                                {t("Opcional · sólo si la solicita")}
                                             </span>
                                         </div>
                                     </div>
@@ -1350,17 +1362,17 @@ export default function ClientesPage() {
                                             const autorizada = clienteEnEdicion?.estadoCredito === 'AUTORIZADO'
                                                 && Number(clienteEnEdicion?.limiteCredito ?? 0) > 0;
                                             const pasos = [
-                                                { etiqueta: 'Solicitud',  hecho: true },
-                                                { etiqueta: 'Verificación', hecho: tieneExp },
-                                                { etiqueta: 'Propuesta',  hecho: tienePropuesta },
-                                                { etiqueta: 'Autorizada', hecho: autorizada },
+                                                { etiqueta: t("Solicitud"),  hecho: true },
+                                                { etiqueta: t("Verificación"), hecho: tieneExp },
+                                                { etiqueta: t("Propuesta"),  hecho: tienePropuesta },
+                                                { etiqueta: t("Autorizada"), hecho: autorizada },
                                             ];
                                             return pasos.map((x, i) => (
                                                 <span key={x.etiqueta} className="flex items-center gap-1">
                                                     {i > 0 && <span className="text-slate-300">›</span>}
                                                     <span className={x.hecho
                                                         ? 'text-emerald-700'
-                                                        : 'text-slate-300'}>{x.etiqueta}</span>
+                                                        : 'text-slate-300'}>{t(x.etiqueta)}</span>
                                                 </span>
                                             ));
                                         })()}
@@ -1377,7 +1389,8 @@ export default function ClientesPage() {
                                         const enlace = (
                                             <Link href="/dashboard/creditos/verificacion/ejecutar"
                                                 className="underline font-semibold whitespace-nowrap">
-                                                Verificar ahora
+                                                
+                                                {t("Verificar ahora")}
                                             </Link>
                                         );
 
@@ -1385,7 +1398,7 @@ export default function ClientesPage() {
                                             <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 flex items-start gap-2">
                                                 <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-slate-400"/>
                                                 <span>
-                                                    La empresa tiene activo el flujo <strong>{flujoVerif.nombre}</strong>.
+                                                    La empresa tiene activo el flujo <strong>{t(flujoVerif.nombre)}</strong>.
                                                     Podrás verificar a esta persona en cuanto se guarde; la línea no se
                                                     autoriza sin expediente.
                                                 </span>
@@ -1394,7 +1407,7 @@ export default function ClientesPage() {
 
                                         if (expediente === undefined) return (
                                             <div className="mb-4 flex items-center gap-2 text-xs text-slate-500">
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin"/> Buscando expediente de verificación…
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin"/>  {t("Buscando expediente de verificación…")}
                                             </div>
                                         );
 
@@ -1402,8 +1415,8 @@ export default function ClientesPage() {
                                             <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2">
                                                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600"/>
                                                 <span>
-                                                    Este cliente <strong>no tiene expediente de verificación</strong>, y el flujo
-                                                    <strong> {flujoVerif.nombre}</strong> está activo. Puedes capturar la propuesta,
+                                                    Este cliente <strong>{t("no tiene expediente de verificación")}</strong>, y el flujo
+                                                    <strong> {t(flujoVerif.nombre)}</strong> está activo. Puedes capturar la propuesta,
                                                     pero la autorización de la línea se va a negar hasta que se verifique. {enlace}
                                                 </span>
                                             </div>
@@ -1447,7 +1460,7 @@ export default function ClientesPage() {
                                     })()}
 
                                     <div className="grid grid-cols-2 gap-4">
-                                        <Campo label="Límite de Crédito ($)" name="limiteCredito" error={errors.limiteCredito} touched={touched.limiteCredito}>
+                                        <Campo label={t("Límite de Crédito ($)")} name="limiteCredito" error={errors.limiteCredito} touched={touched.limiteCredito}>
                                             <div className="relative">
                                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
                                                 <input type="number" min="0" step="0.01" name="limiteCredito"
@@ -1457,22 +1470,22 @@ export default function ClientesPage() {
                                                     className={`${inputCls(errors.limiteCredito, touched.limiteCredito)} pl-7`}/>
                                             </div>
                                         </Campo>
-                                        <Campo label="Días de Crédito" name="diasCredito" error={errors.diasCredito} touched={touched.diasCredito}>
+                                        <Campo label={t("Días de Crédito")} name="diasCredito" error={errors.diasCredito} touched={touched.diasCredito}>
                                             <div className="relative">
                                                 <input type="number" min="0" name="diasCredito"
                                                     value={formData.diasCredito||''}
                                                     onChange={handleChange} onBlur={handleBlur}
-                                                    placeholder="Ej. 30, 60, 90"
+                                                    placeholder={t("Ej. 30, 60, 90")}
                                                     className={inputCls(errors.diasCredito, touched.diasCredito)}/>
                                             </div>
                                         </Campo>
-                                        <Campo label="Nivel de riesgo" name="nivelRiesgo" error={errors.nivelRiesgo} touched={touched.nivelRiesgo}>
+                                        <Campo label={t("Nivel de riesgo")} name="nivelRiesgo" error={errors.nivelRiesgo} touched={touched.nivelRiesgo}>
                                             <select name="nivelRiesgo" value={formData.nivelRiesgo}
                                                 onChange={handleChange} onBlur={handleBlur}
                                                 className={inputCls(errors.nivelRiesgo, touched.nivelRiesgo)}>
-                                                <option value="BAJO">Bajo</option>
-                                                <option value="MEDIO">Medio</option>
-                                                <option value="ALTO">Alto</option>
+                                                <option value="BAJO">{t("Bajo")}</option>
+                                                <option value="MEDIO">{t("Medio")}</option>
+                                                <option value="ALTO">{t("Alto")}</option>
                                             </select>
                                         </Campo>
                                         <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
@@ -1483,19 +1496,20 @@ export default function ClientesPage() {
                                                 <span>
                                                     Bloquear nuevas operaciones a crédito cuando exista saldo vencido global.
                                                     <span className="mt-1 block text-xs font-normal text-amber-700">
-                                                        Esta política aplica por igual a Ventas y City Ledger y forma parte de las condiciones sometidas a aprobación.
+                                                        
+                                                        {t("Esta política aplica por igual a Ventas y City Ledger y forma parte de las condiciones sometidas a aprobación.")}
                                                     </span>
                                                 </span>
                                             </label>
                                         </div>
                                         {formData.tipoPersona === 'MORAL' && (
-                                            <Campo label="Clasificación para Hotelería" name="clasificacionHotelera" error={errors.clasificacionHotelera} touched={touched.clasificacionHotelera}>
+                                            <Campo label={t("Clasificación para Hotelería")} name="clasificacionHotelera" error={errors.clasificacionHotelera} touched={touched.clasificacionHotelera}>
                                                 <select name="clasificacionHotelera" value={formData.clasificacionHotelera || ''}
                                                     onChange={handleChange} onBlur={handleBlur}
                                                     className={inputCls(errors.clasificacionHotelera, touched.clasificacionHotelera)}>
-                                                    <option value="">— No participa en convenios hoteleros —</option>
-                                                    <option value="EMPRESA">Empresa</option>
-                                                    <option value="AGENCIA">Agencia de viajes</option>
+                                                    <option value="">{t("— No participa en convenios hoteleros —")}</option>
+                                                    <option value="EMPRESA">{t("Empresa")}</option>
+                                                    <option value="AGENCIA">{t("Agencia de viajes")}</option>
                                                 </select>
                                             </Campo>
                                         )}
@@ -1503,7 +1517,7 @@ export default function ClientesPage() {
                                             <div className="col-span-2 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2.5 text-xs text-indigo-700 flex items-center gap-2">
                                                 <CreditCard className="w-4 h-4"/>
                                                 La propuesta de <strong>${formData.limiteCredito.toLocaleString('es-MX')}</strong> a{' '}
-                                                <strong>{formData.diasCredito} días</strong>, riesgo <strong>{formData.nivelRiesgo}</strong> y política de vencidos se enviará a la bandeja de aprobaciones, donde la autoriza una segunda persona. Una línea ya autorizada seguirá vigente hasta la resolución final; los convenios nunca consumen la propuesta, sólo la versión aprobada.
+                                                <strong>{t("{n0} días", { n0: formData.diasCredito })}</strong>, riesgo <strong>{formData.nivelRiesgo}</strong> y política de vencidos se enviará a la bandeja de aprobaciones, donde la autoriza una segunda persona. Una línea ya autorizada seguirá vigente hasta la resolución final; los convenios nunca consumen la propuesta, sólo la versión aprobada.
                                             </div>
                                         )}
                                         </div>
@@ -1519,12 +1533,12 @@ export default function ClientesPage() {
                                 <div>
                                     <div className="flex items-center gap-2 mb-4">
                                         <div className="flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold">5</div>
-                                        <h3 className="text-sm font-bold text-slate-700">Observaciones</h3>
+                                        <h3 className="text-sm font-bold text-slate-700">{t("Observaciones")}</h3>
                                         <div className="flex-1 h-px bg-slate-200"/>
                                     </div>
-                                    <Campo label="Notas internas" name="notas" error={errors.notas} touched={touched.notas}>
+                                    <Campo label={t("Notas internas")} name="notas" error={errors.notas} touched={touched.notas}>
                                         <textarea name="notas" value={formData.notas} onChange={handleChange} onBlur={handleBlur}
-                                            rows={3} placeholder="Observaciones internas del cliente (no visibles para el cliente)…"
+                                            rows={3} placeholder={t("Observaciones internas del cliente (no visibles para el cliente)…")}
                                             className={`${inputCls(errors.notas, touched.notas)} resize-none`}/>
                                     </Campo>
                                 </div>
@@ -1543,19 +1557,20 @@ export default function ClientesPage() {
                                 )}
                                 {esValido && submitTried && (
                                     <span className="text-emerald-600 font-medium flex items-center gap-1">
-                                        <CheckCircle2 className="w-3 h-3"/> Formulario válido
+                                        <CheckCircle2 className="w-3 h-3"/>  {t("Formulario válido")}
                                     </span>
                                 )}
                             </div>
                             <div className="flex gap-3">
                                 <button type="button" onClick={()=>setModal(false)} disabled={guardando}
                                     className="px-5 py-2.5 text-sm text-slate-700 font-medium hover:bg-slate-200 rounded-lg transition-colors">
-                                    Cancelar
+                                    
+                                    {t("Cancelar")}
                                 </button>
                                 <button type="submit" form="form-cliente" disabled={guardando}
                                     className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm disabled:opacity-50 transition-all">
                                     {guardando && <Loader2 className="w-4 h-4 animate-spin"/>}
-                                    {guardando ? 'Guardando…' : editId ? 'Actualizar Cliente' : 'Registrar Cliente'}
+                                    {guardando ? t("Guardando…") : editId ? t("Actualizar Cliente") : t("Registrar Cliente")}
                                 </button>
                             </div>
                         </div>

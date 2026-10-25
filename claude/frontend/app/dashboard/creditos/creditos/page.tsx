@@ -7,6 +7,7 @@ import { CreditCard, Search, Filter, RefreshCw, DollarSign,
   User, ChevronRight, CheckCircle2, Clock, AlertCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
 
+import { useT } from '@/components/I18nProvider';
 interface ICredito {
   id: string;
   folio: string;
@@ -42,6 +43,7 @@ const ESTADO_CONFIG: Record<string, { label: string; icon: any; cls: string }> =
 };
 
 export default function CreditosPage() {
+  const t = useT();
   const [creditos, setCreditos]         = useState<ICredito[]>([]);
   const [cargando, setCargando]         = useState(true);
   const [errorCarga, setErrorCarga] = useState('');
@@ -61,8 +63,8 @@ export default function CreditosPage() {
         /* «Sin créditos» es una afirmación sobre la cartera, no un hueco. */
         setCreditos([]);
         setErrorCarga(res.status === 403
-          ? 'Tu perfil no incluye la consulta de créditos.'
-          : 'No se pudo consultar la cartera de créditos.');
+          ? t("Tu perfil no incluye la consulta de créditos.")
+          : t("No se pudo consultar la cartera de créditos."));
       }
     } finally {
       setCargando(false);
@@ -95,18 +97,20 @@ export default function CreditosPage() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">
-            Crédito & Cobranza
+            
+            {t("Crédito & Cobranza")}
           </p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <CreditCard className="w-8 h-8 text-indigo-500" /> Créditos
+            <CreditCard className="w-8 h-8 text-indigo-500" />  {t("Créditos")}
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Gestión de créditos otorgados a clientes.
+            
+            {t("Gestión de créditos otorgados a clientes.")}
           </p>
         </div>
         <button onClick={cargar}
           className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 text-sm font-medium hover:bg-slate-50 shadow-sm">
-          <RefreshCw className="w-4 h-4" /> Actualizar
+          <RefreshCw className="w-4 h-4" />  {t("Actualizar")}
         </button>
       </div>
 
@@ -115,16 +119,16 @@ export default function CreditosPage() {
         <div className="flex-1 min-w-48 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por folio o cliente..."
+            placeholder={t("Buscar por folio o cliente...")}
             className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm" />
         </div>
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
           {[
-            { v: 'ACTIVO', l: 'Activos' },
-            { v: 'VENCIDO', l: 'Vencidos' },
-            { v: 'LIQUIDADO', l: 'Liquidados' },
-            { v: '', l: 'Todos' },
+            { v: 'ACTIVO', l: t("Activos") },
+            { v: 'VENCIDO', l: t("Vencidos") },
+            { v: 'LIQUIDADO', l: t("Liquidados") },
+            { v: '', l: t("Todos") },
           ].map(({ v, l }) => (
             <button key={v} onClick={() => setFiltroEstado(v)}
               className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
@@ -142,22 +146,24 @@ export default function CreditosPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-900 text-white px-6 py-3 flex justify-between items-center">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-            Registro de Créditos
+            
+            {t("Registro de Créditos")}
           </p>
-          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : plural(filtrados.length, 'crédito')}</p>
+          <p className="text-xs text-slate-400">{cargando ? t("Consultando…") : plural(filtrados.length, t("crédito"))}</p>
         </div>
 
         {cargando ? (
           <div className="p-16 text-center">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-slate-400 text-sm">Cargando créditos...</p>
+            <p className="text-slate-400 text-sm">{t("Cargando créditos...")}</p>
           </div>
         ) : filtrados.length === 0 ? (
           <div className="p-16 text-center">
             <CreditCard className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-            <p className="font-semibold text-slate-600">Sin créditos {filtroEstado ? filtroEstado.toLowerCase() + 's' : ''}</p>
+            <p className="font-semibold text-slate-600">{t("Sin créditos {n0}", { n0: filtroEstado ? filtroEstado.toLowerCase() + 's' : '' })}</p>
             <p className="text-sm text-slate-400 mt-1">
-              Los créditos se crean automáticamente desde el POS al vender con método de crédito.
+              
+              {t("Los créditos se crean automáticamente desde el POS al vender con método de crédito.")}
             </p>
           </div>
         ) : (
@@ -165,15 +171,15 @@ export default function CreditosPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                  <th className="px-5 py-3 text-left">Folio</th>
-                  <th className="px-5 py-3 text-left">Cliente</th>
-                  <th className="px-5 py-3 text-center">Tipo</th>
-                  <th className="px-5 py-3 text-center">Estado</th>
-                  <th className="px-5 py-3 text-right">Total</th>
-                  <th className="px-5 py-3 text-right">Saldo Pendiente</th>
-                  <th className="px-5 py-3 text-center">Vencimiento</th>
-                  <th className="px-5 py-3 text-center">Avance</th>
-                  <th className="px-5 py-3 text-center">Acción</th>
+                  <th className="px-5 py-3 text-left">{t("Folio")}</th>
+                  <th className="px-5 py-3 text-left">{t("Cliente")}</th>
+                  <th className="px-5 py-3 text-center">{t("Tipo")}</th>
+                  <th className="px-5 py-3 text-center">{t("Estado")}</th>
+                  <th className="px-5 py-3 text-right">{t("Total")}</th>
+                  <th className="px-5 py-3 text-right">{t("Saldo Pendiente")}</th>
+                  <th className="px-5 py-3 text-center">{t("Vencimiento")}</th>
+                  <th className="px-5 py-3 text-center">{t("Avance")}</th>
+                  <th className="px-5 py-3 text-center">{t("Acción")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -195,14 +201,14 @@ export default function CreditosPage() {
                           <div className="flex items-center gap-2">
                             <User className="w-4 h-4 text-slate-400 shrink-0" />
                             <div>
-                              <p className="font-medium text-slate-800">{c.cliente.nombre}</p>
+                              <p className="font-medium text-slate-800">{t(c.cliente.nombre)}</p>
                               {c.cliente.rfc && (
                                 <p className="text-xs text-slate-400">{c.cliente.rfc}</p>
                               )}
                             </div>
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs">Sin cliente</span>
+                          <span className="text-slate-400 text-xs">{t("Sin cliente")}</span>
                         )}
                       </td>
                       <td className="px-5 py-4 text-center">
@@ -212,17 +218,18 @@ export default function CreditosPage() {
                           </span>
                           {c.sinInteres && (
                             <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
-                              Sin interés
+                              
+                              {t("Sin interés")}
                             </span>
                           )}
                         </div>
                       </td>
                       <td className="px-5 py-4 text-center">
                         <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border ${cfg.cls}`}>
-                          <Icon className="w-3 h-3" /> {cfg.label}
+                          <Icon className="w-3 h-3" /> {t(cfg.label)}
                         </span>
                         {venc > 0 && (
-                          <p className="text-[10px] text-rose-600 font-bold mt-0.5">{plural(venc, "cuota vencida", "cuotas vencidas")}</p>
+                          <p className="text-[10px] text-rose-600 font-bold mt-0.5">{plural(venc, t("cuota vencida"), t("cuotas vencidas"))}</p>
                         )}
                       </td>
                       <td className="px-5 py-4 text-right font-mono text-slate-700">{fmt$(c.montoTotal)}</td>
@@ -246,7 +253,7 @@ export default function CreditosPage() {
                       <td className="px-5 py-4 text-center">
                         <Link href="/dashboard/creditos/cobranza"
                           className="inline-flex items-center gap-1 text-xs text-indigo-600 font-semibold hover:underline">
-                          <DollarSign className="w-3.5 h-3.5" /> Cobrar
+                          <DollarSign className="w-3.5 h-3.5" />  {t("Cobrar")}
                           <ChevronRight className="w-3 h-3" />
                         </Link>
                       </td>

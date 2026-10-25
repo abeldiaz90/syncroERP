@@ -9,6 +9,7 @@ import {
   PlusCircle, PencilLine, Trash2, Ban, Loader2,
 } from "lucide-react";
 
+import { useT } from '@/components/I18nProvider';
 interface IRegistro {
   id: string;
   usuarioEmail: string | null;
@@ -50,6 +51,7 @@ const fmtFechaHora = (s: string) =>
  * Ruta: app/dashboard/auditoria/page.tsx
  */
 export default function AuditoriaPage() {
+  const t = useT();
   const api = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
   const tok = () => (typeof window !== "undefined" ? localStorage.getItem("syncro_token") ?? "" : "");
   const H = () => ({ Authorization: `Bearer ${tok()}` });
@@ -107,47 +109,48 @@ export default function AuditoriaPage() {
       <div className="mb-6 flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <ShieldCheck className="w-8 h-8 text-indigo-600" /> Bitácora de auditoría
+            <ShieldCheck className="w-8 h-8 text-indigo-600" />  {t("Bitácora de auditoría")}
           </h1>
           <p className="text-slate-500 mt-1">
-            Registro inmutable de quién hizo qué y cuándo. Solo lectura — no se puede editar ni borrar.
+            
+            {t("Registro inmutable de quién hizo qué y cuándo. Solo lectura — no se puede editar ni borrar.")}
           </p>
         </div>
         <button onClick={cargar}
           className="inline-flex items-center gap-2 border border-slate-300 text-slate-600 px-4 py-2 rounded-lg font-medium hover:bg-slate-50">
-          <RefreshCw className="w-4 h-4" /> Actualizar
+          <RefreshCw className="w-4 h-4" />  {t("Actualizar")}
         </button>
       </div>
 
       {/* Filtros */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-4">
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-3">
-          <Filter className="w-4 h-4" /> Filtros
+          <Filter className="w-4 h-4" />  {t("Filtros")}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <select value={entidad} onChange={(e) => { setEntidad(e.target.value); setPagina(1); }}
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-            <option value="">Todas las entidades</option>
+            <option value="">{t("Todas las entidades")}</option>
             {opciones.entidades.map((e) => <option key={e} value={e}>{e}</option>)}
           </select>
           <select value={accion} onChange={(e) => { setAccion(e.target.value); setPagina(1); }}
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-            <option value="">Todas las acciones</option>
+            <option value="">{t("Todas las acciones")}</option>
             {opciones.acciones.map((a) => <option key={a} value={a}>{ACCION_CFG[a]?.label ?? a}</option>)}
           </select>
           <select value={usuarioEmail} onChange={(e) => { setUsuarioEmail(e.target.value); setPagina(1); }}
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-            <option value="">Todos los usuarios</option>
+            <option value="">{t("Todos los usuarios")}</option>
             {opciones.usuarios.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
           <input type="date" value={desde} onChange={(e) => { setDesde(e.target.value); setPagina(1); }}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm" title="Desde" />
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm" title={t("Desde")} />
           <input type="date" value={hasta} onChange={(e) => { setHasta(e.target.value); setPagina(1); }}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm" title="Hasta" />
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm" title={t("Hasta")} />
         </div>
         {(entidad || accion || usuarioEmail || desde || hasta) && (
           <button onClick={limpiar} className="mt-3 text-xs text-slate-500 hover:text-slate-700 inline-flex items-center gap-1">
-            <X className="w-3 h-3" /> Limpiar filtros
+            <X className="w-3 h-3" />  {t("Limpiar filtros")}
           </button>
         )}
       </div>
@@ -159,7 +162,8 @@ export default function AuditoriaPage() {
         ) : !resp || resp.datos.length === 0 ? (
           <div className="text-center py-20 text-slate-400">
             <ShieldCheck className="w-12 h-12 mx-auto mb-2 text-slate-200" />
-            No hay movimientos registrados con estos filtros.
+            
+            {t("No hay movimientos registrados con estos filtros.")}
           </div>
         ) : (
           <>
@@ -167,12 +171,12 @@ export default function AuditoriaPage() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-bold">
                   <tr>
-                    <th className="px-5 py-3 text-left">Fecha y hora</th>
-                    <th className="px-5 py-3 text-left">Usuario</th>
-                    <th className="px-5 py-3 text-left">Acción</th>
-                    <th className="px-5 py-3 text-left">Entidad</th>
-                    <th className="px-5 py-3 text-left">Registro</th>
-                    <th className="px-5 py-3 text-center">Estado</th>
+                    <th className="px-5 py-3 text-left">{t("Fecha y hora")}</th>
+                    <th className="px-5 py-3 text-left">{t("Usuario")}</th>
+                    <th className="px-5 py-3 text-left">{t("Acción")}</th>
+                    <th className="px-5 py-3 text-left">{t("Entidad")}</th>
+                    <th className="px-5 py-3 text-left">{t("Registro")}</th>
+                    <th className="px-5 py-3 text-center">{t("Estado")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -190,18 +194,18 @@ export default function AuditoriaPage() {
                         </td>
                         <td className="px-5 py-3">
                           <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.cls}`}>
-                            <cfg.Icon className="w-3 h-3" />{cfg.label}
+                            <cfg.Icon className="w-3 h-3" />{t(cfg.label)}
                           </span>
                         </td>
                         <td className="px-5 py-3 text-slate-700">{r.entidad}</td>
                         <td className="px-5 py-3 font-mono text-xs text-slate-400">{r.registroId ?? "—"}</td>
                         <td className="px-5 py-3 text-center">
                           {r.resultado === "ERROR" ? (
-                            <span className="text-rose-500" title="La operación falló">
+                            <span className="text-rose-500" title={t("La operación falló")}>
                               <AlertTriangle className="w-4 h-4 inline" />
                             </span>
                           ) : (
-                            <span className="text-emerald-500 text-xs">OK</span>
+                            <span className="text-emerald-500 text-xs">{t("OK")}</span>
                           )}
                         </td>
                       </tr>
@@ -214,10 +218,9 @@ export default function AuditoriaPage() {
             {resp.totalPaginas > 1 && (
               <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50">
                 <p className="text-xs text-slate-400">
-                  Página {resp.pagina} de {resp.totalPaginas} · {plural(resp.total, 'registro')}
-                </p>
+                  {t("Página {n0} de {n1} · {n2}", { n0: resp.pagina, n1: resp.totalPaginas, n2: plural(resp.total, 'registro') })}</p>
                 <div className="flex gap-1">
-                  <button aria-label="Anterior" title="Anterior" onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={resp.pagina === 1}
+                  <button aria-label={t("Anterior")} title={t("Anterior")} onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={resp.pagina === 1}
                     className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white disabled:opacity-30">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -244,20 +247,20 @@ export default function AuditoriaPage() {
                   <Clock className="w-3 h-3 inline mx-1" />{fmtFechaHora(detalle.fechaHora)}
                 </p>
               </div>
-              <button aria-label="Cerrar" title="Cerrar" onClick={() => setDetalle(null)} className="p-1.5 hover:bg-white/10 rounded-lg">
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setDetalle(null)} className="p-1.5 hover:bg-white/10 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="overflow-y-auto flex-1 p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <Campo label="Ruta" valor={detalle.endpoint} mono />
-                <Campo label="Registro" valor={detalle.registroId} mono />
-                <Campo label="IP" valor={detalle.ip} mono />
-                <Campo label="Resultado" valor={detalle.resultado} />
+                <Campo label={t("Ruta")} valor={detalle.endpoint} mono />
+                <Campo label={t("Registro")} valor={detalle.registroId} mono />
+                <Campo label={t("IP")} valor={detalle.ip} mono />
+                <Campo label={t("Resultado")} valor={detalle.resultado} />
               </div>
               {detalle.valorAnterior && (
                 <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase mb-1">Valor anterior</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase mb-1">{t("Valor anterior")}</p>
                   <pre className="bg-rose-50 border border-rose-100 rounded-lg p-3 text-xs overflow-x-auto text-slate-700">
                     {jsonBonito(detalle.valorAnterior)}
                   </pre>
@@ -265,7 +268,7 @@ export default function AuditoriaPage() {
               )}
               {detalle.valorNuevo && (
                 <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase mb-1">Valor nuevo / enviado</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase mb-1">{t("Valor nuevo / enviado")}</p>
                   <pre className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-xs overflow-x-auto text-slate-700">
                     {jsonBonito(detalle.valorNuevo)}
                   </pre>
@@ -280,9 +283,10 @@ export default function AuditoriaPage() {
 }
 
 function Campo({ label, valor, mono }: { label: string; valor: string | null; mono?: boolean }) {
+  const t = useT();
   return (
     <div>
-      <p className="text-[10px] font-bold text-slate-400 uppercase">{label}</p>
+      <p className="text-[10px] font-bold text-slate-400 uppercase">{t(label)}</p>
       <p className={`text-slate-700 ${mono ? "font-mono text-xs" : ""}`}>{valor || "—"}</p>
     </div>
   );

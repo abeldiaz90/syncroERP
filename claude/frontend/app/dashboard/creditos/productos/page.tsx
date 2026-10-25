@@ -26,6 +26,7 @@ import { confirmarElegante } from '@/components/ui/dialogos';
 import { PuedeCrear, PuedeEditar } from '@/app/components/ProtectedElement';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface IProducto {
   id: string; codigo: string; nombre: string; descripcion: string|null;
   unidadPlazo: 'DIAS'|'MESES'; cadaCuantos: number;
@@ -70,6 +71,7 @@ const fmt = (v: unknown) => Number(v ?? 0).toLocaleString('es-MX', { minimumFrac
 const n = (v: unknown) => Number(v) || 0;
 
 export default function ProductosCreditoPage() {
+  const t = useT();
   const [productos, setProductos] = useState<IProducto[]>([]);
   const [estado, setEstado]       = useState<IEstado|null>(null);
   /** El diagnóstico de cada producto es de Contabilidad; el catálogo, de todos. */
@@ -118,7 +120,7 @@ export default function ProductosCreditoPage() {
       setEstado(est.valor);
       setEstadoVedado(est.vedado);
     } catch (e) {
-      decir(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cargar el catálogo.', false);
+      decir(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo cargar el catálogo."), false);
     }
     setCargando(false);
   }, []);
@@ -186,15 +188,15 @@ export default function ProductosCreditoPage() {
     try {
       if (editando) {
         await api.patch(`/credito/productos/${editando.id}`, cuerpo);
-        decir('Producto actualizado. Si cambiaste plazo o precio, hay que verificarlo otra vez.');
+        decir(t("Producto actualizado. Si cambiaste plazo o precio, hay que verificarlo otra vez."));
       } else {
         await api.post('/credito/productos', { ...cuerpo, codigo: form.codigo.trim().toUpperCase() });
-        decir('Producto creado en borrador. Sincronízalo y verifícalo antes de activarlo.');
+        decir(t("Producto creado en borrador. Sincronízalo y verifícalo antes de activarlo."));
       }
       setModal(false);
       await cargar();
     } catch (e) {
-      decir(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo guardar.', false);
+      decir(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo guardar."), false);
     }
     setGuardando(false);
   };
@@ -207,21 +209,24 @@ export default function ProductosCreditoPage() {
       <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <Tags className="w-6 h-6 text-indigo-600"/> Productos de crédito
+            <Tags className="w-6 h-6 text-indigo-600"/>  {t("Productos de crédito")}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Lo que la empresa puede vender a crédito: plazo, tasa y límites.
+            
+            {t("Lo que la empresa puede vender a crédito: plazo, tasa y límites.")}
           </p>
           <p className="text-xs mt-2 flex items-center gap-1.5">
             {exige ? (
               <><Link2 className="w-3.5 h-3.5 text-indigo-500"/>
               <span className="text-slate-600">
-                La cartera se lleva en un registro externo: cada producto debe existir allá y calcular la misma tabla antes de poder venderse.
+                
+                {t("La cartera se lleva en un registro externo: cada producto debe existir allá y calcular la misma tabla antes de poder venderse.")}
               </span></>
             ) : (
               <><Link2Off className="w-3.5 h-3.5 text-slate-400"/>
               <span className="text-slate-600">
-                Sin registro externo: el catálogo es independiente y basta activarlo.
+                
+                {t("Sin registro externo: el catálogo es independiente y basta activarlo.")}
               </span></>
             )}
           </p>
@@ -233,27 +238,26 @@ export default function ProductosCreditoPage() {
               */}
               <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
               <span>
-                El diagnóstico de cada producto —qué le falta para poder
-                venderse— es de Contabilidad, así que esa columna no aparece en
-                tu perfil. El catálogo sí es tuyo.
+                
+                {t("El diagnóstico de cada producto —qué le falta para poder venderse— es de Contabilidad, así que esa columna no aparece en tu perfil. El catálogo sí es tuyo.")}
               </span>
             </p>
           )}
         </div>
         <div className="flex gap-2">
           <PuedeCrear ruta="/credito/productos">
-            <button onClick={()=>void accion('todos','Sembrar',()=>api.post('/credito/productos/sembrar'))}
+            <button onClick={()=>void accion('todos',t("Sembrar"),()=>api.post('/credito/productos/sembrar'))}
               disabled={!!ocupado}
-              title="Crea el catálogo inicial: 30, 60 y 90 días, meses sin intereses y mensualidades con interés."
+              title={t("Crea el catálogo inicial: 30, 60 y 90 días, meses sin intereses y mensualidades con interés.")}
               className="px-3 py-2 text-sm font-bold rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 disabled:opacity-50">
-              <Sprout className="w-4 h-4"/> Sembrar catálogo
+              <Sprout className="w-4 h-4"/>  {t("Sembrar catálogo")}
             </button>
           </PuedeCrear>
           {exige&&(
             <PuedeEditar ruta="/credito/productos/:id">
-              <button onClick={()=>void accion('todos','Sincronizar',()=>api.post('/credito/productos/sincronizar'))}
+              <button onClick={()=>void accion('todos',t("Sincronizar"),()=>api.post('/credito/productos/sincronizar'))}
                 disabled={!!ocupado}
-                title="Crea allá lo que falte e importa en borrador lo que exista allá y aquí no."
+                title={t("Crea allá lo que falte e importa en borrador lo que exista allá y aquí no.")}
                 className="px-3 py-2 text-sm font-bold rounded-xl border border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex items-center gap-1.5 disabled:opacity-50">
                 {ocupado==='todosSincronizar'?<Loader2 className="w-4 h-4 animate-spin"/>:<RefreshCw className="w-4 h-4"/>} Sincronizar
               </button>
@@ -262,7 +266,7 @@ export default function ProductosCreditoPage() {
           <PuedeCrear ruta="/credito/productos">
             <button onClick={abrirNuevo}
               className="px-4 py-2 text-sm font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 flex items-center gap-1.5">
-              <Plus className="w-4 h-4"/> Nuevo producto
+              <Plus className="w-4 h-4"/>  {t("Nuevo producto")}
             </button>
           </PuedeCrear>
         </div>
@@ -280,9 +284,10 @@ export default function ProductosCreditoPage() {
       ) : productos.length === 0 ? (
         <div className="py-16 text-center border border-dashed border-slate-300 rounded-2xl">
           <Tags className="w-8 h-8 text-slate-300 mx-auto mb-2"/>
-          <p className="font-bold text-slate-600">Todavía no hay productos de crédito.</p>
+          <p className="font-bold text-slate-600">{t("Todavía no hay productos de crédito.")}</p>
           <p className="text-sm text-slate-400 mt-1">
-            «Sembrar catálogo» deja los cinco de siempre listos; «Nuevo producto» crea uno a tu medida.
+            
+            {t("«Sembrar catálogo» deja los cinco de siempre listos; «Nuevo producto» crea uno a tu medida.")}
           </p>
         </div>
       ) : (
@@ -290,14 +295,14 @@ export default function ProductosCreditoPage() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-[11px] uppercase text-slate-500">
               <tr>
-                <th className="px-4 py-3 text-left font-bold">Producto</th>
-                <th className="px-4 py-3 text-left font-bold">Plazo</th>
-                <th className="px-4 py-3 text-left font-bold">Cuotas</th>
-                <th className="px-4 py-3 text-right font-bold">Tasa</th>
-                <th className="px-4 py-3 text-right font-bold">Importe</th>
-                <th className="px-4 py-3 text-left font-bold">Estado</th>
-                {exige&&<th className="px-4 py-3 text-left font-bold">Externo</th>}
-                <th className="px-4 py-3 text-left font-bold">Para vender falta</th>
+                <th className="px-4 py-3 text-left font-bold">{t("Producto")}</th>
+                <th className="px-4 py-3 text-left font-bold">{t("Plazo")}</th>
+                <th className="px-4 py-3 text-left font-bold">{t("Cuotas")}</th>
+                <th className="px-4 py-3 text-right font-bold">{t("Tasa")}</th>
+                <th className="px-4 py-3 text-right font-bold">{t("Importe")}</th>
+                <th className="px-4 py-3 text-left font-bold">{t("Estado")}</th>
+                {exige&&<th className="px-4 py-3 text-left font-bold">{t("Externo")}</th>}
+                <th className="px-4 py-3 text-left font-bold">{t("Para vender falta")}</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -311,26 +316,25 @@ export default function ProductosCreditoPage() {
                       <div className="flex items-center gap-2">
                         {p.cuotasMaximas>1?<Calculator className="w-4 h-4 text-slate-400"/>:<Calendar className="w-4 h-4 text-slate-400"/>}
                         <div>
-                          <p className="font-bold text-slate-800">{p.nombre}</p>
+                          <p className="font-bold text-slate-800">{t(p.nombre)}</p>
                           <p className="text-[11px] text-slate-400 font-mono">
                             {p.codigo}
-                            {p.origen==='EXTERNO'&&<span className="ml-2 font-sans text-indigo-500">importado</span>}
+                            {p.origen==='EXTERNO'&&<span className="ml-2 font-sans text-indigo-500">{t("importado")}</span>}
                           </p>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      cada {p.unidadPlazo==='MESES'?plural(p.cadaCuantos,'mes','meses'):plural(p.cadaCuantos,'día','días')}
-                    </td>
+                      {t("cada {n0}", { n0: p.unidadPlazo==='MESES'?plural(p.cadaCuantos,'mes','meses'):plural(p.cadaCuantos,t("día"),t("días")) })}</td>
                     <td className="px-4 py-3 text-slate-600">{p.cuotasMinimas}–{p.cuotasMaximas}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       {p.sinInteres
-                        ? <span className="text-emerald-700 font-semibold">sin interés</span>
-                        : <span className="font-semibold">{p.tasaInteresMensual}% mensual{p.tasaEditable&&<span className="text-[10px] text-amber-600 font-normal"> · editable</span>}</span>}
+                        ? <span className="text-emerald-700 font-semibold">{t("sin interés")}</span>
+                        : <span className="font-semibold">{p.tasaInteresMensual}% mensual{p.tasaEditable&&<span className="text-[10px] text-amber-600 font-normal">  {t("· editable")}</span>}</span>}
                     </td>
                     <td className="px-4 py-3 text-right text-slate-500 whitespace-nowrap text-xs">
                       {n(p.montoMinimo)===0&&n(p.montoMaximo)===0
-                        ? 'sin límite'
+                        ? t("sin límite")
                         : `${fmt(p.montoMinimo)} – ${n(p.montoMaximo)===0?'∞':fmt(p.montoMaximo)}`}
                     </td>
                     <td className="px-4 py-3">
@@ -342,13 +346,13 @@ export default function ProductosCreditoPage() {
                       <td className="px-4 py-3 text-xs">
                         {fila?.idExterno
                           ? <span className="font-mono text-slate-600">#{fila.idExterno}</span>
-                          : <span className="text-amber-600 font-semibold">sin vínculo</span>}
-                        {p.verificadoEn&&<p className="text-[10px] text-emerald-600 mt-0.5">verificado</p>}
+                          : <span className="text-amber-600 font-semibold">{t("sin vínculo")}</span>}
+                        {p.verificadoEn&&<p className="text-[10px] text-emerald-600 mt-0.5">{t("verificado")}</p>}
                       </td>
                     )}
                     <td className="px-4 py-3 text-xs">
                       {fila?.vendible
-                        ? <span className="text-emerald-700 font-bold">nada, se puede vender</span>
+                        ? <span className="text-emerald-700 font-bold">{t("nada, se puede vender")}</span>
                         : <button onClick={()=>setDetalle(p)} className="text-left text-amber-700 hover:underline">
                             {fila?.falta ?? '—'}
                           </button>}
@@ -357,28 +361,28 @@ export default function ProductosCreditoPage() {
                       <div className="flex items-center justify-end gap-1">
                         <PuedeEditar ruta="/credito/productos/:id">
                           <button onClick={()=>abrirEdicion(p)} disabled={trabajando}
-                            title="Editar" className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40">
+                            title={t("Editar")} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40">
                             <Edit2 className="w-4 h-4"/>
                           </button>
                           {exige&&(
                             <button onClick={()=>void verificar(p)} disabled={trabajando}
-                              title="Comparar la tabla de amortización con la del registro externo"
+                              title={t("Comparar la tabla de amortización con la del registro externo")}
                               className="p-1.5 rounded-lg text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-40">
                               {ocupado===p.id+'Verificar'?<Loader2 className="w-4 h-4 animate-spin"/>:<ShieldCheck className="w-4 h-4"/>}
                             </button>
                           )}
                           {p.estado==='ACTIVO' ? (
                             <button onClick={async()=>{
-                                if (await confirmarElegante(`¿Dejar de vender ${p.nombre}? Los créditos vivos no se tocan.`, { titulo:'Suspender producto' }))
-                                  void accion(p.id,'Suspender',()=>api.post(`/credito/productos/${p.id}/suspender`));
+                                if (await confirmarElegante(`¿Dejar de vender ${p.nombre}? Los créditos vivos no se tocan.`, { titulo:t("Suspender producto") }))
+                                  void accion(p.id,t("Suspender"),()=>api.post(`/credito/productos/${p.id}/suspender`));
                               }} disabled={trabajando}
-                              title="Suspender" className="p-1.5 rounded-lg text-slate-400 hover:bg-amber-50 hover:text-amber-600 disabled:opacity-40">
+                              title={t("Suspender")} className="p-1.5 rounded-lg text-slate-400 hover:bg-amber-50 hover:text-amber-600 disabled:opacity-40">
                               <PauseCircle className="w-4 h-4"/>
                             </button>
                           ) : (
-                            <button onClick={()=>void accion(p.id,'Activar',()=>api.post(`/credito/productos/${p.id}/activar`))}
+                            <button onClick={()=>void accion(p.id,t("Activar"),()=>api.post(`/credito/productos/${p.id}/activar`))}
                               disabled={trabajando}
-                              title="Activar para la venta" className="p-1.5 rounded-lg text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-40">
+                              title={t("Activar para la venta")} className="p-1.5 rounded-lg text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-40">
                               {ocupado===p.id+'Activar'?<Loader2 className="w-4 h-4 animate-spin"/>:<Power className="w-4 h-4"/>}
                             </button>
                           )}
@@ -398,23 +402,22 @@ export default function ProductosCreditoPage() {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
-              <h2 className="font-bold flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-indigo-400"/> {detalle.nombre}</h2>
-              <button aria-label="Cerrar" title="Cerrar" onClick={()=>setDetalle(null)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
+              <h2 className="font-bold flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-indigo-400"/> {t(detalle.nombre)}</h2>
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={()=>setDetalle(null)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
             </div>
             <div className="p-6 overflow-y-auto text-sm">
               <p className="text-slate-500 mb-3">
-                {filaDe(detalle.id)?.falta ?? 'El producto se puede vender.'}
+                {filaDe(detalle.id)?.falta ?? t("El producto se puede vender.")}
               </p>
               {(() => {
                 const r = detalle.resultadoVerificacion as
                   { error?: string; motivo?: string; diferencias?: IDiferencia[]; capital?: number; numeroCuotas?: number; fechaInicio?: string } | null;
-                if (!r) return <p className="text-slate-400">Todavía no se ha verificado.</p>;
+                if (!r) return <p className="text-slate-400">{t("Todavía no se ha verificado.")}</p>;
                 return (
                   <>
                     {!!r.capital&&r.numeroCuotas!=null&&(
                       <p className="text-xs text-slate-400 mb-3">
-                        Prueba con ${fmt(r.capital)} a {plural(r.numeroCuotas, 'cuota', 'cuotas')} desde {r.fechaInicio}.
-                      </p>
+                        {t("Prueba con ${n0} a {n1} desde {n2}.", { n0: fmt(r.capital), n1: plural(r.numeroCuotas, 'cuota', 'cuotas'), n2: r.fechaInicio })}</p>
                     )}
                     {!!(r.error??r.motivo)&&(
                       <p className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800">{r.error ?? r.motivo}</p>
@@ -423,10 +426,10 @@ export default function ProductosCreditoPage() {
                       <table className="w-full text-xs border border-slate-200 rounded-xl overflow-hidden">
                         <thead className="bg-slate-50 text-slate-500 uppercase text-[10px]">
                           <tr>
-                            <th className="px-3 py-2 text-left font-bold">Cuota</th>
-                            <th className="px-3 py-2 text-left font-bold">Campo</th>
-                            <th className="px-3 py-2 text-left font-bold">ERP</th>
-                            <th className="px-3 py-2 text-left font-bold">Externo</th>
+                            <th className="px-3 py-2 text-left font-bold">{t("Cuota")}</th>
+                            <th className="px-3 py-2 text-left font-bold">{t("Campo")}</th>
+                            <th className="px-3 py-2 text-left font-bold">{t("ERP")}</th>
+                            <th className="px-3 py-2 text-left font-bold">{t("Externo")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -442,7 +445,7 @@ export default function ProductosCreditoPage() {
                       </table>
                     )}
                     {!r.diferencias?.length&&!r.error&&!r.motivo&&(
-                      <p className="text-emerald-700 font-semibold">La última verificación cuadró.</p>
+                      <p className="text-emerald-700 font-semibold">{t("La última verificación cuadró.")}</p>
                     )}
                   </>
                 );
@@ -457,42 +460,43 @@ export default function ProductosCreditoPage() {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
-              <h2 className="font-bold">{editando ? `Editar ${editando.codigo}` : 'Nuevo producto de crédito'}</h2>
-              <button aria-label="Cerrar" title="Cerrar" onClick={()=>setModal(false)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
+              <h2 className="font-bold">{editando ? `Editar ${editando.codigo}` : t("Nuevo producto de crédito")}</h2>
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={()=>setModal(false)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
             </div>
             <div className="p-6 space-y-4 overflow-y-auto">
               {!editando&&(
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Código</label>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Código")}</label>
                   <input value={form.codigo} onChange={e=>setForm({...form,codigo:e.target.value})}
-                    placeholder="MSI-18"
+                    placeholder={t("MSI-18")}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Se usa el mismo código en los dos sistemas para que la correspondencia se vea sin consultar nada. Letras, dígitos y guiones.
+                    
+                    {t("Se usa el mismo código en los dos sistemas para que la correspondencia se vea sin consultar nada. Letras, dígitos y guiones.")}
                   </p>
                 </div>
               )}
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Nombre comercial</label>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Nombre comercial")}</label>
                 <input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})}
-                  placeholder="18 meses sin intereses"
+                  placeholder={t("18 meses sin intereses")}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Vence cada</label>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Vence cada")}</label>
                   <div className="flex gap-2">
                     <input type="number" min="1" max="365" value={form.cadaCuantos} onChange={e=>setForm({...form,cadaCuantos:e.target.value})}
                       className="w-20 px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm"/>
                     <select value={form.unidadPlazo} onChange={e=>setForm({...form,unidadPlazo:e.target.value as 'DIAS'|'MESES'})}
                       className="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm">
-                      <option value="DIAS">días</option>
-                      <option value="MESES">meses</option>
+                      <option value="DIAS">{t("días")}</option>
+                      <option value="MESES">{t("meses")}</option>
                     </select>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Cuotas (de / a)</label>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Cuotas (de / a)")}</label>
                   <div className="flex gap-2 items-center">
                     <input type="number" min="1" max="60" value={form.cuotasMinimas} onChange={e=>setForm({...form,cuotasMinimas:e.target.value})}
                       className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm"/>
@@ -500,7 +504,7 @@ export default function ProductosCreditoPage() {
                     <input type="number" min="1" max="60" value={form.cuotasMaximas} onChange={e=>setForm({...form,cuotasMaximas:e.target.value})}
                       className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm"/>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">Iguales si el plazo es fijo (1 y 1 para un solo pago).</p>
+                  <p className="text-[11px] text-slate-400 mt-1">{t("Iguales si el plazo es fijo (1 y 1 para un solo pago).")}</p>
                 </div>
               </div>
               <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50">
@@ -508,14 +512,14 @@ export default function ProductosCreditoPage() {
                   onChange={e=>setForm({...form,sinInteres:e.target.checked, tasaInteresMensual: e.target.checked ? '0' : form.tasaInteresMensual})}
                   className="w-4 h-4 text-indigo-600 rounded"/>
                 <div>
-                  <p className="text-sm font-bold text-slate-800">Sin intereses</p>
-                  <p className="text-xs text-slate-500">La empresa absorbe el costo financiero.</p>
+                  <p className="text-sm font-bold text-slate-800">{t("Sin intereses")}</p>
+                  <p className="text-xs text-slate-500">{t("La empresa absorbe el costo financiero.")}</p>
                 </div>
               </label>
               {!form.sinInteres&&(
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Tasa mensual (%)</label>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Tasa mensual (%)")}</label>
                     <input type="number" min="0.01" step="0.1" value={form.tasaInteresMensual} onChange={e=>setForm({...form,tasaInteresMensual:e.target.value})}
                       className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm"/>
                   </div>
@@ -523,40 +527,40 @@ export default function ProductosCreditoPage() {
                     <input type="checkbox" checked={form.tasaEditable} onChange={e=>setForm({...form,tasaEditable:e.target.checked})}
                       className="w-4 h-4 text-amber-600 rounded"/>
                     <div>
-                      <p className="text-sm font-bold text-slate-800">Permitir cambiar la tasa al vender</p>
-                      <p className="text-xs text-slate-600">Apágalo salvo que de verdad quieras que el cajero la mueva.</p>
+                      <p className="text-sm font-bold text-slate-800">{t("Permitir cambiar la tasa al vender")}</p>
+                      <p className="text-xs text-slate-600">{t("Apágalo salvo que de verdad quieras que el cajero la mueva.")}</p>
                     </div>
                   </label>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Importe mínimo</label>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Importe mínimo")}</label>
                   <input type="number" min="0" step="0.01" value={form.montoMinimo} onChange={e=>setForm({...form,montoMinimo:e.target.value})}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm"/>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Importe máximo</label>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Importe máximo")}</label>
                   <input type="number" min="0" step="0.01" value={form.montoMaximo} onChange={e=>setForm({...form,montoMaximo:e.target.value})}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm"/>
-                  <p className="text-[11px] text-slate-400 mt-1">Cero = sin tope; el de verdad lo pone la línea del cliente.</p>
+                  <p className="text-[11px] text-slate-400 mt-1">{t("Cero = sin tope; el de verdad lo pone la línea del cliente.")}</p>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Descripción</label>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Descripción")}</label>
                 <textarea value={form.descripcion} onChange={e=>setForm({...form,descripcion:e.target.value})} rows={2}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm"/>
               </div>
               <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-3">
                 {editando
-                  ? 'Cambiar el plazo o el precio de un producto activo lo regresa a borrador: la correspondencia probada deja de ser cierta en ese momento.'
+                  ? t("Cambiar el plazo o el precio de un producto activo lo regresa a borrador: la correspondencia probada deja de ser cierta en ese momento.")
                   : exige
-                    ? 'Nace en borrador. Después hay que sincronizarlo con el registro externo y verificar que las dos tablas coincidan.'
-                    : 'Nace en borrador. Revísalo y actívalo para empezar a venderlo.'}
+                    ? t("Nace en borrador. Después hay que sincronizarlo con el registro externo y verificar que las dos tablas coincidan.")
+                    : t("Nace en borrador. Revísalo y actívalo para empezar a venderlo.")}
               </p>
             </div>
             <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 shrink-0">
-              <button onClick={()=>setModal(false)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">Cancelar</button>
+              <button onClick={()=>setModal(false)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">{t("Cancelar")}</button>
               <button onClick={()=>void guardar()} disabled={guardando||!form.nombre.trim()||(!editando&&!form.codigo.trim())}
                 className="px-5 py-2 text-sm font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5">
                 {guardando?<Loader2 className="w-4 h-4 animate-spin"/>:<Save className="w-4 h-4"/>} Guardar

@@ -14,6 +14,8 @@ import { useRouter } from 'next/navigation';
 import { Search, CornerDownLeft } from 'lucide-react';
 import { INDICE_PANTALLAS, type EntradaBusqueda } from '@/app/dashboard/module-config';
 import { puedeVerEnlace } from '@/lib/session';
+import { useT } from '@/components/I18nProvider';
+
 
 /** Coincidencia por subsecuencia: "cocaj" encuentra "Corte de caja". */
 function puntuar(texto: string, consulta: string): number {
@@ -39,6 +41,7 @@ export default function PaletaComandos({
 }: {
   permisos: string[] | null;
 }) {
+  const t = useT();
   const router = useRouter();
   const [abierta, setAbierta] = useState(false);
   const [consulta, setConsulta] = useState('');
@@ -93,7 +96,7 @@ export default function PaletaComandos({
       onMouseDown={(e) => { if (e.target === e.currentTarget) setAbierta(false); }}
       role="dialog"
       aria-modal="true"
-      aria-label="Buscar pantalla"
+      aria-label={t("Buscar pantalla")}
     >
       <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden border border-slate-200">
         <div className="flex items-center gap-2.5 px-4 border-b border-slate-100">
@@ -107,17 +110,16 @@ export default function PaletaComandos({
               if (e.key === 'ArrowUp')   { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
               if (e.key === 'Enter' && resultados[cursor]) { e.preventDefault(); ir(resultados[cursor]); }
             }}
-            placeholder="Buscar pantalla…"
+            placeholder={t("Buscar pantalla…")}
             className="flex-1 h-12 bg-transparent outline-none text-[14px] text-slate-800 placeholder:text-slate-400"
           />
-          <kbd className="text-[10px] font-semibold text-slate-400 border border-slate-200 rounded px-1.5 py-0.5">esc</kbd>
+          <kbd className="text-[10px] font-semibold text-slate-400 border border-slate-200 rounded px-1.5 py-0.5">{t("esc")}</kbd>
         </div>
 
         <div className="max-h-[46vh] overflow-y-auto py-1.5">
           {resultados.length === 0 ? (
             <p className="px-4 py-8 text-center text-[13px] text-slate-400">
-              Nada coincide con «{consulta}».
-            </p>
+              {t("Nada coincide con «{n0}».", { n0: consulta })}</p>
           ) : (
             resultados.map((p, i) => (
               <button
@@ -129,9 +131,9 @@ export default function PaletaComandos({
                 }`}
               >
                 <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: p.color }} />
-                <span className="text-[13px] text-slate-800 font-medium truncate">{p.label}</span>
+                <span className="text-[13px] text-slate-800 font-medium truncate">{t(p.label)}</span>
                 <span className="text-[11px] text-slate-400 ml-auto shrink-0">
-                  {p.modulo}{p.grupo ? ` · ${p.grupo}` : ''}
+                  {t(p.modulo)}{p.grupo ? ` · ${t(p.grupo)}` : ''}
                 </span>
                 {i === cursor && <CornerDownLeft className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
               </button>
@@ -140,9 +142,9 @@ export default function PaletaComandos({
         </div>
 
         <div className="flex items-center gap-4 px-4 py-2 border-t border-slate-100 bg-slate-50 text-[11px] text-slate-400">
-          <span><kbd className="font-semibold">↑↓</kbd> moverse</span>
-          <span><kbd className="font-semibold">↵</kbd> abrir</span>
-          <span className="ml-auto">{visibles.length} pantallas disponibles</span>
+          <span><kbd className="font-semibold">↑↓</kbd>  {t("moverse")}</span>
+          <span><kbd className="font-semibold">↵</kbd>  {t("abrir")}</span>
+          <span className="ml-auto">{t("{n0} pantallas disponibles", { n0: visibles.length })}</span>
         </div>
       </div>
     </div>

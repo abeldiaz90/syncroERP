@@ -10,6 +10,7 @@ import {
   Ban, Undo2, AlertTriangle, Loader2
 } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 interface IPartida {
   id: string;
   cuentaContable: { numeroCuenta: string; nombre: string };
@@ -73,6 +74,7 @@ const fmtFecha = (s: string) =>
 const POR_PAGINA = 20;
 
 export default function LibroDiarioPage() {
+  const t = useT();
   const [polizas, setPolizas]       = useState<IPoliza[]>([]);
   const [cargando, setCargando]     = useState(true);
   const [errorCarga, setErrorCarga] = useState('');
@@ -138,12 +140,12 @@ export default function LibroDiarioPage() {
       } else {
         setPolizas([]);
         setErrorCarga(r.status === 403
-          ? 'Tu perfil no incluye la consulta de pólizas.'
-          : 'No se pudieron consultar las pólizas.');
+          ? t("Tu perfil no incluye la consulta de pólizas.")
+          : t("No se pudieron consultar las pólizas."));
       }
     } catch {
       setPolizas([]);
-      setErrorCarga('No hay conexión con el servidor.');
+      setErrorCarga(t("No hay conexión con el servidor."));
     }
     setCargando(false);
     setPagina(1);
@@ -164,18 +166,18 @@ export default function LibroDiarioPage() {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
         const msg = Array.isArray(data?.message) ? data.message.join('. ') : data?.message;
-        throw new Error(msg || 'No se pudo cancelar la póliza');
+        throw new Error(msg || t("No se pudo cancelar la póliza"));
       }
       /*
        * El servidor dice qué pasó con el documento del que nació la póliza.
        * Callarlo dejaba a quien cancela creyendo que había terminado.
        */
       const extra = data.regenerada
-        ? ' Su documento vuelve a la cola: la póliza se rehace con la fecha correcta.'
+        ? t("Su documento vuelve a la cola: la póliza se rehace con la fecha correcta.")
         : data.documentoSinPoliza
           ? ` Ojo: ${data.documentoSinPoliza} se queda sin póliza vigente.`
           : '';
-      setOkCancel((data.mensaje ?? 'Póliza cancelada.') + extra);
+      setOkCancel((data.mensaje ?? t("Póliza cancelada.")) + extra);
       setMotivo('');
       await cargar();
       setDetalle(null);
@@ -219,20 +221,20 @@ export default function LibroDiarioPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Finanzas</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Finanzas")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <BookOpen className="w-8 h-8 text-indigo-500"/> Libro Diario
+            <BookOpen className="w-8 h-8 text-indigo-500"/>  {t("Libro Diario")}
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Auditoría de todos los movimientos contables del ERP.</p>
+          <p className="text-slate-500 text-sm mt-1">{t("Auditoría de todos los movimientos contables del ERP.")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button aria-label="Volver a cargar el libro diario" title="Volver a cargar el libro diario" onClick={cargar}
+          <button aria-label={t("Volver a cargar el libro diario")} title={t("Volver a cargar el libro diario")} onClick={cargar}
             className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm">
             <RefreshCw className="w-4 h-4"/>
           </button>
           <Link href="/dashboard/finanzas/polizas/nueva"
             className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-md text-sm">
-            <Plus className="w-4 h-4"/> Nueva Póliza Manual
+            <Plus className="w-4 h-4"/>  {t("Nueva Póliza Manual")}
           </Link>
         </div>
       </div>
@@ -242,42 +244,42 @@ export default function LibroDiarioPage() {
         <div className="flex flex-wrap gap-3 items-end">
           {/* Búsqueda */}
           <div className="flex-1 min-w-48">
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Buscar</label>
+            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t("Buscar")}</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
               <input type="text" value={busqueda} onChange={e => { setBusqueda(e.target.value); setPagina(1); }}
-                placeholder="Folio o concepto..."
+                placeholder={t("Folio o concepto...")}
                 className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
             </div>
           </div>
           {/* Desde */}
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Desde</label>
+            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t("Desde")}</label>
             <input type="date" value={desde} onChange={e => { setDesde(e.target.value); setPagina(1); }}
               className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
           </div>
           {/* Hasta */}
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Hasta</label>
+            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t("Hasta")}</label>
             <input type="date" value={hasta} onChange={e => { setHasta(e.target.value); setPagina(1); }}
               className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
           </div>
           {/* Tipo */}
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Tipo</label>
+            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t("Tipo")}</label>
             <select value={filtroTipo} onChange={e => { setFiltroTipo(e.target.value); setPagina(1); }}
               className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="">Todos</option>
-              <option value="DIARIO">Diario</option>
-              <option value="INGRESO">Ingreso</option>
-              <option value="EGRESO">Egreso</option>
+              <option value="">{t("Todos")}</option>
+              <option value="DIARIO">{t("Diario")}</option>
+              <option value="INGRESO">{t("Ingreso")}</option>
+              <option value="EGRESO">{t("Egreso")}</option>
             </select>
           </div>
           {/* Reset */}
           {(busqueda || filtroTipo || desde !== MES.desde || hasta !== MES.hasta) && (
             <button onClick={() => { setBusqueda(''); setFiltroTipo(''); setDesde(MES.desde); setHasta(MES.hasta); setPagina(1); }}
               className="px-3 py-2.5 text-slate-500 hover:text-slate-700 text-sm flex items-center gap-1 bg-slate-100 rounded-xl">
-              <X className="w-3.5 h-3.5"/> Limpiar
+              <X className="w-3.5 h-3.5"/>  {t("Limpiar")}
             </button>
           )}
         </div>
@@ -285,11 +287,11 @@ export default function LibroDiarioPage() {
         {/* KPIs del filtro */}
         {filtradas.length > 0 && (
           <div className="flex gap-4 mt-3 pt-3 border-t border-slate-100 text-xs">
-            <span className="text-slate-500">{plural(filtradas.length, "póliza")}</span>
-            <span className="text-blue-600 font-bold">Debe: {fmt$(totalDebe)}</span>
-            <span className="text-emerald-600 font-bold">Haber: {fmt$(totalHaber)}</span>
+            <span className="text-slate-500">{plural(filtradas.length, t("póliza"))}</span>
+            <span className="text-blue-600 font-bold">{t("Debe: {n0}", { n0: fmt$(totalDebe) })}</span>
+            <span className="text-emerald-600 font-bold">{t("Haber: {n0}", { n0: fmt$(totalHaber) })}</span>
             <span className={`font-bold ${Math.abs(totalDebe - totalHaber) < 0.01 ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {Math.abs(totalDebe - totalHaber) < 0.01 ? '✅ Cuadrado' : `❌ Dif: ${fmt$(Math.abs(totalDebe - totalHaber))}`}
+              {Math.abs(totalDebe - totalHaber) < 0.01 ? t("✅ Cuadrado") : `❌ Dif: ${fmt$(Math.abs(totalDebe - totalHaber))}`}
             </span>
           </div>
         )}
@@ -298,28 +300,29 @@ export default function LibroDiarioPage() {
       {/* Tabla */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-between">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Pólizas</p>
-          <p className="text-xs text-slate-400">{cargando ? 'Consultando…' : plural(filtradas.length, 'registro')}</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{t("Pólizas")}</p>
+          <p className="text-xs text-slate-400">{cargando ? t("Consultando…") : plural(filtradas.length, 'registro')}</p>
         </div>
 
         {cargando ? (
           <div className="p-16 text-center">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
-            <p className="text-slate-400 text-sm">Cargando pólizas...</p>
+            <p className="text-slate-400 text-sm">{t("Cargando pólizas...")}</p>
           </div>
         ) : errorCarga ? (
           <div className="p-16 text-center">
             <FileText className="w-12 h-12 text-rose-200 mx-auto mb-3"/>
             <p className="font-semibold text-rose-700">{errorCarga}</p>
             <p className="text-sm text-slate-500 mt-1">
-              El libro diario no está vacío: no se pudo consultar.
+              
+              {t("El libro diario no está vacío: no se pudo consultar.")}
             </p>
           </div>
         ) : paginas.length === 0 ? (
           <div className="p-16 text-center">
             <FileText className="w-12 h-12 text-slate-200 mx-auto mb-3"/>
-            <p className="font-semibold text-slate-600">Sin pólizas en el período</p>
-            <p className="text-sm text-slate-400 mt-1">Ajusta los filtros o crea una póliza manual.</p>
+            <p className="font-semibold text-slate-600">{t("Sin pólizas en el período")}</p>
+            <p className="text-sm text-slate-400 mt-1">{t("Ajusta los filtros o crea una póliza manual.")}</p>
           </div>
         ) : (
           <>
@@ -327,12 +330,12 @@ export default function LibroDiarioPage() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr className="text-xs uppercase text-slate-500 font-bold">
-                    <th className="px-5 py-3 text-left">Folio</th>
-                    <th className="px-5 py-3 text-left">Fecha</th>
-                    <th className="px-5 py-3 text-left">Tipo</th>
-                    <th className="px-5 py-3 text-left">Concepto</th>
-                    <th className="px-5 py-3 text-center">Partidas</th>
-                    <th className="px-5 py-3 text-right">Total</th>
+                    <th className="px-5 py-3 text-left">{t("Folio")}</th>
+                    <th className="px-5 py-3 text-left">{t("Fecha")}</th>
+                    <th className="px-5 py-3 text-left">{t("Tipo")}</th>
+                    <th className="px-5 py-3 text-left">{t("Concepto")}</th>
+                    <th className="px-5 py-3 text-center">{t("Partidas")}</th>
+                    <th className="px-5 py-3 text-right">{t("Total")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -348,13 +351,13 @@ export default function LibroDiarioPage() {
                             ? 'text-slate-400 line-through' : 'text-indigo-600'}>{p.folio}</span>
                           {p.estatus && ESTATUS_CFG[p.estatus] && (
                             <span className={`ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded border ${ESTATUS_CFG[p.estatus].cls}`}>
-                              {ESTATUS_CFG[p.estatus].label}
+                              {t(ESTATUS_CFG[p.estatus].label)}
                             </span>
                           )}
                         </td>
                         <td className="px-5 py-3 text-slate-500 text-xs">{fmtFecha(p.fecha)}</td>
                         <td className="px-5 py-3">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.cls}`}>{cfg.label}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.cls}`}>{t(cfg.label)}</span>
                         </td>
                         <td className="px-5 py-3 text-slate-700 max-w-xs truncate" title={p.concepto}>{p.concepto}</td>
                         <td className="px-5 py-3 text-center text-slate-500 text-xs">{p.partidas.length}</td>
@@ -370,14 +373,13 @@ export default function LibroDiarioPage() {
             {totalPaginas > 1 && (
               <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50">
                 <p className="text-xs text-slate-400">
-                  Página {pagina} de {totalPaginas} · {plural(filtradas.length, 'registro')}
-                </p>
+                  {t("Página {n0} de {n1} · {n2}", { n0: pagina, n1: totalPaginas, n2: plural(filtradas.length, 'registro') })}</p>
                 <div className="flex gap-1">
-                  <button aria-label="Página anterior" title="Página anterior" onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
+                  <button aria-label={t("Página anterior")} title={t("Página anterior")} onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
                     className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white disabled:opacity-30">
                     <ChevronLeft className="w-4 h-4"/>
                   </button>
-                  <button aria-label="Página siguiente" title="Página siguiente" onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
+                  <button aria-label={t("Página siguiente")} title={t("Página siguiente")} onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
                     className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white disabled:opacity-30">
                     <ChevronRight className="w-4 h-4"/>
                   </button>
@@ -399,7 +401,7 @@ export default function LibroDiarioPage() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-slate-400">{fmtFecha(detalle.fecha)}</span>
-                <button aria-label="Cerrar el detalle de la póliza" title="Cerrar el detalle de la póliza" onClick={() => setDetalle(null)}
+                <button aria-label={t("Cerrar el detalle de la póliza")} title={t("Cerrar el detalle de la póliza")} onClick={() => setDetalle(null)}
                   className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
                   <X className="w-5 h-5"/>
                 </button>
@@ -410,13 +412,12 @@ export default function LibroDiarioPage() {
               <div className="bg-rose-50 border-b border-rose-200 px-6 py-3 text-sm text-rose-800 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0"/>
                 <div>
-                  <p className="font-bold">Póliza cancelada</p>
+                  <p className="font-bold">{t("Póliza cancelada")}</p>
                   <p className="text-xs mt-0.5">
-                    Motivo: {detalle.motivoCancelacion || '—'}
-                    {detalle.canceladaPor ? ` · por ${detalle.canceladaPor}` : ''}
-                  </p>
+                    {t("Motivo: {n0} {n1}", { n0: detalle.motivoCancelacion || '—', n1: detalle.canceladaPor ? ` · por ${detalle.canceladaPor}` : '' })}</p>
                   <p className="text-xs mt-0.5 text-rose-600">
-                    Sigue en el libro: su reversa la deja en ceros. No se elimina nunca.
+                    
+                    {t("Sigue en el libro: su reversa la deja en ceros. No se elimina nunca.")}
                   </p>
                 </div>
               </div>
@@ -424,7 +425,7 @@ export default function LibroDiarioPage() {
             {detalle.estatus === 'REVERSA' && (
               <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 text-sm text-amber-800 flex items-start gap-2">
                 <Undo2 className="w-4 h-4 mt-0.5 shrink-0"/>
-                <p>Esta es una <b>póliza de reversa</b>: cancela a otra póliza con los importes invertidos.</p>
+                <p>Esta es una <b>{t("póliza de reversa")}</b>: cancela a otra póliza con los importes invertidos.</p>
               </div>
             )}
 
@@ -432,10 +433,10 @@ export default function LibroDiarioPage() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
                   <tr className="text-xs uppercase text-slate-500 font-bold">
-                    <th className="px-5 py-3 text-left">Cuenta</th>
-                    <th className="px-5 py-3 text-left">Referencia</th>
-                    <th className="px-5 py-3 text-right text-blue-600">Debe</th>
-                    <th className="px-5 py-3 text-right text-emerald-600">Haber</th>
+                    <th className="px-5 py-3 text-left">{t("Cuenta")}</th>
+                    <th className="px-5 py-3 text-left">{t("Referencia")}</th>
+                    <th className="px-5 py-3 text-right text-blue-600">{t("Debe")}</th>
+                    <th className="px-5 py-3 text-right text-emerald-600">{t("Haber")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -445,7 +446,7 @@ export default function LibroDiarioPage() {
                         <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded mr-2">
                           {pp.cuentaContable.numeroCuenta}
                         </span>
-                        <span className="font-medium text-slate-800">{pp.cuentaContable.nombre}</span>
+                        <span className="font-medium text-slate-800">{t(pp.cuentaContable.nombre)}</span>
                       </td>
                       <td className="px-5 py-3 text-slate-400 text-xs">{pp.referencia || '—'}</td>
                       <td className="px-5 py-3 text-right font-mono text-blue-600 font-bold">
@@ -460,7 +461,8 @@ export default function LibroDiarioPage() {
                 <tfoot className="border-t-2 border-slate-300 bg-slate-50">
                   <tr>
                     <td colSpan={2} className="px-5 py-3 text-right text-xs font-black uppercase text-slate-500 tracking-widest">
-                      Sumas Iguales
+                      
+                      {t("Sumas Iguales")}
                     </td>
                     <td className="px-5 py-3 text-right font-black font-mono text-blue-700">
                       {fmt$(detalle.partidas.reduce((s, p) => s + Number(p.cargo), 0))}
@@ -480,7 +482,7 @@ export default function LibroDiarioPage() {
                   <p className="mb-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2">{errCancel}</p>
                 )}
                 <p className="text-xs text-slate-500 mb-2">
-                  Cancelar genera una <b>póliza de reversa</b> con los importes invertidos.
+                  Cancelar genera una <b>{t("póliza de reversa")}</b> con los importes invertidos.
                   La original se conserva en el libro (no se borra ni se edita).
                 </p>
                 <label className="flex items-start gap-2 mb-3 text-xs text-slate-600 cursor-pointer">
@@ -491,7 +493,7 @@ export default function LibroDiarioPage() {
                     className="mt-0.5 w-4 h-4 rounded text-blue-600"
                   />
                   <span>
-                    <b>Volver a generar la póliza del documento.</b> Si esta
+                    <b>{t("Volver a generar la póliza del documento.")}</b> Si esta
                     póliza nació de una recepción, una venta o un cobro, su
                     asiento vuelve a la cola y se rehace. Sin esto, ese
                     documento se queda sin contabilidad.
@@ -504,7 +506,7 @@ export default function LibroDiarioPage() {
                 </label>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input value={motivo} onChange={(e) => setMotivo(e.target.value)}
-                    placeholder="Motivo de la cancelación (obligatorio)"
+                    placeholder={t("Motivo de la cancelación (obligatorio)")}
                     className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
                   <button onClick={cancelarPoliza} disabled={cancelando || motivo.trim().length < 5}
                     className="inline-flex items-center justify-center gap-2 bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed">
@@ -523,7 +525,7 @@ export default function LibroDiarioPage() {
         <div className="fixed bottom-6 right-6 z-[60] bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3">
           <Undo2 className="w-4 h-4 text-emerald-400"/>
           <span>{okCancel}</span>
-          <button aria-label="Cerrar" title="Cerrar" onClick={() => setOkCancel(null)} className="text-slate-400 hover:text-white"><X className="w-4 h-4"/></button>
+          <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setOkCancel(null)} className="text-slate-400 hover:text-white"><X className="w-4 h-4"/></button>
         </div>
       )}
     </div>

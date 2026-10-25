@@ -25,6 +25,7 @@ import {
   ErrorPantalla, Indicador, Panel, Seleccion, SinDatos, useAvisos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Fila {
   productoId: string;
   consumoTeorico: number;
@@ -57,6 +58,7 @@ interface Recalculo {
 const UMBRAL_ALERTA = 5;
 
 export default function ControlCostosRecetasPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const hoy = new Date();
 
@@ -110,7 +112,7 @@ export default function ControlCostosRecetasPage() {
     avisar(
       r.actualizadas > 0
         ? `${r.actualizadas} de ${r.revisadas} recetas tenían el costo desactualizado.`
-        : 'Todas las recetas tenían el costo al día.',
+        : t("Todas las recetas tenían el costo al día."),
       r.actualizadas > 0 ? 'alerta' : 'exito',
     );
     return r;
@@ -124,8 +126,8 @@ export default function ControlCostosRecetasPage() {
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
       <EncabezadoPantalla
-        titulo="Control de costos"
-        descripcion="Consumo esperado según lo vendido, contra lo que salió del almacén"
+        titulo={t("Control de costos")}
+        descripcion={t("Consumo esperado según lo vendido, contra lo que salió del almacén")}
         acciones={
           <Boton
             variante="neutro"
@@ -133,7 +135,8 @@ export default function ControlCostosRecetasPage() {
             cargando={recalcular.ejecutando}
             onClick={() => void recalcular.ejecutar()}
           >
-            Recalcular costos de recetas
+            
+            {t("Recalcular costos de recetas")}
           </Boton>
         }
       />
@@ -142,21 +145,21 @@ export default function ControlCostosRecetasPage() {
       <Panel className="mb-5">
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-40">
-            <Campo etiqueta="Desde">
+            <Campo etiqueta={t("Desde")}>
               <Entrada type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
             </Campo>
           </div>
           <div className="w-40">
-            <Campo etiqueta="Hasta">
+            <Campo etiqueta={t("Hasta")}>
               <Entrada type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
             </Campo>
           </div>
           <div className="w-56">
-            <Campo etiqueta="Almacén">
+            <Campo etiqueta={t("Almacén")}>
               <Seleccion value={almacenId} onChange={(e) => setAlmacenId(e.target.value)}>
-                <option value="">Todos</option>
+                <option value="">{t("Todos")}</option>
                 {(almacenes.datos ?? []).map((a) => (
-                  <option key={a.id} value={a.id}>{a.nombre}</option>
+                  <option key={a.id} value={a.id}>{t(a.nombre)}</option>
                 ))}
               </Seleccion>
             </Campo>
@@ -184,14 +187,14 @@ export default function ControlCostosRecetasPage() {
         <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {almacenes.error && (
             <p>
-              No se pudo consultar la lista de almacenes: el filtro de almacén
-              queda en «Todas» y el reporte sale sin separar por bodega.
+              
+              {t("No se pudo consultar la lista de almacenes: el filtro de almacén queda en «Todas» y el reporte sale sin separar por bodega.")}
             </p>
           )}
           {productos.error && (
             <p>
-              No se pudo consultar el catálogo de productos: los renglones se
-              identifican por clave y no por nombre.
+              
+              {t("No se pudo consultar el catálogo de productos: los renglones se identifican por clave y no por nombre.")}
             </p>
           )}
         </div>
@@ -200,29 +203,29 @@ export default function ControlCostosRecetasPage() {
       {/* Indicadores */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador
-          etiqueta="Costo teórico" color="#0f172a" cargando={comparativo.cargando}
+          etiqueta={t("Costo teórico")} color="#0f172a" cargando={comparativo.cargando}
           icono={<ChefHat className="w-4 h-4" />}
           valor={dinero(comparativo.datos?.costoTeorico)}
-          detalle="según lo vendido"
+          detalle={t("según lo vendido")}
         />
         <Indicador
-          etiqueta="Costo real" color="#0f172a" cargando={comparativo.cargando}
+          etiqueta={t("Costo real")} color="#0f172a" cargando={comparativo.cargando}
           valor={dinero(comparativo.datos?.costoReal)}
-          detalle="lo que salió del almacén"
+          detalle={t("lo que salió del almacén")}
         />
         <Indicador
-          etiqueta="Desviación"
+          etiqueta={t("Desviación")}
           color={desviacionAlta ? '#e11d48' : '#059669'}
           cargando={comparativo.cargando}
           icono={<TrendingUp className="w-4 h-4" />}
           valor={dinero(comparativo.datos?.desviacion)}
         />
         <Indicador
-          etiqueta="Sobre lo esperado"
+          etiqueta={t("Sobre lo esperado")}
           color={desviacionAlta ? '#e11d48' : '#059669'}
           cargando={comparativo.cargando}
           valor={porcentaje(comparativo.datos?.porcentajeDesviacion ?? 0)}
-          detalle={desviacionAlta ? 'requiere revisión' : 'dentro de lo normal'}
+          detalle={desviacionAlta ? t("requiere revisión") : t("dentro de lo normal")}
         />
       </div>
 
@@ -233,13 +236,10 @@ export default function ControlCostosRecetasPage() {
             <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
             <div>
               <p className="text-[13px] font-semibold text-slate-900">
-                Saliste {dinero(comparativo.datos.desviacion)} más de lo que las recetas explican
-              </p>
+                {t("Saliste {n0} más de lo que las recetas explican", { n0: dinero(comparativo.datos.desviacion) })}</p>
               <p className="text-[12.5px] text-slate-600 mt-1 leading-relaxed">
-                Ese importe salió del almacén sin corresponder a una venta. Las causas
-                habituales son porciones más grandes que la receta, merma no registrada,
-                platillos de cortesía sin capturar, o faltante real. Empieza por los
-                insumos de arriba: concentran la mayor parte.
+                
+                {t("Ese importe salió del almacén sin corresponder a una venta. Las causas habituales son porciones más grandes que la receta, merma no registrada, platillos de cortesía sin capturar, o faltante real. Empieza por los insumos de arriba: concentran la mayor parte.")}
               </p>
             </div>
           </div>
@@ -254,17 +254,18 @@ export default function ControlCostosRecetasPage() {
           titulo={`${recalculo.actualizadas} recetas tenían el costo desactualizado`}
           accion={
             <button onClick={() => setRecalculo(null)} className="btn btn-fantasma btn-sm">
-              Cerrar
+              
+              {t("Cerrar")}
             </button>
           }
         >
           <table className="tabla">
             <thead>
               <tr>
-                <th>Producto</th>
-                <th className="text-right">Costo guardado</th>
-                <th className="text-right">Costo real</th>
-                <th className="text-right">Diferencia</th>
+                <th>{t("Producto")}</th>
+                <th className="text-right">{t("Costo guardado")}</th>
+                <th className="text-right">{t("Costo real")}</th>
+                <th className="text-right">{t("Diferencia")}</th>
               </tr>
             </thead>
             <tbody>
@@ -290,15 +291,15 @@ export default function ControlCostosRecetasPage() {
       )}
 
       {/* Desglose por insumo */}
-      <Panel sinRelleno titulo="Desviación por insumo">
+      <Panel sinRelleno titulo={t("Desviación por insumo")}>
         {comparativo.cargando ? (
           <Cargando />
         ) : comparativo.error ? (
-          <ErrorPantalla mensaje={comparativo.error} onReintentar={comparativo.recargar} />
+          <ErrorPantalla mensaje={t(comparativo.error)} onReintentar={comparativo.recargar} />
         ) : (comparativo.datos?.filas?.length ?? 0) === 0 ? (
           <SinDatos
-            titulo="Sin consumo de recetas en el periodo"
-            descripcion="Aparecerá aquí en cuanto se vendan productos que tengan escandallo definido."
+            titulo={t("Sin consumo de recetas en el periodo")}
+            descripcion={t("Aparecerá aquí en cuanto se vendan productos que tengan escandallo definido.")}
             icono={<ChefHat className="w-5 h-5" />}
           />
         ) : (
@@ -306,12 +307,12 @@ export default function ControlCostosRecetasPage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Insumo</th>
-                  <th className="text-right">Consumo teórico</th>
-                  <th className="text-right">Costo teórico</th>
-                  <th className="text-right">Salidas adicionales</th>
-                  <th className="text-right">Costo real</th>
-                  <th className="text-right">Desviación</th>
+                  <th>{t("Insumo")}</th>
+                  <th className="text-right">{t("Consumo teórico")}</th>
+                  <th className="text-right">{t("Costo teórico")}</th>
+                  <th className="text-right">{t("Salidas adicionales")}</th>
+                  <th className="text-right">{t("Costo real")}</th>
+                  <th className="text-right">{t("Desviación")}</th>
                   <th className="text-right">%</th>
                 </tr>
               </thead>
@@ -350,7 +351,7 @@ export default function ControlCostosRecetasPage() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td>Total del periodo</td>
+                  <td>{t("Total del periodo")}</td>
                   <td />
                   <td className="text-right cifra">{dinero(comparativo.datos!.costoTeorico)}</td>
                   <td />
@@ -367,8 +368,8 @@ export default function ControlCostosRecetasPage() {
       </Panel>
 
       <p className="text-[11.5px] text-slate-400 mt-3">
-        «Salidas adicionales» son movimientos de esos insumos que no vinieron del consumo
-        de una receta: ajustes, mermas registradas y transferencias.
+        
+        {t("«Salidas adicionales» son movimientos de esos insumos que no vinieron del consumo de una receta: ajustes, mermas registradas y transferencias.")}
       </p>
     </div>
   );

@@ -16,6 +16,7 @@ import {
   ErrorPantalla, Modal, Panel, Seleccion, SinDatos, useAvisos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Cuenta {
   id: string; nombre: string; tipo: string; numeroCuenta?: string;
   saldo: number; pendientesConciliar: number;
@@ -44,6 +45,7 @@ const ETIQUETA_TIPO: Record<string, string> = {
 };
 
 export default function MovimientosTesoreriaPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const hoy = isoCorto();
   const haceUnMes = isoCorto(new Date(Date.now() - 30 * 86_400_000));
@@ -97,7 +99,7 @@ export default function MovimientosTesoreriaPage() {
    */
   const traspasar = useAccion(async (datos: Record<string, unknown>) => {
     await api.post('/tesoreria/traspasos', datos);
-    avisar('Traspaso registrado: salida y entrada quedaron emparejadas.', 'exito');
+    avisar(t("Traspaso registrado: salida y entrada quedaron emparejadas."), 'exito');
     setTraspasoAbierto(false);
     void movimientos.recargar();
     void cuentas.recargar();
@@ -105,7 +107,7 @@ export default function MovimientosTesoreriaPage() {
 
   const cancelar = useAccion(async (id: string, razon: string) => {
     await api.patch(`/tesoreria/movimientos/${id}/cancelar`, { motivo: razon });
-    avisar('Movimiento cancelado con contrapartida.', 'exito');
+    avisar(t("Movimiento cancelado con contrapartida."), 'exito');
     setACancelar(null);
     setMotivo('');
     void movimientos.recargar();
@@ -117,8 +119,8 @@ export default function MovimientosTesoreriaPage() {
   return (
     <div className="p-6 max-w-[1500px] mx-auto">
       <EncabezadoPantalla
-        titulo="Movimientos bancarios"
-        descripcion="Entradas y salidas de efectivo por cuenta"
+        titulo={t("Movimientos bancarios")}
+        descripcion={t("Entradas y salidas de efectivo por cuenta")}
         acciones={
           <>
             {/*
@@ -132,7 +134,8 @@ export default function MovimientosTesoreriaPage() {
               onClick={() => setTraspasoAbierto(true)}
               disabled={(cuentas.datos?.length ?? 0) < 2}
             >
-              Traspasar entre cuentas
+              
+              {t("Traspasar entre cuentas")}
             </Boton>
             <Boton
               variante="primario"
@@ -140,7 +143,8 @@ export default function MovimientosTesoreriaPage() {
               onClick={() => setModalAbierto(true)}
               disabled={(cuentas.datos?.length ?? 0) === 0}
             >
-              Registrar movimiento
+              
+              {t("Registrar movimiento")}
             </Boton>
           </>
         }
@@ -155,7 +159,7 @@ export default function MovimientosTesoreriaPage() {
         <Panel className="mb-5">
           <p className="text-[13px] text-slate-600">
             No hay cuentas bancarias activas. Créalas en{' '}
-            <span className="font-semibold">Crédito y cobranza → Cuentas bancarias</span> antes
+            <span className="font-semibold">{t("Crédito y cobranza → Cuentas bancarias")}</span> antes
             de registrar movimientos.
           </p>
         </Panel>
@@ -171,13 +175,13 @@ export default function MovimientosTesoreriaPage() {
             >
               <div className="flex items-center gap-1.5">
                 <Wallet className="w-3.5 h-3.5 text-cyan-600" />
-                <p className="eyebrow truncate">{c.nombre}</p>
+                <p className="eyebrow truncate">{t(c.nombre)}</p>
               </div>
               <p className="text-[19px] font-bold mt-1.5 cifra text-slate-900">{dinero(c.saldo)}</p>
               <p className="text-[11px] text-slate-400 mt-1">
                 {c.pendientesConciliar > 0
                   ? `${c.pendientesConciliar} por conciliar`
-                  : 'Todo conciliado'}
+                  : t("Todo conciliado")}
               </p>
             </button>
           ))}
@@ -193,7 +197,7 @@ export default function MovimientosTesoreriaPage() {
               <Entrada
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Concepto, folio o referencia"
+                placeholder={t("Concepto, folio o referencia")}
                 className="pl-8"
               />
             </div>
@@ -202,7 +206,8 @@ export default function MovimientosTesoreriaPage() {
             <Entrada type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="w-36" />
             {cuentaId && (
               <Boton variante="fantasma" className="btn-sm" onClick={() => setCuentaId('')}>
-                Ver todas las cuentas
+                
+                {t("Ver todas las cuentas")}
               </Boton>
             )}
           </div>
@@ -214,11 +219,11 @@ export default function MovimientosTesoreriaPage() {
         {movimientos.cargando ? (
           <Cargando />
         ) : movimientos.error ? (
-          <ErrorPantalla mensaje={movimientos.error} onReintentar={movimientos.recargar} />
+          <ErrorPantalla mensaje={t(movimientos.error)} onReintentar={movimientos.recargar} />
         ) : (movimientos.datos?.length ?? 0) === 0 ? (
           <SinDatos
-            titulo="Sin movimientos en este periodo"
-            descripcion="Amplía el rango de fechas o registra el primer movimiento de la cuenta."
+            titulo={t("Sin movimientos en este periodo")}
+            descripcion={t("Amplía el rango de fechas o registra el primer movimiento de la cuenta.")}
             icono={<Wallet className="w-5 h-5" />}
           />
         ) : (
@@ -226,14 +231,14 @@ export default function MovimientosTesoreriaPage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Folio</th>
-                  <th>Fecha</th>
-                  <th>Concepto</th>
-                  <th>Cuenta</th>
-                  <th className="text-right">Entrada</th>
-                  <th className="text-right">Salida</th>
-                  <th className="text-right">Saldo</th>
-                  <th>Conciliación</th>
+                  <th>{t("Folio")}</th>
+                  <th>{t("Fecha")}</th>
+                  <th>{t("Concepto")}</th>
+                  <th>{t("Cuenta")}</th>
+                  <th className="text-right">{t("Entrada")}</th>
+                  <th className="text-right">{t("Salida")}</th>
+                  <th className="text-right">{t("Saldo")}</th>
+                  <th>{t("Conciliación")}</th>
                   <th />
                 </tr>
               </thead>
@@ -254,7 +259,7 @@ export default function MovimientosTesoreriaPage() {
                         <p className="text-[11px] text-slate-400 ml-5">
                           {ETIQUETA_TIPO[m.tipo] ?? m.tipo}
                           {m.referencia ? ` · ${m.referencia}` : ''}
-                          {m.cancelado ? ' · cancelado' : ''}
+                          {m.cancelado ? t("· cancelado") : ''}
                         </p>
                       </td>
                       <td className="text-slate-500">{m.cuentaBancaria?.nombre ?? '—'}</td>
@@ -269,7 +274,7 @@ export default function MovimientosTesoreriaPage() {
                       </td>
                       <td>
                         <Distintivo tono={m.estadoConciliacion === 'CONCILIADO' ? 'exito' : 'neutro'}>
-                          {m.estadoConciliacion === 'CONCILIADO' ? 'Conciliado' : 'Pendiente'}
+                          {m.estadoConciliacion === 'CONCILIADO' ? t("Conciliado") : t("Pendiente")}
                         </Distintivo>
                       </td>
                       <td>
@@ -290,13 +295,14 @@ export default function MovimientosTesoreriaPage() {
                               className="text-xs text-slate-400"
                               title={`Lo genero un documento (${m.tipoDocumento}). Se deshace donde se creo: cancelarlo aqui dejaria ese documento diciendo que el dinero si se movio.`}
                             >
-                              del documento
+                              
+                              {t("del documento")}
                             </span>
                           ) : (
                             <button
                               onClick={() => setACancelar(m)}
                               className="btn btn-fantasma btn-sm btn-icono"
-                              title="Cancelar movimiento"
+                              title={t("Cancelar movimiento")}
                             >
                               <Ban className="w-3.5 h-3.5" />
                             </button>
@@ -331,13 +337,14 @@ export default function MovimientosTesoreriaPage() {
       <Modal
         abierto={!!aCancelar}
         onCerrar={() => { setACancelar(null); setMotivo(''); }}
-        titulo="Cancelar movimiento"
+        titulo={t("Cancelar movimiento")}
         descripcion={`${aCancelar?.folio} · ${dinero(aCancelar?.importe)}`}
         ancho={440}
         pie={
           <>
             <Boton variante="neutro" onClick={() => { setACancelar(null); setMotivo(''); }}>
-              Volver
+              
+              {t("Volver")}
             </Boton>
             <Boton
               variante="peligro"
@@ -345,20 +352,21 @@ export default function MovimientosTesoreriaPage() {
               cargando={cancelar.ejecutando}
               onClick={() => void cancelar.ejecutar(aCancelar!.id, motivo)}
             >
-              Cancelar movimiento
+              
+              {t("Cancelar movimiento")}
             </Boton>
           </>
         }
       >
         <p className="text-[13px] text-slate-600 mb-3.5 leading-relaxed">
-          El movimiento no se borra: se genera una contrapartida por el mismo importe,
-          de modo que el saldo se corrige y la operación original queda en la bitácora.
+          
+          {t("El movimiento no se borra: se genera una contrapartida por el mismo importe, de modo que el saldo se corrige y la operación original queda en la bitácora.")}
         </p>
-        <Campo etiqueta="Motivo de la cancelación" requerido>
+        <Campo etiqueta={t("Motivo de la cancelación")} requerido>
           <Entrada
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
-            placeholder="Capturado en la cuenta equivocada"
+            placeholder={t("Capturado en la cuenta equivocada")}
             autoFocus
           />
         </Campo>
@@ -385,6 +393,7 @@ function ModalNuevoMovimiento({
   onCerrar: () => void;
   onGuardar: (datos: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const [form, setForm] = useState({
     cuentaBancariaId: '', fecha: isoCorto(), tipo: 'INGRESO',
     importe: '', concepto: '', referencia: '', origen: 'MANUAL', nombreTercero: '',
@@ -433,13 +442,13 @@ function ModalNuevoMovimiento({
 
   const enviar = () => {
     const e: Record<string, string> = {};
-    if (!form.cuentaBancariaId) e.cuentaBancariaId = 'Elige la cuenta afectada.';
-    if (!form.concepto.trim()) e.concepto = 'Describe el movimiento.';
+    if (!form.cuentaBancariaId) e.cuentaBancariaId = t("Elige la cuenta afectada.");
+    if (!form.concepto.trim()) e.concepto = t("Describe el movimiento.");
     if (!form.cuentaContrapartidaId) {
-      e.cuentaContrapartidaId = 'Indica contra qué cuenta contable se registra.';
+      e.cuentaContrapartidaId = t("Indica contra qué cuenta contable se registra.");
     }
     const imp = parseFloat(form.importe);
-    if (!imp || imp <= 0) e.importe = 'El importe debe ser mayor que cero.';
+    if (!imp || imp <= 0) e.importe = t("El importe debe ser mayor que cero.");
 
     setErrores(e);
     if (Object.keys(e).length) return;
@@ -456,19 +465,19 @@ function ModalNuevoMovimiento({
     <Modal
       abierto={abierto}
       onCerrar={onCerrar}
-      titulo="Registrar movimiento"
+      titulo={t("Registrar movimiento")}
       ancho={560}
       pie={
         <>
-          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
-          <Boton variante="primario" onClick={enviar} cargando={guardando}>Registrar</Boton>
+          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>{t("Cancelar")}</Boton>
+          <Boton variante="primario" onClick={enviar} cargando={guardando}>{t("Registrar")}</Boton>
         </>
       }
     >
       <div className="grid grid-cols-2 gap-3.5">
         <div className="col-span-2">
           <Campo
-            etiqueta="Cuenta" requerido error={errores.cuentaBancariaId}
+            etiqueta={t("Cuenta")} requerido error={errores.cuentaBancariaId}
             ayuda={cuenta ? `Saldo actual: ${dinero(cuenta.saldo)}` : undefined}
           >
             <Seleccion
@@ -476,46 +485,46 @@ function ModalNuevoMovimiento({
               onChange={(e) => cambiar('cuentaBancariaId', e.target.value)}
               error={!!errores.cuentaBancariaId}
             >
-              <option value="">Elige una…</option>
+              <option value="">{t("Elige una…")}</option>
               {cuentas.map((c) => (
-                <option key={c.id} value={c.id}>{c.nombre} · {dinero(c.saldo)}</option>
+                <option key={c.id} value={c.id}>{t(c.nombre)} · {dinero(c.saldo)}</option>
               ))}
             </Seleccion>
           </Campo>
         </div>
 
         <Campo
-          etiqueta="Contrapartida contable"
+          etiqueta={t("Contrapartida contable")}
           requerido
           error={errores.cuentaContrapartidaId}
-          ayuda="El movimiento genera póliza: indica contra qué cuenta se registra en el mayor."
+          ayuda={t("El movimiento genera póliza: indica contra qué cuenta se registra en el mayor.")}
         >
           <Seleccion
             value={form.cuentaContrapartidaId}
             onChange={(e) => cambiar('cuentaContrapartidaId', e.target.value)}
             error={!!errores.cuentaContrapartidaId}
           >
-            <option value="">Elige una…</option>
+            <option value="">{t("Elige una…")}</option>
             {cuentasContables
               .filter((c) => c.permiteMovimientoManual !== false)
               .map((c) => (
-                <option key={c.id} value={c.id}>{c.numeroCuenta} · {c.nombre}</option>
+                <option key={c.id} value={c.id}>{c.numeroCuenta} · {t(c.nombre)}</option>
               ))}
           </Seleccion>
         </Campo>
 
-        <Campo etiqueta="Tipo" requerido>
+        <Campo etiqueta={t("Tipo")} requerido>
           <Seleccion value={form.tipo} onChange={(e) => cambiar('tipo', e.target.value)}>
-            <option value="INGRESO">Ingreso</option>
-            <option value="EGRESO">Egreso</option>
+            <option value="INGRESO">{t("Ingreso")}</option>
+            <option value="EGRESO">{t("Egreso")}</option>
           </Seleccion>
         </Campo>
 
-        <Campo etiqueta="Fecha" requerido>
+        <Campo etiqueta={t("Fecha")} requerido>
           <Entrada type="date" value={form.fecha} onChange={(e) => cambiar('fecha', e.target.value)} />
         </Campo>
 
-        <Campo etiqueta="Importe" requerido error={errores.importe}>
+        <Campo etiqueta={t("Importe")} requerido error={errores.importe}>
           <Entrada
             type="number" step="0.01" min="0"
             value={form.importe}
@@ -525,46 +534,44 @@ function ModalNuevoMovimiento({
           />
         </Campo>
 
-        <Campo etiqueta="Origen">
+        <Campo etiqueta={t("Origen")}>
           <Seleccion value={form.origen} onChange={(e) => cambiar('origen', e.target.value)}>
-            <option value="MANUAL">Captura manual</option>
-            <option value="VENTA">Venta</option>
-            <option value="COBRANZA">Cobranza</option>
-            <option value="PAGO_PROVEEDOR">Pago a proveedor</option>
-            <option value="NOMINA">Nómina</option>
-            <option value="COMISION_BANCARIA">Comisión bancaria</option>
-            <option value="IMPUESTO">Impuesto</option>
+            <option value="MANUAL">{t("Captura manual")}</option>
+            <option value="VENTA">{t("Venta")}</option>
+            <option value="COBRANZA">{t("Cobranza")}</option>
+            <option value="PAGO_PROVEEDOR">{t("Pago a proveedor")}</option>
+            <option value="NOMINA">{t("Nómina")}</option>
+            <option value="COMISION_BANCARIA">{t("Comisión bancaria")}</option>
+            <option value="IMPUESTO">{t("Impuesto")}</option>
           </Seleccion>
         </Campo>
 
         <div className="col-span-2">
-          <Campo etiqueta="Concepto" requerido error={errores.concepto}>
+          <Campo etiqueta={t("Concepto")} requerido error={errores.concepto}>
             <Entrada
               value={form.concepto}
               onChange={(e) => cambiar('concepto', e.target.value)}
               error={!!errores.concepto}
-              placeholder="Pago de factura A-1042"
+              placeholder={t("Pago de factura A-1042")}
             />
           </Campo>
         </div>
 
-        <Campo etiqueta="Referencia" ayuda="Folio del banco, cheque o transferencia">
+        <Campo etiqueta={t("Referencia")} ayuda={t("Folio del banco, cheque o transferencia")}>
           <Entrada value={form.referencia} onChange={(e) => cambiar('referencia', e.target.value)} />
         </Campo>
 
-        <Campo etiqueta="Tercero">
+        <Campo etiqueta={t("Tercero")}>
           <Entrada
             value={form.nombreTercero}
             onChange={(e) => cambiar('nombreTercero', e.target.value)}
-            placeholder="Quién paga o cobra"
+            placeholder={t("Quién paga o cobra")}
           />
         </Campo>
 
         {dejaEnRojo && (
           <div className="col-span-2 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            Este egreso deja la cuenta en {dinero(cuenta!.saldo - importe)}. Puedes continuar,
-            pero revisa que sea correcto.
-          </div>
+            {t("Este egreso deja la cuenta en {n0}. Puedes continuar, pero revisa que sea correcto.", { n0: dinero(cuenta!.saldo - importe) })}</div>
         )}
       </div>
     </Modal>
@@ -595,6 +602,7 @@ function ModalTraspaso({
   onCerrar: () => void;
   onGuardar: (datos: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const [form, setForm] = useState({
     origenId: '', destinoId: '', importe: '', fecha: isoCorto(), concepto: '',
   });
@@ -620,12 +628,12 @@ function ModalTraspaso({
 
   const enviar = () => {
     const e: Record<string, string> = {};
-    if (!form.origenId) e.origenId = 'Elige de qué cuenta sale.';
-    if (!form.destinoId) e.destinoId = 'Elige a qué cuenta entra.';
+    if (!form.origenId) e.origenId = t("Elige de qué cuenta sale.");
+    if (!form.destinoId) e.destinoId = t("Elige a qué cuenta entra.");
     if (form.origenId && form.origenId === form.destinoId) {
-      e.destinoId = 'Tiene que ser una cuenta distinta de la de origen.';
+      e.destinoId = t("Tiene que ser una cuenta distinta de la de origen.");
     }
-    if (!importe || importe <= 0) e.importe = 'El importe debe ser mayor que cero.';
+    if (!importe || importe <= 0) e.importe = t("El importe debe ser mayor que cero.");
     /*
      * El saldo se comprueba aquí y también en el servidor, que es quien manda:
      * entre que esta pantalla leyó los saldos y alguien pulsa, otro pudo haber
@@ -633,7 +641,7 @@ function ModalTraspaso({
      * descubierto.
      */
     if (sinSaldo) e.importe = `La cuenta de origen tiene ${dinero(origen!.saldo)}.`;
-    if (form.concepto.trim().length < 3) e.concepto = 'Describe el traspaso.';
+    if (form.concepto.trim().length < 3) e.concepto = t("Describe el traspaso.");
 
     setErrores(e);
     if (Object.keys(e).length) return;
@@ -645,19 +653,19 @@ function ModalTraspaso({
     <Modal
       abierto={abierto}
       onCerrar={onCerrar}
-      titulo="Traspasar entre cuentas"
-      descripcion="El dinero no sale de la empresa: cambia de cuenta. Se registran las dos partidas, emparejadas."
+      titulo={t("Traspasar entre cuentas")}
+      descripcion={t("El dinero no sale de la empresa: cambia de cuenta. Se registran las dos partidas, emparejadas.")}
       ancho={560}
       pie={
         <>
-          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
-          <Boton variante="primario" onClick={enviar} cargando={guardando}>Traspasar</Boton>
+          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>{t("Cancelar")}</Boton>
+          <Boton variante="primario" onClick={enviar} cargando={guardando}>{t("Traspasar")}</Boton>
         </>
       }
     >
       <div className="grid grid-cols-2 gap-3.5">
         <Campo
-          etiqueta="Sale de" requerido error={errores.origenId}
+          etiqueta={t("Sale de")} requerido error={errores.origenId}
           ayuda={origen ? `Saldo actual: ${dinero(origen.saldo)}` : undefined}
         >
           <Seleccion
@@ -665,15 +673,15 @@ function ModalTraspaso({
             onChange={(e) => cambiar('origenId', e.target.value)}
             error={!!errores.origenId}
           >
-            <option value="">Elige una…</option>
+            <option value="">{t("Elige una…")}</option>
             {cuentas.map((c) => (
-              <option key={c.id} value={c.id}>{c.nombre} · {dinero(c.saldo)}</option>
+              <option key={c.id} value={c.id}>{t(c.nombre)} · {dinero(c.saldo)}</option>
             ))}
           </Seleccion>
         </Campo>
 
         <Campo
-          etiqueta="Entra en" requerido error={errores.destinoId}
+          etiqueta={t("Entra en")} requerido error={errores.destinoId}
           ayuda={destino ? `Saldo actual: ${dinero(destino.saldo)}` : undefined}
         >
           {/*
@@ -686,16 +694,16 @@ function ModalTraspaso({
             onChange={(e) => cambiar('destinoId', e.target.value)}
             error={!!errores.destinoId}
           >
-            <option value="">Elige una…</option>
+            <option value="">{t("Elige una…")}</option>
             {cuentas
               .filter((c) => c.id !== form.origenId)
               .map((c) => (
-                <option key={c.id} value={c.id}>{c.nombre} · {dinero(c.saldo)}</option>
+                <option key={c.id} value={c.id}>{t(c.nombre)} · {dinero(c.saldo)}</option>
               ))}
           </Seleccion>
         </Campo>
 
-        <Campo etiqueta="Importe" requerido error={errores.importe}>
+        <Campo etiqueta={t("Importe")} requerido error={errores.importe}>
           <Entrada
             type="number" step="0.01" min="0"
             value={form.importe}
@@ -705,25 +713,25 @@ function ModalTraspaso({
           />
         </Campo>
 
-        <Campo etiqueta="Fecha" requerido>
+        <Campo etiqueta={t("Fecha")} requerido>
           <Entrada type="date" value={form.fecha} onChange={(e) => cambiar('fecha', e.target.value)} />
         </Campo>
 
         <div className="col-span-2">
-          <Campo etiqueta="Concepto" requerido error={errores.concepto}>
+          <Campo etiqueta={t("Concepto")} requerido error={errores.concepto}>
             <Entrada
               value={form.concepto}
               onChange={(e) => cambiar('concepto', e.target.value)}
               error={!!errores.concepto}
-              placeholder="Fondeo de la caja chica"
+              placeholder={t("Fondeo de la caja chica")}
             />
           </Campo>
         </div>
 
         {origen && destino && importe > 0 && !sinSaldo && (
           <div className="col-span-2 text-[12px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 leading-relaxed">
-            {origen.nombre} quedará en <strong>{dinero(Number(origen.saldo) - importe)}</strong> y{' '}
-            {destino.nombre} en <strong>{dinero(Number(destino.saldo) + importe)}</strong>.
+            {t(origen.nombre)} quedará en <strong>{dinero(Number(origen.saldo) - importe)}</strong> y{' '}
+            {t(destino.nombre)} en <strong>{dinero(Number(destino.saldo) + importe)}</strong>.
           </div>
         )}
       </div>

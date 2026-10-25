@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { IdCard, Plus, Trash2, AlertTriangle, Check } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 /**
  * ============================================================================
  * Identificaciones del expediente
@@ -56,6 +57,7 @@ export default function IdentificacionesCliente({
   api: string;
   heads: () => Record<string, string>;
 }) {
+  const t = useT();
   const [filas, setFilas] = useState<Identificacion[]>([]);
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -79,10 +81,10 @@ export default function IdentificacionesCliente({
     setError('');
     try {
       const r = await fetch(`${api}/clientes/${clienteId}/identificaciones`, { headers: heads() });
-      if (!r.ok) throw new Error('No fue posible leer las identificaciones.');
+      if (!r.ok) throw new Error(t("No fue posible leer las identificaciones."));
       setFilas(await r.json());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al leer las identificaciones.');
+      setError(e instanceof Error ? e.message : t("Error al leer las identificaciones."));
     } finally {
       setCargando(false);
     }
@@ -95,10 +97,10 @@ export default function IdentificacionesCliente({
   async function guardar() {
     if (!clienteId) return;
     setError('');
-    if (!form.tipo) return setError('Elige el tipo de documento.');
-    if (form.folio.trim().length < 3) return setError('Captura el folio del documento.');
+    if (!form.tipo) return setError(t("Elige el tipo de documento."));
+    if (form.folio.trim().length < 3) return setError(t("Captura el folio del documento."));
     if (form.vigenciaDesde && form.vigenciaHasta && form.vigenciaHasta < form.vigenciaDesde) {
-      return setError('La vigencia no puede terminar antes de empezar.');
+      return setError(t("La vigencia no puede terminar antes de empezar."));
     }
     setGuardando(true);
     try {
@@ -114,12 +116,12 @@ export default function IdentificacionesCliente({
         }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.message ?? 'No fue posible guardar el documento.');
+      if (!r.ok) throw new Error(d.message ?? t("No fue posible guardar el documento."));
       setForm({ tipo: '', folio: '', vigenciaDesde: '', vigenciaHasta: '', emisor: '' });
       setAbierto(false);
       await cargar();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No fue posible guardar el documento.');
+      setError(e instanceof Error ? e.message : t("No fue posible guardar el documento."));
     } finally {
       setGuardando(false);
     }
@@ -133,10 +135,10 @@ export default function IdentificacionesCliente({
         method: 'DELETE',
         headers: heads(),
       });
-      if (!r.ok) throw new Error('No fue posible retirar el documento.');
+      if (!r.ok) throw new Error(t("No fue posible retirar el documento."));
       await cargar();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No fue posible retirar el documento.');
+      setError(e instanceof Error ? e.message : t("No fue posible retirar el documento."));
     }
   }
 
@@ -145,11 +147,12 @@ export default function IdentificacionesCliente({
       <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
         <IdCard className="mx-auto mb-2 h-6 w-6 text-slate-400" />
         <p className="text-[13px] font-semibold text-slate-700">
-          Guarda el cliente para capturar sus documentos
+          
+          {t("Guarda el cliente para capturar sus documentos")}
         </p>
         <p className="mt-1 text-[12.5px] text-slate-500">
-          Las identificaciones cuelgan del expediente. Guardando primero, un documento no se
-          puede perder porque falle la segunda operación.
+          
+          {t("Las identificaciones cuelgan del expediente. Guardando primero, un documento no se puede perder porque falle la segunda operación.")}
         </p>
       </div>
     );
@@ -161,15 +164,16 @@ export default function IdentificacionesCliente({
     <div className="space-y-3">
       {error && (
         <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12.5px] text-rose-800">
-          {error}
+          {t(error)}
         </div>
       )}
 
       {cargando && !filas.length ? (
-        <p className="text-[12.5px] text-slate-500">Consultando documentos…</p>
+        <p className="text-[12.5px] text-slate-500">{t("Consultando documentos…")}</p>
       ) : activas.length === 0 ? (
         <p className="text-[12.5px] text-slate-500">
-          Sin documentos capturados. El RFC y la CURP se registran en la pestaña de identidad.
+          
+          {t("Sin documentos capturados. El RFC y la CURP se registran en la pestaña de identidad.")}
         </p>
       ) : (
         <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
@@ -189,17 +193,17 @@ export default function IdentificacionesCliente({
               </div>
               {f.vencida ? (
                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-                  <AlertTriangle className="h-3 w-3" /> Vencida
+                  <AlertTriangle className="h-3 w-3" />  {t("Vencida")}
                 </span>
               ) : (
                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-                  <Check className="h-3 w-3" /> Vigente
+                  <Check className="h-3 w-3" />  {t("Vigente")}
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => void retirar(f.id)}
-                title="Retirar del expediente"
+                title={t("Retirar del expediente")}
                 className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -214,14 +218,15 @@ export default function IdentificacionesCliente({
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-600">
-                Tipo de documento
+                
+                {t("Tipo de documento")}
               </span>
               <select
                 value={form.tipo}
                 onChange={e => setForm({ ...form, tipo: e.target.value })}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
               >
-                <option value="">— Elige el tipo —</option>
+                <option value="">{t("— Elige el tipo —")}</option>
                 {disponibles.map(t => (
                   <option key={t.id} value={t.id}>
                     {t.txt}
@@ -231,18 +236,20 @@ export default function IdentificacionesCliente({
             </label>
             <label className="block">
               <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-600">
-                Folio o número
+                
+                {t("Folio o número")}
               </span>
               <input
                 value={form.folio}
                 onChange={e => setForm({ ...form, folio: e.target.value })}
-                placeholder="Como aparece en el documento"
+                placeholder={t("Como aparece en el documento")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
               />
             </label>
             <label className="block">
               <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-600">
-                Vigencia desde
+                
+                {t("Vigencia desde")}
               </span>
               <input
                 type="date"
@@ -253,7 +260,8 @@ export default function IdentificacionesCliente({
             </label>
             <label className="block">
               <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-600">
-                Vigencia hasta
+                
+                {t("Vigencia hasta")}
               </span>
               <input
                 type="date"
@@ -264,12 +272,12 @@ export default function IdentificacionesCliente({
             </label>
             <label className="col-span-2 block">
               <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-600">
-                Emisor <span className="font-medium normal-case text-slate-400">(opcional)</span>
+                Emisor <span className="font-medium normal-case text-slate-400">{t("(opcional)")}</span>
               </span>
               <input
                 value={form.emisor}
                 onChange={e => setForm({ ...form, emisor: e.target.value })}
-                placeholder="Notaría, dependencia o entidad que lo expidió"
+                placeholder={t("Notaría, dependencia o entidad que lo expidió")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
               />
             </label>
@@ -283,7 +291,8 @@ export default function IdentificacionesCliente({
               }}
               className="rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-100"
             >
-              Cancelar
+              
+              {t("Cancelar")}
             </button>
             <button
               type="button"
@@ -291,7 +300,7 @@ export default function IdentificacionesCliente({
               onClick={() => void guardar()}
               className="rounded-lg bg-indigo-600 px-3.5 py-1.5 text-[12.5px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
             >
-              {guardando ? 'Guardando…' : 'Agregar al expediente'}
+              {guardando ? t("Guardando…") : t("Agregar al expediente")}
             </button>
           </div>
         </div>
@@ -301,13 +310,13 @@ export default function IdentificacionesCliente({
           onClick={() => setAbierto(true)}
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 hover:bg-slate-50"
         >
-          <Plus className="h-3.5 w-3.5" /> Agregar documento
+          <Plus className="h-3.5 w-3.5" />  {t("Agregar documento")}
         </button>
       )}
 
       <p className="text-[11.5px] leading-relaxed text-slate-500">
-        Retirar un documento lo desactiva, no lo borra: una identificación que estuvo en el
-        expediente cuando se autorizó un crédito es parte de por qué se autorizó.
+        
+        {t("Retirar un documento lo desactiva, no lo borra: una identificación que estuvo en el expediente cuando se autorizó un crédito es parte de por qué se autorizó.")}
       </p>
     </div>
   );

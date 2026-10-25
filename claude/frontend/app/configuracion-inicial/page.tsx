@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import { useT } from '@/components/I18nProvider';
 type TipoPersona = "FISICA" | "MORAL";
 type Perfil = "GENERAL" | "MIXTO" | "EXENTO" | "FRONTERA";
 type Regimen = {
@@ -75,6 +76,7 @@ const CUENTAS = [
 ];
 
 export default function ConfiguracionInicialPage() {
+  const t = useT();
   const router = useRouter();
   const api =
     process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
@@ -126,7 +128,7 @@ export default function ConfiguracionInicialPage() {
         const diagnostico = (await respuestaDiagnostico.json().catch(() => null)) as DiagnosticoMexico | null;
         if (!respuesta.ok) {
           throw new Error(
-            datos?.message || "No se pudieron consultar los catálogos fiscales.",
+            datos?.message || t("No se pudieron consultar los catálogos fiscales."),
           );
         }
         setCatalogos(datos);
@@ -144,7 +146,7 @@ export default function ConfiguracionInicialPage() {
           }));
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error de conexión.");
+        setError(e instanceof Error ? e.message : t("Error de conexión."));
       } finally {
         setCargando(false);
       }
@@ -179,21 +181,21 @@ export default function ConfiguracionInicialPage() {
       if (form.rfc.trim().length !== longitud)
         return `El RFC debe tener ${longitud} caracteres para este tipo de persona.`;
       if (!/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(form.rfc.trim().toUpperCase()))
-        return "El RFC no tiene una estructura válida.";
+        return t("El RFC no tiene una estructura válida.");
       if (!form.razonSocial.trim())
-        return "Escribe el nombre o razón social exactamente como aparece en tu constancia.";
-      if (!form.regimenFiscal) return "Selecciona tu régimen fiscal SAT.";
+        return t("Escribe el nombre o razón social exactamente como aparece en tu constancia.");
+      if (!form.regimenFiscal) return t("Selecciona tu régimen fiscal SAT.");
       if (!/^\d{5}$/.test(form.codigoPostal))
-        return "El código postal fiscal debe tener 5 dígitos.";
+        return t("El código postal fiscal debe tener 5 dígitos.");
     }
     if (
       paso === 1 &&
       form.perfilImpuestos === "FRONTERA" &&
       !form.confirmaEstimuloFronterizo
     )
-      return "Confirma que cumples los requisitos del estímulo para habilitar IVA 8%.";
+      return t("Confirma que cumples los requisitos del estímulo para habilitar IVA 8%.");
     if (paso === 2 && !form.confirmaRevisionConContador)
-      return "Debes confirmar que cotejaste estos datos antes de aplicarlos.";
+      return t("Debes confirmar que cotejaste estos datos antes de aplicarlos.");
     return "";
   };
 
@@ -228,12 +230,12 @@ export default function ConfiguracionInicialPage() {
         const detalle = Array.isArray(datos?.message)
           ? datos.message.join(" · ")
           : datos?.message;
-        throw new Error(detalle || "No se pudo aplicar la configuración.");
+        throw new Error(detalle || t("No se pudo aplicar la configuración."));
       }
       setResultado(datos);
       setPaso(3);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error de conexión.");
+      setError(e instanceof Error ? e.message : t("Error de conexión."));
     } finally {
       setGuardando(false);
     }
@@ -244,7 +246,8 @@ export default function ConfiguracionInicialPage() {
       <div className="min-h-screen grid place-items-center bg-slate-50 text-slate-500">
         <div className="text-center">
           <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin" />
-          Consultando catálogos fiscales…
+          
+          {t("Consultando catálogos fiscales…")}
         </div>
       </div>
     );
@@ -255,17 +258,19 @@ export default function ConfiguracionInicialPage() {
         <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <ShieldCheck className="mx-auto mb-4 h-10 w-10 text-slate-300" />
           <h1 className="text-lg font-bold text-slate-900">
-            Esto lo configura el administrador
+            
+            {t("Esto lo configura el administrador")}
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            La identidad fiscal de la empresa —RFC, régimen, domicilio— se captura una sola vez y
-            desde una cuenta con permisos de administración. Tu trabajo está en el panel.
+            
+            {t("La identidad fiscal de la empresa —RFC, régimen, domicilio— se captura una sola vez y desde una cuenta con permisos de administración. Tu trabajo está en el panel.")}
           </p>
           <button
             onClick={() => router.push("/dashboard")}
             className="mt-6 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
           >
-            Ir a mi panel
+            
+            {t("Ir a mi panel")}
           </button>
         </div>
       </div>
@@ -279,17 +284,16 @@ export default function ConfiguracionInicialPage() {
             S
           </div>
           <div>
-            <p className="font-bold text-slate-900">Asistente fiscal México</p>
+            <p className="font-bold text-slate-900">{t("Asistente fiscal México")}</p>
             <p className="text-xs text-slate-500">
-              CFDI {catalogos?.versionCFDI ?? "4.0"} · referencia{" "}
-              {catalogos?.ejercicioReferencia ?? 2026}
-            </p>
+              {t("CFDI {n0} · referencia{n1} {n2}", { n0: catalogos?.versionCFDI ?? "4.0", n1: " ", n2: catalogos?.ejercicioReferencia ?? 2026 })}</p>
           </div>
           <button
             onClick={() => router.push("/dashboard")}
             className="ml-auto text-sm text-slate-500 hover:text-slate-800"
           >
-            Salir
+            
+            {t("Salir")}
           </button>
         </div>
       </header>
@@ -308,7 +312,7 @@ export default function ConfiguracionInicialPage() {
                   indice === paso ? "text-indigo-700" : "text-slate-400"
                 }`}
               >
-                {indice + 1}. {nombre}
+                {indice + 1}. {t(nombre)}
               </p>
             </div>
           ))}
@@ -317,7 +321,7 @@ export default function ConfiguracionInicialPage() {
         {error && (
           <div className="mb-5 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
             <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-            {error}
+            {t(error)}
           </div>
         )}
 
@@ -328,18 +332,20 @@ export default function ConfiguracionInicialPage() {
                 <FileCheck2 className="h-7 w-7 text-indigo-600" />
                 <div>
                   <h1 className="text-2xl font-black text-slate-900">
-                    Copia tu Constancia de Situación Fiscal
+                    
+                    {t("Copia tu Constancia de Situación Fiscal")}
                   </h1>
                   <p className="mt-1 text-sm text-slate-500">
-                    No adivines estos datos: deben coincidir carácter por
-                    carácter con el documento del SAT.
+                    
+                    {t("No adivines estos datos: deben coincidir carácter por carácter con el documento del SAT.")}
                   </p>
                 </div>
               </div>
 
               <div className="grid gap-5 md:grid-cols-2">
                 <label className="text-sm font-semibold text-slate-700">
-                  Tipo de persona
+                  
+                  {t("Tipo de persona")}
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     {(["FISICA", "MORAL"] as TipoPersona[]).map((tipo) => (
                       <button
@@ -352,34 +358,34 @@ export default function ConfiguracionInicialPage() {
                             : "border-slate-200"
                         }`}
                       >
-                        Persona {tipo === "FISICA" ? "física" : "moral"}
-                      </button>
+                        {t("Persona {n0}", { n0: tipo === "FISICA" ? t("física") : "moral" })}</button>
                     ))}
                   </div>
                 </label>
                 <Campo
-                  etiqueta="RFC"
+                  etiqueta={t("RFC")}
                   valor={form.rfc}
                   maxLength={13}
                   onChange={(rfc) =>
                     setForm({ ...form, rfc: rfc.replace(/\s/g, "").toUpperCase() })
                   }
-                  ayuda="Sin espacios ni guiones."
+                  ayuda={t("Sin espacios ni guiones.")}
                 />
                 <Campo
                   etiqueta={
                     form.tipoPersona === "FISICA"
-                      ? "Nombre completo"
-                      : "Denominación o razón social"
+                      ? t("Nombre completo")
+                      : t("Denominación o razón social")
                   }
                   valor={form.razonSocial}
                   onChange={(razonSocial) =>
                     setForm({ ...form, razonSocial })
                   }
-                  ayuda="Sin régimen societario si tu constancia no lo incluye."
+                  ayuda={t("Sin régimen societario si tu constancia no lo incluye.")}
                 />
                 <label className="text-sm font-semibold text-slate-700">
-                  Régimen fiscal SAT
+                  
+                  {t("Régimen fiscal SAT")}
                   <select
                     value={form.regimenFiscal}
                     onChange={(e) =>
@@ -387,16 +393,16 @@ export default function ConfiguracionInicialPage() {
                     }
                     className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-normal"
                   >
-                    <option value="">Selecciona la clave de tu constancia</option>
+                    <option value="">{t("Selecciona la clave de tu constancia")}</option>
                     {regimenes.map((regimen) => (
                       <option key={regimen.clave} value={regimen.clave}>
-                        {regimen.clave} — {regimen.nombre}
+                        {regimen.clave} — {t(regimen.nombre)}
                       </option>
                     ))}
                   </select>
                 </label>
                 <Campo
-                  etiqueta="Código postal fiscal"
+                  etiqueta={t("Código postal fiscal")}
                   valor={form.codigoPostal}
                   maxLength={5}
                   onChange={(codigoPostal) =>
@@ -405,13 +411,13 @@ export default function ConfiguracionInicialPage() {
                       codigoPostal: codigoPostal.replace(/\D/g, ""),
                     })
                   }
-                  ayuda="Es el domicilio fiscal, no necesariamente tu sucursal."
+                  ayuda={t("Es el domicilio fiscal, no necesariamente tu sucursal.")}
                 />
                 <Campo
-                  etiqueta="Actividad o giro (opcional)"
+                  etiqueta={t("Actividad o giro (opcional)")}
                   valor={form.giro}
                   onChange={(giro) => setForm({ ...form, giro })}
-                  ayuda="Sirve para personalizar ayudas posteriores."
+                  ayuda={t("Sirve para personalizar ayudas posteriores.")}
                 />
               </div>
             </div>
@@ -423,11 +429,12 @@ export default function ConfiguracionInicialPage() {
                 <Sparkles className="h-7 w-7 text-indigo-600" />
                 <div>
                   <h1 className="text-2xl font-black text-slate-900">
-                    ¿Cómo se gravan tus operaciones?
+                    
+                    {t("¿Cómo se gravan tus operaciones?")}
                   </h1>
                   <p className="mt-1 text-sm text-slate-500">
-                    Esto prepara opciones; cada producto debe conservar su
-                    tratamiento fiscal correcto.
+                    
+                    {t("Esto prepara opciones; cada producto debe conservar su tratamiento fiscal correcto.")}
                   </p>
                 </div>
               </div>
@@ -445,9 +452,9 @@ export default function ConfiguracionInicialPage() {
                         : "border-slate-200 hover:border-slate-300"
                     }`}
                   >
-                    <p className="font-bold text-slate-900">{perfil.nombre}</p>
+                    <p className="font-bold text-slate-900">{t(perfil.nombre)}</p>
                     <p className="mt-1 text-sm text-slate-600">
-                      {perfil.descripcion}
+                      {t(perfil.descripcion)}
                     </p>
                     {perfil.advertencia && (
                       <p className="mt-2 text-xs font-semibold text-amber-700">
@@ -470,14 +477,13 @@ export default function ConfiguracionInicialPage() {
                       })
                     }
                   />
-                  Confirmo que el contribuyente y las operaciones cumplen los
-                  requisitos vigentes del estímulo fronterizo. El ERP no
-                  determina por sí solo la elegibilidad.
+                  
+                  {t("Confirmo que el contribuyente y las operaciones cumplen los requisitos vigentes del estímulo fronterizo. El ERP no determina por sí solo la elegibilidad.")}
                 </label>
               )}
               <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-                El catálogo distinguirá <b>IVA 0%</b>, <b>exento</b> y{" "}
-                <b>no objeto</b>. Aunque los tres pueden sumar $0 de IVA, no
+                El catálogo distinguirá <b>{t("IVA 0%")}</b>, <b>{t("exento")}</b> y{" "}
+                <b>{t("no objeto")}</b>. Aunque los tres pueden sumar $0 de IVA, no
                 significan lo mismo en un CFDI.
               </div>
             </div>
@@ -489,37 +495,38 @@ export default function ConfiguracionInicialPage() {
                 <ShieldCheck className="h-7 w-7 text-indigo-600" />
                 <div>
                   <h1 className="text-2xl font-black text-slate-900">
-                    Revisa antes de aplicar
+                    
+                    {t("Revisa antes de aplicar")}
                   </h1>
                   <p className="mt-1 text-sm text-slate-500">
-                    El proceso es idempotente: conserva cuentas existentes y
-                    completa las que falten.
+                    
+                    {t("El proceso es idempotente: conserva cuentas existentes y completa las que falten.")}
                   </p>
                 </div>
               </div>
               <div className="grid gap-5 md:grid-cols-2">
-                <Resumen titulo="Identidad fiscal" icono={<Building2 />}>
+                <Resumen titulo={t("Identidad fiscal")} icono={<Building2 />}>
                   <p>{form.razonSocial}</p>
                   <p>{form.rfc}</p>
                   <p>
-                    Régimen {form.regimenFiscal} · CP {form.codigoPostal}
-                  </p>
+                    {t("Régimen {n0} · CP {n1}", { n0: form.regimenFiscal, n1: form.codigoPostal })}</p>
                 </Resumen>
-                <Resumen titulo="Tratamiento inicial" icono={<MapPin />}>
+                <Resumen titulo={t("Tratamiento inicial")} icono={<MapPin />}>
                   <p>
                     {
-                      catalogos?.perfilesImpuestos?.find(
+                      t(catalogos?.perfilesImpuestos?.find(
                         (p) => p.clave === form.perfilImpuestos,
-                      )?.nombre
+                      )?.nombre)
                     }
                   </p>
-                  <p>IVA 16%, 0%, exento y no objeto</p>
-                  {form.perfilImpuestos === "FRONTERA" && <p>Incluye IVA 8%</p>}
+                  <p>{t("IVA 16%, 0%, exento y no objeto")}</p>
+                  {form.perfilImpuestos === "FRONTERA" && <p>{t("Incluye IVA 8%")}</p>}
                 </Resumen>
               </div>
               <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
                 <div className="bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800">
-                  Plan base con código agrupador SAT
+                  
+                  {t("Plan base con código agrupador SAT")}
                 </div>
                 <div className="grid max-h-56 gap-x-5 overflow-auto p-4 md:grid-cols-2">
                   {CUENTAS.map(([numero, nombre, sat]) => (
@@ -530,10 +537,9 @@ export default function ConfiguracionInicialPage() {
                       <span className="w-16 font-mono text-slate-500">
                         {numero}
                       </span>
-                      <span className="flex-1 text-slate-700">{nombre}</span>
+                      <span className="flex-1 text-slate-700">{t(nombre)}</span>
                       <span className="font-mono text-indigo-600">
-                        SAT {sat}
-                      </span>
+                        {t("SAT {n0}", { n0: sat })}</span>
                     </div>
                   ))}
                 </div>
@@ -550,9 +556,8 @@ export default function ConfiguracionInicialPage() {
                     })
                   }
                 />
-                Confirmo que cotejé RFC, razón social, régimen y código postal
-                con la Constancia de Situación Fiscal, y que el perfil de
-                impuestos fue revisado con quien lleva la contabilidad.
+                
+                {t("Confirmo que cotejé RFC, razón social, régimen y código postal con la Constancia de Situación Fiscal, y que el perfil de impuestos fue revisado con quien lleva la contabilidad.")}
               </label>
             </div>
           )}
@@ -563,23 +568,22 @@ export default function ConfiguracionInicialPage() {
                 <BadgeCheck className="h-11 w-11 text-emerald-600" />
               </div>
               <h1 className="text-2xl font-black text-slate-900">
-                Configuración fiscal base lista
+                
+                {t("Configuración fiscal base lista")}
               </h1>
               <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">
-                Se prepararon {resultado.cuentas?.creadas ?? 0} cuentas nuevas y{" "}
-                {resultado.impuestos?.creados ?? 0} impuestos nuevos. Lo que ya
-                existía se conservó y se normalizó.
-              </p>
+                {t("Se prepararon {n0} cuentas nuevas y{n1} {n2} impuestos nuevos. Lo que ya existía se conservó y se normalizó.", { n0: resultado.cuentas?.creadas ?? 0, n1: " ", n2: resultado.impuestos?.creados ?? 0 })}</p>
               <div className="mx-auto mt-6 max-w-xl rounded-xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-900">
-                <b>Siguiente requisito para facturar:</b>{" "}
-                {resultado.diagnostico?.facturacion?.mensaje}
+                <b>{t("Siguiente requisito para facturar:")}</b>{" "}
+                {t(resultado.diagnostico?.facturacion?.mensaje)}
               </div>
               <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
                 <button
                   onClick={() => router.push("/configuracion-financiera")}
                   className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-700"
                 >
-                  Continuar con Finanzas
+                  
+                  {t("Continuar con Finanzas")}
                 </button>
                 <button
                   onClick={() =>
@@ -587,7 +591,8 @@ export default function ConfiguracionInicialPage() {
                   }
                   className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700"
                 >
-                  Revisar cuentas
+                  
+                  {t("Revisar cuentas")}
                 </button>
               </div>
             </div>
@@ -597,7 +602,8 @@ export default function ConfiguracionInicialPage() {
             <div className="py-8 text-center">
               <CircleAlert className="mx-auto h-10 w-10 text-amber-500" />
               <p className="mt-3 text-slate-700">
-                Aún no se ha aplicado la configuración.
+                
+                {t("Aún no se ha aplicado la configuración.")}
               </p>
             </div>
           )}
@@ -612,14 +618,15 @@ export default function ConfiguracionInicialPage() {
                 }
                 className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"
               >
-                <ArrowLeft className="h-4 w-4" /> Atrás
+                <ArrowLeft className="h-4 w-4" />  {t("Atrás")}
               </button>
               {paso < 2 ? (
                 <button
                   onClick={siguiente}
                   className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
                 >
-                  Continuar <ArrowRight className="h-4 w-4" />
+                  
+                  {t("Continuar")} <ArrowRight className="h-4 w-4" />
                 </button>
               ) : (
                 <button
@@ -643,7 +650,7 @@ export default function ConfiguracionInicialPage() {
           <div className="flex gap-2">
             <BookOpen className="h-4 w-4 shrink-0" />
             <div>
-              <p>{catalogos?.aviso}</p>
+              <p>{t(catalogos?.aviso)}</p>
               <div className="mt-2 flex flex-wrap gap-4">
                 {catalogos?.fuentes?.map((fuente) => (
                   <a
@@ -653,7 +660,7 @@ export default function ConfiguracionInicialPage() {
                     rel="noreferrer"
                     className="font-semibold text-indigo-600 hover:underline"
                   >
-                    {fuente.nombre}
+                    {t(fuente.nombre)}
                   </a>
                 ))}
               </div>
@@ -678,9 +685,10 @@ function Campo({
   ayuda: string;
   maxLength?: number;
 }) {
+  const t = useT();
   return (
     <label className="text-sm font-semibold text-slate-700">
-      {etiqueta}
+      {t(etiqueta)}
       <input
         value={valor}
         maxLength={maxLength}
@@ -688,7 +696,7 @@ function Campo({
         className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 font-normal outline-none focus:border-indigo-500"
       />
       <span className="mt-1 block text-xs font-normal text-slate-400">
-        {ayuda}
+        {t(ayuda)}
       </span>
     </label>
   );
@@ -703,13 +711,14 @@ function Resumen({
   icono: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="rounded-xl border border-slate-200 p-4">
       <div className="mb-3 flex items-center gap-2 font-bold text-slate-900">
         <span className="text-indigo-600 [&>svg]:h-5 [&>svg]:w-5">
           {icono}
         </span>
-        {titulo}
+        {t(titulo)}
       </div>
       <div className="space-y-1 text-sm text-slate-600">{children}</div>
     </div>

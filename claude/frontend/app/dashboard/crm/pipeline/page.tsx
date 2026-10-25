@@ -22,6 +22,7 @@ import {
   ErrorPantalla, Indicador, Modal, Panel, Seleccion, SinDatos, useAvisos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Etapa {
   id: string; nombre: string; color: string; probabilidad: number; diasAlerta: number;
   /** ABIERTA, GANADA o PERDIDA. Decide qué hace falta para llegar a ella. */
@@ -54,6 +55,7 @@ interface Pipeline {
 interface Prospecto { id: string; nombre: string; empresa?: string }
 
 export default function PipelinePage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [modalAbierto, setModalAbierto] = useState(false);
   /** Lo que quedó pendiente al ganar: el prospecto que todavía no es cliente. */
@@ -99,8 +101,8 @@ export default function PipelinePage() {
     if (destino?.tipo === 'PERDIDA') {
       const motivo = await solicitarTexto(
         `¿Por qué se perdió? Queda en el historial de «${destino.nombre}» y es lo que ` +
-          'permite mejorar el proceso.',
-        { titulo: 'Motivo de la pérdida', obligatorio: true },
+          t("permite mejorar el proceso."),
+        { titulo: t("Motivo de la pérdida"), obligatorio: true },
       );
       if (!motivo?.trim()) return;
       cuerpo.motivoPerdida = motivo.trim();
@@ -115,7 +117,7 @@ export default function PipelinePage() {
       setPorDarDeAlta(pendiente);
       avisar(
         `Oportunidad ganada. Falta dar de alta a ${pendiente.nombre} como cliente ` +
-          'para poder facturarle.',
+          t("para poder facturarle."),
         'alerta',
       );
     } else {
@@ -126,7 +128,7 @@ export default function PipelinePage() {
 
   const sembrar = useAccion(async () => {
     await api.post('/crm/etapas/sembrar');
-    avisar('Embudo creado con siete etapas. Ajústalas cuando quieras.', 'exito');
+    avisar(t("Embudo creado con siete etapas. Ajústalas cuando quieras."), 'exito');
     void etapas.recargar();
     void pipeline.recargar();
   });
@@ -136,15 +138,16 @@ export default function PipelinePage() {
   if (sinEtapas) {
     return (
       <div className="p-6 max-w-[900px] mx-auto">
-        <EncabezadoPantalla titulo="Pipeline" descripcion="Seguimiento de oportunidades comerciales" />
+        <EncabezadoPantalla titulo={t("Pipeline")} descripcion={t("Seguimiento de oportunidades comerciales")} />
         <Panel sinRelleno>
           <SinDatos
-            titulo="Define tu embudo de ventas"
-            descripcion="Las etapas describen cómo vende tu empresa. Empieza con el embudo estándar de siete etapas y ajústalo después."
+            titulo={t("Define tu embudo de ventas")}
+            descripcion={t("Las etapas describen cómo vende tu empresa. Empieza con el embudo estándar de siete etapas y ajústalo después.")}
             icono={<Briefcase className="w-5 h-5" />}
             accion={
               <Boton variante="primario" cargando={sembrar.ejecutando} onClick={() => void sembrar.ejecutar()}>
-                Crear embudo estándar
+                
+                {t("Crear embudo estándar")}
               </Boton>
             }
           />
@@ -156,11 +159,12 @@ export default function PipelinePage() {
   return (
     <div className="p-6 max-w-[1600px] mx-auto">
       <EncabezadoPantalla
-        titulo="Pipeline"
-        descripcion="Oportunidades abiertas por etapa"
+        titulo={t("Pipeline")}
+        descripcion={t("Oportunidades abiertas por etapa")}
         acciones={
           <Boton variante="primario" icono={<Plus className="w-3.5 h-3.5" />} onClick={() => setModalAbierto(true)}>
-            Nueva oportunidad
+            
+            {t("Nueva oportunidad")}
           </Boton>
         }
       />
@@ -173,13 +177,12 @@ export default function PipelinePage() {
       {porDarDeAlta && (
         <div className="panel p-4 mb-4 border-l-[3px] border-l-amber-500">
           <p className="text-[13px] font-semibold text-slate-900">
-            Falta dar de alta a {porDarDeAlta.nombre}
+            Falta dar de alta a {t(porDarDeAlta.nombre)}
             {porDarDeAlta.empresa ? ` (${porDarDeAlta.empresa})` : ''} como cliente
           </p>
           <p className="text-[12.5px] text-slate-500 mt-0.5">
-            La oportunidad quedó ganada, pero el prospecto todavía no es cliente:
-            sin RFC, régimen fiscal y domicilio no se le puede facturar. El alta
-            los pide.
+            
+            {t("La oportunidad quedó ganada, pero el prospecto todavía no es cliente: sin RFC, régimen fiscal y domicilio no se le puede facturar. El alta los pide.")}
           </p>
           <div className="mt-2 flex items-center gap-3">
             {/*
@@ -200,13 +203,15 @@ export default function PipelinePage() {
               href={`/dashboard/clientes?desdeProspecto=${encodeURIComponent(porDarDeAlta.id)}`}
               className="text-[12.5px] font-semibold text-indigo-600 hover:underline"
             >
-              Dar de alta el cliente →
+              
+              {t("Dar de alta el cliente →")}
             </Link>
             <button
               onClick={() => setPorDarDeAlta(null)}
               className="text-[12px] text-slate-400 hover:text-slate-600"
             >
-              Ocultar
+              
+              {t("Ocultar")}
             </button>
           </div>
         </div>
@@ -214,33 +219,33 @@ export default function PipelinePage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador
-          etiqueta="Oportunidades abiertas" color="#ea580c" cargando={pipeline.cargando}
+          etiqueta={t("Oportunidades abiertas")} color="#ea580c" cargando={pipeline.cargando}
           icono={<Briefcase className="w-4 h-4" />}
           valor={pipeline.datos?.totales?.oportunidades ?? 0}
         />
         <Indicador
-          etiqueta="Valor total" color="#0f172a" cargando={pipeline.cargando}
+          etiqueta={t("Valor total")} color="#0f172a" cargando={pipeline.cargando}
           valor={dinero(pipeline.datos?.totales?.importe)}
-          detalle="suma sin ponderar"
+          detalle={t("suma sin ponderar")}
         />
         <Indicador
-          etiqueta="Pronóstico ponderado" color="#059669" cargando={pipeline.cargando}
+          etiqueta={t("Pronóstico ponderado")} color="#059669" cargando={pipeline.cargando}
           icono={<TrendingUp className="w-4 h-4" />}
           valor={dinero(pipeline.datos?.totales?.pronostico)}
-          detalle="ajustado por probabilidad"
+          detalle={t("ajustado por probabilidad")}
         />
         <Indicador
-          etiqueta="Estancadas" color="#e11d48" cargando={pipeline.cargando}
+          etiqueta={t("Estancadas")} color="#e11d48" cargando={pipeline.cargando}
           icono={<Clock className="w-4 h-4" />}
           valor={pipeline.datos?.totales?.estancadas ?? 0}
-          detalle="sin movimiento reciente"
+          detalle={t("sin movimiento reciente")}
         />
       </div>
 
       {pipeline.cargando ? (
         <Panel sinRelleno><Cargando filas={5} /></Panel>
       ) : pipeline.error ? (
-        <Panel sinRelleno><ErrorPantalla mensaje={pipeline.error} onReintentar={pipeline.recargar} /></Panel>
+        <Panel sinRelleno><ErrorPantalla mensaje={t(pipeline.error)} onReintentar={pipeline.recargar} /></Panel>
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4">
           {pipeline.datos!.columnas.map((col) => (
@@ -252,21 +257,20 @@ export default function PipelinePage() {
                   style={{ borderTop: `3px solid ${col.etapa.color}`, borderRadius: '12px 12px 0 0' }}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[12.5px] font-bold text-slate-900">{col.etapa.nombre}</p>
+                    <p className="text-[12.5px] font-bold text-slate-900">{t(col.etapa.nombre)}</p>
                     <span className="text-[11px] font-semibold text-slate-400 cifra">{col.cantidad}</span>
                   </div>
                   <p className="text-[15px] font-bold mt-1 cifra" style={{ color: col.etapa.color }}>
                     {dineroCorto(col.importe)}
                   </p>
                   <p className="text-[10.5px] text-slate-400 mt-0.5">
-                    {col.etapa.probabilidad}% · pronóstico {dineroCorto(col.valorPonderado)}
-                  </p>
+                    {t("{n0}% · pronóstico {n1}", { n0: col.etapa.probabilidad, n1: dineroCorto(col.valorPonderado) })}</p>
                 </div>
 
                 {/* Tarjetas */}
                 <div className="flex-1 p-2 space-y-2 min-h-[120px] max-h-[62vh] overflow-y-auto">
                   {col.oportunidades.length === 0 ? (
-                    <p className="text-[11.5px] text-slate-300 text-center py-6">Sin oportunidades</p>
+                    <p className="text-[11.5px] text-slate-300 text-center py-6">{t("Sin oportunidades")}</p>
                   ) : (
                     col.oportunidades.map((o) => (
                       <TarjetaOportunidad
@@ -309,11 +313,12 @@ function TarjetaOportunidad({
   etapaActual: string;
   onMover: (etapaId: string) => void;
 }) {
+  const t = useT();
   return (
     <div className="bg-white border border-[var(--color-linea)] rounded-lg p-2.5 hover:border-slate-300 transition-colors">
       <div className="flex items-start justify-between gap-2">
         <p className="text-[12px] font-semibold text-slate-900 leading-snug line-clamp-2">
-          {o.titulo}
+          {t(o.titulo)}
         </p>
         {o.estancada && (
           <span title={`${o.diasEnEtapa} días sin movimiento`} className="shrink-0">
@@ -342,7 +347,7 @@ function TarjetaOportunidad({
         value={etapaActual}
         onChange={(e) => { if (e.target.value !== etapaActual) onMover(e.target.value); }}
         className="w-full mt-2 h-7 px-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded text-slate-600 cursor-pointer"
-        aria-label="Mover a otra etapa"
+        aria-label={t("Mover a otra etapa")}
       >
         {etapas.map((e) => (
           <option key={e.id} value={e.id}>
@@ -375,6 +380,7 @@ function ModalNuevaOportunidad({
   onGuardar: (datos: Record<string, unknown>) => void;
   onProspectoCreado: () => Promise<unknown> | void;
 }) {
+  const t = useT();
   const [form, setForm] = useState({
     titulo: '', prospectoId: '', importe: '', etapaId: '',
     fechaCierreEstimada: '', descripcion: '',
@@ -406,12 +412,12 @@ function ModalNuevaOportunidad({
 
   const crearProspecto = async () => {
     if (prospecto.nombre.trim().length < 2) {
-      setErrorProspecto('Escribe el nombre del prospecto.');
+      setErrorProspecto(t("Escribe el nombre del prospecto."));
       return;
     }
     if (!prospecto.email.trim() && !prospecto.telefono.trim()) {
       setErrorProspecto(
-        'Escribe un correo o un teléfono: sin uno de los dos no hay forma de contactarlo.',
+        t("Escribe un correo o un teléfono: sin uno de los dos no hay forma de contactarlo."),
       );
       return;
     }
@@ -431,7 +437,7 @@ function ModalNuevaOportunidad({
       setProspecto({ nombre: '', empresa: '', email: '', telefono: '' });
     } catch (e) {
       setErrorProspecto(
-        e instanceof Error ? e.message : 'No se pudo crear el prospecto.',
+        e instanceof Error ? e.message : t("No se pudo crear el prospecto."),
       );
     } finally {
       setGuardandoProspecto(false);
@@ -445,9 +451,9 @@ function ModalNuevaOportunidad({
 
   const enviar = () => {
     const e: Record<string, string> = {};
-    if (!form.titulo.trim()) e.titulo = 'Describe brevemente la oportunidad.';
-    if (!form.prospectoId) e.prospectoId = 'Elige a quién le vas a vender.';
-    if (!form.importe || parseFloat(form.importe) < 0) e.importe = 'Indica un importe estimado.';
+    if (!form.titulo.trim()) e.titulo = t("Describe brevemente la oportunidad.");
+    if (!form.prospectoId) e.prospectoId = t("Elige a quién le vas a vender.");
+    if (!form.importe || parseFloat(form.importe) < 0) e.importe = t("Indica un importe estimado.");
 
     setErrores(e);
     if (Object.keys(e).length) return;
@@ -471,12 +477,12 @@ function ModalNuevaOportunidad({
     <Modal
       abierto={abierto}
       onCerrar={onCerrar}
-      titulo="Nueva oportunidad"
-      descripcion="Entra en la primera etapa del embudo si no eliges otra."
+      titulo={t("Nueva oportunidad")}
+      descripcion={t("Entra en la primera etapa del embudo si no eliges otra.")}
       pie={
         <>
-          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
-          <Boton variante="primario" onClick={enviar} cargando={guardando}>Crear oportunidad</Boton>
+          <Boton variante="neutro" onClick={onCerrar} disabled={guardando}>{t("Cancelar")}</Boton>
+          <Boton variante="primario" onClick={enviar} cargando={guardando}>{t("Crear oportunidad")}</Boton>
         </>
       }
     >
@@ -487,16 +493,16 @@ function ModalNuevaOportunidad({
           </p>
         )}
 
-        <Campo etiqueta="Título" requerido error={errores.titulo}>
+        <Campo etiqueta={t("Título")} requerido error={errores.titulo}>
           <Entrada
             value={form.titulo}
             onChange={(e) => cambiar('titulo', e.target.value)}
             error={!!errores.titulo}
-            placeholder="Suministro de mobiliario para sucursal norte"
+            placeholder={t("Suministro de mobiliario para sucursal norte")}
           />
         </Campo>
 
-        <Campo etiqueta="Prospecto" requerido error={errores.prospectoId}>
+        <Campo etiqueta={t("Prospecto")} requerido error={errores.prospectoId}>
           <Seleccion
             value={form.prospectoId}
             onChange={(e) => cambiar('prospectoId', e.target.value)}
@@ -504,12 +510,12 @@ function ModalNuevaOportunidad({
           >
             <option value="">
               {prospectos.length
-                ? 'Elige uno…'
-                : 'Todavía no hay prospectos — da de alta uno'}
+                ? t("Elige uno…")
+                : t("Todavía no hay prospectos — da de alta uno")}
             </option>
             {prospectos.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.nombre}{p.empresa ? ` · ${p.empresa}` : ''}
+                {t(p.nombre)}{p.empresa ? ` · ${p.empresa}` : ''}
               </option>
             ))}
           </Seleccion>
@@ -518,36 +524,37 @@ function ModalNuevaOportunidad({
         {altaProspecto ? (
           <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 space-y-3">
             <p className="text-xs font-semibold text-indigo-900">
-              Nuevo prospecto
+              
+              {t("Nuevo prospecto")}
             </p>
             {errorProspecto && (
               <p className="rounded-lg bg-rose-50 px-2 py-1.5 text-xs text-rose-700">
                 {errorProspecto}
               </p>
             )}
-            <Campo etiqueta="Nombre" requerido>
+            <Campo etiqueta={t("Nombre")} requerido>
               <Entrada
                 value={prospecto.nombre}
                 onChange={(e) => setProspecto((p) => ({ ...p, nombre: e.target.value }))}
-                placeholder="María Fernanda Ruiz"
+                placeholder={t("María Fernanda Ruiz")}
               />
             </Campo>
-            <Campo etiqueta="Empresa">
+            <Campo etiqueta={t("Empresa")}>
               <Entrada
                 value={prospecto.empresa}
                 onChange={(e) => setProspecto((p) => ({ ...p, empresa: e.target.value }))}
-                placeholder="Opcional"
+                placeholder={t("Opcional")}
               />
             </Campo>
             <div className="grid grid-cols-2 gap-3">
-              <Campo etiqueta="Correo">
+              <Campo etiqueta={t("Correo")}>
                 <Entrada
                   type="email"
                   value={prospecto.email}
                   onChange={(e) => setProspecto((p) => ({ ...p, email: e.target.value }))}
                 />
               </Campo>
-              <Campo etiqueta="Teléfono">
+              <Campo etiqueta={t("Teléfono")}>
                 <Entrada
                   value={prospecto.telefono}
                   onChange={(e) => setProspecto((p) => ({ ...p, telefono: e.target.value }))}
@@ -555,8 +562,8 @@ function ModalNuevaOportunidad({
               </Campo>
             </div>
             <p className="text-xs text-slate-500">
-              Hace falta el correo o el teléfono: sin uno de los dos no hay
-              forma de contactarlo.
+              
+              {t("Hace falta el correo o el teléfono: sin uno de los dos no hay forma de contactarlo.")}
             </p>
             <div className="flex justify-end gap-2">
               <Boton
@@ -564,14 +571,16 @@ function ModalNuevaOportunidad({
                 onClick={() => { setAltaProspecto(false); setErrorProspecto(''); }}
                 disabled={guardandoProspecto}
               >
-                Cancelar
+                
+                {t("Cancelar")}
               </Boton>
               <Boton
                 variante="primario"
                 onClick={crearProspecto}
                 cargando={guardandoProspecto}
               >
-                Guardar prospecto
+                
+                {t("Guardar prospecto")}
               </Boton>
             </div>
           </div>
@@ -581,12 +590,12 @@ function ModalNuevaOportunidad({
             onClick={() => setAltaProspecto(true)}
             className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 py-2 text-sm font-semibold text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50"
           >
-            <Plus className="h-4 w-4" /> Nuevo prospecto
+            <Plus className="h-4 w-4" />  {t("Nuevo prospecto")}
           </button>
         )}
 
         <div className="grid grid-cols-2 gap-3.5">
-          <Campo etiqueta="Importe estimado" requerido error={errores.importe}>
+          <Campo etiqueta={t("Importe estimado")} requerido error={errores.importe}>
             <Entrada
               type="number" step="0.01" min="0"
               value={form.importe}
@@ -596,7 +605,7 @@ function ModalNuevaOportunidad({
             />
           </Campo>
 
-          <Campo etiqueta="Cierre estimado">
+          <Campo etiqueta={t("Cierre estimado")}>
             <Entrada
               type="date"
               value={form.fechaCierreEstimada}
@@ -605,21 +614,21 @@ function ModalNuevaOportunidad({
           </Campo>
         </div>
 
-        <Campo etiqueta="Etapa inicial" ayuda="Déjalo vacío para empezar por el principio">
+        <Campo etiqueta={t("Etapa inicial")} ayuda={t("Déjalo vacío para empezar por el principio")}>
           <Seleccion value={form.etapaId} onChange={(e) => cambiar('etapaId', e.target.value)}>
-            <option value="">Primera etapa del embudo</option>
+            <option value="">{t("Primera etapa del embudo")}</option>
             {etapas.map((e) => (
-              <option key={e.id} value={e.id}>{e.nombre} · {e.probabilidad}%</option>
+              <option key={e.id} value={e.id}>{t(e.nombre)} · {e.probabilidad}%</option>
             ))}
           </Seleccion>
         </Campo>
 
-        <Campo etiqueta="Notas">
+        <Campo etiqueta={t("Notas")}>
           <textarea
             className="campo"
             value={form.descripcion}
             onChange={(e) => cambiar('descripcion', e.target.value)}
-            placeholder="Qué necesita, con quién se habló, siguiente paso…"
+            placeholder={t("Qué necesita, con quién se habló, siguiente paso…")}
           />
         </Campo>
       </div>

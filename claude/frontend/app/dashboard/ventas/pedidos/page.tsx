@@ -17,6 +17,7 @@ import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
 import { ProtectedElement } from '@/app/components/ProtectedElement';
 import { usePermiso } from '@/hooks/use-permisos';
 
+import { useT } from '@/components/I18nProvider';
 /**
  * ============================================================================
  * Pedidos de venta
@@ -83,6 +84,7 @@ const COLOR: Record<string, string> = {
 };
 
 export default function PedidosVentaPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -157,7 +159,7 @@ export default function PedidosVentaPage() {
       setProductos(lp);
       setVedado({ pedidos: ps.vedado, clientes: cs.vedado, almacenes: als.vedado });
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cargar.', 'error');
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo cargar."), 'error');
     } finally {
       setCargando(false);
     }
@@ -177,7 +179,7 @@ export default function PedidosVentaPage() {
 
   const crear = async () => {
     const utiles = lineas.filter((l) => l.productoId && Number(l.cantidad) > 0);
-    if (!utiles.length) return avisar('Elige al menos un producto con cantidad.', 'alerta');
+    if (!utiles.length) return avisar(t("Elige al menos un producto con cantidad."), 'alerta');
     setGuardando(true);
     try {
       const r = await api.post<any>('/ventas/pedidos', {
@@ -199,7 +201,7 @@ export default function PedidosVentaPage() {
       setNotas('');
       await cargar();
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo crear el pedido.', 'error');
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo crear el pedido."), 'error');
     } finally {
       setGuardando(false);
     }
@@ -209,7 +211,7 @@ export default function PedidosVentaPage() {
     try {
       setDetalle(await api.get<Pedido>(`/ventas/pedidos/${id}`));
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo abrir el pedido.', 'error');
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo abrir el pedido."), 'error');
     }
   };
 
@@ -218,14 +220,14 @@ export default function PedidosVentaPage() {
       const r = await api.patch<Pedido>(`/ventas/pedidos/${id}/confirmar`, {});
       avisar(
         r.backorder
-          ? 'Pedido confirmado. Parte de la mercancía quedó en espera: míralo en el detalle.'
-          : 'Pedido confirmado y mercancía apartada.',
+          ? t("Pedido confirmado. Parte de la mercancía quedó en espera: míralo en el detalle.")
+          : t("Pedido confirmado y mercancía apartada."),
         r.backorder ? 'alerta' : 'exito',
       );
       await cargar();
       await ver(id);
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo confirmar.', 'error');
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo confirmar."), 'error');
     }
   };
 
@@ -233,13 +235,13 @@ export default function PedidosVentaPage() {
     try {
       const r = await api.patch<Pedido>(`/ventas/pedidos/${id}/reintentar-apartado`, {});
       avisar(
-        r.backorder ? 'Todavía falta mercancía por apartar.' : 'Ya quedó todo apartado.',
+        r.backorder ? t("Todavía falta mercancía por apartar.") : t("Ya quedó todo apartado."),
         r.backorder ? 'alerta' : 'exito',
       );
       await cargar();
       await ver(id);
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo apartar.', 'error');
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo apartar."), 'error');
     }
   };
 
@@ -254,7 +256,7 @@ export default function PedidosVentaPage() {
       await ver(id);
     } catch (e) {
       const mensaje =
-        e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo surtir el pedido.';
+        e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo surtir el pedido.");
       /*
        * La negativa por precio movido trae los dos números. No se reintenta
        * sola: la pantalla repite el mensaje del servidor y pregunta, porque
@@ -277,13 +279,13 @@ export default function PedidosVentaPage() {
     setErrorCancelar(null);
     try {
       await api.patch(`/ventas/pedidos/${id}/cancelar`, { motivo });
-      avisar('Pedido cancelado y mercancía liberada.', 'exito');
+      avisar(t("Pedido cancelado y mercancía liberada."), 'exito');
       setCancelando(null);
       setDetalle(null);
       await cargar();
     } catch (e) {
       setErrorCancelar(
-        e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cancelar.',
+        e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo cancelar."),
       );
     } finally {
       setCancelandoProcesa(false);
@@ -302,20 +304,22 @@ export default function PedidosVentaPage() {
         <div>
           <h1 className="text-3xl font-black flex items-center gap-3">
             <ClipboardList />
-            Pedidos de venta
+            
+            {t("Pedidos de venta")}
           </h1>
           <p className="text-slate-500">
-            Lo que el cliente ya pidió y todavía no se lleva. Confirmar aparta la mercancía que
-            hay; lo que falta queda anotado en espera, no se pierde.
+            
+            {t("Lo que el cliente ya pidió y todavía no se lleva. Confirmar aparta la mercancía que hay; lo que falta queda anotado en espera, no se pierde.")}
           </p>
         </div>
         <div className="flex gap-2">
           <Link href="/dashboard/ventas/historial" className="px-4 py-2 rounded-xl border font-semibold">
-            Historial de ventas
+            
+            {t("Historial de ventas")}
           </Link>
           <button
-            aria-label="Volver a cargar"
-            title="Volver a cargar"
+            aria-label={t("Volver a cargar")}
+            title={t("Volver a cargar")}
             onClick={() => void cargar()}
             className="p-2 border rounded-xl"
           >
@@ -342,44 +346,44 @@ export default function PedidosVentaPage() {
       */}
       <ProtectedElement metodo="POST" ruta="/api/ventas/pedidos">
       <section className="border rounded-2xl p-4 space-y-4 bg-white">
-        <h2 className="font-bold text-lg">Capturar un pedido</h2>
+        <h2 className="font-bold text-lg">{t("Capturar un pedido")}</h2>
         <p className="text-sm text-slate-500">
-          Nace como borrador y no aparta nada: mientras se teclea, la mercancía sigue disponible
-          para quien llegue al mostrador.
+          
+          {t("Nace como borrador y no aparta nada: mientras se teclea, la mercancía sigue disponible para quien llegue al mostrador.")}
         </p>
         <div className="grid md:grid-cols-3 gap-3">
           <label className="text-sm">
-            <span className="font-semibold">Cliente</span>
+            <span className="font-semibold">{t("Cliente")}</span>
             <select
               className="w-full border rounded-xl p-2 mt-1"
               value={clienteId}
               onChange={(e) => setClienteId(e.target.value)}
             >
-              <option value="">Público general</option>
+              <option value="">{t("Público general")}</option>
               {clientes.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.nombre}
+                  {t(c.nombre)}
                 </option>
               ))}
             </select>
           </label>
           <label className="text-sm">
-            <span className="font-semibold">Almacén que compromete</span>
+            <span className="font-semibold">{t("Almacén que compromete")}</span>
             <select
               className="w-full border rounded-xl p-2 mt-1"
               value={almacenId}
               onChange={(e) => setAlmacenId(e.target.value)}
             >
-              <option value="">Elige…</option>
+              <option value="">{t("Elige…")}</option>
               {almacenes.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.nombre}
+                  {t(a.nombre)}
                 </option>
               ))}
             </select>
           </label>
           <label className="text-sm">
-            <span className="font-semibold">Se le prometió para</span>
+            <span className="font-semibold">{t("Se le prometió para")}</span>
             <input
               type="date"
               className="w-full border rounded-xl p-2 mt-1"
@@ -397,11 +401,11 @@ export default function PedidosVentaPage() {
                 value={l.productoId}
                 onChange={(e) => cambiar(i, 'productoId', e.target.value)}
               >
-                <option value="">Producto…</option>
+                <option value="">{t("Producto…")}</option>
                 {productos.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.sku ? `${p.sku} · ` : ''}
-                    {p.nombre}
+                    {t(p.nombre)}
                   </option>
                 ))}
               </select>
@@ -416,26 +420,28 @@ export default function PedidosVentaPage() {
             onClick={() => setLineas((ls) => [...ls, { productoId: '', cantidad: '1' }])}
             className="px-3 py-2 rounded-xl border text-sm font-semibold"
           >
-            + Otra partida
+            
+            {t("+ Otra partida")}
           </button>
         </div>
 
         <textarea
           className="w-full border rounded-xl p-2 text-sm"
           rows={2}
-          placeholder="Notas (opcional)"
+          placeholder={t("Notas (opcional)")}
           value={notas}
           onChange={(e) => setNotas(e.target.value)}
         />
         <p className="text-xs text-slate-500">
-          El precio lo pone el servidor con la lista vigente, igual que en la caja.
+          
+          {t("El precio lo pone el servidor con la lista vigente, igual que en la caja.")}
         </p>
         <button
           onClick={() => void crear()}
           disabled={guardando}
           className="px-5 py-2 rounded-xl bg-slate-900 text-white font-bold disabled:opacity-50"
         >
-          {guardando ? 'Guardando…' : 'Capturar pedido'}
+          {guardando ? t("Guardando…") : t("Capturar pedido")}
         </button>
       </section>
       </ProtectedElement>
@@ -444,30 +450,31 @@ export default function PedidosVentaPage() {
         <section className="border border-amber-300 rounded-2xl bg-amber-50 overflow-hidden">
           <h2 className="font-bold text-lg p-4 pb-2 flex items-center gap-2 text-amber-900">
             <Clock className="w-5 h-5" />
-            Comprometido sin mercancía
+            
+            {t("Comprometido sin mercancía")}
           </h2>
           <p className="px-4 pb-2 text-sm text-amber-900">
-            Esto es lo que alguien está esperando y el almacén no tiene. Ordenado por la fecha que
-            se le prometió: el primero de la lista es por el que van a llamar hoy.
+            
+            {t("Esto es lo que alguien está esperando y el almacén no tiene. Ordenado por la fecha que se le prometió: el primero de la lista es por el que van a llamar hoy.")}
           </p>
           <table className="w-full text-sm">
             <thead className="text-left text-amber-900/70">
               <tr>
-                <th className="p-3">Pedido</th>
-                <th className="p-3">Cliente</th>
-                <th className="p-3">Producto</th>
-                <th className="p-3">Prometido</th>
-                <th className="p-3 text-right">Faltan</th>
+                <th className="p-3">{t("Pedido")}</th>
+                <th className="p-3">{t("Cliente")}</th>
+                <th className="p-3">{t("Producto")}</th>
+                <th className="p-3">{t("Prometido")}</th>
+                <th className="p-3 text-right">{t("Faltan")}</th>
               </tr>
             </thead>
             <tbody>
               {espera.map((e, i) => (
                 <tr key={`${e.id}-${i}`} className="border-t border-amber-200">
                   <td className="p-3 font-mono">{e.folio ?? '—'}</td>
-                  <td className="p-3">{e.cliente ?? 'Público general'}</td>
+                  <td className="p-3">{e.cliente ?? t("Público general")}</td>
                   <td className="p-3">{e.producto ?? '—'}</td>
                   <td className="p-3">
-                    {e.fechaCompromiso ? fechaNumerica(e.fechaCompromiso) : 'sin fecha'}
+                    {e.fechaCompromiso ? fechaNumerica(e.fechaCompromiso) : t("sin fecha")}
                   </td>
                   <td className="p-3 text-right font-bold">{e.enEspera}</td>
                 </tr>
@@ -479,7 +486,7 @@ export default function PedidosVentaPage() {
 
       <section className="border rounded-2xl bg-white overflow-hidden">
         <div className="p-4 pb-2 flex items-center justify-between">
-          <h2 className="font-bold text-lg">Pedidos</h2>
+          <h2 className="font-bold text-lg">{t("Pedidos")}</h2>
           {enEspera > 0 && (
             <span className="text-sm text-amber-800 flex items-center gap-2">
               <Clock className="w-4 h-4" />
@@ -489,20 +496,21 @@ export default function PedidosVentaPage() {
         </div>
         {vedado.pedidos ? (
           <p className="p-4 text-amber-700 text-sm">
-            Tu rol no puede leer los pedidos de venta. No es que no haya: es que no se te muestran.
+            
+            {t("Tu rol no puede leer los pedidos de venta. No es que no haya: es que no se te muestran.")}
           </p>
         ) : !pedidos.length ? (
-          <p className="p-4 text-slate-500 text-sm">Todavía no hay pedidos capturados.</p>
+          <p className="p-4 text-slate-500 text-sm">{t("Todavía no hay pedidos capturados.")}</p>
         ) : (
           <table className="w-full text-sm">
             <thead className="text-left text-slate-500">
               <tr>
-                <th className="p-3">Folio</th>
-                <th className="p-3">Cliente</th>
-                <th className="p-3">Pedido</th>
-                <th className="p-3">Prometido</th>
-                <th className="p-3 text-right">Total</th>
-                <th className="p-3">Estado</th>
+                <th className="p-3">{t("Folio")}</th>
+                <th className="p-3">{t("Cliente")}</th>
+                <th className="p-3">{t("Pedido")}</th>
+                <th className="p-3">{t("Prometido")}</th>
+                <th className="p-3 text-right">{t("Total")}</th>
+                <th className="p-3">{t("Estado")}</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
@@ -510,7 +518,7 @@ export default function PedidosVentaPage() {
               {pedidos.map((p) => (
                 <tr key={p.id} className="border-t">
                   <td className="p-3 font-mono">{folioDe(p, FOLIO.PEDIDO_VENTA)}</td>
-                  <td className="p-3">{p.cliente?.nombre ?? 'Público general'}</td>
+                  <td className="p-3">{p.cliente?.nombre ?? t("Público general")}</td>
                   <td className="p-3">{fechaNumerica(p.fechaPedido)}</td>
                   <td className="p-3">
                     {p.fechaCompromiso ? fechaNumerica(p.fechaCompromiso) : '—'}
@@ -523,7 +531,8 @@ export default function PedidosVentaPage() {
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <button onClick={() => void ver(p.id)} className="px-3 py-1 border rounded-lg">
-                      Ver
+                      
+                      {t("Ver")}
                     </button>
                   </td>
                 </tr>
@@ -545,28 +554,29 @@ export default function PedidosVentaPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-xl font-black">
-                  {folioDe(detalle, FOLIO.PEDIDO_VENTA)} · {detalle.cliente?.nombre ?? 'Público general'}
+                  {folioDe(detalle, FOLIO.PEDIDO_VENTA)} · {detalle.cliente?.nombre ?? t("Público general")}
                 </h3>
                 <p className="text-sm text-slate-500">
                   {detalle.estado.replace('_', ' ')}
-                  {detalle.backorder ? ' · hay mercancía en espera' : ''}
+                  {detalle.backorder ? t("· hay mercancía en espera") : ''}
                 </p>
               </div>
               {/* Un modal sin salida visible es un modal del que la gente sale recargando. */}
               <button onClick={() => setDetalle(null)} className="px-3 py-1 border rounded-xl font-semibold">
-                Cerrar
+                
+                {t("Cerrar")}
               </button>
             </div>
 
             <table className="w-full text-sm">
               <thead className="text-left text-slate-500">
                 <tr>
-                  <th className="p-2">Producto</th>
-                  <th className="p-2 text-right">Pedido</th>
-                  <th className="p-2 text-right">Entregado</th>
-                  <th className="p-2 text-right">Apartado</th>
-                  <th className="p-2 text-right">En espera</th>
-                  <th className="p-2 text-right">Precio</th>
+                  <th className="p-2">{t("Producto")}</th>
+                  <th className="p-2 text-right">{t("Pedido")}</th>
+                  <th className="p-2 text-right">{t("Entregado")}</th>
+                  <th className="p-2 text-right">{t("Apartado")}</th>
+                  <th className="p-2 text-right">{t("En espera")}</th>
+                  <th className="p-2 text-right">{t("Precio")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -597,7 +607,8 @@ export default function PedidosVentaPage() {
                     className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold"
                   >
                     <CheckCircle2 className="inline w-4 h-4 mr-1" />
-                    Confirmar y apartar
+                    
+                    {t("Confirmar y apartar")}
                   </button>
                 </ProtectedElement>
               )}
@@ -608,9 +619,9 @@ export default function PedidosVentaPage() {
                     value={metodoPago}
                     onChange={(e) => setMetodoPago(e.target.value)}
                   >
-                    <option value="EFECTIVO">Efectivo</option>
-                    <option value="TARJETA">Tarjeta</option>
-                    <option value="TRANSFERENCIA">Transferencia</option>
+                    <option value="EFECTIVO">{t("Efectivo")}</option>
+                    <option value="TARJETA">{t("Tarjeta")}</option>
+                    <option value="TRANSFERENCIA">{t("Transferencia")}</option>
                   </select>
                   <ProtectedElement metodo="POST" ruta="/api/ventas/pedidos/:id/surtir">
                     <button
@@ -618,7 +629,8 @@ export default function PedidosVentaPage() {
                       className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold"
                     >
                       <PackageCheck className="inline w-4 h-4 mr-1" />
-                      Surtir lo apartado
+                      
+                      {t("Surtir lo apartado")}
                     </button>
                   </ProtectedElement>
                   {detalle.backorder && (
@@ -628,7 +640,8 @@ export default function PedidosVentaPage() {
                         className="px-4 py-2 rounded-xl border font-semibold"
                       >
                         <RefreshCw className="inline w-4 h-4 mr-1" />
-                        Volver a intentar el apartado
+                        
+                        {t("Volver a intentar el apartado")}
                       </button>
                     </ProtectedElement>
                   )}
@@ -641,7 +654,8 @@ export default function PedidosVentaPage() {
                     className="px-4 py-2 rounded-xl border font-semibold text-red-700"
                   >
                     <Ban className="inline w-4 h-4 mr-1" />
-                    Cancelar
+                    
+                    {t("Cancelar")}
                   </button>
                 </ProtectedElement>
               )}
@@ -652,9 +666,9 @@ export default function PedidosVentaPage() {
 
       <ConfirmacionConMotivo
         abierto={!!cancelando}
-        titulo="Cancelar el pedido"
-        mensaje="Se cancela el pedido y se libera la mercancía apartada, que vuelve a estar disponible para vender. El motivo queda en la bitácora."
-        textoConfirmar="Cancelar el pedido"
+        titulo={t("Cancelar el pedido")}
+        mensaje={t("Se cancela el pedido y se libera la mercancía apartada, que vuelve a estar disponible para vender. El motivo queda en la bitácora.")}
+        textoConfirmar={t("Cancelar el pedido")}
         onConfirmar={(motivo) => void cancelar(motivo)}
         onCancelar={() => { setCancelando(null); setErrorCancelar(null); }}
         procesando={cancelandoProcesa}
@@ -663,9 +677,9 @@ export default function PedidosVentaPage() {
 
       <Confirmacion
         abierto={!!precioMovido}
-        titulo="El precio pactado ya no es el vigente"
+        titulo={t("El precio pactado ya no es el vigente")}
         mensaje={precioMovido?.mensaje ?? ''}
-        textoConfirmar="Cobrar el precio de hoy"
+        textoConfirmar={t("Cobrar el precio de hoy")}
         peligroso
         procesando={surtiendo}
         onConfirmar={() => {

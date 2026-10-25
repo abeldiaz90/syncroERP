@@ -25,9 +25,11 @@ import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
  */
 import { api, ApiError } from '@/lib/api';
 
+import { useT } from '@/components/I18nProvider';
 export interface IMarca { id: string; nombre: string; activo: boolean; }
 
 export default function MarcasPage() {
+  const t = useT();
   const [marcas, setMarcas] = useState<IMarca[]>([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
@@ -38,7 +40,7 @@ export default function MarcasPage() {
   const [nombreMarca, setNombreMarca] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [nombreTocado, setNombreTocado] = useState(false);
-  const errorNombre = !nombreMarca.trim() ? "El nombre de la marca es obligatorio" : nombreMarca.trim().length < 2 ? "Captura al menos 2 caracteres" : "";
+  const errorNombre = !nombreMarca.trim() ? t("El nombre de la marca es obligatorio") : nombreMarca.trim().length < 2 ? t("Captura al menos 2 caracteres") : "";
 
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'info' } | null>(null);
   const mostrarToast = (mensaje: string, tipo: 'exito' | 'error' | 'info' = 'info') => {
@@ -52,7 +54,7 @@ export default function MarcasPage() {
       setMarcas(await api.get<IMarca[]>('/catalogo/marcas'));
     } catch (e) {
       /* El mensaje del servidor dice más que «Error al cargar las marcas». */
-      mostrarToast(e instanceof ApiError ? e.mensajeParaPantalla() : 'Error de conexión', 'error');
+      mostrarToast(e instanceof ApiError ? e.mensajeParaPantalla() : t("Error de conexión"), 'error');
     } finally {
       setCargando(false);
     }
@@ -74,7 +76,7 @@ export default function MarcasPage() {
       fetchMarcas();
       mostrarToast(editandoId ? "Marca actualizada exitosamente" : "Marca creada exitosamente", "exito");
     } catch (e) {
-      mostrarToast(e instanceof ApiError ? e.mensajeParaPantalla() : 'Error al guardar', 'error');
+      mostrarToast(e instanceof ApiError ? e.mensajeParaPantalla() : t("Error al guardar"), 'error');
     } finally { setGuardando(false); }
   };
 
@@ -90,7 +92,7 @@ export default function MarcasPage() {
        * la pantalla igual que si nada hubiera pasado, y quien pulsaba se
        * quedaba creyendo que el estado cambió.
        */
-      mostrarToast(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo cambiar el estado', 'error');
+      mostrarToast(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo cambiar el estado"), 'error');
     }
   };
 
@@ -101,15 +103,15 @@ export default function MarcasPage() {
       {/* Toast */}
       {toast && (
         <div className={`fixed top-6 right-6 z-[100] flex items-center gap-2 px-6 py-4 rounded-2xl shadow-2xl text-white ${toast.tipo === 'exito' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
-          {toast.tipo === 'exito' ? <CheckCircle2 /> : <AlertCircle />} {toast.mensaje}
+          {toast.tipo === 'exito' ? <CheckCircle2 /> : <AlertCircle />} {t(toast.mensaje)}
         </div>
       )}
 
       {/* Header */}
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Catálogo de Marcas</h1>
-          <p className="text-slate-500 font-medium">Gestión de marcas operativas para el inventario.</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t("Catálogo de Marcas")}</h1>
+          <p className="text-slate-500 font-medium">{t("Gestión de marcas operativas para el inventario.")}</p>
         </div>
 
         {/* ✅ Solo aparece si tiene POST /api/catalogo/marcas */}
@@ -118,7 +120,7 @@ export default function MarcasPage() {
             onClick={() => { setEditandoId(null); setNombreMarca(""); setNombreTocado(false); setIsModalOpen(true); }}
             className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95"
           >
-            <Plus className="w-5 h-5" /> Nueva Marca
+            <Plus className="w-5 h-5" />  {t("Nueva Marca")}
           </button>
         </PuedeCrear>
       </div>
@@ -130,7 +132,7 @@ export default function MarcasPage() {
             <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
             <input
               className="w-full pl-12 pr-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Buscar marca por nombre..."
+              placeholder={t("Buscar marca por nombre...")}
               onChange={(e) => setBusqueda(e.target.value)}
             />
           </div>
@@ -138,21 +140,21 @@ export default function MarcasPage() {
 
         {cargando ? (
           <div className="p-20 text-center text-slate-400">
-            <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4" /> Cargando...
+            <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4" />  {t("Cargando...")}
           </div>
         ) : (
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-[11px] uppercase tracking-widest font-bold text-slate-500">
               <tr>
-                <th className="px-6 py-4">Nombre</th>
-                <th className="px-6 py-4 text-center">Estado</th>
-                <th className="px-6 py-4 text-center">Acciones</th>
+                <th className="px-6 py-4">{t("Nombre")}</th>
+                <th className="px-6 py-4 text-center">{t("Estado")}</th>
+                <th className="px-6 py-4 text-center">{t("Acciones")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {marcasFiltradas.map((m) => (
                 <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="px-6 py-4 font-bold text-slate-900">{m.nombre}</td>
+                  <td className="px-6 py-4 font-bold text-slate-900">{t(m.nombre)}</td>
                   <td className="px-6 py-4 text-center">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${m.activo ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-slate-100 text-slate-500'}`}>
                       {m.activo ? 'ACTIVO' : 'INACTIVO'}
@@ -163,7 +165,7 @@ export default function MarcasPage() {
 
                       {/* ✅ Solo aparece si tiene PATCH /api/catalogo/marcas/:id */}
                       <PuedeEditar ruta="/api/catalogo/marcas/:id">
-                        <button aria-label="Editar" title="Editar"
+                        <button aria-label={t("Editar")} title={t("Editar")}
                           onClick={() => { setEditandoId(m.id); setNombreMarca(m.nombre); setNombreTocado(false); setIsModalOpen(true); }}
                           className="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all"
                         >
@@ -173,7 +175,7 @@ export default function MarcasPage() {
 
                       {/* ✅ Solo aparece si tiene PATCH /api/catalogo/marcas/:id/estado */}
                       <PuedeEditar ruta="/api/catalogo/marcas/:id/estado">
-                        <button aria-label="Activar o desactivar" title="Activar o desactivar"
+                        <button aria-label={t("Activar o desactivar")} title={t("Activar o desactivar")}
                           onClick={() => handleCambiarEstado(m.id, m.activo)}
                           className="p-2 text-slate-500 bg-slate-100 rounded-lg hover:bg-slate-200 transition-all"
                         >
@@ -194,9 +196,9 @@ export default function MarcasPage() {
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-start overflow-y-auto [&>*]:my-auto justify-center z-[110] p-4">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 duration-200">
-            <h2 className="text-xl font-black mb-6">{editandoId ? "Editar Marca" : "Nueva Marca"}</h2>
+            <h2 className="text-xl font-black mb-6">{editandoId ? t("Editar Marca") : t("Nueva Marca")}</h2>
             <form onSubmit={handleGuardar}>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Nombre de la Marca</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">{t("Nombre de la Marca")}</label>
               <input
                 autoFocus
                 value={nombreMarca}
@@ -208,7 +210,8 @@ export default function MarcasPage() {
               {nombreTocado && errorNombre && <p className="mt-2 mb-4 text-sm font-semibold text-rose-600">{errorNombre}</p>}
               <div className="flex gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3 font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all">
-                  Cancelar
+                  
+                  {t("Cancelar")}
                 </button>
                 <button disabled={guardando} className="flex-1 px-4 py-3 font-bold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
                   {guardando ? <Loader2 className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />} Guardar

@@ -27,6 +27,7 @@ import {
   Indicador, Panel, Seleccion, SinDatos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Cuenta { id: string; nombre: string }
 
 interface Flujo {
@@ -49,6 +50,7 @@ const ETIQUETA_ORIGEN: Record<string, string> = {
 };
 
 export default function FlujoEfectivoPage() {
+  const t = useT();
   const [desde, setDesde] = useState(isoCorto(new Date(Date.now() - 89 * 86_400_000)));
   const [hasta, setHasta] = useState(isoCorto());
   const [cuentaId, setCuentaId] = useState('');
@@ -73,29 +75,29 @@ export default function FlujoEfectivoPage() {
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
       <EncabezadoPantalla
-        titulo="Flujo de efectivo"
-        descripcion="Entradas, salidas y saldo acumulado del periodo"
+        titulo={t("Flujo de efectivo")}
+        descripcion={t("Entradas, salidas y saldo acumulado del periodo")}
       />
 
       {/* Filtros */}
       <Panel className="mb-5">
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-40">
-            <Campo etiqueta="Desde">
+            <Campo etiqueta={t("Desde")}>
               <Entrada type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
             </Campo>
           </div>
           <div className="w-40">
-            <Campo etiqueta="Hasta">
+            <Campo etiqueta={t("Hasta")}>
               <Entrada type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
             </Campo>
           </div>
           <div className="w-56">
-            <Campo etiqueta="Cuenta" ayuda={cuentaId ? 'Incluye traspasos' : 'Todas, sin traspasos internos'}>
+            <Campo etiqueta={t("Cuenta")} ayuda={cuentaId ? t("Incluye traspasos") : t("Todas, sin traspasos internos")}>
               <Seleccion value={cuentaId} onChange={(e) => setCuentaId(e.target.value)}>
-                <option value="">Todas las cuentas</option>
+                <option value="">{t("Todas las cuentas")}</option>
                 {(cuentas.datos ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                  <option key={c.id} value={c.id}>{t(c.nombre)}</option>
                 ))}
               </Seleccion>
             </Campo>
@@ -106,42 +108,42 @@ export default function FlujoEfectivoPage() {
       {/* Indicadores */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador
-          etiqueta="Entradas" color="#059669" cargando={flujo.cargando}
+          etiqueta={t("Entradas")} color="#059669" cargando={flujo.cargando}
           icono={<ArrowDownLeft className="w-4 h-4" />}
           valor={dinero(flujo.datos?.totalEntradas)}
         />
         <Indicador
-          etiqueta="Salidas" color="#e11d48" cargando={flujo.cargando}
+          etiqueta={t("Salidas")} color="#e11d48" cargando={flujo.cargando}
           icono={<ArrowUpRight className="w-4 h-4" />}
           valor={dinero(flujo.datos?.totalSalidas)}
         />
         <Indicador
-          etiqueta="Flujo neto"
+          etiqueta={t("Flujo neto")}
           color={(flujo.datos?.flujoNeto ?? 0) >= 0 ? '#0891b2' : '#e11d48'}
           cargando={flujo.cargando}
           icono={<TrendingUp className="w-4 h-4" />}
           valor={dinero(flujo.datos?.flujoNeto)}
-          detalle={(flujo.datos?.flujoNeto ?? 0) >= 0 ? 'entró más de lo que salió' : 'salió más de lo que entró'}
+          detalle={(flujo.datos?.flujoNeto ?? 0) >= 0 ? t("entró más de lo que salió") : t("salió más de lo que entró")}
         />
         <Indicador
-          etiqueta="Días en negativo"
+          etiqueta={t("Días en negativo")}
           color={diasNegativos > 0 ? '#d97706' : '#64748b'}
           cargando={flujo.cargando}
           valor={diasNegativos}
-          detalle={diasNegativos > 0 ? 'el acumulado bajó de cero' : 'el acumulado nunca bajó de cero'}
+          detalle={diasNegativos > 0 ? t("el acumulado bajó de cero") : t("el acumulado nunca bajó de cero")}
         />
       </div>
 
       {/* Gráfica */}
-      <Panel titulo="Movimiento diario y acumulado" className="mb-4">
+      <Panel titulo={t("Movimiento diario y acumulado")} className="mb-4">
         {flujo.cargando ? (
           <div className="esqueleto h-[320px] rounded-lg" />
         ) : flujo.error ? (
-          <ErrorPantalla mensaje={flujo.error} onReintentar={flujo.recargar} />
+          <ErrorPantalla mensaje={t(flujo.error)} onReintentar={flujo.recargar} />
         ) : serie.length === 0 ? (
           <SinDatos
-            titulo="Sin movimientos en este rango"
-            descripcion="Amplía las fechas o registra movimientos en Tesorería."
+            titulo={t("Sin movimientos en este rango")}
+            descripcion={t("Amplía las fechas o registra movimientos en Tesorería.")}
             icono={<Waves className="w-5 h-5" />}
           />
         ) : (
@@ -189,21 +191,22 @@ export default function FlujoEfectivoPage() {
       </Panel>
 
       {/* Desglose por origen */}
-      <Panel sinRelleno titulo="De dónde viene y a dónde va">
+      <Panel sinRelleno titulo={t("De dónde viene y a dónde va")}>
         {flujo.cargando ? (
           <Cargando filas={4} />
         ) : (flujo.datos?.porOrigen?.length ?? 0) === 0 ? (
           <p className="px-4 py-8 text-center text-[12.5px] text-slate-400">
-            Sin movimientos que desglosar.
+            
+            {t("Sin movimientos que desglosar.")}
           </p>
         ) : (
           <table className="tabla">
             <thead>
               <tr>
-                <th>Origen</th>
-                <th className="text-right">Entradas</th>
-                <th className="text-right">Salidas</th>
-                <th className="text-right">Neto</th>
+                <th>{t("Origen")}</th>
+                <th className="text-right">{t("Entradas")}</th>
+                <th className="text-right">{t("Salidas")}</th>
+                <th className="text-right">{t("Neto")}</th>
               </tr>
             </thead>
             <tbody>
@@ -230,7 +233,7 @@ export default function FlujoEfectivoPage() {
             </tbody>
             <tfoot>
               <tr>
-                <td>Total</td>
+                <td>{t("Total")}</td>
                 <td className="text-right cifra">{dinero(flujo.datos!.totalEntradas)}</td>
                 <td className="text-right cifra">{dinero(flujo.datos!.totalSalidas)}</td>
                 <td className="text-right cifra">{dinero(flujo.datos!.flujoNeto)}</td>

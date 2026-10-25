@@ -39,6 +39,7 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface Renglon {
   id: string;
   sku: string;
@@ -84,6 +85,7 @@ const TONO = {
 } as const;
 
 export default function ReposicionPage() {
+  const t = useT();
   const [renglones, setRenglones] = useState<Renglon[]>([]);
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -113,7 +115,7 @@ export default function ReposicionPage() {
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : 'No se pudo consultar la reposición.',
+          : t("No se pudo consultar la reposición."),
       );
     }
     setCargando(false);
@@ -173,7 +175,7 @@ export default function ReposicionPage() {
         })),
       });
       setAviso({
-        texto: `Requisición creada con ${plural(seleccionados.length, 'artículo', 'artículos')}. Sigue en Compras → Requisiciones.`,
+        texto: `Requisición creada con ${plural(seleccionados.length, t("artículo"), t("artículos"))}. Sigue en Compras → Requisiciones.`,
         ok: true,
       });
       setElegidos({});
@@ -187,7 +189,7 @@ export default function ReposicionPage() {
         texto:
           e instanceof ApiError
             ? e.mensajeParaPantalla()
-            : 'No se pudo crear la requisición.',
+            : t("No se pudo crear la requisición."),
         ok: false,
       });
     }
@@ -199,18 +201,18 @@ export default function ReposicionPage() {
       <header className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <TrendingDown className="w-6 h-6 text-blue-600" /> Qué hay que reponer
+            <TrendingDown className="w-6 h-6 text-blue-600" />  {t("Qué hay que reponer")}
           </h1>
           <p className="text-[13px] text-slate-500 mt-1 max-w-2xl">
-            Artículos en su punto de reorden o por debajo. La cantidad sugerida
-            llena hasta el máximo configurado y respeta el múltiplo de compra.
+            
+            {t("Artículos en su punto de reorden o por debajo. La cantidad sugerida llena hasta el máximo configurado y respeta el múltiplo de compra.")}
           </p>
         </div>
         <button
           onClick={() => void cargar()}
           className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50"
         >
-          <RefreshCw className="w-4 h-4" /> Actualizar
+          <RefreshCw className="w-4 h-4" />  {t("Actualizar")}
         </button>
       </header>
 
@@ -222,23 +224,23 @@ export default function ReposicionPage() {
               : 'bg-rose-50 border-rose-200 text-rose-800'
           }`}
         >
-          {aviso.texto}
+          {t(aviso.texto)}
         </div>
       )}
 
       {resumen && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {[
-            { etiqueta: 'Agotados', valor: resumen.agotados, color: 'text-rose-600', detalle: 'sin una sola pieza' },
-            { etiqueta: 'Bajo mínimo', valor: resumen.criticos, color: 'text-amber-600', detalle: 'por debajo del suelo' },
-            { etiqueta: 'En punto de reorden', valor: resumen.bajos, color: 'text-slate-700', detalle: 'toca pedir ya' },
-            { etiqueta: 'Clientes esperando', valor: resumen.conClienteEsperando, color: 'text-amber-700', detalle: 'ya prometido y sin surtir' },
-            { etiqueta: 'Compra estimada', valor: dinero(resumen.costoEstimado), color: 'text-blue-700', detalle: 'a costo de reposición' },
+            { etiqueta: t("Agotados"), valor: resumen.agotados, color: 'text-rose-600', detalle: t("sin una sola pieza") },
+            { etiqueta: t("Bajo mínimo"), valor: resumen.criticos, color: 'text-amber-600', detalle: t("por debajo del suelo") },
+            { etiqueta: t("En punto de reorden"), valor: resumen.bajos, color: 'text-slate-700', detalle: t("toca pedir ya") },
+            { etiqueta: t("Clientes esperando"), valor: resumen.conClienteEsperando, color: 'text-amber-700', detalle: t("ya prometido y sin surtir") },
+            { etiqueta: t("Compra estimada"), valor: dinero(resumen.costoEstimado), color: 'text-blue-700', detalle: t("a costo de reposición") },
           ].map((k) => (
             <div key={k.etiqueta} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{k.etiqueta}</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t(k.etiqueta)}</p>
               <p className={`text-2xl font-black mt-1 ${k.color}`}>{k.valor}</p>
-              <p className="text-[11.5px] text-slate-400 mt-0.5">{k.detalle}</p>
+              <p className="text-[11.5px] text-slate-400 mt-0.5">{t(k.detalle)}</p>
             </div>
           ))}
         </div>
@@ -252,11 +254,12 @@ export default function ReposicionPage() {
             onChange={(e) => setSoloCriticos(e.target.checked)}
             className="w-4 h-4 rounded text-blue-600"
           />
-          Sólo agotados y bajo mínimo
+          
+          {t("Sólo agotados y bajo mínimo")}
         </label>
         {renglones.length > 0 && (
           <button onClick={todos} className="text-sm font-bold text-blue-600 hover:underline">
-            {seleccionados.length === renglones.length ? 'Quitar todos' : 'Elegir todos'}
+            {seleccionados.length === renglones.length ? t("Quitar todos") : t("Elegir todos")}
           </button>
         )}
       </div>
@@ -264,14 +267,15 @@ export default function ReposicionPage() {
       {cargando ? (
         <div className="py-20 text-center text-slate-400">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-500" />
-          <p className="font-bold">Revisando existencias…</p>
+          <p className="font-bold">{t("Revisando existencias…")}</p>
         </div>
       ) : error ? (
         <div className="py-16 text-center">
           <AlertTriangle className="w-12 h-12 text-rose-300 mx-auto mb-3" />
-          <p className="text-lg font-black text-rose-700">{error}</p>
+          <p className="text-lg font-black text-rose-700">{t(error)}</p>
           <p className="text-sm text-slate-500 mt-1">
-            La lista no está vacía: no se pudo consultar.
+            
+            {t("La lista no está vacía: no se pudo consultar.")}
           </p>
         </div>
       ) : renglones.length === 0 ? (
@@ -279,8 +283,8 @@ export default function ReposicionPage() {
           <PackageX className="w-14 h-14 text-slate-200 mx-auto mb-4" />
           <p className="text-xl font-black text-slate-700">
             {soloCriticos
-              ? 'Nada agotado ni bajo mínimo'
-              : 'Ningún artículo llegó a su punto de reorden'}
+              ? t("Nada agotado ni bajo mínimo")
+              : t("Ningún artículo llegó a su punto de reorden")}
           </p>
           <p className="text-sm text-slate-500 mt-2 max-w-lg mx-auto">
             {resumen && resumen.sinUmbralConfigurado > 0 ? (
@@ -303,14 +307,14 @@ export default function ReposicionPage() {
                 <thead className="bg-slate-50 border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-500 font-bold">
                   <tr>
                     <th className="px-4 py-3 w-10" />
-                    <th className="px-4 py-3 text-left">Artículo</th>
-                    <th className="px-4 py-3 text-left">Estado</th>
-                    <th className="px-4 py-3 text-right">Disponible</th>
-                    <th className="px-4 py-3 text-right">Esperan</th>
-                    <th className="px-4 py-3 text-right">Reorden</th>
-                    <th className="px-4 py-3 text-right">Máximo</th>
-                    <th className="px-4 py-3 text-right">Pedir</th>
-                    <th className="px-4 py-3 text-right">Costo</th>
+                    <th className="px-4 py-3 text-left">{t("Artículo")}</th>
+                    <th className="px-4 py-3 text-left">{t("Estado")}</th>
+                    <th className="px-4 py-3 text-right">{t("Disponible")}</th>
+                    <th className="px-4 py-3 text-right">{t("Esperan")}</th>
+                    <th className="px-4 py-3 text-right">{t("Reorden")}</th>
+                    <th className="px-4 py-3 text-right">{t("Máximo")}</th>
+                    <th className="px-4 py-3 text-right">{t("Pedir")}</th>
+                    <th className="px-4 py-3 text-right">{t("Costo")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -329,7 +333,7 @@ export default function ReposicionPage() {
                           />
                         </td>
                         <td className="px-4 py-3">
-                          <p className="font-bold text-slate-900 leading-tight">{r.nombre}</p>
+                          <p className="font-bold text-slate-900 leading-tight">{t(r.nombre)}</p>
                           <p className="text-[11.5px] text-slate-400">
                             {r.sku}
                             {r.categoria ? ` · ${r.categoria}` : ''}
@@ -338,7 +342,7 @@ export default function ReposicionPage() {
                         </td>
                         <td className="px-4 py-3">
                           <span className={`inline-block px-2 py-1 rounded-lg border text-[11px] font-bold ${tono.fondo} ${tono.borde} ${tono.texto}`}>
-                            {tono.etiqueta}
+                            {t(tono.etiqueta)}
                           </span>
                         </td>
                         <td className={`px-4 py-3 text-right font-black ${r.estado === 'AGOTADO' ? 'text-rose-600' : 'text-slate-800'}`}>
@@ -347,8 +351,7 @@ export default function ReposicionPage() {
                               el que mira la lista necesita distinguirlos. */}
                           {r.comprometido > 0 && (
                             <div className="text-[11px] font-medium text-slate-400">
-                              {r.stockActual} en piso · {r.comprometido} apartadas
-                            </div>
+                              {t("{n0} en piso · {n1} apartadas", { n0: r.stockActual, n1: r.comprometido })}</div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
@@ -404,12 +407,12 @@ export default function ReposicionPage() {
             <div>
               <p className="text-sm font-bold text-slate-800">
                 {seleccionados.length === 0
-                  ? 'Elige qué pedir'
-                  : `${plural(seleccionados.length, "artículo")} · ${dinero(costoSeleccion)}`}
+                  ? t("Elige qué pedir")
+                  : `${plural(seleccionados.length, t("artículo"))} · ${dinero(costoSeleccion)}`}
               </p>
               <p className="text-[12px] text-slate-500">
-                La requisición sale a nombre de tu departamento y sigue el circuito
-                normal de aprobación.
+                
+                {t("La requisición sale a nombre de tu departamento y sigue el circuito normal de aprobación.")}
               </p>
             </div>
             <button

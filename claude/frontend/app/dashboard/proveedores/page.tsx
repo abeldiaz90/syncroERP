@@ -12,6 +12,7 @@ import {
 import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement"; // ← NUEVO
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 export interface IProveedor {
   id: string; nombre: string; tipoPersona: 'FISICA' | 'MORAL';
   razonSocial: string; rfc: string; tipoProveedor: 'MERCANCIA' | 'SERVICIO' | 'AMBOS';
@@ -41,6 +42,7 @@ const FORM_VACIO: IProveedorFormData = {
 };
 
 export default function ProveedoresPage() {
+  const t = useT();
   const [proveedores, setProveedores] = useState<IProveedor[]>([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
@@ -80,8 +82,8 @@ export default function ProveedoresPage() {
       params.append('activos', mostrarInactivos ? 'false' : 'true');
       const res = await peticion(`/proveedores?${params}`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setProveedores(await res.json());
-      else mostrarToast('Error al cargar la lista de proveedores', 'error');
-    } catch { mostrarToast('Error de conexión con el servidor', 'error'); }
+      else mostrarToast(t("Error al cargar la lista de proveedores"), 'error');
+    } catch { mostrarToast(t("Error de conexión con el servidor"), 'error'); }
     finally { setCargando(false); }
   };
 
@@ -98,7 +100,7 @@ export default function ProveedoresPage() {
     } else {
       comentario = await solicitarTexto(
         `Documenta las condiciones o el motivo del bloqueo de ${proveedor.nombre}.`,
-        { titulo: estado === 'CONDICIONADO' ? 'Aprobación condicionada' : 'Bloquear proveedor', obligatorio: true },
+        { titulo: estado === 'CONDICIONADO' ? t("Aprobación condicionada") : 'Bloquear proveedor', obligatorio: true },
       );
       if (comentario === null) return;
     }
@@ -113,11 +115,11 @@ export default function ProveedoresPage() {
       }),
     }).catch(() => null);
     if (res?.ok) {
-      mostrarToast('Homologación actualizada correctamente', 'exito');
+      mostrarToast(t("Homologación actualizada correctamente"), 'exito');
       fetchProveedores();
     } else {
       const data = await res?.json().catch(() => null);
-      mostrarToast(Array.isArray(data?.message) ? data.message.join(', ') : data?.message ?? 'No fue posible resolver la homologación', 'error');
+      mostrarToast(Array.isArray(data?.message) ? data.message.join(', ') : data?.message ?? t("No fue posible resolver la homologación"), 'error');
     }
   };
 
@@ -177,36 +179,36 @@ export default function ProveedoresPage() {
     const clabe = texto(formData.clabe).replace(/\s/g, '');
     const cuenta = texto(formData.numeroCuenta).replace(/\s/g, '');
 
-    if (texto(formData.nombre).length < 2) e.nombre = 'Captura el nombre comercial (mínimo 2 caracteres).';
-    if (!texto(formData.razonSocial)) e.razonSocial = formData.tipoPersona === 'FISICA' ? 'Captura el nombre fiscal completo.' : 'Captura la razón social.';
-    if (!rfc) e.rfc = 'El RFC es obligatorio.';
-    else if (!/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) e.rfc = 'El RFC no tiene un formato válido.';
-    if (!formData.tipoPersona) e.tipoPersona = 'Selecciona el tipo de persona.';
-    if (!formData.tipoProveedor) e.tipoProveedor = 'Selecciona la categoría del proveedor.';
-    if (!formData.paisId) e.paisId = 'Selecciona el país.';
-    if (!formData.estadoId) e.estadoId = 'Selecciona el estado.';
-    if (!texto(formData.codigoPostal)) e.codigoPostal = 'El código postal es obligatorio.';
-    else if (!/^\d{5}$/.test(texto(formData.codigoPostal))) e.codigoPostal = 'El código postal debe tener 5 dígitos.';
-    if (!texto(formData.contactoNombre)) e.contactoNombre = 'Captura el nombre del contacto principal.';
+    if (texto(formData.nombre).length < 2) e.nombre = t("Captura el nombre comercial (mínimo 2 caracteres).");
+    if (!texto(formData.razonSocial)) e.razonSocial = formData.tipoPersona === 'FISICA' ? t("Captura el nombre fiscal completo.") : t("Captura la razón social.");
+    if (!rfc) e.rfc = t("El RFC es obligatorio.");
+    else if (!/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) e.rfc = t("El RFC no tiene un formato válido.");
+    if (!formData.tipoPersona) e.tipoPersona = t("Selecciona el tipo de persona.");
+    if (!formData.tipoProveedor) e.tipoProveedor = t("Selecciona la categoría del proveedor.");
+    if (!formData.paisId) e.paisId = t("Selecciona el país.");
+    if (!formData.estadoId) e.estadoId = t("Selecciona el estado.");
+    if (!texto(formData.codigoPostal)) e.codigoPostal = t("El código postal es obligatorio.");
+    else if (!/^\d{5}$/.test(texto(formData.codigoPostal))) e.codigoPostal = t("El código postal debe tener 5 dígitos.");
+    if (!texto(formData.contactoNombre)) e.contactoNombre = t("Captura el nombre del contacto principal.");
     if (!telefono && !telefonoContacto) {
-      e.telefono = 'Captura el teléfono de la empresa o el teléfono directo.';
-      e.contactoTelefono = 'Captura al menos un teléfono.';
+      e.telefono = t("Captura el teléfono de la empresa o el teléfono directo.");
+      e.contactoTelefono = t("Captura al menos un teléfono.");
     }
-    if (telefono && !/^[0-9+()\-\s]{10,20}$/.test(telefono)) e.telefono = 'Captura un teléfono válido.';
-    if (telefonoContacto && !/^[0-9+()\-\s]{10,20}$/.test(telefonoContacto)) e.contactoTelefono = 'Captura un teléfono válido.';
+    if (telefono && !/^[0-9+()\-\s]{10,20}$/.test(telefono)) e.telefono = t("Captura un teléfono válido.");
+    if (telefonoContacto && !/^[0-9+()\-\s]{10,20}$/.test(telefonoContacto)) e.contactoTelefono = t("Captura un teléfono válido.");
     if (!email && !emailContacto) {
-      e.email = 'Captura el email de la empresa o del contacto.';
-      e.contactoEmail = 'Captura al menos un correo electrónico.';
+      e.email = t("Captura el email de la empresa o del contacto.");
+      e.contactoEmail = t("Captura al menos un correo electrónico.");
     }
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'El correo electrónico no es válido.';
-    if (emailContacto && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailContacto)) e.contactoEmail = 'El correo electrónico no es válido.';
-    if (clabe && !/^\d{18}$/.test(clabe)) e.clabe = 'La CLABE debe contener exactamente 18 dígitos.';
-    if (cuenta && !/^\d{4,20}$/.test(cuenta)) e.numeroCuenta = 'La cuenta debe contener entre 4 y 20 dígitos.';
-    if (formData.metodoPago === 'PPD' && Number(formData.diasCredito) <= 0) e.diasCredito = 'Para PPD debes indicar días de crédito mayores a cero.';
-    if (Number(formData.diasCredito) < 0) e.diasCredito = 'Los días de crédito no pueden ser negativos.';
-    if (Number(formData.limiteCredito) < 0) e.limiteCredito = 'El límite de crédito no puede ser negativo.';
-    if (!formData.moneda) e.moneda = 'Selecciona la moneda.';
-    if (!formData.metodoPago) e.metodoPago = 'Selecciona el método de pago.';
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = t("El correo electrónico no es válido.");
+    if (emailContacto && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailContacto)) e.contactoEmail = t("El correo electrónico no es válido.");
+    if (clabe && !/^\d{18}$/.test(clabe)) e.clabe = t("La CLABE debe contener exactamente 18 dígitos.");
+    if (cuenta && !/^\d{4,20}$/.test(cuenta)) e.numeroCuenta = t("La cuenta debe contener entre 4 y 20 dígitos.");
+    if (formData.metodoPago === 'PPD' && Number(formData.diasCredito) <= 0) e.diasCredito = t("Para PPD debes indicar días de crédito mayores a cero.");
+    if (Number(formData.diasCredito) < 0) e.diasCredito = t("Los días de crédito no pueden ser negativos.");
+    if (Number(formData.limiteCredito) < 0) e.limiteCredito = t("El límite de crédito no puede ser negativo.");
+    if (!formData.moneda) e.moneda = t("Selecciona la moneda.");
+    if (!formData.metodoPago) e.metodoPago = t("Selecciona el método de pago.");
     return e;
   };
 
@@ -273,11 +275,11 @@ export default function ProveedoresPage() {
         mostrarToast(editandoId ? 'Proveedor actualizado exitosamente.' : 'Proveedor creado exitosamente.', 'exito');
       } else {
         const data = await res.json().catch(() => null);
-        const mensaje = Array.isArray(data?.message) ? data.message.join(', ') : data?.message || 'Error al guardar';
+        const mensaje = Array.isArray(data?.message) ? data.message.join(', ') : data?.message || t("Error al guardar");
         setErrorGeneral(mensaje);
         mostrarToast(`Error: ${mensaje}`, 'error');
       }
-    } catch { mostrarToast('Error de conexión al intentar guardar.', 'error'); }
+    } catch { mostrarToast(t("Error de conexión al intentar guardar."), 'error'); }
     finally { setGuardando(false); }
   };
 
@@ -287,8 +289,8 @@ export default function ProveedoresPage() {
     try {
       const res = await peticion(`/proveedores/${id}/estado`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) { fetchProveedores(); mostrarToast(`Proveedor ${activo ? 'desactivado' : 'activado'} correctamente.`, 'exito'); }
-      else mostrarToast('Error al cambiar el estado del proveedor', 'error');
-    } catch { mostrarToast('Error de conexión con el servidor', 'error'); }
+      else mostrarToast(t("Error al cambiar el estado del proveedor"), 'error');
+    } catch { mostrarToast(t("Error de conexión con el servidor"), 'error'); }
   };
 
   const getBadgeTipo = (tipo: string) => {
@@ -308,7 +310,7 @@ export default function ProveedoresPage() {
         <div className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-6 py-4 rounded-xl shadow-2xl font-medium text-white transition-all duration-300 ${toast.tipo === 'exito' ? 'bg-emerald-600' : toast.tipo === 'error' ? 'bg-rose-600' : 'bg-blue-600'}`}>
           {toast.tipo === 'exito' && <CheckCircle2 className="w-5 h-5" />}
           {toast.tipo === 'error' && <AlertCircle className="w-5 h-5" />}
-          {toast.mensaje}
+          {t(toast.mensaje)}
         </div>
       )}
 
@@ -316,14 +318,14 @@ export default function ProveedoresPage() {
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
-            <Truck className="w-8 h-8 text-indigo-500" /> Directorio de Proveedores
+            <Truck className="w-8 h-8 text-indigo-500" />  {t("Directorio de Proveedores")}
           </h1>
-          <p className="text-slate-500 mt-1">Gestiona los suministradores de mercancías y prestadores de servicios.</p>
+          <p className="text-slate-500 mt-1">{t("Gestiona los suministradores de mercancías y prestadores de servicios.")}</p>
         </div>
         {/* ✅ Solo aparece si tiene POST /api/proveedores */}
         <PuedeCrear ruta="/api/proveedores">
           <button onClick={abrirModalCrear} className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-indigo-700 hover:shadow-md transition-all active:scale-95">
-            <Plus className="w-5 h-5" /> Nuevo Proveedor
+            <Plus className="w-5 h-5" />  {t("Nuevo Proveedor")}
           </button>
         </PuedeCrear>
       </div>
@@ -332,7 +334,7 @@ export default function ProveedoresPage() {
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <input type="text" placeholder="Buscar por nombre, RFC, razón social..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" />
+          <input type="text" placeholder={t("Buscar por nombre, RFC, razón social...")} value={busqueda} onChange={(e) => setBusqueda(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" />
         </div>
         <label className="flex items-center gap-3 cursor-pointer group">
           <div className="relative">
@@ -340,7 +342,7 @@ export default function ProveedoresPage() {
             <div className={`block w-10 h-6 rounded-full transition-colors ${mostrarInactivos ? 'bg-indigo-500' : 'bg-slate-300'}`} />
             <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${mostrarInactivos ? 'translate-x-4' : ''}`} />
           </div>
-          <span className="text-sm font-medium text-slate-600 group-hover:text-slate-900 transition-colors">Mostrar inactivos</span>
+          <span className="text-sm font-medium text-slate-600 group-hover:text-slate-900 transition-colors">{t("Mostrar inactivos")}</span>
         </label>
       </div>
 
@@ -349,25 +351,26 @@ export default function ProveedoresPage() {
         {cargando ? (
           <div className="p-12 text-center flex flex-col items-center text-slate-400">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
-            Cargando proveedores...
+            
+            {t("Cargando proveedores...")}
           </div>
         ) : proveedores.length === 0 ? (
           <div className="p-12 text-center text-slate-500 flex flex-col items-center">
             <Truck className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <p className="text-lg font-medium text-slate-700">No se encontraron proveedores</p>
-            <p className="text-sm">Ajusta tu búsqueda o registra el primero.</p>
+            <p className="text-lg font-medium text-slate-700">{t("No se encontraron proveedores")}</p>
+            <p className="text-sm">{t("Ajusta tu búsqueda o registra el primero.")}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left whitespace-nowrap">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm uppercase tracking-wider">
-                  <th className="p-4 font-semibold">Proveedor</th>
-                  <th className="p-4 font-semibold hidden sm:table-cell">Contacto</th>
-                  <th className="p-4 font-semibold text-center">Clasificación</th>
-                  <th className="p-4 font-semibold text-center">Homologación</th>
-                  <th className="p-4 font-semibold text-center">Estado</th>
-                  <th className="p-4 font-semibold text-center">Acciones</th>
+                  <th className="p-4 font-semibold">{t("Proveedor")}</th>
+                  <th className="p-4 font-semibold hidden sm:table-cell">{t("Contacto")}</th>
+                  <th className="p-4 font-semibold text-center">{t("Clasificación")}</th>
+                  <th className="p-4 font-semibold text-center">{t("Homologación")}</th>
+                  <th className="p-4 font-semibold text-center">{t("Estado")}</th>
+                  <th className="p-4 font-semibold text-center">{t("Acciones")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -379,15 +382,15 @@ export default function ProveedoresPage() {
                           {prov.tipoPersona === 'MORAL' ? <Building2 className="w-5 h-5" /> : <User className="w-5 h-5" />}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900">{prov.nombre}</p>
-                          <p className="text-xs text-slate-500 font-mono mt-0.5">{prov.rfc || 'Sin RFC'}</p>
+                          <p className="font-bold text-slate-900">{t(prov.nombre)}</p>
+                          <p className="text-xs text-slate-500 font-mono mt-0.5">{prov.rfc || t("Sin RFC")}</p>
                         </div>
                       </div>
                     </td>
                     <td className="p-4 hidden sm:table-cell">
                       <p className="font-medium text-slate-800 text-sm">{prov.contactoNombre || 'N/A'}</p>
-                      <p className="text-xs text-slate-500">{prov.email || prov.contactoEmail || 'Sin email'}</p>
-                      <p className="text-xs text-slate-500">{prov.telefono || prov.contactoTelefono || 'Sin teléfono'}</p>
+                      <p className="text-xs text-slate-500">{prov.email || prov.contactoEmail || t("Sin email")}</p>
+                      <p className="text-xs text-slate-500">{prov.telefono || prov.contactoTelefono || t("Sin teléfono")}</p>
                     </td>
                     <td className="p-4 text-center">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${getBadgeTipo(prov.tipoProveedor)}`}>
@@ -400,14 +403,13 @@ export default function ProveedoresPage() {
                           {(prov.estadoHomologacion ?? 'EN_EVALUACION').replaceAll('_', ' ')}
                         </span>
                         <span className={`text-[11px] font-medium ${prov.nivelRiesgo === 'ALTO' ? 'text-rose-600' : prov.nivelRiesgo === 'BAJO' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                          Riesgo {prov.nivelRiesgo ?? 'MEDIO'}
-                        </span>
+                          {t("Riesgo {n0}", { n0: prov.nivelRiesgo ?? 'MEDIO' })}</span>
                       </div>
                     </td>
                     <td className="p-4 text-center">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${prov.activo ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${prov.activo ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                        {prov.activo ? 'Activo' : 'Inactivo'}
+                        {prov.activo ? t("Activo") : t("Inactivo")}
                       </span>
                     </td>
                     <td className="p-4">
@@ -415,25 +417,25 @@ export default function ProveedoresPage() {
                         <PuedeEditar ruta="/api/proveedores/:id/homologacion">
                           <div className="flex items-center gap-1">
                             {prov.estadoHomologacion !== 'APROBADO' && (
-                              <button onClick={() => resolverHomologacion(prov, 'APROBADO')} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg" title="Aprobar homologación"><CheckCircle2 className="w-4 h-4" /></button>
+                              <button onClick={() => resolverHomologacion(prov, 'APROBADO')} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg" title={t("Aprobar homologación")}><CheckCircle2 className="w-4 h-4" /></button>
                             )}
                             {prov.estadoHomologacion === 'EN_EVALUACION' && (
-                              <button onClick={() => resolverHomologacion(prov, 'CONDICIONADO')} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg" title="Aprobar con condiciones"><AlertCircle className="w-4 h-4" /></button>
+                              <button onClick={() => resolverHomologacion(prov, 'CONDICIONADO')} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg" title={t("Aprobar con condiciones")}><AlertCircle className="w-4 h-4" /></button>
                             )}
                             {prov.estadoHomologacion !== 'BLOQUEADO' && (
-                              <button onClick={() => resolverHomologacion(prov, 'BLOQUEADO')} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg" title="Bloquear proveedor"><X className="w-4 h-4" /></button>
+                              <button onClick={() => resolverHomologacion(prov, 'BLOQUEADO')} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg" title={t("Bloquear proveedor")}><X className="w-4 h-4" /></button>
                             )}
                           </div>
                         </PuedeEditar>
                         {/* ✅ Solo aparece si tiene PATCH /api/proveedores/:id */}
                         <PuedeEditar ruta="/api/proveedores/:id">
-                          <button onClick={() => abrirModalEditar(prov)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Editar">
+                          <button onClick={() => abrirModalEditar(prov)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title={t("Editar")}>
                             <Edit2 className="w-4 h-4" />
                           </button>
                         </PuedeEditar>
                         {/* ✅ Solo aparece si tiene PATCH /api/proveedores/:id/estado */}
                         <PuedeEditar ruta="/api/proveedores/:id/estado">
-                          <button onClick={() => handleCambiarEstado(prov.id, prov.activo)} className={`p-2 rounded-lg transition-colors ${prov.activo ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`} title={prov.activo ? 'Desactivar' : 'Activar'}>
+                          <button onClick={() => handleCambiarEstado(prov.id, prov.activo)} className={`p-2 rounded-lg transition-colors ${prov.activo ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`} title={prov.activo ? t("Desactivar") : t("Activar")}>
                             <Power className="w-4 h-4" />
                           </button>
                         </PuedeEditar>
@@ -453,9 +455,9 @@ export default function ProveedoresPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-full overflow-hidden flex flex-col border-t-4 border-t-indigo-500">
             <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-white sticky top-0 z-10">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <Truck className="w-5 h-5 text-indigo-500" /> {editandoId ? 'Editar Proveedor' : 'Nuevo Proveedor'}
+                <Truck className="w-5 h-5 text-indigo-500" /> {editandoId ? t("Editar Proveedor") : t("Nuevo Proveedor")}
               </h2>
-              <button aria-label="Cerrar" title="Cerrar" onClick={() => { setIsModalOpen(false); setErrores({}); setErrorGeneral(null); }} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-full transition-colors">
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => { setIsModalOpen(false); setErrores({}); setErrorGeneral(null); }} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-full transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -469,80 +471,80 @@ export default function ProveedoresPage() {
                 {errorGeneral && (
                   <div role="alert" className="col-span-full rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800 flex items-start gap-2">
                     <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-                    <div><p className="font-bold">No se puede guardar el proveedor</p><p>{errorGeneral}</p></div>
+                    <div><p className="font-bold">{t("No se puede guardar el proveedor")}</p><p>{errorGeneral}</p></div>
                   </div>
                 )}
 
                 {/* Datos Generales */}
                 <div className="col-span-full">
                   <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-2 border-b border-indigo-100 pb-2">
-                    <Briefcase className="w-4 h-4" /> Datos Generales
+                    <Briefcase className="w-4 h-4" />  {t("Datos Generales")}
                   </h3>
                 </div>
                 <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Nombre Comercial <span className="text-rose-600">*</span></label><input name="nombre" value={formData.nombre} onChange={handleChange} className={claseCampo('nombre')} aria-invalid={Boolean(errores.nombre)} /><ErrorCampo campo="nombre" /></div>
                 <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Razón Social / Nombre Fiscal <span className="text-rose-600">*</span></label><input name="razonSocial" value={formData.razonSocial} onChange={handleChange} className={claseCampo('razonSocial')} aria-invalid={Boolean(errores.razonSocial)} /><ErrorCampo campo="razonSocial" /></div>
                 <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">RFC <span className="text-rose-600">*</span></label><input name="rfc" value={formData.rfc} onChange={handleChange} className={claseCampo('rfc', 'uppercase font-mono')} maxLength={13} aria-invalid={Boolean(errores.rfc)} /><ErrorCampo campo="rfc" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tipo de Persona <span className="text-rose-600">*</span></label><select name="tipoPersona" value={formData.tipoPersona} onChange={handleChange} className={claseCampo('tipoPersona')} aria-invalid={Boolean(errores.tipoPersona)}><option value="FISICA">Persona Física</option><option value="MORAL">Persona Moral</option></select><ErrorCampo campo="tipoPersona" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Categoría <span className="text-rose-600">*</span></label><select name="tipoProveedor" value={formData.tipoProveedor} onChange={handleChange} className={claseCampo('tipoProveedor')} aria-invalid={Boolean(errores.tipoProveedor)}><option value="MERCANCIA">Mercancía / Insumos</option><option value="SERVICIO">Prestación de Servicios</option><option value="AMBOS">Ambos</option></select><ErrorCampo campo="tipoProveedor" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Sitio Web</label><input name="sitioWeb" value={formData.sitioWeb} onChange={handleChange} placeholder="www.ejemplo.com" className={inputClass} /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tipo de Persona <span className="text-rose-600">*</span></label><select name="tipoPersona" value={formData.tipoPersona} onChange={handleChange} className={claseCampo('tipoPersona')} aria-invalid={Boolean(errores.tipoPersona)}><option value="FISICA">{t("Persona Física")}</option><option value="MORAL">{t("Persona Moral")}</option></select><ErrorCampo campo="tipoPersona" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Categoría <span className="text-rose-600">*</span></label><select name="tipoProveedor" value={formData.tipoProveedor} onChange={handleChange} className={claseCampo('tipoProveedor')} aria-invalid={Boolean(errores.tipoProveedor)}><option value="MERCANCIA">{t("Mercancía / Insumos")}</option><option value="SERVICIO">{t("Prestación de Servicios")}</option><option value="AMBOS">{t("Ambos")}</option></select><ErrorCampo campo="tipoProveedor" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Sitio Web")}</label><input name="sitioWeb" value={formData.sitioWeb} onChange={handleChange} placeholder={t("www.ejemplo.com")} className={inputClass} /></div>
 
                 {/* Dirección */}
                 <div className="col-span-full mt-2">
                   <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-2 border-b border-indigo-100 pb-2">
-                    <MapPin className="w-4 h-4" /> Dirección Fiscal
+                    <MapPin className="w-4 h-4" />  {t("Dirección Fiscal")}
                   </h3>
                 </div>
-                <div className="xl:col-span-2"><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Calle / Avenida</label><input name="direccion" value={formData.direccion} onChange={handleChange} className={inputClass} /></div>
+                <div className="xl:col-span-2"><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Calle / Avenida")}</label><input name="direccion" value={formData.direccion} onChange={handleChange} className={inputClass} /></div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">No. Ext.</label><input name="numeroExterior" value={formData.numeroExterior} onChange={handleChange} className={inputClass} /></div>
-                  <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">No. Int.</label><input name="numeroInterior" value={formData.numeroInterior} onChange={handleChange} className={inputClass} /></div>
+                  <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("No. Ext.")}</label><input name="numeroExterior" value={formData.numeroExterior} onChange={handleChange} className={inputClass} /></div>
+                  <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("No. Int.")}</label><input name="numeroInterior" value={formData.numeroInterior} onChange={handleChange} className={inputClass} /></div>
                 </div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Colonia</label><input name="colonia" value={formData.colonia} onChange={handleChange} className={inputClass} /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Colonia")}</label><input name="colonia" value={formData.colonia} onChange={handleChange} className={inputClass} /></div>
                 <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Código Postal <span className="text-rose-600">*</span></label><input name="codigoPostal" value={formData.codigoPostal} onChange={handleChange} className={claseCampo('codigoPostal')} inputMode="numeric" maxLength={5} aria-invalid={Boolean(errores.codigoPostal)} /><ErrorCampo campo="codigoPostal" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Ciudad / Municipio</label><input name="ciudad" value={formData.ciudad} onChange={handleChange} className={inputClass} /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">País <span className="text-rose-600">*</span></label><select name="paisId" value={formData.paisId} onChange={handleChange} className={claseCampo('paisId')} aria-invalid={Boolean(errores.paisId)}><option value="">Seleccione país</option>{paises.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select><ErrorCampo campo="paisId" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Estado <span className="text-rose-600">*</span></label><select name="estadoId" value={formData.estadoId} onChange={handleChange} disabled={!formData.paisId} className={claseCampo('estadoId', 'disabled:bg-slate-100')} aria-invalid={Boolean(errores.estadoId)}><option value="">Seleccione estado</option>{estados.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select><ErrorCampo campo="estadoId" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Ciudad / Municipio")}</label><input name="ciudad" value={formData.ciudad} onChange={handleChange} className={inputClass} /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">País <span className="text-rose-600">*</span></label><select name="paisId" value={formData.paisId} onChange={handleChange} className={claseCampo('paisId')} aria-invalid={Boolean(errores.paisId)}><option value="">{t("Seleccione país")}</option>{paises.map(p => <option key={p.id} value={p.id}>{t(p.nombre)}</option>)}</select><ErrorCampo campo="paisId" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Estado <span className="text-rose-600">*</span></label><select name="estadoId" value={formData.estadoId} onChange={handleChange} disabled={!formData.paisId} className={claseCampo('estadoId', 'disabled:bg-slate-100')} aria-invalid={Boolean(errores.estadoId)}><option value="">{t("Seleccione estado")}</option>{estados.map(e => <option key={e.id} value={e.id}>{t(e.nombre)}</option>)}</select><ErrorCampo campo="estadoId" /></div>
 
                 {/* Contacto */}
                 <div className="col-span-full mt-2">
                   <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-2 border-b border-indigo-100 pb-2">
-                    <User className="w-4 h-4" /> Contacto Principal
+                    <User className="w-4 h-4" />  {t("Contacto Principal")}
                   </h3>
                 </div>
                 <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Nombre del Contacto <span className="text-rose-600">*</span></label><input name="contactoNombre" value={formData.contactoNombre} onChange={handleChange} className={claseCampo('contactoNombre')} aria-invalid={Boolean(errores.contactoNombre)} /><ErrorCampo campo="contactoNombre" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Puesto</label><input name="contactoPuesto" value={formData.contactoPuesto} onChange={handleChange} className={inputClass} /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Teléfono Directo</label><div className="relative"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input name="contactoTelefono" value={formData.contactoTelefono} onChange={handleChange} className={claseCampo('contactoTelefono', 'pl-9')} aria-invalid={Boolean(errores.contactoTelefono)} /></div><ErrorCampo campo="contactoTelefono" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Email del Contacto</label><input type="email" name="contactoEmail" value={formData.contactoEmail} onChange={handleChange} className={claseCampo('contactoEmail')} aria-invalid={Boolean(errores.contactoEmail)} /><ErrorCampo campo="contactoEmail" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Teléfono Empresa</label><input name="telefono" value={formData.telefono} onChange={handleChange} className={claseCampo('telefono')} aria-invalid={Boolean(errores.telefono)} /><ErrorCampo campo="telefono" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Email Empresa</label><input type="email" name="email" value={formData.email} onChange={handleChange} className={claseCampo('email')} aria-invalid={Boolean(errores.email)} /><ErrorCampo campo="email" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Puesto")}</label><input name="contactoPuesto" value={formData.contactoPuesto} onChange={handleChange} className={inputClass} /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Teléfono Directo")}</label><div className="relative"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input name="contactoTelefono" value={formData.contactoTelefono} onChange={handleChange} className={claseCampo('contactoTelefono', 'pl-9')} aria-invalid={Boolean(errores.contactoTelefono)} /></div><ErrorCampo campo="contactoTelefono" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Email del Contacto")}</label><input type="email" name="contactoEmail" value={formData.contactoEmail} onChange={handleChange} className={claseCampo('contactoEmail')} aria-invalid={Boolean(errores.contactoEmail)} /><ErrorCampo campo="contactoEmail" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Teléfono Empresa")}</label><input name="telefono" value={formData.telefono} onChange={handleChange} className={claseCampo('telefono')} aria-invalid={Boolean(errores.telefono)} /><ErrorCampo campo="telefono" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Email Empresa")}</label><input type="email" name="email" value={formData.email} onChange={handleChange} className={claseCampo('email')} aria-invalid={Boolean(errores.email)} /><ErrorCampo campo="email" /></div>
 
                 {/* Financiero */}
                 <div className="col-span-full mt-2">
                   <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-2 border-b border-indigo-100 pb-2">
-                    <CreditCard className="w-4 h-4" /> Datos Bancarios y Comerciales
+                    <CreditCard className="w-4 h-4" />  {t("Datos Bancarios y Comerciales")}
                   </h3>
                 </div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Banco</label><BuscadorSeleccion valor={formData.bancoId} onChange={(bancoId) => setFormData((f) => ({ ...f, bancoId }))} opciones={bancos.map((b) => ({ valor: b.id, etiqueta: `${b.clave ?? '—'} · ${b.nombre}`, busqueda: b.clave }))} placeholder="Buscar banco por clave o nombre…" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Número de Cuenta</label><input name="numeroCuenta" value={formData.numeroCuenta} onChange={handleChange} className={claseCampo('numeroCuenta')} inputMode="numeric" aria-invalid={Boolean(errores.numeroCuenta)} /><ErrorCampo campo="numeroCuenta" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">CLABE Interbancaria</label><input name="clabe" value={formData.clabe} onChange={handleChange} className={claseCampo('clabe')} inputMode="numeric" maxLength={18} aria-invalid={Boolean(errores.clabe)} /><ErrorCampo campo="clabe" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Método de Pago</label><select name="metodoPago" value={formData.metodoPago} onChange={handleChange} className={claseCampo('metodoPago')} aria-invalid={Boolean(errores.metodoPago)}><option value="PUE">PUE - Una sola exhibición</option><option value="PPD">PPD - Parcialidades o diferido</option></select><ErrorCampo campo="metodoPago" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Forma de Pago</label><select name="formaPagoId" value={formData.formaPagoId} onChange={handleChange} className={inputClass}><option value="">Seleccione forma</option>{formasPago.map(fp => <option key={fp.id} value={fp.id}>{fp.nombre}</option>)}</select></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Moneda</label><select name="moneda" value={formData.moneda} onChange={handleChange} className={claseCampo('moneda')} aria-invalid={Boolean(errores.moneda)}><option value="MXN">MXN - Peso Mexicano</option><option value="USD">USD - Dólar</option><option value="EUR">EUR - Euro</option></select><ErrorCampo campo="moneda" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Límite de Crédito</label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span><input type="number" step="0.01" min="0" name="limiteCredito" value={formData.limiteCredito === 0 ? '' : formData.limiteCredito} onChange={handleChange} className={claseCampo('limiteCredito', 'pl-8')} placeholder="0.00" aria-invalid={Boolean(errores.limiteCredito)} /></div><ErrorCampo campo="limiteCredito" /></div>
-                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Días de Crédito</label><input type="number" min="0" name="diasCredito" value={formData.diasCredito === 0 ? '' : formData.diasCredito} onChange={handleChange} className={claseCampo('diasCredito')} placeholder="Ej. 30" aria-invalid={Boolean(errores.diasCredito)} /><ErrorCampo campo="diasCredito" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Banco")}</label><BuscadorSeleccion valor={formData.bancoId} onChange={(bancoId) => setFormData((f) => ({ ...f, bancoId }))} opciones={bancos.map((b) => ({ valor: b.id, etiqueta: `${b.clave ?? '—'} · ${b.nombre}`, busqueda: b.clave }))} placeholder={t("Buscar banco por clave o nombre…")} /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Número de Cuenta")}</label><input name="numeroCuenta" value={formData.numeroCuenta} onChange={handleChange} className={claseCampo('numeroCuenta')} inputMode="numeric" aria-invalid={Boolean(errores.numeroCuenta)} /><ErrorCampo campo="numeroCuenta" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("CLABE Interbancaria")}</label><input name="clabe" value={formData.clabe} onChange={handleChange} className={claseCampo('clabe')} inputMode="numeric" maxLength={18} aria-invalid={Boolean(errores.clabe)} /><ErrorCampo campo="clabe" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Método de Pago")}</label><select name="metodoPago" value={formData.metodoPago} onChange={handleChange} className={claseCampo('metodoPago')} aria-invalid={Boolean(errores.metodoPago)}><option value="PUE">{t("PUE - Una sola exhibición")}</option><option value="PPD">{t("PPD - Parcialidades o diferido")}</option></select><ErrorCampo campo="metodoPago" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Forma de Pago")}</label><select name="formaPagoId" value={formData.formaPagoId} onChange={handleChange} className={inputClass}><option value="">{t("Seleccione forma")}</option>{formasPago.map(fp => <option key={fp.id} value={fp.id}>{t(fp.nombre)}</option>)}</select></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Moneda")}</label><select name="moneda" value={formData.moneda} onChange={handleChange} className={claseCampo('moneda')} aria-invalid={Boolean(errores.moneda)}><option value="MXN">{t("MXN - Peso Mexicano")}</option><option value="USD">{t("USD - Dólar")}</option><option value="EUR">{t("EUR - Euro")}</option></select><ErrorCampo campo="moneda" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Límite de Crédito")}</label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span><input type="number" step="0.01" min="0" name="limiteCredito" value={formData.limiteCredito === 0 ? '' : formData.limiteCredito} onChange={handleChange} className={claseCampo('limiteCredito', 'pl-8')} placeholder="0.00" aria-invalid={Boolean(errores.limiteCredito)} /></div><ErrorCampo campo="limiteCredito" /></div>
+                <div><label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("Días de Crédito")}</label><input type="number" min="0" name="diasCredito" value={formData.diasCredito === 0 ? '' : formData.diasCredito} onChange={handleChange} className={claseCampo('diasCredito')} placeholder={t("Ej. 30")} aria-invalid={Boolean(errores.diasCredito)} /><ErrorCampo campo="diasCredito" /></div>
 
                 <div className="col-span-full mt-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" /> Notas Internas</label>
-                  <textarea name="notas" value={formData.notas} onChange={handleChange} className={`${inputClass} resize-none`} rows={3} placeholder="Condiciones especiales, horarios de recepción..." />
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" />  {t("Notas Internas")}</label>
+                  <textarea name="notas" value={formData.notas} onChange={handleChange} className={`${inputClass} resize-none`} rows={3} placeholder={t("Condiciones especiales, horarios de recepción...")} />
                 </div>
               </form>
             </div>
 
             <div className="p-5 border-t border-slate-100 bg-white flex justify-end gap-3 sticky bottom-0 rounded-b-2xl">
-              <button type="button" onClick={() => { setIsModalOpen(false); setErrores({}); setErrorGeneral(null); }} className="px-5 py-2.5 text-slate-700 font-medium hover:bg-slate-100 rounded-lg transition-colors" disabled={guardando}>Cancelar</button>
+              <button type="button" onClick={() => { setIsModalOpen(false); setErrores({}); setErrorGeneral(null); }} className="px-5 py-2.5 text-slate-700 font-medium hover:bg-slate-100 rounded-lg transition-colors" disabled={guardando}>{t("Cancelar")}</button>
               <button type="submit" form="proveedor-form" disabled={guardando} className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-sm flex items-center gap-2">
                 {guardando && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {guardando ? 'Guardando...' : 'Guardar Proveedor'}
+                {guardando ? t("Guardando...") : t("Guardar Proveedor")}
               </button>
             </div>
           </div>

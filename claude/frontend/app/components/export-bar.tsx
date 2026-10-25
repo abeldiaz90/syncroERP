@@ -3,6 +3,7 @@ import { useState } from "react";
 import { mensajeElegante } from "@/components/ui/dialogos";
 import { Printer, FileSpreadsheet, Loader2 } from "lucide-react";
 import { hoyISO } from '@/lib/fechas';
+import { useT } from '@/components/I18nProvider';
 
 interface IColumna {
   key: string; // propiedad del objeto
@@ -23,6 +24,7 @@ export function ExportBar({
   columnas,
   subtitulo,
 }: IExportBarProps) {
+  const t = useT();
   const [exportando, setExportando] = useState(false);
 
   // ── PDF ────────────────────────────────────────────────────────
@@ -88,8 +90,8 @@ export function ExportBar({
     } catch (e) {
       console.error("Error exportando Excel:", e);
       await mensajeElegante(
-        "No fue posible construir el archivo de Excel.",
-        "No se pudo exportar",
+        t("No fue posible construir el archivo de Excel."),
+        t("No se pudo exportar"),
       );
     }
     setExportando(false);
@@ -119,7 +121,7 @@ export function ExportBar({
          * informes que lo usan, no sólo para el que lo destapó.
          */
         disabled={exportando || !datos.length}
-        title={!datos.length ? 'No hay datos que imprimir' : undefined}
+        title={!datos.length ? t("No hay datos que imprimir") : undefined}
         style={{
           display: "flex",
           alignItems: "center",
@@ -135,7 +137,7 @@ export function ExportBar({
           opacity: datos.length ? 1 : 0.5,
         }}
       >
-        <Printer style={{ width: 13, height: 13 }} /> PDF
+        <Printer style={{ width: 13, height: 13 }} />  {t("PDF")}
       </button>
 
       <button
@@ -172,8 +174,7 @@ export function ExportBar({
 
       {datos.length > 0 && (
         <span style={{ fontSize: 11, color: "#94a3b8" }}>
-          {datos.length} registros
-        </span>
+          {t("{n0} registros", { n0: datos.length })}</span>
       )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

@@ -13,7 +13,9 @@ import { EVENTO_VER_COMO, verComoActual } from '@/lib/ver-como';
 import { usePermiso } from '@/hooks/use-permisos';
 import { useContratacion, contratado } from '@/lib/contratacion';
 
+import { useT } from '@/components/I18nProvider';
 export default function CentroModuloPage() {
+  const t = useT();
   const params = useParams<{ modulo: string }>();
   const modulo = useMemo(() => MODULOS.find((m) => m.id === params.modulo), [params.modulo]);
   const [permisos, setPermisos] = useState<string[] | null>(null);
@@ -75,7 +77,7 @@ export default function CentroModuloPage() {
     return () => { vivo = false; };
   }, [verComoId]);
 
-  if (!modulo) return <div className="p-8">Módulo no encontrado.</div>;
+  if (!modulo) return <div className="p-8">{t("Módulo no encontrado.")}</div>;
   const items = modulo.items.filter(
     (i) =>
       !i.oculto &&
@@ -119,9 +121,9 @@ export default function CentroModuloPage() {
             <modulo.Icono className="w-6 h-6" style={{ color: modulo.color }} />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: modulo.color }}>Centro de trabajo</p>
-            <h1 className="text-2xl font-bold text-slate-900 mt-1">{modulo.nombre}</h1>
-            <p className="text-[13px] text-slate-600 mt-1 max-w-2xl">{modulo.desc}. Desde aquí tienes a la mano las tareas, catálogos y procesos relacionados.</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: modulo.color }}>{t("Centro de trabajo")}</p>
+            <h1 className="text-2xl font-bold text-slate-900 mt-1">{t(modulo.nombre)}</h1>
+            <p className="text-[13px] text-slate-600 mt-1 max-w-2xl">{t(modulo.desc)}. Desde aquí tienes a la mano las tareas, catálogos y procesos relacionados.</p>
           </div>
         </div>
 
@@ -129,19 +131,19 @@ export default function CentroModuloPage() {
           <div className="mt-5 flex flex-wrap gap-2">
             {acciones.map((a, index) => {
               const destacada = index === 0 || a.principal;
-              const clases = `rounded-xl px-4 py-3 min-w-[170px] border transition-shadow hover:shadow-sm text-left ${destacada ? 'text-white border-transparent' : 'bg-white text-slate-800 border-slate-200'}`;
+              const clases = `rounded-xl px-4 py-3 min-w-[170px] border transition-shadow hover:shadow-sm text-left ${destacada ? "text-white border-transparent" : "bg-white text-slate-800 border-slate-200"}`;
               const estilo = destacada ? { background: modulo.color } : undefined;
               const cuerpo = (
                 <>
                   <span className="flex items-center justify-between gap-3 text-[12.5px] font-bold">
-                    {a.label}
+                    {t(a.label)}
                     {a.ventana ? <ExternalLink className="w-3.5 h-3.5" /> : <ArrowRight className="w-3.5 h-3.5" />}
                   </span>
-                  {a.descripcion && <span className={`block text-[11px] mt-1 ${destacada ? 'text-white/75' : 'text-slate-500'}`}>{a.descripcion}</span>}
+                  {a.descripcion && <span className={`block text-[11px] mt-1 ${destacada ? 'text-white/75' : 'text-slate-500'}`}>{t(a.descripcion)}</span>}
                 </>
               );
               return a.ventana ? (
-                <button key={a.href} type="button" onClick={abrirPuntoDeVenta} className={clases} style={estilo} title="Se abre en su propia ventana">
+                <button key={a.href} type="button" onClick={abrirPuntoDeVenta} className={clases} style={estilo} title={t("Se abre en su propia ventana")}>
                   {cuerpo}
                 </button>
               ) : (
@@ -155,15 +157,15 @@ export default function CentroModuloPage() {
       </header>
 
       <section>
-        <div className="flex items-center gap-2 mb-3"><Layers3 className="w-4 h-4 text-slate-500" /><h2 className="text-[14px] font-bold text-slate-900">Todo el módulo</h2></div>
+        <div className="flex items-center gap-2 mb-3"><Layers3 className="w-4 h-4 text-slate-500" /><h2 className="text-[14px] font-bold text-slate-900">{t("Todo el módulo")}</h2></div>
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
           {grupos.map(([grupo, opciones]) => (
             <div key={grupo} className="panel p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-2.5">{grupo}</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-2.5">{t(grupo)}</p>
               <div className="space-y-1">
                 {opciones.map((it) => (
                   <Link key={it.href} href={it.href} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50 text-[12.5px] text-slate-700">
-                    <span>{it.label}</span><ArrowRight className="w-3.5 h-3.5 text-slate-300" />
+                    <span>{t(it.label)}</span><ArrowRight className="w-3.5 h-3.5 text-slate-300" />
                   </Link>
                 ))}
               </div>
@@ -174,9 +176,9 @@ export default function CentroModuloPage() {
 
       {relacionados.length > 0 && (
         <section className="panel p-4">
-          <div className="flex items-center gap-2 mb-3"><Link2 className="w-4 h-4 text-slate-500" /><h2 className="text-[14px] font-bold text-slate-900">Procesos relacionados</h2></div>
+          <div className="flex items-center gap-2 mb-3"><Link2 className="w-4 h-4 text-slate-500" /><h2 className="text-[14px] font-bold text-slate-900">{t("Procesos relacionados")}</h2></div>
           <div className="flex flex-wrap gap-2">
-            {relacionados.map((a) => <Link key={a.href} href={a.href} className="btn btn-neutro btn-sm"><Sparkles className="w-3 h-3" />{a.label}</Link>)}
+            {relacionados.map((a) => <Link key={a.href} href={a.href} className="btn btn-neutro btn-sm"><Sparkles className="w-3 h-3" />{t(a.label)}</Link>)}
           </div>
         </section>
       )}

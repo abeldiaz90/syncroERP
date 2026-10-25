@@ -34,6 +34,7 @@ import {
   useAvisos,
 } from "@/components/ui";
 
+import { useT } from '@/components/I18nProvider';
 interface Asiento {
   id: string;
   tipo: string;
@@ -91,6 +92,7 @@ const ETIQUETA_TIPO: Record<string, string> = {
 };
 
 export default function AsientosPendientesPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [estado, setEstado] = useState<string>("");
   const [aDescartar, setADescartar] = useState<Asiento | null>(null);
@@ -119,7 +121,7 @@ export default function AsientosPendientesPage() {
     await api.post(`/finanzas/asientos-pendientes/${id}/descartar`, {
       nota: texto,
     });
-    avisar("Asiento descartado. Queda registrada la justificación.", "info");
+    avisar(t("Asiento descartado. Queda registrada la justificación."), "info");
     setADescartar(null);
     setNota("");
     void asientos.recargar();
@@ -134,8 +136,8 @@ export default function AsientosPendientesPage() {
   return (
     <div className="p-6 max-w-[1300px] mx-auto">
       <EncabezadoPantalla
-        titulo="Asientos pendientes"
-        descripcion="Operaciones registradas cuya póliza contable no pudo generarse"
+        titulo={t("Asientos pendientes")}
+        descripcion={t("Operaciones registradas cuya póliza contable no pudo generarse")}
         acciones={
           <Boton
             variante="neutro"
@@ -145,35 +147,36 @@ export default function AsientosPendientesPage() {
               void resumen.recargar();
             }}
           >
-            Actualizar
+            
+            {t("Actualizar")}
           </Boton>
         }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador
-          etiqueta="Requieren revisión"
+          etiqueta={t("Requieren revisión")}
           color={(resumen.datos?.fallidos ?? 0) > 0 ? "#e11d48" : "#64748b"}
           cargando={resumen.cargando}
           icono={<ShieldAlert className="w-4 h-4" />}
           valor={resumen.datos?.fallidos ?? 0}
-          detalle="agotaron los reintentos"
+          detalle={t("agotaron los reintentos")}
         />
         <Indicador
-          etiqueta="En cola"
+          etiqueta={t("En cola")}
           color={(resumen.datos?.pendientes ?? 0) > 0 ? "#d97706" : "#64748b"}
           cargando={resumen.cargando}
           valor={resumen.datos?.pendientes ?? 0}
-          detalle="se reintentan solos"
+          detalle={t("se reintentan solos")}
         />
         <Indicador
-          etiqueta="Resueltos"
+          etiqueta={t("Resueltos")}
           color="#059669"
           cargando={resumen.cargando}
           valor={resumen.datos?.generados ?? 0}
         />
         <Indicador
-          etiqueta="Descartados"
+          etiqueta={t("Descartados")}
           color="#64748b"
           cargando={resumen.cargando}
           valor={resumen.datos?.descartados ?? 0}
@@ -186,11 +189,12 @@ export default function AsientosPendientesPage() {
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <div>
               <p className="text-[13px] font-semibold text-slate-900">
-                No hay asientos pendientes de atención
+                
+                {t("No hay asientos pendientes de atención")}
               </p>
               <p className="text-[12.5px] text-slate-500 mt-0.5">
-                La cola de recuperación contable no tiene fallos ni reintentos
-                pendientes.
+                
+                {t("La cola de recuperación contable no tiene fallos ni reintentos pendientes.")}
               </p>
             </div>
           </div>
@@ -204,11 +208,11 @@ export default function AsientosPendientesPage() {
             onChange={(e) => setEstado(e.target.value)}
             className="w-52"
           >
-            <option value="">Todos los estados</option>
-            <option value="FALLIDO">Requieren revisión</option>
-            <option value="PENDIENTE">En cola</option>
-            <option value="GENERADO">Resueltos</option>
-            <option value="DESCARTADO">Descartados</option>
+            <option value="">{t("Todos los estados")}</option>
+            <option value="FALLIDO">{t("Requieren revisión")}</option>
+            <option value="PENDIENTE">{t("En cola")}</option>
+            <option value="GENERADO">{t("Resueltos")}</option>
+            <option value="DESCARTADO">{t("Descartados")}</option>
           </Seleccion>
           <p className="text-[12px] text-slate-500 cifra">
             {plural(asientos.datos?.length ?? 0, 'registro')}
@@ -219,13 +223,13 @@ export default function AsientosPendientesPage() {
           <Cargando />
         ) : asientos.error ? (
           <ErrorPantalla
-            mensaje={asientos.error}
+            mensaje={t(asientos.error)}
             onReintentar={asientos.recargar}
           />
         ) : (asientos.datos?.length ?? 0) === 0 ? (
           <SinDatos
-            titulo="Nada pendiente"
-            descripcion="La cola de recuperación contable no tiene registros para este filtro."
+            titulo={t("Nada pendiente")}
+            descripcion={t("La cola de recuperación contable no tiene registros para este filtro.")}
             icono={<CheckCircle2 className="w-5 h-5" />}
           />
         ) : (
@@ -233,12 +237,12 @@ export default function AsientosPendientesPage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Origen</th>
-                  <th>Documento</th>
-                  <th>Estado</th>
-                  <th className="text-right">Intentos</th>
-                  <th>Resultado</th>
-                  <th>Último intento</th>
+                  <th>{t("Origen")}</th>
+                  <th>{t("Documento")}</th>
+                  <th>{t("Estado")}</th>
+                  <th className="text-right">{t("Intentos")}</th>
+                  <th>{t("Resultado")}</th>
+                  <th>{t("Último intento")}</th>
                   <th />
                 </tr>
               </thead>
@@ -278,11 +282,11 @@ export default function AsientosPendientesPage() {
                         }`}
                       >
                         {a.estado === "GENERADO"
-                          ? "Generado correctamente"
+                          ? t("Generado correctamente")
                           : a.estado === "DESCARTADO"
                             ? (a.notaResolucion ??
-                              "Descartado con justificación")
-                            : (a.ultimoError ?? "Esperando el primer intento")}
+                              t("Descartado con justificación"))
+                            : (a.ultimoError ?? t("Esperando el primer intento"))}
                       </p>
                     </td>
                     <td className="cifra text-[12px] text-slate-500">
@@ -299,14 +303,14 @@ export default function AsientosPendientesPage() {
                             }
                             disabled={reintentar.ejecutando}
                             className="btn btn-fantasma btn-sm"
-                            title="Reintentar ahora"
+                            title={t("Reintentar ahora")}
                           >
                             <RefreshCw className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => setADescartar(a)}
                             className="btn btn-fantasma btn-sm btn-icono"
-                            title="Descartar"
+                            title={t("Descartar")}
                           >
                             <XCircle className="w-3.5 h-3.5" />
                           </button>
@@ -322,9 +326,8 @@ export default function AsientosPendientesPage() {
       </Panel>
 
       <p className="text-[11.5px] text-slate-400 mt-3">
-        La causa más común es una categoría de producto sin cuentas contables
-        asignadas. Corrígelo en Finanzas → Categorías contables y reintenta
-        desde aquí.
+        
+        {t("La causa más común es una categoría de producto sin cuentas contables asignadas. Corrígelo en Finanzas → Categorías contables y reintenta desde aquí.")}
       </p>
 
       <Modal
@@ -333,7 +336,7 @@ export default function AsientosPendientesPage() {
           setADescartar(null);
           setNota("");
         }}
-        titulo="Descartar el asiento"
+        titulo={t("Descartar el asiento")}
         descripcion={`${ETIQUETA_TIPO[aDescartar?.tipo ?? ""] ?? ""} ${aDescartar?.folioDocumento ?? ""}`}
         ancho={480}
         pie={
@@ -345,7 +348,8 @@ export default function AsientosPendientesPage() {
                 setNota("");
               }}
             >
-              Volver
+              
+              {t("Volver")}
             </Boton>
             <Boton
               variante="peligro"
@@ -355,7 +359,8 @@ export default function AsientosPendientesPage() {
                 void descartar.ejecutar(aDescartar!.id, nota)
               }
             >
-              Descartar
+              
+              {t("Descartar")}
             </Boton>
           </>
         }
@@ -363,15 +368,16 @@ export default function AsientosPendientesPage() {
         <p className="text-[13px] text-slate-600 mb-3.5 leading-relaxed">
           Descartar significa que esta operación{" "}
           <span className="font-semibold">
-            no se reflejará en la contabilidad
+            
+            {t("no se reflejará en la contabilidad")}
           </span>
           . La justificación queda registrada con tu nombre.
         </p>
-        <Campo etiqueta="Justificación" requerido>
+        <Campo etiqueta={t("Justificación")} requerido>
           <Entrada
             value={nota}
             onChange={(e) => setNota(e.target.value)}
-            placeholder="Duplicado de la póliza P-1042, ya registrada a mano"
+            placeholder={t("Duplicado de la póliza P-1042, ya registrada a mano")}
             autoFocus
           />
         </Campo>

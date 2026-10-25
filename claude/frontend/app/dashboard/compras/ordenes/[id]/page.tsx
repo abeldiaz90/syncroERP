@@ -12,7 +12,9 @@ import { ProtectedElement } from "@/app/components/ProtectedElement"; // ← NUE
 import { confirmarElegante } from '@/components/ui/dialogos';
 import { FOLIO, folioDe } from '@/lib/folios';
 
+import { useT } from '@/components/I18nProvider';
 export default function DetalleOCPage() {
+  const t = useT();
   const params = useParams();
   const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
   
@@ -42,20 +44,20 @@ export default function DetalleOCPage() {
       .then(async (res) => {
         if (res.ok) { setOC(await res.json()); return; }
         setMotivo(res.status === 403
-          ? 'Tu perfil no incluye la consulta de órdenes de compra.'
+          ? t("Tu perfil no incluye la consulta de órdenes de compra.")
           : res.status === 404
-            ? 'Esta orden de compra no existe.'
-            : 'No se pudo consultar la orden de compra.');
+            ? t("Esta orden de compra no existe.")
+            : t("No se pudo consultar la orden de compra."));
       })
       .catch(() => {
-        setMotivo('No hay conexión con el servidor.');
-        mostrarToast("Error de conexión", "error");
+        setMotivo(t("No hay conexión con el servidor."));
+        mostrarToast(t("Error de conexión"), "error");
       })
       .finally(() => setCargando(false));
   }, [id, apiUrl]);
 
   const handleCambiarEstado = async (nuevoEstado: string) => {
-    if (!await confirmarElegante('Se notificará al proveedor y el documento pasará a estado ENVIADA.', { titulo: 'Confirmar envío a proveedor' })) return;
+    if (!await confirmarElegante(t("Se notificará al proveedor y el documento pasará a estado ENVIADA."), { titulo: t("Confirmar envío a proveedor") })) return;
 
     setProcesando(true);
     const token = localStorage.getItem('syncro_token');
@@ -70,7 +72,7 @@ export default function DetalleOCPage() {
         const reloadRes = await peticion(`/compras/ordenes/${id}`, { headers: { Authorization: `Bearer ${token}` } });
         if (reloadRes.ok) setOC(await reloadRes.json());
       } else throw new Error();
-    } catch { mostrarToast('Error al actualizar el estado', 'error'); }
+    } catch { mostrarToast(t("Error al actualizar el estado"), 'error'); }
     finally { setProcesando(false); }
   };
 
@@ -78,7 +80,7 @@ export default function DetalleOCPage() {
   if (!oc) return (
     <div className="text-center p-20">
       <p className="font-bold text-rose-600">
-        {motivo || 'Documento no encontrado'}
+        {motivo || t("Documento no encontrado")}
       </p>
     </div>
   );
@@ -91,19 +93,19 @@ export default function DetalleOCPage() {
 
       {toast && (
         <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-xl shadow-2xl font-bold text-white ${toast.tipo === 'exito' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
-          {toast.mensaje}
+          {t(toast.mensaje)}
         </div>
       )}
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <Link href="/dashboard/compras/ordenes" className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold transition-colors">
-          <ChevronLeft className="w-4 h-4" /> Volver a Órdenes
+          <ChevronLeft className="w-4 h-4" />  {t("Volver a Órdenes")}
         </Link>
 
         {/* ✅ Solo aparece si tiene GET /api/compras/ordenes/:id (PDF usa la misma ruta) */}
         <ProtectedElement metodo="GET" ruta="/api/compras/ordenes/:id">
           <Link href={`/dashboard/compras/ordenes/${oc.id}/pdf`} target="_blank" className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl hover:bg-indigo-600 font-bold transition-colors shadow-lg">
-            <Printer className="w-4 h-4" /> Imprimir OC
+            <Printer className="w-4 h-4" />  {t("Imprimir OC")}
           </Link>
         </ProtectedElement>
       </div>
@@ -114,31 +116,31 @@ export default function DetalleOCPage() {
           <div>
             <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
               <div className="p-3 bg-indigo-100 rounded-2xl"><ShoppingCart className="w-6 h-6 text-indigo-600" /></div>
-              Orden de Compra Financiera
+              
+              {t("Orden de Compra Financiera")}
             </h1>
-            <p className="text-slate-500 mt-2 font-bold font-mono">Folio: {folioDe(oc, FOLIO.ORDEN_COMPRA)}</p>
+            <p className="text-slate-500 mt-2 font-bold font-mono">{t("Folio: {n0}", { n0: folioDe(oc, FOLIO.ORDEN_COMPRA) })}</p>
           </div>
           <span className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest ${
             oc.estado === 'PENDIENTE' ? 'bg-amber-100 text-amber-700' :
             oc.estado === 'ENVIADA'   ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
           }`}>
-            Estado: {oc.estado}
-          </span>
+            {t("Estado: {n0}", { n0: oc.estado })}</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="flex gap-4 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
             <Building2 className="w-8 h-8 text-slate-400" />
             <div>
-              <p className="text-[10px] font-black uppercase text-slate-400">Proveedor Comercial</p>
-              <p className="font-bold text-slate-800 text-lg">{oc.proveedor?.nombre}</p>
-              {oc.proveedor?.rfc && <p className="text-xs text-slate-500">RFC: {oc.proveedor.rfc}</p>}
+              <p className="text-[10px] font-black uppercase text-slate-400">{t("Proveedor Comercial")}</p>
+              <p className="font-bold text-slate-800 text-lg">{t(oc.proveedor?.nombre)}</p>
+              {oc.proveedor?.rfc && <p className="text-xs text-slate-500">{t("RFC: {n0}", { n0: oc.proveedor.rfc })}</p>}
             </div>
           </div>
           <div className="flex gap-4 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
             <Calendar className="w-8 h-8 text-slate-400" />
             <div>
-              <p className="text-[10px] font-black uppercase text-slate-400">Fecha de Emisión</p>
+              <p className="text-[10px] font-black uppercase text-slate-400">{t("Fecha de Emisión")}</p>
               <p className="font-bold text-slate-800 text-lg">{new Date(oc.fechaCreacion).toLocaleDateString('es-MX')}</p>
             </div>
           </div>
@@ -149,17 +151,17 @@ export default function DetalleOCPage() {
           <table className="w-full text-left">
             <thead className="bg-slate-900 text-white">
               <tr>
-                <th className="px-6 py-4 text-sm font-bold">Producto / SKU</th>
-                <th className="px-6 py-4 text-sm font-bold text-center">Cant.</th>
-                <th className="px-6 py-4 text-sm font-bold text-right">Precio Unit.</th>
-                <th className="px-6 py-4 text-sm font-bold text-right">Subtotal</th>
+                <th className="px-6 py-4 text-sm font-bold">{t("Producto / SKU")}</th>
+                <th className="px-6 py-4 text-sm font-bold text-center">{t("Cant.")}</th>
+                <th className="px-6 py-4 text-sm font-bold text-right">{t("Precio Unit.")}</th>
+                <th className="px-6 py-4 text-sm font-bold text-right">{t("Subtotal")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {oc.detalles?.map((det: any) => (
                 <tr key={det.id} className="hover:bg-slate-50">
                   <td className="px-6 py-4">
-                    <p className="font-bold text-slate-800">{det.producto?.nombre}</p>
+                    <p className="font-bold text-slate-800">{t(det.producto?.nombre)}</p>
                     <p className="text-xs text-slate-400">{det.producto?.sku}</p>
                   </td>
                   <td className="px-6 py-4 text-center font-bold">{det.cantidad}</td>
@@ -172,10 +174,10 @@ export default function DetalleOCPage() {
 
           <div className="bg-slate-50 p-6 flex justify-end border-t border-slate-200">
             <div className="w-64 space-y-2">
-              <div className="flex justify-between font-bold text-slate-500"><span>Subtotal</span><span>${subtotalOC.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>
-              <div className="flex justify-between font-bold text-slate-500"><span>I.V.A. (16%)</span><span>${impuestoOC.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>
+              <div className="flex justify-between font-bold text-slate-500"><span>{t("Subtotal")}</span><span>${subtotalOC.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>
+              <div className="flex justify-between font-bold text-slate-500"><span>{t("I.V.A. (16%)")}</span><span>${impuestoOC.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>
               <div className="pt-3 border-t border-slate-200 flex justify-between items-center mt-3">
-                <span className="text-sm font-black uppercase text-slate-900">Total</span>
+                <span className="text-sm font-black uppercase text-slate-900">{t("Total")}</span>
                 <span className="text-2xl font-black text-indigo-600">${oc.total?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
@@ -186,8 +188,8 @@ export default function DetalleOCPage() {
         {oc.estado === 'PENDIENTE' && (
           <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 flex flex-col md:flex-row justify-between items-center gap-6">
             <div>
-              <h3 className="font-black text-indigo-900">Acción Requerida</h3>
-              <p className="text-sm text-indigo-700 font-medium">Revisa los costos y envía esta orden para iniciar el proceso logístico.</p>
+              <h3 className="font-black text-indigo-900">{t("Acción Requerida")}</h3>
+              <p className="text-sm text-indigo-700 font-medium">{t("Revisa los costos y envía esta orden para iniciar el proceso logístico.")}</p>
             </div>
             {/* ✅ Solo aparece si tiene PATCH /api/compras/ordenes/:id/estado */}
             <ProtectedElement metodo="PATCH" ruta="/api/compras/ordenes/:id/estado">
@@ -207,8 +209,8 @@ export default function DetalleOCPage() {
           <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 flex items-center gap-4 text-blue-800">
             <Clock className="w-8 h-8 flex-shrink-0" />
             <div>
-              <p className="font-black text-lg">En tránsito logístico</p>
-              <p className="text-sm font-medium">El equipo de Almacén registrará la entrada física en el módulo de Recepciones cuando la mercancía llegue a sucursal.</p>
+              <p className="font-black text-lg">{t("En tránsito logístico")}</p>
+              <p className="text-sm font-medium">{t("El equipo de Almacén registrará la entrada física en el módulo de Recepciones cuando la mercancía llegue a sucursal.")}</p>
             </div>
           </div>
         )}
@@ -217,8 +219,8 @@ export default function DetalleOCPage() {
           <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 flex items-center gap-4 text-emerald-800">
             <CheckCircle2 className="w-8 h-8 flex-shrink-0" />
             <div>
-              <p className="font-black text-lg">Proceso Completado</p>
-              <p className="text-sm font-medium">Almacén ha registrado y validado la entrada física de este documento.</p>
+              <p className="font-black text-lg">{t("Proceso Completado")}</p>
+              <p className="text-sm font-medium">{t("Almacén ha registrado y validado la entrada física de este documento.")}</p>
             </div>
           </div>
         )}

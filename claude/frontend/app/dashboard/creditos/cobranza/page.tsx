@@ -8,6 +8,7 @@ import {
   ArrowLeftRight, Eye, Filter, RefreshCw
 } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 interface ICuota {
   id: string; numeroCuota: number; fechaVencimiento: string;
   montoCuota: number; montoCapital: number; montoInteres: number;
@@ -44,6 +45,7 @@ const TIPO_LABEL: Record<string, string> = {
 };
 
 export default function CobranzaPage() {
+  const t = useT();
   const [creditos, setCreditos]           = useState<ICredito[]>([]);
   const [cuentasBancarias, setCuentasBancarias] = useState<ICuentaBancaria[]>([]);
   const [cargando, setCargando]           = useState(true);
@@ -96,8 +98,8 @@ export default function CobranzaPage() {
     else {
       setCreditos([]);
       setErrorCarga(rC.status === 403
-        ? 'Tu perfil no incluye la consulta de créditos.'
-        : 'No se pudo consultar la cartera de créditos.');
+        ? t("Tu perfil no incluye la consulta de créditos.")
+        : t("No se pudo consultar la cartera de créditos."));
     }
     if (rCB.ok) {
       const cb = await rCB.json();
@@ -112,8 +114,8 @@ export default function CobranzaPage() {
       */
       setCuentasBancarias([]);
       setErrorCarga(rCB.status === 403
-        ? 'Tu perfil no incluye las cajas para registrar el cobro.'
-        : 'No se pudieron consultar las cajas para registrar el cobro.');
+        ? t("Tu perfil no incluye las cajas para registrar el cobro.")
+        : t("No se pudieron consultar las cajas para registrar el cobro."));
     }
     setCargando(false);
   }, [filtroEstado]);
@@ -138,7 +140,7 @@ export default function CobranzaPage() {
 
   const registrarPago = async () => {
     if (!creditoSeleccionado || !montoPago || Number(montoPago)<=0) {
-      toast$('El monto debe ser mayor a cero', false); return;
+      toast$(t("El monto debe ser mayor a cero"), false); return;
     }
     setGuardando(true);
     /*
@@ -180,7 +182,7 @@ export default function CobranzaPage() {
     } catch {
       setGuardando(false);
       toast$(
-        'No se pudo contactar al servidor. El pago NO se registró; puedes volver a intentarlo.',
+        t("No se pudo contactar al servidor. El pago NO se registró; puedes volver a intentarlo."),
         false,
       );
       return;
@@ -192,10 +194,10 @@ export default function CobranzaPage() {
       cargar();
     } else if (res.status === 401) {
       // Si no, la sesión caducada se ve igual que un error del pago.
-      toast$('Tu sesión caducó. Vuelve a iniciar sesión para registrar el pago.', false);
+      toast$(t("Tu sesión caducó. Vuelve a iniciar sesión para registrar el pago."), false);
     } else {
       const e = await res.json().catch(()=>({}));
-      toast$(e.message??'Error al registrar el pago', false);
+      toast$(e.message??t("Error al registrar el pago"), false);
     }
   };
 
@@ -226,14 +228,14 @@ export default function CobranzaPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Crédito & Cobranza</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Crédito & Cobranza")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <DollarSign className="w-8 h-8 text-indigo-500"/> Cobranza
+            <DollarSign className="w-8 h-8 text-indigo-500"/>  {t("Cobranza")}
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Registra abonos y pagos de créditos activos.</p>
+          <p className="text-slate-500 text-sm mt-1">{t("Registra abonos y pagos de créditos activos.")}</p>
         </div>
         <button onClick={cargar} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 text-sm font-medium hover:bg-slate-50 shadow-sm">
-          <RefreshCw className="w-4 h-4"/> Actualizar
+          <RefreshCw className="w-4 h-4"/>  {t("Actualizar")}
         </button>
       </div>
 
@@ -242,7 +244,7 @@ export default function CobranzaPage() {
         <div className="flex-1 min-w-48 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
           <input type="text" value={busqueda} onChange={e=>setBusqueda(e.target.value)}
-            placeholder="Buscar por folio o cliente..."
+            placeholder={t("Buscar por folio o cliente...")}
             className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"/>
         </div>
         <div className="flex items-center gap-2">
@@ -250,7 +252,7 @@ export default function CobranzaPage() {
           {['ACTIVO','VENCIDO','LIQUIDADO',''].map(e=>(
             <button key={e} onClick={()=>setFiltroEstado(e)}
               className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${filtroEstado===e?'bg-indigo-600 text-white border-indigo-600':'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
-              {e||'Todos'}
+              {e||t("Todos")}
             </button>
           ))}
         </div>
@@ -260,18 +262,18 @@ export default function CobranzaPage() {
       {cargando ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
-          <p className="text-slate-400 text-sm">Cargando créditos...</p>
+          <p className="text-slate-400 text-sm">{t("Cargando créditos...")}</p>
         </div>
       ) : errorCarga ? (
         <div className="bg-white rounded-2xl border border-rose-200 p-16 text-center">
           <DollarSign className="w-12 h-12 text-rose-200 mx-auto mb-3"/>
           <p className="font-semibold text-rose-700">{errorCarga}</p>
-          <p className="text-sm text-slate-500 mt-1">La cartera no está vacía: no se pudo consultar.</p>
+          <p className="text-sm text-slate-500 mt-1">{t("La cartera no está vacía: no se pudo consultar.")}</p>
         </div>
       ) : filtrados.length===0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <DollarSign className="w-12 h-12 text-slate-200 mx-auto mb-3"/>
-          <p className="font-semibold text-slate-600">Sin créditos {filtroEstado?filtroEstado.toLowerCase()+'s':''}</p>
+          <p className="font-semibold text-slate-600">{t("Sin créditos {n0}", { n0: filtroEstado?filtroEstado.toLowerCase()+'s':'' })}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -289,25 +291,25 @@ export default function CobranzaPage() {
                       <span className="font-mono font-bold text-indigo-600">{credito.folio}</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${ESTADO_STYLE[credito.estado]}`}>{credito.estado}</span>
                       <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{TIPO_LABEL[credito.tipoCredito]??credito.tipoCredito}</span>
-                      {credito.sinInteres&&<span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Sin interés</span>}
+                      {credito.sinInteres&&<span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">{t("Sin interés")}</span>}
                     </div>
                     {credito.cliente&&(
                       <div className="flex items-center gap-2 mt-1.5">
                         <User className="w-3.5 h-3.5 text-slate-400"/>
-                        <span className="text-sm font-medium text-slate-700">{credito.cliente.nombre}</span>
+                        <span className="text-sm font-medium text-slate-700">{t(credito.cliente.nombre)}</span>
                         {credito.cliente.rfc&&<span className="text-xs text-slate-400">{credito.cliente.rfc}</span>}
                       </div>
                     )}
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-slate-400">Saldo pendiente</p>
+                    <p className="text-xs text-slate-400">{t("Saldo pendiente")}</p>
                     <p className="text-xl font-black text-slate-900">{fmt$(credito.saldoPendiente)}</p>
-                    <p className="text-xs text-slate-400">de {fmt$(credito.montoTotal)}</p>
+                    <p className="text-xs text-slate-400">{t("de {n0}", { n0: fmt$(credito.montoTotal) })}</p>
                   </div>
                   {credito.estado!=='LIQUIDADO'&&credito.estado!=='CANCELADO'&&(
                     <button onClick={()=>abrirPago(credito)}
                       className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 shadow-sm shrink-0">
-                      <DollarSign className="w-4 h-4"/> Registrar Abono
+                      <DollarSign className="w-4 h-4"/>  {t("Registrar Abono")}
                     </button>
                   )}
                 </div>
@@ -316,8 +318,7 @@ export default function CobranzaPage() {
                 {credito.cuotas&&credito.cuotas.length>0&&(
                   <div className="px-6 py-4">
                     <p className="text-xs font-bold uppercase text-slate-400 mb-3">
-                      Cuotas — {cuotasPendientes(credito).length} pendientes
-                    </p>
+                      {t("Cuotas — {n0} pendientes", { n0: cuotasPendientes(credito).length })}</p>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                       {credito.cuotas.map(cuota=>{
                         const dias = diasVencido(cuota.fechaVencimiento);
@@ -327,7 +328,7 @@ export default function CobranzaPage() {
                             className={`p-3 rounded-xl border transition-all ${cuota.estado==='PAGADA'?'bg-emerald-50 border-emerald-200 opacity-60':vencida?'bg-rose-50 border-rose-200':'bg-slate-50 border-slate-200 hover:border-indigo-300 cursor-pointer'}`}
                             onClick={()=>cuota.estado!=='PAGADA'&&abrirPago(credito,cuota)}>
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-bold text-slate-500">Cuota {cuota.numeroCuota}</span>
+                              <span className="text-xs font-bold text-slate-500">{t("Cuota {n0}", { n0: cuota.numeroCuota })}</span>
                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${CUOTA_STYLE[cuota.estado]}`}>{cuota.estado.replace('_',' ')}</span>
                             </div>
                             <p className="font-mono font-bold text-sm text-slate-900">{fmt$(cuota.montoCuota)}</p>
@@ -335,7 +336,7 @@ export default function CobranzaPage() {
                               {vencida?`Vencida hace ${dias}d`:fmtFecha(cuota.fechaVencimiento)}
                             </p>
                             {cuota.montoPagado>0&&cuota.estado!=='PAGADA'&&(
-                              <p className="text-[10px] text-blue-600 font-medium mt-0.5">Pagado: {fmt$(cuota.montoPagado)}</p>
+                              <p className="text-[10px] text-blue-600 font-medium mt-0.5">{t("Pagado: {n0}", { n0: fmt$(cuota.montoPagado) })}</p>
                             )}
                           </div>
                         );
@@ -352,8 +353,7 @@ export default function CobranzaPage() {
                         style={{width:`${Math.min(100,(1-credito.saldoPendiente/credito.montoTotal)*100)}%`}}/>
                     </div>
                     <p className="text-xs text-slate-400 mt-1">
-                      {fmt$(credito.montoTotal-credito.saldoPendiente)} pagado de {fmt$(credito.montoTotal)}
-                    </p>
+                      {t("{n0} pagado de {n1}", { n0: fmt$(credito.montoTotal-credito.saldoPendiente), n1: fmt$(credito.montoTotal) })}</p>
                   </div>
                 )}
               </div>
@@ -371,42 +371,42 @@ export default function CobranzaPage() {
                 <DollarSign className="w-5 h-5 text-indigo-400"/>
                 Registrar Pago — {creditoSeleccionado.folio}
               </h2>
-              <button aria-label="Cerrar" title="Cerrar" onClick={()=>setModalPago(false)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={()=>setModalPago(false)} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
             </div>
             <div className="p-6 space-y-4">
               {cuotaSeleccionada&&(
                 <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-sm">
-                  <p className="font-bold text-indigo-800">Cuota {cuotaSeleccionada.numeroCuota}</p>
+                  <p className="font-bold text-indigo-800">{t("Cuota {n0}", { n0: cuotaSeleccionada.numeroCuota })}</p>
                   <div className="flex gap-4 mt-1 text-xs text-indigo-700">
-                    <span>Vence: {fmtFecha(cuotaSeleccionada.fechaVencimiento)}</span>
-                    <span>Total cuota: {fmt$(cuotaSeleccionada.montoCuota)}</span>
-                    {cuotaSeleccionada.montoPagado>0&&<span>Abonado: {fmt$(cuotaSeleccionada.montoPagado)}</span>}
+                    <span>{t("Vence: {n0}", { n0: fmtFecha(cuotaSeleccionada.fechaVencimiento) })}</span>
+                    <span>{t("Total cuota: {n0}", { n0: fmt$(cuotaSeleccionada.montoCuota) })}</span>
+                    {cuotaSeleccionada.montoPagado>0&&<span>{t("Abonado: {n0}", { n0: fmt$(cuotaSeleccionada.montoPagado) })}</span>}
                   </div>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Monto a pagar *</label>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Monto a pagar *")}</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
                   <input type="number" min="0.01" step="0.01" value={montoPago}
                     onChange={e=>setMontoPago(e.target.value)}
                     className="w-full pl-7 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
                 </div>
-                <p className="text-xs text-slate-400 mt-1">Saldo pendiente: {fmt$(creditoSeleccionado.saldoPendiente)}</p>
+                <p className="text-xs text-slate-400 mt-1">{t("Saldo pendiente: {n0}", { n0: fmt$(creditoSeleccionado.saldoPendiente) })}</p>
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Método de pago</label>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-2">{t("Método de pago")}</label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id:'EFECTIVO',      icon:Banknote,       label:'Efectivo' },
-                    { id:'TRANSFERENCIA', icon:ArrowLeftRight, label:'Transferencia' },
-                    { id:'TARJETA_DEBITO',icon:CreditCard,     label:'Tarjeta' },
+                    { id:'EFECTIVO',      icon:Banknote,       label:t("Efectivo") },
+                    { id:'TRANSFERENCIA', icon:ArrowLeftRight, label:t("Transferencia") },
+                    { id:'TARJETA_DEBITO',icon:CreditCard,     label:t("Tarjeta") },
                   ].map(m=>(
                     <button key={m.id} onClick={()=>setMetodoPago(m.id)}
                       className={`flex flex-col items-center gap-1.5 py-2.5 rounded-xl border-2 text-xs font-bold transition-colors ${metodoPago===m.id?'border-indigo-500 bg-indigo-50 text-indigo-700':'border-slate-200 hover:border-slate-300 text-slate-600'}`}>
-                      <m.icon className="w-4 h-4"/> {m.label}
+                      <m.icon className="w-4 h-4"/> {t(m.label)}
                     </button>
                   ))}
                 </div>
@@ -414,35 +414,35 @@ export default function CobranzaPage() {
 
               {cuentasBancarias.length>0&&(
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Cuenta donde ingresa el pago</label>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Cuenta donde ingresa el pago")}</label>
                   <select value={cuentaBancariaId} onChange={e=>setCuentaBancariaId(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">— Seleccionar cuenta —</option>
-                    {cuentasBancarias.map(c=><option key={c.id} value={c.id}>{c.nombre} ({c.tipo})</option>)}
+                    <option value="">{t("— Seleccionar cuenta —")}</option>
+                    {cuentasBancarias.map(c=><option key={c.id} value={c.id}>{t(c.nombre)} ({c.tipo})</option>)}
                   </select>
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Fecha del pago</label>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Fecha del pago")}</label>
                   <input type="date" value={fechaPago} onChange={e=>setFechaPago(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Referencia (opcional)</label>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Referencia (opcional)")}</label>
                   <input type="text" value={referencia} onChange={e=>setReferencia(e.target.value)}
-                    placeholder="No. de transferencia..."
+                    placeholder={t("No. de transferencia...")}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
                 </div>
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button onClick={()=>setModalPago(false)} className="flex-1 py-2.5 text-slate-700 font-medium hover:bg-slate-100 rounded-xl">Cancelar</button>
+                <button onClick={()=>setModalPago(false)} className="flex-1 py-2.5 text-slate-700 font-medium hover:bg-slate-100 rounded-xl">{t("Cancelar")}</button>
                 <button onClick={registrarPago} disabled={guardando}
                   className="flex-1 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">
                   {guardando?<div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>:<Save className="w-4 h-4"/>}
-                  {guardando?'Guardando...':'Registrar Pago'}
+                  {guardando?t("Guardando..."):t("Registrar Pago")}
                 </button>
               </div>
             </div>

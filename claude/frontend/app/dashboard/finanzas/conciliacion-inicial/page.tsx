@@ -21,6 +21,7 @@ import { api, ApiError } from "@/lib/api";
 import { useDatos } from "@/hooks/use-datos";
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 type ClaveArea = "CAJA" | "BANCOS" | "CLIENTES" | "PROVEEDORES" | "INVENTARIO";
 type EstadoResolucion = "CONFIRMADA" | "JUSTIFICADA" | "REQUIERE_AJUSTE";
 
@@ -108,6 +109,7 @@ function etiquetaResolucion(estado?: EstadoResolucion) {
 }
 
 export default function ConciliacionInicialPage() {
+  const t = useT();
   const consulta = useDatos<Conciliacion | null>(
     () => api.get("/finanzas/conciliacion-inicial"),
     [],
@@ -139,7 +141,7 @@ export default function ConciliacionInicialPage() {
     if (
       recalcular &&
       !await confirmarElegante(
-        "Se tomará una nueva fotografía y se reiniciarán las revisiones de esta pantalla. No se borran pólizas ni movimientos. ¿Continuar?",
+        t("Se tomará una nueva fotografía y se reiniciarán las revisiones de esta pantalla. No se borran pólizas ni movimientos. ¿Continuar?"),
       )
     ) {
       return;
@@ -165,7 +167,7 @@ export default function ConciliacionInicialPage() {
     const justificacion = justificaciones[area.clave]?.trim();
     if (estado !== "CONFIRMADA" && (!justificacion || justificacion.length < 10)) {
       setErrorAccion(
-        "Explica la diferencia o la corrección necesaria con al menos 10 caracteres.",
+        t("Explica la diferencia o la corrección necesaria con al menos 10 caracteres."),
       );
       return;
     }
@@ -205,7 +207,7 @@ export default function ConciliacionInicialPage() {
       <div className="p-10 max-w-6xl mx-auto">
         <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center">
           <RefreshCw className="w-7 h-7 animate-spin text-violet-600 mx-auto mb-3" />
-          <p className="text-sm text-slate-500">Preparando la revisión de saldos…</p>
+          <p className="text-sm text-slate-500">{t("Preparando la revisión de saldos…")}</p>
         </div>
       </div>
     );
@@ -215,12 +217,13 @@ export default function ConciliacionInicialPage() {
     return (
       <div className="p-10 max-w-6xl mx-auto">
         <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6">
-          <p className="font-semibold text-rose-800">{consulta.error}</p>
+          <p className="font-semibold text-rose-800">{t(consulta.error)}</p>
           <button
             onClick={() => void consulta.recargar()}
             className="mt-4 px-4 py-2 rounded-xl bg-white border border-rose-200 text-sm font-semibold text-rose-700"
           >
-            Reintentar
+            
+            {t("Reintentar")}
           </button>
         </div>
       </div>
@@ -232,15 +235,17 @@ export default function ConciliacionInicialPage() {
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-violet-600 mb-1">
-            Finanzas · revisión guiada
+            
+            {t("Finanzas · revisión guiada")}
           </p>
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 flex items-center gap-3">
             <Scale className="w-7 h-7 text-violet-600" />
-            Conciliación inicial
+            
+            {t("Conciliación inicial")}
           </h1>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Compara la contabilidad con cajas, bancos, clientes, proveedores e
-            inventario, una sección a la vez.
+            
+            {t("Compara la contabilidad con cajas, bancos, clientes, proveedores e inventario, una sección a la vez.")}
           </p>
         </div>
         {conciliacion && (
@@ -250,17 +255,17 @@ export default function ConciliacionInicialPage() {
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             <RefreshCw className="w-4 h-4" />
-            Tomar nueva fotografía
+            
+            {t("Tomar nueva fotografía")}
           </button>
         )}
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6 text-sm text-blue-900">
-        <p className="font-bold">Esta revisión no crea ni modifica pólizas.</p>
+        <p className="font-bold">{t("Esta revisión no crea ni modifica pólizas.")}</p>
         <p className="text-blue-700 mt-1">
-          Guarda una fotografía y tus decisiones. Si hay diferencias, primero
-          identifica la causa; el sistema no inventará un asiento para forzar el
-          balance.
+          
+          {t("Guarda una fotografía y tus decisiones. Si hay diferencias, primero identifica la causa; el sistema no inventará un asiento para forzar el balance.")}
         </p>
       </div>
 
@@ -274,40 +279,41 @@ export default function ConciliacionInicialPage() {
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-8 md:p-12 text-center">
           <ClipboardCheck className="w-12 h-12 text-violet-500 mx-auto mb-4" />
           <h2 className="text-xl font-black text-slate-900">
-            Revisemos que tus saldos coincidan
+            
+            {t("Revisemos que tus saldos coincidan")}
           </h2>
           <p className="text-sm text-slate-500 max-w-xl mx-auto mt-2">
-            Usaremos los saldos actuales del día de hoy. Podrás revisar el detalle
-            y explicar cualquier diferencia antes de confirmar.
+            
+            {t("Usaremos los saldos actuales del día de hoy. Podrás revisar el detalle y explicar cualquier diferencia antes de confirmar.")}
           </p>
           <button
             disabled={procesando !== null}
             onClick={() => void iniciar()}
             className="mt-6 px-5 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold disabled:opacity-50"
           >
-            {procesando === "iniciar" ? "Calculando…" : "Comenzar revisión"}
+            {procesando === "iniciar" ? t("Calculando…") : t("Comenzar revisión")}
           </button>
         </div>
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
             <Resumen
-              etiqueta="Coinciden"
+              etiqueta={t("Coinciden")}
               valor={conciliacion.snapshot.resumen.cuadradas}
               color="text-emerald-600"
             />
             <Resumen
-              etiqueta="Con diferencia"
+              etiqueta={t("Con diferencia")}
               valor={conciliacion.snapshot.resumen.conDiferencia}
               color="text-amber-600"
             />
             <Resumen
-              etiqueta="Sin evidencia"
+              etiqueta={t("Sin evidencia")}
               valor={conciliacion.snapshot.resumen.sinEvidencia}
               color="text-slate-500"
             />
             <Resumen
-              etiqueta="Por revisar"
+              etiqueta={t("Por revisar")}
               valor={pendientes}
               color="text-violet-600"
             />
@@ -317,10 +323,10 @@ export default function ConciliacionInicialPage() {
             <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-5 flex gap-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
               <div>
-                <p className="font-bold text-emerald-900">Revisión concluida</p>
+                <p className="font-bold text-emerald-900">{t("Revisión concluida")}</p>
                 <p className="text-sm text-emerald-700 mt-0.5">
-                  Todas las áreas fueron revisadas. La fotografía y las
-                  justificaciones quedaron guardadas como evidencia.
+                  
+                  {t("Todas las áreas fueron revisadas. La fotografía y las justificaciones quedaron guardadas como evidencia.")}
                 </p>
               </div>
             </div>
@@ -355,16 +361,16 @@ export default function ConciliacionInicialPage() {
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="font-bold text-slate-900 block">
-                        {area.titulo}
+                        {t(area.titulo)}
                       </span>
                       <span className="text-xs text-slate-500">
                         {etiquetaResolucion(resolucion?.estado)}
                       </span>
                     </span>
                     <span className="hidden md:grid grid-cols-3 gap-7 text-right">
-                      <Cifra etiqueta="Contabilidad" valor={area.saldoContable} />
-                      <Cifra etiqueta="Auxiliar" valor={area.saldoAuxiliar} />
-                      <Cifra etiqueta="Diferencia" valor={area.diferencia} />
+                      <Cifra etiqueta={t("Contabilidad")} valor={area.saldoContable} />
+                      <Cifra etiqueta={t("Auxiliar")} valor={area.saldoAuxiliar} />
+                      <Cifra etiqueta={t("Diferencia")} valor={area.diferencia} />
                     </span>
                     {expandida ? (
                       <ChevronUp className="w-4 h-4 text-slate-400" />
@@ -376,20 +382,19 @@ export default function ConciliacionInicialPage() {
                   {expandida && (
                     <div className="border-t border-slate-100 p-4 md:p-5">
                       <div className="md:hidden grid grid-cols-3 gap-2 mb-4">
-                        <Cifra etiqueta="Contabilidad" valor={area.saldoContable} />
-                        <Cifra etiqueta="Auxiliar" valor={area.saldoAuxiliar} />
-                        <Cifra etiqueta="Diferencia" valor={area.diferencia} />
+                        <Cifra etiqueta={t("Contabilidad")} valor={area.saldoContable} />
+                        <Cifra etiqueta={t("Auxiliar")} valor={area.saldoAuxiliar} />
+                        <Cifra etiqueta={t("Diferencia")} valor={area.diferencia} />
                       </div>
 
                       {!area.disponible && (
                         <Aviso>
-                          No hay movimientos o saldos auxiliares suficientes para
-                          comprobar esta sección automáticamente. Esto no significa
-                          que el saldo sea cero.
+                          
+                          {t("No hay movimientos o saldos auxiliares suficientes para comprobar esta sección automáticamente. Esto no significa que el saldo sea cero.")}
                         </Aviso>
                       )}
                       {area.advertencias.map((texto) => (
-                        <Aviso key={texto}>{texto}</Aviso>
+                        <Aviso key={texto}>{t(texto)}</Aviso>
                       ))}
 
                       {area.detalle.length > 0 && (
@@ -397,9 +402,9 @@ export default function ConciliacionInicialPage() {
                           <table className="w-full text-sm">
                             <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                               <tr>
-                                <th className="text-left px-4 py-2.5">Detalle auxiliar</th>
-                                <th className="text-right px-4 py-2.5">Documentos</th>
-                                <th className="text-right px-4 py-2.5">Saldo</th>
+                                <th className="text-left px-4 py-2.5">{t("Detalle auxiliar")}</th>
+                                <th className="text-right px-4 py-2.5">{t("Documentos")}</th>
+                                <th className="text-right px-4 py-2.5">{t("Saldo")}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -407,7 +412,7 @@ export default function ConciliacionInicialPage() {
                                 <tr key={item.id}>
                                   <td className="px-4 py-3">
                                     <p className="font-medium text-slate-800">
-                                      {item.nombre}
+                                      {t(item.nombre)}
                                     </p>
                                     <p className="text-xs text-slate-400">
                                       {item.referencia || item.numeroCuenta || ""}
@@ -429,7 +434,8 @@ export default function ConciliacionInicialPage() {
                       {resolucion?.justificacion && (
                         <div className="bg-slate-50 rounded-xl p-3 mb-4 text-sm">
                           <p className="text-xs font-bold uppercase text-slate-500 mb-1">
-                            Explicación guardada
+                            
+                            {t("Explicación guardada")}
                           </p>
                           <p className="text-slate-700">{resolucion.justificacion}</p>
                         </div>
@@ -443,12 +449,14 @@ export default function ConciliacionInicialPage() {
                               onClick={() => void resolver(area, "CONFIRMADA")}
                               className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold disabled:opacity-50"
                             >
-                              Confirmar que coincide
+                              
+                              {t("Confirmar que coincide")}
                             </button>
                           ) : (
                             <>
                               <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                                ¿Qué explica la diferencia o qué debe corregirse?
+                                
+                                {t("¿Qué explica la diferencia o qué debe corregirse?")}
                               </label>
                               <textarea
                                 rows={3}
@@ -460,7 +468,7 @@ export default function ConciliacionInicialPage() {
                                     [area.clave]: e.target.value,
                                   }))
                                 }
-                                placeholder="Ejemplo: falta vincular la cuenta bancaria con su cuenta contable…"
+                                placeholder={t("Ejemplo: falta vincular la cuenta bancaria con su cuenta contable…")}
                                 className="w-full mt-1.5 mb-3 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                               />
                               <div className="flex flex-wrap gap-2">
@@ -469,7 +477,8 @@ export default function ConciliacionInicialPage() {
                                   onClick={() => void resolver(area, "JUSTIFICADA")}
                                   className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-bold disabled:opacity-50"
                                 >
-                                  Guardar justificación
+                                  
+                                  {t("Guardar justificación")}
                                 </button>
                                 <button
                                   disabled={procesando !== null}
@@ -478,7 +487,8 @@ export default function ConciliacionInicialPage() {
                                   }
                                   className="px-4 py-2.5 rounded-xl bg-white border border-rose-200 text-rose-700 text-sm font-bold disabled:opacity-50"
                                 >
-                                  Marcar para corregir
+                                  
+                                  {t("Marcar para corregir")}
                                 </button>
                               </div>
                             </>
@@ -495,13 +505,13 @@ export default function ConciliacionInicialPage() {
           {conciliacion.estado !== "CONCILIADA" && (
             <div className="mt-6 bg-slate-900 text-white rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <p className="font-bold">Finalizar revisión</p>
+                <p className="font-bold">{t("Finalizar revisión")}</p>
                 <p className="text-sm text-slate-300 mt-0.5">
                   {pendientes > 0
-                    ? `Aún ${pendientes === 1 ? "falta" : "faltan"} ${plural(pendientes, "sección", "secciones")}.`
+                    ? `Aún ${pendientes === 1 ? "falta" : "faltan"} ${plural(pendientes, t("sección"), "secciones")}.`
                     : requiereAjuste
-                      ? "Hay correcciones pendientes. Corrígelas y toma una nueva fotografía."
-                      : "Todo está revisado; ya puedes guardar la conciliación."}
+                      ? t("Hay correcciones pendientes. Corrígelas y toma una nueva fotografía.")
+                      : t("Todo está revisado; ya puedes guardar la conciliación.")}
                 </p>
               </div>
               <button
@@ -510,8 +520,8 @@ export default function ConciliacionInicialPage() {
                 className="px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-sm font-black disabled:bg-slate-700 disabled:text-slate-400"
               >
                 {procesando === "confirmar"
-                  ? "Guardando…"
-                  : "Confirmar conciliación"}
+                  ? t("Guardando…")
+                  : t("Confirmar conciliación")}
               </button>
             </div>
           )}
@@ -530,10 +540,11 @@ function Resumen({
   valor: number;
   color: string;
 }) {
+  const t = useT();
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-        {etiqueta}
+        {t(etiqueta)}
       </p>
       <p className={`text-2xl font-black mt-1 ${color}`}>{valor}</p>
     </div>
@@ -541,11 +552,12 @@ function Resumen({
 }
 
 function Cifra({ etiqueta, valor }: { etiqueta: string; valor: number }) {
+  const t = useT();
   const alerta = etiqueta === "Diferencia" && Math.abs(valor) >= 0.01;
   return (
     <span>
       <span className="block text-[10px] uppercase tracking-wide text-slate-400">
-        {etiqueta}
+        {t(etiqueta)}
       </span>
       <span
         className={`block text-sm font-bold tabular-nums ${

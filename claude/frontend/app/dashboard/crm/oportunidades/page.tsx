@@ -21,6 +21,7 @@ import {
   Indicador, Panel, Seleccion, SinDatos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Etapa { id: string; nombre: string; color: string; tipo: string; probabilidad: number }
 
 interface Oportunidad {
@@ -55,6 +56,7 @@ interface Metricas {
 type Orden = 'importe' | 'reciente' | 'estancada' | 'cierre';
 
 export default function OportunidadesPage() {
+  const t = useT();
   const hoy = new Date();
   const inicioAnio = isoCorto(new Date(hoy.getFullYear(), 0, 1));
 
@@ -97,13 +99,13 @@ export default function OportunidadesPage() {
   return (
     <div className="p-6 max-w-[1500px] mx-auto">
       <EncabezadoPantalla
-        titulo="Oportunidades"
-        descripcion="Análisis del embudo: conversión, ciclo de venta y motivos de pérdida"
+        titulo={t("Oportunidades")}
+        descripcion={t("Análisis del embudo: conversión, ciclo de venta y motivos de pérdida")}
       />
 
       {/* Métricas del periodo */}
       <div className="flex items-center gap-2 mb-3">
-        <span className="eyebrow">Resultados del periodo</span>
+        <span className="eyebrow">{t("Resultados del periodo")}</span>
         <Entrada type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="w-36 h-7 text-[12px]" />
         <span className="text-slate-300 text-[12px]">a</span>
         <Entrada type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="w-36 h-7 text-[12px]" />
@@ -111,26 +113,26 @@ export default function OportunidadesPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador
-          etiqueta="Tasa de conversión" color="#059669" cargando={metricas.cargando}
+          etiqueta={t("Tasa de conversión")} color="#059669" cargando={metricas.cargando}
           icono={<Trophy className="w-4 h-4" />}
           valor={porcentaje(metricas.datos?.tasaConversion ?? 0)}
           detalle={`${metricas.datos?.ganadas ?? 0} ganadas · ${metricas.datos?.perdidas ?? 0} perdidas`}
         />
         <Indicador
-          etiqueta="Importe ganado" color="#0f172a" cargando={metricas.cargando}
+          etiqueta={t("Importe ganado")} color="#0f172a" cargando={metricas.cargando}
           valor={dinero(metricas.datos?.importeGanado)}
           detalle={`ticket promedio ${dinero(metricas.datos?.ticketPromedio)}`}
         />
         <Indicador
-          etiqueta="Importe perdido" color="#e11d48" cargando={metricas.cargando}
+          etiqueta={t("Importe perdido")} color="#e11d48" cargando={metricas.cargando}
           icono={<TrendingDown className="w-4 h-4" />}
           valor={dinero(metricas.datos?.importePerdido)}
         />
         <Indicador
-          etiqueta="Ciclo de venta" color="#ea580c" cargando={metricas.cargando}
+          etiqueta={t("Ciclo de venta")} color="#ea580c" cargando={metricas.cargando}
           icono={<Clock className="w-4 h-4" />}
-          valor={plural(metricas.datos?.cicloPromedioDias ?? 0, "día")}
-          detalle="de creación a cierre ganado"
+          valor={plural(metricas.datos?.cicloPromedioDias ?? 0, t("día"))}
+          detalle={t("de creación a cierre ganado")}
         />
       </div>
 
@@ -143,21 +145,21 @@ export default function OportunidadesPage() {
               <Entrada
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Título, folio o prospecto"
+                placeholder={t("Título, folio o prospecto")}
                 className="pl-8"
               />
             </div>
             <Seleccion value={etapaId} onChange={(e) => setEtapaId(e.target.value)} className="w-44">
-              <option value="">Todas las etapas</option>
+              <option value="">{t("Todas las etapas")}</option>
               {(etapas.datos ?? []).map((e) => (
-                <option key={e.id} value={e.id}>{e.nombre}</option>
+                <option key={e.id} value={e.id}>{t(e.nombre)}</option>
               ))}
             </Seleccion>
             <Seleccion value={orden} onChange={(e) => setOrden(e.target.value as Orden)} className="w-48">
-              <option value="importe">Mayor importe primero</option>
-              <option value="estancada">Más tiempo sin moverse</option>
-              <option value="cierre">Cierre más próximo</option>
-              <option value="reciente">Actividad reciente</option>
+              <option value="importe">{t("Mayor importe primero")}</option>
+              <option value="estancada">{t("Más tiempo sin moverse")}</option>
+              <option value="cierre">{t("Cierre más próximo")}</option>
+              <option value="reciente">{t("Actividad reciente")}</option>
             </Seleccion>
           </div>
           <p className="text-[12px] text-slate-500 cifra">
@@ -169,14 +171,14 @@ export default function OportunidadesPage() {
         {oportunidades.cargando ? (
           <Cargando />
         ) : oportunidades.error ? (
-          <ErrorPantalla mensaje={oportunidades.error} onReintentar={oportunidades.recargar} />
+          <ErrorPantalla mensaje={t(oportunidades.error)} onReintentar={oportunidades.recargar} />
         ) : ordenadas.length === 0 ? (
           <SinDatos
-            titulo={busqueda || etapaId ? 'Nada coincide con el filtro' : 'Todavía no hay oportunidades'}
+            titulo={busqueda || etapaId ? t("Nada coincide con el filtro") : t("Todavía no hay oportunidades")}
             descripcion={
               busqueda || etapaId
-                ? 'Prueba con otro término o quita el filtro de etapa.'
-                : 'Créalas desde el Pipeline para empezar a medir tu embudo.'
+                ? t("Prueba con otro término o quita el filtro de etapa.")
+                : t("Créalas desde el Pipeline para empezar a medir tu embudo.")
             }
             icono={<Briefcase className="w-5 h-5" />}
           />
@@ -185,15 +187,15 @@ export default function OportunidadesPage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Folio</th>
-                  <th>Oportunidad</th>
-                  <th>Prospecto</th>
-                  <th>Etapa</th>
-                  <th className="text-right">Importe</th>
-                  <th className="text-right">Prob.</th>
-                  <th className="text-right">Ponderado</th>
-                  <th className="text-right">Días</th>
-                  <th>Cierre</th>
+                  <th>{t("Folio")}</th>
+                  <th>{t("Oportunidad")}</th>
+                  <th>{t("Prospecto")}</th>
+                  <th>{t("Etapa")}</th>
+                  <th className="text-right">{t("Importe")}</th>
+                  <th className="text-right">{t("Prob.")}</th>
+                  <th className="text-right">{t("Ponderado")}</th>
+                  <th className="text-right">{t("Días")}</th>
+                  <th>{t("Cierre")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -205,9 +207,9 @@ export default function OportunidadesPage() {
                     <tr key={o.id} className={cerrada ? 'opacity-70' : ''}>
                       <td className="cifra font-semibold text-slate-900">{o.folio}</td>
                       <td>
-                        <p className="text-slate-900">{o.titulo}</p>
+                        <p className="text-slate-900">{t(o.titulo)}</p>
                         {o.motivoPerdida && (
-                          <p className="text-[11px] text-rose-500">Perdida: {o.motivoPerdida}</p>
+                          <p className="text-[11px] text-rose-500">{t("Perdida: {n0}", { n0: o.motivoPerdida })}</p>
                         )}
                       </td>
                       <td className="text-slate-500">
@@ -236,7 +238,7 @@ export default function OportunidadesPage() {
                         {cerrada ? (
                           <span className="text-slate-300">—</span>
                         ) : o.estancada ? (
-                          <span className="text-rose-600 font-semibold" title="Lleva más días de los esperados en esta etapa">
+                          <span className="text-rose-600 font-semibold" title={t("Lleva más días de los esperados en esta etapa")}>
                             {o.diasEnEtapa}
                           </span>
                         ) : (
@@ -246,11 +248,11 @@ export default function OportunidadesPage() {
                       <td>
                         {cerrada ? (
                           <Distintivo tono={ganada ? 'exito' : 'peligro'}>
-                            {ganada ? 'Ganada' : 'Perdida'} {fecha(o.fechaCierreReal)}
+                            {ganada ? t("Ganada") : t("Perdida")} {fecha(o.fechaCierreReal)}
                           </Distintivo>
                         ) : (
                           <span className="cifra text-[12px] text-slate-500">
-                            {o.fechaCierreEstimada ? fecha(o.fechaCierreEstimada) : 'sin fecha'}
+                            {o.fechaCierreEstimada ? fecha(o.fechaCierreEstimada) : t("sin fecha")}
                           </span>
                         )}
                       </td>
@@ -265,22 +267,23 @@ export default function OportunidadesPage() {
 
       {/* Diagnóstico del embudo */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <Panel sinRelleno titulo="Por qué se pierden los negocios">
+        <Panel sinRelleno titulo={t("Por qué se pierden los negocios")}>
           {metricas.cargando ? (
             <Cargando filas={3} />
           ) : (metricas.datos?.motivosPerdida?.length ?? 0) === 0 ? (
             <p className="px-4 py-8 text-center text-[12.5px] text-slate-400">
-              Sin pérdidas registradas en el periodo.
+              
+              {t("Sin pérdidas registradas en el periodo.")}
             </p>
           ) : (
             <table className="tabla">
               <thead>
-                <tr><th>Motivo</th><th className="text-right">Casos</th></tr>
+                <tr><th>{t("Motivo")}</th><th className="text-right">{t("Casos")}</th></tr>
               </thead>
               <tbody>
                 {metricas.datos!.motivosPerdida.map((m) => (
                   <tr key={m.motivo}>
-                    <td className="text-slate-800">{m.motivo}</td>
+                    <td className="text-slate-800">{t(m.motivo)}</td>
                     <td className="text-right cifra font-semibold text-slate-900">{m.cantidad}</td>
                   </tr>
                 ))}
@@ -289,17 +292,18 @@ export default function OportunidadesPage() {
           )}
         </Panel>
 
-        <Panel sinRelleno titulo="Dónde se atoran">
+        <Panel sinRelleno titulo={t("Dónde se atoran")}>
           {metricas.cargando ? (
             <Cargando filas={3} />
           ) : (metricas.datos?.diasPromedioPorEtapa?.length ?? 0) === 0 ? (
             <p className="px-4 py-8 text-center text-[12.5px] text-slate-400">
-              Aún no hay suficiente historial para medir tiempos por etapa.
+              
+              {t("Aún no hay suficiente historial para medir tiempos por etapa.")}
             </p>
           ) : (
             <table className="tabla">
               <thead>
-                <tr><th>Etapa</th><th className="text-right">Días en promedio</th></tr>
+                <tr><th>{t("Etapa")}</th><th className="text-right">{t("Días en promedio")}</th></tr>
               </thead>
               <tbody>
                 {metricas.datos!.diasPromedioPorEtapa.map((d) => (

@@ -7,6 +7,7 @@ import { puedeEntrar } from '@/lib/session';
 import { usePermiso } from '@/hooks/use-permisos';
 import type { ModuleAction, ModuleConfig, ModuleItem } from '@/app/dashboard/module-config';
 
+import { useT } from '@/components/I18nProvider';
 interface Props {
   modulo: ModuleConfig;
   items: ModuleItem[];
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function BarraContextualModulo({ modulo, items, activo, permisos }: Props) {
+  const t = useT();
   /*
    * Las acciones también se filtran por permisos.
    *
@@ -67,24 +69,25 @@ export function BarraContextualModulo({ modulo, items, activo, permisos }: Props
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Link href={modulo.href} className="text-[13.5px] font-bold text-slate-900 hover:underline truncate">
-                  {modulo.nombre}
+                  {t(modulo.nombre)}
                 </Link>
                 <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ color: modulo.color, background: modulo.bg }}>
-                  Centro de trabajo
+                  
+                  {t("Centro de trabajo")}
                 </span>
               </div>
-              <p className="text-[11.5px] text-slate-500 truncate">{modulo.desc}</p>
+              <p className="text-[11.5px] text-slate-500 truncate">{t(modulo.desc)}</p>
             </div>
           </div>
 
           <div className="xl:ml-auto flex items-center gap-1.5 overflow-x-auto pb-1 xl:pb-0">
             <span className="hidden lg:flex items-center gap-1 text-[10.5px] font-semibold text-slate-400 mr-1 shrink-0">
-              <Sparkles className="w-3 h-3" /> Acciones
+              <Sparkles className="w-3 h-3" />  {t("Acciones")}
             </span>
             {acciones.map((a, index) => {
               const destacada = a.principal || index === 0;
               const clases = `h-8 px-3 rounded-lg text-[11.5px] font-semibold whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
-                destacada ? 'text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                destacada ? 'text-white' : "bg-slate-100 text-slate-700 hover:bg-slate-200"
               }`;
               const estilo = destacada ? { background: modulo.color } : undefined;
 
@@ -99,9 +102,9 @@ export function BarraContextualModulo({ modulo, items, activo, permisos }: Props
                     onClick={abrirPuntoDeVenta}
                     className={clases}
                     style={estilo}
-                    title="Se abre en su propia ventana"
+                    title={t("Se abre en su propia ventana")}
                   >
-                    {a.label}
+                    {t(a.label)}
                     <ExternalLink className="w-3 h-3" />
                   </button>
                 );
@@ -109,7 +112,7 @@ export function BarraContextualModulo({ modulo, items, activo, permisos }: Props
 
               return (
                 <Link key={`${a.href}-${a.label}`} href={a.href} className={clases} style={estilo}>
-                  {a.label}
+                  {t(a.label)}
                   {destacada && <ArrowRight className="w-3 h-3" />}
                 </Link>
               );
@@ -135,7 +138,7 @@ export function BarraContextualModulo({ modulo, items, activo, permisos }: Props
                   }`}
                   style={esActivo ? { color: modulo.color, background: modulo.bg, borderColor: modulo.border } : undefined}
                 >
-                  {it.label}
+                  {t(it.label)}
                 </Link>
               );
             })}

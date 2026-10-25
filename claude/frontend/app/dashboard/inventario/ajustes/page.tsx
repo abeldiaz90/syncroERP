@@ -12,7 +12,9 @@ import { ProtectedElement } from "@/app/components/ProtectedElement"; // ← NUE
 import { useAvisos } from '@/components/ui';
 import { confirmarElegante } from '@/components/ui/dialogos';
 
+import { useT } from '@/components/I18nProvider';
 export default function AjustesStockPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [productos, setProductos] = useState<any[]>([]);
   const [almacenes, setAlmacenes] = useState<any[]>([]);
@@ -48,13 +50,13 @@ export default function AjustesStockPage() {
       if (resAlm.ok) { const d = await resAlm.json(); setAlmacenes(d.almacenes || d); }
       else { setAlmacenes([]); }
       const caidas = [
-        !resProd.ok ? 'el catálogo de productos' : '',
-        !resAlm.ok ? 'la lista de almacenes' : '',
+        !resProd.ok ? t("el catálogo de productos") : '',
+        !resAlm.ok ? t("la lista de almacenes") : '',
       ].filter(Boolean);
       setErrorCarga(caidas.length
         ? `No se pudo consultar ${caidas.join(' ni ')}. No podrás capturar un ajuste.`
         : '');
-    }).catch(() => setErrorCarga('No hay conexión con el servidor.'));
+    }).catch(() => setErrorCarga(t("No hay conexión con el servidor.")));
   }, [apiUrl]);
 
   useEffect(() => {
@@ -76,10 +78,10 @@ export default function AjustesStockPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cantidadNum = Number(formData.cantidad);
-    if (!cantidadNum || cantidadNum <= 0) return avisar('La cantidad debe ser mayor a cero.', 'alerta');
+    if (!cantidadNum || cantidadNum <= 0) return avisar(t("La cantidad debe ser mayor a cero."), 'alerta');
     if (formData.tipoAjuste === 'MERMA' && stockActual !== null && cantidadNum > stockActual)
       return avisar(`No puedes descontar ${cantidadNum} unidades. Solo hay ${stockActual}.`, 'error');
-    if (!formData.categoriaMotivo) return avisar('Selecciona la categoría del ajuste.', 'alerta');
+    if (!formData.categoriaMotivo) return avisar(t("Selecciona la categoría del ajuste."), 'alerta');
 
     if (!await confirmarElegante(`Registrarás una ${formData.tipoAjuste} por ${cantidadNum} unidades. El inventario final será de ${calcularProyeccion()}.`, { titulo: 'Confirmar ajuste', peligroso: formData.tipoAjuste === 'MERMA' })) return;
 
@@ -96,14 +98,14 @@ export default function AjustesStockPage() {
         }),
       });
       if (res.ok) {
-        avisar('Ajuste contabilizado; inventario y kardex actualizados.', 'exito');
+        avisar(t("Ajuste contabilizado; inventario y kardex actualizados."), 'exito');
         setStockActual(calcularProyeccion());
         setFormData(prev => ({ ...prev, cantidad: '', observaciones: '', categoriaMotivo: '' }));
       } else {
         const error = await res.json().catch(() => null);
-        throw new Error(error?.message || 'Error al procesar el ajuste');
+        throw new Error(error?.message || t("Error al procesar el ajuste"));
       }
-    } catch (err: any) { avisar(err.message || 'No se pudo aplicar el ajuste.', 'error'); }
+    } catch (err: any) { avisar(err.message || t("No se pudo aplicar el ajuste."), 'error'); }
     finally { setGuardando(false); }
   };
 
@@ -131,8 +133,8 @@ export default function AjustesStockPage() {
           <Scale className="w-7 h-7" />
         </div>
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Ajustes de Inventario</h1>
-          <p className="text-slate-500 mt-1 font-medium">Corrección de discrepancias físicas con impacto en Kardex contable.</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t("Ajustes de Inventario")}</h1>
+          <p className="text-slate-500 mt-1 font-medium">{t("Corrección de discrepancias físicas con impacto en Kardex contable.")}</p>
         </div>
       </div>
 
@@ -154,22 +156,22 @@ export default function AjustesStockPage() {
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Warehouse className="w-3.5 h-3.5" /> Almacén <span className="text-rose-500" aria-hidden="true">*</span></label>
                   <select required value={formData.almacenId} onChange={(e) => setFormData({ ...formData, almacenId: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none font-semibold text-slate-800 transition-all">
-                    <option value="">Seleccione almacén...</option>
-                    {almacenes.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+                    <option value="">{t("Seleccione almacén...")}</option>
+                    {almacenes.map(a => <option key={a.id} value={a.id}>{t(a.nombre)}</option>)}
                   </select>
                 </div>
 
                 {/* Buscador producto */}
                 <div className="relative">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Package className="w-3.5 h-3.5" /> Producto</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Package className="w-3.5 h-3.5" />  {t("Producto")}</label>
                   <div onClick={() => setBuscadorAbierto(true)} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl flex items-center justify-between cursor-text transition-all ${buscadorAbierto ? 'border-amber-500 ring-2 ring-amber-500/20 bg-white' : 'border-slate-200 hover:border-amber-300'}`}>
                     <div className="flex items-center gap-2 flex-1 overflow-hidden">
                       <Search className={`w-4 h-4 flex-shrink-0 ${buscadorAbierto ? 'text-amber-500' : 'text-slate-400'}`} />
                       {buscadorAbierto ? (
-                        <input autoFocus type="text" className="bg-transparent outline-none w-full font-semibold text-slate-800 placeholder-slate-400 text-sm" placeholder="SKU o nombre..." value={textoBusqueda} onChange={(e) => setTextoBusqueda(e.target.value)} />
+                        <input autoFocus type="text" className="bg-transparent outline-none w-full font-semibold text-slate-800 placeholder-slate-400 text-sm" placeholder={t("SKU o nombre...")} value={textoBusqueda} onChange={(e) => setTextoBusqueda(e.target.value)} />
                       ) : (
                         <span className={`text-sm font-semibold truncate ${productoSeleccionado ? 'text-slate-800' : 'text-slate-400'}`}>
-                          {productoSeleccionado ? `${productoSeleccionado.sku} — ${productoSeleccionado.nombre}` : 'Buscar producto...'}
+                          {productoSeleccionado ? `${productoSeleccionado.sku} — ${productoSeleccionado.nombre}` : t("Buscar producto...")}
                         </span>
                       )}
                     </div>
@@ -178,10 +180,10 @@ export default function AjustesStockPage() {
                   {buscadorAbierto && (
                     <div className="absolute top-[75px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
                       {productosFiltrados.length === 0 ? (
-                        <div className="p-4 text-center text-slate-500 text-sm font-medium">Sin resultados.</div>
+                        <div className="p-4 text-center text-slate-500 text-sm font-medium">{t("Sin resultados.")}</div>
                       ) : productosFiltrados.map(p => (
                         <div key={p.id} onClick={() => { setFormData({ ...formData, productoId: p.id }); setTextoBusqueda(''); setBuscadorAbierto(false); }} className="px-4 py-3 hover:bg-amber-50 cursor-pointer border-b border-slate-50 last:border-0 transition-colors">
-                          <p className="font-bold text-slate-800 text-sm">{p.nombre}</p>
+                          <p className="font-bold text-slate-800 text-sm">{t(p.nombre)}</p>
                           <p className="text-xs font-mono text-slate-400">{p.sku}</p>
                         </div>
                       ))}
@@ -202,12 +204,12 @@ export default function AjustesStockPage() {
                 <div className="flex flex-col gap-3">
                   <button type="button" onClick={() => setFormData({ ...formData, tipoAjuste: 'MERMA' })}
                     className={`p-4 rounded-2xl font-bold flex items-center justify-between border-2 transition-all ${esMerma ? 'border-rose-500 bg-rose-50 text-rose-700 shadow-sm shadow-rose-100' : 'border-slate-200 bg-white text-slate-500 hover:border-rose-200 hover:bg-rose-50/30'}`}>
-                    <span className="flex items-center gap-2"><TrendingDown className="w-5 h-5" /> Salida / Merma</span>
+                    <span className="flex items-center gap-2"><TrendingDown className="w-5 h-5" />  {t("Salida / Merma")}</span>
                     {esMerma && <CheckCircle2 className="w-5 h-5" />}
                   </button>
                   <button type="button" onClick={() => setFormData({ ...formData, tipoAjuste: 'INGRESO' })}
                     className={`p-4 rounded-2xl font-bold flex items-center justify-between border-2 transition-all ${!esMerma ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-100' : 'border-slate-200 bg-white text-slate-500 hover:border-emerald-200 hover:bg-emerald-50/30'}`}>
-                    <span className="flex items-center gap-2"><TrendingUp className="w-5 h-5" /> Ingreso / Sobrante</span>
+                    <span className="flex items-center gap-2"><TrendingUp className="w-5 h-5" />  {t("Ingreso / Sobrante")}</span>
                     {!esMerma && <CheckCircle2 className="w-5 h-5" />}
                   </button>
                 </div>
@@ -227,7 +229,7 @@ export default function AjustesStockPage() {
                   />
                   {stockActual !== null && formData.cantidad && (
                     <p className={`text-xs font-bold mt-2 ${proyeccion !== null && proyeccion < 0 ? 'text-rose-600' : 'text-slate-500'}`}>
-                      {proyeccion !== null && proyeccion < 0 ? '⚠ Stock insuficiente' : `Proyección: ${proyeccion} unidades`}
+                      {proyeccion !== null && proyeccion < 0 ? t("⚠ Stock insuficiente") : `Proyección: ${proyeccion} unidades`}
                     </p>
                   )}
                 </div>
@@ -242,28 +244,28 @@ export default function AjustesStockPage() {
               </p>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Categoría del Ajuste *</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{t("Categoría del Ajuste *")}</label>
                   <select required value={formData.categoriaMotivo} onChange={(e) => setFormData({ ...formData, categoriaMotivo: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none font-semibold text-slate-700">
-                    <option value="">Selecciona la categoría...</option>
+                    <option value="">{t("Selecciona la categoría...")}</option>
                     {esMerma ? (
                       <>
-                        <option value="Merma por caducidad">Merma por caducidad</option>
-                        <option value="Robo / Extravío">Robo / Extravío</option>
-                        <option value="Daño en almacén">Daño en almacén</option>
-                        <option value="Error de conteo anterior (Ajuste Negativo)">Error de conteo (Negativo)</option>
+                        <option value="Merma por caducidad">{t("Merma por caducidad")}</option>
+                        <option value="Robo / Extravío">{t("Robo / Extravío")}</option>
+                        <option value="Daño en almacén">{t("Daño en almacén")}</option>
+                        <option value="Error de conteo anterior (Ajuste Negativo)">{t("Error de conteo (Negativo)")}</option>
                       </>
                     ) : (
                       <>
-                        <option value="Devolución no registrada">Devolución no registrada</option>
-                        <option value="Mercancía encontrada">Mercancía encontrada</option>
-                        <option value="Error de conteo anterior (Ajuste Positivo)">Error de conteo (Positivo)</option>
+                        <option value="Devolución no registrada">{t("Devolución no registrada")}</option>
+                        <option value="Mercancía encontrada">{t("Mercancía encontrada")}</option>
+                        <option value="Error de conteo anterior (Ajuste Positivo)">{t("Error de conteo (Positivo)")}</option>
                       </>
                     )}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Observaciones *</label>
-                  <textarea required placeholder="Detalla las observaciones del ajuste..." value={formData.observaciones} onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none font-medium text-slate-700 resize-none" rows={3} />
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{t("Observaciones *")}</label>
+                  <textarea required placeholder={t("Detalla las observaciones del ajuste...")} value={formData.observaciones} onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none font-medium text-slate-700 resize-none" rows={3} />
                 </div>
               </div>
             </div>
@@ -300,27 +302,27 @@ export default function AjustesStockPage() {
           <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
             <div className="absolute -right-8 -top-8 text-white/5"><AlertTriangle className="w-40 h-40" /></div>
             <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10">
-              <Info className="w-4 h-4" /> Impacto en Kardex
+              <Info className="w-4 h-4" />  {t("Impacto en Kardex")}
             </h3>
 
             <div className="space-y-5 relative z-10">
               {formData.productoId && formData.almacenId ? (
                 <>
                   <div>
-                    <p className="text-xs text-slate-400 font-medium mb-1">Producto seleccionado</p>
-                    <p className="font-bold text-base leading-tight truncate">{productoSeleccionado?.nombre}</p>
+                    <p className="text-xs text-slate-400 font-medium mb-1">{t("Producto seleccionado")}</p>
+                    <p className="font-bold text-base leading-tight truncate">{t(productoSeleccionado?.nombre)}</p>
                     <p className="text-xs font-mono text-slate-500 mt-0.5">{productoSeleccionado?.sku}</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-4 bg-slate-800 rounded-2xl border border-white/10">
-                      <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider mb-2">Stock Actual</p>
+                      <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider mb-2">{t("Stock Actual")}</p>
                       <p className="text-3xl font-black text-white">
                         {buscandoStock ? <Loader2 className="animate-spin w-6 h-6 text-amber-400" /> : (stockActual ?? 0)}
                       </p>
                     </div>
                     <div className="p-4 bg-slate-800 rounded-2xl border border-white/10">
-                      <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider mb-2">Ajuste</p>
+                      <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider mb-2">{t("Ajuste")}</p>
                       <p className={`text-3xl font-black ${esMerma ? 'text-rose-400' : 'text-emerald-400'}`}>
                         {esMerma ? '-' : '+'}{formData.cantidad || 0}
                       </p>
@@ -328,7 +330,7 @@ export default function AjustesStockPage() {
                   </div>
 
                   <div className={`p-6 rounded-2xl border transition-all ${proyeccion !== null && proyeccion < 0 ? 'bg-rose-500/20 border-rose-500/40' : 'bg-indigo-500/15 border-indigo-500/30'}`}>
-                    <p className="text-[10px] text-white/60 uppercase font-black tracking-widest mb-2">Inventario Proyectado</p>
+                    <p className="text-[10px] text-white/60 uppercase font-black tracking-widest mb-2">{t("Inventario Proyectado")}</p>
                     <div className="flex items-end gap-2">
                       <p className={`text-6xl font-black tracking-tighter ${proyeccion !== null && proyeccion < 0 ? 'text-rose-400' : 'text-white'}`}>
                         {proyeccion !== null ? proyeccion : '—'}
@@ -337,7 +339,7 @@ export default function AjustesStockPage() {
                     </div>
                     {proyeccion !== null && proyeccion < 0 && (
                       <p className="text-xs text-rose-400 font-bold mt-2 flex items-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5" /> Inventario insuficiente para esta merma.
+                        <AlertTriangle className="w-3.5 h-3.5" />  {t("Inventario insuficiente para esta merma.")}
                       </p>
                     )}
                   </div>
@@ -345,7 +347,7 @@ export default function AjustesStockPage() {
               ) : (
                 <div className="text-center py-10 opacity-40">
                   <Scale className="w-12 h-12 mx-auto mb-3" />
-                  <p className="text-sm font-medium">Selecciona almacén y producto para ver la proyección.</p>
+                  <p className="text-sm font-medium">{t("Selecciona almacén y producto para ver la proyección.")}</p>
                 </div>
               )}
             </div>
@@ -354,13 +356,13 @@ export default function AjustesStockPage() {
           {/* Info box */}
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
             <h4 className="font-black text-amber-900 text-sm flex items-center gap-2 mb-2">
-              <Info className="w-4 h-4" /> ¿Cuándo usar un ajuste?
+              <Info className="w-4 h-4" />  {t("¿Cuándo usar un ajuste?")}
             </h4>
             <ul className="text-xs text-amber-800 font-medium space-y-1.5">
-              <li>• Diferencias detectadas en conteo físico</li>
-              <li>• Productos dañados o vencidos</li>
-              <li>• Mercancía recuperada no registrada</li>
-              <li>• Corrección de errores históricos</li>
+              <li>{t("• Diferencias detectadas en conteo físico")}</li>
+              <li>{t("• Productos dañados o vencidos")}</li>
+              <li>{t("• Mercancía recuperada no registrada")}</li>
+              <li>{t("• Corrección de errores históricos")}</li>
             </ul>
           </div>
         </div>

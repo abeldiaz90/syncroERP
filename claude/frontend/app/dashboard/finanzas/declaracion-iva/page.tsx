@@ -8,6 +8,7 @@ import {
   ChevronDown, ChevronUp, FileText
 } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 interface IMovimiento {
   numeroCuenta: string; nombre: string;
   cargo: number; abono: number;
@@ -47,6 +48,7 @@ function ultimoDia(y: number, m: number) {
 }
 
 export default function DeclaracionIVAPage() {
+  const t = useT();
   const [datos, setDatos]         = useState<IDeclaracion | null>(null);
   const [cargando, setCargando]   = useState(false);
   const HOY = useMemo(() => new Date(), []);
@@ -81,12 +83,12 @@ export default function DeclaracionIVAPage() {
       } else {
         setDatos(null);
         setError(res.status === 403
-          ? 'Tu perfil no incluye el cálculo de IVA.'
-          : 'No se pudo calcular el IVA del periodo. Las cifras de esta pantalla no son válidas.');
+          ? t("Tu perfil no incluye el cálculo de IVA.")
+          : t("No se pudo calcular el IVA del periodo. Las cifras de esta pantalla no son válidas."));
       }
     } catch {
       setDatos(null);
-      setError('No hay conexión con el servidor. Las cifras de esta pantalla no son válidas.');
+      setError(t("No hay conexión con el servidor. Las cifras de esta pantalla no son válidas."));
     }
     setCargando(false);
   }, [mes, anio, modoRango, desde, hasta]);
@@ -104,20 +106,20 @@ export default function DeclaracionIVAPage() {
 
       {error && (
         <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 print:hidden">
-          {error}
+          {t(error)}
         </div>
       )}
 
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Finanzas</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Finanzas")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <Receipt className="w-8 h-8 text-indigo-500"/> Declaración de IVA
+            <Receipt className="w-8 h-8 text-indigo-500"/>  {t("Declaración de IVA")}
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            IVA trasladado contra IVA acreditable del periodo, con su saldo a
-            cargo o a favor.
+            
+            {t("IVA trasladado contra IVA acreditable del periodo, con su saldo a cargo o a favor.")}
           </p>
           {/*
             * Decía «Cálculo mensual del IVA para presentar ante el SAT», que
@@ -131,17 +133,16 @@ export default function DeclaracionIVAPage() {
             * 0 % y exentos.
             */}
           <p className="text-slate-400 text-xs mt-1">
-            No incluye el valor de los actos por tasa —gravados al 16 %, al 0 %
-            y exentos—: esa separación no vive en la contabilidad, sino en los
-            comprobantes.
+            
+            {t("No incluye el valor de los actos por tasa —gravados al 16 %, al 0 % y exentos—: esa separación no vive en la contabilidad, sino en los comprobantes.")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 text-sm font-medium hover:bg-slate-50 shadow-sm print:hidden">
-            <Printer className="w-4 h-4"/> Imprimir
+            <Printer className="w-4 h-4"/>  {t("Imprimir")}
           </button>
-          <button aria-label="Volver a cargar" title="Volver a cargar" onClick={cargar}
+          <button aria-label={t("Volver a cargar")} title={t("Volver a cargar")} onClick={cargar}
             className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm print:hidden">
             <RefreshCw className="w-4 h-4"/>
           </button>
@@ -152,10 +153,10 @@ export default function DeclaracionIVAPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6 print:hidden">
         <div className="flex items-center gap-3 mb-4">
           <Calendar className="w-4 h-4 text-indigo-400"/>
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Período de declaración</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{t("Período de declaración")}</span>
           <button onClick={() => setModoRango(!modoRango)}
             className="ml-auto text-xs text-indigo-600 font-semibold hover:underline">
-            {modoRango ? 'Cambiar a mes' : 'Rango personalizado'}
+            {modoRango ? t("Cambiar a mes") : t("Rango personalizado")}
           </button>
         </div>
 
@@ -190,12 +191,12 @@ export default function DeclaracionIVAPage() {
         ) : (
           <div className="flex flex-wrap gap-3 items-end">
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Desde</label>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t("Desde")}</label>
               <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
                 className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Hasta</label>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t("Hasta")}</label>
               <input type="date" value={hasta} onChange={e => setHasta(e.target.value)}
                 className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
             </div>
@@ -206,7 +207,7 @@ export default function DeclaracionIVAPage() {
       {cargando ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
-          <p className="text-slate-400 text-sm">Calculando IVA...</p>
+          <p className="text-slate-400 text-sm">{t("Calculando IVA...")}</p>
         </div>
       ) : datos && (
         <>
@@ -228,7 +229,7 @@ export default function DeclaracionIVAPage() {
                     <AlertCircle className="w-8 h-8 text-rose-500"/>
                     <p className="text-4xl font-black text-rose-700">{fmt$(datos.ivaAPagar)}</p>
                   </div>
-                  <p className="text-rose-600 font-semibold">IVA a pagar al SAT</p>
+                  <p className="text-rose-600 font-semibold">{t("IVA a pagar al SAT")}</p>
                 </>
               ) : datos.saldoAFavor > 0 ? (
                 <>
@@ -236,7 +237,7 @@ export default function DeclaracionIVAPage() {
                     <CheckCircle2 className="w-8 h-8 text-emerald-500"/>
                     <p className="text-4xl font-black text-emerald-700">{fmt$(datos.saldoAFavor)}</p>
                   </div>
-                  <p className="text-emerald-600 font-semibold">Saldo a favor (IVA pagado mayor al cobrado)</p>
+                  <p className="text-emerald-600 font-semibold">{t("Saldo a favor (IVA pagado mayor al cobrado)")}</p>
                 </>
               ) : (
                 <>
@@ -244,7 +245,7 @@ export default function DeclaracionIVAPage() {
                     <Minus className="w-8 h-8 text-slate-400"/>
                     <p className="text-4xl font-black text-slate-600">$0.00</p>
                   </div>
-                  <p className="text-slate-500 font-semibold">Sin movimientos de IVA en el período</p>
+                  <p className="text-slate-500 font-semibold">{t("Sin movimientos de IVA en el período")}</p>
                 </>
               )}
             </div>
@@ -254,10 +255,10 @@ export default function DeclaracionIVAPage() {
               <div className="bg-white rounded-xl p-4 border border-slate-200">
                 <div className="flex items-center justify-center gap-1 mb-1">
                   <TrendingUp className="w-4 h-4 text-rose-500"/>
-                  <p className="text-xs font-bold uppercase text-slate-500">IVA Trasladado</p>
+                  <p className="text-xs font-bold uppercase text-slate-500">{t("IVA Trasladado")}</p>
                 </div>
                 <p className="text-xl font-black text-rose-600">{fmt$(datos.ivaTrasladadoTotal)}</p>
-                <p className="text-[10px] text-slate-400 mt-1">Cobrado a clientes (208-01)</p>
+                <p className="text-[10px] text-slate-400 mt-1">{t("Cobrado a clientes (208-01)")}</p>
               </div>
               <div className="flex items-center justify-center">
                 <div className="text-center">
@@ -267,10 +268,10 @@ export default function DeclaracionIVAPage() {
               <div className="bg-white rounded-xl p-4 border border-slate-200">
                 <div className="flex items-center justify-center gap-1 mb-1">
                   <TrendingDown className="w-4 h-4 text-emerald-500"/>
-                  <p className="text-xs font-bold uppercase text-slate-500">IVA Acreditable</p>
+                  <p className="text-xs font-bold uppercase text-slate-500">{t("IVA Acreditable")}</p>
                 </div>
                 <p className="text-xl font-black text-emerald-600">{fmt$(datos.ivaAcreditableTotal)}</p>
-                <p className="text-[10px] text-slate-400 mt-1">Pagado a proveedores (116-01)</p>
+                <p className="text-[10px] text-slate-400 mt-1">{t("Pagado a proveedores (116-01)")}</p>
               </div>
             </div>
           </div>
@@ -279,12 +280,12 @@ export default function DeclaracionIVAPage() {
           <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-sm text-blue-800">
             <Info className="w-5 h-5 shrink-0 mt-0.5 text-blue-500"/>
             <div>
-              <p className="font-bold mb-1">¿Cómo se declara?</p>
+              <p className="font-bold mb-1">{t("¿Cómo se declara?")}</p>
               <p className="text-xs leading-relaxed">
-                Este cálculo corresponde a la <strong>Declaración Mensual de IVA</strong> en el portal del SAT.
-                El monto a pagar se registra en la línea <strong>"IVA cargo del período"</strong>.
+                Este cálculo corresponde a la <strong>{t("Declaración Mensual de IVA")}</strong> en el portal del SAT.
+                El monto a pagar se registra en la línea <strong>{t("\"IVA cargo del período\"")}</strong>.
                 Si hay saldo a favor, puedes aplicarlo al siguiente mes o solicitar devolución.
-                Presenta antes del día <strong>17 del mes siguiente</strong> al período declarado.
+                Presenta antes del día <strong>{t("17 del mes siguiente")}</strong> al período declarado.
               </p>
             </div>
           </div>
@@ -297,10 +298,9 @@ export default function DeclaracionIVAPage() {
                 className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-full bg-rose-500"/>
-                  <span className="font-bold text-slate-800">IVA Trasladado — detalle</span>
+                  <span className="font-bold text-slate-800">{t("IVA Trasladado — detalle")}</span>
                   <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                    {datos.detalleTrasladado.length} movimientos
-                  </span>
+                    {t("{n0} movimientos", { n0: datos.detalleTrasladado.length })}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-black text-rose-600">{fmt$(datos.ivaTrasladadoTotal)}</span>
@@ -312,10 +312,10 @@ export default function DeclaracionIVAPage() {
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
-                        <th className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase">Fecha</th>
-                        <th className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase">Póliza</th>
-                        <th className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase">Concepto</th>
-                        <th className="px-4 py-2.5 text-right font-bold text-slate-500 uppercase">IVA</th>
+                        <th className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase">{t("Fecha")}</th>
+                        <th className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase">{t("Póliza")}</th>
+                        <th className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase">{t("Concepto")}</th>
+                        <th className="px-4 py-2.5 text-right font-bold text-slate-500 uppercase">{t("IVA")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -330,7 +330,7 @@ export default function DeclaracionIVAPage() {
                     </tbody>
                     <tfoot className="bg-rose-50 border-t-2 border-rose-200">
                       <tr>
-                        <td colSpan={3} className="px-4 py-2.5 text-right text-xs font-black text-rose-700 uppercase">Total IVA Trasladado</td>
+                        <td colSpan={3} className="px-4 py-2.5 text-right text-xs font-black text-rose-700 uppercase">{t("Total IVA Trasladado")}</td>
                         <td className="px-4 py-2.5 text-right font-black text-rose-700">{fmt$(datos.ivaTrasladadoTotal)}</td>
                       </tr>
                     </tfoot>
@@ -347,10 +347,9 @@ export default function DeclaracionIVAPage() {
                 className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-full bg-emerald-500"/>
-                  <span className="font-bold text-slate-800">IVA Acreditable — detalle</span>
+                  <span className="font-bold text-slate-800">{t("IVA Acreditable — detalle")}</span>
                   <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                    {datos.detalleAcreditable.length} movimientos
-                  </span>
+                    {t("{n0} movimientos", { n0: datos.detalleAcreditable.length })}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-black text-emerald-600">{fmt$(datos.ivaAcreditableTotal)}</span>
@@ -362,10 +361,10 @@ export default function DeclaracionIVAPage() {
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
-                        <th className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase">Fecha</th>
-                        <th className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase">Póliza</th>
-                        <th className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase">Concepto</th>
-                        <th className="px-4 py-2.5 text-right font-bold text-slate-500 uppercase">IVA Pagado</th>
+                        <th className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase">{t("Fecha")}</th>
+                        <th className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase">{t("Póliza")}</th>
+                        <th className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase">{t("Concepto")}</th>
+                        <th className="px-4 py-2.5 text-right font-bold text-slate-500 uppercase">{t("IVA Pagado")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -380,7 +379,7 @@ export default function DeclaracionIVAPage() {
                     </tbody>
                     <tfoot className="bg-emerald-50 border-t-2 border-emerald-200">
                       <tr>
-                        <td colSpan={3} className="px-4 py-2.5 text-right text-xs font-black text-emerald-700 uppercase">Total IVA Acreditable</td>
+                        <td colSpan={3} className="px-4 py-2.5 text-right text-xs font-black text-emerald-700 uppercase">{t("Total IVA Acreditable")}</td>
                         <td className="px-4 py-2.5 text-right font-black text-emerald-700">{fmt$(datos.ivaAcreditableTotal)}</td>
                       </tr>
                     </tfoot>
@@ -392,8 +391,7 @@ export default function DeclaracionIVAPage() {
 
           {/* Footer impresión */}
           <div className="text-center text-xs text-slate-400 mt-6">
-            Syncro ERP — Declaración de IVA {periodoLabel} — Generado {new Date().toLocaleString('es-MX')}
-          </div>
+            {t("Syncro ERP — Declaración de IVA {n0} — Generado {n1}", { n0: periodoLabel, n1: new Date().toLocaleString('es-MX') })}</div>
         </>
       )}
     </div>

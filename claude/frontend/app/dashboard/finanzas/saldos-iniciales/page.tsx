@@ -9,6 +9,7 @@ import { useAvisos } from '@/components/ui';
 import { hoyISO } from '@/lib/fechas';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 /**
  * ============================================================================
  * Saldos iniciales — lo que esta pantalla hacía mal
@@ -84,6 +85,7 @@ const fmt$ = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0);
 
 export default function SaldosInicialesPage() {
+  const t = useT();
   const { avisar } = useAvisos();
   const [cuentas, setCuentas] = useState<ICuenta[]>([]);
   const [saldos, setSaldos] = useState<Record<string, number>>({});
@@ -114,7 +116,7 @@ export default function SaldosInicialesPage() {
       setErrorCarga(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : 'No se pudo cargar el catálogo de cuentas contables.',
+          : t("No se pudo cargar el catálogo de cuentas contables."),
       );
     } finally {
       setCargando(false);
@@ -160,7 +162,7 @@ export default function SaldosInicialesPage() {
   const tieneSaldos = capturadas.length > 0;
 
   const guardar = async () => {
-    if (!tieneSaldos) { avisar('Captura al menos un saldo de apertura.', 'alerta'); return; }
+    if (!tieneSaldos) { avisar(t("Captura al menos un saldo de apertura."), 'alerta'); return; }
     if (!puente) {
       avisar(`No existe la cuenta ${CUENTA_PUENTE} «Carga de saldos iniciales», que es la contrapartida de la apertura.`, 'error');
       return;
@@ -191,7 +193,7 @@ export default function SaldosInicialesPage() {
       setSaldos({});
       await cargar();
     } catch (e) {
-      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo registrar la apertura.', 'error');
+      avisar(e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo registrar la apertura."), 'error');
     } finally {
       setGuardando(false);
     }
@@ -205,15 +207,14 @@ export default function SaldosInicialesPage() {
 
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Finanzas</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Finanzas")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <Database className="w-8 h-8 text-indigo-500" /> Saldos iniciales
+            <Database className="w-8 h-8 text-indigo-500" />  {t("Saldos iniciales")}
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            El balance de apertura: activo, pasivo y capital. La contrapartida va a {CUENTA_PUENTE} «Carga de saldos iniciales».
-          </p>
+            {t("El balance de apertura: activo, pasivo y capital. La contrapartida va a {n0} «Carga de saldos iniciales».", { n0: CUENTA_PUENTE })}</p>
         </div>
-        <button aria-label="Volver a cargar" title="Volver a cargar" onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm">
+        <button aria-label={t("Volver a cargar")} title={t("Volver a cargar")} onClick={cargar} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm">
           <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -222,7 +223,7 @@ export default function SaldosInicialesPage() {
         <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-xl p-4 mb-4 text-sm text-rose-800">
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold mb-1">Esta empresa ya tiene apertura</p>
+            <p className="font-bold mb-1">{t("Esta empresa ya tiene apertura")}</p>
             <p className="text-xs">
               Póliza <b>{estado.apertura?.folio}</b> del {new Date(estado.apertura?.fecha).toLocaleDateString('es-MX')} por {fmt$(estado.apertura?.total ?? 0)}.
               Cargarla otra vez duplica el balance entero, y no se nota hasta el primer cierre.
@@ -235,8 +236,8 @@ export default function SaldosInicialesPage() {
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm text-amber-800">
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold mb-1">Ya hay {plural(estado.totalPolizas, "póliza registrada", "pólizas registradas")}</p>
-            <p className="text-xs">Una apertura fechada antes de lo ya contabilizado desordena todo lo que vino después. Revisa la fecha con cuidado.</p>
+            <p className="font-bold mb-1">{t("Ya hay {n0}", { n0: plural(estado.totalPolizas, t("póliza registrada"), t("pólizas registradas")) })}</p>
+            <p className="text-xs">{t("Una apertura fechada antes de lo ya contabilizado desordena todo lo que vino después. Revisa la fecha con cuidado.")}</p>
           </div>
         </div>
       )}
@@ -244,23 +245,23 @@ export default function SaldosInicialesPage() {
       <div className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4 mb-5 text-sm text-slate-700">
         <Info className="w-5 h-5 shrink-0 mt-0.5 text-slate-400" />
         <div className="text-xs space-y-1">
-          <p><b>Qué va aquí:</b> los saldos del último balance general —activo, pasivo y capital—, cuenta de detalle por cuenta de detalle.</p>
-          <p><b>Qué no va aquí:</b> ingresos, costos y gastos. Una apertura no tiene resultados; el ejercicio anterior entra en 304 «Resultado de ejercicios anteriores».</p>
-          <p><b>Caja, bancos, clientes, proveedores e inventario</b> llevan auxiliar y se cargan desde su módulo, que contabiliza contra {CUENTA_PUENTE}. Aparecen abajo bloqueadas, con su enlace.</p>
+          <p><b>{t("Qué va aquí:")}</b> los saldos del último balance general —activo, pasivo y capital—, cuenta de detalle por cuenta de detalle.</p>
+          <p><b>{t("Qué no va aquí:")}</b> ingresos, costos y gastos. Una apertura no tiene resultados; el ejercicio anterior entra en 304 «Resultado de ejercicios anteriores».</p>
+          <p><b>{t("Caja, bancos, clientes, proveedores e inventario")}</b> llevan auxiliar y se cargan desde su módulo, que contabiliza contra {CUENTA_PUENTE}. Aparecen abajo bloqueadas, con su enlace.</p>
         </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-5 flex flex-wrap items-end gap-4">
         <div>
-          <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Fecha de apertura</label>
+          <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Fecha de apertura")}</label>
           <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
         <div className="flex-1 min-w-[220px]">
-          <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Buscar cuenta</label>
+          <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t("Buscar cuenta")}</label>
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Número o nombre…"
+            <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder={t("Número o nombre…")}
               className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
         </div>
@@ -276,7 +277,7 @@ export default function SaldosInicialesPage() {
       {cargando ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-slate-400 text-sm">Cargando catálogo…</p>
+          <p className="text-slate-400 text-sm">{t("Cargando catálogo…")}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -287,7 +288,7 @@ export default function SaldosInicialesPage() {
             return (
               <div key={grupo} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 bg-slate-900 text-white">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{grupo} · {delGrupo.length} cuentas</p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{t(grupo)} · {delGrupo.length} cuentas</p>
                   {totalGrupo > 0 && <span className="text-sm font-bold">{fmt$(totalGrupo)}</span>}
                 </div>
                 <table className="w-full text-sm">
@@ -301,16 +302,16 @@ export default function SaldosInicialesPage() {
                             <span className="font-mono font-bold text-indigo-600 text-xs">{c.numeroCuenta}</span>
                           </td>
                           <td className="px-5 py-3">
-                            <p className="font-medium text-slate-800 text-sm">{c.nombre}</p>
+                            <p className="font-medium text-slate-800 text-sm">{t(c.nombre)}</p>
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-500">
-                              {c.naturaleza === 'DEUDORA' ? 'Deudora · al debe' : 'Acreedora · al haber'}
+                              {c.naturaleza === 'DEUDORA' ? t("Deudora · al debe") : t("Acreedora · al haber")}
                             </span>
                             {bloqueada && (
                               <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
                                 <Lock className="w-3 h-3" />
                                 Lleva auxiliar: se carga en {modulo
-                                  ? <Link href={modulo.href} className="underline font-semibold">{modulo.texto}</Link>
-                                  : 'su módulo'}, que contabiliza contra {CUENTA_PUENTE}.
+                                  ? <Link href={modulo.href} className="underline font-semibold">{t(modulo.texto)}</Link>
+                                  : t("su módulo")}, que contabiliza contra {CUENTA_PUENTE}.
                               </p>
                             )}
                           </td>
@@ -321,7 +322,7 @@ export default function SaldosInicialesPage() {
                                 type="number" min="0" step="0.01" disabled={bloqueada}
                                 value={saldos[c.id] || ''}
                                 onChange={(e) => setSaldos((p) => ({ ...p, [c.id]: parseFloat(e.target.value) || 0 }))}
-                                placeholder={bloqueada ? 'Desde su módulo' : '0.00'}
+                                placeholder={bloqueada ? t("Desde su módulo") : '0.00'}
                                 className={`w-full pl-7 pr-3 py-2 border rounded-xl text-sm font-mono text-right focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:placeholder:text-slate-400 ${(saldos[c.id] || 0) > 0 ? 'border-indigo-300 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-200 bg-slate-50'}`}
                               />
                             </div>
@@ -336,8 +337,7 @@ export default function SaldosInicialesPage() {
           })}
           {!visibles.length && (
             <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-sm text-slate-500">
-              Ninguna cuenta de balance coincide con «{busqueda}».
-            </div>
+              {t("Ninguna cuenta de balance coincide con «{n0}».", { n0: busqueda })}</div>
           )}
         </div>
       )}
@@ -345,30 +345,30 @@ export default function SaldosInicialesPage() {
       {tieneSaldos && (
         <div className="mt-6 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-5 py-3 bg-slate-900 text-white">
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">La póliza que se va a registrar</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{t("La póliza que se va a registrar")}</p>
           </div>
           <div className="p-5 space-y-4">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                <p className="text-xs font-bold text-slate-500 uppercase mb-1">Debe</p>
+                <p className="text-xs font-bold text-slate-500 uppercase mb-1">{t("Debe")}</p>
                 <p className="text-xl font-black text-slate-800">{fmt$(totalCargo)}</p>
               </div>
               <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                <p className="text-xs font-bold text-slate-500 uppercase mb-1">Haber</p>
+                <p className="text-xs font-bold text-slate-500 uppercase mb-1">{t("Haber")}</p>
                 <p className="text-xl font-black text-slate-800">{fmt$(totalAbono)}</p>
               </div>
             </div>
             {Math.abs(diferencia) >= 0.01 && (
               <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-800">
-                <b>Contrapartida:</b> se agregará una partida de {fmt$(Math.abs(diferencia))} {diferencia > 0 ? 'al haber' : 'al debe'} en
-                <b> {CUENTA_PUENTE} Carga de saldos iniciales</b>. Es la cuenta puente de apertura, la misma contra la que
+                <b>{t("Contrapartida:")}</b> se agregará una partida de {fmt$(Math.abs(diferencia))} {diferencia > 0 ? t("al haber") : t("al debe")} en
+                <b> {t("{n0} Carga de saldos iniciales", { n0: CUENTA_PUENTE })}</b>. Es la cuenta puente de apertura, la misma contra la que
                 contabilizan el inventario inicial y los demás módulos; queda en cero cuando toda la apertura está cargada.
               </div>
             )}
             <ul className="text-xs text-slate-600 space-y-1 max-h-56 overflow-auto">
               {capturadas.map((x) => (
                 <li key={x.cuenta.id} className="flex justify-between gap-4 border-b border-slate-100 pb-1">
-                  <span><span className="font-mono text-indigo-600">{x.cuenta.numeroCuenta}</span> {x.cuenta.nombre}</span>
+                  <span><span className="font-mono text-indigo-600">{x.cuenta.numeroCuenta}</span> {t(x.cuenta.nombre)}</span>
                   <span className="font-mono">{x.cuenta.naturaleza === 'DEUDORA' ? 'debe' : 'haber'} {fmt$(x.importe)}</span>
                 </li>
               ))}

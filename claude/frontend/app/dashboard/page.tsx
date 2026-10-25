@@ -23,6 +23,7 @@ import { esRolAdministrador } from '@/lib/roles';
 import { EVENTO_VER_COMO, verComoActual } from '@/lib/ver-como';
 import { useContratacion, contratado } from '@/lib/contratacion';
 
+import { useT } from '@/components/I18nProvider';
 interface Metricas {
   ventasHoy: number;
   totalHoy: number;
@@ -49,6 +50,7 @@ const ACCESOS_RAPIDOS = [
 ];
 
 export default function PanelPrincipal() {
+  const t = useT();
   const [metricas, setMetricas] = useState<Metricas | null>(null);
   const [porCobrar, setPorCobrar] = useState<number | null>(null);
   const [permisos, setPermisos] = useState<string[] | null>(null);
@@ -179,7 +181,7 @@ export default function PanelPrincipal() {
   }, [verComoId]);
 
   const hora = new Date().getHours();
-  const saludo = hora < 12 ? 'Buenos días' : hora < 19 ? 'Buenas tardes' : 'Buenas noches';
+  const saludo = hora < 12 ? t("Buenos días") : hora < 19 ? 'Buenas tardes' : 'Buenas noches';
 
   /*
    * La misma cuenta que el menú lateral, con la misma razón: los contenedores
@@ -224,31 +226,31 @@ export default function PanelPrincipal() {
           {(cargandoKpis || metricas) && (
             <>
               <Indicador
-                etiqueta="Ventas de hoy" color="#4f46e5" cargando={cargandoKpis}
+                etiqueta={t("Ventas de hoy")} color="#4f46e5" cargando={cargandoKpis}
                 icono={<Receipt className="w-4 h-4" />}
                 valor={dinero(metricas?.totalHoy ?? 0)}
                 detalle={`${metricas?.ventasHoy ?? 0} transacciones`}
               />
               <Indicador
-                etiqueta="Ticket promedio" color="#059669" cargando={cargandoKpis}
+                etiqueta={t("Ticket promedio")} color="#059669" cargando={cargandoKpis}
                 icono={<TrendingUp className="w-4 h-4" />}
                 valor={dinero(metricas?.ticketPromedio ?? 0)}
-                detalle="promedio del día"
+                detalle={t("promedio del día")}
               />
               <Indicador
-                etiqueta="Últimos 7 días" color="#0284c7" cargando={cargandoKpis}
+                etiqueta={t("Últimos 7 días")} color="#0284c7" cargando={cargandoKpis}
                 icono={<Banknote className="w-4 h-4" />}
                 valor={dinero(metricas?.totalSemana ?? 0)}
-                detalle="ventas acumuladas"
+                detalle={t("ventas acumuladas")}
               />
             </>
           )}
           {(cargandoKpis || porCobrar !== null) && (
             <Indicador
-              etiqueta="Por cobrar" color="#d97706" cargando={cargandoKpis}
+              etiqueta={t("Por cobrar")} color="#d97706" cargando={cargandoKpis}
               icono={<Users2 className="w-4 h-4" />}
               valor={dinero(porCobrar ?? 0)}
-              detalle="saldo de clientes"
+              detalle={t("saldo de clientes")}
             />
           )}
         </div>
@@ -256,11 +258,10 @@ export default function PanelPrincipal() {
 
       {/* Módulos */}
       <div className="flex items-baseline justify-between mb-3">
-        <p className="eyebrow">Módulos</p>
+        <p className="eyebrow">{t("Módulos")}</p>
         {permisos && !permisos.includes('*') && (
           <p className="text-[11.5px] text-slate-400">
-            {modulosVisibles.length} de {MODULOS.length} disponibles con tu perfil
-          </p>
+            {t("{n0} de {n1} disponibles con tu perfil", { n0: modulosVisibles.length, n1: MODULOS.length })}</p>
         )}
       </div>
 
@@ -270,9 +271,10 @@ export default function PanelPrincipal() {
         </div>
       ) : modulosVisibles.length === 0 ? (
         <div className="panel py-14 text-center">
-          <p className="text-[14px] font-semibold text-slate-700">Todavía no tienes módulos asignados</p>
+          <p className="text-[14px] font-semibold text-slate-700">{t("Todavía no tienes módulos asignados")}</p>
           <p className="text-[12.5px] text-slate-500 mt-1">
-            El administrador debe habilitarlos desde Roles y permisos.
+            
+            {t("El administrador debe habilitarlos desde Roles y permisos.")}
           </p>
         </div>
       ) : (
@@ -296,15 +298,15 @@ export default function PanelPrincipal() {
                   <Icono className="w-[18px] h-[18px]" style={{ color: m.color }} />
                 </div>
 
-                <p className="text-[13.5px] font-bold text-slate-900 leading-tight">{m.nombre}</p>
-                <p className="text-[11.5px] text-slate-500 mt-1 leading-relaxed line-clamp-2">{m.desc}</p>
+                <p className="text-[13.5px] font-bold text-slate-900 leading-tight">{t(m.nombre)}</p>
+                <p className="text-[11.5px] text-slate-500 mt-1 leading-relaxed line-clamp-2">{t(m.desc)}</p>
 
                 <div className="flex items-center justify-between mt-3">
                   <span
                     className="text-[10.5px] font-bold px-2 py-0.5 rounded-full"
                     style={{ color: m.color, background: m.bg, border: `1px solid ${m.border}` }}
                   >
-                    {m.accesibles.length} {m.accesibles.length === 1 ? 'sección' : 'secciones'}
+                    {m.accesibles.length} {m.accesibles.length === 1 ? t("sección") : 'secciones'}
                   </span>
                   <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 transition-colors" />
                 </div>
@@ -317,7 +319,7 @@ export default function PanelPrincipal() {
       {/* Accesos rápidos */}
       {rapidos.length > 0 && (
         <section className="panel mt-6 p-4">
-          <p className="eyebrow mb-3">Acciones frecuentes</p>
+          <p className="eyebrow mb-3">{t("Acciones frecuentes")}</p>
           <div className="flex flex-wrap gap-2">
             {rapidos.map((a) => (
               <Link
@@ -325,7 +327,7 @@ export default function PanelPrincipal() {
                 href={a.href}
                 className="btn btn-neutro btn-sm"
               >
-                {a.label}
+                {t(a.label)}
               </Link>
             ))}
           </div>

@@ -24,6 +24,7 @@ import {
   ErrorPantalla, Indicador, Panel, SinDatos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface Empleado {
   id: string; numeroEmpleado: string; nombreCompleto: string; estado: string;
 }
@@ -71,6 +72,7 @@ function ahoraHHMM(): string {
 }
 
 export default function AsistenciaPage() {
+  const t = useT();
   const [dia, setDia] = useState(isoCorto());
 
   const empleados = useDatos<Empleado[]>(
@@ -150,12 +152,12 @@ export default function AsistenciaPage() {
   return (
     <div className="p-6 max-w-[1300px] mx-auto">
       <EncabezadoPantalla
-        titulo="Asistencia"
-        descripcion="Registro diario de entradas y salidas"
+        titulo={t("Asistencia")}
+        descripcion={t("Registro diario de entradas y salidas")}
         acciones={
           <div className="flex items-center gap-2">
             {!esHoy && (
-              <Boton variante="neutro" onClick={() => setDia(isoCorto())}>Ir a hoy</Boton>
+              <Boton variante="neutro" onClick={() => setDia(isoCorto())}>{t("Ir a hoy")}</Boton>
             )}
             <Entrada
               type="date"
@@ -169,22 +171,22 @@ export default function AsistenciaPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Indicador
-          etiqueta="Plantilla activa" color="#db2777" cargando={empleados.cargando}
+          etiqueta={t("Plantilla activa")} color="#db2777" cargando={empleados.cargando}
           valor={resumen.plantilla}
         />
         <Indicador
-          etiqueta="Con entrada registrada" color="#059669" cargando={asistencias.cargando}
+          etiqueta={t("Con entrada registrada")} color="#059669" cargando={asistencias.cargando}
           icono={<LogIn className="w-4 h-4" />}
           valor={resumen.presentes}
           detalle={`${resumen.completos} con jornada completa`}
         />
         <Indicador
-          etiqueta="Sin registro" color={resumen.ausentes > 0 ? '#d97706' : '#64748b'}
+          etiqueta={t("Sin registro")} color={resumen.ausentes > 0 ? '#d97706' : '#64748b'}
           cargando={asistencias.cargando}
           valor={resumen.ausentes}
         />
         <Indicador
-          etiqueta="Horas extra del día" color="#4f46e5" cargando={asistencias.cargando}
+          etiqueta={t("Horas extra del día")} color="#4f46e5" cargando={asistencias.cargando}
           icono={<Clock className="w-4 h-4" />}
           valor={resumen.horasExtra}
         />
@@ -193,7 +195,8 @@ export default function AsistenciaPage() {
       {esFuturo && (
         <div className="panel p-3.5 mb-4 border-l-[3px] border-l-amber-400">
           <p className="text-[12.5px] text-slate-700">
-            Estás viendo una fecha futura. Puedes capturar, pero revisa que sea intencional.
+            
+            {t("Estás viendo una fecha futura. Puedes capturar, pero revisa que sea intencional.")}
           </p>
         </div>
       )}
@@ -207,18 +210,17 @@ export default function AsistenciaPage() {
             })}
           </div>
           <p className="text-[12px] text-slate-500 cifra">
-            {resumen.presentes} de {resumen.plantilla} registrados
-          </p>
+            {t("{n0} de {n1} registrados", { n0: resumen.presentes, n1: resumen.plantilla })}</p>
         </div>
 
         {empleados.cargando || asistencias.cargando ? (
           <Cargando />
         ) : empleados.error ? (
-          <ErrorPantalla mensaje={empleados.error} onReintentar={empleados.recargar} />
+          <ErrorPantalla mensaje={t(empleados.error)} onReintentar={empleados.recargar} />
         ) : (empleados.datos?.length ?? 0) === 0 ? (
           <SinDatos
-            titulo="No hay empleados activos"
-            descripcion="Da de alta personal en la pantalla de Empleados para poder registrar su asistencia."
+            titulo={t("No hay empleados activos")}
+            descripcion={t("Da de alta personal en la pantalla de Empleados para poder registrar su asistencia.")}
             icono={<LogIn className="w-5 h-5" />}
           />
         ) : (
@@ -226,13 +228,13 @@ export default function AsistenciaPage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Núm.</th>
-                  <th>Empleado</th>
-                  <th className="text-center">Entrada</th>
-                  <th className="text-center">Salida</th>
-                  <th className="text-right">Horas</th>
-                  <th className="text-right">Extra</th>
-                  <th>Estado</th>
+                  <th>{t("Núm.")}</th>
+                  <th>{t("Empleado")}</th>
+                  <th className="text-center">{t("Entrada")}</th>
+                  <th className="text-center">{t("Salida")}</th>
+                  <th className="text-right">{t("Horas")}</th>
+                  <th className="text-right">{t("Extra")}</th>
+                  <th>{t("Estado")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -258,7 +260,7 @@ export default function AsistenciaPage() {
                         <CeldaHora
                           valor={hora(a?.salida)}
                           deshabilitado={registrar.ejecutando || !conEntrada}
-                          titulo={!conEntrada ? 'Registra primero la entrada' : undefined}
+                          titulo={!conEntrada ? t("Registra primero la entrada") : undefined}
                           onFijar={(hhmm) => void marcar(e.id, 'salida', hhmm)}
                         />
                       </td>
@@ -286,16 +288,17 @@ export default function AsistenciaPage() {
                           */}
                         {conSalida ? (
                           Number(a!.horasTrabajadas) + 0.001 >= JORNADA_BASE ? (
-                            <Distintivo tono="exito">Jornada completa</Distintivo>
+                            <Distintivo tono="exito">{t("Jornada completa")}</Distintivo>
                           ) : (
                             <Distintivo tono="alerta">
-                              Jornada incompleta
+                              
+                              {t("Jornada incompleta")}
                             </Distintivo>
                           )
                         ) : conEntrada ? (
-                          <Distintivo tono="info">Dentro</Distintivo>
+                          <Distintivo tono="info">{t("Dentro")}</Distintivo>
                         ) : (
-                          <Distintivo tono="neutro">Sin registro</Distintivo>
+                          <Distintivo tono="neutro">{t("Sin registro")}</Distintivo>
                         )}
                       </td>
                     </tr>
@@ -308,8 +311,8 @@ export default function AsistenciaPage() {
       </Panel>
 
       <p className="text-[11.5px] text-slate-400 mt-3">
-        Las horas extra se calculan sobre una jornada de 8 horas. Para justificar faltas
-        o registrar incapacidades, usa la pantalla de Incidencias.
+        
+        {t("Las horas extra se calculan sobre una jornada de 8 horas. Para justificar faltas o registrar incapacidades, usa la pantalla de Incidencias.")}
       </p>
     </div>
   );
@@ -330,6 +333,7 @@ function CeldaHora({
   titulo?: string;
   onFijar: (hhmm: string) => void;
 }) {
+  const t = useT();
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState(valor);
 
@@ -359,7 +363,7 @@ function CeldaHora({
         onClick={() => { setTexto(valor); setEditando(true); }}
         disabled={deshabilitado}
         className="cifra text-[12.5px] font-semibold text-slate-900 hover:text-indigo-600 transition-colors px-2 py-0.5 rounded hover:bg-slate-100"
-        title="Corregir la hora"
+        title={t("Corregir la hora")}
       >
         {valor}
       </button>
@@ -371,15 +375,15 @@ function CeldaHora({
       <button
         onClick={() => onFijar(ahoraHHMM())}
         disabled={deshabilitado}
-        title={titulo ?? 'Registrar con la hora actual'}
+        title={titulo ?? t("Registrar con la hora actual")}
         className="btn btn-fantasma btn-sm text-[11.5px] disabled:opacity-30"
       >
-        <LogOut className="w-3 h-3" /> Marcar
+        <LogOut className="w-3 h-3" />  {t("Marcar")}
       </button>
       <button
         onClick={() => { setTexto(''); setEditando(true); }}
         disabled={deshabilitado}
-        title="Capturar otra hora"
+        title={t("Capturar otra hora")}
         className="text-slate-300 hover:text-slate-600 text-[15px] leading-none px-1 disabled:opacity-30"
       >
         ·

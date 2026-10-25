@@ -18,6 +18,7 @@ import { solicitarTexto } from "@/components/ui/dialogos";
 import { fechaCorta } from "@/lib/fechas";
 import { plural } from "@/lib/format";
 
+import { useT } from '@/components/I18nProvider';
 type Propiedad = { id: string; nombre: string };
 type OcupadaSinHuesped = { id: string; numero: string };
 type Panel = {
@@ -65,6 +66,7 @@ const dinero = (valor: number) =>
   }).format(valor || 0);
 
 export default function PanelHoteleroPage() {
+  const t = useT();
   const [hoteles, setHoteles] = useState<Propiedad[]>([]);
   const [hotelId, setHotelId] = useState("");
   const [panel, setPanel] = useState<Panel | null>(null);
@@ -85,7 +87,7 @@ export default function PanelHoteleroPage() {
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : "No se pudieron cargar las propiedades.",
+          : t("No se pudieron cargar las propiedades."),
       );
     }
   }, []);
@@ -104,7 +106,7 @@ export default function PanelHoteleroPage() {
       setError(
         e instanceof ApiError
           ? e.mensajeParaPantalla()
-          : "No se pudo cargar la operación hotelera.",
+          : t("No se pudo cargar la operación hotelera."),
       );
     } finally {
       setCargando(false);
@@ -138,7 +140,7 @@ export default function PanelHoteleroPage() {
         setError(
           e instanceof ApiError
             ? e.mensajeParaPantalla()
-            : "No se pudo liberar la habitación.",
+            : t("No se pudo liberar la habitación."),
         );
       } finally {
         setLiberando("");
@@ -162,14 +164,14 @@ export default function PanelHoteleroPage() {
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-[.2em] text-teal-300">
-              Centro de operación
+              
+              {t("Centro de operación")}
             </p>
             <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
-              {hotel?.nombre ?? "Panel hotelero"}
+              {hotel?.nombre ?? t("Panel hotelero")}
             </h1>
             <p className="mt-2 text-sm text-white/60">
-              Fecha operativa {fechaCorta(panel?.fechaOperativa)}
-            </p>
+              {t("Fecha operativa {n0}", { n0: fechaCorta(panel?.fechaOperativa) })}</p>
           </div>
           <div className="flex gap-2">
             {hoteles.length > 1 && (
@@ -184,7 +186,7 @@ export default function PanelHoteleroPage() {
                     key={item.id}
                     value={item.id}
                   >
-                    {item.nombre}
+                    {t(item.nombre)}
                   </option>
                 ))}
               </select>
@@ -193,7 +195,7 @@ export default function PanelHoteleroPage() {
               onClick={() => void cargarPanel()}
               className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900"
             >
-              <RefreshCw className="mr-2 inline h-4 w-4" /> Actualizar
+              <RefreshCw className="mr-2 inline h-4 w-4" />  {t("Actualizar")}
             </button>
           </div>
         </div>
@@ -202,14 +204,14 @@ export default function PanelHoteleroPage() {
             <span className="text-6xl font-semibold tabular-nums">
               {panel.habitaciones.ocupacionPorcentaje}
             </span>
-            <span className="mb-2 text-xl text-white/50">% ocupación</span>
+            <span className="mb-2 text-xl text-white/50">{t("% ocupación")}</span>
           </div>
         )}
       </header>
 
       {error && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-          {error}
+          {t(error)}
         </div>
       )}
       {cargando ? (
@@ -234,28 +236,24 @@ export default function PanelHoteleroPage() {
               <div className="min-w-0">
                 <b className="text-sm">
                   {panel.integridad.ok
-                    ? "El rack coincide con quién está en casa"
-                    : "El rack no coincide con quién está en casa"}
+                    ? t("El rack coincide con quién está en casa")
+                    : t("El rack no coincide con quién está en casa")}
                 </b>
                 {panel.integridad.ok ? (
                   <p className="mt-1 text-sm">
-                    Cada habitación ocupada tiene su huésped, y cada huésped su
-                    habitación.
+                    
+                    {t("Cada habitación ocupada tiene su huésped, y cada huésped su habitación.")}
                   </p>
                 ) : (
                   <div className="mt-2 space-y-3 text-sm">
                     {panel.integridad.ocupadasSinHuesped.length > 0 && (
                       <div>
                         <p>
-                          {plural(
+                          {t("{n0}{n1} sin nadie dentro. Una habitación así no se puede vender, y tampoco se libera con un check-out: no hay huésped a quien hacérselo.", { n0: plural(
                             panel.integridad.ocupadasSinHuesped.length,
-                            "habitación figura ocupada",
-                            "habitaciones figuran ocupadas",
-                          )}{" "}
-                          sin nadie dentro. Una habitación así no se puede
-                          vender, y tampoco se libera con un check-out: no hay
-                          huésped a quien hacérselo.
-                        </p>
+                            t("habitación figura ocupada"),
+                            t("habitaciones figuran ocupadas"),
+                          ), n1: " " })}</p>
                         <div className="mt-2 flex flex-wrap gap-2">
                           {panel.integridad.ocupadasSinHuesped.map((hab) => (
                             <button
@@ -265,13 +263,13 @@ export default function PanelHoteleroPage() {
                               className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-semibold disabled:opacity-50"
                             >
                               {liberando === hab.id
-                                ? "Liberando…"
+                                ? t("Liberando…")
                                 : `Liberar ${hab.numero}`}
                             </button>
                           ))}
                         </div>
                         <p className="mt-2 text-xs text-amber-800/80">
-                          Liberar la deja en <b>limpieza</b>, nunca disponible:
+                          Liberar la deja en <b>{t("limpieza")}</b>, nunca disponible:
                           lo que estuvo ocupado se limpia e inspecciona antes de
                           volver a venderse. Pide el motivo y queda en la
                           bitácora.
@@ -281,14 +279,11 @@ export default function PanelHoteleroPage() {
                     {panel.integridad.huespedSinHabitacionOcupada.length > 0 && (
                       <div>
                         <p>
-                          {plural(
+                          {t("{n0}{n1} y su habitación no figura ocupada. Esto se resuelve en recepción, no desde aquí: revisa el check-in.", { n0: plural(
                             panel.integridad.huespedSinHabitacionOcupada.length,
-                            "huésped está en casa",
-                            "huéspedes están en casa",
-                          )}{" "}
-                          y su habitación no figura ocupada. Esto se resuelve en
-                          recepción, no desde aquí: revisa el check-in.
-                        </p>
+                            t("huésped está en casa"),
+                            t("huéspedes están en casa"),
+                          ), n1: " " })}</p>
                         <ul className="mt-1 list-disc pl-5">
                           {panel.integridad.huespedSinHabitacionOcupada.map(
                             (r) => (
@@ -297,7 +292,7 @@ export default function PanelHoteleroPage() {
                                 {r.huesped ? ` · ${r.huesped}` : ""}
                                 {r.habitacion
                                   ? ` · habitación ${r.habitacion}`
-                                  : " · sin habitación asignada"}
+                                  : t("· sin habitación asignada")}
                               </li>
                             ),
                           )}
@@ -313,25 +308,25 @@ export default function PanelHoteleroPage() {
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
               [
-                "Llegadas del día",
+                t("Llegadas del día"),
                 panel.operacion.llegadasHoy,
                 CalendarCheck,
                 "text-blue-600",
               ],
               [
-                "Salidas del día",
+                t("Salidas del día"),
                 panel.operacion.salidasHoy,
                 BedDouble,
                 "text-violet-600",
               ],
               [
-                "Huéspedes en casa",
+                t("Huéspedes en casa"),
                 panel.operacion.huespedesEnCasa,
                 Users,
                 "text-emerald-600",
               ],
               [
-                "Folios abiertos",
+                t("Folios abiertos"),
                 panel.operacion.foliosAbiertos,
                 CircleDollarSign,
                 "text-amber-600",
@@ -359,28 +354,28 @@ export default function PanelHoteleroPage() {
             <div className="rounded-2xl border border-slate-200 bg-white p-6">
               <div className="mb-5 flex items-center gap-2">
                 <Hotel className="h-5 w-5 text-slate-500" />
-                <h2 className="font-semibold">Estado de habitaciones</h2>
+                <h2 className="font-semibold">{t("Estado de habitaciones")}</h2>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {[
                   [
-                    "Disponibles",
+                    t("Disponibles"),
                     panel.habitaciones.disponibles,
                     "bg-emerald-500",
                   ],
-                  ["Ocupadas", panel.habitaciones.ocupadas, "bg-rose-500"],
-                  ["Limpieza", panel.habitaciones.limpieza, "bg-amber-500"],
+                  [t("Ocupadas"), panel.habitaciones.ocupadas, "bg-rose-500"],
+                  [t("Limpieza"), panel.habitaciones.limpieza, "bg-amber-500"],
                   [
-                    "Inspección",
+                    t("Inspección"),
                     panel.habitaciones.inspeccion,
                     "bg-violet-500",
                   ],
                   [
-                    "Mantenimiento",
+                    t("Mantenimiento"),
                     panel.habitaciones.mantenimiento,
                     "bg-slate-400",
                   ],
-                  ["Bloqueadas", panel.habitaciones.bloqueadas, "bg-slate-700"],
+                  [t("Bloqueadas"), panel.habitaciones.bloqueadas, "bg-slate-700"],
                 ].map(([etiqueta, valor, color]) => (
                   <div
                     key={String(etiqueta)}
@@ -400,7 +395,8 @@ export default function PanelHoteleroPage() {
             <div className="rounded-2xl bg-teal-700 p-6 text-white">
               <ClipboardCheck className="h-6 w-6 text-teal-200" />
               <p className="mt-8 text-sm text-white/60">
-                Saldo en folios abiertos
+                
+                {t("Saldo en folios abiertos")}
               </p>
               <p className="mt-1 text-4xl font-semibold tracking-tight">
                 {dinero(panel.operacion.saldoFoliosAbiertos)}
@@ -408,14 +404,14 @@ export default function PanelHoteleroPage() {
               <p className="mt-6 text-sm text-white/70">
                 {plural(
                   panel.operacion.reservacionesActivas,
-                  "reservación activa",
-                  "reservaciones activas",
+                  t("reservación activa"),
+                  t("reservaciones activas"),
                 )}{" "}
                 y{" "}
                 {plural(
                   panel.habitaciones.operativas,
-                  "habitación operativa",
-                  "habitaciones operativas",
+                  t("habitación operativa"),
+                  t("habitaciones operativas"),
                 )}
                 .
               </p>

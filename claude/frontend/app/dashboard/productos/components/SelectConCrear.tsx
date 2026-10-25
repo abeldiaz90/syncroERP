@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { peticion } from '@/lib/api';
 import { Plus, X, Loader2, Check } from 'lucide-react';
+import { useT } from '@/components/I18nProvider';
 
 interface Opcion { id: string; nombre: string; [k: string]: any; }
 
@@ -52,6 +53,7 @@ export default function SelectConCrear({
   campos = [{ key: 'nombre', label: 'Nombre' }],
   className = '', disabled = false, tituloModal,
 }: Props) {
+  const t = useT();
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [guardando, setGuardando] = useState(false);
@@ -97,14 +99,14 @@ export default function SelectConCrear({
       } as React.ChangeEvent<HTMLSelectElement>);
       setModal(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error de conexión');
+      setError(e instanceof Error ? e.message : t("Error de conexión"));
     }
     setGuardando(false);
   };
 
   return (
     <>
-      <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
+      <label className="block text-xs font-semibold text-slate-600 mb-1">{t(label)}</label>
       <div className="flex gap-2">
         <select
           name={name}
@@ -115,7 +117,7 @@ export default function SelectConCrear({
         >
           <option value="">{textoVacio}</option>
           {opciones.map((o) => (
-            <option key={o.id} value={o.id}>{o.nombre}</option>
+            <option key={o.id} value={o.id}>{t(o.nombre)}</option>
           ))}
         </select>
         {!disabled && (
@@ -145,7 +147,7 @@ export default function SelectConCrear({
                 <Plus className="w-4 h-4 text-indigo-500" />
                 {tituloModal || `Nueva ${label.toLowerCase()}`}
               </h3>
-              <button aria-label="Cerrar" title="Cerrar"
+              <button aria-label={t("Cerrar")} title={t("Cerrar")}
                 onClick={() => !guardando && setModal(false)}
                 className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-full"
               >
@@ -156,12 +158,12 @@ export default function SelectConCrear({
             <div className="p-5 space-y-3">
               {error && (
                 <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 text-xs text-rose-700">
-                  {error}
+                  {t(error)}
                 </div>
               )}
               {campos.map((c) => (
                 <div key={c.key}>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">{c.label}</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t(c.label)}</label>
                   <input
                     type="text"
                     value={form[c.key] ?? ''}
@@ -185,7 +187,8 @@ export default function SelectConCrear({
                 disabled={guardando}
                 className="px-4 py-2 text-sm text-slate-700 font-medium hover:bg-slate-200 rounded-lg disabled:opacity-50"
               >
-                Cancelar
+                
+                {t("Cancelar")}
               </button>
               <button
                 onClick={guardar}
@@ -193,7 +196,7 @@ export default function SelectConCrear({
                 className="px-4 py-2 text-sm bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-60 flex items-center gap-2"
               >
                 {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                {guardando ? 'Creando…' : 'Crear y usar'}
+                {guardando ? t("Creando…") : t("Crear y usar")}
               </button>
             </div>
           </div>

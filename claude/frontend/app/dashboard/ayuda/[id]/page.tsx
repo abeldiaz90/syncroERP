@@ -27,6 +27,7 @@ import { api, ApiError } from '@/lib/api';
 import { useDatos } from '@/hooks/use-datos';
 import { Boton, Cargando, EncabezadoPantalla, ErrorPantalla, useAvisos } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface EntradaIndice {
   nivel: number;
   texto: string;
@@ -177,6 +178,7 @@ const ESTILOS = `
       `;
 
 export default function DocumentoPage() {
+  const t = useT();
   const id = String(useParams().id ?? '');
   const avisos = useAvisos();
   const [bajando, setBajando] = useState(false);
@@ -197,7 +199,7 @@ export default function DocumentoPage() {
        * saber que hay otra salida a un clic.
        */
       avisos.avisar(
-        e instanceof ApiError ? e.mensajeParaPantalla() : 'No se pudo generar el PDF.',
+        e instanceof ApiError ? e.mensajeParaPantalla() : t("No se pudo generar el PDF."),
         'error',
       );
     } finally {
@@ -213,9 +215,9 @@ export default function DocumentoPage() {
           href="/dashboard/ayuda"
           className="inline-flex items-center gap-1.5 text-[12.5px] text-slate-500 hover:text-slate-800 mb-4"
         >
-          <ArrowLeft className="w-3.5 h-3.5" /> Ayuda y documentación
+          <ArrowLeft className="w-3.5 h-3.5" />  {t("Ayuda y documentación")}
         </Link>
-        <ErrorPantalla mensaje={doc.error} onReintentar={doc.recargar} />
+        <ErrorPantalla mensaje={t(doc.error)} onReintentar={doc.recargar} />
       </div>
     );
   }
@@ -230,12 +232,12 @@ export default function DocumentoPage() {
         className="inline-flex items-center gap-1.5 text-[12.5px] text-slate-500 hover:text-slate-800 mb-4 no-imprimir"
         prefetch={false}
       >
-        <ArrowLeft className="w-3.5 h-3.5" /> Ayuda y documentación
+        <ArrowLeft className="w-3.5 h-3.5" />  {t("Ayuda y documentación")}
       </Link>
 
       <div className="no-imprimir">
         <EncabezadoPantalla
-          titulo={d.titulo}
+          titulo={t(d.titulo)}
           descripcion={`Actualizado el ${FECHA.format(new Date(d.actualizado))}`}
           acciones={
             <>
@@ -244,7 +246,8 @@ export default function DocumentoPage() {
                 icono={<Printer className="w-3.5 h-3.5" />}
                 onClick={() => window.print()}
               >
-                Imprimir
+                
+                {t("Imprimir")}
               </Boton>
               <Boton
                 variante="primario"
@@ -252,7 +255,8 @@ export default function DocumentoPage() {
                 icono={<Download className="w-3.5 h-3.5" />}
                 onClick={() => void descargar()}
               >
-                Descargar PDF
+                
+                {t("Descargar PDF")}
               </Boton>
             </>
           }
@@ -260,7 +264,8 @@ export default function DocumentoPage() {
         {d.restringido && (
           <p className="flex items-center gap-1.5 text-[11.5px] text-slate-500 -mt-2 mb-4">
             <Lock className="w-3 h-3" />
-            Documentación técnica de la instalación. Sólo la ve el administrador del sistema.
+            
+            {t("Documentación técnica de la instalación. Sólo la ve el administrador del sistema.")}
           </p>
         )}
       </div>
@@ -269,7 +274,8 @@ export default function DocumentoPage() {
         {secciones.length > 2 && (
           <nav className="hidden xl:block w-56 shrink-0 sticky top-4 no-imprimir">
             <p className="text-[10.5px] font-semibold uppercase tracking-wide text-slate-400 mb-2">
-              En este documento
+              
+              {t("En este documento")}
             </p>
             <ul className="space-y-1.5 border-l border-slate-200 pl-3">
               {secciones.map((s) => (
@@ -278,7 +284,7 @@ export default function DocumentoPage() {
                     href={`#${s.ancla}`}
                     className="text-[12px] text-slate-500 hover:text-slate-900 leading-snug block"
                   >
-                    {s.texto}
+                    {t(s.texto)}
                   </a>
                 </li>
               ))}

@@ -36,6 +36,7 @@ import {
 import { api, ApiError, intentar } from '@/lib/api';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface IRolErp { rol: string; etiqueta: string; descripcion: string }
 interface IRolExterno { id: string; nombre: string; descripcion?: string; creadoDesdeErp?: boolean }
 interface IMapeo { rolErp: string; rolesExternos: string[]; descripcionExterna?: string | null; activo?: boolean }
@@ -110,6 +111,7 @@ const ACCIONES: Record<Accion, { nombre: string; que: string; clase: string }> =
 };
 
 export default function CorrespondenciaRolesPage() {
+  const t = useT();
   const [rolesErp, setRolesErp] = useState<IRolErp[]>([]);
   const [rolesExternos, setRolesExternos] = useState<IRolExterno[]>([]);
   const [errorCatalogo, setErrorCatalogo] = useState<string | null>(null);
@@ -157,7 +159,7 @@ export default function CorrespondenciaRolesPage() {
     /* Un mapeo sin roles es un usuario que entra y no puede hacer nada. El
        backend lo rechaza a propósito, así que aquí se avisa en vez de mandarlo. */
     if (nuevos.length === 0) {
-      setAviso({ tipo: 'err', texto: 'Un rol no puede quedar mapeado a nada. Para quitarlo del mapa, hay que borrar la correspondencia entera.' });
+      setAviso({ tipo: 'err', texto: t("Un rol no puede quedar mapeado a nada. Para quitarlo del mapa, hay que borrar la correspondencia entera.") });
       return;
     }
 
@@ -167,7 +169,7 @@ export default function CorrespondenciaRolesPage() {
       await api.post('/integracion/roles/mapeo', { rolErp, rolesExternos: nuevos });
       await cargar();
     } catch (e) {
-      setAviso({ tipo: 'err', texto: e instanceof ApiError ? e.message : 'No se pudo guardar la correspondencia.' });
+      setAviso({ tipo: 'err', texto: e instanceof ApiError ? e.message : t("No se pudo guardar la correspondencia.") });
     } finally {
       setGuardando(null);
     }
@@ -181,7 +183,7 @@ export default function CorrespondenciaRolesPage() {
       setAviso({ tipo: 'ok', texto: `${u.email} quedó al corriente en el registro externo.` });
       await cargar();
     } catch (e) {
-      setAviso({ tipo: 'err', texto: e instanceof ApiError ? e.message : 'No se pudo aprovisionar.' });
+      setAviso({ tipo: 'err', texto: e instanceof ApiError ? e.message : t("No se pudo aprovisionar.") });
     } finally {
       setGuardando(null);
     }
@@ -198,19 +200,21 @@ export default function CorrespondenciaRolesPage() {
             <Link2 className="w-6 h-6 text-slate-400" />
           </div>
           <h1 className="text-lg font-bold text-slate-900 mt-4">
-            Esta empresa no opera con el registro financiero externo
+            
+            {t("Esta empresa no opera con el registro financiero externo")}
           </h1>
           <p className="text-[13px] text-slate-600 mt-2 leading-relaxed">
-            La correspondencia de roles y usuarios solo tiene sentido cuando hay dos
-            sistemas que corresponder. Con solo el ERP, los roles de aquí son los
-            únicos que existen y no hay nada que mapear.
+            
+            {t("La correspondencia de roles y usuarios solo tiene sentido cuando hay dos sistemas que corresponder. Con solo el ERP, los roles de aquí son los únicos que existen y no hay nada que mapear.")}
           </p>
           <p className="text-[12px] text-slate-400 mt-3">
-            Si debería tenerlo contratado, se activa desde la consola de SUMA.
+            
+            {t("Si debería tenerlo contratado, se activa desde la consola de SUMA.")}
           </p>
           <Link href="/dashboard/permisos"
             className="inline-block mt-5 px-4 py-2 rounded-lg bg-indigo-600 text-white text-[13px] font-semibold">
-            Ir a Roles y accesos
+            
+            {t("Ir a Roles y accesos")}
           </Link>
         </div>
       </div>
@@ -222,11 +226,12 @@ export default function CorrespondenciaRolesPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
           <Link2 className="w-6 h-6 text-indigo-600" />
-          Correspondencia con el registro externo
+          
+          {t("Correspondencia con el registro externo")}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Qué rol del ERP equivale a qué rol del core, y qué usuarios pueden operar de verdad en los
-          dos sistemas.
+          
+          {t("Qué rol del ERP equivale a qué rol del core, y qué usuarios pueden operar de verdad en los dos sistemas.")}
         </p>
       </div>
 
@@ -236,13 +241,13 @@ export default function CorrespondenciaRolesPage() {
             ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
             : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
           {aviso.tipo === 'ok' ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />}
-          {aviso.texto}
+          {t(aviso.texto)}
         </div>
       )}
 
       {cargando ? (
         <div className="flex items-center gap-2 text-sm text-slate-500">
-          <Loader2 className="w-4 h-4 animate-spin" /> Cargando catálogos…
+          <Loader2 className="w-4 h-4 animate-spin" />  {t("Cargando catálogos…")}
         </div>
       ) : (
         <>
@@ -250,7 +255,7 @@ export default function CorrespondenciaRolesPage() {
             <div className="mb-5 p-4 rounded-xl border border-rose-200 bg-rose-50 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-rose-900">No se pudo leer el catálogo del externo</p>
+                <p className="font-medium text-rose-900">{t("No se pudo leer el catálogo del externo")}</p>
                 <p className="text-sm text-rose-800">{errorCatalogo}</p>
               </div>
             </div>
@@ -262,14 +267,12 @@ export default function CorrespondenciaRolesPage() {
               <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-amber-900">
-                  El registro externo sólo tiene {plural(rolesExternos.length, 'rol', 'roles')}, y ninguno operativo
-                </p>
+                  {t("El registro externo sólo tiene {n0}, y ninguno operativo", { n0: plural(rolesExternos.length, 'rol', 'roles') })}</p>
                 <p className="text-sm text-amber-800 mt-0.5">
                   Hoy sólo existen los roles que trae de fábrica y la cuenta técnica de la
                   integración. Mientras sea así, mapear cualquier rol del ERP significa mapearlo a
-                  <strong> «Super user»</strong>, que es tanto como no mapear: un cajero acabaría con
-                  permisos para cerrar el periodo. <strong>Hay que crear allá los roles que
-                  correspondan</strong>, con sus permisos mínimos, antes de que este mapa signifique
+                  <strong>  {t("«Super user»")}</strong>, que es tanto como no mapear: un cajero acabaría con
+                  permisos para cerrar el periodo. <strong>{t("Hay que crear allá los roles que correspondan")}</strong>, con sus permisos mínimos, antes de que este mapa signifique
                   algo.
                 </p>
               </div>
@@ -278,14 +281,14 @@ export default function CorrespondenciaRolesPage() {
 
           <div className="grid sm:grid-cols-3 gap-3 mb-6">
             {[
-              { etiqueta: 'Roles del ERP', valor: rolesErp.length, pie: 'con plantilla de permisos', color: 'text-slate-900' },
-              { etiqueta: 'Sin correspondencia', valor: sinMapear, pie: 'no se sabe qué pueden hacer allá', color: sinMapear ? 'text-amber-700' : 'text-emerald-700' },
-              { etiqueta: 'Usuarios con pendiente', valor: pendientes, pie: `de ${diagnostico.length} en total`, color: pendientes ? 'text-amber-700' : 'text-emerald-700' },
+              { etiqueta: t("Roles del ERP"), valor: rolesErp.length, pie: t("con plantilla de permisos"), color: 'text-slate-900' },
+              { etiqueta: t("Sin correspondencia"), valor: sinMapear, pie: t("no se sabe qué pueden hacer allá"), color: sinMapear ? 'text-amber-700' : 'text-emerald-700' },
+              { etiqueta: t("Usuarios con pendiente"), valor: pendientes, pie: `de ${diagnostico.length} en total`, color: pendientes ? 'text-amber-700' : 'text-emerald-700' },
             ].map((k) => (
               <div key={k.etiqueta} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{k.etiqueta}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t(k.etiqueta)}</p>
                 <p className={`text-2xl font-bold tabular-nums mt-0.5 ${k.color}`}>{k.valor}</p>
-                <p className="text-[11px] text-slate-400">{k.pie}</p>
+                <p className="text-[11px] text-slate-400">{t(k.pie)}</p>
               </div>
             ))}
           </div>
@@ -293,11 +296,11 @@ export default function CorrespondenciaRolesPage() {
           {/* ── El mapa ─────────────────────────────────────────────────── */}
           <section className="mb-8">
             <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-1">
-              <ShieldCheck className="w-4 h-4 text-indigo-600" /> Rol del ERP → rol del externo
+              <ShieldCheck className="w-4 h-4 text-indigo-600" />  {t("Rol del ERP → rol del externo")}
             </h2>
             <p className="text-xs text-slate-500 mb-3">
-              Un rol puede corresponder a varios del otro lado. Lo que no puede es corresponder a
-              ninguno: un usuario que entra y no puede hacer nada es peor que uno que no entra.
+              
+              {t("Un rol puede corresponder a varios del otro lado. Lo que no puede es corresponder a ninguno: un usuario que entra y no puede hacer nada es peor que uno que no entra.")}
             </p>
 
             <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-100">
@@ -308,14 +311,14 @@ export default function CorrespondenciaRolesPage() {
                   <div key={r.rol} className="p-4 grid lg:grid-cols-[260px_1fr] gap-4 items-start">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-slate-800">{r.etiqueta}</p>
+                        <p className="text-sm font-bold text-slate-800">{t(r.etiqueta)}</p>
                         {elegidos.length === 0 && (
-                          <span className="text-[10px] font-semibold uppercase text-amber-600">sin mapear</span>
+                          <span className="text-[10px] font-semibold uppercase text-amber-600">{t("sin mapear")}</span>
                         )}
                         {guardando === r.rol && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
                       </div>
                       <p className="text-[11px] font-mono text-slate-400">{r.rol}</p>
-                      <p className="text-xs text-slate-500 mt-1">{r.descripcion}</p>
+                      <p className="text-xs text-slate-500 mt-1">{t(r.descripcion)}</p>
                     </div>
 
                     <div className="flex items-start gap-3">
@@ -326,13 +329,12 @@ export default function CorrespondenciaRolesPage() {
                             rolesExternos.find((e) => String(e.id) === String(id))?.creadoDesdeErp,
                           ) && (
                           <p className="w-full text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mb-1">
-                            Todo lo que tiene mapeado este rol son roles espejo, que nacieron sin
-                            permisos. Quien lo reciba no podrá hacer nada en el core hasta que
-                            alguien les asigne permisos allá.
+                            
+                            {t("Todo lo que tiene mapeado este rol son roles espejo, que nacieron sin permisos. Quien lo reciba no podrá hacer nada en el core hasta que alguien les asigne permisos allá.")}
                           </p>
                         )}
                         {rolesExternos.length === 0 ? (
-                          <span className="text-xs text-slate-400">Sin catálogo del externo.</span>
+                          <span className="text-xs text-slate-400">{t("Sin catálogo del externo.")}</span>
                         ) : rolesExternos.map((e) => {
                           const activo = elegidos.includes(String(e.id));
                           return (
@@ -340,13 +342,13 @@ export default function CorrespondenciaRolesPage() {
                               onClick={() => void alternar(r.rol, String(e.id))}
                               disabled={guardando !== null}
                               title={e.creadoDesdeErp
-                                ? 'Rol espejo: se creó desde aquí y nació sin permisos. Mapear contra él no habilita nada hasta que alguien le dé permisos en el core.'
+                                ? t("Rol espejo: se creó desde aquí y nació sin permisos. Mapear contra él no habilita nada hasta que alguien le dé permisos en el core.")
                                 : (e.descripcion ?? undefined)}
                               className={`px-2.5 py-1 text-xs rounded-lg border transition-colors disabled:opacity-50 inline-flex items-center gap-1 ${
                                 activo
                                   ? 'bg-indigo-600 text-white border-indigo-600'
                                   : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>
-                              {e.nombre}
+                              {t(e.nombre)}
                               {/*
                                 El aviso que faltaba. Un rol espejo se ve igual
                                 que cualquier otro y no habilita nada: asignarlo
@@ -355,7 +357,8 @@ export default function CorrespondenciaRolesPage() {
                               {e.creadoDesdeErp && (
                                 <span className={`text-[9px] font-bold rounded px-1 ${
                                   activo ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800'}`}>
-                                  sin permisos
+                                  
+                                  {t("sin permisos")}
                                 </span>
                               )}
                             </button>
@@ -373,21 +376,22 @@ export default function CorrespondenciaRolesPage() {
           <section>
             <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
               <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                <Users className="w-4 h-4 text-indigo-600" /> Quién puede operar en los dos sistemas
+                <Users className="w-4 h-4 text-indigo-600" />  {t("Quién puede operar en los dos sistemas")}
               </h2>
               <button onClick={() => void cargar()}
                 className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1">
-                <RefreshCw className="w-3.5 h-3.5" /> Revisar de nuevo
+                <RefreshCw className="w-3.5 h-3.5" />  {t("Revisar de nuevo")}
               </button>
             </div>
             <p className="text-xs text-slate-500 mb-3">
-              El core no crea usuarios solo, a propósito. Aquí se ve a quién le falta qué, en vez de
-              descubrirlo el día que alguien no puede trabajar.
+              
+              {t("El core no crea usuarios solo, a propósito. Aquí se ve a quién le falta qué, en vez de descubrirlo el día que alguien no puede trabajar.")}
             </p>
 
             {diagnostico.length === 0 ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                No hay usuarios que revisar.
+                
+                {t("No hay usuarios que revisar.")}
               </div>
             ) : (
               <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-100">
@@ -410,7 +414,7 @@ export default function CorrespondenciaRolesPage() {
                                 : ''}</>
                           )}
                         </p>
-                        <p className="text-xs text-slate-500 mt-1">{a.que}</p>
+                        <p className="text-xs text-slate-500 mt-1">{t(a.que)}</p>
                         {/*
                           Y CUÁL es el rol inerte, por su nombre. «Le falta
                           algo» obliga a ir a buscarlo; nombrarlo es la
@@ -437,10 +441,10 @@ export default function CorrespondenciaRolesPage() {
                           {[
                             { etiqueta: 'ERP', estado: true as boolean | null },
                             { etiqueta: 'SUMA', estado: u.enDirectorio ?? null },
-                            { etiqueta: 'Core', estado: u.existeEnExterno ?? null },
+                            { etiqueta: t("Core"), estado: u.existeEnExterno ?? null },
                           ].map(({ etiqueta, estado }) => (
                             <span key={etiqueta}
-                              title={estado === null ? 'No se pudo consultar' : estado ? 'Existe' : 'No existe'}
+                              title={estado === null ? t("No se pudo consultar") : estado ? t("Existe") : t("No existe")}
                               className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${
                                 estado === null
                                   ? 'bg-slate-50 text-slate-400 border-slate-200'
@@ -448,19 +452,20 @@ export default function CorrespondenciaRolesPage() {
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                     : 'bg-rose-50 text-rose-700 border-rose-200'
                               }`}>
-                              {etiqueta} {estado === null ? '?' : estado ? '✓' : '✕'}
+                              {t(etiqueta)} {estado === null ? '?' : estado ? '✓' : '✕'}
                             </span>
                           ))}
                           {u.habilitadoEnDirectorio === false && (
                             <span className="inline-flex items-center rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-amber-800">
-                              deshabilitado en SUMA
+                              
+                              {t("deshabilitado en SUMA")}
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${a.clase}`}>
-                          {a.nombre}
+                          {t(a.nombre)}
                         </span>
                         {(u.accion === 'DAR_DE_ALTA' || u.accion === 'CORREGIR_ROLES') &&
                           u.existeEnExterno !== null && (
@@ -470,7 +475,7 @@ export default function CorrespondenciaRolesPage() {
                             {guardando === u.usuarioId
                               ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                               : <UserPlus className="w-3.5 h-3.5" />}
-                            {u.accion === 'DAR_DE_ALTA' ? 'Dar de alta allá' : 'Corregir roles'}
+                            {u.accion === 'DAR_DE_ALTA' ? t("Dar de alta allá") : t("Corregir roles")}
                           </button>
                         )}
                       </div>

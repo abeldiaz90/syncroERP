@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Check, X, Lock, ArrowRight, CheckCircle2, XCircle, Loader2, UserCheck } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 function calcularFuerza(pwd: string) {
   const reglas = [
     { regex: /.{12,}/,       label: 'Mínimo 12 caracteres' },
@@ -27,6 +28,7 @@ const NIVELES = [
 ];
 
 function AceptarContent() {
+  const t = useT();
   const router = useRouter();
   const [token, setToken] = useState('');
   const api    = (process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api')).trim();
@@ -53,7 +55,7 @@ function AceptarContent() {
     setToken(tokenSeguro);
 
     if (!tokenSeguro) {
-      setErrorInv('Falta el token en el enlace.');
+      setErrorInv(t("Falta el token en el enlace."));
       setCargandoInv(false);
       return;
     }
@@ -77,9 +79,9 @@ function AceptarContent() {
         });
         const d = await r.json().catch(() => null);
         if (r.ok) setInvitacion(d);
-        else setErrorInv(Array.isArray(d?.message) ? d.message.join(', ') : (d?.message || 'Invitación inválida o expirada.'));
+        else setErrorInv(Array.isArray(d?.message) ? d.message.join(', ') : (d?.message || t("Invitación inválida o expirada.")));
       } catch {
-        setErrorInv('Error de conexión con el servidor.');
+        setErrorInv(t("Error de conexión con el servidor."));
       }
       setCargandoInv(false);
     })();
@@ -88,8 +90,8 @@ function AceptarContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (score < 4)              { setError('La contraseña es muy débil'); return; }
-    if (password !== confirmar) { setError('Las contraseñas no coinciden'); return; }
+    if (score < 4)              { setError(t("La contraseña es muy débil")); return; }
+    if (password !== confirmar) { setError(t("Las contraseñas no coinciden")); return; }
 
     setEnviando(true);
     try {
@@ -103,10 +105,10 @@ function AceptarContent() {
         setListo(true);
         setTimeout(() => router.push('/login'), 2500);
       } else {
-        setError(Array.isArray(d?.message) ? d.message.join(', ') : (d?.message || 'No se pudo activar la cuenta.'));
+        setError(Array.isArray(d?.message) ? d.message.join(', ') : (d?.message || t("No se pudo activar la cuenta.")));
       }
     } catch {
-      setError('Error de conexión con el servidor');
+      setError(t("Error de conexión con el servidor"));
     }
     setEnviando(false);
   };
@@ -114,7 +116,7 @@ function AceptarContent() {
   if (cargandoInv) return (
     <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-10 text-center">
       <Loader2 className="w-12 h-12 animate-spin text-indigo-500 mx-auto mb-3" />
-      <p className="text-slate-500">Validando tu invitación…</p>
+      <p className="text-slate-500">{t("Validando tu invitación…")}</p>
     </div>
   );
 
@@ -123,9 +125,9 @@ function AceptarContent() {
       <div className="w-20 h-20 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-5">
         <XCircle className="w-10 h-10 text-rose-600" />
       </div>
-      <h2 className="text-2xl font-bold text-slate-900 mb-2">Invitación no válida</h2>
+      <h2 className="text-2xl font-bold text-slate-900 mb-2">{t("Invitación no válida")}</h2>
       <p className="text-slate-500 text-sm mb-6">{errorInv}</p>
-      <Link href="/login" className="text-sm text-indigo-600 hover:underline font-medium">Ir al inicio de sesión</Link>
+      <Link href="/login" className="text-sm text-indigo-600 hover:underline font-medium">{t("Ir al inicio de sesión")}</Link>
     </div>
   );
 
@@ -134,10 +136,10 @@ function AceptarContent() {
       <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-5">
         <CheckCircle2 className="w-10 h-10 text-emerald-600" />
       </div>
-      <h2 className="text-2xl font-bold text-slate-900 mb-2">¡Cuenta activada!</h2>
-      <p className="text-slate-500 text-sm mb-4">Ya puedes iniciar sesión con tu correo y tu nueva contraseña.</p>
+      <h2 className="text-2xl font-bold text-slate-900 mb-2">{t("¡Cuenta activada!")}</h2>
+      <p className="text-slate-500 text-sm mb-4">{t("Ya puedes iniciar sesión con tu correo y tu nueva contraseña.")}</p>
       <div className="flex items-center justify-center gap-2 text-sm text-emerald-600">
-        <Loader2 className="w-4 h-4 animate-spin" /> Redirigiendo al inicio de sesión…
+        <Loader2 className="w-4 h-4 animate-spin" />  {t("Redirigiendo al inicio de sesión…")}
       </div>
     </div>
   );
@@ -149,8 +151,8 @@ function AceptarContent() {
           <UserCheck className="w-6 h-6 text-indigo-600" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Activa tu cuenta</h2>
-          <p className="text-sm text-slate-500">Bienvenido a SyncroERP</p>
+          <h2 className="text-xl font-bold text-slate-900">{t("Activa tu cuenta")}</h2>
+          <p className="text-sm text-slate-500">{t("Bienvenido a SyncroERP")}</p>
         </div>
       </div>
 
@@ -163,17 +165,17 @@ function AceptarContent() {
 
       {error && (
         <div className="mb-4 flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
-          <X className="w-4 h-4 shrink-0" /> {error}
+          <X className="w-4 h-4 shrink-0" /> {t(error)}
         </div>
       )}
 
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <div>
-          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">Crea tu contraseña</label>
+          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">{t("Crea tu contraseña")}</label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input type={showPwd ? 'text' : 'password'} value={password}
-              onChange={e => setPassword(e.target.value)} placeholder="Mínimo 12 caracteres"
+              onChange={e => setPassword(e.target.value)} placeholder={t("Mínimo 12 caracteres")}
               className="w-full pl-10 pr-10 py-3 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all" />
             <button type="button" onClick={() => setShowPwd(!showPwd)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -188,12 +190,12 @@ function AceptarContent() {
                   <div key={i} className="flex-1 h-1.5 rounded-full transition-all"
                     style={{ background: i <= score ? nivel.color : '#e2e8f0' }} />
                 ))}
-                <span className="text-xs font-medium ml-2" style={{ color: nivel.color }}>{nivel.label}</span>
+                <span className="text-xs font-medium ml-2" style={{ color: nivel.color }}>{t(nivel.label)}</span>
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                 {reglas.map(r => (
                   <div key={r.label} className={`flex items-center gap-1 text-xs ${r.ok ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    {r.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />} {r.label}
+                    {r.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />} {t(r.label)}
                   </div>
                 ))}
               </div>
@@ -202,15 +204,15 @@ function AceptarContent() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">Confirmar contraseña</label>
+          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">{t("Confirmar contraseña")}</label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input type={showPwd ? 'text' : 'password'} value={confirmar}
-              onChange={e => setConfirmar(e.target.value)} placeholder="Repite tu contraseña"
+              onChange={e => setConfirmar(e.target.value)} placeholder={t("Repite tu contraseña")}
               className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all" />
           </div>
           {confirmar && password === confirmar && (
-            <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check className="w-3 h-3" /> Coinciden</p>
+            <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check className="w-3 h-3" />  {t("Coinciden")}</p>
           )}
         </div>
 

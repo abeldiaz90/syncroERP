@@ -20,6 +20,7 @@ import {
   Panel, Seleccion, SinDatos,
 } from '@/components/ui';
 
+import { useT } from '@/components/I18nProvider';
 interface FilaCedula {
   codigo: string;
   nombre: string;
@@ -77,6 +78,7 @@ function exportarCsv(cedula: Cedula) {
 }
 
 export default function CedulaPage() {
+  const t = useT();
   const anioActual = new Date().getFullYear();
   const [ejercicio, setEjercicio] = useState(anioActual);
 
@@ -91,8 +93,8 @@ export default function CedulaPage() {
   return (
     <div className="p-6 max-w-[1500px] mx-auto">
       <EncabezadoPantalla
-        titulo="Cédula de depreciación"
-        descripcion="Detalle por activo del ejercicio, para el cierre anual"
+        titulo={t("Cédula de depreciación")}
+        descripcion={t("Detalle por activo del ejercicio, para el cierre anual")}
         acciones={
           (cedula.datos?.filas?.length ?? 0) > 0 ? (
             <>
@@ -101,14 +103,16 @@ export default function CedulaPage() {
                 icono={<FileSpreadsheet className="w-3.5 h-3.5" />}
                 onClick={() => exportarCsv(cedula.datos!)}
               >
-                Exportar
+                
+                {t("Exportar")}
               </Boton>
               <Boton
                 variante="neutro"
                 icono={<Printer className="w-3.5 h-3.5" />}
                 onClick={() => window.print()}
               >
-                Imprimir
+                
+                {t("Imprimir")}
               </Boton>
             </>
           ) : undefined
@@ -117,14 +121,14 @@ export default function CedulaPage() {
 
       {/* Encabezado que sí sale en el papel */}
       <div className="print-header hidden">
-        <h1>Cédula de depreciación · Ejercicio {ejercicio}</h1>
-        <p>Generada el {fecha(new Date())}</p>
+        <h1>{t("Cédula de depreciación · Ejercicio {n0}", { n0: ejercicio })}</h1>
+        <p>{t("Generada el {n0}", { n0: fecha(new Date()) })}</p>
       </div>
 
       <Panel sinRelleno>
         <div className="panel-cabecera no-imprimir">
           <div className="flex items-center gap-2">
-            <span className="text-[12px] text-slate-500">Ejercicio</span>
+            <span className="text-[12px] text-slate-500">{t("Ejercicio")}</span>
             <Seleccion
               value={ejercicio}
               onChange={(e) => setEjercicio(Number(e.target.value))}
@@ -135,19 +139,18 @@ export default function CedulaPage() {
           </div>
           {cedula.datos && (
             <p className="text-[12px] text-slate-500 cifra">
-              {cedula.datos.filas.length} activos · {conMovimiento.length} con depreciación en el ejercicio
-            </p>
+              {t("{n0} activos · {n1} con depreciación en el ejercicio", { n0: cedula.datos.filas.length, n1: conMovimiento.length })}</p>
           )}
         </div>
 
         {cedula.cargando ? (
           <Cargando filas={8} />
         ) : cedula.error ? (
-          <ErrorPantalla mensaje={cedula.error} onReintentar={cedula.recargar} />
+          <ErrorPantalla mensaje={t(cedula.error)} onReintentar={cedula.recargar} />
         ) : (cedula.datos?.filas?.length ?? 0) === 0 ? (
           <SinDatos
             titulo={`Sin activos registrados en ${ejercicio}`}
-            descripcion="Registra activos y ejecuta la corrida de depreciación para que la cédula tenga contenido."
+            descripcion={t("Registra activos y ejecuta la corrida de depreciación para que la cédula tenga contenido.")}
             icono={<Table2 className="w-5 h-5" />}
           />
         ) : (
@@ -155,23 +158,23 @@ export default function CedulaPage() {
             <table className="tabla">
               <thead>
                 <tr>
-                  <th>Código</th>
-                  <th>Activo</th>
-                  <th>Categoría</th>
-                  <th>Adquisición</th>
-                  <th className="text-right">Costo</th>
-                  <th className="text-right">Tasa</th>
-                  <th className="text-right">Dep. anterior</th>
-                  <th className="text-right">Dep. del ejercicio</th>
-                  <th className="text-right">Dep. acumulada</th>
-                  <th className="text-right">Valor en libros</th>
+                  <th>{t("Código")}</th>
+                  <th>{t("Activo")}</th>
+                  <th>{t("Categoría")}</th>
+                  <th>{t("Adquisición")}</th>
+                  <th className="text-right">{t("Costo")}</th>
+                  <th className="text-right">{t("Tasa")}</th>
+                  <th className="text-right">{t("Dep. anterior")}</th>
+                  <th className="text-right">{t("Dep. del ejercicio")}</th>
+                  <th className="text-right">{t("Dep. acumulada")}</th>
+                  <th className="text-right">{t("Valor en libros")}</th>
                 </tr>
               </thead>
               <tbody>
                 {cedula.datos!.filas.map((f) => (
                   <tr key={f.codigo}>
                     <td className="cifra font-semibold text-slate-900">{f.codigo}</td>
-                    <td className="text-slate-800">{f.nombre}</td>
+                    <td className="text-slate-800">{t(f.nombre)}</td>
                     <td className="text-slate-500">{f.categoria}</td>
                     <td className="cifra text-slate-500">{fecha(f.fechaAdquisicion)}</td>
                     <td className="text-right cifra">{dinero(f.costoAdquisicion)}</td>
@@ -191,7 +194,7 @@ export default function CedulaPage() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={4}>Totales del ejercicio {cedula.datos!.ejercicio}</td>
+                  <td colSpan={4}>{t("Totales del ejercicio {n0}", { n0: cedula.datos!.ejercicio })}</td>
                   <td className="text-right cifra">{dinero(cedula.datos!.totales.costoAdquisicion)}</td>
                   <td />
                   <td />

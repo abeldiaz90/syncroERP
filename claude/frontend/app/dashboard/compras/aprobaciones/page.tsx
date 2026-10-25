@@ -11,6 +11,7 @@ import { ProtectedElement } from '@/app/components/ProtectedElement';
 import { FOLIO, folioDe } from '@/lib/folios';
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface IProducto { nombre: string; sku?: string; }
 interface IDetalle { productoId: string; cantidadSolicitada: number; producto?: IProducto; }
 interface IRequisicion {
@@ -184,6 +185,7 @@ const fmtDinero = (n: number) =>
     .format(Number(n || 0));
 
 export default function AprobacionesPage() {
+  const t = useT();
   const [aprobaciones, setAprobaciones] = useState<IAprobacion[]>([]);
   const [adjudicaciones, setAdjudicaciones] = useState<IAdjudicacion[]>([]);
   const [cargando, setCargando]         = useState(true);
@@ -253,8 +255,8 @@ export default function AprobacionesPage() {
       otro fallo sí, porque entonces no se sabe si hay algo esperando.
     */
     const caidas = [
-      !r.ok && r.status !== 403 ? 'las requisiciones' : '',
-      !ra.ok && ra.status !== 403 ? 'las adjudicaciones' : '',
+      !r.ok && r.status !== 403 ? t("las requisiciones") : '',
+      !ra.ok && ra.status !== 403 ? t("las adjudicaciones") : '',
     ].filter(Boolean);
     setErrorCarga(
       caidas.length
@@ -284,8 +286,8 @@ export default function AprobacionesPage() {
      * error sí, porque entonces el historial está incompleto y no se sabe.
      */
     const caidas = [
-      !r.ok && r.status !== 403 ? 'las requisiciones' : '',
-      !ra.ok && ra.status !== 403 ? 'las adjudicaciones' : '',
+      !r.ok && r.status !== 403 ? t("las requisiciones") : '',
+      !ra.ok && ra.status !== 403 ? t("las adjudicaciones") : '',
     ].filter(Boolean);
     setErrorHist(
       caidas.length
@@ -304,7 +306,7 @@ export default function AprobacionesPage() {
 
   const resolver = async (id: string, estado: 'APROBADO' | 'RECHAZADO') => {
     if (estado === 'RECHAZADO' && !comentarios[id]?.trim()) {
-      toast$('Escribe un motivo de rechazo', false); return;
+      toast$(t("Escribe un motivo de rechazo"), false); return;
     }
     setProcesando(id);
     const r = await peticion(`/compras/requisiciones/aprobaciones/${id}`, {
@@ -313,7 +315,7 @@ export default function AprobacionesPage() {
     });
     setProcesando(null);
     if (r.ok) {
-      toast$(estado === 'APROBADO' ? '✓ Requisición aprobada' : '✗ Requisición rechazada', estado === 'APROBADO');
+      toast$(estado === 'APROBADO' ? t("✓ Requisición aprobada") : t("✗ Requisición rechazada"), estado === 'APROBADO');
       setAprobaciones(prev => prev.filter(a => a.id !== id));
       /*
        * Lo que acaba de salir de pendientes pertenece ya al historial. Marcarlo
@@ -339,7 +341,7 @@ export default function AprobacionesPage() {
        */
       const e = await r.json().catch(() => ({}));
       const detalle = Array.isArray(e?.message) ? e.message[0] : e?.message;
-      toast$(detalle ?? 'No se pudo procesar la aprobación', false);
+      toast$(detalle ?? t("No se pudo procesar la aprobación"), false);
     }
   };
 
@@ -355,7 +357,7 @@ export default function AprobacionesPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Compras</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Compras")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
             <Bell className="w-8 h-8 text-indigo-500"/>
             Aprobaciones
@@ -367,14 +369,14 @@ export default function AprobacionesPage() {
           </h1>
           <p className="text-slate-500 text-sm mt-1">
             {pestana === 'pendientes'
-              ? 'Lo que espera tu firma en compras: requisiciones y adjudicaciones de cotización.'
-              : 'Lo que ya firmaste: qué decidiste, cuándo y con qué comentario.'}
+              ? t("Lo que espera tu firma en compras: requisiciones y adjudicaciones de cotización.")
+              : t("Lo que ya firmaste: qué decidiste, cuándo y con qué comentario.")}
           </p>
         </div>
         <button
           onClick={() => (pestana === 'pendientes' ? cargar() : cargarHistorial())}
           className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 shadow-sm"
-          title="Actualizar"
+          title={t("Actualizar")}
         >
           <RefreshCw className="w-4 h-4"/>
         </button>
@@ -383,8 +385,8 @@ export default function AprobacionesPage() {
       {/* Pestañas */}
       <div className="mb-6 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm w-fit">
         {([
-          { id: 'pendientes', texto: 'Pendientes', Icono: Inbox },
-          { id: 'historial',  texto: 'Historial',  Icono: History },
+          { id: 'pendientes', texto: t("Pendientes"), Icono: Inbox },
+          { id: 'historial',  texto: t("Historial"),  Icono: History },
         ] as const).map(({ id, texto, Icono }) => (
           <button
             key={id}
@@ -396,7 +398,7 @@ export default function AprobacionesPage() {
             }`}
           >
             <Icono className="h-4 w-4" />
-            {texto}
+            {t(texto)}
             {id === 'pendientes' && aprobaciones.length + adjudicaciones.length > 0 && (
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
                 pestana === id ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-600'
@@ -419,19 +421,19 @@ export default function AprobacionesPage() {
       ) : cargando ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
-          <p className="text-slate-400 text-sm">Cargando aprobaciones...</p>
+          <p className="text-slate-400 text-sm">{t("Cargando aprobaciones...")}</p>
         </div>
       ) : errorCarga ? (
         <div className="bg-white rounded-2xl border border-rose-200 p-16 text-center">
           <Inbox className="w-16 h-16 text-rose-200 mx-auto mb-4"/>
-          <p className="font-bold text-xl text-rose-700">No se pudo leer la bandeja</p>
+          <p className="font-bold text-xl text-rose-700">{t("No se pudo leer la bandeja")}</p>
           <p className="text-slate-500 text-sm mt-1">{errorCarga}</p>
         </div>
       ) : aprobaciones.length === 0 && adjudicaciones.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <Inbox className="w-16 h-16 text-slate-200 mx-auto mb-4"/>
           <p className="font-bold text-xl text-slate-700">
-            {vedadas.req && vedadas.adj ? 'Esta bandeja no es de tu perfil' : 'Todo al día'}
+            {vedadas.req && vedadas.adj ? t("Esta bandeja no es de tu perfil") : t("Todo al día")}
           </p>
           <p className="text-slate-400 text-sm mt-1">{frasesDelVacio(vedadas)}</p>
         </div>
@@ -444,8 +446,8 @@ export default function AprobacionesPage() {
                 Adjudicaciones de cotización · {adjudicaciones.length}
               </h2>
               <p className="mt-1 text-xs font-semibold text-amber-800">
-                Elegir proveedor se firma viendo las ofertas que compiten, no
-                desde una lista. El enlace abre el comparativo.
+                
+                {t("Elegir proveedor se firma viendo las ofertas que compiten, no desde una lista. El enlace abre el comparativo.")}
               </p>
               <ul className="mt-4 space-y-3">
                 {adjudicaciones.map((item) => {
@@ -474,7 +476,7 @@ export default function AprobacionesPage() {
                   const prov =
                     item.cotizacion.proveedor?.razonSocial?.trim() ||
                     item.cotizacion.proveedor?.nombre?.trim() ||
-                    'Proveedor no disponible';
+                    t("Proveedor no disponible");
                   return (
                     <li
                       key={item.aprobacionId}
@@ -492,15 +494,13 @@ export default function AprobacionesPage() {
                           <p className="text-xs text-slate-500">
                             Adjudicación pedida por{' '}
                             <strong className="font-semibold text-slate-700">
-                              {item.solicitadaPor ?? 'alguien de compras'}
+                              {item.solicitadaPor ?? t("alguien de compras")}
                             </strong>{' '}
                             · Ciclo {item.ciclo} · Nivel {item.nivel}
                           </p>
                           <p className="text-xs text-slate-500">
-                            Requisición de{' '}
-                            {item.cotizacion.requisicion?.usuarioSolicitante
-                              ?.nombreCompleto ?? 'origen no disponible'}
-                          </p>
+                            {t("Requisición de{n0} {n1}", { n0: ' ', n1: item.cotizacion.requisicion?.usuarioSolicitante
+                              ?.nombreCompleto ?? t("origen no disponible") })}</p>
                           {item.motivoSeleccion && (
                             <p className="mt-2 text-xs italic text-slate-600">
                               «{item.motivoSeleccion}»
@@ -520,7 +520,7 @@ export default function AprobacionesPage() {
                                 vencido ? 'text-rose-600' : 'text-slate-500'
                               }`}
                             >
-                              {vencido ? 'SLA excedido' : 'Atender antes de'}{' '}
+                              {vencido ? t("SLA excedido") : t("Atender antes de")}{' '}
                               {new Date(item.fechaVencimiento).toLocaleString('es-MX')}
                             </p>
                           )}
@@ -530,7 +530,7 @@ export default function AprobacionesPage() {
                         href={`/dashboard/compras/cotizaciones/requisicion/${item.cotizacion.requisicionId}`}
                         className="mt-3 inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700"
                       >
-                        <Eye className="h-4 w-4" /> Comparar propuestas y firmar
+                        <Eye className="h-4 w-4" />  {t("Comparar propuestas y firmar")}
                       </Link>
                     </li>
                   );
@@ -559,7 +559,7 @@ export default function AprobacionesPage() {
                   {/* Banda de prioridad */}
                   {req.prioridad === 'URGENTE' && (
                     <div className="bg-red-500 text-white text-[10px] font-black uppercase tracking-widest text-center py-1 flex items-center justify-center gap-2">
-                      <AlertTriangle className="w-3 h-3"/> Requiere atención urgente
+                      <AlertTriangle className="w-3 h-3"/>  {t("Requiere atención urgente")}
                     </div>
                   )}
 
@@ -572,7 +572,7 @@ export default function AprobacionesPage() {
                             {folioDe(req, FOLIO.REQUISICION)}
                           </span>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${prioridadCfg.cls}`}>
-                            {prioridadCfg.label}
+                            {t(prioridadCfg.label)}
                           </span>
                           <span className="text-xs text-slate-400 flex items-center gap-1">
                             <Calendar className="w-3 h-3"/> {fmtFecha(req.fechaSolicitud)}
@@ -600,7 +600,7 @@ export default function AprobacionesPage() {
                       <div className="flex items-center gap-2 shrink-0">
                         <ProtectedElement metodo="GET" ruta="/api/compras/requisiciones/:id">
                           <Link href={`/dashboard/compras/requisiciones/${req.id}`}
-                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title="Ver detalle">
+                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title={t("Ver detalle")}>
                             <Eye className="w-4 h-4"/>
                           </Link>
                         </ProtectedElement>
@@ -615,13 +615,13 @@ export default function AprobacionesPage() {
                     {isExpanded && req.detalles && req.detalles.length > 0 && (
                       <div className="mt-4 rounded-xl border border-slate-200 overflow-hidden">
                         <div className="bg-slate-50 px-4 py-2 border-b border-slate-200">
-                          <p className="text-xs font-bold uppercase text-slate-500">Detalle de productos</p>
+                          <p className="text-xs font-bold uppercase text-slate-500">{t("Detalle de productos")}</p>
                         </div>
                         <table className="w-full text-xs">
                           <thead className="bg-slate-50 border-b border-slate-100">
                             <tr>
-                              <th className="px-4 py-2 text-left font-bold text-slate-500">Producto</th>
-                              <th className="px-4 py-2 text-center font-bold text-slate-500">Cantidad</th>
+                              <th className="px-4 py-2 text-left font-bold text-slate-500">{t("Producto")}</th>
+                              <th className="px-4 py-2 text-center font-bold text-slate-500">{t("Cantidad")}</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
@@ -647,7 +647,7 @@ export default function AprobacionesPage() {
                           <input type="text"
                             value={comentarios[ap.id] ?? ''}
                             onChange={e => setComentarios(prev => ({ ...prev, [ap.id]: e.target.value }))}
-                            placeholder="Comentario (obligatorio si rechazas)..."
+                            placeholder={t("Comentario (obligatorio si rechazas)...")}
                             className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
                         </div>
                         <ProtectedElement metodo="PATCH" ruta="/api/compras/requisiciones/aprobaciones/:id">
@@ -661,7 +661,7 @@ export default function AprobacionesPage() {
                             </button>
                             <button onClick={() => resolver(ap.id, 'RECHAZADO')} disabled={isProcessing}
                               className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-rose-600 text-white font-semibold rounded-xl hover:bg-rose-700 disabled:opacity-50 transition-colors shadow-sm">
-                              <XCircle className="w-4 h-4"/> Rechazar
+                              <XCircle className="w-4 h-4"/>  {t("Rechazar")}
                             </button>
                           </div>
                         </ProtectedElement>
@@ -704,11 +704,12 @@ function HistorialDeFirmas({
   requisiciones: IAprobacionResuelta[];
   adjudicaciones: IAdjudicacionResuelta[];
 }) {
+  const t = useT();
   if (cargando) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
         <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-slate-400 text-sm">Buscando lo que has firmado...</p>
+        <p className="text-slate-400 text-sm">{t("Buscando lo que has firmado...")}</p>
       </div>
     );
   }
@@ -731,8 +732,8 @@ function HistorialDeFirmas({
         <History className="w-16 h-16 text-slate-200 mx-auto mb-4" />
         <p className="font-bold text-xl text-slate-700">
           {vedadas.req && vedadas.adj
-            ? 'Esta bandeja no es de tu perfil'
-            : 'Todavía no has firmado nada'}
+            ? t("Esta bandeja no es de tu perfil")
+            : t("Todavía no has firmado nada")}
         </p>
         <p className="text-slate-400 text-sm mt-1">{frasesDelHistorialVacio(vedadas)}</p>
       </div>
@@ -744,7 +745,7 @@ function HistorialDeFirmas({
       {error && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
           <p className="flex items-center gap-2 text-sm font-semibold text-amber-900">
-            <AlertTriangle className="h-4 w-4" /> {error}
+            <AlertTriangle className="h-4 w-4" /> {t(error)}
           </p>
         </div>
       )}
@@ -762,11 +763,10 @@ function HistorialDeFirmas({
                       {folioDe(ap.requisicion, FOLIO.REQUISICION)}
                     </span>
                     <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${d.cls}`}>
-                      <d.Icono className="h-3 w-3" /> {d.label}
+                      <d.Icono className="h-3 w-3" /> {t(d.label)}
                     </span>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Requisición · nivel {ap.orden}
-                    </span>
+                      {t("Requisición · nivel {n0}", { n0: ap.orden })}</span>
                   </div>
                   <p className="text-sm text-slate-600">
                     Pedida por{' '}
@@ -791,7 +791,7 @@ function HistorialDeFirmas({
                       href={`/dashboard/compras/requisiciones/${ap.requisicion?.id}`}
                       className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800"
                     >
-                      <Eye className="h-3.5 w-3.5" /> Ver documento
+                      <Eye className="h-3.5 w-3.5" />  {t("Ver documento")}
                     </Link>
                   </ProtectedElement>
                 </div>
@@ -805,7 +805,7 @@ function HistorialDeFirmas({
         const prov =
           adj.cotizacion?.proveedor?.razonSocial?.trim() ||
           adj.cotizacion?.proveedor?.nombre?.trim() ||
-          'Proveedor sin nombre capturado';
+          t("Proveedor sin nombre capturado");
         return (
           <article key={`adj-${adj.aprobacionId}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -813,16 +813,15 @@ function HistorialDeFirmas({
                 <div className="mb-1 flex flex-wrap items-center gap-2">
                   <span className="font-black text-slate-900">{prov}</span>
                   <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${d.cls}`}>
-                    <d.Icono className="h-3 w-3" /> {d.label}
+                    <d.Icono className="h-3 w-3" /> {t(d.label)}
                   </span>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Adjudicación · ciclo {adj.ciclo} · nivel {adj.nivel}
-                  </span>
+                    {t("Adjudicación · ciclo {n0} · nivel {n1}", { n0: adj.ciclo, n1: adj.nivel })}</span>
                 </div>
                 <p className="text-sm text-slate-600">
                   Pedida por{' '}
                   <strong className="font-semibold text-slate-800">
-                    {adj.solicitadaPor ?? 'alguien de compras'}
+                    {adj.solicitadaPor ?? t("alguien de compras")}
                   </strong>
                 </p>
                 {/*
@@ -833,8 +832,8 @@ function HistorialDeFirmas({
                 {!adj.resueltaPorMi && (
                   <p className="mt-1 text-xs font-semibold text-amber-700">
                     {adj.estado === 'CANCELADA'
-                      ? 'Se canceló al resolverse otro nivel del mismo ciclo.'
-                      : `Lo resolvió ${adj.resueltaPor ?? 'alguien más'}, no tú.`}
+                      ? t("Se canceló al resolverse otro nivel del mismo ciclo.")
+                      : `Lo resolvió ${adj.resueltaPor ?? t("alguien más")}, no tú.`}
                   </p>
                 )}
                 {adj.comentario && (
@@ -853,11 +852,12 @@ function HistorialDeFirmas({
                     href={`/dashboard/compras/cotizaciones/requisicion/${adj.cotizacion.requisicionId}`}
                     className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800"
                   >
-                    <Eye className="h-3.5 w-3.5" /> Ver comparativo
+                    <Eye className="h-3.5 w-3.5" />  {t("Ver comparativo")}
                   </Link>
                 ) : (
                   <p className="mt-2 text-[11px] font-semibold text-slate-400">
-                    La cotización ya no existe
+                    
+                    {t("La cotización ya no existe")}
                   </p>
                 )}
               </div>

@@ -4,6 +4,7 @@ import { peticion } from '@/lib/api';
 import { fechaLarga, diaISO, mesEnCurso } from '@/lib/fechas';
 import { Scale, Calendar, X, Printer, CheckCircle2, AlertCircle } from 'lucide-react';
 
+import { useT } from '@/components/I18nProvider';
 interface ICuenta {
   id: string; numeroCuenta: string; nombre: string;
   cargos: number; abonos: number; saldoFinal: number;
@@ -40,12 +41,13 @@ const fmt$ = (n: number) =>
   new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN' }).format(Math.abs(n));
 
 export default function BalanceGeneralPage() {
+  const t = useT();
   const [cuentas, setCuentas]         = useState<ICuenta[]>([]);
   const [cargando, setCargando]       = useState(true);
   const RANGOS = useMemo(rangosDeHoy, []);
   const [fechaDesde, setFechaDesde]   = useState(() => RANGOS[2].desde);
   const [fechaHasta, setFechaHasta]   = useState(() => RANGOS[2].hasta);
-  const [rangoActivo, setRangoActivo] = useState('Histórico');
+  const [rangoActivo, setRangoActivo] = useState(t("Histórico"));
   /*
     Un reporte financiero vacío parece un reporte en orden: todo en cero y la
     identidad contable cuadrando sola. La consulta se hacía con `if (res.ok)` y
@@ -72,12 +74,12 @@ export default function BalanceGeneralPage() {
       } else {
         setCuentas([]);
         setError(res.status === 403
-          ? 'Tu perfil no incluye la consulta de el balance general.'
-          : 'No se pudo consultar el balance general. Los importes de esta pantalla no son válidos.');
+          ? t("Tu perfil no incluye la consulta de el balance general.")
+          : t("No se pudo consultar el balance general. Los importes de esta pantalla no son válidos."));
       }
     } catch {
       setCuentas([]);
-      setError('No hay conexión con el servidor. Los importes de esta pantalla no son válidos.');
+      setError(t("No hay conexión con el servidor. Los importes de esta pantalla no son válidos."));
     } finally { setCargando(false); }
   }, [api]);
 
@@ -111,7 +113,7 @@ export default function BalanceGeneralPage() {
   const cuadra       = !error && Math.abs(totalActivo - (totalPasivo + totalCapital)) < 1;
 
   const periodoLabel = rangoActivo === 'Histórico'
-    ? 'Histórico completo'
+    ? t("Histórico completo")
     : `Al ${fmtLabel(fechaHasta)}`;
 
   return (
@@ -120,21 +122,21 @@ export default function BalanceGeneralPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">Reporte Financiero</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-1">{t("Reporte Financiero")}</p>
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <Scale className="w-8 h-8 text-indigo-500" /> Balance General
+            <Scale className="w-8 h-8 text-indigo-500" />  {t("Balance General")}
           </h1>
           <p className="text-slate-500 text-sm mt-1">{periodoLabel}</p>
         </div>
         <button onClick={() => window.print()}
           className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 shadow-sm">
-          <Printer className="w-4 h-4" /> Imprimir
+          <Printer className="w-4 h-4" />  {t("Imprimir")}
         </button>
       </div>
 
       {error && (
         <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          {error}
+          {t(error)}
         </div>
       )}
 
@@ -142,7 +144,7 @@ export default function BalanceGeneralPage() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
           <Calendar className="w-4 h-4 text-indigo-400" />
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Período</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{t("Período")}</span>
         </div>
         <div className="flex flex-wrap gap-2 mb-3">
           {RANGOS.map(r => (
@@ -151,20 +153,21 @@ export default function BalanceGeneralPage() {
                 rangoActivo === r.label
                   ? 'bg-indigo-600 text-white border-indigo-600'
                   : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300'
-              }`}>{r.label}
+              }`}>{t(r.label)}
             </button>
           ))}
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Hasta</label>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t("Hasta")}</label>
             <input type="date" value={fechaHasta}
-              onChange={e => { setFechaHasta(e.target.value); setRangoActivo('Personalizado'); }}
+              onChange={e => { setFechaHasta(e.target.value); setRangoActivo(t("Personalizado")); }}
               className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
-          <button onClick={() => { setRangoActivo('Personalizado'); fetchDatos(fechaDesde, fechaHasta); }}
+          <button onClick={() => { setRangoActivo(t("Personalizado")); fetchDatos(fechaDesde, fechaHasta); }}
             className="px-4 py-1.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700">
-            Aplicar
+            
+            {t("Aplicar")}
           </button>
         </div>
       </div>
@@ -172,7 +175,7 @@ export default function BalanceGeneralPage() {
       {cargando ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-20 text-center">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-slate-400 text-sm">Calculando balance...</p>
+          <p className="text-slate-400 text-sm">{t("Calculando balance...")}</p>
         </div>
       ) : (
         <>
@@ -181,25 +184,25 @@ export default function BalanceGeneralPage() {
             error ? 'bg-slate-100 border-slate-300' : cuadra ? 'bg-emerald-50 border-emerald-300' : 'bg-rose-50 border-rose-300'
           }`}>
             <div className="text-center">
-              <p className="text-xs font-bold uppercase text-slate-500">Activo</p>
+              <p className="text-xs font-bold uppercase text-slate-500">{t("Activo")}</p>
               <p className="text-2xl font-black text-blue-700">{fmt$(totalActivo)}</p>
             </div>
             <span className="text-2xl font-black text-slate-400">=</span>
             <div className="text-center">
-              <p className="text-xs font-bold uppercase text-slate-500">Pasivo</p>
+              <p className="text-xs font-bold uppercase text-slate-500">{t("Pasivo")}</p>
               <p className="text-2xl font-black text-rose-700">{fmt$(totalPasivo)}</p>
             </div>
             <span className="text-2xl font-black text-slate-400">+</span>
             <div className="text-center">
-              <p className="text-xs font-bold uppercase text-slate-500">Capital</p>
+              <p className="text-xs font-bold uppercase text-slate-500">{t("Capital")}</p>
               <p className="text-2xl font-black text-emerald-700">{fmt$(totalCapital)}</p>
             </div>
             <div className="flex items-center gap-2 ml-4">
               {error
-                ? <><AlertCircle className="w-5 h-5 text-slate-500" /><span className="text-sm font-bold text-slate-600">Sin datos: no se pudo consultar</span></>
+                ? <><AlertCircle className="w-5 h-5 text-slate-500" /><span className="text-sm font-bold text-slate-600">{t("Sin datos: no se pudo consultar")}</span></>
                 : cuadra
-                ? <><CheckCircle2 className="w-5 h-5 text-emerald-600" /><span className="text-sm font-bold text-emerald-700">Balance cuadrado</span></>
-                : <><AlertCircle className="w-5 h-5 text-rose-600" /><span className="text-sm font-bold text-rose-700">Descuadrado ${fmt$(Math.abs(totalActivo - totalPasivo - totalCapital))}</span></>
+                ? <><CheckCircle2 className="w-5 h-5 text-emerald-600" /><span className="text-sm font-bold text-emerald-700">{t("Balance cuadrado")}</span></>
+                : <><AlertCircle className="w-5 h-5 text-rose-600" /><span className="text-sm font-bold text-rose-700">{t("Descuadrado ${n0}", { n0: fmt$(Math.abs(totalActivo - totalPasivo - totalCapital)) })}</span></>
               }
             </div>
           </div>
@@ -207,8 +210,8 @@ export default function BalanceGeneralPage() {
           {/* Documento Balance */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="bg-slate-900 text-white px-8 py-5 text-center">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">SyncroERP</p>
-              <p className="text-xl font-black uppercase tracking-wider">Balance General</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">{t("SyncroERP")}</p>
+              <p className="text-xl font-black uppercase tracking-wider">{t("Balance General")}</p>
               <p className="text-sm text-slate-300 mt-1">{periodoLabel}</p>
             </div>
 
@@ -222,14 +225,14 @@ export default function BalanceGeneralPage() {
 
                 {/* Activo Circulante (1xx) */}
                 {activo.length === 0 ? (
-                  <p className="text-sm text-slate-400 italic">Sin cuentas de activo</p>
+                  <p className="text-sm text-slate-400 italic">{t("Sin cuentas de activo")}</p>
                 ) : (
                   <div className="space-y-1.5 mb-4">
                     {activo.map(c => (
                       <div key={c.id} className="flex justify-between text-sm">
                         <span className="text-slate-600">
                           <span className="font-mono text-xs text-slate-400 mr-2">{c.numeroCuenta}</span>
-                          {c.nombre}
+                          {t(c.nombre)}
                         </span>
                         <span className="font-mono font-semibold text-slate-800">{fmt$(c.saldoFinal)}</span>
                       </div>
@@ -238,7 +241,7 @@ export default function BalanceGeneralPage() {
                 )}
 
                 <div className="flex justify-between items-center pt-3 border-t-2 border-blue-600 mt-4">
-                  <span className="text-sm font-black uppercase tracking-wide text-blue-800">Total Activo</span>
+                  <span className="text-sm font-black uppercase tracking-wide text-blue-800">{t("Total Activo")}</span>
                   <span className="font-mono font-black text-lg text-blue-800">{fmt$(totalActivo)}</span>
                 </div>
               </div>
@@ -251,14 +254,14 @@ export default function BalanceGeneralPage() {
                   <h3 className="text-sm font-black uppercase tracking-widest text-rose-700">PASIVO</h3>
                 </div>
                 {pasivo.length === 0 ? (
-                  <p className="text-sm text-slate-400 italic mb-4">Sin cuentas de pasivo</p>
+                  <p className="text-sm text-slate-400 italic mb-4">{t("Sin cuentas de pasivo")}</p>
                 ) : (
                   <div className="space-y-1.5 mb-4">
                     {pasivo.map(c => (
                       <div key={c.id} className="flex justify-between text-sm">
                         <span className="text-slate-600">
                           <span className="font-mono text-xs text-slate-400 mr-2">{c.numeroCuenta}</span>
-                          {c.nombre}
+                          {t(c.nombre)}
                         </span>
                         <span className="font-mono font-semibold text-slate-800">{fmt$(c.saldoFinal)}</span>
                       </div>
@@ -266,20 +269,20 @@ export default function BalanceGeneralPage() {
                   </div>
                 )}
                 <div className="flex justify-between items-center pt-2 border-t border-rose-200 mb-6">
-                  <span className="text-xs font-bold uppercase text-rose-700">Total Pasivo</span>
+                  <span className="text-xs font-bold uppercase text-rose-700">{t("Total Pasivo")}</span>
                   <span className="font-mono font-bold text-rose-700">{fmt$(totalPasivo)}</span>
                 </div>
 
                 {/* CAPITAL */}
                 <div className="border-b-2 border-emerald-600 pb-2 mb-4">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-emerald-700">CAPITAL CONTABLE</h3>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-emerald-700">{t("CAPITAL CONTABLE")}</h3>
                 </div>
                 <div className="space-y-1.5 mb-3">
                   {capital.map(c => (
                     <div key={c.id} className="flex justify-between text-sm">
                       <span className="text-slate-600">
                         <span className="font-mono text-xs text-slate-400 mr-2">{c.numeroCuenta}</span>
-                        {c.nombre}
+                        {t(c.nombre)}
                       </span>
                       <span className="font-mono font-semibold text-slate-800">{fmt$(c.saldoFinal)}</span>
                     </div>
@@ -287,7 +290,8 @@ export default function BalanceGeneralPage() {
                   {/* Utilidad del período (calculada) */}
                   <div className="flex justify-between text-sm">
                     <span className={`italic ${utilidadPeriodo >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                      Utilidad del período
+                      
+                      {t("Utilidad del período")}
                     </span>
                     <span className={`font-mono font-semibold ${utilidadPeriodo >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                       {utilidadPeriodo >= 0 ? '' : '-'}{fmt$(utilidadPeriodo)}
@@ -295,13 +299,13 @@ export default function BalanceGeneralPage() {
                   </div>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-emerald-200 mb-4">
-                  <span className="text-xs font-bold uppercase text-emerald-700">Total Capital</span>
+                  <span className="text-xs font-bold uppercase text-emerald-700">{t("Total Capital")}</span>
                   <span className="font-mono font-bold text-emerald-700">{fmt$(totalCapital)}</span>
                 </div>
 
                 {/* Total Pasivo + Capital */}
                 <div className="flex justify-between items-center pt-3 border-t-2 border-slate-800 mt-2">
-                  <span className="text-sm font-black uppercase tracking-wide text-slate-800">Total Pasivo + Capital</span>
+                  <span className="text-sm font-black uppercase tracking-wide text-slate-800">{t("Total Pasivo + Capital")}</span>
                   <span className="font-mono font-black text-lg text-slate-900">{fmt$(totalPasivo + totalCapital)}</span>
                 </div>
               </div>
@@ -309,7 +313,7 @@ export default function BalanceGeneralPage() {
 
             {/* Footer */}
             <div className="border-t border-slate-100 px-8 py-4 bg-slate-50 flex justify-between">
-              <p className="text-xs text-slate-400">SyncroERP — Generado automáticamente</p>
+              <p className="text-xs text-slate-400">{t("SyncroERP — Generado automáticamente")}</p>
               <p className="text-xs text-slate-400">{new Date().toLocaleString('es-MX')}</p>
             </div>
           </div>

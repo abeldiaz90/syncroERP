@@ -26,6 +26,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, MessageSquareText, ShieldQuestion } from "lucide-react";
 import { Boton, Modal } from "@/components/ui";
+import { useT } from '@/components/I18nProvider';
 
 type Peticion = {
   tipo: "confirmar" | "texto" | "mensaje";
@@ -59,6 +60,7 @@ export async function mensajeElegante(mensaje: string, titulo = "Información") 
 }
 
 export function ProveedorDialogos({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const [peticion, setPeticion] = useState<Peticion | null>(null);
   const [texto, setTexto] = useState("");
   useEffect(() => {
@@ -79,9 +81,9 @@ export function ProveedorDialogos({ children }: { children: React.ReactNode }) {
   };
   return <>
     {children}
-    <Modal abierto={Boolean(peticion)} onCerrar={() => cerrar(peticion?.tipo === "confirmar" ? false : null)} titulo={peticion?.titulo ?? "Confirmar"} ancho={460}
-      pie={<>{peticion?.tipo !== "mensaje" && <Boton onClick={() => cerrar(peticion?.tipo === "confirmar" ? false : null)}>Cancelar</Boton>}<Boton variante={peticion?.peligroso ? "peligro" : "primario"} disabled={peticion?.tipo === "texto" && faltan > 0} onClick={() => cerrar(peticion?.tipo === "texto" ? texto.trim() : true)}>{peticion?.tipo === "texto" ? "Continuar" : peticion?.tipo === "mensaje" ? "Entendido" : "Confirmar"}</Boton></>}>
-      <div className="flex gap-3"><div className={`mt-0.5 rounded-xl p-2 ${peticion?.peligroso ? "bg-rose-50 text-rose-600" : "bg-indigo-50 text-indigo-600"}`}>{peticion?.peligroso ? <AlertTriangle className="h-5 w-5"/> : peticion?.tipo === "texto" ? <MessageSquareText className="h-5 w-5"/> : <ShieldQuestion className="h-5 w-5"/>}</div><div className="min-w-0 flex-1"><p className="text-sm leading-6 text-slate-600">{peticion?.mensaje}</p>{peticion?.tipo === "texto" && <textarea autoFocus className="campo mt-3 min-h-24 w-full py-2" value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={500} placeholder={peticion.obligatorio ? "Escribe el motivo…" : "Comentario opcional…"}/>}{peticion?.tipo === "texto" && faltan > 0 && <p className="mt-1 text-[11px] font-medium text-slate-500">{faltan === 1 ? "Falta 1 carácter" : `Faltan ${faltan} caracteres`} para poder continuar.</p>}</div></div>
+    <Modal abierto={Boolean(peticion)} onCerrar={() => cerrar(peticion?.tipo === "confirmar" ? false : null)} titulo={peticion?.titulo ?? t("Confirmar")} ancho={460}
+      pie={<>{peticion?.tipo !== "mensaje" && <Boton onClick={() => cerrar(peticion?.tipo === "confirmar" ? false : null)}>{t("Cancelar")}</Boton>}<Boton variante={peticion?.peligroso ? "peligro" : "primario"} disabled={peticion?.tipo === "texto" && faltan > 0} onClick={() => cerrar(peticion?.tipo === "texto" ? texto.trim() : true)}>{peticion?.tipo === "texto" ? t("Continuar") : peticion?.tipo === "mensaje" ? t("Entendido") : t("Confirmar")}</Boton></>}>
+      <div className="flex gap-3"><div className={`mt-0.5 rounded-xl p-2 ${peticion?.peligroso ? "bg-rose-50 text-rose-600" : "bg-indigo-50 text-indigo-600"}`}>{peticion?.peligroso ? <AlertTriangle className="h-5 w-5"/> : peticion?.tipo === "texto" ? <MessageSquareText className="h-5 w-5"/> : <ShieldQuestion className="h-5 w-5"/>}</div><div className="min-w-0 flex-1"><p className="text-sm leading-6 text-slate-600">{t(peticion?.mensaje)}</p>{peticion?.tipo === "texto" && <textarea autoFocus className="campo mt-3 min-h-24 w-full py-2" value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={500} placeholder={peticion.obligatorio ? t("Escribe el motivo…") : t("Comentario opcional…")}/>}{peticion?.tipo === "texto" && faltan > 0 && <p className="mt-1 text-[11px] font-medium text-slate-500">{t("{n0} para poder continuar.", { n0: faltan === 1 ? t("Falta 1 carácter") : `Faltan ${faltan} caracteres` })}</p>}</div></div>
     </Modal>
   </>;
 }

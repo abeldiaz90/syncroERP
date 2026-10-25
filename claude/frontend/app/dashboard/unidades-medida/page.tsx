@@ -7,6 +7,7 @@ import { Ruler, Plus, Edit2, Power, X, AlertCircle, CheckCircle2, Sparkles } fro
 import { PuedeCrear, PuedeEditar } from "@/app/components/ProtectedElement";
 import { useCerrarConEscape } from '@/hooks/use-cerrar-con-escape';
 
+import { useT } from '@/components/I18nProvider';
 interface IUnidad {
   id: string;
   nombre: string;
@@ -18,6 +19,7 @@ interface IUnidad {
 const FORM_VACIO = { nombre: "", abreviatura: "", claveSAT: "" };
 
 export default function UnidadesMedidaPage() {
+  const t = useT();
   const [unidades, setUnidades] = useState<IUnidad[]>([]);
   const [cargando, setCargando] = useState(true);
   const [modal, setModal] = useState(false);
@@ -43,9 +45,9 @@ export default function UnidadesMedidaPage() {
         headers: { Authorization: `Bearer ${tok()}` },
       });
       if (res.ok) setUnidades(await res.json());
-      else mostrarToast("Error al cargar las unidades", false);
+      else mostrarToast(t("Error al cargar las unidades"), false);
     } catch {
-      mostrarToast("Error de conexión", false);
+      mostrarToast(t("Error de conexión"), false);
     } finally {
       setCargando(false);
     }
@@ -62,7 +64,7 @@ export default function UnidadesMedidaPage() {
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.nombre.trim()) { mostrarToast("El nombre es obligatorio", false); return; }
+    if (!form.nombre.trim()) { mostrarToast(t("El nombre es obligatorio"), false); return; }
     setGuardando(true);
     const url = editandoId
       ? `/catalogo/unidades-medida/${editandoId}`
@@ -78,10 +80,10 @@ export default function UnidadesMedidaPage() {
         mostrarToast(editandoId ? "Unidad actualizada" : "Unidad creada");
       } else {
         const d = await res.json().catch(() => null);
-        mostrarToast(d?.message || "No se pudo guardar", false);
+        mostrarToast(d?.message || t("No se pudo guardar"), false);
       }
     } catch {
-      mostrarToast("Error de conexión", false);
+      mostrarToast(t("Error de conexión"), false);
     } finally {
       setGuardando(false);
     }
@@ -94,8 +96,8 @@ export default function UnidadesMedidaPage() {
         headers: { Authorization: `Bearer ${tok()}` },
       });
       if (res.ok) { cargar(); mostrarToast(`Unidad ${u.activo ? "desactivada" : "activada"}`); }
-      else mostrarToast("Error al cambiar estado", false);
-    } catch { mostrarToast("Error de conexión", false); }
+      else mostrarToast(t("Error al cambiar estado"), false);
+    } catch { mostrarToast(t("Error de conexión"), false); }
   };
 
   const precargar = async () => {
@@ -108,11 +110,11 @@ export default function UnidadesMedidaPage() {
       const d = await res.json().catch(() => null);
       if (res.ok) {
         mostrarToast(
-          d.creadas > 0 ? `${d.creadas} unidades comunes cargadas.` : "Ya tenías todas las unidades comunes.",
+          d.creadas > 0 ? `${d.creadas} unidades comunes cargadas.` : t("Ya tenías todas las unidades comunes."),
         );
         cargar();
-      } else mostrarToast(d?.message || "No se pudo precargar", false);
-    } catch { mostrarToast("Error de conexión", false); }
+      } else mostrarToast(d?.message || t("No se pudo precargar"), false);
+    } catch { mostrarToast(t("Error de conexión"), false); }
     finally { setPrecargando(false); }
   };
 
@@ -128,14 +130,14 @@ export default function UnidadesMedidaPage() {
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <Ruler className="w-8 h-8 text-indigo-500" /> Unidades de Medida
+            <Ruler className="w-8 h-8 text-indigo-500" />  {t("Unidades de Medida")}
           </h1>
-          <p className="text-slate-500 mt-1">Define cómo se miden tus productos (pieza, kilo, litro…). Incluyen su clave SAT para facturación.</p>
+          <p className="text-slate-500 mt-1">{t("Define cómo se miden tus productos (pieza, kilo, litro…). Incluyen su clave SAT para facturación.")}</p>
         </div>
         <PuedeCrear ruta="/api/catalogo/unidades-medida">
           <button onClick={abrirCrear}
             className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-indigo-700 shadow-sm transition-all">
-            <Plus className="w-5 h-5" /> Nueva Unidad
+            <Plus className="w-5 h-5" />  {t("Nueva Unidad")}
           </button>
         </PuedeCrear>
       </div>
@@ -144,8 +146,8 @@ export default function UnidadesMedidaPage() {
       {!cargando && unidades.length < 3 && (
         <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl p-5 mb-6 flex flex-col sm:flex-row sm:items-center gap-4 shadow-lg">
           <div className="flex-1">
-            <p className="font-bold text-white">Empieza rápido con las unidades comunes</p>
-            <p className="text-indigo-100 text-sm mt-0.5">Cargamos Pieza, Kilogramo, Litro, Caja y más — con su clave SAT lista para facturar.</p>
+            <p className="font-bold text-white">{t("Empieza rápido con las unidades comunes")}</p>
+            <p className="text-indigo-100 text-sm mt-0.5">{t("Cargamos Pieza, Kilogramo, Litro, Caja y más — con su clave SAT lista para facturar.")}</p>
           </div>
           <button onClick={precargar} disabled={precargando}
             className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-indigo-700 font-bold rounded-xl hover:bg-indigo-50 shadow-md transition-colors shrink-0 disabled:opacity-70">
@@ -160,52 +162,53 @@ export default function UnidadesMedidaPage() {
         {cargando ? (
           <div className="p-12 text-center text-slate-400">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            Cargando unidades...
+            
+            {t("Cargando unidades...")}
           </div>
         ) : unidades.length === 0 ? (
           <div className="p-12 text-center">
             <Ruler className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-            <p className="font-semibold text-slate-600">No hay unidades</p>
-            <p className="text-sm text-slate-400 mt-1">Usa "Cargar unidades comunes" o crea una nueva.</p>
+            <p className="font-semibold text-slate-600">{t("No hay unidades")}</p>
+            <p className="text-sm text-slate-400 mt-1">{t("Usa \"Cargar unidades comunes\" o crea una nueva.")}</p>
           </div>
         ) : (
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                <th className="p-4">Unidad</th>
-                <th className="p-4">Abreviatura</th>
-                <th className="p-4">Clave SAT</th>
-                <th className="p-4 text-center w-28">Estado</th>
-                <th className="p-4 text-center w-28">Acciones</th>
+                <th className="p-4">{t("Unidad")}</th>
+                <th className="p-4">{t("Abreviatura")}</th>
+                <th className="p-4">{t("Clave SAT")}</th>
+                <th className="p-4 text-center w-28">{t("Estado")}</th>
+                <th className="p-4 text-center w-28">{t("Acciones")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {unidades.map((u) => (
                 <tr key={u.id} className={`hover:bg-slate-50 ${!u.activo ? "opacity-60" : ""}`}>
-                  <td className="p-4 font-semibold text-slate-900">{u.nombre}</td>
+                  <td className="p-4 font-semibold text-slate-900">{t(u.nombre)}</td>
                   <td className="p-4 text-slate-600">{u.abreviatura || <span className="text-slate-300">—</span>}</td>
                   <td className="p-4">
                     {u.claveSAT
                       ? <span className="font-mono text-xs bg-slate-100 px-2 py-1 rounded">{u.claveSAT}</span>
-                      : <span className="text-slate-300 text-xs">Sin clave</span>}
+                      : <span className="text-slate-300 text-xs">{t("Sin clave")}</span>}
                   </td>
                   <td className="p-4 text-center">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${u.activo ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-slate-100 text-slate-600 border border-slate-200"}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${u.activo ? "bg-emerald-500" : "bg-slate-400"}`} />
-                      {u.activo ? "Activa" : "Inactiva"}
+                      {u.activo ? t("Activa") : t("Inactiva")}
                     </span>
                   </td>
                   <td className="p-4">
                     <div className="flex justify-center gap-2">
                       <PuedeEditar ruta="/api/catalogo/unidades-medida/:id">
-                        <button onClick={() => abrirEditar(u)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Editar">
+                        <button onClick={() => abrirEditar(u)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title={t("Editar")}>
                           <Edit2 className="w-4 h-4" />
                         </button>
                       </PuedeEditar>
                       <PuedeEditar ruta="/api/catalogo/unidades-medida/:id/estado">
                         <button onClick={() => cambiarEstado(u)}
                           className={`p-2 rounded-lg ${u.activo ? "text-rose-600 hover:bg-rose-50" : "text-emerald-600 hover:bg-emerald-50"}`}
-                          title={u.activo ? "Desactivar" : "Activar"}>
+                          title={u.activo ? t("Desactivar") : t("Activar")}>
                           <Power className="w-4 h-4" />
                         </button>
                       </PuedeEditar>
@@ -225,53 +228,54 @@ export default function UnidadesMedidaPage() {
             <div className="flex justify-between items-center p-6 border-b border-slate-100">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <Ruler className="w-5 h-5 text-indigo-500" />
-                {editandoId ? "Editar Unidad" : "Nueva Unidad"}
+                {editandoId ? t("Editar Unidad") : t("Nueva Unidad")}
               </h2>
-              <button aria-label="Cerrar" title="Cerrar" onClick={() => setModal(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full">
+              <button aria-label={t("Cerrar")} title={t("Cerrar")} onClick={() => setModal(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form id="unidad-medida-form" noValidate onSubmit={guardar} className="p-6 space-y-4">
-                <FormValidationGuard formId="unidad-medida-form" labels={{"nombre": "Nombre de la unidad"}} />
+                <FormValidationGuard formId="unidad-medida-form" labels={{"nombre": t("Nombre de la unidad")}} />
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t("Nombre *")}</label>
                 <input type="text" required value={form.nombre}
                   onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                  placeholder="Ej. Pieza, Kilogramo, Litro"
+                  placeholder={t("Ej. Pieza, Kilogramo, Litro")}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Abreviatura</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t("Abreviatura")}</label>
                   <input type="text" value={form.abreviatura}
                     onChange={(e) => setForm({ ...form, abreviatura: e.target.value })}
-                    placeholder="pza, kg, L…" maxLength={10}
+                    placeholder={t("pza, kg, L…")} maxLength={10}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Clave SAT <span className="text-slate-400 font-normal">(CFDI)</span>
+                    Clave SAT <span className="text-slate-400 font-normal">{t("(CFDI)")}</span>
                   </label>
                   <input type="text" value={form.claveSAT}
                     onChange={(e) => setForm({ ...form, claveSAT: e.target.value.toUpperCase() })}
-                    placeholder="H87, KGM, LTR…" maxLength={10}
+                    placeholder={t("H87, KGM, LTR…")} maxLength={10}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono" />
                 </div>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-xs text-blue-800">
-                  <span className="font-bold">Clave SAT:</span> es el código del catálogo oficial (c_ClaveUnidad) que va en tus facturas. Si no lo conoces, déjalo vacío y complétalo después.
+                  <span className="font-bold">{t("Clave SAT:")}</span> es el código del catálogo oficial (c_ClaveUnidad) que va en tus facturas. Si no lo conoces, déjalo vacío y complétalo después.
                 </p>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setModal(false)}
                   className="px-4 py-2 text-slate-700 font-medium hover:bg-slate-200 rounded-lg" disabled={guardando}>
-                  Cancelar
+                  
+                  {t("Cancelar")}
                 </button>
                 <button type="submit" disabled={guardando}
                   className="px-5 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 shadow-sm">
                   {guardando && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                  {guardando ? "Guardando..." : "Guardar"}
+                  {guardando ? t("Guardando...") : t("Guardar")}
                 </button>
               </div>
             </form>

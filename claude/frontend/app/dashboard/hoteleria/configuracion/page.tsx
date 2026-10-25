@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { plural } from '@/lib/format';
 
+import { useT } from '@/components/I18nProvider';
 interface IHotel {
   id: string;
   nombre: string;
@@ -55,6 +56,7 @@ interface IHab {
 type Tab = "hoteles" | "tipos" | "habitaciones" | "dotacion";
 
 export default function ConfiguracionHotelPage() {
+  const t = useT();
   const api =
     process.env.NEXT_PUBLIC_API_URL ||
     (process.env.NODE_ENV === "production"
@@ -165,31 +167,34 @@ export default function ConfiguracionHotelPage() {
       {/* Encabezado */}
       <div className="mb-8">
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-[0.15em] mb-1">
-          Configuración
+          
+          {t("Configuración")}
         </p>
         <h1 className="text-3xl font-semibold text-slate-900 tracking-tight">
-          Propiedades y habitaciones
+          
+          {t("Propiedades y habitaciones")}
         </h1>
         <p className="text-slate-500 mt-1">
-          Da de alta los hoteles de tu cadena, sus tipos de habitación y las
-          habitaciones.
+          
+          {t("Da de alta los hoteles de tu cadena, sus tipos de habitación y las habitaciones.")}
         </p>
       </div>
 
       {/* Pestañas */}
       <div className="flex gap-1 border-b border-slate-200 mb-6">
         {[
-          { k: "hoteles" as Tab, label: "Propiedades", icon: Building2 },
-          { k: "tipos" as Tab, label: "Tipos de habitación", icon: Layers },
-          { k: "habitaciones" as Tab, label: "Habitaciones", icon: LayoutGrid },
-          { k: "dotacion" as Tab, label: "Dotación de insumos", icon: Package },
-        ].map((t) => (
+          { k: "hoteles" as Tab, label: t("Propiedades"), icon: Building2 },
+          { k: "tipos" as Tab, label: t("Tipos de habitación"), icon: Layers },
+          { k: "habitaciones" as Tab, label: t("Habitaciones"), icon: LayoutGrid },
+          { k: "dotacion" as Tab, label: t("Dotación de insumos"), icon: Package },
+        ].map((pestana) => (
           <button
-            key={t.k}
-            onClick={() => setTab(t.k)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.k ? "border-slate-900 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"}`}
+            key={pestana.k}
+            onClick={() => setTab(pestana.k)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === pestana.k ? "border-slate-900 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"}`}
           >
-            <t.icon className="w-4 h-4" /> {t.label}
+            {/* no-se-traduce: la etiqueta ya viene de t("…") */}
+            <pestana.icon className="w-4 h-4" /> {pestana.label}
           </button>
         ))}
       </div>
@@ -197,10 +202,11 @@ export default function ConfiguracionHotelPage() {
       {/* Selector de hotel (para tipos y habitaciones) */}
       {tab !== "hoteles" && (
         <div className="flex items-center gap-2 mb-5">
-          <span className="text-sm text-slate-500">Propiedad:</span>
+          <span className="text-sm text-slate-500">{t("Propiedad:")}</span>
           {hoteles.length === 0 ? (
             <span className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-              Primero crea una propiedad en la pestaña "Propiedades".
+              
+              {t("Primero crea una propiedad en la pestaña \"Propiedades\".")}
             </span>
           ) : (
             <select
@@ -210,7 +216,7 @@ export default function ConfiguracionHotelPage() {
             >
               {hoteles.map((ho) => (
                 <option key={ho.id} value={ho.id}>
-                  {ho.nombre}
+                  {t(ho.nombre)}
                 </option>
               ))}
             </select>
@@ -229,14 +235,14 @@ export default function ConfiguracionHotelPage() {
               }}
               className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-800"
             >
-              <Plus className="w-4 h-4" /> Nueva propiedad
+              <Plus className="w-4 h-4" />  {t("Nueva propiedad")}
             </button>
           </div>
           {hoteles.length === 0 ? (
             <EmptyState
               icon={Hotel}
-              titulo="Sin propiedades"
-              texto="Crea tu primer hotel para empezar."
+              titulo={t("Sin propiedades")}
+              texto={t("Crea tu primer hotel para empezar.")}
             />
           ) : (
             <div className="grid sm:grid-cols-2 gap-3">
@@ -255,12 +261,12 @@ export default function ConfiguracionHotelPage() {
                         setModalHotel(true);
                       }}
                       className="p-2 text-slate-300 hover:text-slate-700 hover:bg-slate-50 rounded-lg"
-                      title="Editar"
+                      title={t("Editar")}
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
                   </div>
-                  <h3 className="font-semibold text-slate-900">{ho.nombre}</h3>
+                  <h3 className="font-semibold text-slate-900">{t(ho.nombre)}</h3>
                   {ho.ciudad && (
                     <p className="text-sm text-slate-500 flex items-center gap-1 mt-1">
                       <MapPin className="w-3 h-3" /> {ho.ciudad}
@@ -273,7 +279,7 @@ export default function ConfiguracionHotelPage() {
                   )}
                   {!ho.almacenId && (
                     <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
-                      <Package className="w-3 h-3" /> Sin almacén asignado
+                      <Package className="w-3 h-3" />  {t("Sin almacén asignado")}
                     </div>
                   )}
                 </div>
@@ -292,34 +298,32 @@ export default function ConfiguracionHotelPage() {
               disabled={!hotelId}
               className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-800 disabled:opacity-50"
             >
-              <Plus className="w-4 h-4" /> Nuevo tipo
+              <Plus className="w-4 h-4" />  {t("Nuevo tipo")}
             </button>
           </div>
           {tipos.length === 0 ? (
             <EmptyState
               icon={Layers}
-              titulo="Sin tipos de habitación"
-              texto="Define tipos como Sencilla, Doble o Suite con su tarifa."
+              titulo={t("Sin tipos de habitación")}
+              texto={t("Define tipos como Sencilla, Doble o Suite con su tarifa.")}
             />
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {tipos.map((t) => (
+              {tipos.map((tipo) => (
                 <div
-                  key={t.id}
+                  key={tipo.id}
                   className="bg-white border border-slate-200 rounded-2xl p-5"
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-semibold text-slate-900">{t.nombre}</h3>
+                    {/* no-se-traduce: el nombre del tipo de habitación lo pone el hotel */}
+                    <h3 className="font-semibold text-slate-900">{tipo.nombre}</h3>
                     <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
-                      {t.capacidad} pers.
-                    </span>
+                      {t("{n0} pers.", { n0: tipo.capacidad })}</span>
                   </div>
                   <p className="text-2xl font-semibold text-slate-900 tabular-nums">
-                    ${Number(t.tarifaBase).toLocaleString()}
+                    ${Number(tipo.tarifaBase).toLocaleString()}
                     <span className="text-sm font-normal text-slate-400">
-                      {" "}
-                      /noche
-                    </span>
+                       /{t("noche")}</span>
                   </p>
                 </div>
               ))}
@@ -337,30 +341,30 @@ export default function ConfiguracionHotelPage() {
               disabled={!hotelId || tipos.length === 0}
               className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-800 disabled:opacity-50"
             >
-              <Plus className="w-4 h-4" /> Agregar habitaciones
+              <Plus className="w-4 h-4" />  {t("Agregar habitaciones")}
             </button>
           </div>
           {tipos.length === 0 ? (
             <EmptyState
               icon={LayoutGrid}
-              titulo="Primero crea tipos de habitación"
-              texto="Necesitas al menos un tipo antes de agregar habitaciones."
+              titulo={t("Primero crea tipos de habitación")}
+              texto={t("Necesitas al menos un tipo antes de agregar habitaciones.")}
             />
           ) : habs.length === 0 ? (
             <EmptyState
               icon={LayoutGrid}
-              titulo="Sin habitaciones"
-              texto="Agrega habitaciones individuales o por lote (ej. 101 a 110)."
+              titulo={t("Sin habitaciones")}
+              texto={t("Agrega habitaciones individuales o por lote (ej. 101 a 110).")}
             />
           ) : (
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400 font-semibold">
-                    <th className="px-5 py-3 text-left">Número</th>
-                    <th className="px-5 py-3 text-left">Tipo</th>
-                    <th className="px-5 py-3 text-left">Piso</th>
-                    <th className="px-5 py-3 text-left">Estado</th>
+                    <th className="px-5 py-3 text-left">{t("Número")}</th>
+                    <th className="px-5 py-3 text-left">{t("Tipo")}</th>
+                    <th className="px-5 py-3 text-left">{t("Piso")}</th>
+                    <th className="px-5 py-3 text-left">{t("Estado")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -394,8 +398,8 @@ export default function ConfiguracionHotelPage() {
         (hoteles.length === 0 ? (
           <EmptyState
             icon={Package}
-            titulo="Primero crea una propiedad"
-            texto="Necesitas un hotel y sus tipos de habitación."
+            titulo={t("Primero crea una propiedad")}
+            texto={t("Necesitas un hotel y sus tipos de habitación.")}
           />
         ) : (
           <DotacionInsumos api={api} h={h} hotelId={hotelId} tipos={tipos} />
@@ -415,7 +419,7 @@ export default function ConfiguracionHotelPage() {
             setModalHotel(false);
             setHotelEdit(null);
             cargarHoteles();
-            mostrar(hotelEdit ? "Propiedad actualizada" : "Propiedad creada");
+            mostrar(hotelEdit ? t("Propiedad actualizada") : t("Propiedad creada"));
           }}
         />
       )}
@@ -428,7 +432,7 @@ export default function ConfiguracionHotelPage() {
           onOk={() => {
             setModalTipo(false);
             cargarTipos();
-            mostrar("Tipo creado");
+            mostrar(t("Tipo creado"));
           }}
         />
       )}
@@ -442,7 +446,7 @@ export default function ConfiguracionHotelPage() {
           onOk={(n: number) => {
             setModalHab(false);
             cargarHabs();
-            mostrar(`${plural(n, 'habitación creada', 'habitaciones creadas')}`);
+            mostrar(`${plural(n, t("habitación creada"), t("habitaciones creadas"))}`);
           }}
         />
       )}
@@ -451,17 +455,19 @@ export default function ConfiguracionHotelPage() {
 }
 
 function EmptyState({ icon: Icon, titulo, texto }: any) {
+  const t = useT();
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
       <Icon className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-      <p className="font-semibold text-slate-700">{titulo}</p>
-      <p className="text-sm text-slate-400 mt-1">{texto}</p>
+      <p className="font-semibold text-slate-700">{t(titulo)}</p>
+      <p className="text-sm text-slate-400 mt-1">{t(texto)}</p>
     </div>
   );
 }
 
 // ── MODAL HOTEL ──
 function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
+  const t = useT();
   const esEdicion = !!hotel;
   const [f, setF] = useState({
     nombre: hotel?.nombre ?? "",
@@ -504,24 +510,24 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
           setAlmacenes(lista);
           setSinAlmacenes(
             Array.isArray(lista) && lista.length === 0
-              ? "No hay almacenes dados de alta. Inventario debe crear uno antes de poder descontar consumos."
+              ? t("No hay almacenes dados de alta. Inventario debe crear uno antes de poder descontar consumos.")
               : "",
           );
           return;
         }
         setSinAlmacenes(
           r.status === 403
-            ? "Tu perfil no puede consultar los almacenes. Pide a Inventario o al administrador que asigne el almacen de insumos."
-            : "No se pudo consultar la lista de almacenes.",
+            ? t("Tu perfil no puede consultar los almacenes. Pide a Inventario o al administrador que asigne el almacen de insumos.")
+            : t("No se pudo consultar la lista de almacenes."),
         );
       } catch {
-        setSinAlmacenes("No se pudo consultar la lista de almacenes.");
+        setSinAlmacenes(t("No se pudo consultar la lista de almacenes."));
       }
     })();
   }, []);
   const guardar = async () => {
     if (!f.nombre.trim()) {
-      setErr("El nombre es obligatorio");
+      setErr(t("El nombre es obligatorio"));
       return;
     }
     setG(true);
@@ -543,22 +549,22 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
   };
   return (
     <Modal
-      titulo={esEdicion ? "Editar propiedad" : "Nueva propiedad"}
+      titulo={esEdicion ? t("Editar propiedad") : t("Nueva propiedad")}
       icon={Hotel}
       onClose={onClose}
     >
       {err && <ErrBox>{err}</ErrBox>}
-      <Field label="Nombre del hotel">
+      <Field label={t("Nombre del hotel")}>
         <input
           autoFocus
           value={f.nombre}
           onChange={(e) => setF({ ...f, nombre: e.target.value })}
-          placeholder="Ej. HYATT Regency Centro"
+          placeholder={t("Ej. HYATT Regency Centro")}
           className={inp}
         />
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Ciudad">
+        <Field label={t("Ciudad")}>
           <input
             value={f.ciudad}
             onChange={(e) => setF({ ...f, ciudad: e.target.value })}
@@ -566,33 +572,33 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
             className={inp}
           />
         </Field>
-        <Field label="Teléfono">
+        <Field label={t("Teléfono")}>
           <input
             value={f.telefono}
             onChange={(e) => setF({ ...f, telefono: e.target.value })}
-            placeholder="Opcional"
+            placeholder={t("Opcional")}
             className={inp}
           />
         </Field>
       </div>
-      <Field label="Dirección">
+      <Field label={t("Dirección")}>
         <input
           value={f.direccion}
           onChange={(e) => setF({ ...f, direccion: e.target.value })}
-          placeholder="Opcional"
+          placeholder={t("Opcional")}
           className={inp}
         />
       </Field>
-      <Field label="Almacén de insumos">
+      <Field label={t("Almacén de insumos")}>
         <select
           value={f.almacenId}
           onChange={(e) => setF({ ...f, almacenId: e.target.value })}
           className={inp}
         >
-          <option value="">— Seleccionar almacén —</option>
+          <option value="">{t("— Seleccionar almacén —")}</option>
           {almacenes.map((a: any) => (
             <option key={a.id} value={a.id}>
-              {a.nombre}
+              {t(a.nombre)}
             </option>
           ))}
         </select>
@@ -603,11 +609,11 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
         </p>
       )}
       <p className="text-xs text-slate-400 -mt-1">
-        De este almacén se descuentan los consumibles y amenidades; los blancos
-        reutilizables no se consumen.
+        
+        {t("De este almacén se descuentan los consumibles y amenidades; los blancos reutilizables no se consumen.")}
       </p>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Hora de check-in">
+        <Field label={t("Hora de check-in")}>
           <input
             type="time"
             value={f.horaCheckIn}
@@ -615,7 +621,7 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
             className={inp}
           />
         </Field>
-        <Field label="Hora de check-out">
+        <Field label={t("Hora de check-out")}>
           <input
             type="time"
             value={f.horaCheckOut}
@@ -625,33 +631,33 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Zona horaria">
+        <Field label={t("Zona horaria")}>
           <select
             value={f.zonaHoraria}
             onChange={(e) => setF({ ...f, zonaHoraria: e.target.value })}
             className={inp}
           >
-            <option value="America/Mexico_City">Centro de México</option>
-            <option value="America/Merida">Sureste</option>
-            <option value="America/Cancun">Quintana Roo</option>
-            <option value="America/Monterrey">Noreste</option>
-            <option value="America/Tijuana">Noroeste</option>
+            <option value="America/Mexico_City">{t("Centro de México")}</option>
+            <option value="America/Merida">{t("Sureste")}</option>
+            <option value="America/Cancun">{t("Quintana Roo")}</option>
+            <option value="America/Monterrey">{t("Noreste")}</option>
+            <option value="America/Tijuana">{t("Noroeste")}</option>
           </select>
         </Field>
-        <Field label="Moneda">
+        <Field label={t("Moneda")}>
           <select
             value={f.moneda}
             onChange={(e) => setF({ ...f, moneda: e.target.value })}
             className={inp}
           >
-            <option>MXN</option>
-            <option>USD</option>
-            <option>EUR</option>
+            <option>{t("MXN")}</option>
+            <option>{t("USD")}</option>
+            <option>{t("EUR")}</option>
           </select>
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="IVA (%)">
+        <Field label={t("IVA (%)")}>
           <input
             type="number"
             min="0"
@@ -662,7 +668,7 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
             className={inp}
           />
         </Field>
-        <Field label="Impuesto hospedaje (%)">
+        <Field label={t("Impuesto hospedaje (%)")}>
           <input
             type="number"
             min="0"
@@ -679,9 +685,9 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
       <div className="space-y-2 rounded-xl bg-slate-50 p-3">
         {(
           [
-            ["preciosIncluyenImpuestos", "Las tarifas ya incluyen impuestos"],
-            ["exigirInventarioDotacion", "Exigir inventario de dotación"],
-            ["permitirSobreventa", "Permitir sobreventa"],
+            ["preciosIncluyenImpuestos", t("Las tarifas ya incluyen impuestos")],
+            ["exigirInventarioDotacion", t("Exigir inventario de dotación")],
+            ["permitirSobreventa", t("Permitir sobreventa")],
           ] as const
         ).map(([key, label]) => (
           <label
@@ -693,11 +699,11 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
               checked={f[key]}
               onChange={(e) => setF({ ...f, [key]: e.target.checked })}
             />
-            {label}
+            {t(label)}
           </label>
         ))}
       </div>
-      <Field label="Política de cancelación">
+      <Field label={t("Política de cancelación")}>
         <textarea
           maxLength={1000}
           value={f.politicaCancelacion}
@@ -706,7 +712,7 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
           rows={2}
         />
       </Field>
-      <Field label="Aviso de privacidad">
+      <Field label={t("Aviso de privacidad")}>
         <textarea
           maxLength={1000}
           value={f.avisoPrivacidad}
@@ -722,20 +728,21 @@ function ModalHotel({ api, h, hotel, onClose, onOk }: any) {
 
 // ── MODAL TIPO ──
 function ModalTipo({ api, h, hotelId, onClose, onOk }: any) {
+  const t = useT();
   const [f, setF] = useState({ nombre: "", capacidad: 2, tarifaBase: 0 });
   const [g, setG] = useState(false);
   const [err, setErr] = useState("");
   const guardar = async () => {
     if (!f.nombre.trim()) {
-      setErr("El nombre es obligatorio");
+      setErr(t("El nombre es obligatorio"));
       return;
     }
     if (f.tarifaBase <= 0) {
-      setErr("La tarifa debe ser mayor a cero");
+      setErr(t("La tarifa debe ser mayor a cero"));
       return;
     }
     if (!hotelId) {
-      setErr("No hay propiedad seleccionada. Cierra y selecciona un hotel.");
+      setErr(t("No hay propiedad seleccionada. Cierra y selecciona un hotel."));
       return;
     }
     setG(true);
@@ -752,19 +759,19 @@ function ModalTipo({ api, h, hotelId, onClose, onOk }: any) {
     setG(false);
   };
   return (
-    <Modal titulo="Nuevo tipo de habitación" icon={Layers} onClose={onClose}>
+    <Modal titulo={t("Nuevo tipo de habitación")} icon={Layers} onClose={onClose}>
       {err && <ErrBox>{err}</ErrBox>}
-      <Field label="Nombre">
+      <Field label={t("Nombre")}>
         <input
           autoFocus
           value={f.nombre}
           onChange={(e) => setF({ ...f, nombre: e.target.value })}
-          placeholder="Ej. Suite, Doble, Sencilla"
+          placeholder={t("Ej. Suite, Doble, Sencilla")}
           className={inp}
         />
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Capacidad (personas)">
+        <Field label={t("Capacidad (personas)")}>
           <input
             type="number"
             min={1}
@@ -773,7 +780,7 @@ function ModalTipo({ api, h, hotelId, onClose, onOk }: any) {
             className={inp}
           />
         </Field>
-        <Field label="Tarifa por noche">
+        <Field label={t("Tarifa por noche")}>
           <input
             type="number"
             min={0}
@@ -790,6 +797,7 @@ function ModalTipo({ api, h, hotelId, onClose, onOk }: any) {
 
 // ── MODAL HABITACIONES (individual o lote) ──
 function ModalHab({ api, h, hotelId, tipos, onClose, onOk }: any) {
+  const t = useT();
   const [modo, setModo] = useState<"individual" | "lote">("lote");
   const [f, setF] = useState({
     tipoHabitacionId: "",
@@ -802,18 +810,18 @@ function ModalHab({ api, h, hotelId, tipos, onClose, onOk }: any) {
   const [err, setErr] = useState("");
   const guardar = async () => {
     if (!f.tipoHabitacionId) {
-      setErr("Selecciona un tipo");
+      setErr(t("Selecciona un tipo"));
       return;
     }
     if (!hotelId) {
-      setErr("No hay propiedad seleccionada. Cierra y selecciona un hotel.");
+      setErr(t("No hay propiedad seleccionada. Cierra y selecciona un hotel."));
       return;
     }
     setG(true);
     try {
       if (modo === "individual") {
         if (!f.numero.trim()) {
-          setErr("Indica el número");
+          setErr(t("Indica el número"));
           setG(false);
           return;
         }
@@ -834,7 +842,7 @@ function ModalHab({ api, h, hotelId, tipos, onClose, onOk }: any) {
         }
       } else {
         if (f.hasta < f.desde) {
-          setErr("El rango es inválido");
+          setErr(t("El rango es inválido"));
           setG(false);
           return;
         }
@@ -858,44 +866,47 @@ function ModalHab({ api, h, hotelId, tipos, onClose, onOk }: any) {
         }
       }
     } catch {
-      setErr("Error de conexión");
+      setErr(t("Error de conexión"));
     }
     setG(false);
   };
   return (
-    <Modal titulo="Agregar habitaciones" icon={LayoutGrid} onClose={onClose}>
+    <Modal titulo={t("Agregar habitaciones")} icon={LayoutGrid} onClose={onClose}>
       {err && <ErrBox>{err}</ErrBox>}
       <div className="flex gap-2 mb-3">
         <button
           onClick={() => setModo("lote")}
           className={`flex-1 py-2 rounded-lg text-sm font-medium ${modo === "lote" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
         >
-          Por lote
+          
+          {t("Por lote")}
         </button>
         <button
           onClick={() => setModo("individual")}
           className={`flex-1 py-2 rounded-lg text-sm font-medium ${modo === "individual" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
         >
-          Individual
+          
+          {t("Individual")}
         </button>
       </div>
-      <Field label="Tipo de habitación">
+      <Field label={t("Tipo de habitación")}>
         <select
           value={f.tipoHabitacionId}
           onChange={(e) => setF({ ...f, tipoHabitacionId: e.target.value })}
           className={inp}
         >
-          <option value="">— Seleccionar —</option>
-          {tipos.map((t: ITipo) => (
-            <option key={t.id} value={t.id}>
-              {t.nombre}
+          <option value="">{t("— Seleccionar —")}</option>
+          {tipos.map((tipo: ITipo) => (
+            <option key={tipo.id} value={tipo.id}>
+              {/* no-se-traduce: el nombre del tipo de habitación lo pone el hotel */}
+              {tipo.nombre}
             </option>
           ))}
         </select>
       </Field>
       {modo === "individual" ? (
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Número">
+          <Field label={t("Número")}>
             <input
               value={f.numero}
               onChange={(e) => setF({ ...f, numero: e.target.value })}
@@ -903,7 +914,7 @@ function ModalHab({ api, h, hotelId, tipos, onClose, onOk }: any) {
               className={inp}
             />
           </Field>
-          <Field label="Piso">
+          <Field label={t("Piso")}>
             <input
               type="number"
               value={f.piso}
@@ -914,7 +925,7 @@ function ModalHab({ api, h, hotelId, tipos, onClose, onOk }: any) {
         </div>
       ) : (
         <>
-          <Field label="Piso">
+          <Field label={t("Piso")}>
             <input
               type="number"
               value={f.piso}
@@ -923,7 +934,7 @@ function ModalHab({ api, h, hotelId, tipos, onClose, onOk }: any) {
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Desde">
+            <Field label={t("Desde")}>
               <input
                 type="number"
                 value={f.desde}
@@ -931,7 +942,7 @@ function ModalHab({ api, h, hotelId, tipos, onClose, onOk }: any) {
                 className={inp}
               />
             </Field>
-            <Field label="Hasta">
+            <Field label={t("Hasta")}>
               <input
                 type="number"
                 value={f.hasta}
@@ -941,9 +952,7 @@ function ModalHab({ api, h, hotelId, tipos, onClose, onOk }: any) {
             </Field>
           </div>
           <p className="text-xs text-slate-400">
-            Se crearán las habitaciones {f.desde} a {f.hasta} (
-            {Math.max(0, f.hasta - f.desde + 1)} en total).
-          </p>
+            {t("Se crearán las habitaciones {n0} a {n1} ( {n2} en total).", { n0: f.desde, n1: f.hasta, n2: Math.max(0, f.hasta - f.desde + 1) })}</p>
         </>
       )}
       <Acciones onClose={onClose} onOk={guardar} g={g} />
@@ -955,6 +964,7 @@ function ModalHab({ api, h, hotelId, tipos, onClose, onOk }: any) {
 const inp =
   "w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:bg-white";
 function Modal({ titulo, icon: Icon, onClose, children }: any) {
+  const t = useT();
   return (
     <div
       className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[70] p-4"
@@ -966,9 +976,9 @@ function Modal({ titulo, icon: Icon, onClose, children }: any) {
       >
         <div className="flex items-center justify-between p-5 border-b border-slate-100">
           <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-            <Icon className="w-5 h-5 text-slate-400" /> {titulo}
+            <Icon className="w-5 h-5 text-slate-400" /> {t(titulo)}
           </h3>
-          <button aria-label="Cerrar" title="Cerrar"
+          <button aria-label={t("Cerrar")} title={t("Cerrar")}
             onClick={onClose}
             className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-50 rounded-full"
           >
@@ -981,10 +991,11 @@ function Modal({ titulo, icon: Icon, onClose, children }: any) {
   );
 }
 function Field({ label, children }: any) {
+  const t = useT();
   return (
     <div>
       <label className="block text-xs font-medium text-slate-500 mb-1">
-        {label}
+        {t(label)}
       </label>
       {children}
     </div>
@@ -998,13 +1009,15 @@ function ErrBox({ children }: any) {
   );
 }
 function Acciones({ onClose, onOk, g }: any) {
+  const t = useT();
   return (
     <div className="flex justify-end gap-2 pt-2">
       <button
         onClick={onClose}
         className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg"
       >
-        Cancelar
+        
+        {t("Cancelar")}
       </button>
       <button
         onClick={onOk}
